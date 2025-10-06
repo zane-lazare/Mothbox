@@ -1,4 +1,9 @@
 #!/usr/bin/python3
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CAMERA_SETTINGS_FILE, CONTROLS_FILE
+
 import time
 from picamera2 import Picamera2, Preview
 from libcamera import controls
@@ -127,7 +132,7 @@ def load_camera_settings(filename):
         return None
 
 
-control_values = get_control_values("/home/pi/Desktop/Mothbox/controls.txt")
+control_values = get_control_values(str(CONTROLS_FILE))
 onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
 if(onlyflash):
     print("operating in always on flash mode")
@@ -150,8 +155,8 @@ picam2.configure(capture_config)
 print(picam2.camera_controls["AnalogueGain"])
 min_gain, max_gain, default_gain = picam2.camera_controls["AnalogueGain"]
 '''
-#camera_settings = load_camera_settings("camera_settings.csv")#CRONTAB CAN'T TAKE RELATIVE LINKS! 
-camera_settings = load_camera_settings("/home/pi/Desktop/Mothbox/camera_settings.csv")
+#camera_settings = load_camera_settings("camera_settings.csv")#CRONTAB CAN'T TAKE RELATIVE LINKS!
+camera_settings = load_camera_settings(str(CAMERA_SETTINGS_FILE))
 
 
 
@@ -240,7 +245,7 @@ def takePhoto_Manual():
     #timestamp = now.strftime("%y%m%d%H%M%S")
     print(timestamp)
     #save the image
-    folderPath= "/home/pi/Desktop/Mothbox/photos/" #can't use relative directories with cron
+    folderPath= str(PHOTOS_DIR) + "/" #can't use relative directories with cron
     filepath = folderPath+"ManFocus_"+computerName+"_"+timestamp+".jpg"
     
     #for YUV conversion

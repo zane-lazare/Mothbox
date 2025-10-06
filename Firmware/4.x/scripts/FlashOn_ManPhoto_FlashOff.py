@@ -1,4 +1,9 @@
 #!/usr/bin/python3
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CAMERA_SETTINGS_FILE, CONTROLS_FILE
+
 import time
 from picamera2 import Picamera2, Preview
 from libcamera import controls
@@ -113,7 +118,7 @@ def takePhoto_Manual():
 
 
     #save the image
-    folderPath= "/home/pi/Desktop/Mothbox/photos/" #can't use relative directories with cron
+    folderPath= str(PHOTOS_DIR) + "/" #can't use relative directories with cron
     filepath = folderPath+"ManFocus_"+computerName+"_"+timestamp+".jpg"
     
     #for YUV conversion
