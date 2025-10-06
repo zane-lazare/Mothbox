@@ -20,13 +20,16 @@ Note:
     This script assumes the user running the script has read and write permissions to the desktop and any external storage devices.
     You might need to adjust the user name in desktop_path depending on your Raspberry Pi setup.
 """
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import CONTROLS_FILE, get_script_path
+
 import os
 import subprocess
 import shutil
 import psutil
-from pathlib import Path
 from datetime import datetime
-import sys
 
 # Define paths
 desktop_path = Path(

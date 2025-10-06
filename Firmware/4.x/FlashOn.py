@@ -1,6 +1,11 @@
 #!/usr/bin/python3
 #For MothboxPCB
 
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import CONTROLS_FILE, get_script_path
+
 #GPIO
 import RPi.GPIO as GPIO
 import time

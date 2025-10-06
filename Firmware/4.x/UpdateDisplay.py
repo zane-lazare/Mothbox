@@ -9,7 +9,11 @@ and then power off the display
 leaving a 0 power high contrast display to view in the field.
 
 """
+from pathlib import Path
 import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import CONTROLS_FILE, get_script_path
+
 import os
 picdir = "/home/pi/Desktop/Mothbox/scripts/RaspberryPi_JetsonNano_Epaper/pic"
 #picdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'pic')
@@ -122,8 +126,7 @@ free_gb = free // (2**30)
 
 
 ### Mothbox Name
-control_values_fpath = "/home/pi/Desktop/Mothbox/controls.txt"
-control_values = get_control_values(control_values_fpath)
+control_values = get_control_values(str(CONTROLS_FILE))
 onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
 LastCalibration = float(control_values.get("LastCalibration", 0))
 computerName = control_values.get("name", "errorname")
