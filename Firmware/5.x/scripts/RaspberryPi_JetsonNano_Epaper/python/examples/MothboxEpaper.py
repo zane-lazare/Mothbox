@@ -1,16 +1,21 @@
 #!/usr/bin/python
 # -*- coding:utf-8 -*-
+
+from pathlib import Path
 import sys
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent.parent))
+from mothbox_paths import MOTHBOX_HOME
+
 import os
 picdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'pic')
 libdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'lib')
 print("hi")
 if os.path.exists(libdir):
-    sys.path.append("/home/pi/Desktop/Mothbox/scripts/RaspberryPi_JetsonNano_Epaper/lib")
+    sys.path.append(str(MOTHBOX_HOME / "scripts/RaspberryPi_JetsonNano_Epaper/lib"))
 
 import logging
 #from waveshare_epd import epd2in13b_V4
-import "/home/pi/Desktop/Mothbox/scripts/RaspberryPi_JetsonNano_Epaper/epd2in13_V4.py"
+import str(MOTHBOX_HOME / "scripts/RaspberryPi_JetsonNano_Epaper/epd2in13_V4.py")
 import time
 from PIL import Image,ImageDraw,ImageFont
 import traceback
