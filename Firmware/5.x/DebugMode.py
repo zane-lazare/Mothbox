@@ -11,7 +11,7 @@ This is a special script to debug mothboxes with which will
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import CONTROLS_FILE
+from mothbox_paths import CONTROLS_FILE, get_script_path
 
 import subprocess
 
@@ -90,8 +90,8 @@ AttractOff()
 ## STOP THE INTERNET FROM STOPPING
 print("----------------- KEEP INTERNET ON-------------------")
 
-# Define the path to your script (replace 'path/to/script' with the actual path)
-script_path = "/home/pi/Desktop/Mothbox/scripts/MothPower/stop_lowpower.sh"
+# Define the path to your script
+script_path = str(get_script_path("scripts/MothPower/stop_lowpower.sh"))
 
 # Call the script using subprocess.run
 subprocess.run([script_path])

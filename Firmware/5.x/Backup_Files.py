@@ -27,14 +27,14 @@ import psutil
 from pathlib import Path
 from datetime import datetime
 import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import CONTROLS_FILE, MOTHBOX_HOME, DATA_DIR, get_script_path
 
 # Define paths
-desktop_path = Path(
-    "/home/pi/Desktop/Mothbox"
-)  # Assuming user is "pi" on your Raspberry Pi
-photos_folder = desktop_path / "photos"
-logs_folder = desktop_path / "logs"
-backedup_photos_folder = desktop_path / "photos_backedup"
+desktop_path = MOTHBOX_HOME
+photos_folder = DATA_DIR / "photos"
+logs_folder = DATA_DIR / "logs"
+backedup_photos_folder = DATA_DIR / "photos_backedup"
 
 backup_folder_name = "photos_backup"
 internal_storage_minimum = 8 # This is Gigabytes, below 6 on a raspberry pi 5 can make weird OS problems

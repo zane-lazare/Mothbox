@@ -51,15 +51,12 @@ def FlashOn():
     print("Flash Lights On\n")
     
 def FlashOff():
-    
+
     GPIO.output(Relay_Ch2,GPIO.HIGH)
 
     print("Flash Lights Off\n")
 
 
-#control_values = get_control_values("/home/pi/Desktop/Mothbox/controls.txt")
-#onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
 FlashOn()
-#AttractOff()
 
 
