@@ -3,7 +3,7 @@
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import CONTROLS_FILE
+from mothbox_paths import CONTROLS_FILE, get_hardware_config
 
 from gps import *
 import time
@@ -13,13 +13,20 @@ import select
 from timezonefinder import TimezoneFinder
 from zoneinfo import ZoneInfo
 
+# Load hardware configuration
+hw_config = get_hardware_config()
+
+if not hw_config['gps_enabled']:
+    print("GPS disabled in configuration")
+    quit()
+
 gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
 UTCtime = None
 latitude = None
 longitude = None
 start_time = time.time()
 tf = TimezoneFinder()
-timeout=10
+timeout = hw_config['gps_timeout']
 
 start_time = time.time()
 tf = TimezoneFinder()

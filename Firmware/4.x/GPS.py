@@ -11,7 +11,14 @@ import sys
 
 # Add parent directory to path to import mothbox_paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import CONTROLS_FILE
+from mothbox_paths import CONTROLS_FILE, get_hardware_config
+
+# Load hardware configuration
+hw_config = get_hardware_config()
+
+if not hw_config['gps_enabled']:
+    print("GPS disabled in configuration")
+    quit()
 
 gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
 UTCtime = None
@@ -19,7 +26,7 @@ latitude = None
 longitude = None
 start_time = time.time()
 tf = TimezoneFinder()
-timeout=10
+timeout = hw_config['gps_timeout']
 
 start_time = time.time()
 tf = TimezoneFinder()
