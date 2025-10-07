@@ -13,7 +13,7 @@ leaving a 0 power high contrast display to view in the field.
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import CONTROLS_FILE, MOTHBOX_HOME
+from mothbox_paths import CONTROLS_FILE, MOTHBOX_HOME, get_hardware_config
 
 import os
 picdir = str(MOTHBOX_HOME / "scripts/RaspberryPi_JetsonNano_Epaper/pic")
@@ -128,6 +128,7 @@ free_gb = free // (2**30)
 
 ### Mothbox Name
 control_values = get_control_values(str(CONTROLS_FILE))
+hw_config = get_hardware_config()
 onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
 LastCalibration = float(control_values.get("LastCalibration", 0))
 computerName = control_values.get("name", "errorname")
@@ -164,42 +165,42 @@ import time
 
 # I2C bus (1 for modern Raspberry Pi boards)
 I2C_BUS = 1
-I2C_ADDR = 0x40  # INA219 default address
+I2C_ADDR = hw_config['ina260_address']  # Use configured address (INA219/INA260 compatible)
 
 # Register addresses for INA219
 REG_BUS_VOLTAGE = 0x02
 
-bus = smbus2.SMBus(I2C_BUS)
+if hw_config['ina260_enabled']:
+    bus = smbus2.SMBus(I2C_BUS)
 
-def read_voltage():
-    # Read 2 bytes from the bus voltage register
-    raw = bus.read_word_data(I2C_ADDR, REG_BUS_VOLTAGE)
+    def read_voltage():
+        # Read 2 bytes from the bus voltage register
+        raw = bus.read_word_data(I2C_ADDR, REG_BUS_VOLTAGE)
 
-    # Swap byte order (INA219 returns LSB/MSB swapped on Raspberry Pi)
-    raw = ((raw & 0xFF) << 8) | (raw >> 8)
+        # Swap byte order (INA219 returns LSB/MSB swapped on Raspberry Pi)
+        raw = ((raw & 0xFF) << 8) | (raw >> 8)
 
-    # Shift to remove CNVR and OVF bits
-    raw >>= 3
+        # Shift to remove CNVR and OVF bits
+        raw >>= 3
 
-    # Each bit = 4 mV
-    voltage = raw * 0.004
-    return voltage
+        # Each bit = 4 mV
+        voltage = raw * 0.004
+        return voltage
 
-##########################
+    ##########################
 
-
-
-
-try:
-    #i2c = board.I2C()  # uses board.SCL and board.SDA
-    # i2c = board.STEMMA_I2C()  # For using the built-in STEMMA QT connector on a microcontroller
-    #ina260 = adafruit_ina260.INA260(i2c)
-    voltage=read_voltage()
-    #print("Current: %.2f mA Voltage: %.2f V Power:%.2f mW " % (ina260.current, ina260.voltage, ina260.power))
-    print("voltage = " +str(voltage))
-except (OSError, ValueError) as e:
-    # Handle exceptions like sensor not connected or communication errors
-    print("Sensor NOT CONNECTED  ")
+    try:
+        #i2c = board.I2C()  # uses board.SCL and board.SDA
+        # i2c = board.STEMMA_I2C()  # For using the built-in STEMMA QT connector on a microcontroller
+        #ina260 = adafruit_ina260.INA260(i2c)
+        voltage=read_voltage()
+        #print("Current: %.2f mA Voltage: %.2f V Power:%.2f mW " % (ina260.current, ina260.voltage, ina260.power))
+        print("voltage = " +str(voltage))
+    except (OSError, ValueError) as e:
+        # Handle exceptions like sensor not connected or communication errors
+        print("Sensor NOT CONNECTED  ")
+else:
+    print("INA260/INA219 sensor disabled in configuration")
     
 maxvoltage=12.4
 minvoltage=9.8
