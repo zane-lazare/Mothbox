@@ -27,6 +27,7 @@ import psutil
 from pathlib import Path
 from datetime import datetime
 import sys
+import getpass
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from mothbox_paths import CONTROLS_FILE, MOTHBOX_HOME, DATA_DIR, get_script_path
 
@@ -69,8 +70,15 @@ def find_largest_external_storage():
     largest_storage = None
     largest_size = 0
 
-    for mount_point in os.listdir("/media/pi"):
-        path = Path(f"/media/pi/{mount_point}")
+    # Detect current user instead of hardcoding 'pi'
+    current_user = getpass.getuser()
+    media_path = Path(f"/media/{current_user}")
+
+    if not media_path.exists():
+        return None
+
+    for mount_point in os.listdir(media_path):
+        path = media_path / mount_point
         # Check if the mount point is actually mounted
         if is_mounted(path):
             if path.is_dir():
@@ -452,11 +460,15 @@ if __name__ == "__main__":
   """
     disks = {}  # Dictionary to store disk name and capacity
     # Check potential mount points for external drives (adjust based on your system)
-    for mount_point in os.listdir("/media/pi"):
-        path = Path(f"/media/pi/{mount_point}")
-        if path.is_dir() and is_mounted(path):
-            total_size, available_size = get_storage_info(path)
-            disks[path] = total_size, available_size
+    current_user = getpass.getuser()
+    media_path = Path(f"/media/{current_user}")
+
+    if media_path.exists():
+        for mount_point in os.listdir(media_path):
+            path = media_path / mount_point
+            if path.is_dir() and is_mounted(path):
+                total_size, available_size = get_storage_info(path)
+                disks[path] = total_size, available_size
 
     # Sort disks by capacity (descending)
     # Check if any disks were found before sorting and printing

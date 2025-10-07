@@ -91,7 +91,7 @@ AttractOff()
 print("----------------- KEEP INTERNET ON-------------------")
 
 # Define the path to your script (replace 'path/to/script' with the actual path)
-script_path = "/home/pi/Desktop/Mothbox/scripts/MothPower/stop_lowpower.sh"
+script_path = str(get_script_path("scripts/MothPower/stop_lowpower.sh"))
 
 # Call the script using subprocess.run
 subprocess.run([script_path])

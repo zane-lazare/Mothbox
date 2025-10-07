@@ -12,13 +12,13 @@ leaving a 0 power high contrast display to view in the field.
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import CONTROLS_FILE, get_script_path
+from mothbox_paths import CONTROLS_FILE, MOTHBOX_HOME, get_script_path
 
 import os
-picdir = "/home/pi/Desktop/Mothbox/scripts/RaspberryPi_JetsonNano_Epaper/pic"
+picdir = str(MOTHBOX_HOME / "scripts/RaspberryPi_JetsonNano_Epaper/pic")
 #picdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'pic')
 libdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'lib')
-sys.path.append("/home/pi/Desktop/Mothbox/scripts/RaspberryPi_JetsonNano_Epaper/lib")
+sys.path.append(str(MOTHBOX_HOME / "scripts/RaspberryPi_JetsonNano_Epaper/lib"))
 
 import shutil
 
@@ -191,21 +191,21 @@ try:
     # Drawing on the image
     font15 = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), 15)
     font24 = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), 24)
-    font10 = ImageFont.truetype('/home/pi/Desktop/Mothbox/graphics/fonts/Roboto/static/Roboto-Bold.ttf', 10)
-    font7 = ImageFont.truetype('/home/pi/Desktop/Mothbox/graphics/fonts/Roboto/static/Roboto-Bold.ttf', 7)
+    font10 = ImageFont.truetype(str(MOTHBOX_HOME / 'graphics/fonts/Roboto/static/Roboto-Bold.ttf'), 10)
+    font7 = ImageFont.truetype(str(MOTHBOX_HOME / 'graphics/fonts/Roboto/static/Roboto-Bold.ttf'), 7)
 
-    font_bigs=ImageFont.truetype('/home/pi/Desktop/Mothbox/graphics/fonts/bigshoulders/BigShoulders-Bold.ttf',12)
-    #font_josans= ImageFont.truetype('/home/pi/Desktop/Mothbox/graphics/fonts/josans/JosefinSans-Medium.ttf',15)
-    #font_space= ImageFont.truetype('/home/pi/Desktop/Mothbox/graphics/fonts/Space_Grotesk/static/SpaceGrotesk-Medium.ttf',15)
-    #font_robotomono= ImageFont.truetype('/home/pi/Desktop/Mothbox/graphics/fonts/Roboto_Mono/static/RobotoMono-Medium.ttf',15)
-    #font_silk=ImageFont.truetype('/home/pi/Desktop/Mothbox/graphics/fonts/Silkscreen/Silkscreen-Regular.ttf',15)
-    #font_robotoslab=ImageFont.truetype('/home/pi/Desktop/Mothbox/graphics/fonts/Roboto_Slab/static/RobotoSlab-Regular.ttf',15)
-    #font_robotosemicon=ImageFont.truetype('/home/pi/Desktop/Mothbox/graphics/fonts/Roboto/static/Roboto_SemiCondensed-Regular.ttf',15)
-    font_robotosemicon10=ImageFont.truetype('/home/pi/Desktop/Mothbox/graphics/fonts/Roboto/static/Roboto_SemiCondensed-Bold.ttf',11)
-    font_roboto=ImageFont.truetype('/home/pi/Desktop/Mothbox/graphics/fonts/Roboto/static/Roboto-Regular.ttf',16)
-    font_roboto15=ImageFont.truetype('/home/pi/Desktop/Mothbox/graphics/fonts/Roboto/static/Roboto-Regular.ttf',15)
+    font_bigs=ImageFont.truetype(str(MOTHBOX_HOME / 'graphics/fonts/bigshoulders/BigShoulders-Bold.ttf'),12)
+    #font_josans= ImageFont.truetype(str(MOTHBOX_HOME / 'graphics/fonts/josans/JosefinSans-Medium.ttf'),15)
+    #font_space= ImageFont.truetype(str(MOTHBOX_HOME / 'graphics/fonts/Space_Grotesk/static/SpaceGrotesk-Medium.ttf'),15)
+    #font_robotomono= ImageFont.truetype(str(MOTHBOX_HOME / 'graphics/fonts/Roboto_Mono/static/RobotoMono-Medium.ttf'),15)
+    #font_silk=ImageFont.truetype(str(MOTHBOX_HOME / 'graphics/fonts/Silkscreen/Silkscreen-Regular.ttf'),15)
+    #font_robotoslab=ImageFont.truetype(str(MOTHBOX_HOME / 'graphics/fonts/Roboto_Slab/static/RobotoSlab-Regular.ttf'),15)
+    #font_robotosemicon=ImageFont.truetype(str(MOTHBOX_HOME / 'graphics/fonts/Roboto/static/Roboto_SemiCondensed-Regular.ttf'),15)
+    font_robotosemicon10=ImageFont.truetype(str(MOTHBOX_HOME / 'graphics/fonts/Roboto/static/Roboto_SemiCondensed-Bold.ttf'),11)
+    font_roboto=ImageFont.truetype(str(MOTHBOX_HOME / 'graphics/fonts/Roboto/static/Roboto-Regular.ttf'),16)
+    font_roboto15=ImageFont.truetype(str(MOTHBOX_HOME / 'graphics/fonts/Roboto/static/Roboto-Regular.ttf'),15)
 
-    font_roboto10=ImageFont.truetype('/home/pi/Desktop/Mothbox/graphics/fonts/Roboto/static/Roboto-Regular.ttf',10)
+    font_roboto10=ImageFont.truetype(str(MOTHBOX_HOME / 'graphics/fonts/Roboto/static/Roboto-Regular.ttf'),10)
 
     logging.info("E-paper refresh")
     epd.init()
