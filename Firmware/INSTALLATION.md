@@ -43,8 +43,8 @@ export MOTHBOX_HOME=/your/custom/path
 
 The installation script automatically:
 - Detects your Raspberry Pi model (Pi 4 or Pi 5)
+- Lets you choose firmware version (4.x or 5.x) based on your hardware
 - Installs all system and Python dependencies
-- Configures appropriate firmware version
 - Sets up directory structure
 
 1. **Clone the repository:**
@@ -61,9 +61,10 @@ The installation script automatically:
 
    The script will:
    - Detect if you have Pi 4 or Pi 5
+   - Prompt you to select firmware version (4.x or 5.x)
    - Install system packages (python3-picamera2, etc.)
    - Install Python dependencies (opencv-python, RPi.GPIO, etc.)
-   - Copy appropriate firmware (4.x or 5.x)
+   - Copy selected firmware files
    - Create directories and set permissions
 
 3. **Configure your Mothbox:**
@@ -250,13 +251,39 @@ The installation script automatically installs all required dependencies:
 
 **Note on GPIO Library:** Mothbox uses `rpi-lgpio` instead of the older `RPi.GPIO` library. This provides full compatibility with both Raspberry Pi 4 and Pi 5, as Pi 5 uses a new GPIO architecture (RP1 chip) that requires the modern `lgpio` backend. The `rpi-lgpio` package provides the exact same API as `RPi.GPIO`, so all existing code works without modification.
 
-### Raspberry Pi Model Detection
+### Raspberry Pi Model Detection and Firmware Selection
 
 The installation script automatically detects your Pi model:
 - Reads `/proc/cpuinfo` to identify Pi 4 or Pi 5
-- Selects appropriate firmware version (4.x or 5.x)
+- Recommends appropriate firmware version (4.x or 5.x)
+- **Allows you to choose firmware version interactively**
 - Copies correct configuration files
 - Optimizes camera settings for your hardware
+
+**Choosing Firmware Version:**
+
+Both firmware versions (4.x and 5.x) work on both Pi 4 and Pi 5. The difference is in GPIO pin mappings for relay control:
+
+- **4.x firmware:** Uses GPIO pins 26/20/21 for relays (legacy hardware)
+- **5.x firmware:** Uses GPIO pins 5/19/9 for relays (current hardware)
+
+During installation, you'll see:
+```
+Detected: Raspberry Pi 5
+Recommended firmware: 5.x
+
+Firmware versions use different GPIO pin mappings:
+  4.x firmware: Relay pins 26/20/21 (legacy)
+  5.x firmware: Relay pins 5/19/9 (current hardware)
+
+Select firmware version:
+  1) 4.x firmware
+  2) 5.x firmware
+
+Choice [2]:
+```
+
+Choose based on your actual hardware configuration, not just your Pi model.
 
 ### Camera Configuration
 
