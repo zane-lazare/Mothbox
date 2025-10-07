@@ -12,7 +12,7 @@ leaving a 0 power high contrast display to view in the field.
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import CONTROLS_FILE, MOTHBOX_HOME, get_script_path
+from mothbox_paths import CONTROLS_FILE, MOTHBOX_HOME, get_script_path, get_hardware_config
 
 import os
 picdir = str(MOTHBOX_HOME / "scripts/RaspberryPi_JetsonNano_Epaper/pic")

@@ -18,13 +18,18 @@ Directory Structure Options:
    - Any location via MOTHBOX_HOME environment variable
 
 Usage:
-    from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CONFIG_DIR, get_gpio_pins
+    from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CONFIG_DIR, get_gpio_pins, get_hardware_config
 
     camera_settings_path = CONFIG_DIR / "camera_settings.csv"
 
     # Load GPIO pin configuration
     pins = get_gpio_pins()
     Relay_Ch1 = pins['Relay_Ch1']
+
+    # Load all hardware configuration
+    hw_config = get_hardware_config()
+    if hw_config['ina260_enabled']:
+        # Initialize INA260 sensor
 """
 
 import os
@@ -115,6 +120,166 @@ def get_gpio_pins():
     except (FileNotFoundError, ValueError, KeyError):
         # Fallback to defaults if file not found or parse error
         return {'Relay_Ch1': 26, 'Relay_Ch2': 20, 'Relay_Ch3': 21}
+
+
+def get_epaper_pins():
+    """
+    Load e-paper display GPIO pin configuration from controls.txt.
+
+    Returns:
+        dict: E-paper GPIO pin mappings
+
+    Note:
+        Default pins for Waveshare 2.13" e-paper display:
+            RST_PIN=17, DC_PIN=25, CS_PIN=8, BUSY_PIN=24, PWR_PIN=18
+    """
+    try:
+        config = get_control_values(CONTROLS_FILE)
+        return {
+            'RST_PIN': int(config.get('epaper_rst_pin', '17')),
+            'DC_PIN': int(config.get('epaper_dc_pin', '25')),
+            'CS_PIN': int(config.get('epaper_cs_pin', '8')),
+            'BUSY_PIN': int(config.get('epaper_busy_pin', '24')),
+            'PWR_PIN': int(config.get('epaper_pwr_pin', '18')),
+        }
+    except (FileNotFoundError, ValueError, KeyError):
+        return {
+            'RST_PIN': 17,
+            'DC_PIN': 25,
+            'CS_PIN': 8,
+            'BUSY_PIN': 24,
+            'PWR_PIN': 18,
+        }
+
+
+def get_mux_pins():
+    """
+    Load multiplexer GPIO pin configuration from controls.txt.
+
+    Returns:
+        dict: Multiplexer GPIO pin mappings (BOARD mode)
+
+    Note:
+        Default pins for CD74HC4067 dual multiplexer setup:
+            EN_A=31, EN_B=29, S0=33, S1=13, S2=12, S3=15, SIG=36
+    """
+    try:
+        config = get_control_values(CONTROLS_FILE)
+        return {
+            'EN_A': int(config.get('mux_en_a', '31')),
+            'EN_B': int(config.get('mux_en_b', '29')),
+            'S0': int(config.get('mux_s0', '33')),
+            'S1': int(config.get('mux_s1', '13')),
+            'S2': int(config.get('mux_s2', '12')),
+            'S3': int(config.get('mux_s3', '15')),
+            'SIG': int(config.get('mux_sig', '36')),
+        }
+    except (FileNotFoundError, ValueError, KeyError):
+        return {
+            'EN_A': 31,
+            'EN_B': 29,
+            'S0': 33,
+            'S1': 13,
+            'S2': 12,
+            'S3': 15,
+            'SIG': 36,
+        }
+
+
+def get_hardware_config():
+    """
+    Load all hardware module configuration from controls.txt.
+
+    Returns:
+        dict: Complete hardware configuration including enable/disable flags,
+              I2C addresses, GPIO pins, and device paths for all modules.
+
+    Modules configured:
+        - Relay module (already implemented)
+        - INA260 power sensor
+        - E-paper display
+        - GPS module
+        - Light sensor (optional)
+        - PCA9536 GPIO expander (optional)
+        - Multiplexer (optional)
+    """
+    try:
+        config = get_control_values(CONTROLS_FILE)
+        return {
+            # Relay module (already implemented via get_gpio_pins)
+            'relay_enabled': config.get('relay_enabled', 'true').lower() == 'true',
+
+            # INA260 power sensor
+            'ina260_enabled': config.get('ina260_enabled', 'true').lower() == 'true',
+            'ina260_address': int(config.get('ina260_address', '0x40'), 16),
+
+            # E-paper display
+            'epaper_enabled': config.get('epaper_enabled', 'true').lower() == 'true',
+            'epaper_rst_pin': int(config.get('epaper_rst_pin', '17')),
+            'epaper_dc_pin': int(config.get('epaper_dc_pin', '25')),
+            'epaper_cs_pin': int(config.get('epaper_cs_pin', '8')),
+            'epaper_busy_pin': int(config.get('epaper_busy_pin', '24')),
+            'epaper_pwr_pin': int(config.get('epaper_pwr_pin', '18')),
+
+            # GPS module
+            'gps_enabled': config.get('gps_enabled', 'true').lower() == 'true',
+            'gps_device': config.get('gps_device', '/dev/ttyAMA0'),
+            'gps_baudrate': int(config.get('gps_baudrate', '9600')),
+            'gps_timeout': int(config.get('gps_timeout', '10')),
+
+            # Light sensor (optional)
+            'light_sensor_enabled': config.get('light_sensor_enabled', 'false').lower() == 'true',
+            'light_sensor_type': config.get('light_sensor_type', 'LTR303'),  # BH1750 or LTR303
+            'light_sensor_address': int(config.get('light_sensor_address', '0x29'), 16),
+
+            # PCA9536 GPIO expander (optional)
+            'pca9536_enabled': config.get('pca9536_enabled', 'false').lower() == 'true',
+            'pca9536_address': int(config.get('pca9536_address', '0x21'), 16),
+
+            # Multiplexer (optional)
+            'mux_enabled': config.get('mux_enabled', 'false').lower() == 'true',
+            'mux_type': config.get('mux_type', 'i2c'),  # 'gpio' or 'i2c'
+            'mux_address': int(config.get('mux_address', '0x20'), 16),  # I2C address if i2c mode
+            'mux_en_a': int(config.get('mux_en_a', '31')),  # GPIO pins if gpio mode
+            'mux_en_b': int(config.get('mux_en_b', '29')),
+            'mux_s0': int(config.get('mux_s0', '33')),
+            'mux_s1': int(config.get('mux_s1', '13')),
+            'mux_s2': int(config.get('mux_s2', '12')),
+            'mux_s3': int(config.get('mux_s3', '15')),
+            'mux_sig': int(config.get('mux_sig', '36')),
+        }
+    except (FileNotFoundError, ValueError, KeyError):
+        # Return defaults for all modules
+        return {
+            'relay_enabled': True,
+            'ina260_enabled': True,
+            'ina260_address': 0x40,
+            'epaper_enabled': True,
+            'epaper_rst_pin': 17,
+            'epaper_dc_pin': 25,
+            'epaper_cs_pin': 8,
+            'epaper_busy_pin': 24,
+            'epaper_pwr_pin': 18,
+            'gps_enabled': True,
+            'gps_device': '/dev/ttyAMA0',
+            'gps_baudrate': 9600,
+            'gps_timeout': 10,
+            'light_sensor_enabled': False,
+            'light_sensor_type': 'LTR303',
+            'light_sensor_address': 0x29,
+            'pca9536_enabled': False,
+            'pca9536_address': 0x21,
+            'mux_enabled': False,
+            'mux_type': 'i2c',
+            'mux_address': 0x20,
+            'mux_en_a': 31,
+            'mux_en_b': 29,
+            'mux_s0': 33,
+            'mux_s1': 13,
+            'mux_s2': 12,
+            'mux_s3': 15,
+            'mux_sig': 36,
+        }
 
 
 # Script paths (commonly referenced scripts)
