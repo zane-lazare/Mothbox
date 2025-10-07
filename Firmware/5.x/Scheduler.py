@@ -412,7 +412,7 @@ def get_control_values(filename):
 
 
 def schedule_shutdown(minutes):
-    """Schedules the execution of '/home/pi/Desktop/Mothbox/TurnEverythingOff.py' after the specified delay in minutes."""
+    """Schedules the execution of TurnEverythingOff.py after the specified delay in minutes."""
     if rpiModel == 4:
         schedule.every(minutes).minutes.do(run_shutdown_pi4)
     if rpiModel == 5:
@@ -435,7 +435,7 @@ def schedule_shutdown(minutes):
 
 
 def run_shutdown_pi4():
-    """Executes the '/home/pi/Desktop/Mothbox/TurnEverythingOff.py' script."""
+    """Executes the TurnEverythingOff.py script."""
     print("about to launch the shutdown")
     subprocess.run(["python", str(get_script_path("TurnEverythingOff.py"))])
 
@@ -642,7 +642,7 @@ def enable_onlyflash():
 
 
 def stopcron():
-    """Executes the '/home/pi/Desktop/Mothbox/StopCron.py' script."""
+    """Executes the StopCron.py script."""
     print("stopping cron, you need to enable it yourself if needed, or reboot")
     subprocess.run(["python", str(get_script_path("StopCron.py"))])
 
