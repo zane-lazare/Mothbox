@@ -122,7 +122,7 @@ echo ""
 
 # Install Python dependencies
 echo -e "${BLUE}Installing Python dependencies...${NC}"
-pip3 install -r "$SCRIPT_DIR/installation-utils/requirements.txt"
+pip3 install --break-system-packages -r "$SCRIPT_DIR/installation-utils/requirements.txt"
 echo -e "${GREEN}✓ Python dependencies installed${NC}"
 echo ""
 
