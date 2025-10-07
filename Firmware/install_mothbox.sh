@@ -126,6 +126,10 @@ pip3 install --break-system-packages -r "$SCRIPT_DIR/installation-utils/requirem
 echo -e "${GREEN}✓ Python dependencies installed${NC}"
 echo ""
 
+# Configure camera
+"$SCRIPT_DIR/installation-utils/configure_camera.sh"
+echo ""
+
 echo -e "${BLUE}Creating directories...${NC}"
 
 # Create directories

@@ -258,6 +258,35 @@ The installation script automatically detects your Pi model:
 - Copies correct configuration files
 - Optimizes camera settings for your hardware
 
+### Camera Configuration
+
+The installation script automatically configures camera support:
+
+**Arducam OwlSight 64MP (OV64A40 sensor):**
+- Enables I2C interface (required for camera communication)
+- Adds `dtoverlay=ov64a40,cam1` to `/boot/firmware/config.txt`
+- Configured for CAM1 port (closer to USB-C power port)
+- Supports full 64MP resolution (9248x6944) plus multiple video modes
+
+**Camera Ports:**
+- **CAM1** (default) - Closer to USB-C power port, used by OwlSight
+- **CAM0** - Further from USB-C power port
+
+**Alternative Cameras:**
+If using a different camera model, manually edit `/boot/firmware/config.txt`:
+- Pi Camera Module 3: `dtoverlay=imx708`
+- Pi Camera Module 2: `dtoverlay=imx219`
+- Pi HQ Camera: `dtoverlay=imx477`
+
+**Testing Camera:**
+```bash
+# List available cameras
+rpicam-hello --list-cameras
+
+# Test camera capture (5 second preview)
+rpicam-hello --timeout 5000
+```
+
 ### Path Detection Logic
 
 The firmware automatically detects installation type in this order:
