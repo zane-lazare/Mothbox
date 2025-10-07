@@ -106,6 +106,50 @@ fi
 echo -e "${GREEN}✓ Detected Raspberry Pi ${PI_VERSION}${NC}"
 echo ""
 
+# Interactive firmware selection
+echo -e "${BLUE}Firmware Selection${NC}"
+echo "Detected: Raspberry Pi ${PI_VERSION}"
+echo "Recommended firmware: ${PI_VERSION}.x"
+echo ""
+echo "Firmware versions use different GPIO pin mappings:"
+echo "  4.x firmware: Relay pins 26/20/21 (legacy)"
+echo "  5.x firmware: Relay pins 5/19/9 (current hardware)"
+echo ""
+echo "Select firmware version:"
+echo "  1) 4.x firmware"
+echo "  2) 5.x firmware"
+echo ""
+
+# Determine default based on detected Pi
+if [ "$PI_VERSION" = "4" ]; then
+    DEFAULT_CHOICE=1
+else
+    DEFAULT_CHOICE=2
+fi
+
+# Read user choice with default
+while true; do
+    read -p "Choice [$DEFAULT_CHOICE]: " FIRMWARE_CHOICE
+    FIRMWARE_CHOICE=${FIRMWARE_CHOICE:-$DEFAULT_CHOICE}
+
+    case $FIRMWARE_CHOICE in
+        1)
+            FIRMWARE_VERSION="4"
+            echo -e "${GREEN}✓ Selected: 4.x firmware${NC}"
+            break
+            ;;
+        2)
+            FIRMWARE_VERSION="5"
+            echo -e "${GREEN}✓ Selected: 5.x firmware${NC}"
+            break
+            ;;
+        *)
+            echo -e "${RED}Invalid choice. Please enter 1 or 2.${NC}"
+            ;;
+    esac
+done
+echo ""
+
 # Ask for confirmation
 read -p "Proceed with installation? (y/N) " -n 1 -r
 echo
@@ -157,8 +201,8 @@ sudo cp -r "$SCRIPT_DIR"/* "$MOTHBOX_HOME/"
 if [ "$INSTALL_TYPE" = "production" ]; then
     echo -e "${BLUE}Setting up production configuration...${NC}"
 
-    # Config files are in the Pi-version-specific directory
-    CONFIG_SOURCE="$SCRIPT_DIR/${PI_VERSION}.x"
+    # Config files are in the firmware-version-specific directory
+    CONFIG_SOURCE="$SCRIPT_DIR/${FIRMWARE_VERSION}.x"
 
     # Copy config files from source
     if [ -f "$CONFIG_SOURCE/controls.txt" ]; then
@@ -191,6 +235,7 @@ echo -e "${GREEN}Installation Complete!${NC}"
 echo -e "${GREEN}================================================================================${NC}"
 echo ""
 echo -e "${BLUE}Raspberry Pi Model:${NC} Pi ${PI_VERSION}"
+echo -e "${BLUE}Firmware Version:${NC} ${FIRMWARE_VERSION}.x"
 echo -e "${BLUE}Mothbox Location:${NC} $MOTHBOX_HOME"
 echo -e "${BLUE}Configuration:${NC} $CONFIG_DIR"
 echo -e "${BLUE}Data Directory:${NC} $DATA_DIR"
@@ -199,7 +244,7 @@ echo -e "${YELLOW}Next Steps:${NC}"
 echo "1. Review and edit configuration files in: $CONFIG_DIR"
 echo "2. Update your crontab to point to: $MOTHBOX_HOME"
 echo "3. Test the installation by running: python3 $MOTHBOX_HOME/mothbox_paths.py"
-echo "4. Test photo capture: python3 $MOTHBOX_HOME/${PI_VERSION}.x/TakePhoto.py"
+echo "4. Test photo capture: python3 $MOTHBOX_HOME/${FIRMWARE_VERSION}.x/TakePhoto.py"
 echo ""
 
 if [ "$INSTALL_TYPE" = "custom" ]; then
