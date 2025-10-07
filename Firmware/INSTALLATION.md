@@ -234,7 +234,6 @@ The installation script automatically installs all required dependencies:
 - python3-pil - Image processing (Pillow)
 - git - Version control
 - i2c-tools - Hardware communication tools
-- lgpio - Low-level GPIO library for Pi 5 support
 
 **Python Packages (via pip):**
 - picamera2 - Advanced camera control

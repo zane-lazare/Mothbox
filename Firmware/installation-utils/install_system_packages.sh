@@ -30,7 +30,6 @@ sudo apt-get install -y \
     python3-rpi-lgpio \
     python3-pil \
     git \
-    i2c-tools \
-    lgpio
+    i2c-tools
 
 echo -e "${GREEN}✓ System packages installed successfully${NC}"
