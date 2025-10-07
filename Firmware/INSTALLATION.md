@@ -230,15 +230,16 @@ The installation script automatically installs all required dependencies:
 **System Packages (via apt):**
 - python3-pip - Python package installer
 - python3-picamera2 - Camera interface library
-- python3-rpi.gpio - GPIO control library
+- python3-rpi-lgpio - GPIO control library (Pi 4 and Pi 5 compatible)
 - python3-pil - Image processing (Pillow)
 - git - Version control
 - i2c-tools - Hardware communication tools
+- lgpio - Low-level GPIO library for Pi 5 support
 
 **Python Packages (via pip):**
 - picamera2 - Advanced camera control
 - opencv-python - Computer vision library
-- RPi.GPIO - GPIO interface
+- rpi-lgpio - GPIO interface (Pi 4 and Pi 5 compatible, drop-in replacement for RPi.GPIO)
 - Pillow - Image manipulation
 - piexif - EXIF metadata handling
 - psutil - System monitoring
@@ -247,6 +248,8 @@ The installation script automatically installs all required dependencies:
 - numpy - Numerical computing
 - python-crontab - Cron job management
 - schedule - Task scheduling
+
+**Note on GPIO Library:** Mothbox uses `rpi-lgpio` instead of the older `RPi.GPIO` library. This provides full compatibility with both Raspberry Pi 4 and Pi 5, as Pi 5 uses a new GPIO architecture (RP1 chip) that requires the modern `lgpio` backend. The `rpi-lgpio` package provides the exact same API as `RPi.GPIO`, so all existing code works without modification.
 
 ### Raspberry Pi Model Detection
 

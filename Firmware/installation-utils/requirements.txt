@@ -10,7 +10,7 @@ Pillow
 piexif
 
 # Hardware interfaces
-RPi.GPIO
+rpi-lgpio
 smbus2
 adafruit-circuitpython-ina260
 

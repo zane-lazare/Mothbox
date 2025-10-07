@@ -27,9 +27,10 @@ echo -e "${BLUE}Installing required packages...${NC}"
 sudo apt-get install -y \
     python3-pip \
     python3-picamera2 \
-    python3-rpi.gpio \
+    python3-rpi-lgpio \
     python3-pil \
     git \
-    i2c-tools
+    i2c-tools \
+    lgpio
 
 echo -e "${GREEN}✓ System packages installed successfully${NC}"
