@@ -477,7 +477,7 @@ def create_dated_folder(base_path):
   folder_path = os.path.join(base_path, date_str)
   if not os.path.exists(folder_path):
     os.makedirs(folder_path)
-  os.chmod(folder_path, 0o777)  # mode=0o777 for read write for all users
+  os.chmod(folder_path, 0o755)  # Owner rwx, group rx, others rx
   return folder_path+"/"
 
 def takePhoto_Manual():
@@ -566,7 +566,7 @@ def takePhoto_Manual():
           folderPath= str(PHOTOS_DIR) + "/"
           if not os.path.exists(folderPath):
             os.makedirs(folderPath)
-          os.chmod(folderPath, 0o777)  # mode=0o777 for read write for all users
+          os.chmod(folderPath, 0o755)  # Owner rwx, group rx, others rx
 
           folderPath = create_dated_folder(folderPath)
           

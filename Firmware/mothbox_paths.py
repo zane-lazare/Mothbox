@@ -73,8 +73,25 @@ def get_script_path(script_name):
 
     Returns:
         Path object pointing to the script
+
+    Raises:
+        ValueError: If script_name contains path traversal attempts or is absolute
     """
-    return FIRMWARE_DIR / script_name
+    # Security: Prevent path traversal attacks
+    if '..' in script_name or script_name.startswith('/'):
+        raise ValueError(f"Invalid script name (path traversal attempt): {script_name}")
+
+    script_path = FIRMWARE_DIR / script_name
+
+    # Security: Ensure resolved path stays within FIRMWARE_DIR
+    try:
+        if not str(script_path.resolve()).startswith(str(FIRMWARE_DIR.resolve())):
+            raise ValueError(f"Script path outside firmware directory: {script_name}")
+    except (OSError, RuntimeError):
+        # Handle cases where resolve() fails (e.g., path doesn't exist yet)
+        pass
+
+    return script_path
 
 # Utility function to ensure directories exist
 def ensure_directories():
@@ -90,9 +107,9 @@ def ensure_directories():
 
     for directory in dirs_to_create:
         directory.mkdir(parents=True, exist_ok=True)
-        # Set permissions to be accessible by pi user
+        # Set permissions: owner rwx, group rx, others rx
         try:
-            os.chmod(directory, 0o777)
+            os.chmod(directory, 0o755)
         except (OSError, PermissionError):
             pass  # Skip if we don't have permission
 

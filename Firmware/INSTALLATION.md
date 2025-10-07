@@ -189,7 +189,7 @@ Add this to `~/.bashrc` to make it permanent.
 ```bash
 # For production installation
 sudo chown -R pi:pi /etc/mothbox /var/lib/mothbox /opt/mothbox
-sudo chmod -R 777 /var/lib/mothbox/photos
+sudo chmod -R 755 /var/lib/mothbox
 ```
 
 ### Cron Jobs Not Running

@@ -120,7 +120,7 @@ fi
 # Set permissions
 sudo chmod -R 755 "$MOTHBOX_HOME"
 sudo chmod -R 755 "$CONFIG_DIR"
-sudo chmod -R 777 "$DATA_DIR"  # Photos directory needs write access
+sudo chmod -R 755 "$DATA_DIR"  # Owner rwx, group rx, others rx
 
 echo -e "${GREEN}✓ Directories created${NC}"
 
