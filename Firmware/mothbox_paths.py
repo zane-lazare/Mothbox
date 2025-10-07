@@ -18,9 +18,13 @@ Directory Structure Options:
    - Any location via MOTHBOX_HOME environment variable
 
 Usage:
-    from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CONFIG_DIR
+    from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CONFIG_DIR, get_gpio_pins
 
     camera_settings_path = CONFIG_DIR / "camera_settings.csv"
+
+    # Load GPIO pin configuration
+    pins = get_gpio_pins()
+    Relay_Ch1 = pins['Relay_Ch1']
 """
 
 import os
@@ -62,6 +66,56 @@ CAMERA_SETTINGS_FILE = CONFIG_DIR / "camera_settings.csv"
 SCHEDULE_SETTINGS_FILE = CONFIG_DIR / "schedule_settings.csv"
 CONTROLS_FILE = CONFIG_DIR / "controls.txt"
 WORDLIST_FILE = CONFIG_DIR / "wordlist.csv"
+
+# Helper function to parse controls.txt
+def get_control_values(filename):
+    """
+    Reads key-value pairs from the control file.
+
+    Args:
+        filename: Path to the control file (str or Path)
+
+    Returns:
+        dict: Dictionary with key-value pairs from controls.txt
+    """
+    control_values = {}
+    try:
+        with open(filename, "r") as file:
+            for line in file:
+                line = line.strip()
+                if line and '=' in line and not line.startswith('#'):
+                    key, value = line.split("=", 1)
+                    control_values[key] = value
+    except FileNotFoundError:
+        pass  # Return empty dict if file doesn't exist
+    return control_values
+
+
+def get_gpio_pins():
+    """
+    Load GPIO pin configuration from controls.txt with fallback defaults.
+
+    Returns:
+        dict: GPIO pin mappings {'Relay_Ch1': int, 'Relay_Ch2': int, 'Relay_Ch3': int}
+
+    Note:
+        Defaults to 4.x firmware pin assignments (26/20/21) if not specified.
+        To customize, add the following lines to controls.txt:
+            Relay_Ch1=5
+            Relay_Ch2=19
+            Relay_Ch3=9
+    """
+    try:
+        pins = get_control_values(CONTROLS_FILE)
+        return {
+            'Relay_Ch1': int(pins.get('Relay_Ch1', 26)),  # Default to 4.x pins
+            'Relay_Ch2': int(pins.get('Relay_Ch2', 20)),
+            'Relay_Ch3': int(pins.get('Relay_Ch3', 21))
+        }
+    except (FileNotFoundError, ValueError, KeyError):
+        # Fallback to defaults if file not found or parse error
+        return {'Relay_Ch1': 26, 'Relay_Ch2': 20, 'Relay_Ch3': 21}
+
 
 # Script paths (commonly referenced scripts)
 def get_script_path(script_name):

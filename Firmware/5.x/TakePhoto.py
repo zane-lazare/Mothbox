@@ -707,10 +707,16 @@ num_photos = 3
 exposuretime_width = 18000
 middleexposure=500 # 500 #minimum exposure time for Hawkeye camera 64mp arducam
 
+# Load GPIO pins from configuration
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import get_gpio_pins
 
-Relay_Ch1 = 5
-Relay_Ch2 = 19 # Photo flash
-Relay_Ch3 = 9 # 6 UV 
+pins = get_gpio_pins()
+Relay_Ch1 = pins['Relay_Ch1']
+Relay_Ch2 = pins['Relay_Ch2']  # Photo flash
+Relay_Ch3 = pins['Relay_Ch3']  # UV
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)

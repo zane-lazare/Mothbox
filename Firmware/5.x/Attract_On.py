@@ -15,9 +15,16 @@ print(f"Current time: {formatted_time}")
 global onlyflash
 onlyflash=False
 
-Relay_Ch1 = 5
-Relay_Ch2 = 6
-Relay_Ch3 = 9
+# Load GPIO pins from configuration
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import get_gpio_pins
+
+pins = get_gpio_pins()
+Relay_Ch1 = pins['Relay_Ch1']
+Relay_Ch2 = pins['Relay_Ch2']
+Relay_Ch3 = pins['Relay_Ch3']
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)

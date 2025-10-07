@@ -32,6 +32,7 @@ NC='\033[0m' # No Color
 # Default values
 INSTALL_TYPE="legacy"
 CUSTOM_PATH=""
+QUICK_MODE="false"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Parse command line arguments
@@ -44,6 +45,10 @@ while [[ $# -gt 0 ]]; do
         --path)
             CUSTOM_PATH="$2"
             shift 2
+            ;;
+        --quick)
+            QUICK_MODE="true"
+            shift
             ;;
         --help|-h)
             grep -A 100 "^#" "$0" | grep -B 100 "^# =====.*=====$" | tail -n +2 | head -n -1 | sed 's/^# //'
@@ -150,6 +155,62 @@ while true; do
 done
 echo ""
 
+# Hardware Configuration
+echo -e "${BLUE}Hardware Configuration${NC}"
+echo ""
+
+# Set firmware-specific defaults
+if [ "$FIRMWARE_VERSION" = "4" ]; then
+    DEFAULT_CH1=26
+    DEFAULT_CH2=20
+    DEFAULT_CH3=21
+else
+    DEFAULT_CH1=5
+    DEFAULT_CH2=19
+    DEFAULT_CH3=9
+fi
+
+# Check for --quick flag to skip prompts
+if [ "$QUICK_MODE" = "true" ]; then
+    RELAY_CH1=$DEFAULT_CH1
+    RELAY_CH2=$DEFAULT_CH2
+    RELAY_CH3=$DEFAULT_CH3
+    echo -e "${GREEN}Using default GPIO pins (quick mode)${NC}"
+    echo "  Relay Ch1 (main):  GPIO $RELAY_CH1"
+    echo "  Relay Ch2 (flash): GPIO $RELAY_CH2"
+    echo "  Relay Ch3 (UV):    GPIO $RELAY_CH3"
+else
+    echo "Configure relay module GPIO pins:"
+    echo "  Default for ${FIRMWARE_VERSION}.x: Ch1=${DEFAULT_CH1}, Ch2=${DEFAULT_CH2}, Ch3=${DEFAULT_CH3}"
+    echo ""
+
+    read -p "Relay Ch1 (main) GPIO pin [$DEFAULT_CH1]: " RELAY_CH1
+    RELAY_CH1=${RELAY_CH1:-$DEFAULT_CH1}
+
+    read -p "Relay Ch2 (flash) GPIO pin [$DEFAULT_CH2]: " RELAY_CH2
+    RELAY_CH2=${RELAY_CH2:-$DEFAULT_CH2}
+
+    read -p "Relay Ch3 (UV) GPIO pin [$DEFAULT_CH3]: " RELAY_CH3
+    RELAY_CH3=${RELAY_CH3:-$DEFAULT_CH3}
+
+    # Validate GPIO pins (BCM mode: 2-27)
+    for pin in $RELAY_CH1 $RELAY_CH2 $RELAY_CH3; do
+        if [ $pin -lt 2 ] || [ $pin -gt 27 ]; then
+            echo -e "${RED}Error: GPIO pin $pin out of range (2-27)${NC}"
+            exit 1
+        fi
+    done
+
+    # Check for conflicts
+    if [ "$RELAY_CH1" = "$RELAY_CH2" ] || [ "$RELAY_CH1" = "$RELAY_CH3" ] || [ "$RELAY_CH2" = "$RELAY_CH3" ]; then
+        echo -e "${RED}Error: GPIO pins must be unique${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✓ GPIO configuration validated${NC}"
+fi
+echo ""
+
 # Ask for confirmation
 read -p "Proceed with installation? (y/N) " -n 1 -r
 echo
@@ -223,6 +284,33 @@ fi
 
 echo -e "${GREEN}✓ Firmware files copied${NC}"
 
+# Write GPIO configuration to controls.txt
+echo -e "${BLUE}Configuring GPIO pins...${NC}"
+
+# Determine the controls.txt path based on installation type
+if [ "$INSTALL_TYPE" = "production" ]; then
+    CONTROLS_FILE="$CONFIG_DIR/controls.txt"
+else
+    CONTROLS_FILE="$MOTHBOX_HOME/${FIRMWARE_VERSION}.x/controls.txt"
+fi
+
+# Append GPIO configuration if not already present
+if ! grep -q "^Relay_Ch1=" "$CONTROLS_FILE" 2>/dev/null; then
+    echo "" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "# GPIO Pin Configuration" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "Relay_Ch1=$RELAY_CH1" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "Relay_Ch2=$RELAY_CH2" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "Relay_Ch3=$RELAY_CH3" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo -e "${GREEN}✓ GPIO configuration written to controls.txt${NC}"
+else
+    # Update existing GPIO configuration
+    sudo sed -i "s/^Relay_Ch1=.*/Relay_Ch1=$RELAY_CH1/" "$CONTROLS_FILE"
+    sudo sed -i "s/^Relay_Ch2=.*/Relay_Ch2=$RELAY_CH2/" "$CONTROLS_FILE"
+    sudo sed -i "s/^Relay_Ch3=.*/Relay_Ch3=$RELAY_CH3/" "$CONTROLS_FILE"
+    echo -e "${GREEN}✓ GPIO configuration updated in controls.txt${NC}"
+fi
+echo ""
+
 # Set execute permissions on Python scripts
 echo -e "${BLUE}Setting script permissions...${NC}"
 find "$MOTHBOX_HOME" -name "*.py" -exec sudo chmod +x {} \;
@@ -239,6 +327,11 @@ echo -e "${BLUE}Firmware Version:${NC} ${FIRMWARE_VERSION}.x"
 echo -e "${BLUE}Mothbox Location:${NC} $MOTHBOX_HOME"
 echo -e "${BLUE}Configuration:${NC} $CONFIG_DIR"
 echo -e "${BLUE}Data Directory:${NC} $DATA_DIR"
+echo ""
+echo -e "${BLUE}Hardware Configuration:${NC}"
+echo "  Relay Ch1 (main):  GPIO $RELAY_CH1"
+echo "  Relay Ch2 (flash): GPIO $RELAY_CH2"
+echo "  Relay Ch3 (UV):    GPIO $RELAY_CH3"
 echo ""
 echo -e "${YELLOW}Next Steps:${NC}"
 echo "1. Review and edit configuration files in: $CONFIG_DIR"

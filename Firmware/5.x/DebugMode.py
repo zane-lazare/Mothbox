@@ -45,10 +45,13 @@ stop_cron()
 
 print("----------------- ATTRACT OFF-------------------")
 
+# Load GPIO pins from configuration
+from mothbox_paths import get_gpio_pins
 
-Relay_Ch1 = 26
-Relay_Ch2 = 20
-Relay_Ch3 = 21
+pins = get_gpio_pins()
+Relay_Ch1 = pins['Relay_Ch1']
+Relay_Ch2 = pins['Relay_Ch2']
+Relay_Ch3 = pins['Relay_Ch3']
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
