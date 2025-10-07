@@ -1,10 +1,15 @@
 #!/usr/bin/python3
+
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from mothbox_paths import CONTROLS_FILE, CAMERA_SETTINGS_FILE, PHOTOS_DIR
+
 import time
 from picamera2 import Picamera2, Preview
 from libcamera import controls
 from libcamera import Transform
 
-import time
 import datetime
 from datetime import datetime
 
@@ -111,7 +116,7 @@ def load_camera_settings():
     
     #first look for any updated CSV files on external media, we will prioritize those
     external_media_paths = ("/media", "/mnt")  # Common external media mount points
-    default_path = "/home/pi/Desktop/Mothbox/camera_settings.csv"
+    default_path = str(CAMERA_SETTINGS_FILE)
     file_path=default_path
 
     found = 0
@@ -225,8 +230,8 @@ def get_serial_number():
     return None
 
 
-control_values_fpath = "/home/pi/Desktop/Mothbox/controls.txt"
-control_values = get_control_values(control_values_fpath)
+control_values = get_control_values(str(CONTROLS_FILE))
+control_values_fpath = str(CONTROLS_FILE)
 onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
 LastCalibration = float(control_values.get("LastCalibration", 0))
 
@@ -243,7 +248,7 @@ min_gain, max_gain, default_gain = picam2.camera_controls["AnalogueGain"]
 '''
 #This will be the path to the CSV holding the settings whether it is the one on the disk or the external CSV
 global chosen_settings_path
-default_path = "/home/pi/Desktop/Mothbox/camera_settings.csv"
+default_path = str(CAMERA_SETTINGS_FILE)
 chosen_settings_path=default_path
 
 #camera_settings = load_camera_settings("camera_settings.csv")#CRONTAB CAN'T TAKE RELATIVE LINKS! 
@@ -479,8 +484,8 @@ def takePhoto_Manual():
           exif_data=metadatas[i]
           pil_image = img
           # Save the image using PIL to get the image data on disk
-          folderPath= "/home/pi/Desktop/Mothbox/photos/" #can't use relative directories with cron
-          
+          folderPath= str(PHOTOS_DIR) + "/" #can't use relative directories with cron
+
           print(ImageFileType)
           if ImageFileType==1: #png
               filepath = folderPath+"mb"+lastfivedigits+"_"+timestamp+"_HDR"+str(i)+".png"

@@ -1,6 +1,11 @@
 #!/usr/bin/python3
 #For MothboxPCB
 
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import CONTROLS_FILE, get_script_path
+
 #GPIO
 import RPi.GPIO as GPIO
 import time
@@ -46,15 +51,12 @@ def FlashOn():
     print("Flash Lights On\n")
     
 def FlashOff():
-    
+
     GPIO.output(Relay_Ch2,GPIO.HIGH)
 
     print("Flash Lights Off\n")
 
 
-#control_values = get_control_values("/home/pi/Desktop/Mothbox/controls.txt")
-#onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
 FlashOn()
-#AttractOff()
 
 

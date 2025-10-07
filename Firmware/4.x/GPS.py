@@ -6,6 +6,12 @@ import os
 import select
 from timezonefinder import TimezoneFinder
 from zoneinfo import ZoneInfo
+from pathlib import Path
+import sys
+
+# Add parent directory to path to import mothbox_paths
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import CONTROLS_FILE
 
 gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
 UTCtime = None
@@ -54,7 +60,7 @@ def get_control_values(filepath):
             control_values[key] = value
     return control_values
 
-control_values_fpath = "/home/pi/Desktop/Mothbox/controls.txt"
+control_values_fpath = str(CONTROLS_FILE)
 control_values = get_control_values(control_values_fpath)
 
 def set_GPStime(filepath, gpstime):
@@ -137,7 +143,7 @@ try:
         print("sync HW clock with system clock")
         os.system("sudo hwclock -w")
         print("System UTC time set.")
-        set_GPStime("/home/pi/Desktop/Mothbox/controls.txt", epoch_time)
+        set_GPStime(str(CONTROLS_FILE), epoch_time)
 
         # Use offline timezone lookup
         if latitude is not None and longitude is not None:
@@ -151,15 +157,15 @@ try:
                 local_time = datetime.now(ZoneInfo(timezone))
                 utc_offset_hours = int(local_time.utcoffset().total_seconds() // 3600)
                 print("UTC Offset (hours):", utc_offset_hours)
-                set_GPS("/home/pi/Desktop/Mothbox/controls.txt", latitude, longitude)
-                set_UTCoff("/home/pi/Desktop/Mothbox/controls.txt",utc_offset_hours)
+                set_GPS(str(CONTROLS_FILE), latitude, longitude)
+                set_UTCoff(str(CONTROLS_FILE),utc_offset_hours)
             else:
                 print("Could not determine timezone from coordinates.")
-                set_GPS("/home/pi/Desktop/Mothbox/controls.txt", "n/a", "n/a")
+                set_GPS(str(CONTROLS_FILE), "n/a", "n/a")
 
     else:
         print("No UTC time received before timeout")
-        set_GPS("/home/pi/Desktop/Mothbox/controls.txt", "n/a", "n/a")
+        set_GPS(str(CONTROLS_FILE), "n/a", "n/a")
 
 
 

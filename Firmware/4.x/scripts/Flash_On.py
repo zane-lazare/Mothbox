@@ -1,3 +1,8 @@
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CAMERA_SETTINGS_FILE, CONTROLS_FILE
+
 #GPIO
 import RPi.GPIO as GPIO
 import time
@@ -60,7 +65,7 @@ def AttractOff():
     print("Attract Lights Off\n")
 
 
-#control_values = get_control_values("/home/pi/Desktop/Mothbox/controls.txt")
+#control_values = get_control_values(str(CONTROLS_FILE))
 #onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
 onlyflash=1
 AttractOn()

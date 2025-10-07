@@ -1,8 +1,13 @@
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CAMERA_SETTINGS_FILE, CONTROLS_FILE, WORDLIST_FILE
+
 import csv
 import unicodedata
 
 # Global variable for the input path
-INPUT_PATH = "/home/pi/Desktop/Mothbox/wordlist.csv"  # Replace <Your_Input_Path> with the path to your CSV file
+INPUT_PATH = str(WORDLIST_FILE)  # Replace <Your_Input_Path> with the path to your CSV file
 
 
 def remove_accents(input_str):

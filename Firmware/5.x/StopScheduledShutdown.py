@@ -1,9 +1,14 @@
 #!/usr/bin/python
 
-with open("/home/pi/Desktop/Mothbox/controls.txt", "r") as file:
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import CONTROLS_FILE
+
+with open(str(CONTROLS_FILE), "r") as file:
     lines = file.readlines()
 
-with open("/home/pi/Desktop/Mothbox/controls.txt", "w") as file:
+with open(str(CONTROLS_FILE), "w") as file:
     for line in lines:
         print(line)
         if line.startswith("shutdown_enabled="):

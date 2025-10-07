@@ -20,21 +20,22 @@ Note:
     This script assumes the user running the script has read and write permissions to the desktop and any external storage devices.
     You might need to adjust the user name in desktop_path depending on your Raspberry Pi setup.
 """
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import CONTROLS_FILE, MOTHBOX_HOME, DATA_DIR, get_script_path
+
 import os
 import subprocess
 import shutil
 import psutil
-from pathlib import Path
 from datetime import datetime
-import sys
 
 # Define paths
-desktop_path = Path(
-    "/home/pi/Desktop/Mothbox"
-)  # Assuming user is "pi" on your Raspberry Pi
-photos_folder = desktop_path / "photos"
-logs_folder = desktop_path / "logs"
-backedup_photos_folder = desktop_path / "photos_backedup"
+desktop_path = MOTHBOX_HOME
+photos_folder = DATA_DIR / "photos"
+logs_folder = DATA_DIR / "logs"
+backedup_photos_folder = DATA_DIR / "photos_backedup"
 
 backup_folder_name = "photos_backup"
 internal_storage_minimum = 8 # This is Gigabytes, below 6 on a raspberry pi 5 can make weird OS problems
@@ -168,7 +169,7 @@ def move_folder_contents(source_folder, destination_folder):
     elif os.path.isdir(source_path):
       # Create destination directory if it doesn't exist
       os.makedirs(destination_path, exist_ok=True)
-      os.chmod(destination_path, 0o777)
+      os.chmod(destination_path, 0o755)
       # Recursively move contents of subfolders
       move_folder_contents(source_path, destination_path)
     else:
@@ -184,7 +185,7 @@ def move_photos_to_backup(source_folder, target_folder):
   """
   if not os.path.exists(target_folder):
     os.makedirs(target_folder)
-  os.chmod(target_folder, 0o777)  # mode=0o777 for read write for all users
+  os.chmod(target_folder, 0o755)  # Owner rwx, group rx, others rx
   # Move all contents (files and subfolders)
   try:
     shutil.move(source_folder, target_folder)
@@ -193,7 +194,7 @@ def move_photos_to_backup(source_folder, target_folder):
     #recreate the empty photos folder
     if not os.path.exists(source_folder):
         os.makedirs(source_folder)
-    os.chmod(source_folder, 0o777)
+    os.chmod(source_folder, 0o755)
   except OSError as e:
     print("Error moving contents:", e)
   
@@ -207,7 +208,7 @@ def copy_photos_to_backup(source_folder, target_folder):
   """
   if not os.path.exists(target_folder):
     os.makedirs(target_folder)
-  os.chmod(target_folder, 0o777)  # mode=0o777 for read write for all users
+  os.chmod(target_folder, 0o755)  # Owner rwx, group rx, others rx
 
   for item in os.listdir(source_folder):
     source_path = os.path.join(source_folder, item)
@@ -215,7 +216,7 @@ def copy_photos_to_backup(source_folder, target_folder):
 
     if os.path.isfile(source_path):
       shutil.copy2(source_path, target_path)  # Copy files
-      os.chmod(target_path, 0o777)  # Set permissions for copied files
+      os.chmod(target_path, 0o644)  # Owner rw, group r, others r
     else:
       # Handle existing dated folders
       if not os.path.exists(target_path):
@@ -227,7 +228,7 @@ def copy_photos_to_backup(source_folder, target_folder):
           inner_target_path = os.path.join(target_path, inner_item)
           if os.path.isfile(inner_source_path):
             shutil.copy2(inner_source_path, inner_target_path)
-            os.chmod(inner_target_path, 0o777)  # Set permissions for copied files
+            os.chmod(inner_target_path, 0o644)  # Owner rw, group r, others r
 
 def copy_folders_with_files(source_folder, target_folder):
     """

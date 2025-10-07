@@ -46,6 +46,18 @@ import time
 
 import os, platform
 from pathlib import Path
+import sys
+
+# Add parent directory to path to import mothbox_paths
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import (
+    MOTHBOX_HOME,
+    CONFIG_DIR,
+    PHOTOS_DIR,
+    CAMERA_SETTINGS_FILE,
+    CONTROLS_FILE,
+    get_script_path
+)
 
 #IF the mothbox is supposed to be off, don't take a photo!
 GPIO.setmode(GPIO.BCM)
@@ -115,10 +127,8 @@ if(mode=="OFF"):
 
 internal_storage_minimum = 5 # This is Gigabytes, below 4 on a raspberry pi 4, can make weird OS problems
 extra_photo_storage_minimum=internal_storage_minimum-1
-# Define paths
-desktop_path = Path(
-    "/home/pi/Desktop/Mothbox"
-)  # Assuming user is "pi" on your Raspberry Pi
+# Define paths - now using mothbox_paths module
+desktop_path = MOTHBOX_HOME  # For backward compatibility with variable name
 
 def restart_script():
     """
@@ -184,7 +194,7 @@ def load_camera_settings():
     
     #first look for any updated CSV files on external media, we will prioritize those
     external_media_paths = ("/media", "/mnt")  # Common external media mount points
-    default_path = "/home/pi/Desktop/Mothbox/camera_settings.csv"
+    default_path = str(CAMERA_SETTINGS_FILE)
     file_path=default_path
 
     found = 0
@@ -467,7 +477,7 @@ def create_dated_folder(base_path):
   folder_path = os.path.join(base_path, date_str)
   if not os.path.exists(folder_path):
     os.makedirs(folder_path)
-  os.chmod(folder_path, 0o777)  # mode=0o777 for read write for all users
+  os.chmod(folder_path, 0o755)  # Owner rwx, group rx, others rx
   return folder_path+"/"
 
 def takePhoto_Manual():
@@ -553,10 +563,10 @@ def takePhoto_Manual():
           exif_data=metadatas[i]
           pil_image = img
           # Save the image using PIL to get the image data on disk
-          folderPath= "/home/pi/Desktop/Mothbox/photos/" #can't use relative directories with cron
+          folderPath= str(PHOTOS_DIR) + "/"
           if not os.path.exists(folderPath):
             os.makedirs(folderPath)
-          os.chmod(folderPath, 0o777)  # mode=0o777 for read write for all users
+          os.chmod(folderPath, 0o755)  # Owner rwx, group rx, others rx
 
           folderPath = create_dated_folder(folderPath)
           
@@ -718,7 +728,7 @@ onlyflash=False
 
 
 
-control_values_fpath = "/home/pi/Desktop/Mothbox/controls.txt"
+control_values_fpath = str(CONTROLS_FILE)
 control_values = get_control_values(control_values_fpath)
 onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
 LastCalibration = float(control_values.get("LastCalibration", 0))
@@ -738,7 +748,7 @@ min_gain, max_gain, default_gain = picam2.camera_controls["AnalogueGain"]
 '''
 #This will be the path to the CSV holding the settings whether it is the one on the disk or the external CSV
 global chosen_settings_path
-default_path = "/home/pi/Desktop/Mothbox/camera_settings.csv"
+default_path = str(CAMERA_SETTINGS_FILE)
 chosen_settings_path=default_path
 
 #camera_settings = load_camera_settings("camera_settings.csv")#CRONTAB CAN'T TAKE RELATIVE LINKS! 
