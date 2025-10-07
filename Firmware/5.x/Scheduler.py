@@ -865,7 +865,7 @@ onlyflash = 0
 
 # GPS check / 10 second delay
 print("Checking GPS (if available) for 10 seconds")
-process = subprocess.Popen(['python', '/home/pi/Desktop/Mothbox/GPS.py'],
+process = subprocess.Popen(['python', str(get_script_path('GPS.py'))],
                           stdout=subprocess.PIPE,
                           stderr=subprocess.PIPE)
 stdout, stderr = process.communicate()
@@ -947,7 +947,7 @@ enable_onlyflash()
 #Update the Epaper screen if it is available
 GPIO.cleanup()
 print("Updating Epaper display (if available)")
-process = subprocess.Popen(['python', '/home/pi/Desktop/Mothbox/UpdateDisplay.py'],
+process = subprocess.Popen(['python', str(get_script_path('UpdateDisplay.py'))],
                           stdout=subprocess.PIPE,
                           stderr=subprocess.PIPE)
 stdout, stderr = process.communicate()
