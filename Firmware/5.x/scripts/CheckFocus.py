@@ -3,9 +3,16 @@
 import subprocess
 import RPi.GPIO as GPIO
 
-Relay_Ch1 = 26
-Relay_Ch2 = 20
-Relay_Ch3 = 21
+# Load GPIO pins from configuration
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from mothbox_paths import get_gpio_pins
+
+pins = get_gpio_pins()
+Relay_Ch1 = pins['Relay_Ch1']
+Relay_Ch2 = pins['Relay_Ch2']
+Relay_Ch3 = pins['Relay_Ch3']
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
