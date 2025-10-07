@@ -41,6 +41,12 @@ export MOTHBOX_HOME=/your/custom/path
 
 ### New Installation
 
+The installation script automatically:
+- Detects your Raspberry Pi model (Pi 4 or Pi 5)
+- Installs all system and Python dependencies
+- Configures appropriate firmware version
+- Sets up directory structure
+
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/zane-lazare/Mothbox.git
@@ -52,6 +58,13 @@ export MOTHBOX_HOME=/your/custom/path
    chmod +x install_mothbox.sh
    ./install_mothbox.sh --type production
    ```
+
+   The script will:
+   - Detect if you have Pi 4 or Pi 5
+   - Install system packages (python3-picamera2, etc.)
+   - Install Python dependencies (opencv-python, RPi.GPIO, etc.)
+   - Copy appropriate firmware (4.x or 5.x)
+   - Create directories and set permissions
 
 3. **Configure your Mothbox:**
    Edit configuration files in `/etc/mothbox/`:
@@ -210,6 +223,39 @@ sudo chmod -R 755 /var/lib/mothbox
 
 ## Technical Details
 
+### Automatic Dependency Installation
+
+The installation script automatically installs all required dependencies:
+
+**System Packages (via apt):**
+- python3-pip - Python package installer
+- python3-picamera2 - Camera interface library
+- python3-rpi.gpio - GPIO control library
+- python3-pil - Image processing (Pillow)
+- git - Version control
+- i2c-tools - Hardware communication tools
+
+**Python Packages (via pip):**
+- picamera2 - Advanced camera control
+- opencv-python - Computer vision library
+- RPi.GPIO - GPIO interface
+- Pillow - Image manipulation
+- piexif - EXIF metadata handling
+- psutil - System monitoring
+- smbus2 - I2C communication
+- adafruit-circuitpython-ina260 - Power monitoring
+- numpy - Numerical computing
+- python-crontab - Cron job management
+- schedule - Task scheduling
+
+### Raspberry Pi Model Detection
+
+The installation script automatically detects your Pi model:
+- Reads `/proc/cpuinfo` to identify Pi 4 or Pi 5
+- Selects appropriate firmware version (4.x or 5.x)
+- Copies correct configuration files
+- Optimizes camera settings for your hardware
+
 ### Path Detection Logic
 
 The firmware automatically detects installation type in this order:
@@ -230,6 +276,66 @@ When upgrading firmware:
 2. Re-run installation script
 3. Review any new configuration options
 4. Restart scheduled tasks if needed
+
+## Uninstallation
+
+The `uninstall_mothbox.sh` script safely removes Mothbox with options to preserve your data.
+
+### Running Uninstallation
+
+```bash
+cd /home/Mothbox/Firmware  # Or your installation directory
+chmod +x uninstall_mothbox.sh
+./uninstall_mothbox.sh
+```
+
+### Uninstallation Features
+
+- **Auto-detection**: Automatically finds your installation (legacy/production/custom)
+- **Configuration backup**: Option to backup config files before removal
+- **Photo preservation**: Option to keep your photos directory
+- **Crontab cleanup**: Guided removal of Mothbox cron jobs
+- **Safety confirmations**: Requires typing "yes" to confirm deletion
+
+### What Gets Removed
+
+- Application files (`/opt/mothbox` or `/home/pi/Desktop/Mothbox`)
+- Configuration files (`/etc/mothbox` for production installations)
+- Data directory (`/var/lib/mothbox` for production installations)
+- Optionally: crontab entries (with your confirmation)
+
+### What Gets Preserved
+
+- **System packages** (python3, git, i2c-tools) - may be used by other software
+- **Python packages** (picamera2, opencv-python, etc.) - may be used by other projects
+- **Photos** (if you choose to preserve them during uninstallation)
+- **Configuration backup** (if you choose to create one)
+
+### Example Uninstallation
+
+```bash
+$ ./uninstall_mothbox.sh
+
+Detected Installation:
+  Type: production
+  Location: /opt/mothbox
+  Configuration: /etc/mothbox
+  Data: /var/lib/mothbox
+
+Do you want to backup configuration files before uninstalling? (y/N) y
+✓ Configuration backed up to: /home/pi/mothbox_backup_20251007_120000
+
+Do you want to preserve the photos directory? (Y/n) y
+
+WARNING: The following will be PERMANENTLY DELETED:
+  ✗ /opt/mothbox (application files)
+  ✗ /etc/mothbox (configuration)
+  ✗ /var/lib/mothbox (data directory structure, photos preserved)
+
+Type 'yes' to confirm uninstallation: yes
+
+✓ Photos preserved in: /home/pi/mothbox_photos
+```
 
 ## Best Practices
 

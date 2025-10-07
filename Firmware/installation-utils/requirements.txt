@@ -1,0 +1,23 @@
+# Mothbox Core Python Dependencies
+# Install with: pip3 install -r requirements.txt
+
+# Camera support
+picamera2
+
+# Image processing
+opencv-python
+Pillow
+piexif
+
+# Hardware interfaces
+RPi.GPIO
+smbus2
+adafruit-circuitpython-ina260
+
+# System utilities
+psutil
+numpy
+
+# Scheduling
+python-crontab
+schedule

@@ -96,6 +96,16 @@ echo -e "${GREEN}Configuration Directory:${NC} $CONFIG_DIR"
 echo -e "${GREEN}Data Directory:${NC} $DATA_DIR"
 echo ""
 
+# Detect Raspberry Pi model
+echo -e "${BLUE}Detecting Raspberry Pi model...${NC}"
+PI_VERSION=$(python3 "$SCRIPT_DIR/installation-utils/detect_pi_model.py")
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Failed to detect Pi model. Installation aborted.${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Detected Raspberry Pi ${PI_VERSION}${NC}"
+echo ""
+
 # Ask for confirmation
 read -p "Proceed with installation? (y/N) " -n 1 -r
 echo
@@ -105,6 +115,17 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
 fi
 
 echo ""
+
+# Install system packages
+"$SCRIPT_DIR/installation-utils/install_system_packages.sh"
+echo ""
+
+# Install Python dependencies
+echo -e "${BLUE}Installing Python dependencies...${NC}"
+pip3 install -r "$SCRIPT_DIR/installation-utils/requirements.txt"
+echo -e "${GREEN}✓ Python dependencies installed${NC}"
+echo ""
+
 echo -e "${BLUE}Creating directories...${NC}"
 
 # Create directories
@@ -132,18 +153,21 @@ sudo cp -r "$SCRIPT_DIR"/* "$MOTHBOX_HOME/"
 if [ "$INSTALL_TYPE" = "production" ]; then
     echo -e "${BLUE}Setting up production configuration...${NC}"
 
-    # Copy config files
-    if [ -f "$MOTHBOX_HOME/controls.txt" ]; then
-        sudo cp "$MOTHBOX_HOME/controls.txt" "$CONFIG_DIR/"
+    # Config files are in the Pi-version-specific directory
+    CONFIG_SOURCE="$SCRIPT_DIR/${PI_VERSION}.x"
+
+    # Copy config files from source
+    if [ -f "$CONFIG_SOURCE/controls.txt" ]; then
+        sudo cp "$CONFIG_SOURCE/controls.txt" "$CONFIG_DIR/"
     fi
-    if [ -f "$MOTHBOX_HOME/camera_settings.csv" ]; then
-        sudo cp "$MOTHBOX_HOME/camera_settings.csv" "$CONFIG_DIR/"
+    if [ -f "$CONFIG_SOURCE/camera_settings.csv" ]; then
+        sudo cp "$CONFIG_SOURCE/camera_settings.csv" "$CONFIG_DIR/"
     fi
-    if [ -f "$MOTHBOX_HOME/schedule_settings.csv" ]; then
-        sudo cp "$MOTHBOX_HOME/schedule_settings.csv" "$CONFIG_DIR/"
+    if [ -f "$CONFIG_SOURCE/schedule_settings.csv" ]; then
+        sudo cp "$CONFIG_SOURCE/schedule_settings.csv" "$CONFIG_DIR/"
     fi
-    if [ -f "$MOTHBOX_HOME/wordlist.csv" ]; then
-        sudo cp "$MOTHBOX_HOME/wordlist.csv" "$CONFIG_DIR/"
+    if [ -f "$CONFIG_SOURCE/wordlist.csv" ]; then
+        sudo cp "$CONFIG_SOURCE/wordlist.csv" "$CONFIG_DIR/"
     fi
 
     echo -e "${GREEN}✓ Configuration files copied to $CONFIG_DIR${NC}"
@@ -162,12 +186,16 @@ echo -e "${GREEN}===============================================================
 echo -e "${GREEN}Installation Complete!${NC}"
 echo -e "${GREEN}================================================================================${NC}"
 echo ""
+echo -e "${BLUE}Raspberry Pi Model:${NC} Pi ${PI_VERSION}"
 echo -e "${BLUE}Mothbox Location:${NC} $MOTHBOX_HOME"
+echo -e "${BLUE}Configuration:${NC} $CONFIG_DIR"
+echo -e "${BLUE}Data Directory:${NC} $DATA_DIR"
 echo ""
 echo -e "${YELLOW}Next Steps:${NC}"
 echo "1. Review and edit configuration files in: $CONFIG_DIR"
 echo "2. Update your crontab to point to: $MOTHBOX_HOME"
 echo "3. Test the installation by running: python3 $MOTHBOX_HOME/mothbox_paths.py"
+echo "4. Test photo capture: python3 $MOTHBOX_HOME/${PI_VERSION}.x/TakePhoto.py"
 echo ""
 
 if [ "$INSTALL_TYPE" = "custom" ]; then
