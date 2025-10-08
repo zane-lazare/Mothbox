@@ -23,11 +23,16 @@ def get_gpio_status():
 
         pins = get_gpio_pins()
         GPIO.setmode(GPIO.BCM)
+        GPIO.setwarnings(False)  # Suppress warnings about pins already in use
 
         status = {}
         for name, pin in pins.items():
-            GPIO.setup(pin, GPIO.OUT)
-            status[name] = GPIO.input(pin)
+            # Only setup if not already configured
+            try:
+                GPIO.setup(pin, GPIO.OUT)
+            except:
+                pass
+            status[name] = bool(GPIO.input(pin))
 
         return jsonify(status)
     except Exception as e:

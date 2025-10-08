@@ -122,7 +122,7 @@ export default function Camera() {
 
         {previewActive && (
           <p className="text-xs text-gray-500 mt-2">
-            Preview running at ~10 FPS (800x600)
+            Preview running at ~10 FPS (1024x768) with continuous autofocus
           </p>
         )}
       </div>

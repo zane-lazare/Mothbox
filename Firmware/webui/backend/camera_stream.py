@@ -38,11 +38,17 @@ class CameraStreamer:
                 except:
                     self.camera = Picamera2(1)
 
-                # Configure for preview - higher resolution for better quality
+                # Configure for preview - 4:3 aspect ratio for better compatibility
                 preview_config = self.camera.create_preview_configuration(
-                    main={"size": (1280, 720), "format": "RGB888"}
+                    main={"size": (1024, 768), "format": "RGB888"}
                 )
                 self.camera.configure(preview_config)
+
+                # Enable autofocus if available
+                try:
+                    self.camera.set_controls({"AfMode": 2, "AfTrigger": 0})  # Continuous autofocus
+                except Exception as af_error:
+                    print(f"Autofocus not available: {af_error}")
 
             return True
         except Exception as e:
