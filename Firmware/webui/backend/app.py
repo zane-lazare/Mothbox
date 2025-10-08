@@ -24,8 +24,20 @@ from mothbox_paths import (
 )
 
 app = Flask(__name__, static_folder='../frontend/dist')
-CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Configure CORS for cross-origin requests
+CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+# Configure SocketIO with proper CORS and transport settings
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    async_mode='threading',
+    logger=True,
+    engineio_logger=True,
+    ping_timeout=60,
+    ping_interval=25
+)
 
 # Initialize camera streamer
 from camera_stream import CameraStreamer
@@ -50,24 +62,45 @@ app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
 # WebSocket event handlers
 @socketio.on('connect')
 def handle_connect():
-    print('Client connected')
-    emit('connected', {'status': 'connected'})
+    """Handle client WebSocket connection"""
+    from flask import request
+    client_ip = request.remote_addr
+    print(f'Client connected from {client_ip}')
+    emit('connected', {'status': 'connected', 'message': 'Successfully connected to Mothbox'})
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    print('Client disconnected')
+    """Handle client WebSocket disconnection"""
+    print('Client disconnected - stopping camera preview if active')
+    camera_streamer.stop_streaming()
 
 @socketio.on('start_preview')
 def handle_start_preview():
     """Start camera preview streaming"""
-    success = camera_streamer.start_streaming()
-    emit('preview_status', {'streaming': success})
+    print('Received start_preview request')
+    try:
+        success = camera_streamer.start_streaming()
+        if success:
+            print('Camera preview started successfully')
+            emit('preview_status', {'streaming': True, 'message': 'Preview started'})
+        else:
+            print('Failed to start camera preview')
+            emit('preview_status', {'streaming': False, 'error': 'Failed to initialize camera'})
+    except Exception as e:
+        print(f'Error starting preview: {e}')
+        emit('preview_status', {'streaming': False, 'error': str(e)})
 
 @socketio.on('stop_preview')
 def handle_stop_preview():
     """Stop camera preview streaming"""
-    camera_streamer.stop_streaming()
-    emit('preview_status', {'streaming': False})
+    print('Received stop_preview request')
+    try:
+        camera_streamer.stop_streaming()
+        print('Camera preview stopped')
+        emit('preview_status', {'streaming': False, 'message': 'Preview stopped'})
+    except Exception as e:
+        print(f'Error stopping preview: {e}')
+        emit('preview_status', {'streaming': False, 'error': str(e)})
 
 # Serve React app
 @app.route('/', defaults={'path': ''})

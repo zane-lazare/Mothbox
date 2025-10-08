@@ -21,3 +21,10 @@ numpy
 # Scheduling
 python-crontab
 schedule
+
+# Web UI (optional - only needed if installing webui)
+# To install webui: run install_webui.sh or use --with-webui flag
+Flask==3.0.0
+Flask-CORS==4.0.0
+Flask-SocketIO==5.3.6
+python-socketio==5.11.0

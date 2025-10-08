@@ -1,0 +1,21 @@
+[Unit]
+Description=Mothbox Web UI Server
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+Group=gpio
+WorkingDirectory=/opt/mothbox/webui/backend
+ExecStart=/usr/bin/python3 /opt/mothbox/webui/backend/app.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment="MOTHBOX_HOME=/opt/mothbox"
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target

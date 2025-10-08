@@ -116,6 +116,18 @@ read -p "(y/N) " -n 1 -r
 echo
 REMOVE_CRON=$REPLY
 
+# Ask about Node.js removal
+REMOVE_NODEJS="n"
+if command -v node &> /dev/null; then
+    echo ""
+    echo -e "${YELLOW}Node.js is installed on this system.${NC}"
+    echo -e "Do you want to remove Node.js and npm?"
+    echo -e "${YELLOW}Warning: This may affect other applications that use Node.js${NC}"
+    read -p "(y/N) " -n 1 -r
+    echo
+    REMOVE_NODEJS=$REPLY
+fi
+
 echo ""
 echo -e "${RED}================================================================================${NC}"
 echo -e "${RED}WARNING: The following will be PERMANENTLY DELETED:${NC}"
@@ -140,6 +152,10 @@ fi
 
 if [[ $REMOVE_CRON =~ ^[Yy]$ ]]; then
     echo -e "  ${RED}✗${NC} Mothbox crontab entries (you will edit manually)"
+fi
+
+if [[ $REMOVE_NODEJS =~ ^[Yy]$ ]]; then
+    echo -e "  ${RED}✗${NC} Node.js and npm"
 fi
 
 echo ""
@@ -167,6 +183,26 @@ fi
 
 echo ""
 echo -e "${BLUE}Uninstalling Mothbox...${NC}"
+
+# Stop and remove web UI systemd service if it exists
+if systemctl is-active --quiet mothbox-webui.service 2>/dev/null; then
+    echo -e "${BLUE}Stopping mothbox-webui service...${NC}"
+    sudo systemctl stop mothbox-webui.service
+    echo -e "${GREEN}✓ Service stopped${NC}"
+fi
+
+if systemctl is-enabled --quiet mothbox-webui.service 2>/dev/null; then
+    echo -e "${BLUE}Disabling mothbox-webui service...${NC}"
+    sudo systemctl disable mothbox-webui.service
+    echo -e "${GREEN}✓ Service disabled${NC}"
+fi
+
+if [ -f "/etc/systemd/system/mothbox-webui.service" ]; then
+    echo -e "${BLUE}Removing systemd service file...${NC}"
+    sudo rm /etc/systemd/system/mothbox-webui.service
+    sudo systemctl daemon-reload
+    echo -e "${GREEN}✓ Service file removed${NC}"
+fi
 
 # Preserve photos if requested
 PHOTOS_BACKUP=""
@@ -218,6 +254,15 @@ if [[ $REMOVE_CRON =~ ^[Yy]$ ]]; then
     crontab -e
 fi
 
+# Remove Node.js if requested
+if [[ $REMOVE_NODEJS =~ ^[Yy]$ ]]; then
+    echo ""
+    echo -e "${BLUE}Removing Node.js and npm...${NC}"
+    sudo apt-get remove -y nodejs npm
+    sudo apt-get autoremove -y
+    echo -e "${GREEN}✓ Node.js and npm removed${NC}"
+fi
+
 echo ""
 echo -e "${GREEN}================================================================================${NC}"
 echo -e "${GREEN}Uninstallation Complete${NC}"
@@ -235,8 +280,11 @@ fi
 echo ""
 echo -e "${BLUE}What was NOT removed:${NC}"
 echo "  - System packages (python3, git, i2c-tools, etc.)"
-echo "  - Python packages (picamera2, opencv-python, etc.)"
+echo "  - Python packages (picamera2, opencv-python, Flask, etc.)"
+if [[ ! $REMOVE_NODEJS =~ ^[Yy]$ ]]; then
+    echo "  - Node.js and npm (declined removal)"
+fi
 echo ""
 echo -e "If you want to remove Python packages, run:"
-echo -e "  pip3 uninstall -y picamera2 opencv-python RPi.GPIO Pillow piexif psutil smbus2 adafruit-circuitpython-ina260 numpy python-crontab schedule"
+echo -e "  pip3 uninstall -y picamera2 opencv-python RPi.GPIO Pillow piexif psutil smbus2 adafruit-circuitpython-ina260 numpy python-crontab schedule Flask Flask-CORS Flask-SocketIO python-socketio"
 echo ""

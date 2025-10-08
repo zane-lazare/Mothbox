@@ -12,22 +12,25 @@
 #
 # Usage:
 #   ./install_mothbox.sh                          # Interactive mode (recommended)
-#   ./install_mothbox.sh [--type TYPE] [--quick] [--path PATH]
+#   ./install_mothbox.sh [--type TYPE] [--quick] [--with-webui] [--path PATH]
 #
 # Interactive Mode (default when no arguments):
 #   - Guided menu for installation type selection
 #   - Option for quick install or custom hardware configuration
+#   - Option to install Web UI
 #   - Best for manual installations
 #
 # CLI Mode (for automation):
 #   --type [legacy|production|custom]   Installation type
 #   --path /custom/path                 Path for custom installation
 #   --quick                             Skip interactive prompts, use defaults
+#   --with-webui                        Install Web UI (Node.js + Flask + React)
 #
 # Examples:
-#   ./install_mothbox.sh                          # Interactive wizard
-#   ./install_mothbox.sh --type production        # CLI: production install
-#   ./install_mothbox.sh --type legacy --quick    # CLI: quick legacy install
+#   ./install_mothbox.sh                                # Interactive wizard
+#   ./install_mothbox.sh --type production              # CLI: production install
+#   ./install_mothbox.sh --type legacy --quick          # CLI: quick legacy install
+#   ./install_mothbox.sh --type production --with-webui # CLI: production + webui
 #   ./install_mothbox.sh --type custom --path /srv/mothbox
 #
 # ==============================================================================
@@ -45,6 +48,7 @@ NC='\033[0m' # No Color
 INSTALL_TYPE="legacy"
 CUSTOM_PATH=""
 QUICK_MODE="false"
+INSTALL_WEBUI_FLAG="false"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Detect the user who should own Mothbox files
@@ -76,6 +80,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --quick)
             QUICK_MODE="true"
+            shift
+            ;;
+        --with-webui)
+            INSTALL_WEBUI_FLAG="true"
             shift
             ;;
         --help|-h)
@@ -680,6 +688,41 @@ echo ""
 echo -e "${BLUE}Setting script permissions...${NC}"
 find "$MOTHBOX_HOME" -name "*.py" -exec sudo chmod +x {} \;
 echo -e "${GREEN}✓ Script permissions set${NC}"
+
+# Optional: Install Web UI
+if [ "$INSTALL_WEBUI_FLAG" = "true" ] || [ "$INTERACTIVE_MODE" = "true" ]; then
+    echo ""
+    echo -e "${BLUE}================================================================================${NC}"
+    echo -e "${BLUE}Web UI Installation (Optional)${NC}"
+    echo -e "${BLUE}================================================================================${NC}"
+    echo ""
+
+    # Only prompt in interactive mode or if flag not set
+    INSTALL_WEBUI="n"
+    if [ "$INSTALL_WEBUI_FLAG" = "true" ]; then
+        INSTALL_WEBUI="y"
+    elif [ "$INTERACTIVE_MODE" = "true" ]; then
+        echo -e "The Mothbox Web UI provides a browser-based interface for:"
+        echo "  - Real-time system monitoring (CPU, disk, photos)"
+        echo "  - Photo gallery with thumbnails"
+        echo "  - Live camera preview"
+        echo "  - GPIO controls (lights, flash)"
+        echo "  - Scheduler management"
+        echo "  - Settings configuration"
+        echo ""
+        echo -e "${YELLOW}Do you want to install the Web UI?${NC}"
+        echo "(This will install Node.js, Flask, and build the frontend)"
+        read -p "(y/N) " -n 1 -r
+        echo
+        INSTALL_WEBUI=$REPLY
+    fi
+
+    if [[ $INSTALL_WEBUI =~ ^[Yy]$ ]]; then
+        echo ""
+        echo -e "${BLUE}Installing Web UI...${NC}"
+        "$SCRIPT_DIR/installation-utils/install_webui.sh"
+    fi
+fi
 
 # Print success message and next steps
 echo ""
