@@ -36,17 +36,28 @@ import os
 from pathlib import Path
 from typing import Dict, Union, Any
 
-# Check for environment variable override first
+# Detect installation type
+# Priority: marker file > /opt/mothbox exists > env var > legacy path
+installation_marker = Path("/opt/mothbox/.installation_type")
 MOTHBOX_HOME_ENV = os.environ.get('MOTHBOX_HOME')
 
-if MOTHBOX_HOME_ENV:
-    # Use environment variable if set (useful for development/testing)
-    MOTHBOX_HOME = Path(MOTHBOX_HOME_ENV)
-    _installation_type = "custom"
-elif Path("/opt/mothbox").exists():
+if installation_marker.exists():
+    # Read installation type from marker file (most reliable)
+    try:
+        _installation_type = installation_marker.read_text().strip()
+        MOTHBOX_HOME = Path("/opt/mothbox")
+    except:
+        _installation_type = "production"
+        MOTHBOX_HOME = Path("/opt/mothbox")
+elif Path("/opt/mothbox").exists() and not MOTHBOX_HOME_ENV:
     # Production FHS-compliant installation
+    # Only if /opt/mothbox exists AND no env var override
     MOTHBOX_HOME = Path("/opt/mothbox")
     _installation_type = "production"
+elif MOTHBOX_HOME_ENV:
+    # Custom location via environment variable
+    MOTHBOX_HOME = Path(MOTHBOX_HOME_ENV)
+    _installation_type = "custom"
 else:
     # Legacy Desktop installation (backward compatibility)
     MOTHBOX_HOME = Path("/home/pi/Desktop/Mothbox")

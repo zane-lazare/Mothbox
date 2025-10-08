@@ -569,46 +569,60 @@ sudo chmod -R 755 "$DATA_DIR"  # Owner rwx, group rx, others rx
 
 echo -e "${GREEN}✓ Directories created${NC}"
 
-# Copy firmware files
+# Copy firmware files (exclude development artifacts)
 echo -e "${BLUE}Copying firmware files...${NC}"
-sudo cp -r "$SCRIPT_DIR"/* "$MOTHBOX_HOME/"
 
-# For production installation, copy config files to /etc/mothbox
-if [ "$INSTALL_TYPE" = "production" ]; then
-    echo -e "${BLUE}Setting up production configuration...${NC}"
-
-    # Config files are in the firmware-version-specific directory
-    CONFIG_SOURCE="$SCRIPT_DIR/${FIRMWARE_VERSION}.x"
-
-    # Copy config files from source
-    if [ -f "$CONFIG_SOURCE/controls.txt" ]; then
-        sudo cp "$CONFIG_SOURCE/controls.txt" "$CONFIG_DIR/"
-    fi
-    if [ -f "$CONFIG_SOURCE/camera_settings.csv" ]; then
-        sudo cp "$CONFIG_SOURCE/camera_settings.csv" "$CONFIG_DIR/"
-    fi
-    if [ -f "$CONFIG_SOURCE/schedule_settings.csv" ]; then
-        sudo cp "$CONFIG_SOURCE/schedule_settings.csv" "$CONFIG_DIR/"
-    fi
-    if [ -f "$CONFIG_SOURCE/wordlist.csv" ]; then
-        sudo cp "$CONFIG_SOURCE/wordlist.csv" "$CONFIG_DIR/"
-    fi
-
-    echo -e "${GREEN}✓ Configuration files copied to $CONFIG_DIR${NC}"
-
-    # Fix permissions for config files (created by sudo cp, owned by root)
-    # These files need to be writable by user for auto-calibration, GPS updates, etc.
-    CONFIG_FILES=("controls.txt" "camera_settings.csv" "schedule_settings.csv" "wordlist.csv")
-    for file in "${CONFIG_FILES[@]}"; do
-        if [ -f "$CONFIG_DIR/$file" ]; then
-            sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$CONFIG_DIR/$file"
-            sudo chmod 664 "$CONFIG_DIR/$file"
-        fi
-    done
-    echo -e "${GREEN}✓ Config file permissions set for $MOTHBOX_USER user${NC}"
+# Use rsync if available for better control, fallback to cp
+if command -v rsync &> /dev/null; then
+    sudo rsync -av --exclude='.git' --exclude='__pycache__' --exclude='node_modules' \
+        --exclude='*.pyc' --exclude='.DS_Store' --exclude='.gitignore' --exclude='.github' \
+        "$SCRIPT_DIR/" "$MOTHBOX_HOME/"
+    echo -e "${GREEN}✓ Firmware files copied (excluding dev artifacts)${NC}"
+else
+    sudo cp -r "$SCRIPT_DIR"/* "$MOTHBOX_HOME/"
+    echo -e "${YELLOW}⚠ rsync not available, copied all files including dev artifacts${NC}"
 fi
 
-echo -e "${GREEN}✓ Firmware files copied${NC}"
+# Copy configuration files (ALL installation types need these)
+echo -e "${BLUE}Setting up configuration files...${NC}"
+
+# Config files are in the firmware-version-specific directory
+CONFIG_SOURCE="$SCRIPT_DIR/${FIRMWARE_VERSION}.x"
+
+# Copy config files from source
+CONFIG_FILES=("controls.txt" "camera_settings.csv" "schedule_settings.csv" "wordlist.csv")
+for file in "${CONFIG_FILES[@]}"; do
+    if [ -f "$CONFIG_SOURCE/$file" ]; then
+        sudo cp "$CONFIG_SOURCE/$file" "$CONFIG_DIR/"
+        echo -e "${GREEN}  ✓ Copied $file${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ Warning: $file not found in $CONFIG_SOURCE${NC}"
+    fi
+done
+
+# Update softwareversion in controls.txt to match user's firmware selection
+if [ -f "$CONFIG_DIR/controls.txt" ]; then
+    echo -e "${BLUE}Updating firmware version in config...${NC}"
+    sudo sed -i "s/^softwareversion=.*/softwareversion=${FIRMWARE_VERSION}.0.0/" "$CONFIG_DIR/controls.txt"
+    echo -e "${GREEN}✓ Firmware version set to ${FIRMWARE_VERSION}.0.0${NC}"
+fi
+
+# Fix permissions for config files (created by sudo cp, owned by root)
+# These files need to be writable by user for auto-calibration, GPS updates, etc.
+for file in "${CONFIG_FILES[@]}"; do
+    if [ -f "$CONFIG_DIR/$file" ]; then
+        sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$CONFIG_DIR/$file"
+        sudo chmod 664 "$CONFIG_DIR/$file"
+    fi
+done
+
+echo -e "${GREEN}✓ Configuration files set up at $CONFIG_DIR${NC}"
+
+# Create installation type marker file for reliable detection
+echo -e "${BLUE}Creating installation marker...${NC}"
+echo "$INSTALL_TYPE" | sudo tee "$MOTHBOX_HOME/.installation_type" > /dev/null
+sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$MOTHBOX_HOME/.installation_type"
+echo -e "${GREEN}✓ Installation type marked as '$INSTALL_TYPE'${NC}"
 
 # Write GPIO configuration to controls.txt
 echo -e "${BLUE}Configuring GPIO pins...${NC}"
@@ -724,8 +738,59 @@ if [ "$INSTALL_WEBUI_FLAG" = "true" ] || [ "$INTERACTIVE_MODE" = "true" ]; then
     fi
 fi
 
-# Print success message and next steps
+# Post-install validation
 echo ""
+echo -e "${BLUE}================================================================================${NC}"
+echo -e "${BLUE}Validating Installation...${NC}"
+echo -e "${BLUE}================================================================================${NC}"
+echo ""
+
+VALIDATION_ERRORS=0
+
+# Check required config files exist
+echo -e "${BLUE}Checking configuration files...${NC}"
+for file in "${CONFIG_FILES[@]}"; do
+    if [ -f "$CONFIG_DIR/$file" ]; then
+        echo -e "${GREEN}  ✓ $file exists${NC}"
+    else
+        echo -e "${RED}  ✗ $file missing!${NC}"
+        VALIDATION_ERRORS=$((VALIDATION_ERRORS+1))
+    fi
+done
+
+# Check Python can import mothbox_paths
+echo -e "${BLUE}Checking Python imports...${NC}"
+if python3 -c "import sys; sys.path.insert(0, '$MOTHBOX_HOME'); from mothbox_paths import get_gpio_pins; print('✓ Python imports OK')" 2>/dev/null; then
+    echo -e "${GREEN}  ✓ mothbox_paths module loads correctly${NC}"
+else
+    echo -e "${RED}  ✗ Failed to import mothbox_paths!${NC}"
+    VALIDATION_ERRORS=$((VALIDATION_ERRORS+1))
+fi
+
+# Check GPIO pins are configured
+echo -e "${BLUE}Checking GPIO configuration...${NC}"
+if grep -q "^Relay_Ch1=" "$CONFIG_DIR/controls.txt" 2>/dev/null; then
+    echo -e "${GREEN}  ✓ GPIO pins configured in controls.txt${NC}"
+else
+    echo -e "${YELLOW}  ⚠ GPIO pins not found in controls.txt (will use defaults)${NC}"
+fi
+
+# Check firmware version was updated
+echo -e "${BLUE}Checking firmware version...${NC}"
+if grep -q "^softwareversion=${FIRMWARE_VERSION}\." "$CONFIG_DIR/controls.txt" 2>/dev/null; then
+    echo -e "${GREEN}  ✓ Firmware version correctly set to ${FIRMWARE_VERSION}.x${NC}"
+else
+    echo -e "${YELLOW}  ⚠ Firmware version may not match installation${NC}"
+fi
+
+echo ""
+if [ $VALIDATION_ERRORS -gt 0 ]; then
+    echo -e "${RED}Installation completed with $VALIDATION_ERRORS validation errors!${NC}"
+    echo -e "${YELLOW}Please check the errors above before running Mothbox.${NC}"
+    echo ""
+fi
+
+# Print success message and next steps
 echo -e "${GREEN}================================================================================${NC}"
 echo -e "${GREEN}Installation Complete!${NC}"
 echo -e "${GREEN}================================================================================${NC}"
