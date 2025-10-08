@@ -112,7 +112,15 @@ def serve_react(path):
 
 if __name__ == '__main__':
     try:
-        socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+        # Note: Using Werkzeug development server for simplicity
+        # For production, consider using gunicorn with eventlet/gevent worker
+        socketio.run(
+            app,
+            host='0.0.0.0',
+            port=5000,
+            debug=False,  # Disable debug in production
+            allow_unsafe_werkzeug=True
+        )
     finally:
         # Cleanup camera on shutdown
         camera_streamer.cleanup()
