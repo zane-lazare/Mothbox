@@ -517,8 +517,6 @@ fi
 
 # Append GPIO configuration if not already present
 if ! grep -q "^Relay_Ch1=" "$CONTROLS_FILE" 2>/dev/null; then
-    echo "" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "# GPIO Pin Configuration" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "Relay_Ch1=$RELAY_CH1" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "Relay_Ch2=$RELAY_CH2" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "Relay_Ch3=$RELAY_CH3" | sudo tee -a "$CONTROLS_FILE" > /dev/null
@@ -534,27 +532,18 @@ fi
 # Write hardware module configuration
 echo -e "${BLUE}Configuring hardware modules...${NC}"
 if ! grep -q "^ina260_enabled=" "$CONTROLS_FILE" 2>/dev/null; then
-    echo "" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "# Hardware Module Configuration" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "# Power Sensor" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "ina260_enabled=$INA260_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "ina260_address=$INA260_ADDRESS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "# E-Paper Display" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "epaper_enabled=$EPAPER_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "epaper_rst_pin=$EPAPER_RST" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "epaper_dc_pin=$EPAPER_DC" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "epaper_cs_pin=$EPAPER_CS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "epaper_busy_pin=$EPAPER_BUSY" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "epaper_pwr_pin=$EPAPER_PWR" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "# GPS Module" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "gps_enabled=$GPS_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "gps_device=$GPS_DEVICE" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "gps_baudrate=$GPS_BAUDRATE" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "gps_timeout=$GPS_TIMEOUT" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "# Optional Modules" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "light_sensor_enabled=$LIGHT_SENSOR_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "light_sensor_type=$LIGHT_SENSOR_TYPE" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "light_sensor_address=$LIGHT_SENSOR_ADDRESS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
