@@ -1,18 +1,45 @@
 """GPIO control endpoints"""
 from flask import Blueprint, jsonify, request
 import sys
+import json
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from mothbox_paths import get_gpio_pins
 
-try:
-    import RPi.GPIO as GPIO
-    GPIO_AVAILABLE = True
-except (ImportError, RuntimeError):
-    GPIO_AVAILABLE = False
-
 gpio_bp = Blueprint('gpio', __name__)
+
+# Try to import lgpio (works on Pi 4 and Pi 5)
+try:
+    import lgpio
+    GPIO_AVAILABLE = True
+    # Open GPIO chip
+    gpio_chip = lgpio.gpiochip_open(0)
+except (ImportError, Exception) as e:
+    GPIO_AVAILABLE = False
+    gpio_chip = None
+    print(f"Warning: lgpio not available - {e}")
+
+# State file to track GPIO status
+STATE_FILE = Path("/tmp/mothbox_gpio_state.json")
+
+def _get_state():
+    """Read GPIO state from state file"""
+    if STATE_FILE.exists():
+        with open(STATE_FILE, 'r') as f:
+            return json.load(f)
+    else:
+        # Default state - all relays off
+        return {
+            'Relay_Ch1': False,
+            'Relay_Ch2': False,
+            'Relay_Ch3': False
+        }
+
+def _save_state(status):
+    """Save GPIO state to state file"""
+    with open(STATE_FILE, 'w') as f:
+        json.dump(status, f)
 
 @gpio_bp.route('/status', methods=['GET'])
 def get_gpio_status():
@@ -22,22 +49,18 @@ def get_gpio_status():
             return jsonify({'error': 'GPIO not available'}), 500
 
         pins = get_gpio_pins()
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setwarnings(False)  # Suppress warnings about pins already in use
-
         status = {}
-        for name, pin in pins.items():
-            # Only setup if not already configured
-            try:
-                GPIO.setup(pin, GPIO.OUT)
-            except Exception as setup_error:
-                print(f"GPIO setup error for {name} (pin {pin}): {setup_error}")
 
+        for name, pin in pins.items():
             try:
-                status[name] = bool(GPIO.input(pin))
+                # Read current state
+                state = lgpio.gpio_read(gpio_chip, pin)
+                status[name] = bool(state)
             except Exception as read_error:
-                print(f"GPIO read error for {name} (pin {pin}): {read_error}")
-                status[name] = False
+                print(f"Error reading {name} (pin {pin}): {read_error}")
+                # Fall back to saved state
+                saved_status = _get_state()
+                status[name] = saved_status.get(name, False)
 
         return jsonify(status), 200
     except Exception as e:
@@ -48,7 +71,7 @@ def get_gpio_status():
 
 @gpio_bp.route('/control', methods=['POST'])
 def control_gpio():
-    """Control GPIO pins (attract lights, flash, UV)"""
+    """Control GPIO pins using lgpio"""
     try:
         if not GPIO_AVAILABLE:
             return jsonify({'error': 'GPIO not available'}), 500
@@ -65,17 +88,31 @@ def control_gpio():
             return jsonify({'error': f'Invalid relay: {relay}'}), 400
 
         pin = pins[relay]
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(pin, GPIO.OUT)
-        GPIO.output(pin, GPIO.HIGH if state else GPIO.LOW)
+        print(f"GPIO control: {relay} (pin {pin}) -> {state}")
+
+        # Claim pin as output and set state
+        try:
+            lgpio.gpio_claim_output(gpio_chip, pin)
+        except:
+            pass  # Pin might already be claimed
+
+        lgpio.gpio_write(gpio_chip, pin, 1 if state else 0)
+
+        # Update state file
+        status = _get_state()
+        status[relay] = state
+        _save_state(status)
 
         return jsonify({'success': True, 'relay': relay, 'state': state})
     except Exception as e:
+        import traceback
+        print(f"GPIO control error: {e}")
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 @gpio_bp.route('/flash', methods=['POST'])
 def trigger_flash():
-    """Trigger camera flash momentarily"""
+    """Trigger camera flash momentarily using lgpio"""
     try:
         if not GPIO_AVAILABLE:
             return jsonify({'error': 'GPIO not available'}), 500
@@ -84,12 +121,24 @@ def trigger_flash():
         pins = get_gpio_pins()
         flash_pin = pins['Relay_Ch2']
 
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(flash_pin, GPIO.OUT)
-        GPIO.output(flash_pin, GPIO.HIGH)
-        time.sleep(0.1)  # Flash for 100ms
-        GPIO.output(flash_pin, GPIO.LOW)
+        print(f"Triggering flash on pin {flash_pin} (100ms pulse)")
 
+        # Claim pin as output
+        try:
+            lgpio.gpio_claim_output(gpio_chip, flash_pin)
+        except:
+            pass  # Pin might already be claimed
+
+        # Turn on
+        lgpio.gpio_write(gpio_chip, flash_pin, 1)
+        time.sleep(0.1)  # 100ms
+        # Turn off
+        lgpio.gpio_write(gpio_chip, flash_pin, 0)
+
+        print("Flash completed")
         return jsonify({'success': True})
     except Exception as e:
+        import traceback
+        print(f"Flash trigger error: {e}")
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
