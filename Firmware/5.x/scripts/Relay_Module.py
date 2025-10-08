@@ -1,18 +1,26 @@
 ##################################################
-
-#           P26 ----> Relay_Ch1 Optional UV light
-#			P20 ----> Relay_Ch2 Flash Lights
-#			P21 ----> Relay_Ch3 5V power converter
-
+#
+#           GPIO pins configured in controls.txt:
+#           Relay_Ch1 ----> Optional UV light (default: 5 for 5.x)
+#           Relay_Ch2 ----> Flash Lights (default: 19 for 5.x)
+#           Relay_Ch3 ----> 5V power converter (default: 9 for 5.x)
+#
 ##################################################
 #!/usr/bin/python
 # -*- coding:utf-8 -*-
 import RPi.GPIO as GPIO
 import time
 
-Relay_Ch1 = 5
-Relay_Ch2 = 6
-Relay_Ch3 = 9
+# Load GPIO pins from configuration
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from mothbox_paths import get_gpio_pins
+
+pins = get_gpio_pins()
+Relay_Ch1 = pins['Relay_Ch1']
+Relay_Ch2 = pins['Relay_Ch2']
+Relay_Ch3 = pins['Relay_Ch3']
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)

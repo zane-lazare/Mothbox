@@ -6,12 +6,21 @@
 
 import smbus
 import time
+from pathlib import Path
+import sys
+
+# Add parent directory to path to import mothbox_paths
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import get_hardware_config
+
+# Load hardware configuration
+hw_config = get_hardware_config()
 
 # Get I2C bus
 bus = smbus.SMBus(1)
 
 # I2C address of the device
-PCA9536_DEFAULT_ADDRESS				= 0x21
+PCA9536_DEFAULT_ADDRESS = hw_config['pca9536_address']
 
 # PCA9536 Register Map
 PCA9536_REG_INPUT					= 0x00 # Input Port Register

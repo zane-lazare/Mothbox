@@ -1,17 +1,31 @@
 import RPi.GPIO as GPIO
 import time
+from pathlib import Path
+import sys
+
+# Add parent directory to path to import mothbox_paths
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from mothbox_paths import get_hardware_config, get_mux_pins
+
+# Load hardware configuration
+hw_config = get_hardware_config()
+
+if not hw_config['mux_enabled']:
+    print("Multiplexer disabled in configuration")
+    quit()
 
 # Setup GPIO
 GPIO.setmode(GPIO.BOARD)
 
-# Pin definitions
-EN_A = 31      # Enable for Multiplexer A
-EN_B = 29      # Enable for Multiplexer B
-S0 = 33        # Select line S0
-S1 = 13        # Select line S1
-S2 = 12        # Select line S2
-S3 = 15        # Select line S3
-SIG = 36       # Signal input pin
+# Pin definitions - loaded from configuration
+mux_pins = get_mux_pins()
+EN_A = mux_pins['EN_A']
+EN_B = mux_pins['EN_B']
+S0 = mux_pins['S0']
+S1 = mux_pins['S1']
+S2 = mux_pins['S2']
+S3 = mux_pins['S3']
+SIG = mux_pins['SIG']
 
 # Setup pins
 GPIO.setup(EN_A, GPIO.OUT)

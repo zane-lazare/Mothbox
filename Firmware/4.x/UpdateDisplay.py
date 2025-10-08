@@ -12,7 +12,7 @@ leaving a 0 power high contrast display to view in the field.
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import CONTROLS_FILE, MOTHBOX_HOME, get_script_path
+from mothbox_paths import CONTROLS_FILE, MOTHBOX_HOME, get_script_path, get_hardware_config
 
 import os
 picdir = str(MOTHBOX_HOME / "scripts/RaspberryPi_JetsonNano_Epaper/pic")
@@ -127,6 +127,7 @@ free_gb = free // (2**30)
 
 ### Mothbox Name
 control_values = get_control_values(str(CONTROLS_FILE))
+hw_config = get_hardware_config()
 onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
 LastCalibration = float(control_values.get("LastCalibration", 0))
 computerName = control_values.get("name", "errorname")
@@ -157,16 +158,19 @@ softwareversion=control_values.get("softwareversion", "error")
 #Check battery level and power
 voltage= -100
 
-try:
-    i2c = board.I2C()  # uses board.SCL and board.SDA
-    # i2c = board.STEMMA_I2C()  # For using the built-in STEMMA QT connector on a microcontroller
-    ina260 = adafruit_ina260.INA260(i2c)
-    voltage=ina260.voltage
-    print("Current: %.2f mA Voltage: %.2f V Power:%.2f mW " % (ina260.current, ina260.voltage, ina260.power))
+if hw_config['ina260_enabled']:
+    try:
+        i2c = board.I2C()  # uses board.SCL and board.SDA
+        # i2c = board.STEMMA_I2C()  # For using the built-in STEMMA QT connector on a microcontroller
+        ina260 = adafruit_ina260.INA260(i2c, address=hw_config['ina260_address'])
+        voltage=ina260.voltage
+        print("Current: %.2f mA Voltage: %.2f V Power:%.2f mW " % (ina260.current, ina260.voltage, ina260.power))
 
-except (OSError, ValueError) as e:
-    # Handle exceptions like sensor not connected or communication errors
-    print("Sensor NOT CONNECTED  ")
+    except (OSError, ValueError) as e:
+        # Handle exceptions like sensor not connected or communication errors
+        print("Sensor NOT CONNECTED  ")
+else:
+    print("INA260 sensor disabled in configuration")
     
 maxvoltage=12.4
 minvoltage=9.8

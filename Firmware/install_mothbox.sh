@@ -32,6 +32,7 @@ NC='\033[0m' # No Color
 # Default values
 INSTALL_TYPE="legacy"
 CUSTOM_PATH=""
+QUICK_MODE="false"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Parse command line arguments
@@ -44,6 +45,10 @@ while [[ $# -gt 0 ]]; do
         --path)
             CUSTOM_PATH="$2"
             shift 2
+            ;;
+        --quick)
+            QUICK_MODE="true"
+            shift
             ;;
         --help|-h)
             grep -A 100 "^#" "$0" | grep -B 100 "^# =====.*=====$" | tail -n +2 | head -n -1 | sed 's/^# //'
@@ -150,6 +155,283 @@ while true; do
 done
 echo ""
 
+# Hardware Configuration
+echo -e "${BLUE}Hardware Configuration${NC}"
+echo ""
+
+# Set firmware-specific defaults
+if [ "$FIRMWARE_VERSION" = "4" ]; then
+    DEFAULT_CH1=26
+    DEFAULT_CH2=20
+    DEFAULT_CH3=21
+else
+    DEFAULT_CH1=5
+    DEFAULT_CH2=19
+    DEFAULT_CH3=9
+fi
+
+# Check for --quick flag to skip prompts
+if [ "$QUICK_MODE" = "true" ]; then
+    RELAY_CH1=$DEFAULT_CH1
+    RELAY_CH2=$DEFAULT_CH2
+    RELAY_CH3=$DEFAULT_CH3
+    echo -e "${GREEN}Using default GPIO pins (quick mode)${NC}"
+    echo "  Relay Ch1 (main):  GPIO $RELAY_CH1"
+    echo "  Relay Ch2 (flash): GPIO $RELAY_CH2"
+    echo "  Relay Ch3 (UV):    GPIO $RELAY_CH3"
+else
+    echo "Configure relay module GPIO pins:"
+    echo "  Default for ${FIRMWARE_VERSION}.x: Ch1=${DEFAULT_CH1}, Ch2=${DEFAULT_CH2}, Ch3=${DEFAULT_CH3}"
+    echo ""
+
+    read -p "Relay Ch1 (main) GPIO pin [$DEFAULT_CH1]: " RELAY_CH1
+    RELAY_CH1=${RELAY_CH1:-$DEFAULT_CH1}
+
+    read -p "Relay Ch2 (flash) GPIO pin [$DEFAULT_CH2]: " RELAY_CH2
+    RELAY_CH2=${RELAY_CH2:-$DEFAULT_CH2}
+
+    read -p "Relay Ch3 (UV) GPIO pin [$DEFAULT_CH3]: " RELAY_CH3
+    RELAY_CH3=${RELAY_CH3:-$DEFAULT_CH3}
+
+    # Validate GPIO pins (BCM mode: 2-27)
+    for pin in $RELAY_CH1 $RELAY_CH2 $RELAY_CH3; do
+        if [ $pin -lt 2 ] || [ $pin -gt 27 ]; then
+            echo -e "${RED}Error: GPIO pin $pin out of range (2-27)${NC}"
+            exit 1
+        fi
+    done
+
+    # Check for conflicts
+    if [ "$RELAY_CH1" = "$RELAY_CH2" ] || [ "$RELAY_CH1" = "$RELAY_CH3" ] || [ "$RELAY_CH2" = "$RELAY_CH3" ]; then
+        echo -e "${RED}Error: GPIO pins must be unique${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✓ GPIO configuration validated${NC}"
+fi
+echo ""
+
+# Additional Hardware Module Configuration
+echo -e "${BLUE}Additional Hardware Modules${NC}"
+echo ""
+
+if [ "$QUICK_MODE" = "true" ]; then
+    # Quick mode - use all defaults
+    INA260_ENABLED="true"
+    INA260_ADDRESS="0x40"
+    EPAPER_ENABLED="true"
+    EPAPER_RST=17
+    EPAPER_DC=25
+    EPAPER_CS=8
+    EPAPER_BUSY=24
+    EPAPER_PWR=18
+    GPS_ENABLED="true"
+    GPS_DEVICE="/dev/ttyAMA0"
+    GPS_BAUDRATE=9600
+    GPS_TIMEOUT=10
+    LIGHT_SENSOR_ENABLED="false"
+    LIGHT_SENSOR_TYPE="LTR303"
+    LIGHT_SENSOR_ADDRESS="0x29"
+    PCA9536_ENABLED="false"
+    PCA9536_ADDRESS="0x21"
+    MUX_ENABLED="false"
+    MUX_TYPE="i2c"
+    MUX_ADDRESS="0x20"
+    echo -e "${GREEN}Using default hardware configuration (quick mode)${NC}"
+else
+    # Power Sensor Configuration
+    echo -e "${YELLOW}Power Sensor (INA260/INA219)${NC}"
+    read -p "Configure INA260 power sensor? (Y/n): " CONFIGURE_INA260
+    CONFIGURE_INA260=${CONFIGURE_INA260:-Y}
+
+    if [[ "$CONFIGURE_INA260" =~ ^[Yy]$ ]]; then
+        INA260_ENABLED="true"
+        read -p "  INA260 I2C address [0x40]: " INA260_ADDRESS
+        INA260_ADDRESS=${INA260_ADDRESS:-0x40}
+        echo -e "${GREEN}  ✓ INA260 enabled at address $INA260_ADDRESS${NC}"
+    else
+        INA260_ENABLED="false"
+        INA260_ADDRESS="0x40"
+        echo -e "${YELLOW}  ⊗ INA260 disabled${NC}"
+    fi
+    echo ""
+
+    # E-Paper Display Configuration
+    echo -e "${YELLOW}E-Paper Display (Waveshare 2.13\")${NC}"
+    read -p "Configure e-paper display? (Y/n): " CONFIGURE_EPAPER
+    CONFIGURE_EPAPER=${CONFIGURE_EPAPER:-Y}
+
+    if [[ "$CONFIGURE_EPAPER" =~ ^[Yy]$ ]]; then
+        EPAPER_ENABLED="true"
+        echo "  E-paper GPIO pins [RST=17, DC=25, CS=8, BUSY=24, PWR=18]"
+        echo "  Press Enter to use defaults, or configure custom pins:"
+
+        read -p "    RST pin [17]: " EPAPER_RST
+        EPAPER_RST=${EPAPER_RST:-17}
+
+        read -p "    DC pin [25]: " EPAPER_DC
+        EPAPER_DC=${EPAPER_DC:-25}
+
+        read -p "    CS pin [8]: " EPAPER_CS
+        EPAPER_CS=${EPAPER_CS:-8}
+
+        read -p "    BUSY pin [24]: " EPAPER_BUSY
+        EPAPER_BUSY=${EPAPER_BUSY:-24}
+
+        read -p "    PWR pin [18]: " EPAPER_PWR
+        EPAPER_PWR=${EPAPER_PWR:-18}
+
+        echo -e "${GREEN}  ✓ E-paper display enabled${NC}"
+    else
+        EPAPER_ENABLED="false"
+        EPAPER_RST=17
+        EPAPER_DC=25
+        EPAPER_CS=8
+        EPAPER_BUSY=24
+        EPAPER_PWR=18
+        echo -e "${YELLOW}  ⊗ E-paper display disabled${NC}"
+    fi
+    echo ""
+
+    # GPS Module Configuration
+    echo -e "${YELLOW}GPS Module${NC}"
+    read -p "Configure GPS module? (Y/n): " CONFIGURE_GPS
+    CONFIGURE_GPS=${CONFIGURE_GPS:-Y}
+
+    if [[ "$CONFIGURE_GPS" =~ ^[Yy]$ ]]; then
+        GPS_ENABLED="true"
+        echo "  GPS device options:"
+        echo "    1) /dev/ttyAMA0 (UART - GPIO pins 14/15)"
+        echo "    2) /dev/ttyUSB0 (USB GPS module)"
+        echo "    3) Custom device path"
+        read -p "  Select GPS device [1]: " GPS_DEVICE_CHOICE
+        GPS_DEVICE_CHOICE=${GPS_DEVICE_CHOICE:-1}
+
+        case $GPS_DEVICE_CHOICE in
+            1) GPS_DEVICE="/dev/ttyAMA0" ;;
+            2) GPS_DEVICE="/dev/ttyUSB0" ;;
+            3)
+                read -p "  Enter custom GPS device path: " GPS_DEVICE
+                GPS_DEVICE=${GPS_DEVICE:-/dev/ttyAMA0}
+                ;;
+            *) GPS_DEVICE="/dev/ttyAMA0" ;;
+        esac
+
+        read -p "  GPS baud rate [9600]: " GPS_BAUDRATE
+        GPS_BAUDRATE=${GPS_BAUDRATE:-9600}
+
+        read -p "  GPS timeout (seconds) [10]: " GPS_TIMEOUT
+        GPS_TIMEOUT=${GPS_TIMEOUT:-10}
+
+        echo -e "${GREEN}  ✓ GPS enabled: $GPS_DEVICE @ $GPS_BAUDRATE baud${NC}"
+    else
+        GPS_ENABLED="false"
+        GPS_DEVICE="/dev/ttyAMA0"
+        GPS_BAUDRATE=9600
+        GPS_TIMEOUT=10
+        echo -e "${YELLOW}  ⊗ GPS disabled${NC}"
+    fi
+    echo ""
+
+    # Optional Modules
+    echo -e "${YELLOW}Optional Modules${NC}"
+    echo ""
+
+    # Light Sensor
+    echo -e "${YELLOW}Light Sensor (BH1750/LTR-303)${NC}"
+    read -p "Enable light sensor? (y/N): " CONFIGURE_LIGHT_SENSOR
+    CONFIGURE_LIGHT_SENSOR=${CONFIGURE_LIGHT_SENSOR:-N}
+
+    if [[ "$CONFIGURE_LIGHT_SENSOR" =~ ^[Yy]$ ]]; then
+        LIGHT_SENSOR_ENABLED="true"
+        echo "  Sensor type:"
+        echo "    1) LTR-303 (I2C 0x29) - Current hardware"
+        echo "    2) BH1750 (I2C 0x23) - Legacy hardware"
+        read -p "  Select sensor type [1]: " LIGHT_SENSOR_CHOICE
+        LIGHT_SENSOR_CHOICE=${LIGHT_SENSOR_CHOICE:-1}
+
+        case $LIGHT_SENSOR_CHOICE in
+            1)
+                LIGHT_SENSOR_TYPE="LTR303"
+                LIGHT_SENSOR_ADDRESS="0x29"
+                ;;
+            2)
+                LIGHT_SENSOR_TYPE="BH1750"
+                LIGHT_SENSOR_ADDRESS="0x23"
+                ;;
+            *)
+                LIGHT_SENSOR_TYPE="LTR303"
+                LIGHT_SENSOR_ADDRESS="0x29"
+                ;;
+        esac
+
+        echo -e "${GREEN}  ✓ Light sensor enabled: $LIGHT_SENSOR_TYPE at $LIGHT_SENSOR_ADDRESS${NC}"
+    else
+        LIGHT_SENSOR_ENABLED="false"
+        LIGHT_SENSOR_TYPE="LTR303"
+        LIGHT_SENSOR_ADDRESS="0x29"
+        echo -e "${YELLOW}  ⊗ Light sensor disabled${NC}"
+    fi
+    echo ""
+
+    # PCA9536 GPIO Expander
+    echo -e "${YELLOW}PCA9536 GPIO Expander${NC}"
+    read -p "Enable PCA9536? (y/N): " CONFIGURE_PCA9536
+    CONFIGURE_PCA9536=${CONFIGURE_PCA9536:-N}
+
+    if [[ "$CONFIGURE_PCA9536" =~ ^[Yy]$ ]]; then
+        PCA9536_ENABLED="true"
+        read -p "  I2C address [0x21]: " PCA9536_ADDRESS
+        PCA9536_ADDRESS=${PCA9536_ADDRESS:-0x21}
+        echo -e "${GREEN}  ✓ PCA9536 enabled at $PCA9536_ADDRESS${NC}"
+    else
+        PCA9536_ENABLED="false"
+        PCA9536_ADDRESS="0x21"
+        echo -e "${YELLOW}  ⊗ PCA9536 disabled${NC}"
+    fi
+    echo ""
+
+    # Multiplexer
+    echo -e "${YELLOW}Multiplexer (CD74HC4067/PCA9535)${NC}"
+    read -p "Enable multiplexer? (y/N): " CONFIGURE_MUX
+    CONFIGURE_MUX=${CONFIGURE_MUX:-N}
+
+    if [[ "$CONFIGURE_MUX" =~ ^[Yy]$ ]]; then
+        MUX_ENABLED="true"
+        echo "  Multiplexer type:"
+        echo "    1) I2C-based (PCA9535 at 0x20) - Current hardware"
+        echo "    2) GPIO-based (CD74HC4067) - Legacy hardware"
+        read -p "  Select type [1]: " MUX_TYPE_CHOICE
+        MUX_TYPE_CHOICE=${MUX_TYPE_CHOICE:-1}
+
+        case $MUX_TYPE_CHOICE in
+            1)
+                MUX_TYPE="i2c"
+                read -p "  I2C address [0x20]: " MUX_ADDRESS
+                MUX_ADDRESS=${MUX_ADDRESS:-0x20}
+                echo -e "${GREEN}  ✓ Multiplexer enabled: I2C at $MUX_ADDRESS${NC}"
+                ;;
+            2)
+                MUX_TYPE="gpio"
+                MUX_ADDRESS="0x20"
+                echo "  Using default GPIO pins (EN_A=31, EN_B=29, S0-S3=33/13/12/15, SIG=36)"
+                echo -e "${GREEN}  ✓ Multiplexer enabled: GPIO mode${NC}"
+                ;;
+            *)
+                MUX_TYPE="i2c"
+                MUX_ADDRESS="0x20"
+                echo -e "${GREEN}  ✓ Multiplexer enabled: I2C at $MUX_ADDRESS${NC}"
+                ;;
+        esac
+    else
+        MUX_ENABLED="false"
+        MUX_TYPE="i2c"
+        MUX_ADDRESS="0x20"
+        echo -e "${YELLOW}  ⊗ Multiplexer disabled${NC}"
+    fi
+    echo ""
+fi
+
 # Ask for confirmation
 read -p "Proceed with installation? (y/N) " -n 1 -r
 echo
@@ -223,6 +505,91 @@ fi
 
 echo -e "${GREEN}✓ Firmware files copied${NC}"
 
+# Write GPIO configuration to controls.txt
+echo -e "${BLUE}Configuring GPIO pins...${NC}"
+
+# Determine the controls.txt path based on installation type
+if [ "$INSTALL_TYPE" = "production" ]; then
+    CONTROLS_FILE="$CONFIG_DIR/controls.txt"
+else
+    CONTROLS_FILE="$MOTHBOX_HOME/${FIRMWARE_VERSION}.x/controls.txt"
+fi
+
+# Append GPIO configuration if not already present
+if ! grep -q "^Relay_Ch1=" "$CONTROLS_FILE" 2>/dev/null; then
+    echo "" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "# GPIO Pin Configuration" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "Relay_Ch1=$RELAY_CH1" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "Relay_Ch2=$RELAY_CH2" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "Relay_Ch3=$RELAY_CH3" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo -e "${GREEN}✓ GPIO configuration written to controls.txt${NC}"
+else
+    # Update existing GPIO configuration
+    sudo sed -i "s/^Relay_Ch1=.*/Relay_Ch1=$RELAY_CH1/" "$CONTROLS_FILE"
+    sudo sed -i "s/^Relay_Ch2=.*/Relay_Ch2=$RELAY_CH2/" "$CONTROLS_FILE"
+    sudo sed -i "s/^Relay_Ch3=.*/Relay_Ch3=$RELAY_CH3/" "$CONTROLS_FILE"
+    echo -e "${GREEN}✓ GPIO configuration updated in controls.txt${NC}"
+fi
+
+# Write hardware module configuration
+echo -e "${BLUE}Configuring hardware modules...${NC}"
+if ! grep -q "^ina260_enabled=" "$CONTROLS_FILE" 2>/dev/null; then
+    echo "" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "# Hardware Module Configuration" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "# Power Sensor" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "ina260_enabled=$INA260_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "ina260_address=$INA260_ADDRESS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "# E-Paper Display" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "epaper_enabled=$EPAPER_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "epaper_rst_pin=$EPAPER_RST" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "epaper_dc_pin=$EPAPER_DC" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "epaper_cs_pin=$EPAPER_CS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "epaper_busy_pin=$EPAPER_BUSY" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "epaper_pwr_pin=$EPAPER_PWR" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "# GPS Module" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "gps_enabled=$GPS_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "gps_device=$GPS_DEVICE" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "gps_baudrate=$GPS_BAUDRATE" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "gps_timeout=$GPS_TIMEOUT" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "# Optional Modules" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "light_sensor_enabled=$LIGHT_SENSOR_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "light_sensor_type=$LIGHT_SENSOR_TYPE" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "light_sensor_address=$LIGHT_SENSOR_ADDRESS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "pca9536_enabled=$PCA9536_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "pca9536_address=$PCA9536_ADDRESS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "mux_enabled=$MUX_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "mux_type=$MUX_TYPE" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo "mux_address=$MUX_ADDRESS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    echo -e "${GREEN}✓ Hardware module configuration written to controls.txt${NC}"
+else
+    # Update existing hardware configuration
+    sudo sed -i "s/^ina260_enabled=.*/ina260_enabled=$INA260_ENABLED/" "$CONTROLS_FILE"
+    sudo sed -i "s/^ina260_address=.*/ina260_address=$INA260_ADDRESS/" "$CONTROLS_FILE"
+    sudo sed -i "s/^epaper_enabled=.*/epaper_enabled=$EPAPER_ENABLED/" "$CONTROLS_FILE"
+    sudo sed -i "s/^epaper_rst_pin=.*/epaper_rst_pin=$EPAPER_RST/" "$CONTROLS_FILE"
+    sudo sed -i "s/^epaper_dc_pin=.*/epaper_dc_pin=$EPAPER_DC/" "$CONTROLS_FILE"
+    sudo sed -i "s/^epaper_cs_pin=.*/epaper_cs_pin=$EPAPER_CS/" "$CONTROLS_FILE"
+    sudo sed -i "s/^epaper_busy_pin=.*/epaper_busy_pin=$EPAPER_BUSY/" "$CONTROLS_FILE"
+    sudo sed -i "s/^epaper_pwr_pin=.*/epaper_pwr_pin=$EPAPER_PWR/" "$CONTROLS_FILE"
+    sudo sed -i "s/^gps_enabled=.*/gps_enabled=$GPS_ENABLED/" "$CONTROLS_FILE"
+    sudo sed -i "s|^gps_device=.*|gps_device=$GPS_DEVICE|" "$CONTROLS_FILE"
+    sudo sed -i "s/^gps_baudrate=.*/gps_baudrate=$GPS_BAUDRATE/" "$CONTROLS_FILE"
+    sudo sed -i "s/^gps_timeout=.*/gps_timeout=$GPS_TIMEOUT/" "$CONTROLS_FILE"
+    sudo sed -i "s/^light_sensor_enabled=.*/light_sensor_enabled=$LIGHT_SENSOR_ENABLED/" "$CONTROLS_FILE"
+    sudo sed -i "s/^light_sensor_type=.*/light_sensor_type=$LIGHT_SENSOR_TYPE/" "$CONTROLS_FILE"
+    sudo sed -i "s/^light_sensor_address=.*/light_sensor_address=$LIGHT_SENSOR_ADDRESS/" "$CONTROLS_FILE"
+    sudo sed -i "s/^pca9536_enabled=.*/pca9536_enabled=$PCA9536_ENABLED/" "$CONTROLS_FILE"
+    sudo sed -i "s/^pca9536_address=.*/pca9536_address=$PCA9536_ADDRESS/" "$CONTROLS_FILE"
+    sudo sed -i "s/^mux_enabled=.*/mux_enabled=$MUX_ENABLED/" "$CONTROLS_FILE"
+    sudo sed -i "s/^mux_type=.*/mux_type=$MUX_TYPE/" "$CONTROLS_FILE"
+    sudo sed -i "s/^mux_address=.*/mux_address=$MUX_ADDRESS/" "$CONTROLS_FILE"
+    echo -e "${GREEN}✓ Hardware module configuration updated in controls.txt${NC}"
+fi
+echo ""
+
 # Set execute permissions on Python scripts
 echo -e "${BLUE}Setting script permissions...${NC}"
 find "$MOTHBOX_HOME" -name "*.py" -exec sudo chmod +x {} \;
@@ -239,6 +606,25 @@ echo -e "${BLUE}Firmware Version:${NC} ${FIRMWARE_VERSION}.x"
 echo -e "${BLUE}Mothbox Location:${NC} $MOTHBOX_HOME"
 echo -e "${BLUE}Configuration:${NC} $CONFIG_DIR"
 echo -e "${BLUE}Data Directory:${NC} $DATA_DIR"
+echo ""
+echo -e "${BLUE}Hardware Configuration:${NC}"
+echo "  Relay Ch1 (main):  GPIO $RELAY_CH1"
+echo "  Relay Ch2 (flash): GPIO $RELAY_CH2"
+echo "  Relay Ch3 (UV):    GPIO $RELAY_CH3"
+echo ""
+echo -e "${BLUE}Hardware Modules:${NC}"
+echo "  INA260 Power Sensor:  $INA260_ENABLED (address: $INA260_ADDRESS)"
+echo "  E-Paper Display:      $EPAPER_ENABLED"
+echo "  GPS Module:           $GPS_ENABLED (device: $GPS_DEVICE)"
+if [ "$LIGHT_SENSOR_ENABLED" = "true" ]; then
+    echo "  Light Sensor:         $LIGHT_SENSOR_ENABLED ($LIGHT_SENSOR_TYPE at $LIGHT_SENSOR_ADDRESS)"
+fi
+if [ "$PCA9536_ENABLED" = "true" ]; then
+    echo "  PCA9536 Expander:     $PCA9536_ENABLED (address: $PCA9536_ADDRESS)"
+fi
+if [ "$MUX_ENABLED" = "true" ]; then
+    echo "  Multiplexer:          $MUX_ENABLED ($MUX_TYPE mode)"
+fi
 echo ""
 echo -e "${YELLOW}Next Steps:${NC}"
 echo "1. Review and edit configuration files in: $CONFIG_DIR"
