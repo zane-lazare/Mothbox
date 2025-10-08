@@ -4,16 +4,39 @@ import { getGpioStatus, controlGpio, triggerFlash } from '../utils/api'
 export default function GPIO() {
   const queryClient = useQueryClient()
 
-  const { data: gpioStatus, isLoading } = useQuery({
+  const { data: gpioStatus, isLoading, isFetching } = useQuery({
     queryKey: ['gpio-status'],
     queryFn: () => getGpioStatus().then(res => res.data),
     refetchInterval: 5000, // Refresh every 5 seconds instead of 2
     refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    staleTime: 2000, // Consider data fresh for 2 seconds
   })
 
   const controlMutation = useMutation({
     mutationFn: ({ relay, state }) => controlGpio(relay, state),
-    onSuccess: () => {
+    onMutate: async ({ relay, state }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries(['gpio-status'])
+
+      // Snapshot the previous value
+      const previousStatus = queryClient.getQueryData(['gpio-status'])
+
+      // Optimistically update to the new value
+      queryClient.setQueryData(['gpio-status'], (old) => ({
+        ...old,
+        [relay]: state
+      }))
+
+      return { previousStatus }
+    },
+    onError: (err, variables, context) => {
+      // Rollback on error
+      if (context?.previousStatus) {
+        queryClient.setQueryData(['gpio-status'], context.previousStatus)
+      }
+    },
+    onSettled: () => {
+      // Refetch after mutation
       queryClient.invalidateQueries(['gpio-status'])
     },
   })
@@ -30,7 +53,8 @@ export default function GPIO() {
     flashMutation.mutate()
   }
 
-  if (isLoading) {
+  // Only show loading on initial load, not on background refetches
+  if (isLoading && !gpioStatus) {
     return <div className="text-center py-12">Loading GPIO status...</div>
   }
 

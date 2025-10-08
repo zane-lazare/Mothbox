@@ -44,11 +44,24 @@ class CameraStreamer:
                 )
                 self.camera.configure(preview_config)
 
-                # Enable autofocus if available
+                # Start camera to set controls
+                self.camera.start()
+
+                # Enable continuous autofocus for Arducam Owlsight
                 try:
-                    self.camera.set_controls({"AfMode": 2, "AfTrigger": 0})  # Continuous autofocus
+                    # AfMode: 2 = Continuous autofocus
+                    # AfSpeed: 0 = Normal (1 = Fast)
+                    self.camera.set_controls({
+                        "AfMode": 2,
+                        "AfSpeed": 0,
+                        "AfMetering": 0  # Auto metering
+                    })
+                    print("Autofocus enabled: Continuous mode")
                 except Exception as af_error:
-                    print(f"Autofocus not available: {af_error}")
+                    print(f"Autofocus configuration: {af_error}")
+
+                # Stop camera - will be started again by stream_loop
+                self.camera.stop()
 
             return True
         except Exception as e:
