@@ -11,11 +11,23 @@
 # 3. Custom:     User-specified location via MOTHBOX_HOME environment variable
 #
 # Usage:
-#   ./install_mothbox.sh [--type legacy|production|custom] [--path /custom/path]
+#   ./install_mothbox.sh                          # Interactive mode (recommended)
+#   ./install_mothbox.sh [--type TYPE] [--quick] [--path PATH]
+#
+# Interactive Mode (default when no arguments):
+#   - Guided menu for installation type selection
+#   - Option for quick install or custom hardware configuration
+#   - Best for manual installations
+#
+# CLI Mode (for automation):
+#   --type [legacy|production|custom]   Installation type
+#   --path /custom/path                 Path for custom installation
+#   --quick                             Skip interactive prompts, use defaults
 #
 # Examples:
-#   ./install_mothbox.sh                          # Install to legacy location
-#   ./install_mothbox.sh --type production        # Install to /opt/mothbox
+#   ./install_mothbox.sh                          # Interactive wizard
+#   ./install_mothbox.sh --type production        # CLI: production install
+#   ./install_mothbox.sh --type legacy --quick    # CLI: quick legacy install
 #   ./install_mothbox.sh --type custom --path /srv/mothbox
 #
 # ==============================================================================
@@ -34,6 +46,12 @@ INSTALL_TYPE="legacy"
 CUSTOM_PATH=""
 QUICK_MODE="false"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Detect if running interactively (no arguments provided)
+INTERACTIVE_MODE="false"
+if [ $# -eq 0 ]; then
+    INTERACTIVE_MODE="true"
+fi
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -89,6 +107,57 @@ case $INSTALL_TYPE in
         exit 1
         ;;
 esac
+
+# Interactive menu if no arguments provided
+if [ "$INTERACTIVE_MODE" = "true" ]; then
+    echo -e "${BLUE}================================================================================${NC}"
+    echo -e "${BLUE}Mothbox Installation Wizard${NC}"
+    echo -e "${BLUE}================================================================================${NC}"
+    echo ""
+
+    # Installation type selection
+    echo "Select installation type:"
+    echo "  1) Legacy    (/home/pi/Desktop/Mothbox - all files in one location)"
+    echo "  2) Production (/opt/mothbox - FHS compliant, recommended)"
+    echo "  3) Custom    (specify your own path)"
+    echo ""
+    read -p "Choice [1-3]: " choice
+
+    case $choice in
+        1)
+            INSTALL_TYPE="legacy"
+            MOTHBOX_HOME="/home/pi/Desktop/Mothbox"
+            CONFIG_DIR="$MOTHBOX_HOME"
+            DATA_DIR="$MOTHBOX_HOME"
+            ;;
+        2)
+            INSTALL_TYPE="production"
+            MOTHBOX_HOME="/opt/mothbox"
+            CONFIG_DIR="/etc/mothbox"
+            DATA_DIR="/var/lib/mothbox"
+            ;;
+        3)
+            INSTALL_TYPE="custom"
+            read -p "Enter custom installation path: " CUSTOM_PATH
+            MOTHBOX_HOME="$CUSTOM_PATH"
+            CONFIG_DIR="$MOTHBOX_HOME"
+            DATA_DIR="$MOTHBOX_HOME"
+            ;;
+        *)
+            echo -e "${RED}Invalid choice. Exiting.${NC}"
+            exit 1
+            ;;
+    esac
+
+    # Quick mode selection
+    echo ""
+    read -p "Quick installation with defaults? (Y/n): " quick_choice
+    if [[ ! $quick_choice =~ ^[Nn]$ ]]; then
+        QUICK_MODE="true"
+    fi
+
+    echo ""
+fi
 
 # Print installation plan
 echo -e "${BLUE}================================================================================${NC}"
@@ -501,6 +570,26 @@ if [ "$INSTALL_TYPE" = "production" ]; then
     fi
 
     echo -e "${GREEN}✓ Configuration files copied to $CONFIG_DIR${NC}"
+
+    # Fix permissions for config files (created by sudo cp, owned by root)
+    # These files need to be writable by pi user for auto-calibration, GPS updates, etc.
+    if [ -f "$CONFIG_DIR/controls.txt" ]; then
+        sudo chown pi:pi "$CONFIG_DIR/controls.txt"
+        sudo chmod 664 "$CONFIG_DIR/controls.txt"
+    fi
+    if [ -f "$CONFIG_DIR/camera_settings.csv" ]; then
+        sudo chown pi:pi "$CONFIG_DIR/camera_settings.csv"
+        sudo chmod 664 "$CONFIG_DIR/camera_settings.csv"
+    fi
+    if [ -f "$CONFIG_DIR/schedule_settings.csv" ]; then
+        sudo chown pi:pi "$CONFIG_DIR/schedule_settings.csv"
+        sudo chmod 664 "$CONFIG_DIR/schedule_settings.csv"
+    fi
+    if [ -f "$CONFIG_DIR/wordlist.csv" ]; then
+        sudo chown pi:pi "$CONFIG_DIR/wordlist.csv"
+        sudo chmod 664 "$CONFIG_DIR/wordlist.csv"
+    fi
+    echo -e "${GREEN}✓ Config file permissions set for pi user${NC}"
 fi
 
 echo -e "${GREEN}✓ Firmware files copied${NC}"
