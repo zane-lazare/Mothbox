@@ -13,8 +13,33 @@ camera_bp = Blueprint('camera', __name__)
 def capture_photo():
     """Trigger a photo capture"""
     try:
-        # Run TakePhoto.py script
-        script_path = get_script_path('TakePhoto.py')
+        # Determine Pi version to find correct TakePhoto.py
+        import platform
+        from mothbox_paths import MOTHBOX_HOME
+
+        # Check if Pi 4 or Pi 5
+        pi_version = None
+        with open("/proc/cpuinfo", "r") as f:
+            for line in f:
+                if line.startswith("Model"):
+                    if "Pi 4" in line:
+                        pi_version = "4"
+                    elif "Pi 5" in line:
+                        pi_version = "5"
+                    break
+
+        # Default to 4.x if can't determine
+        if not pi_version:
+            pi_version = "4"
+
+        script_path = MOTHBOX_HOME / f"{pi_version}.x" / "TakePhoto.py"
+
+        if not script_path.exists():
+            return jsonify({
+                'success': False,
+                'error': f'TakePhoto.py not found at {script_path}'
+            }), 500
+
         result = subprocess.run(
             ['python3', str(script_path)],
             capture_output=True,

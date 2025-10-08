@@ -7,7 +7,8 @@ export default function GPIO() {
   const { data: gpioStatus, isLoading } = useQuery({
     queryKey: ['gpio-status'],
     queryFn: () => getGpioStatus().then(res => res.data),
-    refetchInterval: 2000,
+    refetchInterval: 5000, // Refresh every 5 seconds instead of 2
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
   })
 
   const controlMutation = useMutation({

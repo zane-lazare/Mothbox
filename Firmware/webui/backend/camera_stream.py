@@ -38,9 +38,9 @@ class CameraStreamer:
                 except:
                     self.camera = Picamera2(1)
 
-                # Configure for preview - lower resolution for streaming
+                # Configure for preview - higher resolution for better quality
                 preview_config = self.camera.create_preview_configuration(
-                    main={"size": (800, 600), "format": "RGB888"}
+                    main={"size": (1280, 720), "format": "RGB888"}
                 )
                 self.camera.configure(preview_config)
 
@@ -91,9 +91,9 @@ class CameraStreamer:
                     # Convert to PIL Image
                     img = Image.fromarray(frame)
 
-                    # Encode as JPEG
+                    # Encode as JPEG with higher quality
                     buffer = io.BytesIO()
-                    img.save(buffer, format='JPEG', quality=85)
+                    img.save(buffer, format='JPEG', quality=95, optimize=True)
                     buffer.seek(0)
 
                     # Convert to base64
