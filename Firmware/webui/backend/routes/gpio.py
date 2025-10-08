@@ -8,7 +8,24 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import mothbox_import  # Sets up sys.path for mothbox
 
-from mothbox_paths import get_gpio_pins
+from mothbox_paths import get_gpio_pins, MOTHBOX_HOME, CONFIG_DIR, CONTROLS_FILE
+
+# Debug logging on startup
+print("=" * 60)
+print("GPIO Route Initialization")
+print(f"MOTHBOX_HOME: {MOTHBOX_HOME}")
+print(f"CONFIG_DIR: {CONFIG_DIR}")
+print(f"CONTROLS_FILE: {CONTROLS_FILE}")
+print(f"CONTROLS_FILE exists: {CONTROLS_FILE.exists()}")
+if CONTROLS_FILE.exists():
+    print(f"CONTROLS_FILE contents (first 5 lines):")
+    with open(CONTROLS_FILE, 'r') as f:
+        for i, line in enumerate(f):
+            if i < 5:
+                print(f"  {line.rstrip()}")
+pins = get_gpio_pins()
+print(f"GPIO Pins loaded: {pins}")
+print("=" * 60)
 
 gpio_bp = Blueprint('gpio', __name__)
 
