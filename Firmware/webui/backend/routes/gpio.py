@@ -30,12 +30,20 @@ def get_gpio_status():
             # Only setup if not already configured
             try:
                 GPIO.setup(pin, GPIO.OUT)
-            except:
-                pass
-            status[name] = bool(GPIO.input(pin))
+            except Exception as setup_error:
+                print(f"GPIO setup error for {name} (pin {pin}): {setup_error}")
 
-        return jsonify(status)
+            try:
+                status[name] = bool(GPIO.input(pin))
+            except Exception as read_error:
+                print(f"GPIO read error for {name} (pin {pin}): {read_error}")
+                status[name] = False
+
+        return jsonify(status), 200
     except Exception as e:
+        import traceback
+        print(f"GPIO status error: {e}")
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 @gpio_bp.route('/control', methods=['POST'])

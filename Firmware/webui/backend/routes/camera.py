@@ -17,35 +17,51 @@ def capture_photo():
         import platform
         from mothbox_paths import MOTHBOX_HOME
 
+        print(f"Photo capture requested. MOTHBOX_HOME: {MOTHBOX_HOME}")
+
         # Check if Pi 4 or Pi 5
         pi_version = None
-        with open("/proc/cpuinfo", "r") as f:
-            for line in f:
-                if line.startswith("Model"):
-                    if "Pi 4" in line:
-                        pi_version = "4"
-                    elif "Pi 5" in line:
-                        pi_version = "5"
-                    break
+        try:
+            with open("/proc/cpuinfo", "r") as f:
+                for line in f:
+                    if line.startswith("Model"):
+                        if "Pi 4" in line:
+                            pi_version = "4"
+                        elif "Pi 5" in line:
+                            pi_version = "5"
+                        break
+        except Exception as cpu_error:
+            print(f"Error reading /proc/cpuinfo: {cpu_error}")
 
         # Default to 4.x if can't determine
         if not pi_version:
             pi_version = "4"
+            print(f"Could not detect Pi version, defaulting to {pi_version}")
+        else:
+            print(f"Detected Pi version: {pi_version}")
 
         script_path = MOTHBOX_HOME / f"{pi_version}.x" / "TakePhoto.py"
+        print(f"Looking for TakePhoto.py at: {script_path}")
 
         if not script_path.exists():
+            error_msg = f'TakePhoto.py not found at {script_path}'
+            print(error_msg)
             return jsonify({
                 'success': False,
-                'error': f'TakePhoto.py not found at {script_path}'
+                'error': error_msg
             }), 500
 
+        print(f"Running: python3 {script_path}")
         result = subprocess.run(
             ['python3', str(script_path)],
             capture_output=True,
             text=True,
             timeout=30
         )
+
+        print(f"TakePhoto.py exit code: {result.returncode}")
+        print(f"stdout: {result.stdout}")
+        print(f"stderr: {result.stderr}")
 
         if result.returncode == 0:
             # Find the most recent photo
@@ -60,13 +76,19 @@ def capture_photo():
         else:
             return jsonify({
                 'success': False,
-                'error': result.stderr
+                'error': result.stderr or result.stdout
             }), 500
 
     except subprocess.TimeoutExpired:
-        return jsonify({'error': 'Photo capture timed out'}), 500
+        error_msg = 'Photo capture timed out'
+        print(error_msg)
+        return jsonify({'success': False, 'error': error_msg}), 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        error_msg = str(e)
+        print(f"Photo capture error: {error_msg}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'error': error_msg}), 500
 
 @camera_bp.route('/settings', methods=['GET'])
 def get_camera_settings():
