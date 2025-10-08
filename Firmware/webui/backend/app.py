@@ -10,8 +10,10 @@ from flask_socketio import SocketIO, emit
 import sys
 from pathlib import Path
 
-# Add parent directories to path to import mothbox modules
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Setup path to import mothbox_paths
+sys.path.insert(0, str(Path(__file__).parent))
+import mothbox_import  # Sets up sys.path for mothbox
+
 from mothbox_paths import (
     MOTHBOX_HOME,
     CONFIG_DIR,

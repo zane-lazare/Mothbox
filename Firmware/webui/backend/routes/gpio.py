@@ -4,7 +4,10 @@ import sys
 import json
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+# Setup path to import mothbox_paths
+sys.path.insert(0, str(Path(__file__).parent.parent))
+import mothbox_import  # Sets up sys.path for mothbox
+
 from mothbox_paths import get_gpio_pins
 
 gpio_bp = Blueprint('gpio', __name__)

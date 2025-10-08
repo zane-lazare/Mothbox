@@ -4,7 +4,10 @@ import csv
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+# Setup path to import mothbox_paths
+sys.path.insert(0, str(Path(__file__).parent.parent))
+import mothbox_import  # Sets up sys.path for mothbox
+
 from mothbox_paths import (
     CAMERA_SETTINGS_FILE,
     SCHEDULE_SETTINGS_FILE,

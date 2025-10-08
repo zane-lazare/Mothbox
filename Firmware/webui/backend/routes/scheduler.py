@@ -4,7 +4,10 @@ from crontab import CronTab
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+# Setup path to import mothbox_paths
+sys.path.insert(0, str(Path(__file__).parent.parent))
+import mothbox_import  # Sets up sys.path for mothbox
+
 from mothbox_paths import get_script_path
 
 scheduler_bp = Blueprint('scheduler', __name__)
