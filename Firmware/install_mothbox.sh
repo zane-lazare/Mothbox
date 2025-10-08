@@ -47,6 +47,16 @@ CUSTOM_PATH=""
 QUICK_MODE="false"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Detect the user who should own Mothbox files
+# If run with sudo, use SUDO_USER; otherwise use current USER; fallback to 'pi'
+if [ -n "$SUDO_USER" ]; then
+    MOTHBOX_USER="$SUDO_USER"
+elif [ -n "$USER" ]; then
+    MOTHBOX_USER="$USER"
+else
+    MOTHBOX_USER="pi"
+fi
+
 # Detect if running interactively (no arguments provided)
 INTERACTIVE_MODE="false"
 if [ $# -eq 0 ]; then
@@ -80,34 +90,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Determine target directories based on installation type
-case $INSTALL_TYPE in
-    legacy)
-        MOTHBOX_HOME="/home/pi/Desktop/Mothbox"
-        CONFIG_DIR="$MOTHBOX_HOME"
-        DATA_DIR="$MOTHBOX_HOME"
-        ;;
-    production)
-        MOTHBOX_HOME="/opt/mothbox"
-        CONFIG_DIR="/etc/mothbox"
-        DATA_DIR="/var/lib/mothbox"
-        ;;
-    custom)
-        if [ -z "$CUSTOM_PATH" ]; then
-            echo -e "${RED}Error: --path required for custom installation${NC}"
-            exit 1
-        fi
-        MOTHBOX_HOME="$CUSTOM_PATH"
-        CONFIG_DIR="$MOTHBOX_HOME"
-        DATA_DIR="$MOTHBOX_HOME"
-        ;;
-    *)
-        echo -e "${RED}Error: Invalid installation type: $INSTALL_TYPE${NC}"
-        echo "Valid types: legacy, production, custom"
-        exit 1
-        ;;
-esac
-
 # Interactive menu if no arguments provided
 if [ "$INTERACTIVE_MODE" = "true" ]; then
     echo -e "${BLUE}================================================================================${NC}"
@@ -139,6 +121,11 @@ if [ "$INTERACTIVE_MODE" = "true" ]; then
         3)
             INSTALL_TYPE="custom"
             read -p "Enter custom installation path: " CUSTOM_PATH
+            # Validate custom path
+            if [ -z "$CUSTOM_PATH" ]; then
+                echo -e "${RED}Error: Custom path cannot be empty${NC}"
+                exit 1
+            fi
             MOTHBOX_HOME="$CUSTOM_PATH"
             CONFIG_DIR="$MOTHBOX_HOME"
             DATA_DIR="$MOTHBOX_HOME"
@@ -157,6 +144,36 @@ if [ "$INTERACTIVE_MODE" = "true" ]; then
     fi
 
     echo ""
+fi
+
+# Determine target directories based on installation type (CLI mode only)
+if [ "$INTERACTIVE_MODE" = "false" ]; then
+    case $INSTALL_TYPE in
+        legacy)
+            MOTHBOX_HOME="/home/pi/Desktop/Mothbox"
+            CONFIG_DIR="$MOTHBOX_HOME"
+            DATA_DIR="$MOTHBOX_HOME"
+            ;;
+        production)
+            MOTHBOX_HOME="/opt/mothbox"
+            CONFIG_DIR="/etc/mothbox"
+            DATA_DIR="/var/lib/mothbox"
+            ;;
+        custom)
+            if [ -z "$CUSTOM_PATH" ]; then
+                echo -e "${RED}Error: --path required for custom installation${NC}"
+                exit 1
+            fi
+            MOTHBOX_HOME="$CUSTOM_PATH"
+            CONFIG_DIR="$MOTHBOX_HOME"
+            DATA_DIR="$MOTHBOX_HOME"
+            ;;
+        *)
+            echo -e "${RED}Error: Invalid installation type: $INSTALL_TYPE${NC}"
+            echo "Valid types: legacy, production, custom"
+            exit 1
+            ;;
+    esac
 fi
 
 # Print installation plan
@@ -532,9 +549,9 @@ sudo mkdir -p "$MOTHBOX_HOME"
 sudo mkdir -p "$CONFIG_DIR"
 sudo mkdir -p "$DATA_DIR/photos"
 
-# Set ownership to pi user (adjust if needed)
+# Set ownership to Mothbox user
 if [ "$INSTALL_TYPE" = "production" ]; then
-    sudo chown -R pi:pi "$MOTHBOX_HOME" "$CONFIG_DIR" "$DATA_DIR"
+    sudo chown -R $MOTHBOX_USER:$MOTHBOX_USER "$MOTHBOX_HOME" "$CONFIG_DIR" "$DATA_DIR"
 fi
 
 # Set permissions
@@ -572,24 +589,15 @@ if [ "$INSTALL_TYPE" = "production" ]; then
     echo -e "${GREEN}✓ Configuration files copied to $CONFIG_DIR${NC}"
 
     # Fix permissions for config files (created by sudo cp, owned by root)
-    # These files need to be writable by pi user for auto-calibration, GPS updates, etc.
-    if [ -f "$CONFIG_DIR/controls.txt" ]; then
-        sudo chown pi:pi "$CONFIG_DIR/controls.txt"
-        sudo chmod 664 "$CONFIG_DIR/controls.txt"
-    fi
-    if [ -f "$CONFIG_DIR/camera_settings.csv" ]; then
-        sudo chown pi:pi "$CONFIG_DIR/camera_settings.csv"
-        sudo chmod 664 "$CONFIG_DIR/camera_settings.csv"
-    fi
-    if [ -f "$CONFIG_DIR/schedule_settings.csv" ]; then
-        sudo chown pi:pi "$CONFIG_DIR/schedule_settings.csv"
-        sudo chmod 664 "$CONFIG_DIR/schedule_settings.csv"
-    fi
-    if [ -f "$CONFIG_DIR/wordlist.csv" ]; then
-        sudo chown pi:pi "$CONFIG_DIR/wordlist.csv"
-        sudo chmod 664 "$CONFIG_DIR/wordlist.csv"
-    fi
-    echo -e "${GREEN}✓ Config file permissions set for pi user${NC}"
+    # These files need to be writable by user for auto-calibration, GPS updates, etc.
+    CONFIG_FILES=("controls.txt" "camera_settings.csv" "schedule_settings.csv" "wordlist.csv")
+    for file in "${CONFIG_FILES[@]}"; do
+        if [ -f "$CONFIG_DIR/$file" ]; then
+            sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$CONFIG_DIR/$file"
+            sudo chmod 664 "$CONFIG_DIR/$file"
+        fi
+    done
+    echo -e "${GREEN}✓ Config file permissions set for $MOTHBOX_USER user${NC}"
 fi
 
 echo -e "${GREEN}✓ Firmware files copied${NC}"
