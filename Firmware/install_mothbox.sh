@@ -572,12 +572,25 @@ echo -e "${GREEN}✓ Directories created${NC}"
 # Copy firmware files (exclude development artifacts)
 echo -e "${BLUE}Copying firmware files...${NC}"
 
+# Determine which firmware version to exclude (copy only selected version)
+if [ "$FIRMWARE_VERSION" = "4" ]; then
+    EXCLUDE_FIRMWARE="5.x"
+else
+    EXCLUDE_FIRMWARE="4.x"
+fi
+
 # Use rsync if available for better control, fallback to cp
 if command -v rsync &> /dev/null; then
-    sudo rsync -av --exclude='.git' --exclude='__pycache__' --exclude='node_modules' \
+    sudo rsync -av \
+        --exclude='.git' --exclude='__pycache__' --exclude='node_modules' \
         --exclude='*.pyc' --exclude='.DS_Store' --exclude='.gitignore' --exclude='.github' \
+        --exclude='install_mothbox.sh' --exclude='uninstall_mothbox.sh' \
+        --exclude='installation-utils' --exclude='migrate_*.py' \
+        --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
+        --exclude='*.md' \
+        --exclude="$EXCLUDE_FIRMWARE" \
         "$SCRIPT_DIR/" "$MOTHBOX_HOME/"
-    echo -e "${GREEN}✓ Firmware files copied (excluding dev artifacts)${NC}"
+    echo -e "${GREEN}✓ Firmware files copied (${FIRMWARE_VERSION}.x only, excluding dev artifacts)${NC}"
 else
     sudo cp -r "$SCRIPT_DIR"/* "$MOTHBOX_HOME/"
     echo -e "${YELLOW}⚠ rsync not available, copied all files including dev artifacts${NC}"
