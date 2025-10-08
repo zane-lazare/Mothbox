@@ -6,7 +6,7 @@ Flask API server for Mothbox control and monitoring
 
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO, emit
 import sys
 from pathlib import Path
 
@@ -27,6 +27,10 @@ app = Flask(__name__, static_folder='../frontend/dist')
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+# Initialize camera streamer
+from camera_stream import CameraStreamer
+camera_streamer = CameraStreamer(socketio)
+
 # Import route blueprints
 from routes.system import system_bp
 from routes.camera import camera_bp
@@ -43,6 +47,28 @@ app.register_blueprint(config_bp, url_prefix='/api/config')
 app.register_blueprint(gpio_bp, url_prefix='/api/gpio')
 app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
 
+# WebSocket event handlers
+@socketio.on('connect')
+def handle_connect():
+    print('Client connected')
+    emit('connected', {'status': 'connected'})
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('Client disconnected')
+
+@socketio.on('start_preview')
+def handle_start_preview():
+    """Start camera preview streaming"""
+    success = camera_streamer.start_streaming()
+    emit('preview_status', {'streaming': success})
+
+@socketio.on('stop_preview')
+def handle_stop_preview():
+    """Stop camera preview streaming"""
+    camera_streamer.stop_streaming()
+    emit('preview_status', {'streaming': False})
+
 # Serve React app
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
@@ -52,4 +78,8 @@ def serve_react(path):
     return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    try:
+        socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    finally:
+        # Cleanup camera on shutdown
+        camera_streamer.cleanup()

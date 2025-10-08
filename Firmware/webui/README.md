@@ -6,7 +6,7 @@ A modern web interface for controlling and monitoring your Mothbox camera trap s
 
 - **Dashboard**: Real-time system status, CPU temperature, disk space, and photo count
 - **Photo Gallery**: Browse and view captured photos with thumbnails and lightbox
-- **Camera Control**: Manual photo capture and live preview (WebSocket support coming)
+- **Camera Control**: Manual photo capture with live WebSocket preview (~10 FPS)
 - **GPIO Controls**: Direct control of attract lights, flash, and UV lights
 - **Scheduler**: Visual cron job management for automated captures
 - **Settings**: Edit camera settings and hardware configuration

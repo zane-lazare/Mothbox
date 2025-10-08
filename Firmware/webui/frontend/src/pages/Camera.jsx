@@ -1,9 +1,50 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { capturePhoto } from '../utils/api'
+import { io } from 'socket.io-client'
 
 export default function Camera() {
   const [capturing, setCapturing] = useState(false)
   const [lastCapture, setLastCapture] = useState(null)
+  const [previewActive, setPreviewActive] = useState(false)
+  const [currentFrame, setCurrentFrame] = useState(null)
+  const [connected, setConnected] = useState(false)
+  const socketRef = useRef(null)
+
+  useEffect(() => {
+    // Connect to WebSocket server
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+    const wsUrl = API_URL.replace('/api', '').replace('http', 'ws')
+
+    socketRef.current = io(wsUrl, {
+      transports: ['websocket', 'polling']
+    })
+
+    socketRef.current.on('connect', () => {
+      console.log('WebSocket connected')
+      setConnected(true)
+    })
+
+    socketRef.current.on('disconnect', () => {
+      console.log('WebSocket disconnected')
+      setConnected(false)
+      setPreviewActive(false)
+    })
+
+    socketRef.current.on('camera_frame', (data) => {
+      setCurrentFrame(data.image)
+    })
+
+    socketRef.current.on('preview_status', (data) => {
+      setPreviewActive(data.streaming)
+    })
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.emit('stop_preview')
+        socketRef.current.disconnect()
+      }
+    }
+  }, [])
 
   const handleCapture = async () => {
     setCapturing(true)
@@ -19,16 +60,66 @@ export default function Camera() {
     }
   }
 
+  const togglePreview = () => {
+    if (!socketRef.current) return
+
+    if (previewActive) {
+      socketRef.current.emit('stop_preview')
+      setCurrentFrame(null)
+    } else {
+      socketRef.current.emit('start_preview')
+    }
+  }
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">Camera Control</h2>
 
-      {/* Camera Preview Placeholder */}
+      {/* Connection Status */}
+      <div className={`px-4 py-2 rounded-lg ${connected ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+        <p className="text-sm">
+          WebSocket: {connected ? '✓ Connected' : '✗ Disconnected'}
+        </p>
+      </div>
+
+      {/* Camera Preview */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">Live Preview</h3>
-        <div className="bg-gray-200 rounded-lg h-96 flex items-center justify-center">
-          <p className="text-gray-500">Live preview coming soon (WebSocket)</p>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">Live Preview</h3>
+          <button
+            onClick={togglePreview}
+            disabled={!connected}
+            className={`px-4 py-2 rounded-lg font-medium ${
+              previewActive
+                ? 'bg-red-600 text-white hover:bg-red-700'
+                : 'bg-green-600 text-white hover:bg-green-700'
+            } disabled:bg-gray-400`}
+          >
+            {previewActive ? 'Stop Preview' : 'Start Preview'}
+          </button>
         </div>
+
+        <div className="bg-gray-900 rounded-lg overflow-hidden" style={{ minHeight: '400px' }}>
+          {currentFrame ? (
+            <img
+              src={currentFrame}
+              alt="Camera preview"
+              className="w-full h-auto"
+            />
+          ) : (
+            <div className="h-96 flex items-center justify-center">
+              <p className="text-gray-400">
+                {previewActive ? 'Loading preview...' : 'Click "Start Preview" to begin'}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {previewActive && (
+          <p className="text-xs text-gray-500 mt-2">
+            Preview running at ~10 FPS (800x600)
+          </p>
+        )}
       </div>
 
       {/* Capture Controls */}
