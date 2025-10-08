@@ -35,28 +35,48 @@ echo -e "${RED}Mothbox Uninstallation Script${NC}"
 echo -e "${RED}================================================================================${NC}"
 echo ""
 
-# Detect installation using mothbox_paths.py
+# Detect installation using same logic as installer
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Try to detect installation type
-if [ -d "/opt/mothbox" ]; then
+# Priority: marker file > /opt/mothbox exists > env var > legacy path
+INSTALLATION_MARKER="/opt/mothbox/.installation_type"
+
+if [ -f "$INSTALLATION_MARKER" ]; then
+    # Read installation type from marker file (most reliable)
+    INSTALL_TYPE=$(cat "$INSTALLATION_MARKER" 2>/dev/null || echo "production")
+    MOTHBOX_HOME="/opt/mothbox"
+
+    # Set paths based on detected type
+    if [ "$INSTALL_TYPE" = "production" ]; then
+        CONFIG_DIR="/etc/mothbox"
+        DATA_DIR="/var/lib/mothbox"
+    else
+        CONFIG_DIR="$MOTHBOX_HOME"
+        DATA_DIR="$MOTHBOX_HOME"
+    fi
+elif [ -d "/opt/mothbox" ] && [ -z "$MOTHBOX_HOME" ]; then
+    # Production installation (no env var override)
     INSTALL_TYPE="production"
     MOTHBOX_HOME="/opt/mothbox"
     CONFIG_DIR="/etc/mothbox"
     DATA_DIR="/var/lib/mothbox"
-elif [ -d "/home/pi/Desktop/Mothbox" ]; then
-    INSTALL_TYPE="legacy"
-    MOTHBOX_HOME="/home/pi/Desktop/Mothbox"
+elif [ -n "$MOTHBOX_HOME" ] && [ -d "$MOTHBOX_HOME" ]; then
+    # Custom location via environment variable
+    INSTALL_TYPE="custom"
     CONFIG_DIR="$MOTHBOX_HOME"
     DATA_DIR="$MOTHBOX_HOME"
-elif [ -n "$MOTHBOX_HOME" ] && [ -d "$MOTHBOX_HOME" ]; then
-    INSTALL_TYPE="custom"
+elif [ -d "/home/pi/Desktop/Mothbox" ]; then
+    # Legacy Desktop installation
+    INSTALL_TYPE="legacy"
+    MOTHBOX_HOME="/home/pi/Desktop/Mothbox"
     CONFIG_DIR="$MOTHBOX_HOME"
     DATA_DIR="$MOTHBOX_HOME"
 else
     echo -e "${YELLOW}No Mothbox installation detected.${NC}"
     echo ""
     echo "Checked locations:"
+    echo "  - /opt/mothbox/.installation_type (marker file)"
     echo "  - /opt/mothbox (production)"
     echo "  - /home/pi/Desktop/Mothbox (legacy)"
     echo "  - \$MOTHBOX_HOME environment variable (custom)"
@@ -216,15 +236,16 @@ fi
 
 # Remove directories based on installation type
 if [ "$INSTALL_TYPE" = "production" ]; then
+    # Production: separate directories for code, config, and data
     if [ -d "$MOTHBOX_HOME" ]; then
         sudo rm -rf "$MOTHBOX_HOME"
         echo -e "${GREEN}✓ Removed $MOTHBOX_HOME${NC}"
     fi
-    if [ -d "$CONFIG_DIR" ]; then
+    if [ -d "$CONFIG_DIR" ] && [ "$CONFIG_DIR" != "$MOTHBOX_HOME" ]; then
         sudo rm -rf "$CONFIG_DIR"
         echo -e "${GREEN}✓ Removed $CONFIG_DIR${NC}"
     fi
-    if [ -d "$DATA_DIR" ]; then
+    if [ -d "$DATA_DIR" ] && [ "$DATA_DIR" != "$MOTHBOX_HOME" ]; then
         sudo rm -rf "$DATA_DIR"
         echo -e "${GREEN}✓ Removed $DATA_DIR${NC}"
     fi
@@ -234,6 +255,12 @@ else
         sudo rm -rf "$MOTHBOX_HOME"
         echo -e "${GREEN}✓ Removed $MOTHBOX_HOME${NC}"
     fi
+fi
+
+# Remove installation marker file if it exists (created by new installer)
+if [ -f "$INSTALLATION_MARKER" ]; then
+    sudo rm -f "$INSTALLATION_MARKER"
+    echo -e "${GREEN}✓ Removed installation marker${NC}"
 fi
 
 # Restore photos if preserved
