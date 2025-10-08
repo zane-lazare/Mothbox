@@ -22,6 +22,8 @@ export const api = axios.create({
 // System APIs
 export const getSystemStatus = () => api.get('/system/status')
 export const getPowerStatus = () => api.get('/system/power')
+export const getSystemInfo = () => api.get('/system/info')
+export const getDiagnosticInfo = () => api.get('/system/diagnostic')
 
 // Camera APIs
 export const capturePhoto = () => api.post('/camera/capture')

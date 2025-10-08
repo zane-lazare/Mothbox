@@ -214,14 +214,14 @@ def get_hardware_config() -> Dict[str, Any]:
         config = get_control_values(CONTROLS_FILE)
         return {
             # Relay module (already implemented via get_gpio_pins)
-            'relay_enabled': config.get('relay_enabled', 'true').lower() == 'true',
+            'relay_enabled': config.get('relay_enabled', 'false').lower() == 'true',
 
             # INA260 power sensor
-            'ina260_enabled': config.get('ina260_enabled', 'true').lower() == 'true',
+            'ina260_enabled': config.get('ina260_enabled', 'false').lower() == 'true',
             'ina260_address': int(config.get('ina260_address', '0x40'), 16),
 
             # E-paper display
-            'epaper_enabled': config.get('epaper_enabled', 'true').lower() == 'true',
+            'epaper_enabled': config.get('epaper_enabled', 'false').lower() == 'true',
             'epaper_rst_pin': int(config.get('epaper_rst_pin', '17')),
             'epaper_dc_pin': int(config.get('epaper_dc_pin', '25')),
             'epaper_cs_pin': int(config.get('epaper_cs_pin', '8')),
@@ -229,7 +229,7 @@ def get_hardware_config() -> Dict[str, Any]:
             'epaper_pwr_pin': int(config.get('epaper_pwr_pin', '18')),
 
             # GPS module
-            'gps_enabled': config.get('gps_enabled', 'true').lower() == 'true',
+            'gps_enabled': config.get('gps_enabled', 'false').lower() == 'true',
             'gps_device': config.get('gps_device', '/dev/ttyAMA0'),
             'gps_baudrate': int(config.get('gps_baudrate', '9600')),
             'gps_timeout': int(config.get('gps_timeout', '10')),
@@ -258,18 +258,18 @@ def get_hardware_config() -> Dict[str, Any]:
     except (FileNotFoundError, ValueError, KeyError) as e:
         import sys
         print(f"Warning: Could not load hardware configuration ({e}). Using defaults.", file=sys.stderr)
-        # Return defaults for all modules
+        # Return defaults for all modules - all disabled by default
         return {
-            'relay_enabled': True,
-            'ina260_enabled': True,
+            'relay_enabled': False,
+            'ina260_enabled': False,
             'ina260_address': 0x40,
-            'epaper_enabled': True,
+            'epaper_enabled': False,
             'epaper_rst_pin': 17,
             'epaper_dc_pin': 25,
             'epaper_cs_pin': 8,
             'epaper_busy_pin': 24,
             'epaper_pwr_pin': 18,
-            'gps_enabled': True,
+            'gps_enabled': False,
             'gps_device': '/dev/ttyAMA0',
             'gps_baudrate': 9600,
             'gps_timeout': 10,
