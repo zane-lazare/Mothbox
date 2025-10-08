@@ -56,8 +56,15 @@ from mothbox_paths import (
     PHOTOS_DIR,
     CAMERA_SETTINGS_FILE,
     CONTROLS_FILE,
-    get_script_path
+    get_script_path,
+    get_gpio_pins
 )
+
+# Load GPIO pins from configuration
+pins = get_gpio_pins()
+Relay_Ch1 = pins['Relay_Ch1']
+Relay_Ch2 = pins['Relay_Ch2']  # Photo flash
+Relay_Ch3 = pins['Relay_Ch3']  # UV
 
 #IF the mothbox is supposed to be off, don't take a photo!
 GPIO.setmode(GPIO.BCM)
@@ -706,17 +713,6 @@ else:
 num_photos = 3
 exposuretime_width = 18000
 middleexposure=500 # 500 #minimum exposure time for Hawkeye camera 64mp arducam
-
-# Load GPIO pins from configuration
-from pathlib import Path
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import get_gpio_pins
-
-pins = get_gpio_pins()
-Relay_Ch1 = pins['Relay_Ch1']
-Relay_Ch2 = pins['Relay_Ch2']  # Photo flash
-Relay_Ch3 = pins['Relay_Ch3']  # UV
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)

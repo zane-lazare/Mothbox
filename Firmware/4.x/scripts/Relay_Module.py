@@ -1,9 +1,10 @@
 ##################################################
-
-#           P26 ----> Relay_Ch1 Optional UV light
-#			P20 ----> Relay_Ch2 Flash Lights
-#			P21 ----> Relay_Ch3 5V power converter
-
+#
+#           GPIO pins configured in controls.txt:
+#           Relay_Ch1 ----> Optional UV light (default: 26 for 4.x)
+#           Relay_Ch2 ----> Flash Lights (default: 20 for 4.x)
+#           Relay_Ch3 ----> 5V power converter (default: 21 for 4.x)
+#
 ##################################################
 #!/usr/bin/python
 # -*- coding:utf-8 -*-

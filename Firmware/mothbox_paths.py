@@ -34,6 +34,7 @@ Usage:
 
 import os
 from pathlib import Path
+from typing import Dict, Union, Any
 
 # Check for environment variable override first
 MOTHBOX_HOME_ENV = os.environ.get('MOTHBOX_HOME')
@@ -73,7 +74,7 @@ CONTROLS_FILE = CONFIG_DIR / "controls.txt"
 WORDLIST_FILE = CONFIG_DIR / "wordlist.csv"
 
 # Helper function to parse controls.txt
-def get_control_values(filename):
+def get_control_values(filename: Union[Path, str]) -> Dict[str, str]:
     """
     Reads key-value pairs from the control file.
 
@@ -96,7 +97,7 @@ def get_control_values(filename):
     return control_values
 
 
-def get_gpio_pins():
+def get_gpio_pins() -> Dict[str, int]:
     """
     Load GPIO pin configuration from controls.txt with fallback defaults.
 
@@ -117,12 +118,14 @@ def get_gpio_pins():
             'Relay_Ch2': int(pins.get('Relay_Ch2', 20)),
             'Relay_Ch3': int(pins.get('Relay_Ch3', 21))
         }
-    except (FileNotFoundError, ValueError, KeyError):
+    except (FileNotFoundError, ValueError, KeyError) as e:
+        import sys
+        print(f"Warning: Could not load GPIO configuration ({e}). Using defaults.", file=sys.stderr)
         # Fallback to defaults if file not found or parse error
         return {'Relay_Ch1': 26, 'Relay_Ch2': 20, 'Relay_Ch3': 21}
 
 
-def get_epaper_pins():
+def get_epaper_pins() -> Dict[str, int]:
     """
     Load e-paper display GPIO pin configuration from controls.txt.
 
@@ -142,7 +145,9 @@ def get_epaper_pins():
             'BUSY_PIN': int(config.get('epaper_busy_pin', '24')),
             'PWR_PIN': int(config.get('epaper_pwr_pin', '18')),
         }
-    except (FileNotFoundError, ValueError, KeyError):
+    except (FileNotFoundError, ValueError, KeyError) as e:
+        import sys
+        print(f"Warning: Could not load e-paper pin configuration ({e}). Using defaults.", file=sys.stderr)
         return {
             'RST_PIN': 17,
             'DC_PIN': 25,
@@ -152,7 +157,7 @@ def get_epaper_pins():
         }
 
 
-def get_mux_pins():
+def get_mux_pins() -> Dict[str, int]:
     """
     Load multiplexer GPIO pin configuration from controls.txt.
 
@@ -174,7 +179,9 @@ def get_mux_pins():
             'S3': int(config.get('mux_s3', '15')),
             'SIG': int(config.get('mux_sig', '36')),
         }
-    except (FileNotFoundError, ValueError, KeyError):
+    except (FileNotFoundError, ValueError, KeyError) as e:
+        import sys
+        print(f"Warning: Could not load multiplexer pin configuration ({e}). Using defaults.", file=sys.stderr)
         return {
             'EN_A': 31,
             'EN_B': 29,
@@ -186,7 +193,7 @@ def get_mux_pins():
         }
 
 
-def get_hardware_config():
+def get_hardware_config() -> Dict[str, Any]:
     """
     Load all hardware module configuration from controls.txt.
 
@@ -248,7 +255,9 @@ def get_hardware_config():
             'mux_s3': int(config.get('mux_s3', '15')),
             'mux_sig': int(config.get('mux_sig', '36')),
         }
-    except (FileNotFoundError, ValueError, KeyError):
+    except (FileNotFoundError, ValueError, KeyError) as e:
+        import sys
+        print(f"Warning: Could not load hardware configuration ({e}). Using defaults.", file=sys.stderr)
         # Return defaults for all modules
         return {
             'relay_enabled': True,
