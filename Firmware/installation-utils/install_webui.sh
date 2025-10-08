@@ -64,7 +64,8 @@ echo ""
 
 # Install Flask and webui Python dependencies
 echo -e "${BLUE}Installing Python dependencies for Web UI...${NC}"
-if pip3 install --break-system-packages Flask==3.0.0 Flask-CORS==4.0.0 Flask-SocketIO==5.3.6 python-socketio==5.11.0; then
+# Use sudo -u to install as the correct user, not root
+if sudo -u $MOTHBOX_USER pip3 install --break-system-packages Flask==3.0.0 Flask-CORS==4.0.0 Flask-SocketIO==5.3.6 python-socketio==5.11.0; then
     echo -e "${GREEN}✓ Python dependencies installed${NC}"
 else
     echo -e "${RED}✗ Failed to install Python dependencies${NC}"
@@ -84,7 +85,8 @@ fi
 cd "$WEBUI_FRONTEND_DIR"
 
 echo "Installing npm dependencies..."
-if npm install; then
+# Run as the correct user, not root
+if sudo -u $MOTHBOX_USER npm install; then
     echo -e "${GREEN}✓ npm dependencies installed${NC}"
 else
     echo -e "${RED}✗ Failed to install npm dependencies${NC}"
@@ -92,7 +94,7 @@ else
 fi
 
 echo "Building production frontend..."
-if npm run build; then
+if sudo -u $MOTHBOX_USER npm run build; then
     echo -e "${GREEN}✓ Frontend built successfully${NC}"
 else
     echo -e "${RED}✗ Failed to build frontend${NC}"
@@ -121,11 +123,30 @@ if [ ! -f "$SERVICE_FILE" ]; then
 else
     sudo cp "$SERVICE_FILE" /etc/systemd/system/
     sudo systemctl daemon-reload
-
-    # Enable but don't start yet (user can start manually)
     sudo systemctl enable mothbox-webui.service
     echo -e "${GREEN}✓ Systemd service installed and enabled${NC}"
-    echo -e "${YELLOW}To start the service: sudo systemctl start mothbox-webui${NC}"
+
+    # Start the service
+    echo -e "${BLUE}Starting Web UI service...${NC}"
+    if sudo systemctl start mothbox-webui.service; then
+        echo -e "${GREEN}✓ Service started${NC}"
+
+        # Wait a moment for service to initialize
+        sleep 2
+
+        # Verify service is running
+        if systemctl is-active --quiet mothbox-webui.service; then
+            echo -e "${GREEN}✓ Service is running${NC}"
+        else
+            echo -e "${RED}✗ Service started but is not active${NC}"
+            echo -e "${YELLOW}Checking service status...${NC}"
+            sudo systemctl status mothbox-webui.service --no-pager
+        fi
+    else
+        echo -e "${RED}✗ Failed to start service${NC}"
+        echo -e "${YELLOW}Checking service status...${NC}"
+        sudo systemctl status mothbox-webui.service --no-pager
+    fi
 fi
 echo ""
 
@@ -133,17 +154,35 @@ echo -e "${GREEN}===============================================================
 echo -e "${GREEN}Web UI Installation Complete!${NC}"
 echo -e "${GREEN}================================================================================${NC}"
 echo ""
-echo -e "${BLUE}To start the Web UI manually:${NC}"
-echo "  cd $SCRIPT_DIR/../webui/backend"
-echo "  python3 app.py"
+
+# Show service status
+if systemctl is-active --quiet mothbox-webui.service; then
+    echo -e "${GREEN}✓ Web UI service is running${NC}"
+    echo ""
+    echo -e "${BLUE}Access the Web UI at:${NC}"
+    echo "  Local:   http://localhost:5000"
+    echo "  Network: http://$(hostname -I | awk '{print $1}'):5000"
+    echo ""
+    echo -e "${BLUE}Service management:${NC}"
+    echo "  Check status: sudo systemctl status mothbox-webui"
+    echo "  Stop service: sudo systemctl stop mothbox-webui"
+    echo "  Restart:      sudo systemctl restart mothbox-webui"
+    echo "  View logs:    sudo journalctl -u mothbox-webui -f"
+else
+    echo -e "${YELLOW}Service is not running (see errors above)${NC}"
+    echo ""
+    echo -e "${BLUE}To start manually:${NC}"
+    echo "  cd $SCRIPT_DIR/../webui/backend"
+    echo "  python3 app.py"
+    echo ""
+    echo -e "${BLUE}Service commands:${NC}"
+    echo "  sudo systemctl start mothbox-webui"
+    echo "  sudo systemctl status mothbox-webui"
+fi
+
 echo ""
-echo -e "${BLUE}To start the Web UI service:${NC}"
-echo "  sudo systemctl start mothbox-webui"
-echo ""
-echo -e "${BLUE}To access the Web UI:${NC}"
-echo "  Local: http://localhost:5000"
-echo "  Network: http://$(hostname -I | awk '{print $1}'):5000"
-echo ""
-echo -e "${YELLOW}Note: If you added $MOTHBOX_USER to the gpio group for the first time,${NC}"
-echo -e "${YELLOW}you'll need to log out and log back in for the changes to take effect.${NC}"
-echo ""
+if ! groups $MOTHBOX_USER | grep -q '\bgpio\b'; then
+    echo -e "${YELLOW}Note: $MOTHBOX_USER was added to the gpio group.${NC}"
+    echo -e "${YELLOW}You'll need to log out and log back in for GPIO access to work.${NC}"
+    echo ""
+fi
