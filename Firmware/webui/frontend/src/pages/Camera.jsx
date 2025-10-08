@@ -11,9 +11,14 @@ export default function Camera() {
   const socketRef = useRef(null)
 
   useEffect(() => {
-    // Connect to WebSocket server
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
-    const wsUrl = API_URL.replace('/api', '').replace('http', 'ws')
+    // Connect to WebSocket server using current window location
+    // This ensures it works whether accessed via localhost, IP, or hostname
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = window.location.hostname
+    const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
+    const wsUrl = `${window.location.protocol}//${host}:${port}`
+
+    console.log('Connecting to WebSocket at:', wsUrl)
 
     socketRef.current = io(wsUrl, {
       transports: ['websocket', 'polling']
