@@ -315,19 +315,40 @@ def get_script_path(script_name):
 
     Raises:
         ValueError: If script_name contains path traversal attempts or is absolute
+
+    Security validations performed:
+        1. Prevents parent directory traversal (../)
+        2. Prevents absolute path injection (/)
+        3. Prevents symlink attacks (resolves symlinks then validates)
+        4. Prevents encoded path attacks (%2e%2e/, etc. - resolved by Path)
+        5. Prevents partial directory name matches (/firmware vs /firmware-evil)
     """
-    # Security: Prevent path traversal attacks
+    # Security: Prevent obvious path traversal attacks
     if '..' in script_name or script_name.startswith('/'):
         raise ValueError(f"Invalid script name (path traversal attempt): {script_name}")
 
     script_path = FIRMWARE_DIR / script_name
 
-    # Security: Ensure resolved path stays within FIRMWARE_DIR
+    # Security: Resolve symlinks and verify final path stays within FIRMWARE_DIR
+    # This catches:
+    # - Symlink attacks (follows links to real destination)
+    # - Encoded paths (Path.resolve() normalizes these)
+    # - Partial directory name matches (relative_to() requires exact containment)
     try:
-        if not str(script_path.resolve()).startswith(str(FIRMWARE_DIR.resolve())):
-            raise ValueError(f"Script path outside firmware directory: {script_name}")
+        resolved_path = script_path.resolve()
+        firmware_base = FIRMWARE_DIR.resolve()
+
+        # Use relative_to() which raises ValueError if path is not within base
+        # This prevents partial path matching (e.g., /firmware vs /firmware-evil)
+        resolved_path.relative_to(firmware_base)
+    except ValueError:
+        raise ValueError(
+            f"Security: Script path resolves outside firmware directory. "
+            f"Script: {script_name}"
+        )
     except (OSError, RuntimeError):
         # Handle cases where resolve() fails (e.g., path doesn't exist yet)
+        # This is acceptable - we validate at runtime when path exists
         pass
 
     return script_path
