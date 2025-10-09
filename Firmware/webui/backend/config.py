@@ -10,6 +10,11 @@ class Config:
     # Flask settings
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
+    # CSRF Protection settings
+    WTF_CSRF_ENABLED = True
+    WTF_CSRF_TIME_LIMIT = None  # No time limit for single-user device
+    WTF_CSRF_CHECK_DEFAULT = True  # Check all POST/PUT/DELETE/PATCH by default
+
     # Application settings
     HOST = '0.0.0.0'
     PORT = 5000
@@ -26,6 +31,10 @@ class DevelopmentConfig(Config):
 
     # Verbose logging for debugging
     LOG_LEVEL = 'DEBUG'
+
+    # CSRF optional in development for easier testing
+    # Set to False if you want to test without CSRF during development
+    WTF_CSRF_ENABLED = True
 
 
 class ProductionConfig(Config):

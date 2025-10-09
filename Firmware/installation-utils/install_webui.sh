@@ -71,7 +71,7 @@ echo ""
 # Install Flask and webui Python dependencies
 echo -e "${BLUE}Installing Python dependencies for Web UI...${NC}"
 # Use sudo -u to install as the correct user, not root
-if sudo -u $MOTHBOX_USER pip3 install --break-system-packages Flask==3.0.0 Flask-CORS==4.0.0 Flask-SocketIO==5.3.6 python-socketio==5.11.0; then
+if sudo -u $MOTHBOX_USER pip3 install --break-system-packages Flask==3.0.0 Flask-CORS==4.0.0 Flask-SocketIO==5.3.6 Flask-WTF==1.2.1 python-socketio==5.11.0; then
     echo -e "${GREEN}✓ Python dependencies installed${NC}"
 else
     echo -e "${RED}✗ Failed to install Python dependencies${NC}"

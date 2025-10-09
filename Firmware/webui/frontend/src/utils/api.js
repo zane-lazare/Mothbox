@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getCsrfToken, clearCsrfToken, fetchCsrfToken } from './csrf'
 
 // Use current window location for API calls, or fall back to env variable
 // This ensures the UI works whether accessed via localhost, IP, or hostname
@@ -17,7 +18,55 @@ const API_BASE_URL = getApiBaseUrl()
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true, // Include cookies for session/CSRF
 })
+
+// Request interceptor to add CSRF token to state-changing requests
+api.interceptors.request.use(
+  async (config) => {
+    // Add CSRF token to POST, PUT, DELETE, PATCH requests
+    if (['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase())) {
+      try {
+        const token = await getCsrfToken()
+        config.headers['X-CSRFToken'] = token
+      } catch (error) {
+        console.error('Failed to get CSRF token:', error)
+      }
+    }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
+// Response interceptor to handle CSRF errors
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config
+
+    // If CSRF validation failed and we haven't retried yet
+    if (error.response?.status === 400 &&
+        error.response?.data?.error === 'CSRF validation failed' &&
+        !originalRequest._retry) {
+
+      originalRequest._retry = true
+
+      // Clear cached token and fetch a new one
+      clearCsrfToken()
+      try {
+        const newToken = await fetchCsrfToken()
+        originalRequest.headers['X-CSRFToken'] = newToken
+        return api(originalRequest)
+      } catch (csrfError) {
+        console.error('Failed to refresh CSRF token:', csrfError)
+      }
+    }
+
+    return Promise.reject(error)
+  }
+)
 
 // System APIs
 export const getSystemStatus = () => api.get('/system/status')

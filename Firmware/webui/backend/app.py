@@ -7,6 +7,7 @@ Flask API server for Mothbox control and monitoring
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
+from flask_wtf.csrf import CSRFProtect, CSRFError
 import sys
 import os
 from pathlib import Path
@@ -32,10 +33,17 @@ from mothbox_paths import (
 
 app = Flask(__name__, static_folder='../frontend/dist')
 
+# Apply configuration
+app.config.from_object(config)
+
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
+
 # Configure CORS for cross-origin requests
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Configure SocketIO with proper CORS and transport settings
+# WebSocket connections are exempt from CSRF by Flask-WTF
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
@@ -65,6 +73,22 @@ app.register_blueprint(gallery_bp, url_prefix='/api/gallery')
 app.register_blueprint(config_bp, url_prefix='/api/config')
 app.register_blueprint(gpio_bp, url_prefix='/api/gpio')
 app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
+
+# CSRF token endpoint
+@app.route('/api/csrf-token', methods=['GET'])
+def get_csrf_token():
+    """Return CSRF token for the session"""
+    from flask_wtf.csrf import generate_csrf
+    return jsonify({'csrf_token': generate_csrf()})
+
+# CSRF error handler
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    """Handle CSRF validation errors"""
+    return jsonify({
+        'error': 'CSRF validation failed',
+        'message': str(e.description)
+    }), 400
 
 # WebSocket event handlers
 @socketio.on('connect')
