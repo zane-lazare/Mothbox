@@ -67,21 +67,15 @@ def get_gpio_status():
         if not GPIO_AVAILABLE:
             return jsonify({'error': 'GPIO not available'}), 500
 
-        pins = get_gpio_pins()
-        status = {}
+        # Use saved state file rather than reading GPIO pins
+        # Reading OUTPUT pins can be unreliable and may reset their state
+        status = _get_state()
 
-        for name, pin in pins.items():
-            try:
-                # Setup pin as output if not already
-                GPIO.setup(pin, GPIO.OUT)
-                # Read current state
-                state = GPIO.input(pin)
-                status[name] = bool(state)
-            except Exception as read_error:
-                print(f"Error reading {name} (pin {pin}): {read_error}")
-                # Fall back to saved state
-                saved_status = _get_state()
-                status[name] = saved_status.get(name, False)
+        # Ensure all relays are present in response
+        pins = get_gpio_pins()
+        for name in pins.keys():
+            if name not in status:
+                status[name] = False
 
         return jsonify(status), 200
     except Exception as e:
