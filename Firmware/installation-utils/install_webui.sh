@@ -35,6 +35,12 @@ else
     MOTHBOX_USER="pi"
 fi
 
+# Detect MOTHBOX_HOME from parent directory if not already set
+if [ -z "$MOTHBOX_HOME" ]; then
+    # Script is in Firmware/installation-utils, so parent of parent is MOTHBOX_HOME
+    MOTHBOX_HOME="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
+
 echo -e "${BLUE}================================================================================${NC}"
 echo -e "${BLUE}Mothbox Web UI Installation${NC}"
 echo -e "${BLUE}================================================================================${NC}"
@@ -116,15 +122,24 @@ echo ""
 
 # Install systemd service
 echo -e "${BLUE}Installing systemd service...${NC}"
-SERVICE_FILE="$SCRIPT_DIR/mothbox-webui.service"
+SERVICE_TEMPLATE="$SCRIPT_DIR/mothbox-webui.service.template"
 
-if [ ! -f "$SERVICE_FILE" ]; then
-    echo -e "${YELLOW}Warning: mothbox-webui.service not found, skipping service installation${NC}"
+if [ ! -f "$SERVICE_TEMPLATE" ]; then
+    echo -e "${YELLOW}Warning: mothbox-webui.service.template not found, skipping service installation${NC}"
 else
-    sudo cp "$SERVICE_FILE" /etc/systemd/system/
+    # Generate service file from template with actual values
+    echo "Generating service file from template..."
+    sudo sed -e "s|__MOTHBOX_USER__|$MOTHBOX_USER|g" \
+             -e "s|__MOTHBOX_HOME__|$MOTHBOX_HOME|g" \
+             "$SERVICE_TEMPLATE" > /tmp/mothbox-webui.service
+
+    # Install the generated service file
+    sudo mv /tmp/mothbox-webui.service /etc/systemd/system/mothbox-webui.service
     sudo systemctl daemon-reload
     sudo systemctl enable mothbox-webui.service
     echo -e "${GREEN}✓ Systemd service installed and enabled${NC}"
+    echo -e "${GREEN}  User: $MOTHBOX_USER${NC}"
+    echo -e "${GREEN}  Path: $MOTHBOX_HOME${NC}"
 
     # Start the service
     echo -e "${BLUE}Starting Web UI service...${NC}"

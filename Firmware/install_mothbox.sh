@@ -756,6 +756,8 @@ if [ "$INSTALL_WEBUI_FLAG" = "true" ] || [ "$INTERACTIVE_MODE" = "true" ]; then
     if [[ $INSTALL_WEBUI =~ ^[Yy]$ ]]; then
         echo ""
         echo -e "${BLUE}Installing Web UI...${NC}"
+        # Export MOTHBOX_HOME so install_webui.sh can use it for service file generation
+        export MOTHBOX_HOME
         "$SCRIPT_DIR/installation-utils/install_webui.sh"
     fi
 fi

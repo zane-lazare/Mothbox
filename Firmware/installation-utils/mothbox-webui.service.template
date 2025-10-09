@@ -4,17 +4,17 @@ After=network.target
 
 [Service]
 Type=simple
-User=pi
+User=__MOTHBOX_USER__
 Group=gpio
-WorkingDirectory=/opt/mothbox/webui/backend
-ExecStart=/usr/bin/python3 /opt/mothbox/webui/backend/app.py
+WorkingDirectory=__MOTHBOX_HOME__/webui/backend
+ExecStart=/usr/bin/python3 __MOTHBOX_HOME__/webui/backend/app.py
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
 # Environment variables
-Environment="MOTHBOX_HOME=/opt/mothbox"
+Environment="MOTHBOX_HOME=__MOTHBOX_HOME__"
 Environment="PYTHONUNBUFFERED=1"
 
 [Install]
