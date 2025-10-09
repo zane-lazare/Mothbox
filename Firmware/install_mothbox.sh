@@ -547,6 +547,9 @@ echo -e "${GREEN}✓ Python dependencies installed${NC}"
 
 # Fix GPIO compatibility on Pi 5 (Adafruit libraries override python3-rpi-lgpio)
 echo -e "${BLUE}Ensuring GPIO compatibility...${NC}"
+# Remove incompatible pip-installed RPi.GPIO (conflicts with python3-rpi-lgpio)
+pip3 uninstall -y --break-system-packages RPi.GPIO 2>/dev/null || true
+# Remove Adafruit's RPi.GPIO override files
 sudo rm -rf /usr/local/lib/python3.*/dist-packages/RPi/ 2>/dev/null || true
 echo -e "${GREEN}✓ GPIO compatibility ensured${NC}"
 
