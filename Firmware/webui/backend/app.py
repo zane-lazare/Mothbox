@@ -8,7 +8,12 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 import sys
+import os
 from pathlib import Path
+
+# Load configuration based on environment
+from config import get_config
+config = get_config()
 
 # Setup path to import mothbox_paths
 sys.path.insert(0, str(Path(__file__).parent))
@@ -113,15 +118,30 @@ def serve_react(path):
     return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
+    # Print startup banner with environment information
+    print("\n" + "=" * 60)
+    print(f"Mothbox Web UI Starting")
+    print(f"Environment: {config.ENV_NAME}")
+    print(f"Debug Mode: {config.DEBUG}")
+    print(f"Host: {config.HOST}:{config.PORT}")
+    print("=" * 60)
+
+    if config.ENV_NAME == 'production':
+        print("\n⚠️  WARNING: Running with Werkzeug development server")
+        print("   For production deployment, use gunicorn with eventlet worker")
+        print("   See issue #19: https://github.com/zane-lazare/Mothbox/issues/19")
+        print("=" * 60 + "\n")
+
     try:
-        # Note: Using Werkzeug development server for simplicity
-        # For production, consider using gunicorn with eventlet/gevent worker
+        # Run development server
+        # In development mode, allow_unsafe_werkzeug is acceptable
+        # In production mode, this is a temporary measure until issue #19 is resolved
         socketio.run(
             app,
-            host='0.0.0.0',
-            port=5000,
-            debug=False,  # Disable debug in production
-            allow_unsafe_werkzeug=True
+            host=config.HOST,
+            port=config.PORT,
+            debug=config.DEBUG,
+            allow_unsafe_werkzeug=config.DEBUG  # Only allow in debug/development mode
         )
     finally:
         # Cleanup camera on shutdown

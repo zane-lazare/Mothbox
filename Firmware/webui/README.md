@@ -78,7 +78,55 @@ npm run build
 
 The built files will be in `dist/` and can be served by Flask.
 
+## Environment Configuration
+
+The Web UI supports two environment modes controlled by the `MOTHBOX_ENV` environment variable:
+
+### Development Mode
+```bash
+export MOTHBOX_ENV=development
+python app.py
+```
+
+Features:
+- Debug mode enabled
+- Verbose logging
+- Werkzeug development server (acceptable for local development)
+- Fast iteration for testing
+
+### Production Mode (Default)
+```bash
+export MOTHBOX_ENV=production  # or omit, production is default
+python app.py
+```
+
+Features:
+- Debug mode disabled
+- Minimal logging
+- Security warnings displayed
+- Currently uses Werkzeug with warning (gunicorn coming in issue #19)
+
+⚠️ **Security Notice**: The Web UI has no authentication and binds to all network interfaces (0.0.0.0). Only use on trusted local networks. Production-grade security (gunicorn, authentication, network binding options) is tracked in [issue #19](https://github.com/zane-lazare/Mothbox/issues/19).
+
 ## Production Deployment
+
+### Current Method (Systemd Service)
+
+The installer sets up a systemd service that runs in production mode:
+
+```bash
+sudo systemctl status mothbox-webui
+sudo systemctl restart mothbox-webui
+sudo journalctl -u mothbox-webui -f
+```
+
+The service automatically:
+- Runs in production mode (`MOTHBOX_ENV=production`)
+- Starts on boot
+- Restarts on failure
+- Logs to systemd journal
+
+### Manual Production Build
 
 1. Build the React frontend:
 ```bash
@@ -89,10 +137,15 @@ npm run build
 2. Run the Flask backend (serves both API and built React app):
 ```bash
 cd Firmware/webui/backend
+export MOTHBOX_ENV=production
 python app.py
 ```
 
 Access the full application at `http://localhost:5000`
+
+### Future Production Deployment
+
+Full production deployment with gunicorn, authentication, and configurable network binding is being implemented in [issue #19](https://github.com/zane-lazare/Mothbox/issues/19).
 
 ## API Endpoints
 
