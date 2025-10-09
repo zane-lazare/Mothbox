@@ -544,6 +544,12 @@ echo ""
 echo -e "${BLUE}Installing Python dependencies...${NC}"
 pip3 install --break-system-packages -r "$SCRIPT_DIR/installation-utils/requirements.txt"
 echo -e "${GREEN}✓ Python dependencies installed${NC}"
+
+# Fix GPIO compatibility on Pi 5 (Adafruit libraries override python3-rpi-lgpio)
+echo -e "${BLUE}Ensuring GPIO compatibility...${NC}"
+sudo rm -rf /usr/local/lib/python3.*/dist-packages/RPi/ 2>/dev/null || true
+echo -e "${GREEN}✓ GPIO compatibility ensured${NC}"
+
 echo ""
 
 # Configure camera

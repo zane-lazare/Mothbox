@@ -290,6 +290,27 @@ if [[ $REMOVE_NODEJS =~ ^[Yy]$ ]]; then
     echo -e "${GREEN}✓ Node.js and npm removed${NC}"
 fi
 
+# Remove Python packages
+REMOVE_PYTHON_PACKAGES="n"
+echo ""
+echo -e "${YELLOW}Python packages installed by Mothbox are still present.${NC}"
+echo -e "Do you want to remove them?"
+echo -e "${YELLOW}Warning: This may affect other applications that use these packages${NC}"
+read -p "(y/N) " -n 1 -r
+echo
+REMOVE_PYTHON_PACKAGES=$REPLY
+
+if [[ $REMOVE_PYTHON_PACKAGES =~ ^[Yy]$ ]]; then
+    echo ""
+    echo -e "${BLUE}Removing Python packages...${NC}"
+    pip3 uninstall -y --break-system-packages \
+        picamera2 opencv-python Pillow piexif \
+        smbus2 adafruit-circuitpython-ina260 \
+        psutil numpy python-crontab schedule \
+        Flask Flask-CORS Flask-SocketIO python-socketio 2>/dev/null || true
+    echo -e "${GREEN}✓ Python packages removed${NC}"
+fi
+
 echo ""
 echo -e "${GREEN}================================================================================${NC}"
 echo -e "${GREEN}Uninstallation Complete${NC}"
@@ -307,11 +328,10 @@ fi
 echo ""
 echo -e "${BLUE}What was NOT removed:${NC}"
 echo "  - System packages (python3, git, i2c-tools, etc.)"
-echo "  - Python packages (picamera2, opencv-python, Flask, etc.)"
+if [[ ! $REMOVE_PYTHON_PACKAGES =~ ^[Yy]$ ]]; then
+    echo "  - Python packages (picamera2, opencv-python, Flask, etc.)"
+fi
 if [[ ! $REMOVE_NODEJS =~ ^[Yy]$ ]]; then
     echo "  - Node.js and npm (declined removal)"
 fi
-echo ""
-echo -e "If you want to remove Python packages, run:"
-echo -e "  pip3 uninstall -y picamera2 opencv-python RPi.GPIO Pillow piexif psutil smbus2 adafruit-circuitpython-ina260 numpy python-crontab schedule Flask Flask-CORS Flask-SocketIO python-socketio"
 echo ""
