@@ -46,6 +46,35 @@ echo -e "${BLUE}Mothbox Web UI Installation${NC}"
 echo -e "${BLUE}================================================================================${NC}"
 echo ""
 
+# Ask for installation type
+echo -e "${BLUE}Select installation type:${NC}"
+echo "  1) Development (recommended for testing - enables debug mode)"
+echo "  2) Production (for deployment - requires gunicorn, not yet implemented)"
+echo ""
+read -p "Enter choice [1-2] (default: 1): " INSTALL_TYPE
+INSTALL_TYPE=${INSTALL_TYPE:-1}
+
+if [ "$INSTALL_TYPE" = "1" ]; then
+    MOTHBOX_ENV="development"
+    echo -e "${GREEN}Installing in DEVELOPMENT mode${NC}"
+    echo -e "${YELLOW}Note: Development mode enables debug logging and verbose error messages${NC}"
+elif [ "$INSTALL_TYPE" = "2" ]; then
+    MOTHBOX_ENV="production"
+    echo -e "${YELLOW}WARNING: Production mode is not yet fully implemented!${NC}"
+    echo -e "${YELLOW}Production mode currently uses Werkzeug development server (not recommended)${NC}"
+    echo -e "${YELLOW}For production deployment, wait for gunicorn implementation (issue #19)${NC}"
+    echo ""
+    read -p "Continue with production mode anyway? [y/N]: " CONFIRM_PROD
+    if [[ ! "$CONFIRM_PROD" =~ ^[Yy]$ ]]; then
+        echo -e "${RED}Installation cancelled${NC}"
+        exit 1
+    fi
+else
+    echo -e "${RED}Invalid choice. Exiting.${NC}"
+    exit 1
+fi
+echo ""
+
 # Check if Node.js is installed
 echo -e "${BLUE}Checking Node.js installation...${NC}"
 if command -v node &> /dev/null; then
@@ -131,6 +160,7 @@ else
     echo "Generating service file from template..."
     sudo sed -e "s|__MOTHBOX_USER__|$MOTHBOX_USER|g" \
              -e "s|__MOTHBOX_HOME__|$MOTHBOX_HOME|g" \
+             -e "s|__MOTHBOX_ENV__|$MOTHBOX_ENV|g" \
              "$SERVICE_TEMPLATE" > /tmp/mothbox-webui.service
 
     # Install the generated service file
@@ -140,6 +170,7 @@ else
     echo -e "${GREEN}✓ Systemd service installed and enabled${NC}"
     echo -e "${GREEN}  User: $MOTHBOX_USER${NC}"
     echo -e "${GREEN}  Path: $MOTHBOX_HOME${NC}"
+    echo -e "${GREEN}  Environment: $MOTHBOX_ENV${NC}"
 
     # Start the service
     echo -e "${BLUE}Starting Web UI service...${NC}"

@@ -15,7 +15,7 @@ StandardError=journal
 
 # Environment variables
 Environment="MOTHBOX_HOME=__MOTHBOX_HOME__"
-Environment="MOTHBOX_ENV=production"
+Environment="MOTHBOX_ENV=__MOTHBOX_ENV__"
 Environment="PYTHONUNBUFFERED=1"
 
 # TODO: Switch to gunicorn for production deployment (issue #19)
