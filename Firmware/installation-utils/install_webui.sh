@@ -84,10 +84,16 @@ echo ""
 # Install Flask and webui Python dependencies
 echo -e "${BLUE}Installing Python dependencies for Web UI...${NC}"
 # Use sudo -u to install as the correct user, not root
-if sudo -u $MOTHBOX_USER pip3 install --break-system-packages Flask==3.0.0 Flask-CORS==4.0.0 Flask-SocketIO==5.3.6 Flask-WTF==1.2.1 python-socketio==5.11.0; then
-    echo -e "${GREEN}✓ Python dependencies installed${NC}"
+REQUIREMENTS_FILE="$SCRIPT_DIR/../webui/backend/requirements.txt"
+if [ -f "$REQUIREMENTS_FILE" ]; then
+    if sudo -u $MOTHBOX_USER pip3 install --break-system-packages -r "$REQUIREMENTS_FILE"; then
+        echo -e "${GREEN}✓ Python dependencies installed${NC}"
+    else
+        echo -e "${RED}✗ Failed to install Python dependencies${NC}"
+        exit 1
+    fi
 else
-    echo -e "${RED}✗ Failed to install Python dependencies${NC}"
+    echo -e "${RED}✗ Requirements file not found: $REQUIREMENTS_FILE${NC}"
     exit 1
 fi
 echo ""

@@ -17,12 +17,16 @@
 #   - Restarts services automatically
 #
 # Usage:
-#   ./update_mothbox.sh                    # Interactive update
-#   ./update_mothbox.sh --yes              # Auto-confirm all prompts
-#   ./update_mothbox.sh --dry-run          # Show what would be updated
-#   ./update_mothbox.sh --branch <name>    # Pull from specific branch
-#   ./update_mothbox.sh --force            # Reprocess current state
-#   ./update_mothbox.sh --verify           # Check installation health
+#   This script MUST be run from the git repository, not the installation directory.
+#   For production installs, keep the source repo and run updates from there.
+#
+#   cd /path/to/mothbox-repo
+#   ./Firmware/update_mothbox.sh                    # Interactive update
+#   ./Firmware/update_mothbox.sh --yes              # Auto-confirm all prompts
+#   ./Firmware/update_mothbox.sh --dry-run          # Show what would be updated
+#   ./Firmware/update_mothbox.sh --branch <name>    # Pull from specific branch
+#   ./Firmware/update_mothbox.sh --force            # Reprocess current state
+#   ./Firmware/update_mothbox.sh --verify           # Check installation health
 #
 # ==============================================================================
 
@@ -131,7 +135,7 @@ detect_installation() {
         MOTHBOX_HOME="/opt/mothbox"
         INSTALL_TYPE=$(cat /opt/mothbox/.installation_type)
         CONFIG_DIR="/etc/mothbox"
-        DATA_DIR="/var/mothbox"
+        DATA_DIR="/var/lib/mothbox"
         return 0
     fi
 
@@ -158,7 +162,17 @@ detect_installation() {
 
 # Detect firmware version from controls.txt
 detect_firmware_version() {
-    local controls_file="$CONFIG_DIR/controls.txt"
+    # Try production path first, fallback to legacy firmware-version-specific path
+    local controls_file
+    if [ -f "$CONFIG_DIR/controls.txt" ]; then
+        controls_file="$CONFIG_DIR/controls.txt"
+    elif [ -f "$MOTHBOX_HOME/4.x/controls.txt" ]; then
+        controls_file="$MOTHBOX_HOME/4.x/controls.txt"
+    elif [ -f "$MOTHBOX_HOME/5.x/controls.txt" ]; then
+        controls_file="$MOTHBOX_HOME/5.x/controls.txt"
+    else
+        controls_file="$CONFIG_DIR/controls.txt"  # fallback
+    fi
 
     if [ -f "$controls_file" ]; then
         # Extract version from softwareversion=X.Y.Z
@@ -191,7 +205,7 @@ detect_firmware_version() {
 
 # Read last processed commit from tracker file
 get_last_update_commit() {
-    local tracker_file="$MOTHBOX_HOME/.last_update_commit"
+    local tracker_file="$CONFIG_DIR/.last_update_commit"
     if [ -f "$tracker_file" ]; then
         cat "$tracker_file"
     else
@@ -202,7 +216,7 @@ get_last_update_commit() {
 # Write current commit to tracker file
 set_last_update_commit() {
     local commit="$1"
-    local tracker_file="$MOTHBOX_HOME/.last_update_commit"
+    local tracker_file="$CONFIG_DIR/.last_update_commit"
     echo "$commit" | sudo tee "$tracker_file" > /dev/null
     sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$tracker_file"
 }
@@ -306,8 +320,18 @@ fi
 
 # Check if we're in a git repository
 if ! git -C "$MOTHBOX_ROOT" rev-parse --git-dir > /dev/null 2>&1; then
-    echo -e "${RED}Error: Not a git repository${NC}"
-    echo "This update script requires Mothbox to be installed from git"
+    echo -e "${RED}Error: This script must be run from the Mothbox git repository${NC}"
+    echo ""
+    echo "Current location: $MOTHBOX_ROOT"
+    echo ""
+    echo "This script requires the Mothbox source repository to function properly."
+    echo "If you have a production install, you need to:"
+    echo "  1. Keep the git repository where you cloned it"
+    echo "  2. Run this script from that repository location"
+    echo ""
+    echo "Example:"
+    echo "  cd /path/to/mothbox-repo"
+    echo "  ./Firmware/update_mothbox.sh"
     exit 1
 fi
 
@@ -423,7 +447,7 @@ WEBUI_BACKEND_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | g
 WEBUI_FRONTEND_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/frontend/' | wc -l)
 INSTALLER_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/install.*\.sh$|^Firmware/installation-utils/' | wc -l)
 SERVICE_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '\.service\.template$' | wc -l)
-CONFIG_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '\.csv$|\.txt$' | grep -v 'webui/frontend' | grep -v '.template$' | wc -l)
+CONFIG_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E 'controls\.txt$|camera_settings\.csv$|schedule_settings\.csv$|wordlist\.csv$' | wc -l)
 
 echo -e "${CYAN}Components affected:${NC}"
 [ "$FIRMWARE_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Firmware Python scripts ($FIRMWARE_CHANGED files)"
@@ -501,8 +525,8 @@ if [ "$INSTALL_TYPE" = "production" ] && [ "$SKIP_FILE_COPY" = "false" ]; then
             "$MOTHBOX_ROOT/Firmware/webui/" "$MOTHBOX_HOME/webui/"
     fi
 
-    # Copy update script itself
-    sudo rsync -av "$MOTHBOX_ROOT/Firmware/update_mothbox.sh" "$MOTHBOX_HOME/"
+    # Note: We do NOT copy update_mothbox.sh to installation directory
+    # The update script must always be run from the source git repository
 
     # Preserve critical files (don't delete during sync)
     # Create .installation_type if it doesn't exist
@@ -538,10 +562,10 @@ if [ "$WEBUI_BACKEND_CHANGED" -gt 0 ]; then
     echo -e "${BLUE}Updating Web UI backend...${NC}"
 
     # Check if requirements changed
-    if git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -q "requirements.txt\|setup.py"; then
+    if git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -q "webui/backend/requirements.txt"; then
         echo "Reinstalling Python dependencies..."
-        if [ -f "$MOTHBOX_HOME/webui/backend/requirements.txt" ]; then
-            sudo -u "$MOTHBOX_USER" pip3 install --break-system-packages -r "$MOTHBOX_HOME/webui/backend/requirements.txt" 2>/dev/null || true
+        if [ -f "$MOTHBOX_ROOT/Firmware/webui/backend/requirements.txt" ]; then
+            sudo -u "$MOTHBOX_USER" pip3 install --break-system-packages -r "$MOTHBOX_ROOT/Firmware/webui/backend/requirements.txt"
         fi
     fi
 
@@ -562,7 +586,7 @@ if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ]; then
         if [ ! -d "node_modules" ]; then
             echo "Installing npm dependencies (node_modules not found)..."
             sudo -u "$MOTHBOX_USER" npm install
-        elif [ -d "$MOTHBOX_HOME/.git" ] && git -C "$MOTHBOX_HOME" diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" 2>/dev/null | grep -q "webui/frontend/package"; then
+        elif git -C "$MOTHBOX_ROOT" diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" 2>/dev/null | grep -q "webui/frontend/package"; then
             echo "Reinstalling npm dependencies (package files changed)..."
             sudo -u "$MOTHBOX_USER" npm install
         fi
@@ -571,6 +595,9 @@ if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ]; then
         sudo -u "$MOTHBOX_USER" npm run build
         echo -e "${GREEN}✓ Web UI frontend rebuilt${NC}"
         UPDATES_PERFORMED=$((UPDATES_PERFORMED + 1))
+
+        # Return to original directory
+        cd "$MOTHBOX_ROOT"
     else
         echo -e "${YELLOW}⚠ Web UI frontend directory not found, skipping${NC}"
     fi
