@@ -2,6 +2,30 @@
 
 A modern web interface for controlling and monitoring your Mothbox camera trap system.
 
+## ⚠️ IMPORTANT SECURITY NOTICE ⚠️
+
+**The Web UI currently has NO AUTHENTICATION and binds to all network interfaces (0.0.0.0) by default.**
+
+This means anyone with network access to your Mothbox can:
+- View and download all captured photos
+- Control GPIO relays (attract lights, flash, UV lights)
+- Modify system configuration and camera settings
+- Trigger camera captures
+- Manage scheduled tasks
+
+**Only use this Web UI on trusted, private networks** (e.g., home network, isolated field network). Do NOT expose it to the public internet without additional security measures.
+
+**Planned security improvements** (tracked in [issue #19](https://github.com/zane-lazare/Mothbox/issues/19)):
+- User authentication system
+- Configurable network binding (e.g., localhost-only mode)
+- Production-grade WSGI server (gunicorn/uwsgi)
+- Rate limiting and request throttling
+
+**Current security features:**
+- ✅ CSRF protection on all state-changing endpoints
+- ✅ Input validation to prevent injection attacks
+- ✅ Path traversal protection for file access
+
 ## Features
 
 - **Dashboard**: Real-time system status, CPU temperature, disk space, and photo count

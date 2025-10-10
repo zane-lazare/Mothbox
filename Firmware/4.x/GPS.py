@@ -18,7 +18,7 @@ hw_config = get_hardware_config()
 
 if not hw_config['gps_enabled']:
     print("GPS disabled in configuration")
-    quit()
+    sys.exit(0)
 
 gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
 UTCtime = None

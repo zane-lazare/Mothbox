@@ -8,7 +8,27 @@ import os
 class Config:
     """Base configuration"""
     # Flask settings
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+    # SECRET_KEY must be set in production for session security
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+
+    if not SECRET_KEY:
+        # Only allow fallback in development/testing
+        if os.environ.get('MOTHBOX_ENV', 'production').lower() == 'production':
+            raise RuntimeError(
+                "SECRET_KEY environment variable must be set in production!\n"
+                "Generate a secure key with: python3 -c 'import secrets; print(secrets.token_hex(32))'\n"
+                "Then set it with: export SECRET_KEY='your-generated-key'"
+            )
+        # Development fallback
+        SECRET_KEY = 'dev-secret-key-change-in-production'
+    elif SECRET_KEY == 'dev-secret-key-change-in-production':
+        # Prevent using the dev default in production
+        if os.environ.get('MOTHBOX_ENV', 'production').lower() == 'production':
+            raise RuntimeError(
+                "The development default SECRET_KEY cannot be used in production!\n"
+                "Generate a secure key with: python3 -c 'import secrets; print(secrets.token_hex(32))'\n"
+                "Then set it with: export SECRET_KEY='your-generated-key'"
+            )
 
     # CSRF Protection settings
     WTF_CSRF_ENABLED = True
@@ -18,6 +38,10 @@ class Config:
     # Application settings
     HOST = '0.0.0.0'
     PORT = 5000
+
+    # CORS settings - restrict origins for security
+    # Can be overridden via ALLOWED_ORIGINS environment variable (comma-separated)
+    CORS_ORIGINS = []
 
 
 class DevelopmentConfig(Config):
@@ -36,6 +60,9 @@ class DevelopmentConfig(Config):
     # Set to False if you want to test without CSRF during development
     WTF_CSRF_ENABLED = True
 
+    # CORS: Allow localhost origins for development (Vite dev server + Flask)
+    CORS_ORIGINS = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:5173,http://localhost:5000').split(',')
+
 
 class ProductionConfig(Config):
     """Production environment configuration"""
@@ -49,6 +76,11 @@ class ProductionConfig(Config):
 
     # Minimal logging in production
     LOG_LEVEL = 'INFO'
+
+    # CORS: Restrictive by default in production
+    # Only allow same-origin requests unless ALLOWED_ORIGINS is explicitly set
+    # For production with separate frontend, set ALLOWED_ORIGINS env var
+    CORS_ORIGINS = os.environ.get('ALLOWED_ORIGINS', '').split(',') if os.environ.get('ALLOWED_ORIGINS') else []
 
 
 # Configuration dictionary

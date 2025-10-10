@@ -2,13 +2,23 @@
 from flask import Blueprint, jsonify, request
 import sys
 import json
+import fcntl
 from pathlib import Path
+
+# Import limiter - will be initialized by app.py
+# We'll apply the limiter decorator after it's initialized
+limiter = None
+
+def init_limiter(limiter_instance):
+    """Initialize limiter for this module"""
+    global limiter
+    limiter = limiter_instance
 
 # Setup path to import mothbox_paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import mothbox_import  # Sets up sys.path for mothbox
 
-from mothbox_paths import get_gpio_pins, MOTHBOX_HOME, CONFIG_DIR, CONTROLS_FILE
+from mothbox_paths import get_gpio_pins, MOTHBOX_HOME, CONFIG_DIR, CONTROLS_FILE, DATA_DIR
 
 # Startup diagnostics
 pins = get_gpio_pins()
@@ -45,6 +55,7 @@ def _validate_gpio_permissions():
     if not GPIO_AVAILABLE:
         return False, GPIO_PERMISSION_ERROR
 
+    test_pin = None
     try:
         # Test GPIO access on a safe pin that we're likely to use
         # Use the first relay pin from config
@@ -52,7 +63,8 @@ def _validate_gpio_permissions():
         test_pin = pins.get('Relay_Ch1', 26)  # Fallback to 26 if not found
 
         # Try to setup the pin - this will fail with PermissionError if user lacks gpio access
-        GPIO.setup(test_pin, GPIO.OUT)
+        # Use LOW to avoid unintended activation
+        GPIO.setup(test_pin, GPIO.OUT, initial=GPIO.LOW)
 
         # If we got here, permissions are OK
         return True, None
@@ -67,6 +79,14 @@ def _validate_gpio_permissions():
     except Exception as e:
         error_msg = f"GPIO validation failed: {e}"
         return False, error_msg
+    finally:
+        # Cleanup: Restore pin to input mode to avoid side effects
+        if test_pin is not None:
+            try:
+                GPIO.cleanup(test_pin)
+            except Exception as e:
+                # Don't fail validation if cleanup fails
+                print(f"Warning: GPIO cleanup failed for pin {test_pin}: {e}")
 
 # Validate GPIO permissions on startup
 GPIO_PERMISSIONS_OK, GPIO_PERMISSION_ERROR = _validate_gpio_permissions()
@@ -81,13 +101,37 @@ elif GPIO_AVAILABLE and GPIO_PERMISSIONS_OK:
     print(f"✓ GPIO permissions validated successfully")
 
 # State file to track GPIO status
-STATE_FILE = Path("/tmp/mothbox_gpio_state.json")
+# Use DATA_DIR for persistent, properly-permissioned storage (not /tmp)
+STATE_FILE = DATA_DIR / "gpio_state.json"
 
 def _get_state():
-    """Read GPIO state from state file"""
+    """
+    Read GPIO state from state file with file locking to prevent race conditions.
+
+    Uses shared lock (LOCK_SH) to allow multiple concurrent reads but prevent
+    reads during writes.
+
+    Returns:
+        dict: GPIO state dictionary with relay states
+    """
     if STATE_FILE.exists():
-        with open(STATE_FILE, 'r') as f:
-            return json.load(f)
+        try:
+            with open(STATE_FILE, 'r') as f:
+                # Acquire shared lock for reading (allows multiple readers)
+                fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+                try:
+                    return json.load(f)
+                finally:
+                    # Release lock
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        except (IOError, json.JSONDecodeError) as e:
+            print(f"Warning: Failed to read GPIO state file: {e}")
+            # Return default state on error
+            return {
+                'Relay_Ch1': False,
+                'Relay_Ch2': False,
+                'Relay_Ch3': False
+            }
     else:
         # Default state - all relays off
         return {
@@ -97,9 +141,31 @@ def _get_state():
         }
 
 def _save_state(status):
-    """Save GPIO state to state file"""
-    with open(STATE_FILE, 'w') as f:
-        json.dump(status, f)
+    """
+    Save GPIO state to state file with file locking to prevent race conditions.
+
+    Uses exclusive lock (LOCK_EX) to ensure atomic write operations and prevent
+    concurrent writes from overwriting each other's changes.
+
+    Args:
+        status (dict): GPIO state dictionary to save
+    """
+    try:
+        # Create parent directory if it doesn't exist
+        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+        # Open in write mode and acquire exclusive lock
+        with open(STATE_FILE, 'w') as f:
+            # Acquire exclusive lock for writing (blocks all other access)
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                json.dump(status, f)
+                f.flush()  # Ensure data is written to disk
+            finally:
+                # Release lock
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except IOError as e:
+        print(f"Error: Failed to save GPIO state file: {e}")
 
 @gpio_bp.route('/status', methods=['GET'])
 def get_gpio_status():
@@ -133,7 +199,7 @@ def get_gpio_status():
 
 @gpio_bp.route('/control', methods=['POST'])
 def control_gpio():
-    """Control GPIO pins using RPi.GPIO"""
+    """Control GPIO pins using RPi.GPIO (rate limited to prevent hardware abuse)"""
     try:
         if not GPIO_AVAILABLE:
             return jsonify({'error': 'GPIO not available'}), 500
@@ -177,7 +243,7 @@ def control_gpio():
 
 @gpio_bp.route('/flash', methods=['POST'])
 def trigger_flash():
-    """Trigger camera flash momentarily using RPi.GPIO"""
+    """Trigger camera flash momentarily using RPi.GPIO (rate limited to prevent hardware abuse)"""
     try:
         if not GPIO_AVAILABLE:
             return jsonify({'error': 'GPIO not available'}), 500

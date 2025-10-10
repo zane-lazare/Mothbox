@@ -3,6 +3,8 @@ from flask import Blueprint, jsonify
 import subprocess
 import os
 import shutil
+import time
+import threading
 from pathlib import Path
 import sys
 
@@ -31,6 +33,50 @@ system_bp = Blueprint('system', __name__)
 # Get configuration to check DEBUG mode
 config = get_config()
 
+# Photo count cache to avoid expensive directory scans on every request
+# Cache is valid for 60 seconds
+_photo_count_cache = {
+    'count': None,
+    'timestamp': 0,
+    'lock': threading.Lock()
+}
+PHOTO_COUNT_CACHE_TTL = 60  # seconds
+
+def _get_cached_photo_count():
+    """
+    Get photo count with caching to avoid expensive directory scans.
+
+    Returns cached count if less than PHOTO_COUNT_CACHE_TTL seconds old,
+    otherwise performs fresh count and updates cache.
+
+    Returns:
+        int: Number of .jpg files in PHOTOS_DIR
+    """
+    current_time = time.time()
+
+    with _photo_count_cache['lock']:
+        # Check if cache is still valid
+        if (_photo_count_cache['count'] is not None and
+            current_time - _photo_count_cache['timestamp'] < PHOTO_COUNT_CACHE_TTL):
+            return _photo_count_cache['count']
+
+        # Cache expired or empty, perform count
+        try:
+            if PHOTOS_DIR.exists():
+                count = len(list(PHOTOS_DIR.glob('**/*.jpg')))
+            else:
+                count = 0
+
+            # Update cache
+            _photo_count_cache['count'] = count
+            _photo_count_cache['timestamp'] = current_time
+
+            return count
+        except Exception as e:
+            print(f"Warning: Failed to count photos: {e}")
+            # Return cached value if available, otherwise 0
+            return _photo_count_cache['count'] if _photo_count_cache['count'] is not None else 0
+
 @system_bp.route('/status', methods=['GET'])
 def get_system_status():
     """Get overall system status"""
@@ -45,8 +91,8 @@ def get_system_status():
         disk_total_gb = disk_usage.total / (1024**3)
         disk_used_percent = (disk_usage.used / disk_usage.total) * 100
 
-        # Photo count
-        photo_count = len(list(PHOTOS_DIR.glob('**/*.jpg'))) if PHOTOS_DIR.exists() else 0
+        # Photo count (cached for performance)
+        photo_count = _get_cached_photo_count()
 
         # Hardware config
         hw_config = get_hardware_config()

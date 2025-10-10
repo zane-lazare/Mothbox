@@ -38,11 +38,21 @@ def list_photos():
 def get_photo(photo_path):
     """Serve a specific photo"""
     try:
-        full_path = PHOTOS_DIR / photo_path
-        if not full_path.exists() or not str(full_path).startswith(str(PHOTOS_DIR)):
+        # Use resolve() and relative_to() for robust path traversal protection
+        full_path = (PHOTOS_DIR / photo_path).resolve()
+        photos_dir_resolved = PHOTOS_DIR.resolve()
+
+        # Ensure path is within PHOTOS_DIR (raises ValueError if not)
+        full_path.relative_to(photos_dir_resolved)
+
+        if not full_path.exists():
             return jsonify({'error': 'Photo not found'}), 404
 
         return send_file(full_path, mimetype='image/jpeg')
+    except (ValueError, RuntimeError):
+        # ValueError: Path is outside PHOTOS_DIR
+        # RuntimeError: resolve() failed (e.g., symlink loop)
+        return jsonify({'error': 'Invalid path'}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -53,8 +63,14 @@ def get_thumbnail(photo_path):
         from PIL import Image
         import io
 
-        full_path = PHOTOS_DIR / photo_path
-        if not full_path.exists() or not str(full_path).startswith(str(PHOTOS_DIR)):
+        # Use resolve() and relative_to() for robust path traversal protection
+        full_path = (PHOTOS_DIR / photo_path).resolve()
+        photos_dir_resolved = PHOTOS_DIR.resolve()
+
+        # Ensure path is within PHOTOS_DIR (raises ValueError if not)
+        full_path.relative_to(photos_dir_resolved)
+
+        if not full_path.exists():
             return jsonify({'error': 'Photo not found'}), 404
 
         # Generate thumbnail
@@ -67,5 +83,9 @@ def get_thumbnail(photo_path):
         img_io.seek(0)
 
         return send_file(img_io, mimetype='image/jpeg')
+    except (ValueError, RuntimeError):
+        # ValueError: Path is outside PHOTOS_DIR
+        # RuntimeError: resolve() failed (e.g., symlink loop)
+        return jsonify({'error': 'Invalid path'}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500

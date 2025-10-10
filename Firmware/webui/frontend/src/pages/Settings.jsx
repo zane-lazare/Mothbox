@@ -65,16 +65,24 @@ export default function Settings() {
   const [cameraForm, setCameraForm] = useState({})
   const [webuiForm, setWebuiForm] = useState({})
 
-  // Initialize forms when data loads
-  if (controls && Object.keys(controlsForm).length === 0) {
-    setControlsForm(controls)
-  }
-  if (cameraSettings && Object.keys(cameraForm).length === 0) {
-    setCameraForm(cameraSettings)
-  }
-  if (webuiSettings && Object.keys(webuiForm).length === 0) {
-    setWebuiForm(webuiSettings)
-  }
+  // Initialize forms when data loads - use useEffect to avoid re-render loop
+  useEffect(() => {
+    if (controls && Object.keys(controlsForm).length === 0) {
+      setControlsForm(controls)
+    }
+  }, [controls, controlsForm])
+
+  useEffect(() => {
+    if (cameraSettings && Object.keys(cameraForm).length === 0) {
+      setCameraForm(cameraSettings)
+    }
+  }, [cameraSettings, cameraForm])
+
+  useEffect(() => {
+    if (webuiSettings && Object.keys(webuiForm).length === 0) {
+      setWebuiForm(webuiSettings)
+    }
+  }, [webuiSettings, webuiForm])
 
   // Setup WebSocket connection for stream settings reload
   useEffect(() => {

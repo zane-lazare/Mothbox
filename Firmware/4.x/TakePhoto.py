@@ -154,7 +154,7 @@ def get_control_values(filepath):
     control_values = {}
     with open(filepath, "r") as file:
         for line in file:
-            key, value = line.strip().split("=")
+            key, value = line.strip().split("=", 1)  # maxsplit=1 to handle values with '=' chars
             control_values[key] = value
     return control_values
 
@@ -209,7 +209,7 @@ def load_camera_settings():
         if(found==0):
             files=os.listdir(path) #don't look for files recursively, only if new settings in top level
             if "camera_settings.csv" in files:
-                file_path = os.path.join(root, "camera_settings.csv")
+                file_path = os.path.join(path, "camera_settings.csv")
                 print(f"Found settings on external media: {file_path}")
                 found=1
                 break
@@ -722,124 +722,135 @@ GPIO.setup(Relay_Ch2,GPIO.OUT)
 GPIO.setup(Relay_Ch3,GPIO.OUT)
 
 print("Setup The Relay Module is [success]")
-GPIO.output(Relay_Ch2,GPIO.HIGH)
-GPIO.output(Relay_Ch3,GPIO.LOW) #might as well ensure attract is on because new wiring dictates that
 
-global onlyflash
-onlyflash=False
+# Wrap GPIO operations in try/finally to ensure cleanup on crash
+try:
+    GPIO.output(Relay_Ch2,GPIO.HIGH)
+    GPIO.output(Relay_Ch3,GPIO.LOW) #might as well ensure attract is on because new wiring dictates that
 
-
-
-control_values_fpath = str(CONTROLS_FILE)
-control_values = get_control_values(control_values_fpath)
-onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
-LastCalibration = float(control_values.get("LastCalibration", 0))
-computerName = control_values.get("name", "wrong")
-
-if(onlyflash):
-    print("operating in always on flash mode")
+    global onlyflash
+    onlyflash=False
 
 
 
-#------- Setting up camera settings -------------
-
-'''
-#This is for getting min and max details for certain settings, (See the picam pdf manual)
-print(picam2.camera_controls["AnalogueGain"])
-min_gain, max_gain, default_gain = picam2.camera_controls["AnalogueGain"]
-'''
-#This will be the path to the CSV holding the settings whether it is the one on the disk or the external CSV
-global chosen_settings_path
-default_path = str(CAMERA_SETTINGS_FILE)
-chosen_settings_path=default_path
-
-#camera_settings = load_camera_settings("camera_settings.csv")#CRONTAB CAN'T TAKE RELATIVE LINKS! 
-camera_settings = load_camera_settings()
-
+    control_values_fpath = str(CONTROLS_FILE)
+    control_values = get_control_values(control_values_fpath)
+    onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
+    LastCalibration = float(control_values.get("LastCalibration", 0))
+    computerName = control_values.get("name", "wrong")
     
-#before calibration, set these values to the default we read in
-
-calib_lens_position=6
-
-calib_lens_position = camera_settings["LensPosition"]
-calib_exposure = camera_settings["ExposureTime"]
-
-
-AutoCalibration = camera_settings.pop("AutoCalibration",1) #defaults to what is set above if not in the files being read
-AutoCalibrationPeriod = int(camera_settings.pop("AutoCalibrationPeriod",1000))
-
-
-#Start up cameras
-picam2 = Picamera2()
-
-
-#----Autocalibration ---------
-
-current_time = int(time.time())
-timesincelastcalibration= current_time - LastCalibration
-print("Last calibration was   ",timesincelastcalibration,"  seconds ago \n Autocalibration period is   ", AutoCalibrationPeriod)
-recalibrated= False
-if AutoCalibration and (timesincelastcalibration > AutoCalibrationPeriod):
-    print("Do Autocalibrate")
-    recalibrated=True
-    print(current_time)
-    #picam2.configure(preview_config)
-    #picam2.configure(capture_config_fastAuto)
-    run_calibration()
-else:
-    print("Don't Autocalibration")
-
-# ------ Prepare to take actual photo -----------
-#reload camera settings after possible calibration
-camera_settings = load_camera_settings()
-AutoCalibration = camera_settings.pop("AutoCalibration",1) #defaults to what is set above if not in the files being read
-AutoCalibrationPeriod = int(camera_settings.pop("AutoCalibrationPeriod",1000))
-
-calib_lens_position = camera_settings["LensPosition"]
-calib_exposure = camera_settings["ExposureTime"]
-
-
-#remove settings that aren't actually in picamera2
-oldsettingsnames = camera_settings.pop("Name",computerName) #defaults to what is set above if not in the files being read
-ImageFileType = int(camera_settings.pop("ImageFileType",0))
-VerticalFlip = int(camera_settings.pop("VerticalFlip",0))
-
-#HDR settings
-num_photos = int(camera_settings.pop("HDR",num_photos)) #defaults to what is set above if not in the files being read
-exposuretime_width = int(camera_settings.pop("HDR_width",exposuretime_width))
-if(num_photos<1 or num_photos==2):
-    num_photos=1
-
-capture_main = {"size": (width, height), "format": "RGB888", }
-capture_config = picam2.create_still_configuration(main=capture_main,raw=None, lores=None)
-capture_config_flipped =  picam2.create_still_configuration(main=capture_main, transform=Transform(vflip=True, hflip=True), raw=None, lores=None)
-picam2.configure(capture_config)
-
-
-if camera_settings:
-    picam2.set_controls(camera_settings)
-
-picam2.start()
-time.sleep(1)
-
-print("cam started");
-
-picam2.stop()
-
-if(VerticalFlip):
-    picam2.configure(capture_config_flipped)
-else:
+    if(onlyflash):
+        print("operating in always on flash mode")
+    
+    
+    
+    #------- Setting up camera settings -------------
+    
+    '''
+    #This is for getting min and max details for certain settings, (See the picam pdf manual)
+    print(picam2.camera_controls["AnalogueGain"])
+    min_gain, max_gain, default_gain = picam2.camera_controls["AnalogueGain"]
+    '''
+    #This will be the path to the CSV holding the settings whether it is the one on the disk or the external CSV
+    global chosen_settings_path
+    default_path = str(CAMERA_SETTINGS_FILE)
+    chosen_settings_path=default_path
+    
+    #camera_settings = load_camera_settings("camera_settings.csv")#CRONTAB CAN'T TAKE RELATIVE LINKS! 
+    camera_settings = load_camera_settings()
+    
+        
+    #before calibration, set these values to the default we read in
+    
+    calib_lens_position=6
+    
+    calib_lens_position = camera_settings["LensPosition"]
+    calib_exposure = camera_settings["ExposureTime"]
+    
+    
+    AutoCalibration = camera_settings.pop("AutoCalibration",1) #defaults to what is set above if not in the files being read
+    AutoCalibrationPeriod = int(camera_settings.pop("AutoCalibrationPeriod",1000))
+    
+    
+    #Start up cameras
+    picam2 = Picamera2()
+    
+    
+    #----Autocalibration ---------
+    
+    current_time = int(time.time())
+    timesincelastcalibration= current_time - LastCalibration
+    print("Last calibration was   ",timesincelastcalibration,"  seconds ago \n Autocalibration period is   ", AutoCalibrationPeriod)
+    recalibrated= False
+    if AutoCalibration and (timesincelastcalibration > AutoCalibrationPeriod):
+        print("Do Autocalibrate")
+        recalibrated=True
+        print(current_time)
+        #picam2.configure(preview_config)
+        #picam2.configure(capture_config_fastAuto)
+        run_calibration()
+    else:
+        print("Don't Autocalibration")
+    
+    # ------ Prepare to take actual photo -----------
+    #reload camera settings after possible calibration
+    camera_settings = load_camera_settings()
+    AutoCalibration = camera_settings.pop("AutoCalibration",1) #defaults to what is set above if not in the files being read
+    AutoCalibrationPeriod = int(camera_settings.pop("AutoCalibrationPeriod",1000))
+    
+    calib_lens_position = camera_settings["LensPosition"]
+    calib_exposure = camera_settings["ExposureTime"]
+    
+    
+    #remove settings that aren't actually in picamera2
+    oldsettingsnames = camera_settings.pop("Name",computerName) #defaults to what is set above if not in the files being read
+    ImageFileType = int(camera_settings.pop("ImageFileType",0))
+    VerticalFlip = int(camera_settings.pop("VerticalFlip",0))
+    
+    #HDR settings
+    num_photos = int(camera_settings.pop("HDR",num_photos)) #defaults to what is set above if not in the files being read
+    exposuretime_width = int(camera_settings.pop("HDR_width",exposuretime_width))
+    if(num_photos<1 or num_photos==2):
+        num_photos=1
+    
+    capture_main = {"size": (width, height), "format": "RGB888", }
+    capture_config = picam2.create_still_configuration(main=capture_main,raw=None, lores=None)
+    capture_config_flipped =  picam2.create_still_configuration(main=capture_main, transform=Transform(vflip=True, hflip=True), raw=None, lores=None)
     picam2.configure(capture_config)
-
-time.sleep(.5)
-takePhoto_Manual()
-
-
-picam2.stop()
-
-#cannot call GPIO cleanup here because it will kill the relay turning on the attractor
-GPIO.output(Relay_Ch3,GPIO.LOW) #might as well ensure attract is on because new wiring dictates that
-
     
+    
+    if camera_settings:
+        picam2.set_controls(camera_settings)
+    
+    picam2.start()
+    time.sleep(1)
+    
+    print("cam started");
+    
+    picam2.stop()
+    
+    if(VerticalFlip):
+        picam2.configure(capture_config_flipped)
+    else:
+        picam2.configure(capture_config)
+    
+    time.sleep(.5)
+    takePhoto_Manual()
+    
+    
+    picam2.stop()
+    
+    #cannot call GPIO cleanup here because it will kill the relay turning on the attractor
+    GPIO.output(Relay_Ch3,GPIO.LOW) #might as well ensure attract is on because new wiring dictates that
+
+finally:
+    # Cleanup flash relay (Relay_Ch2) on exit to ensure it's off
+    # Note: We don't cleanup Relay_Ch3 (attractor) as it's intentionally left on
+    try:
+        GPIO.cleanup(Relay_Ch2)
+        print("GPIO cleanup completed for flash relay")
+    except Exception as e:
+        print(f"Warning: GPIO cleanup failed: {e}")
+
 quit()
 

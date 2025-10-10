@@ -12,6 +12,17 @@ from mothbox_paths import get_script_path
 
 scheduler_bp = Blueprint('scheduler', __name__)
 
+# Whitelist of allowed Mothbox scripts to prevent command injection
+# Maps friendly keys to script filenames
+ALLOWED_SCRIPTS = {
+    'takephoto': 'TakePhoto.py',
+    'scheduler': 'Scheduler.py',
+    'backup': 'Backup_Files.py',
+    'attract_on': 'Attract_On.py',
+    'attract_off': 'Attract_Off.py',
+    'flash_on': 'FlashOn.py'
+}
+
 @scheduler_bp.route('/jobs', methods=['GET'])
 def list_cron_jobs():
     """List all Mothbox cron jobs"""
@@ -34,22 +45,39 @@ def list_cron_jobs():
 
 @scheduler_bp.route('/job', methods=['POST'])
 def add_cron_job():
-    """Add a new cron job"""
+    """Add a new cron job (with command injection protection)"""
     try:
         data = request.json
-        command = data.get('command')
+        script_key = data.get('script_key')  # Use script_key instead of raw command
         schedule = data.get('schedule')  # e.g., "0 * * * *"
         comment = data.get('comment', '')
 
-        if not command or not schedule:
-            return jsonify({'error': 'Missing command or schedule'}), 400
+        if not script_key or not schedule:
+            return jsonify({'error': 'Missing script_key or schedule'}), 400
 
+        # Validate script_key against whitelist to prevent command injection
+        if script_key not in ALLOWED_SCRIPTS:
+            return jsonify({
+                'error': f'Invalid script_key. Allowed: {", ".join(ALLOWED_SCRIPTS.keys())}'
+            }), 400
+
+        # Get validated script path (get_script_path already has path traversal protection)
+        script_name = ALLOWED_SCRIPTS[script_key]
+        try:
+            script_path = get_script_path(script_name)
+        except ValueError as e:
+            return jsonify({'error': f'Script path validation failed: {str(e)}'}), 400
+
+        # Construct command with validated path
+        command = f"/usr/bin/python3 {script_path}"
+
+        # Create cron job with validated command
         cron = CronTab(user=True)
         job = cron.new(command=command, comment=comment)
         job.setall(schedule)
         cron.write()
 
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'command': command})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

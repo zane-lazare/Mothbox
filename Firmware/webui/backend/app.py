@@ -8,6 +8,8 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 from flask_wtf.csrf import CSRFProtect, CSRFError
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import sys
 import os
 import signal
@@ -41,14 +43,30 @@ app.config.from_object(config)
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
 
+# Initialize rate limiter to prevent hardware abuse
+# Uses remote address for rate limiting (single user device typically has same IP)
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+)
+
 # Configure CORS for cross-origin requests
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+# Use restrictive origins from config (empty list = same-origin only in production)
+if config.CORS_ORIGINS:
+    CORS(app, resources={r"/api/*": {"origins": config.CORS_ORIGINS}})
+    print(f"✓ CORS enabled for origins: {config.CORS_ORIGINS}")
+else:
+    # No CORS configured - same-origin only (most secure for production)
+    print("✓ CORS: Same-origin only (no cross-origin requests allowed)")
 
 # Configure SocketIO with proper CORS and transport settings
 # WebSocket connections are exempt from CSRF by Flask-WTF
+# Use same CORS origins as REST API for consistency
 socketio = SocketIO(
     app,
-    cors_allowed_origins="*",
+    cors_allowed_origins=config.CORS_ORIGINS if config.CORS_ORIGINS else "*",
     async_mode='threading',
     logger=True,
     engineio_logger=True,
@@ -93,6 +111,13 @@ app.register_blueprint(gallery_bp, url_prefix='/api/gallery')
 app.register_blueprint(config_bp, url_prefix='/api/config')
 app.register_blueprint(gpio_bp, url_prefix='/api/gpio')
 app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
+
+# Apply rate limiting to GPIO endpoints to prevent hardware abuse
+# 30 requests per minute for control operations (one per 2 seconds)
+# 10 requests per minute for flash operations (prevents rapid relay cycling)
+limiter.limit("30 per minute")(gpio_bp.view_functions['control_gpio'])
+limiter.limit("10 per minute")(gpio_bp.view_functions['trigger_flash'])
+print("✓ Rate limiting applied to GPIO endpoints")
 
 # CSRF token endpoint
 @app.route('/api/csrf-token', methods=['GET'])

@@ -594,12 +594,22 @@ if [ "$INSTALL_TYPE" = "production" ]; then
     sudo chown -R $MOTHBOX_USER:$MOTHBOX_USER "$MOTHBOX_HOME" "$CONFIG_DIR" "$DATA_DIR"
 fi
 
-# Set permissions
-sudo chmod -R 755 "$MOTHBOX_HOME"
-sudo chmod -R 755 "$CONFIG_DIR"
-sudo chmod -R 755 "$DATA_DIR"  # Owner rwx, group rx, others rx
+# Set permissions with proper granularity
+# Directories: 755 (rwxr-xr-x)
+# Regular files: 644 (rw-r--r--)
+# Scripts (.py, .sh): 755 (rwxr-xr-x)
+echo "Setting file permissions..."
+find "$MOTHBOX_HOME" -type d -exec sudo chmod 755 {} \;
+find "$MOTHBOX_HOME" -type f -exec sudo chmod 644 {} \;
+find "$MOTHBOX_HOME" -type f \( -name "*.py" -o -name "*.sh" \) -exec sudo chmod 755 {} \;
 
-echo -e "${GREEN}✓ Directories created${NC}"
+find "$CONFIG_DIR" -type d -exec sudo chmod 755 {} \;
+find "$CONFIG_DIR" -type f -exec sudo chmod 644 {} \;
+
+find "$DATA_DIR" -type d -exec sudo chmod 755 {} \;
+find "$DATA_DIR" -type f -exec sudo chmod 644 {} \;
+
+echo -e "${GREEN}✓ Directories created and permissions set${NC}"
 
 # Copy firmware files (exclude development artifacts)
 echo -e "${BLUE}Copying firmware files...${NC}"
