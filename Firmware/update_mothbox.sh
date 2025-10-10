@@ -63,6 +63,7 @@ MOTHBOX_HOME=""
 CONFIG_DIR=""
 DATA_DIR=""
 INSTALL_TYPE=""
+FIRMWARE_VERSION=""
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -152,6 +153,39 @@ detect_installation() {
     fi
 
     # No installation found
+    return 1
+}
+
+# Detect firmware version from controls.txt
+detect_firmware_version() {
+    local controls_file="$CONFIG_DIR/controls.txt"
+
+    if [ -f "$controls_file" ]; then
+        # Extract version from softwareversion=X.Y.Z
+        local version=$(grep "^softwareversion=" "$controls_file" 2>/dev/null | cut -d= -f2 | cut -d. -f1)
+        if [ -n "$version" ]; then
+            FIRMWARE_VERSION="$version"
+            return 0
+        fi
+    fi
+
+    # Fallback: check which firmware directory exists in installation
+    if [ -d "$MOTHBOX_HOME/5.x" ]; then
+        FIRMWARE_VERSION="5"
+        return 0
+    elif [ -d "$MOTHBOX_HOME/4.x" ]; then
+        FIRMWARE_VERSION="4"
+        return 0
+    fi
+
+    # Last resort: detect from git repo
+    if [ -d "$MOTHBOX_ROOT/Firmware/5.x" ]; then
+        FIRMWARE_VERSION="5"
+    else
+        FIRMWARE_VERSION="4"
+    fi
+
+    echo -e "${YELLOW}Warning: Could not detect firmware version from config, assuming ${FIRMWARE_VERSION}.x${NC}" >&2
     return 1
 }
 
@@ -257,6 +291,11 @@ fi
 
 echo -e "${GREEN}✓ Found $INSTALL_TYPE installation${NC}"
 echo -e "${CYAN}Location:${NC} $MOTHBOX_HOME"
+
+# Detect firmware version
+detect_firmware_version
+echo -e "${CYAN}Firmware version:${NC} ${FIRMWARE_VERSION}.x"
+echo -e "${CYAN}Config directory:${NC} $CONFIG_DIR"
 echo ""
 
 # Handle --verify mode
@@ -440,21 +479,36 @@ fi
 if [ "$INSTALL_TYPE" = "production" ] && [ "$SKIP_FILE_COPY" = "false" ]; then
     echo -e "${BLUE}Syncing files to installation directory...${NC}"
 
-    # Detect firmware version (4.x or 5.x)
-    if [ -d "$MOTHBOX_ROOT/Firmware/5.x" ]; then
-        FIRMWARE_VERSION="5"
-    else
-        FIRMWARE_VERSION="4"
+    # Copy firmware-version-specific files to root of installation
+    echo "Copying ${FIRMWARE_VERSION}.x firmware files..."
+    sudo rsync -av \
+        --exclude='__pycache__' --exclude='*.pyc' \
+        --exclude='node_modules' --exclude='.DS_Store' \
+        "$MOTHBOX_ROOT/Firmware/${FIRMWARE_VERSION}.x/" "$MOTHBOX_HOME/"
+
+    # Copy common files (mothbox_paths.py, etc.)
+    echo "Copying common files..."
+    sudo rsync -av \
+        --exclude='__pycache__' --exclude='*.pyc' \
+        "$MOTHBOX_ROOT/Firmware/mothbox_paths.py" "$MOTHBOX_HOME/"
+
+    # Copy Web UI (if it exists)
+    if [ -d "$MOTHBOX_ROOT/Firmware/webui" ]; then
+        echo "Copying Web UI..."
+        sudo rsync -av \
+            --exclude='__pycache__' --exclude='*.pyc' \
+            --exclude='node_modules' --exclude='.DS_Store' \
+            "$MOTHBOX_ROOT/Firmware/webui/" "$MOTHBOX_HOME/webui/"
     fi
 
-    # Copy Firmware directory contents to installation
-    sudo rsync -av --delete \
-        --exclude='__pycache__' --exclude='*.pyc' --exclude='.git*' \
-        --exclude='node_modules' --exclude='.DS_Store' \
-        --exclude='install_mothbox.sh' --exclude='uninstall_mothbox.sh' \
-        --exclude='installation-utils' --exclude='migrate_*.py' \
-        --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
-        "$MOTHBOX_ROOT/Firmware/" "$MOTHBOX_HOME/"
+    # Copy update script itself
+    sudo rsync -av "$MOTHBOX_ROOT/Firmware/update_mothbox.sh" "$MOTHBOX_HOME/"
+
+    # Preserve critical files (don't delete during sync)
+    # Create .installation_type if it doesn't exist
+    if [ ! -f "$MOTHBOX_HOME/.installation_type" ]; then
+        echo "$INSTALL_TYPE" | sudo tee "$MOTHBOX_HOME/.installation_type" > /dev/null
+    fi
 
     # Set proper ownership
     sudo chown -R $MOTHBOX_USER:$MOTHBOX_USER "$MOTHBOX_HOME"
