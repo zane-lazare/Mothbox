@@ -115,8 +115,9 @@ app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
 # Apply rate limiting to GPIO endpoints to prevent hardware abuse
 # 30 requests per minute for control operations (one per 2 seconds)
 # 10 requests per minute for flash operations (prevents rapid relay cycling)
-limiter.limit("30 per minute")(gpio_bp.view_functions['control_gpio'])
-limiter.limit("10 per minute")(gpio_bp.view_functions['trigger_flash'])
+# Use app.view_functions with blueprint-prefixed endpoint names
+limiter.limit("30 per minute")(app.view_functions['gpio.control_gpio'])
+limiter.limit("10 per minute")(app.view_functions['gpio.trigger_flash'])
 print("✓ Rate limiting applied to GPIO endpoints")
 
 # CSRF token endpoint
