@@ -225,7 +225,7 @@ def get_hardware_config() -> Dict[str, Any]:
         config = get_control_values(CONTROLS_FILE)
         return {
             # Relay module (already implemented via get_gpio_pins)
-            'relay_enabled': config.get('relay_enabled', 'false').lower() == 'true',
+            'relay_enabled': config.get('relay_enabled', 'true').lower() == 'true',
 
             # INA260 power sensor
             'ina260_enabled': config.get('ina260_enabled', 'false').lower() == 'true',
@@ -269,9 +269,9 @@ def get_hardware_config() -> Dict[str, Any]:
     except (FileNotFoundError, ValueError, KeyError) as e:
         import sys
         print(f"Warning: Could not load hardware configuration ({e}). Using defaults.", file=sys.stderr)
-        # Return defaults for all modules - all disabled by default
+        # Return defaults for all modules - all disabled by default except relays
         return {
-            'relay_enabled': False,
+            'relay_enabled': True,  # Relays are core hardware, enabled by default
             'ina260_enabled': False,
             'ina260_address': 0x40,
             'epaper_enabled': False,

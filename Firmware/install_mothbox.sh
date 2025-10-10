@@ -253,7 +253,7 @@ echo ""
 echo -e "${BLUE}Hardware Configuration${NC}"
 echo ""
 
-# Set firmware-specific defaults
+# Set firmware-specific defaults for relay GPIO pins
 if [ "$FIRMWARE_VERSION" = "4" ]; then
     DEFAULT_CH1=26
     DEFAULT_CH2=20
@@ -264,53 +264,12 @@ else
     DEFAULT_CH3=9
 fi
 
-# Check for --quick flag to skip prompts
 if [ "$QUICK_MODE" = "true" ]; then
+    # Quick mode - use all defaults
+    RELAY_ENABLED="true"
     RELAY_CH1=$DEFAULT_CH1
     RELAY_CH2=$DEFAULT_CH2
     RELAY_CH3=$DEFAULT_CH3
-    echo -e "${GREEN}Using default GPIO pins (quick mode)${NC}"
-    echo "  Relay Ch1 (main):  GPIO $RELAY_CH1"
-    echo "  Relay Ch2 (flash): GPIO $RELAY_CH2"
-    echo "  Relay Ch3 (UV):    GPIO $RELAY_CH3"
-else
-    echo "Configure relay module GPIO pins:"
-    echo "  Default for ${FIRMWARE_VERSION}.x: Ch1=${DEFAULT_CH1}, Ch2=${DEFAULT_CH2}, Ch3=${DEFAULT_CH3}"
-    echo ""
-
-    read -p "Relay Ch1 (main) GPIO pin [$DEFAULT_CH1]: " RELAY_CH1
-    RELAY_CH1=${RELAY_CH1:-$DEFAULT_CH1}
-
-    read -p "Relay Ch2 (flash) GPIO pin [$DEFAULT_CH2]: " RELAY_CH2
-    RELAY_CH2=${RELAY_CH2:-$DEFAULT_CH2}
-
-    read -p "Relay Ch3 (UV) GPIO pin [$DEFAULT_CH3]: " RELAY_CH3
-    RELAY_CH3=${RELAY_CH3:-$DEFAULT_CH3}
-
-    # Validate GPIO pins (BCM mode: 2-27)
-    for pin in $RELAY_CH1 $RELAY_CH2 $RELAY_CH3; do
-        if [ $pin -lt 2 ] || [ $pin -gt 27 ]; then
-            echo -e "${RED}Error: GPIO pin $pin out of range (2-27)${NC}"
-            exit 1
-        fi
-    done
-
-    # Check for conflicts
-    if [ "$RELAY_CH1" = "$RELAY_CH2" ] || [ "$RELAY_CH1" = "$RELAY_CH3" ] || [ "$RELAY_CH2" = "$RELAY_CH3" ]; then
-        echo -e "${RED}Error: GPIO pins must be unique${NC}"
-        exit 1
-    fi
-
-    echo -e "${GREEN}✓ GPIO configuration validated${NC}"
-fi
-echo ""
-
-# Additional Hardware Module Configuration
-echo -e "${BLUE}Additional Hardware Modules${NC}"
-echo ""
-
-if [ "$QUICK_MODE" = "true" ]; then
-    # Quick mode - use all defaults
     INA260_ENABLED="true"
     INA260_ADDRESS="0x40"
     EPAPER_ENABLED="true"
@@ -332,7 +291,59 @@ if [ "$QUICK_MODE" = "true" ]; then
     MUX_TYPE="i2c"
     MUX_ADDRESS="0x20"
     echo -e "${GREEN}Using default hardware configuration (quick mode)${NC}"
+    echo "  Relay module:      enabled"
+    echo "    Ch1 (main):      GPIO $RELAY_CH1"
+    echo "    Ch2 (flash):     GPIO $RELAY_CH2"
+    echo "    Ch3 (UV):        GPIO $RELAY_CH3"
 else
+    # Relay Module Configuration (Core Hardware)
+    echo -e "${YELLOW}Relay Module (3-channel for attract lights/flash/UV)${NC}"
+    read -p "Enable relay module? (Y/n): " CONFIGURE_RELAY
+    CONFIGURE_RELAY=${CONFIGURE_RELAY:-Y}
+
+    if [[ "$CONFIGURE_RELAY" =~ ^[Yy]$ ]]; then
+        RELAY_ENABLED="true"
+        echo "  Configure relay module GPIO pins:"
+        echo "  Default for ${FIRMWARE_VERSION}.x: Ch1=${DEFAULT_CH1}, Ch2=${DEFAULT_CH2}, Ch3=${DEFAULT_CH3}"
+        echo ""
+
+        read -p "  Relay Ch1 (main) GPIO pin [$DEFAULT_CH1]: " RELAY_CH1
+        RELAY_CH1=${RELAY_CH1:-$DEFAULT_CH1}
+
+        read -p "  Relay Ch2 (flash) GPIO pin [$DEFAULT_CH2]: " RELAY_CH2
+        RELAY_CH2=${RELAY_CH2:-$DEFAULT_CH2}
+
+        read -p "  Relay Ch3 (UV) GPIO pin [$DEFAULT_CH3]: " RELAY_CH3
+        RELAY_CH3=${RELAY_CH3:-$DEFAULT_CH3}
+
+        # Validate GPIO pins (BCM mode: 2-27)
+        for pin in $RELAY_CH1 $RELAY_CH2 $RELAY_CH3; do
+            if [ $pin -lt 2 ] || [ $pin -gt 27 ]; then
+                echo -e "${RED}  Error: GPIO pin $pin out of range (2-27)${NC}"
+                exit 1
+            fi
+        done
+
+        # Check for conflicts
+        if [ "$RELAY_CH1" = "$RELAY_CH2" ] || [ "$RELAY_CH1" = "$RELAY_CH3" ] || [ "$RELAY_CH2" = "$RELAY_CH3" ]; then
+            echo -e "${RED}  Error: GPIO pins must be unique${NC}"
+            exit 1
+        fi
+
+        echo -e "${GREEN}  ✓ Relay module enabled${NC}"
+    else
+        RELAY_ENABLED="false"
+        RELAY_CH1=$DEFAULT_CH1
+        RELAY_CH2=$DEFAULT_CH2
+        RELAY_CH3=$DEFAULT_CH3
+        echo -e "${YELLOW}  ⊗ Relay module disabled${NC}"
+    fi
+    echo ""
+
+    # Additional Hardware Modules
+    echo -e "${BLUE}Additional Hardware Modules${NC}"
+    echo ""
+
     # Power Sensor Configuration
     echo -e "${YELLOW}Power Sensor (INA260/INA219)${NC}"
     read -p "Configure INA260 power sensor? (Y/n): " CONFIGURE_INA260
@@ -672,7 +683,8 @@ fi
 
 # Write hardware module configuration
 echo -e "${BLUE}Configuring hardware modules...${NC}"
-if ! grep -q "^ina260_enabled=" "$CONTROLS_FILE" 2>/dev/null; then
+if ! grep -q "^relay_enabled=" "$CONTROLS_FILE" 2>/dev/null; then
+    echo "relay_enabled=$RELAY_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "ina260_enabled=$INA260_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "ina260_address=$INA260_ADDRESS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
     echo "epaper_enabled=$EPAPER_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
@@ -696,6 +708,7 @@ if ! grep -q "^ina260_enabled=" "$CONTROLS_FILE" 2>/dev/null; then
     echo -e "${GREEN}✓ Hardware module configuration written to controls.txt${NC}"
 else
     # Update existing hardware configuration
+    sudo sed -i "s/^relay_enabled=.*/relay_enabled=$RELAY_ENABLED/" "$CONTROLS_FILE"
     sudo sed -i "s/^ina260_enabled=.*/ina260_enabled=$INA260_ENABLED/" "$CONTROLS_FILE"
     sudo sed -i "s/^ina260_address=.*/ina260_address=$INA260_ADDRESS/" "$CONTROLS_FILE"
     sudo sed -i "s/^epaper_enabled=.*/epaper_enabled=$EPAPER_ENABLED/" "$CONTROLS_FILE"
