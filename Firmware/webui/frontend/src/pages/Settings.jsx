@@ -356,6 +356,42 @@ export default function Settings() {
       {/* Stream Settings Tab */}
       {activeTab === 'stream' && (
         <div className="bg-white rounded-lg shadow p-6">
+          <style>{`
+            /* Slider track styling for better visibility */
+            input[type="range"]::-webkit-slider-runnable-track {
+              height: 8px;
+              border: 1px solid #d1d5db;
+              border-radius: 4px;
+              background: #e5e7eb;
+            }
+            input[type="range"]::-moz-range-track {
+              height: 8px;
+              border: 1px solid #d1d5db;
+              border-radius: 4px;
+              background: #e5e7eb;
+            }
+            /* Slider thumb styling for better visibility */
+            input[type="range"]::-webkit-slider-thumb {
+              -webkit-appearance: none;
+              appearance: none;
+              width: 20px;
+              height: 20px;
+              border-radius: 50%;
+              background: #3b82f6;
+              cursor: pointer;
+              border: 2px solid white;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            }
+            input[type="range"]::-moz-range-thumb {
+              width: 20px;
+              height: 20px;
+              border-radius: 50%;
+              background: #3b82f6;
+              cursor: pointer;
+              border: 2px solid white;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            }
+          `}</style>
           <h3 className="text-lg font-semibold mb-4">Camera Stream Configuration</h3>
           <p className="text-sm text-gray-600 mb-6">
             Configure the camera preview stream quality and performance. Changes apply to new preview sessions.
