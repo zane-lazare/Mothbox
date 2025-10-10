@@ -423,7 +423,23 @@ else
     NEED_GIT_PULL="false"
 fi
 
-# Check if processing is needed
+# Pull updates from git BEFORE checking if processing is needed
+# This ensures we compare against the latest code
+if [ "$NEED_GIT_PULL" = "true" ]; then
+    if [ "$DRY_RUN" = "true" ]; then
+        echo -e "${YELLOW}[DRY RUN] Would run: git pull origin $TARGET_BRANCH${NC}"
+    else
+        echo -e "${BLUE}Pulling updates from git...${NC}"
+        git pull origin "$TARGET_BRANCH"
+        echo -e "${GREEN}✓ Git updates pulled${NC}"
+
+        # Update COMPARE_COMMIT to new HEAD after pull
+        COMPARE_COMMIT=$(git rev-parse HEAD)
+        echo ""
+    fi
+fi
+
+# Check if processing is needed (now comparing against pulled code)
 if [ "$BASE_COMMIT" = "$COMPARE_COMMIT" ] && [ "$FORCE_UPDATE" = "false" ]; then
     echo -e "${GREEN}✓ No updates to process!${NC}"
     echo ""
@@ -485,18 +501,7 @@ if [ "$BACKUP_BEFORE_UPDATE" = "true" ] && [ "$DRY_RUN" = "false" ]; then
     echo ""
 fi
 
-# Pull updates from git if needed
-if [ "$NEED_GIT_PULL" = "true" ]; then
-    if [ "$DRY_RUN" = "true" ]; then
-        echo -e "${YELLOW}[DRY RUN] Would run: git pull origin $TARGET_BRANCH${NC}"
-    else
-        echo -e "${BLUE}Pulling updates from git...${NC}"
-        git pull origin "$TARGET_BRANCH"
-        echo -e "${GREEN}✓ Git updates pulled${NC}"
-        echo ""
-    fi
-fi
-
+# Git pull already happened earlier (before processing check)
 NEW_COMMIT_SHORT=$(git rev-parse --short HEAD)
 
 if [ "$DRY_RUN" = "true" ]; then
