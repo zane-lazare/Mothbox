@@ -24,7 +24,12 @@ from mothbox_paths import (
     _installation_type
 )
 
+from config import get_config
+
 system_bp = Blueprint('system', __name__)
+
+# Get configuration to check DEBUG mode
+config = get_config()
 
 @system_bp.route('/status', methods=['GET'])
 def get_system_status():
@@ -108,10 +113,19 @@ def get_system_info():
         })
     except Exception as e:
         import traceback
-        return jsonify({
-            'error': str(e),
-            'traceback': traceback.format_exc()
-        }), 500
+
+        # Log full traceback server-side for debugging
+        print("Error in /api/system/info:")
+        print(traceback.format_exc())
+
+        # Build error response
+        error_response = {'error': str(e)}
+
+        # Only include traceback in development/debug mode to prevent information disclosure
+        if config.DEBUG:
+            error_response['traceback'] = traceback.format_exc()
+
+        return jsonify(error_response), 500
 
 @system_bp.route('/diagnostic', methods=['GET'])
 def get_diagnostic_info():
@@ -174,7 +188,16 @@ def get_diagnostic_info():
         })
     except Exception as e:
         import traceback
-        return jsonify({
-            'error': str(e),
-            'traceback': traceback.format_exc()
-        }), 500
+
+        # Log full traceback server-side for debugging
+        print("Error in /api/system/diagnostic:")
+        print(traceback.format_exc())
+
+        # Build error response
+        error_response = {'error': str(e)}
+
+        # Only include traceback in development/debug mode to prevent information disclosure
+        if config.DEBUG:
+            error_response['traceback'] = traceback.format_exc()
+
+        return jsonify(error_response), 500

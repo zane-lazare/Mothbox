@@ -35,8 +35,11 @@ class CameraStreamer:
                 # Try camera 0 first, fallback to camera 1
                 try:
                     self.camera = Picamera2(0)
-                except:
+                    print("Using camera 0")
+                except Exception as e:
+                    print(f"Camera 0 unavailable ({e}), trying camera 1...")
                     self.camera = Picamera2(1)
+                    print("Using camera 1")
 
                 # Configure for preview - 4:3 aspect ratio for better compatibility
                 preview_config = self.camera.create_preview_configuration(
@@ -94,8 +97,9 @@ class CameraStreamer:
         if self.camera:
             try:
                 self.camera.stop()
-            except:
-                pass
+            except Exception as e:
+                # Camera may already be stopped, which is fine
+                print(f"Note: Error stopping camera (already stopped?): {e}")
 
     def _stream_loop(self):
         """Main streaming loop - captures and emits frames"""
@@ -134,8 +138,9 @@ class CameraStreamer:
             if self.camera:
                 try:
                     self.camera.stop()
-                except:
-                    pass
+                except Exception as e:
+                    # Camera may already be stopped, which is fine
+                    print(f"Note: Error stopping camera in stream cleanup: {e}")
 
     def cleanup(self):
         """
