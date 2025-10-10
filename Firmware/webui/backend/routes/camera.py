@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request
 import subprocess
 from pathlib import Path
 import sys
+from app import limiter
 
 # Setup path to import mothbox_paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -10,9 +11,20 @@ import mothbox_import  # Sets up sys.path for mothbox
 
 from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR
 
+# Allowed camera settings with validation functions
+ALLOWED_CAMERA_SETTINGS = {
+    'ExposureTime': lambda v: str(v).isdigit() and 0 < int(v) < 1000000,
+    'AnalogGain': lambda v: 1.0 <= float(v) <= 16.0,
+    'Contrast': lambda v: -1.0 <= float(v) <= 1.0,
+    'Brightness': lambda v: -1.0 <= float(v) <= 1.0,
+    'Saturation': lambda v: -1.0 <= float(v) <= 1.0,
+    'Sharpness': lambda v: 0.0 <= float(v) <= 16.0,
+}
+
 camera_bp = Blueprint('camera', __name__)
 
 @camera_bp.route('/capture', methods=['POST'])
+@limiter.limit("10 per minute")
 def capture_photo():
     """Trigger a photo capture"""
     try:
@@ -119,6 +131,16 @@ def update_camera_settings():
         import csv
 
         new_settings = request.json
+
+        # Validate camera settings
+        for key, value in new_settings.items():
+            if key not in ALLOWED_CAMERA_SETTINGS:
+                return jsonify({'error': f'Invalid setting: {key}'}), 400
+            try:
+                if not ALLOWED_CAMERA_SETTINGS[key](value):
+                    return jsonify({'error': f'Invalid value for {key}'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'error': f'Invalid type for {key}'}), 400
 
         # Read existing headers
         with open(CAMERA_SETTINGS_FILE, 'r') as f:

@@ -18,6 +18,9 @@ from mothbox_paths import (
     get_control_values
 )
 
+# Valid BCM GPIO pins (BCM mode: GPIO 2-27)
+VALID_BCM_GPIO_PINS = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27]
+
 config_bp = Blueprint('config', __name__)
 
 def _create_backup(file_path, keep=5):
@@ -72,9 +75,9 @@ ALLOWED_CONTROLS = {
     'hours': lambda v: all(c in '0123456789;' for c in str(v)),
     'minutes': lambda v: str(v).isdigit() or all(c in '0123456789;' for c in str(v)),
     'runtime': lambda v: str(v).isdigit(),
-    'Relay_Ch1': lambda v: str(v).isdigit() and 1 <= int(v) <= 40,
-    'Relay_Ch2': lambda v: str(v).isdigit() and 1 <= int(v) <= 40,
-    'Relay_Ch3': lambda v: str(v).isdigit() and 1 <= int(v) <= 40,
+    'Relay_Ch1': lambda v: str(v).isdigit() and int(v) in VALID_BCM_GPIO_PINS,
+    'Relay_Ch2': lambda v: str(v).isdigit() and int(v) in VALID_BCM_GPIO_PINS,
+    'Relay_Ch3': lambda v: str(v).isdigit() and int(v) in VALID_BCM_GPIO_PINS,
     'relay_enabled': lambda v: str(v).lower() in ['true', 'false'],
 }
 

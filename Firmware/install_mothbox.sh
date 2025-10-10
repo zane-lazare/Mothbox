@@ -146,6 +146,15 @@ if [ "$INTERACTIVE_MODE" = "true" ]; then
                 echo -e "${RED}Error: Custom path cannot be empty${NC}"
                 exit 1
             fi
+            # Validate custom path for security
+            if [[ "$CUSTOM_PATH" =~ \.\. ]] || [[ "$CUSTOM_PATH" =~ ^/(etc|usr|bin|sbin|boot|sys|proc|dev|root) ]]; then
+                echo -e "${RED}Error: Custom path cannot be a system directory or contain path traversal${NC}"
+                exit 1
+            fi
+            if [[ ! "$CUSTOM_PATH" =~ ^/ ]]; then
+                echo -e "${RED}Error: Custom path must be absolute${NC}"
+                exit 1
+            fi
             MOTHBOX_HOME="$CUSTOM_PATH"
             CONFIG_DIR="$MOTHBOX_HOME"
             DATA_DIR="$MOTHBOX_HOME"
@@ -182,6 +191,15 @@ if [ "$INTERACTIVE_MODE" = "false" ]; then
         custom)
             if [ -z "$CUSTOM_PATH" ]; then
                 echo -e "${RED}Error: --path required for custom installation${NC}"
+                exit 1
+            fi
+            # Validate custom path for security
+            if [[ "$CUSTOM_PATH" =~ \.\. ]] || [[ "$CUSTOM_PATH" =~ ^/(etc|usr|bin|sbin|boot|sys|proc|dev|root) ]]; then
+                echo -e "${RED}Error: Custom path cannot be a system directory or contain path traversal${NC}"
+                exit 1
+            fi
+            if [[ ! "$CUSTOM_PATH" =~ ^/ ]]; then
+                echo -e "${RED}Error: Custom path must be absolute${NC}"
                 exit 1
             fi
             MOTHBOX_HOME="$CUSTOM_PATH"
