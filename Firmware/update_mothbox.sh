@@ -337,10 +337,11 @@ elif [ -n "$LAST_PROCESSED_COMMIT" ]; then
         BASE_COMMIT="$REMOTE_COMMIT"
     fi
 else
-    # First run: compare local vs remote
-    BASE_COMMIT="$LOCAL_COMMIT"
-    COMPARE_COMMIT="$REMOTE_COMMIT"
+    # First run: compare against initial commit to process all current files
+    BASE_COMMIT=$(git rev-list --max-parents=0 HEAD)
+    COMPARE_COMMIT="$LOCAL_COMMIT"
     echo -e "${CYAN}First update run (no tracker file found)${NC}"
+    echo -e "${CYAN}Will process all current files to set up installation${NC}"
 fi
 
 # Check if git pull is needed
