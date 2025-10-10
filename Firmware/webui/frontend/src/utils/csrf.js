@@ -3,7 +3,19 @@
  * Handles fetching and caching CSRF tokens for API requests
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+// Use current window location for API calls, or fall back to env variable
+const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  // Use current host and port
+  const protocol = window.location.protocol
+  const host = window.location.hostname
+  const port = window.location.port
+  return `${protocol}//${host}${port ? ':' + port : ''}/api`
+}
+
+const API_URL = getApiBaseUrl()
 
 // In-memory token storage (not localStorage to prevent XSS attacks)
 let csrfToken = null
