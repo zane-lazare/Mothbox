@@ -25,12 +25,14 @@
 #   --path /custom/path                 Path for custom installation
 #   --quick                             Skip interactive prompts, use defaults
 #   --with-webui                        Install Web UI (Node.js + Flask + React)
+#   --env [development|production]      Web UI environment (default: development)
 #
 # Examples:
 #   ./install_mothbox.sh                                # Interactive wizard
 #   ./install_mothbox.sh --type production              # CLI: production install
 #   ./install_mothbox.sh --type legacy --quick          # CLI: quick legacy install
-#   ./install_mothbox.sh --type production --with-webui # CLI: production + webui
+#   ./install_mothbox.sh --type production --with-webui # CLI: production + webui (dev mode)
+#   ./install_mothbox.sh --with-webui --env production  # CLI: webui in production mode
 #   ./install_mothbox.sh --type custom --path /srv/mothbox
 #
 # ==============================================================================
@@ -49,6 +51,7 @@ INSTALL_TYPE="legacy"
 CUSTOM_PATH=""
 QUICK_MODE="false"
 INSTALL_WEBUI_FLAG="false"
+MOTHBOX_ENV="development"  # Default environment for Web UI
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Detect the user who should own Mothbox files
@@ -85,6 +88,15 @@ while [[ $# -gt 0 ]]; do
         --with-webui)
             INSTALL_WEBUI_FLAG="true"
             shift
+            ;;
+        --env)
+            MOTHBOX_ENV="$2"
+            if [[ ! "$MOTHBOX_ENV" =~ ^(development|production)$ ]]; then
+                echo -e "${RED}Invalid environment: $MOTHBOX_ENV${NC}"
+                echo "Valid options: development, production"
+                exit 1
+            fi
+            shift 2
             ;;
         --help|-h)
             grep -A 100 "^#" "$0" | grep -B 100 "^# =====.*=====$" | tail -n +2 | head -n -1 | sed 's/^# //'
@@ -768,9 +780,38 @@ if [ "$INSTALL_WEBUI_FLAG" = "true" ] || [ "$INTERACTIVE_MODE" = "true" ]; then
 
     if [[ $INSTALL_WEBUI =~ ^[Yy]$ ]]; then
         echo ""
-        echo -e "${BLUE}Installing Web UI...${NC}"
-        # Export MOTHBOX_HOME so install_webui.sh can use it for service file generation
+
+        # Ask for environment mode only in interactive mode (not if --env was specified)
+        if [ "$INTERACTIVE_MODE" = "true" ]; then
+            echo -e "${BLUE}Select Web UI environment:${NC}"
+            echo "  1) Development (recommended for testing - enables debug mode)"
+            echo "  2) Production (for deployment - requires gunicorn, not yet implemented)"
+            echo ""
+            read -p "Enter choice [1-2] (default: 1): " -r
+            echo
+            ENV_CHOICE=$REPLY
+            ENV_CHOICE=${ENV_CHOICE:-1}
+
+            if [ "$ENV_CHOICE" = "2" ]; then
+                MOTHBOX_ENV="production"
+                echo -e "${YELLOW}WARNING: Production mode is not yet fully implemented!${NC}"
+                echo -e "${YELLOW}Production mode currently uses Werkzeug development server (not recommended)${NC}"
+                echo -e "${YELLOW}For production deployment, wait for gunicorn implementation (issue #19)${NC}"
+                echo ""
+                read -p "Continue with production mode anyway? [y/N]: " -n 1 -r
+                echo
+                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                    echo -e "${YELLOW}Reverting to development mode${NC}"
+                    MOTHBOX_ENV="development"
+                fi
+            fi
+        fi
+
+        echo ""
+        echo -e "${BLUE}Installing Web UI in ${MOTHBOX_ENV} mode...${NC}"
+        # Export variables so install_webui.sh can use them for service file generation
         export MOTHBOX_HOME
+        export MOTHBOX_ENV
         "$SCRIPT_DIR/installation-utils/install_webui.sh"
     fi
 fi
