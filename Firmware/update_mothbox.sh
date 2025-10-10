@@ -557,9 +557,13 @@ if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ]; then
     if [ -d "$MOTHBOX_HOME/webui/frontend" ]; then
         cd "$MOTHBOX_HOME/webui/frontend"
 
-        # Check if package.json changed (need to reinstall deps)
-        if git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -q "package.json"; then
-            echo "Reinstalling npm dependencies..."
+        # Check if we need to install/reinstall npm dependencies
+        # Install if: node_modules missing OR package.json/package-lock.json changed
+        if [ ! -d "node_modules" ]; then
+            echo "Installing npm dependencies (node_modules not found)..."
+            sudo -u "$MOTHBOX_USER" npm install
+        elif [ -d "$MOTHBOX_HOME/.git" ] && git -C "$MOTHBOX_HOME" diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" 2>/dev/null | grep -q "webui/frontend/package"; then
+            echo "Reinstalling npm dependencies (package files changed)..."
             sudo -u "$MOTHBOX_USER" npm install
         fi
 
