@@ -6,11 +6,23 @@
 # This script updates Mothbox by pulling the latest changes from git and
 # selectively reinstalling only the components that have changed.
 #
+# Features:
+#   - Detects installation type (legacy, production, custom)
+#   - Tracks last processed commit to avoid re-processing after manual pulls
+#   - Syncs files to installation directory for production installs
+#   - Selectively updates only changed components
+#   - Updates systemd service files when templates change
+#   - Verifies installation health (builds, dependencies, services)
+#   - Rebuilds Web UI frontend when needed
+#   - Restarts services automatically
+#
 # Usage:
 #   ./update_mothbox.sh                    # Interactive update
 #   ./update_mothbox.sh --yes              # Auto-confirm all prompts
 #   ./update_mothbox.sh --dry-run          # Show what would be updated
 #   ./update_mothbox.sh --branch <name>    # Pull from specific branch
+#   ./update_mothbox.sh --force            # Reprocess current state
+#   ./update_mothbox.sh --verify           # Check installation health
 #
 # ==============================================================================
 
@@ -42,6 +54,15 @@ DRY_RUN="false"
 AUTO_YES="false"
 TARGET_BRANCH=""
 BACKUP_BEFORE_UPDATE="false"
+FORCE_UPDATE="false"
+VERIFY_ONLY="false"
+SKIP_FILE_COPY="false"
+
+# Installation location variables (will be detected)
+MOTHBOX_HOME=""
+CONFIG_DIR=""
+DATA_DIR=""
+INSTALL_TYPE=""
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -62,6 +83,18 @@ while [[ $# -gt 0 ]]; do
             BACKUP_BEFORE_UPDATE="true"
             shift
             ;;
+        --force|-f)
+            FORCE_UPDATE="true"
+            shift
+            ;;
+        --verify)
+            VERIFY_ONLY="true"
+            shift
+            ;;
+        --skip-copy)
+            SKIP_FILE_COPY="true"
+            shift
+            ;;
         --help|-h)
             echo "Mothbox Update Script"
             echo ""
@@ -72,6 +105,9 @@ while [[ $# -gt 0 ]]; do
             echo "  --yes, -y         Auto-confirm all prompts"
             echo "  --branch, -b NAME Pull from specific branch"
             echo "  --backup          Backup current installation before updating"
+            echo "  --force, -f       Force reprocess updates even if no git changes"
+            echo "  --verify          Check installation status without updating"
+            echo "  --skip-copy       Skip copying files to installation (for testing)"
             echo "  --help, -h        Show this help message"
             exit 0
             ;;
@@ -83,10 +119,151 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# ==============================================================================
+# Helper Functions
+# ==============================================================================
+
+# Detect installation location by checking for .installation_type marker
+detect_installation() {
+    # Check production install
+    if [ -f "/opt/mothbox/.installation_type" ]; then
+        MOTHBOX_HOME="/opt/mothbox"
+        INSTALL_TYPE=$(cat /opt/mothbox/.installation_type)
+        CONFIG_DIR="/etc/mothbox"
+        DATA_DIR="/var/mothbox"
+        return 0
+    fi
+
+    # Check legacy install
+    if [ -f "/home/pi/Desktop/Mothbox/.installation_type" ]; then
+        MOTHBOX_HOME="/home/pi/Desktop/Mothbox"
+        INSTALL_TYPE=$(cat /home/pi/Desktop/Mothbox/.installation_type)
+        CONFIG_DIR="$MOTHBOX_HOME"
+        DATA_DIR="$MOTHBOX_HOME"
+        return 0
+    fi
+
+    # Check custom install via MOTHBOX_HOME env var
+    if [ -n "$MOTHBOX_HOME" ] && [ -f "$MOTHBOX_HOME/.installation_type" ]; then
+        INSTALL_TYPE=$(cat "$MOTHBOX_HOME/.installation_type")
+        CONFIG_DIR="$MOTHBOX_HOME"
+        DATA_DIR="$MOTHBOX_HOME"
+        return 0
+    fi
+
+    # No installation found
+    return 1
+}
+
+# Read last processed commit from tracker file
+get_last_update_commit() {
+    local tracker_file="$MOTHBOX_HOME/.last_update_commit"
+    if [ -f "$tracker_file" ]; then
+        cat "$tracker_file"
+    else
+        echo ""
+    fi
+}
+
+# Write current commit to tracker file
+set_last_update_commit() {
+    local commit="$1"
+    local tracker_file="$MOTHBOX_HOME/.last_update_commit"
+    echo "$commit" | sudo tee "$tracker_file" > /dev/null
+    sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$tracker_file"
+}
+
+# Verify build and dependency status
+verify_installation() {
+    local issues=0
+
+    echo -e "${BLUE}Verifying installation...${NC}"
+    echo ""
+
+    # Check if Web UI frontend is built
+    if [ -d "$MOTHBOX_HOME/webui/frontend" ]; then
+        if [ ! -d "$MOTHBOX_HOME/webui/frontend/dist" ] || [ ! -f "$MOTHBOX_HOME/webui/frontend/dist/index.html" ]; then
+            echo -e "  ${YELLOW}⚠${NC} Web UI frontend not built (missing dist/)"
+            issues=$((issues + 1))
+        else
+            echo -e "  ${GREEN}✓${NC} Web UI frontend built"
+        fi
+
+        # Check if node_modules exists
+        if [ ! -d "$MOTHBOX_HOME/webui/frontend/node_modules" ]; then
+            echo -e "  ${YELLOW}⚠${NC} npm dependencies not installed (missing node_modules/)"
+            issues=$((issues + 1))
+        else
+            echo -e "  ${GREEN}✓${NC} npm dependencies installed"
+        fi
+    fi
+
+    # Check if Python dependencies are installed (basic check)
+    if ! python3 -c "import picamera2" 2>/dev/null; then
+        echo -e "  ${YELLOW}⚠${NC} Python dependency 'picamera2' not found"
+        issues=$((issues + 1))
+    else
+        echo -e "  ${GREEN}✓${NC} Core Python dependencies present"
+    fi
+
+    # Check systemd service status
+    if [ -f "/etc/systemd/system/mothbox-webui.service" ]; then
+        if systemctl is-enabled --quiet mothbox-webui.service 2>/dev/null; then
+            echo -e "  ${GREEN}✓${NC} Web UI service installed and enabled"
+
+            if systemctl is-active --quiet mothbox-webui.service 2>/dev/null; then
+                echo -e "  ${GREEN}✓${NC} Web UI service running"
+            else
+                echo -e "  ${YELLOW}⚠${NC} Web UI service not running"
+                issues=$((issues + 1))
+            fi
+        else
+            echo -e "  ${YELLOW}⚠${NC} Web UI service installed but not enabled"
+            issues=$((issues + 1))
+        fi
+    else
+        echo -e "  ${CYAN}ℹ${NC} Web UI service not installed (optional)"
+    fi
+
+    echo ""
+
+    if [ $issues -gt 0 ]; then
+        echo -e "${YELLOW}Found $issues issue(s) that may need attention${NC}"
+        return 1
+    else
+        echo -e "${GREEN}Installation verified successfully${NC}"
+        return 0
+    fi
+}
+
 echo -e "${BLUE}================================================================================${NC}"
 echo -e "${BLUE}Mothbox Update${NC}"
 echo -e "${BLUE}================================================================================${NC}"
 echo ""
+
+# Detect installation location
+echo -e "${BLUE}Detecting installation...${NC}"
+if ! detect_installation; then
+    echo -e "${RED}Error: No Mothbox installation found${NC}"
+    echo ""
+    echo "Checked locations:"
+    echo "  • /opt/mothbox/.installation_type (production)"
+    echo "  • /home/pi/Desktop/Mothbox/.installation_type (legacy)"
+    echo "  • \$MOTHBOX_HOME/.installation_type (custom)"
+    echo ""
+    echo "Please install Mothbox first using install_mothbox.sh"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Found $INSTALL_TYPE installation${NC}"
+echo -e "${CYAN}Location:${NC} $MOTHBOX_HOME"
+echo ""
+
+# Handle --verify mode
+if [ "$VERIFY_ONLY" = "true" ]; then
+    verify_installation
+    exit $?
+fi
 
 # Check if we're in a git repository
 if ! git -C "$MOTHBOX_ROOT" rev-parse --git-dir > /dev/null 2>&1; then
@@ -133,43 +310,86 @@ else
     git fetch origin "$TARGET_BRANCH"
 fi
 
+# Get last processed commit from installation
+LAST_PROCESSED_COMMIT=$(get_last_update_commit)
+
 # Check if updates are available
 LOCAL_COMMIT=$(git rev-parse HEAD)
 REMOTE_COMMIT=$(git rev-parse "origin/$TARGET_BRANCH")
 
-if [ "$LOCAL_COMMIT" = "$REMOTE_COMMIT" ]; then
-    echo -e "${GREEN}✓ Already up to date!${NC}"
-    echo "No updates available"
+# Determine the base commit for comparison
+if [ "$FORCE_UPDATE" = "true" ]; then
+    # Force mode: compare against remote (will show all differences)
+    BASE_COMMIT="$REMOTE_COMMIT"
+    COMPARE_COMMIT="$LOCAL_COMMIT"
+    echo -e "${YELLOW}Force mode: Reprocessing current state${NC}"
+    echo ""
+elif [ -n "$LAST_PROCESSED_COMMIT" ]; then
+    # Normal mode with tracker: compare against last processed commit
+    BASE_COMMIT="$LAST_PROCESSED_COMMIT"
+    COMPARE_COMMIT="$LOCAL_COMMIT"
+    echo -e "${CYAN}Last processed commit:${NC} $(git rev-parse --short "$LAST_PROCESSED_COMMIT" 2>/dev/null || echo "invalid")"
+
+    # Check if last processed commit is valid
+    if ! git rev-parse "$LAST_PROCESSED_COMMIT" >/dev/null 2>&1; then
+        echo -e "${YELLOW}Warning: Stored commit no longer exists in git history${NC}"
+        echo -e "${YELLOW}Comparing against remote instead${NC}"
+        BASE_COMMIT="$REMOTE_COMMIT"
+    fi
+else
+    # First run: compare local vs remote
+    BASE_COMMIT="$LOCAL_COMMIT"
+    COMPARE_COMMIT="$REMOTE_COMMIT"
+    echo -e "${CYAN}First update run (no tracker file found)${NC}"
+fi
+
+# Check if git pull is needed
+if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]; then
+    echo -e "${YELLOW}Git updates available!${NC}"
+    echo -e "${CYAN}Remote commit:${NC} $(git rev-parse --short origin/$TARGET_BRANCH)"
+    NEED_GIT_PULL="true"
+else
+    echo -e "${GREEN}Git repository up to date${NC}"
+    NEED_GIT_PULL="false"
+fi
+
+# Check if processing is needed
+if [ "$BASE_COMMIT" = "$COMPARE_COMMIT" ] && [ "$FORCE_UPDATE" = "false" ]; then
+    echo -e "${GREEN}✓ No updates to process!${NC}"
+    echo ""
+
+    # Still verify installation health
+    verify_installation
+
     exit 0
 fi
 
 echo ""
-echo -e "${YELLOW}Updates available!${NC}"
-echo -e "${CYAN}Remote commit:${NC} $(git rev-parse --short origin/$TARGET_BRANCH)"
+
+# Show what will be updated (changes between base and current)
+echo -e "${BLUE}Changes to process:${NC}"
+git --no-pager diff --name-status "$BASE_COMMIT..$COMPARE_COMMIT" | head -20
 echo ""
 
-# Show what will be updated
-echo -e "${BLUE}Changed files:${NC}"
-git --no-pager diff --name-status "$LOCAL_COMMIT..$REMOTE_COMMIT" | head -20
-echo ""
-
-TOTAL_CHANGES=$(git diff --name-only "$LOCAL_COMMIT..$REMOTE_COMMIT" | wc -l)
+TOTAL_CHANGES=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | wc -l)
 if [ "$TOTAL_CHANGES" -gt 20 ]; then
     echo -e "${CYAN}... and $(($TOTAL_CHANGES - 20)) more files${NC}"
     echo ""
 fi
 
 # Categorize changes
-FIRMWARE_CHANGED=$(git diff --name-only "$LOCAL_COMMIT..$REMOTE_COMMIT" | grep -E '^Firmware/.*\.py$' | wc -l)
-WEBUI_BACKEND_CHANGED=$(git diff --name-only "$LOCAL_COMMIT..$REMOTE_COMMIT" | grep -E '^Firmware/webui/backend/' | wc -l)
-WEBUI_FRONTEND_CHANGED=$(git diff --name-only "$LOCAL_COMMIT..$REMOTE_COMMIT" | grep -E '^Firmware/webui/frontend/' | wc -l)
-INSTALLER_CHANGED=$(git diff --name-only "$LOCAL_COMMIT..$REMOTE_COMMIT" | grep -E '^Firmware/install.*\.sh$|^Firmware/installation-utils/' | wc -l)
-CONFIG_CHANGED=$(git diff --name-only "$LOCAL_COMMIT..$REMOTE_COMMIT" | grep -E '\.csv$|\.txt$|\.template$' | grep -v 'webui/frontend' | wc -l)
+FIRMWARE_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/.*\.py$' | wc -l)
+WEBUI_BACKEND_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/backend/' | wc -l)
+WEBUI_FRONTEND_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/frontend/' | wc -l)
+INSTALLER_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/install.*\.sh$|^Firmware/installation-utils/' | wc -l)
+SERVICE_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '\.service\.template$' | wc -l)
+CONFIG_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '\.csv$|\.txt$' | grep -v 'webui/frontend' | grep -v '.template$' | wc -l)
 
 echo -e "${CYAN}Components affected:${NC}"
 [ "$FIRMWARE_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Firmware Python scripts ($FIRMWARE_CHANGED files)"
 [ "$WEBUI_BACKEND_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Web UI backend ($WEBUI_BACKEND_CHANGED files)"
 [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Web UI frontend ($WEBUI_FRONTEND_CHANGED files)"
+[ "$SERVICE_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Systemd service files ($SERVICE_CHANGED files)"
 [ "$INSTALLER_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Installer scripts ($INSTALLER_CHANGED files)"
 [ "$CONFIG_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Configuration files ($CONFIG_CHANGED files)"
 echo ""
@@ -195,14 +415,16 @@ if [ "$BACKUP_BEFORE_UPDATE" = "true" ] && [ "$DRY_RUN" = "false" ]; then
     echo ""
 fi
 
-# Pull updates
-if [ "$DRY_RUN" = "true" ]; then
-    echo -e "${YELLOW}[DRY RUN] Would run: git pull origin $TARGET_BRANCH${NC}"
-else
-    echo -e "${BLUE}Pulling updates...${NC}"
-    git pull origin "$TARGET_BRANCH"
-    echo -e "${GREEN}✓ Updates pulled${NC}"
-    echo ""
+# Pull updates from git if needed
+if [ "$NEED_GIT_PULL" = "true" ]; then
+    if [ "$DRY_RUN" = "true" ]; then
+        echo -e "${YELLOW}[DRY RUN] Would run: git pull origin $TARGET_BRANCH${NC}"
+    else
+        echo -e "${BLUE}Pulling updates from git...${NC}"
+        git pull origin "$TARGET_BRANCH"
+        echo -e "${GREEN}✓ Git updates pulled${NC}"
+        echo ""
+    fi
 fi
 
 NEW_COMMIT_SHORT=$(git rev-parse --short HEAD)
@@ -213,13 +435,44 @@ if [ "$DRY_RUN" = "true" ]; then
     exit 0
 fi
 
+# Copy files to installation location (for production installs)
+if [ "$INSTALL_TYPE" = "production" ] && [ "$SKIP_FILE_COPY" = "false" ]; then
+    echo -e "${BLUE}Syncing files to installation directory...${NC}"
+
+    # Detect firmware version (4.x or 5.x)
+    if [ -d "$MOTHBOX_ROOT/Firmware/5.x" ]; then
+        FIRMWARE_VERSION="5"
+    else
+        FIRMWARE_VERSION="4"
+    fi
+
+    # Copy Firmware directory contents to installation
+    sudo rsync -av --delete \
+        --exclude='__pycache__' --exclude='*.pyc' --exclude='.git*' \
+        --exclude='node_modules' --exclude='.DS_Store' \
+        --exclude='install_mothbox.sh' --exclude='uninstall_mothbox.sh' \
+        --exclude='installation-utils' --exclude='migrate_*.py' \
+        --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
+        "$MOTHBOX_ROOT/Firmware/" "$MOTHBOX_HOME/"
+
+    # Set proper ownership
+    sudo chown -R $MOTHBOX_USER:$MOTHBOX_USER "$MOTHBOX_HOME"
+
+    echo -e "${GREEN}✓ Files synced to $MOTHBOX_HOME${NC}"
+    echo ""
+elif [ "$INSTALL_TYPE" = "legacy" ]; then
+    # For legacy installs, git repo IS the installation - no copying needed
+    echo -e "${CYAN}Legacy install detected - files already in place${NC}"
+    echo ""
+fi
+
 # Update components based on what changed
 UPDATES_PERFORMED=0
 
 # Update firmware Python scripts permissions
 if [ "$FIRMWARE_CHANGED" -gt 0 ]; then
     echo -e "${BLUE}Updating firmware script permissions...${NC}"
-    find "$MOTHBOX_ROOT/Firmware" -name "*.py" -exec chmod +x {} \;
+    find "$MOTHBOX_HOME" -name "*.py" -exec chmod +x {} \;
     echo -e "${GREEN}✓ Firmware permissions updated${NC}"
     UPDATES_PERFORMED=$((UPDATES_PERFORMED + 1))
     echo ""
@@ -230,9 +483,11 @@ if [ "$WEBUI_BACKEND_CHANGED" -gt 0 ]; then
     echo -e "${BLUE}Updating Web UI backend...${NC}"
 
     # Check if requirements changed
-    if git diff --name-only "$CURRENT_COMMIT..HEAD" | grep -q "requirements.txt\|setup.py"; then
+    if git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -q "requirements.txt\|setup.py"; then
         echo "Reinstalling Python dependencies..."
-        sudo -u "$MOTHBOX_USER" pip3 install --break-system-packages -r "$MOTHBOX_ROOT/Firmware/webui/backend/requirements.txt" 2>/dev/null || true
+        if [ -f "$MOTHBOX_HOME/webui/backend/requirements.txt" ]; then
+            sudo -u "$MOTHBOX_USER" pip3 install --break-system-packages -r "$MOTHBOX_HOME/webui/backend/requirements.txt" 2>/dev/null || true
+        fi
     fi
 
     echo -e "${GREEN}✓ Web UI backend updated${NC}"
@@ -243,18 +498,59 @@ fi
 # Rebuild Web UI frontend
 if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ]; then
     echo -e "${BLUE}Rebuilding Web UI frontend...${NC}"
-    cd "$MOTHBOX_ROOT/Firmware/webui/frontend"
 
-    # Check if package.json changed (need to reinstall deps)
-    if git diff --name-only "$CURRENT_COMMIT..HEAD" | grep -q "package.json"; then
-        echo "Reinstalling npm dependencies..."
-        sudo -u "$MOTHBOX_USER" npm install
+    if [ -d "$MOTHBOX_HOME/webui/frontend" ]; then
+        cd "$MOTHBOX_HOME/webui/frontend"
+
+        # Check if package.json changed (need to reinstall deps)
+        if git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -q "package.json"; then
+            echo "Reinstalling npm dependencies..."
+            sudo -u "$MOTHBOX_USER" npm install
+        fi
+
+        echo "Building production frontend..."
+        sudo -u "$MOTHBOX_USER" npm run build
+        echo -e "${GREEN}✓ Web UI frontend rebuilt${NC}"
+        UPDATES_PERFORMED=$((UPDATES_PERFORMED + 1))
+    else
+        echo -e "${YELLOW}⚠ Web UI frontend directory not found, skipping${NC}"
     fi
+    echo ""
+fi
 
-    echo "Building production frontend..."
-    sudo -u "$MOTHBOX_USER" npm run build
-    echo -e "${GREEN}✓ Web UI frontend rebuilt${NC}"
-    UPDATES_PERFORMED=$((UPDATES_PERFORMED + 1))
+# Update systemd service files if changed
+if [ "$SERVICE_CHANGED" -gt 0 ]; then
+    echo -e "${BLUE}Updating systemd service files...${NC}"
+
+    # Update Web UI service if template changed
+    if git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -q "mothbox-webui.service.template"; then
+        SERVICE_TEMPLATE="$MOTHBOX_ROOT/Firmware/installation-utils/mothbox-webui.service.template"
+
+        if [ -f "$SERVICE_TEMPLATE" ]; then
+            echo "Regenerating mothbox-webui.service..."
+
+            # Detect MOTHBOX_ENV from existing service or default to development
+            MOTHBOX_ENV="development"
+            if [ -f "/etc/systemd/system/mothbox-webui.service" ]; then
+                MOTHBOX_ENV=$(grep "^Environment=\"MOTHBOX_ENV=" /etc/systemd/system/mothbox-webui.service | cut -d= -f3 | tr -d '"' || echo "development")
+            fi
+
+            # Generate service file with substitutions
+            sed -e "s|__MOTHBOX_USER__|$MOTHBOX_USER|g" \
+                -e "s|__MOTHBOX_HOME__|$MOTHBOX_HOME|g" \
+                -e "s|__MOTHBOX_ENV__|$MOTHBOX_ENV|g" \
+                "$SERVICE_TEMPLATE" > /tmp/mothbox-webui.service
+
+            # Install service file
+            sudo mv /tmp/mothbox-webui.service /etc/systemd/system/mothbox-webui.service
+            sudo systemctl daemon-reload
+
+            echo -e "${GREEN}✓ Service file updated and daemon reloaded${NC}"
+            UPDATES_PERFORMED=$((UPDATES_PERFORMED + 1))
+        else
+            echo -e "${YELLOW}⚠ Service template not found, skipping${NC}"
+        fi
+    fi
     echo ""
 fi
 
@@ -262,15 +558,15 @@ fi
 if [ "$CONFIG_CHANGED" -gt 0 ]; then
     echo -e "${YELLOW}⚠ Configuration files changed${NC}"
     echo "The following config files were updated:"
-    git diff --name-only "$CURRENT_COMMIT..HEAD" | grep -E '\.csv$|\.txt$|\.template$' | grep -v 'webui/frontend' | sed 's/^/  • /'
+    git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '\.csv$|\.txt$' | grep -v 'webui/frontend' | grep -v '.template$' | sed 's/^/  • /'
     echo ""
     echo -e "${YELLOW}Note: Your existing configuration has been preserved${NC}"
     echo "Review the changes and update your config if needed"
     echo ""
 fi
 
-# Restart services if Web UI was updated
-if [ "$WEBUI_BACKEND_CHANGED" -gt 0 ] || [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ]; then
+# Restart services if Web UI was updated or service file changed
+if [ "$WEBUI_BACKEND_CHANGED" -gt 0 ] || [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] || [ "$SERVICE_CHANGED" -gt 0 ]; then
     if systemctl is-active --quiet mothbox-webui.service 2>/dev/null; then
         echo -e "${BLUE}Restarting Web UI service...${NC}"
         sudo systemctl restart mothbox-webui.service
@@ -283,17 +579,33 @@ if [ "$WEBUI_BACKEND_CHANGED" -gt 0 ] || [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ]; th
             echo "Check logs: sudo journalctl -u mothbox-webui.service -n 50"
         fi
         echo ""
+    elif [ "$SERVICE_CHANGED" -gt 0 ]; then
+        echo -e "${YELLOW}Service file updated but service not running${NC}"
+        echo "Start it with: sudo systemctl start mothbox-webui.service"
+        echo ""
     fi
 fi
+
+# Update tracker file with current commit
+FINAL_COMMIT=$(git rev-parse HEAD)
+set_last_update_commit "$FINAL_COMMIT"
+echo -e "${BLUE}Updated tracker file${NC}"
+echo -e "${CYAN}Last processed commit set to:${NC} $(git rev-parse --short HEAD)"
+echo ""
 
 # Summary
 echo -e "${GREEN}================================================================================${NC}"
 echo -e "${GREEN}Update Complete!${NC}"
 echo -e "${GREEN}================================================================================${NC}"
 echo ""
-echo -e "${CYAN}Updated from:${NC} $CURRENT_COMMIT_SHORT"
-echo -e "${CYAN}Updated to:${NC}   $NEW_COMMIT_SHORT"
-echo -e "${CYAN}Branch:${NC}       $TARGET_BRANCH"
+
+if [ -n "$LAST_PROCESSED_COMMIT" ] && [ "$LAST_PROCESSED_COMMIT" != "$FINAL_COMMIT" ]; then
+    echo -e "${CYAN}Processed commits:${NC} $(git rev-parse --short "$LAST_PROCESSED_COMMIT" 2>/dev/null || echo "none")..$(git rev-parse --short HEAD)"
+else
+    echo -e "${CYAN}Current commit:${NC} $(git rev-parse --short HEAD)"
+fi
+echo -e "${CYAN}Branch:${NC} $TARGET_BRANCH"
+echo -e "${CYAN}Installation:${NC} $INSTALL_TYPE ($MOTHBOX_HOME)"
 echo ""
 
 if [ "$UPDATES_PERFORMED" -gt 0 ]; then
@@ -303,5 +615,7 @@ else
 fi
 
 echo ""
-echo -e "${BLUE}View changes:${NC} git log $CURRENT_COMMIT_SHORT..$NEW_COMMIT_SHORT --oneline"
+if [ -n "$LAST_PROCESSED_COMMIT" ]; then
+    echo -e "${BLUE}View changes:${NC} git log $(git rev-parse --short "$LAST_PROCESSED_COMMIT" 2>/dev/null || echo "$CURRENT_COMMIT_SHORT")..$(git rev-parse --short HEAD) --oneline"
+fi
 echo ""
