@@ -10,6 +10,8 @@ from flask_socketio import SocketIO, emit
 from flask_wtf.csrf import CSRFProtect, CSRFError
 import sys
 import os
+import signal
+import atexit
 from pathlib import Path
 
 # Load configuration based on environment
@@ -57,6 +59,24 @@ socketio = SocketIO(
 # Initialize camera streamer
 from camera_stream import CameraStreamer
 camera_streamer = CameraStreamer(socketio)
+
+# Register cleanup handlers to ensure camera resources are released
+# Uses both atexit and signal handlers for defense in depth
+atexit.register(camera_streamer.cleanup)
+print("✓ Registered atexit cleanup handler for camera")
+
+def _signal_handler(signum, frame):
+    """Handle SIGTERM and SIGINT gracefully"""
+    signame = 'SIGTERM' if signum == signal.SIGTERM else 'SIGINT'
+    print(f"\n{signame} received - cleaning up camera resources...")
+    camera_streamer.cleanup()
+    print("Cleanup complete, exiting")
+    sys.exit(0)
+
+# Register signal handlers for graceful shutdown
+signal.signal(signal.SIGTERM, _signal_handler)
+signal.signal(signal.SIGINT, _signal_handler)
+print("✓ Registered signal handlers for graceful shutdown")
 
 # Import route blueprints
 from routes.system import system_bp

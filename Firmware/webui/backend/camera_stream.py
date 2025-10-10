@@ -138,11 +138,45 @@ class CameraStreamer:
                     pass
 
     def cleanup(self):
-        """Cleanup camera resources"""
+        """
+        Cleanup camera resources with timeout protection.
+
+        Called by:
+        - atexit handler (registered in app.py)
+        - Signal handlers (SIGTERM/SIGINT in app.py)
+        - Finally block (app.py main)
+        """
+        print("Cleaning up camera resources...")
+
+        # Stop streaming gracefully
         self.stop_streaming()
+
+        # Close camera with timeout protection
         if self.camera:
             try:
-                self.camera.close()
-            except:
-                pass
-            self.camera = None
+                import signal
+
+                def timeout_handler(signum, frame):
+                    raise TimeoutError("Camera close operation timed out")
+
+                # Set 2-second timeout for camera.close()
+                old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(2)
+
+                try:
+                    self.camera.close()
+                    print("✓ Camera closed successfully")
+                except TimeoutError:
+                    print("⚠ Camera close timed out - forcing cleanup")
+                except Exception as e:
+                    print(f"⚠ Error closing camera: {e}")
+                finally:
+                    signal.alarm(0)  # Cancel alarm
+                    signal.signal(signal.SIGALRM, old_handler)  # Restore handler
+
+            except Exception as e:
+                # Catch any errors in the timeout mechanism itself
+                print(f"⚠ Error during camera cleanup: {e}")
+            finally:
+                self.camera = None
+                print("✓ Camera cleanup complete")
