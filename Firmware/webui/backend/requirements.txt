@@ -5,6 +5,7 @@ Flask-WTF==1.2.1
 Flask-Limiter==3.5.0
 python-socketio==5.11.0
 picamera2
-RPi.GPIO
+# RPi.GPIO - DO NOT install via pip! Use system package python3-rpi-lgpio instead
+#            pip-installed RPi.GPIO conflicts with rpi-lgpio on Pi 5
 Pillow
 python-crontab

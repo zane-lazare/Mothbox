@@ -576,9 +576,17 @@ if [ "$WEBUI_BACKEND_CHANGED" -gt 0 ]; then
     if git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -q "webui/backend/requirements.txt"; then
         echo "Reinstalling Python dependencies..."
         if [ -f "$MOTHBOX_ROOT/Firmware/webui/backend/requirements.txt" ]; then
-            sudo -u "$MOTHBOX_USER" pip3 install --break-system-packages -r "$MOTHBOX_ROOT/Firmware/webui/backend/requirements.txt"
+            # Use constraints file to prevent installation of conflicting packages
+            sudo -u "$MOTHBOX_USER" pip3 install --break-system-packages \
+                -c "$MOTHBOX_ROOT/Firmware/installation-utils/pip-constraints.txt" \
+                -r "$MOTHBOX_ROOT/Firmware/webui/backend/requirements.txt"
         fi
     fi
+
+    # Ensure GPIO compatibility after backend updates
+    echo "Ensuring GPIO compatibility..."
+    pip3 uninstall -y --break-system-packages RPi.GPIO 2>/dev/null || true
+    sudo rm -rf /usr/local/lib/python3.*/dist-packages/RPi/ 2>/dev/null || true
 
     echo -e "${GREEN}✓ Web UI backend updated${NC}"
     UPDATES_PERFORMED=$((UPDATES_PERFORMED + 1))

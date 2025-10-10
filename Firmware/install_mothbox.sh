@@ -565,7 +565,10 @@ echo ""
 
 # Install Python dependencies
 echo -e "${BLUE}Installing Python dependencies...${NC}"
-pip3 install --break-system-packages -r "$SCRIPT_DIR/installation-utils/requirements.txt"
+# Use constraints file to prevent installation of conflicting packages
+pip3 install --break-system-packages \
+    -c "$SCRIPT_DIR/installation-utils/pip-constraints.txt" \
+    -r "$SCRIPT_DIR/installation-utils/requirements.txt"
 echo -e "${GREEN}✓ Python dependencies installed${NC}"
 
 # Fix GPIO compatibility on Pi 5 (Adafruit libraries override python3-rpi-lgpio)
