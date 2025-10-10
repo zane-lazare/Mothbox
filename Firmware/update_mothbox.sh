@@ -237,10 +237,16 @@ verify_installation() {
             echo -e "  ${GREEN}✓${NC} Web UI frontend built"
         fi
 
-        # Check if node_modules exists
+        # Check if node_modules exists (only critical for development)
         if [ ! -d "$MOTHBOX_HOME/webui/frontend/node_modules" ]; then
-            echo -e "  ${YELLOW}⚠${NC} npm dependencies not installed (missing node_modules/)"
-            issues=$((issues + 1))
+            if [ "$INSTALL_TYPE" = "production" ]; then
+                # Production: node_modules optional, only needed for rebuilding
+                echo -e "  ${CYAN}ℹ${NC} npm dependencies not installed (only needed for rebuilding frontend)"
+            else
+                # Legacy/development: node_modules should exist
+                echo -e "  ${YELLOW}⚠${NC} npm dependencies not installed (missing node_modules/)"
+                issues=$((issues + 1))
+            fi
         else
             echo -e "  ${GREEN}✓${NC} npm dependencies installed"
         fi
@@ -602,6 +608,20 @@ if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ]; then
         echo -e "${YELLOW}⚠ Web UI frontend directory not found, skipping${NC}"
     fi
     echo ""
+fi
+
+# Ensure node_modules exists in production installs for development/testing
+# This allows frontend rebuilds without having to maintain source directory
+if [ "$INSTALL_TYPE" = "production" ] && [ -d "$MOTHBOX_HOME/webui/frontend" ]; then
+    if [ ! -d "$MOTHBOX_HOME/webui/frontend/node_modules" ]; then
+        echo -e "${BLUE}Installing npm dependencies in production location...${NC}"
+        echo "This enables frontend rebuilds for development/testing"
+        cd "$MOTHBOX_HOME/webui/frontend"
+        sudo -u "$MOTHBOX_USER" npm install
+        echo -e "${GREEN}✓ npm dependencies installed${NC}"
+        cd "$MOTHBOX_ROOT"
+        echo ""
+    fi
 fi
 
 # Update systemd service files if changed

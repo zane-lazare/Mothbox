@@ -60,8 +60,11 @@ class DevelopmentConfig(Config):
     # Set to False if you want to test without CSRF during development
     WTF_CSRF_ENABLED = True
 
-    # CORS: Allow localhost origins for development (Vite dev server + Flask)
-    CORS_ORIGINS = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:5173,http://localhost:5000').split(',')
+    # CORS: Allow all origins in development for remote access to Pi
+    # Allows testing from any IP address (e.g., accessing Pi via 192.168.x.x)
+    # Can still be overridden via ALLOWED_ORIGINS env var for specific origins
+    allowed_origins_env = os.environ.get('ALLOWED_ORIGINS', '*')
+    CORS_ORIGINS = '*' if allowed_origins_env == '*' else allowed_origins_env.split(',')
 
 
 class ProductionConfig(Config):
