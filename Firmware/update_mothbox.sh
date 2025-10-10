@@ -610,6 +610,10 @@ if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ]; then
             sudo -u "$MOTHBOX_USER" npm install
         fi
 
+        # Clean build to avoid Vite caching issues with incremental builds
+        echo "Cleaning previous build artifacts..."
+        rm -rf dist
+
         echo "Building production frontend..."
         sudo -u "$MOTHBOX_USER" npm run build
         echo -e "${GREEN}✓ Web UI frontend rebuilt${NC}"
