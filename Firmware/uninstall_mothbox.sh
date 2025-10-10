@@ -263,6 +263,35 @@ if [ -f "$INSTALLATION_MARKER" ]; then
     echo -e "${GREEN}✓ Removed installation marker${NC}"
 fi
 
+# Clean up temporary files created by Mothbox
+echo -e "${BLUE}Cleaning up temporary files...${NC}"
+CLEANED_FILES=0
+
+# Remove GPIO state file (created by Web UI)
+if [ -f "/tmp/mothbox_gpio_state.json" ]; then
+    sudo rm -f "/tmp/mothbox_gpio_state.json"
+    echo -e "${GREEN}✓ Removed /tmp/mothbox_gpio_state.json${NC}"
+    CLEANED_FILES=$((CLEANED_FILES + 1))
+fi
+
+# Remove EEPROM config file (created by Scheduler)
+if [ -f "/tmp/eeprom_config.txt" ]; then
+    sudo rm -f "/tmp/eeprom_config.txt"
+    echo -e "${GREEN}✓ Removed /tmp/eeprom_config.txt${NC}"
+    CLEANED_FILES=$((CLEANED_FILES + 1))
+fi
+
+# Remove any leftover service template file
+if [ -f "/tmp/mothbox-webui.service" ]; then
+    sudo rm -f "/tmp/mothbox-webui.service"
+    echo -e "${GREEN}✓ Removed /tmp/mothbox-webui.service${NC}"
+    CLEANED_FILES=$((CLEANED_FILES + 1))
+fi
+
+if [ $CLEANED_FILES -eq 0 ]; then
+    echo -e "${YELLOW}  No temporary files found${NC}"
+fi
+
 # Restore photos if preserved
 if [ -n "$PHOTOS_BACKUP" ] && [ -d "$PHOTOS_BACKUP" ]; then
     PHOTOS_DEST="$HOME/mothbox_photos"
