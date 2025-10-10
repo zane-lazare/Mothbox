@@ -30,14 +30,68 @@ print("=" * 60)
 gpio_bp = Blueprint('gpio', __name__)
 
 # Use RPi.GPIO (works on Pi 4 and Pi 5 via rpi-lgpio compatibility layer)
+GPIO_AVAILABLE = False
+GPIO_PERMISSION_ERROR = None
+
 try:
     import RPi.GPIO as GPIO
-    GPIO_AVAILABLE = True
     GPIO.setmode(GPIO.BCM)
     GPIO.setwarnings(False)
+    GPIO_AVAILABLE = True
 except (ImportError, RuntimeError) as e:
     GPIO_AVAILABLE = False
+    GPIO_PERMISSION_ERROR = f"RPi.GPIO import failed: {e}"
     print(f"Warning: RPi.GPIO not available - {e}")
+
+def _validate_gpio_permissions():
+    """
+    Validate that we have actual GPIO access by testing setup on a pin.
+
+    This catches permission issues that occur when:
+    - User was added to gpio group but hasn't logged out/in
+    - Service started before group membership became active
+    - User lacks GPIO permissions
+
+    Returns:
+        tuple: (success: bool, error_message: str or None)
+    """
+    if not GPIO_AVAILABLE:
+        return False, GPIO_PERMISSION_ERROR
+
+    try:
+        # Test GPIO access on a safe pin that we're likely to use
+        # Use the first relay pin from config
+        pins = get_gpio_pins()
+        test_pin = pins.get('Relay_Ch1', 26)  # Fallback to 26 if not found
+
+        # Try to setup the pin - this will fail with PermissionError if user lacks gpio access
+        GPIO.setup(test_pin, GPIO.OUT)
+
+        # If we got here, permissions are OK
+        return True, None
+
+    except PermissionError as e:
+        error_msg = (
+            f"Permission denied accessing GPIO pins: {e}. "
+            "The user may not be in the 'gpio' group or group membership hasn't taken effect yet. "
+            "Try: sudo systemctl restart mothbox-webui.service (or log out and back in)"
+        )
+        return False, error_msg
+    except Exception as e:
+        error_msg = f"GPIO validation failed: {e}"
+        return False, error_msg
+
+# Validate GPIO permissions on startup
+GPIO_PERMISSIONS_OK, GPIO_PERMISSION_ERROR = _validate_gpio_permissions()
+
+if GPIO_AVAILABLE and not GPIO_PERMISSIONS_OK:
+    print("=" * 60)
+    print("⚠️  GPIO PERMISSION WARNING")
+    print("=" * 60)
+    print(GPIO_PERMISSION_ERROR)
+    print("=" * 60)
+elif GPIO_AVAILABLE and GPIO_PERMISSIONS_OK:
+    print(f"✓ GPIO permissions validated successfully")
 
 # State file to track GPIO status
 STATE_FILE = Path("/tmp/mothbox_gpio_state.json")
@@ -67,6 +121,12 @@ def get_gpio_status():
         if not GPIO_AVAILABLE:
             return jsonify({'error': 'GPIO not available'}), 500
 
+        if not GPIO_PERMISSIONS_OK:
+            return jsonify({
+                'error': 'GPIO permission denied',
+                'details': GPIO_PERMISSION_ERROR
+            }), 403
+
         # Use saved state file rather than reading GPIO pins
         # Reading OUTPUT pins can be unreliable and may reset their state
         status = _get_state()
@@ -90,6 +150,12 @@ def control_gpio():
     try:
         if not GPIO_AVAILABLE:
             return jsonify({'error': 'GPIO not available'}), 500
+
+        if not GPIO_PERMISSIONS_OK:
+            return jsonify({
+                'error': 'GPIO permission denied',
+                'details': GPIO_PERMISSION_ERROR
+            }), 403
 
         data = request.json
         relay = data.get('relay')  # 'Relay_Ch1', 'Relay_Ch2', or 'Relay_Ch3'
@@ -128,6 +194,12 @@ def trigger_flash():
     try:
         if not GPIO_AVAILABLE:
             return jsonify({'error': 'GPIO not available'}), 500
+
+        if not GPIO_PERMISSIONS_OK:
+            return jsonify({
+                'error': 'GPIO permission denied',
+                'details': GPIO_PERMISSION_ERROR
+            }), 403
 
         import time
         pins = get_gpio_pins()
