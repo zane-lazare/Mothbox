@@ -439,7 +439,7 @@ export default function Settings() {
                 max="30"
                 value={webuiForm.frame_rate}
                 onChange={(e) => setWebuiForm({ ...webuiForm, frame_rate: parseInt(e.target.value) })}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                className="w-full cursor-pointer"
               />
               <div className="flex justify-between text-xs text-gray-500 mt-1">
                 <span>1 FPS (Slow)</span>
@@ -462,7 +462,7 @@ export default function Settings() {
                 max="100"
                 value={webuiForm.jpeg_quality}
                 onChange={(e) => setWebuiForm({ ...webuiForm, jpeg_quality: parseInt(e.target.value) })}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                className="w-full cursor-pointer"
               />
               <div className="flex justify-between text-xs text-gray-500 mt-1">
                 <span>50% (Lower quality, faster)</span>
