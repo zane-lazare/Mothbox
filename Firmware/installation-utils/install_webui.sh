@@ -118,6 +118,12 @@ else
     exit 1
 fi
 
+# Verify node_modules was created
+if [ ! -d "$WEBUI_FRONTEND_DIR/node_modules" ]; then
+    echo -e "${RED}✗ node_modules directory not created${NC}"
+    exit 1
+fi
+
 echo "Building production frontend..."
 if sudo -u $MOTHBOX_USER npm run build; then
     echo -e "${GREEN}✓ Frontend built successfully${NC}"

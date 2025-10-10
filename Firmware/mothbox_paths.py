@@ -33,6 +33,7 @@ Usage:
 """
 
 import os
+import sys
 from pathlib import Path
 from typing import Dict, Union, Any
 
@@ -46,7 +47,8 @@ if installation_marker.exists():
     try:
         _installation_type = installation_marker.read_text().strip()
         MOTHBOX_HOME = Path("/opt/mothbox")
-    except:
+    except (ValueError, OSError, KeyError) as e:
+        print(f"Warning: Failed to detect installation type ({e}), defaulting to production", file=sys.stderr)
         _installation_type = "production"
         MOTHBOX_HOME = Path("/opt/mothbox")
 elif Path("/opt/mothbox").exists() and not MOTHBOX_HOME_ENV:

@@ -11,7 +11,7 @@ This is a special script to debug mothboxes with which will
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import CONTROLS_FILE, get_script_path
+from mothbox_paths import CONTROLS_FILE, get_script_path, get_gpio_pins
 
 import subprocess
 
@@ -46,8 +46,6 @@ stop_cron()
 print("----------------- ATTRACT OFF-------------------")
 
 # Load GPIO pins from configuration
-from mothbox_paths import get_gpio_pins
-
 pins = get_gpio_pins()
 Relay_Ch1 = pins['Relay_Ch1']
 Relay_Ch2 = pins['Relay_Ch2']

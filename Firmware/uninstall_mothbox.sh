@@ -267,7 +267,8 @@ fi
 echo -e "${BLUE}Cleaning up temporary files...${NC}"
 CLEANED_FILES=0
 
-# Remove GPIO state file (created by Web UI)
+# Remove GPIO state file (legacy /tmp location for backward compatibility)
+# Note: Current GPIO state is in DATA_DIR/gpio_state.json (removed with DATA_DIR cleanup)
 if [ -f "/tmp/mothbox_gpio_state.json" ]; then
     sudo rm -f "/tmp/mothbox_gpio_state.json"
     echo -e "${GREEN}✓ Removed /tmp/mothbox_gpio_state.json${NC}"

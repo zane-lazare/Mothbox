@@ -201,28 +201,20 @@ class CameraStreamer:
         # Close camera with timeout protection
         if self.camera:
             try:
-                import signal
+                from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
-                def timeout_handler(signum, frame):
-                    raise TimeoutError("Camera close operation timed out")
-
-                # Set 2-second timeout for camera.close()
-                old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(2)
-
-                try:
-                    self.camera.close()
-                    print("✓ Camera closed successfully")
-                except TimeoutError:
-                    print("⚠ Camera close timed out - forcing cleanup")
-                except Exception as e:
-                    print(f"⚠ Error closing camera: {e}")
-                finally:
-                    signal.alarm(0)  # Cancel alarm
-                    signal.signal(signal.SIGALRM, old_handler)  # Restore handler
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(self.camera.close)
+                    try:
+                        future.result(timeout=2.0)
+                        print("✓ Camera closed successfully")
+                    except TimeoutError:
+                        print("⚠ Camera close timed out - forcing cleanup")
+                    except Exception as e:
+                        print(f"⚠ Error closing camera: {e}")
 
             except Exception as e:
-                # Catch any errors in the timeout mechanism itself
+                # Catch any errors in the cleanup mechanism itself
                 print(f"⚠ Error during camera cleanup: {e}")
             finally:
                 self.camera = None

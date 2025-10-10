@@ -624,6 +624,12 @@ else
     EXCLUDE_FIRMWARE="4.x"
 fi
 
+# Validate selected firmware version exists
+if [ ! -d "$SCRIPT_DIR/${FIRMWARE_VERSION}.x" ]; then
+    echo -e "${RED}✗ Error: Selected firmware version ${FIRMWARE_VERSION}.x not found in $SCRIPT_DIR${NC}"
+    exit 1
+fi
+
 # Use rsync if available for better control, fallback to cp
 if command -v rsync &> /dev/null; then
     sudo rsync -av \
