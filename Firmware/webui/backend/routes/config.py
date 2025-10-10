@@ -12,6 +12,7 @@ from mothbox_paths import (
     CAMERA_SETTINGS_FILE,
     SCHEDULE_SETTINGS_FILE,
     CONTROLS_FILE,
+    WEBUI_SETTINGS_FILE,
     get_control_values
 )
 
@@ -71,6 +72,66 @@ def update_schedule_settings():
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerow(new_settings)
+
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@config_bp.route('/webui', methods=['GET'])
+def get_webui_settings():
+    """Get WebUI stream settings"""
+    try:
+        # Default settings
+        defaults = {
+            'preview_width': 1024,
+            'preview_height': 768,
+            'frame_rate': 10,
+            'jpeg_quality': 95
+        }
+
+        # Load from file if it exists
+        if WEBUI_SETTINGS_FILE.exists():
+            settings = get_control_values(WEBUI_SETTINGS_FILE)
+            # Convert string values to integers
+            for key in defaults:
+                if key in settings:
+                    try:
+                        defaults[key] = int(settings[key])
+                    except ValueError:
+                        pass  # Keep default if conversion fails
+
+        return jsonify(defaults)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@config_bp.route('/webui', methods=['POST'])
+def update_webui_settings():
+    """Update WebUI stream settings"""
+    try:
+        new_settings = request.json
+
+        # Validate settings
+        preview_width = int(new_settings.get('preview_width', 1024))
+        preview_height = int(new_settings.get('preview_height', 768))
+        frame_rate = int(new_settings.get('frame_rate', 10))
+        jpeg_quality = int(new_settings.get('jpeg_quality', 95))
+
+        # Validate ranges
+        if not (320 <= preview_width <= 1920):
+            return jsonify({'error': 'Width must be between 320 and 1920'}), 400
+        if not (240 <= preview_height <= 1080):
+            return jsonify({'error': 'Height must be between 240 and 1080'}), 400
+        if not (1 <= frame_rate <= 30):
+            return jsonify({'error': 'Frame rate must be between 1 and 30'}), 400
+        if not (50 <= jpeg_quality <= 100):
+            return jsonify({'error': 'JPEG quality must be between 50 and 100'}), 400
+
+        # Write settings to file
+        with open(WEBUI_SETTINGS_FILE, 'w') as f:
+            f.write(f"preview_width={preview_width}\n")
+            f.write(f"preview_height={preview_height}\n")
+            f.write(f"frame_rate={frame_rate}\n")
+            f.write(f"jpeg_quality={jpeg_quality}\n")
 
         return jsonify({'success': True})
     except Exception as e:

@@ -83,6 +83,7 @@ CAMERA_SETTINGS_FILE = CONFIG_DIR / "camera_settings.csv"
 SCHEDULE_SETTINGS_FILE = CONFIG_DIR / "schedule_settings.csv"
 CONTROLS_FILE = CONFIG_DIR / "controls.txt"
 WORDLIST_FILE = CONFIG_DIR / "wordlist.csv"
+WEBUI_SETTINGS_FILE = CONFIG_DIR / "webui_settings.txt"
 
 # Helper function to parse controls.txt
 def get_control_values(filename: Union[Path, str]) -> Dict[str, str]:

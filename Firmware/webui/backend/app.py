@@ -153,6 +153,18 @@ def handle_stop_preview():
         print(f'Error stopping preview: {e}')
         emit('preview_status', {'streaming': False, 'error': str(e)})
 
+@socketio.on('reload_stream_settings')
+def handle_reload_stream_settings():
+    """Reload camera stream settings from config file"""
+    print('Received reload_stream_settings request')
+    try:
+        camera_streamer.load_stream_settings()
+        print('Stream settings reloaded successfully')
+        emit('settings_reloaded', {'success': True, 'message': 'Settings reloaded. Changes will apply to new preview sessions.'})
+    except Exception as e:
+        print(f'Error reloading settings: {e}')
+        emit('settings_reloaded', {'success': False, 'error': str(e)})
+
 # Serve React app
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')

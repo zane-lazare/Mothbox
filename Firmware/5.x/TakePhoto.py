@@ -15,10 +15,6 @@ Its order of operations is like this
 -Capturing the pixels
 -Turning the camera flash off as quickly as possible after
 -Saving the pixels to disk
-
-
-TODO:
--Add safety function to detect if disk space left is less than 7GB and refuse to take more photos, and give a debug flash pattern (such as SOS with ring lights)
 """
 
 import time

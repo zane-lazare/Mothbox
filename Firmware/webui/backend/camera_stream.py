@@ -6,6 +6,12 @@ import time
 import base64
 from threading import Thread, Event
 from PIL import Image
+from pathlib import Path
+import sys
+
+# Setup path for mothbox imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import WEBUI_SETTINGS_FILE, get_control_values
 
 try:
     from picamera2 import Picamera2
@@ -13,6 +19,13 @@ try:
 except (ImportError, RuntimeError):
     PICAMERA_AVAILABLE = False
     print("Warning: picamera2 not available - camera preview disabled")
+
+# Default camera stream configuration constants
+DEFAULT_PREVIEW_WIDTH = 1024
+DEFAULT_PREVIEW_HEIGHT = 768
+DEFAULT_PREVIEW_FORMAT = "RGB888"
+DEFAULT_FRAME_DELAY = 0.1  # seconds (10 fps)
+DEFAULT_JPEG_QUALITY = 95
 
 
 class CameraStreamer:
@@ -24,6 +37,35 @@ class CameraStreamer:
         self.streaming = False
         self.stream_thread = None
         self.stop_event = Event()
+        self.load_stream_settings()
+
+    def load_stream_settings(self):
+        """Load stream settings from configuration file"""
+        self.preview_width = DEFAULT_PREVIEW_WIDTH
+        self.preview_height = DEFAULT_PREVIEW_HEIGHT
+        self.preview_format = DEFAULT_PREVIEW_FORMAT
+        self.frame_delay = DEFAULT_FRAME_DELAY
+        self.jpeg_quality = DEFAULT_JPEG_QUALITY
+
+        try:
+            if WEBUI_SETTINGS_FILE.exists():
+                settings = get_control_values(WEBUI_SETTINGS_FILE)
+
+                # Load and validate settings
+                if 'preview_width' in settings:
+                    self.preview_width = int(settings['preview_width'])
+                if 'preview_height' in settings:
+                    self.preview_height = int(settings['preview_height'])
+                if 'frame_rate' in settings:
+                    fps = int(settings['frame_rate'])
+                    self.frame_delay = 1.0 / fps if fps > 0 else DEFAULT_FRAME_DELAY
+                if 'jpeg_quality' in settings:
+                    self.jpeg_quality = int(settings['jpeg_quality'])
+
+                print(f"Stream settings loaded: {self.preview_width}x{self.preview_height}, "
+                      f"FPS: {1/self.frame_delay:.1f}, Quality: {self.jpeg_quality}")
+        except Exception as e:
+            print(f"Error loading stream settings, using defaults: {e}")
 
     def initialize_camera(self):
         """Initialize the camera for preview"""
@@ -43,7 +85,7 @@ class CameraStreamer:
 
                 # Configure for preview - 4:3 aspect ratio for better compatibility
                 preview_config = self.camera.create_preview_configuration(
-                    main={"size": (1024, 768), "format": "RGB888"}
+                    main={"size": (self.preview_width, self.preview_height), "format": self.preview_format}
                 )
                 self.camera.configure(preview_config)
 
@@ -116,7 +158,7 @@ class CameraStreamer:
 
                     # Encode as JPEG with higher quality
                     buffer = io.BytesIO()
-                    img.save(buffer, format='JPEG', quality=95, optimize=True)
+                    img.save(buffer, format='JPEG', quality=self.jpeg_quality, optimize=True)
                     buffer.seek(0)
 
                     # Convert to base64
@@ -127,8 +169,8 @@ class CameraStreamer:
                         'image': f'data:image/jpeg;base64,{img_base64}'
                     })
 
-                    # Limit frame rate to ~10 fps
-                    time.sleep(0.1)
+                    # Limit frame rate
+                    time.sleep(self.frame_delay)
 
                 except Exception as e:
                     print(f"Error capturing frame: {e}")

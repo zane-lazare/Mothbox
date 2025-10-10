@@ -89,6 +89,8 @@ export const getControls = () => api.get('/config/controls')
 export const updateControls = (controls) => api.post('/config/controls', controls)
 export const getScheduleSettings = () => api.get('/config/schedule')
 export const updateScheduleSettings = (settings) => api.post('/config/schedule', settings)
+export const getWebUISettings = () => api.get('/config/webui')
+export const updateWebUISettings = (settings) => api.post('/config/webui', settings)
 
 // GPIO APIs
 export const getGpioStatus = () => api.get('/gpio/status')
