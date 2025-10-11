@@ -11,7 +11,6 @@ from mothbox_paths import (
 )
 
 import time
-import datetime
 from datetime import datetime
 import csv
 import os

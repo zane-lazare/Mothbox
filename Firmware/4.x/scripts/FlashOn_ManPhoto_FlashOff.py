@@ -11,7 +11,6 @@ from mothbox_paths import (
 )
 
 import time
-import datetime
 import os
 import platform
 from picamera2 import Picamera2, Preview
