@@ -32,7 +32,7 @@ except ImportError:
 # Default camera stream configuration constants
 DEFAULT_PREVIEW_WIDTH = 1024
 DEFAULT_PREVIEW_HEIGHT = 768
-DEFAULT_PREVIEW_FORMAT = "RGB888"
+DEFAULT_PREVIEW_FORMAT = "BGR888"  # BGR888 produces true RGB order for correct colors
 DEFAULT_FRAME_DELAY = 0.1  # seconds (10 fps)
 DEFAULT_JPEG_QUALITY = 85  # Balanced quality - faster encoding, smaller files
 
