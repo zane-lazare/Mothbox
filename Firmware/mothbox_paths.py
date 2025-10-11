@@ -33,20 +33,33 @@ Usage:
 """
 
 import os
+import sys
 from pathlib import Path
 from typing import Dict, Union, Any
 
-# Check for environment variable override first
+# Detect installation type
+# Priority: marker file > /opt/mothbox exists > env var > legacy path
+installation_marker = Path("/opt/mothbox/.installation_type")
 MOTHBOX_HOME_ENV = os.environ.get('MOTHBOX_HOME')
 
-if MOTHBOX_HOME_ENV:
-    # Use environment variable if set (useful for development/testing)
-    MOTHBOX_HOME = Path(MOTHBOX_HOME_ENV)
-    _installation_type = "custom"
-elif Path("/opt/mothbox").exists():
+if installation_marker.exists():
+    # Read installation type from marker file (most reliable)
+    try:
+        _installation_type = installation_marker.read_text().strip()
+        MOTHBOX_HOME = Path("/opt/mothbox")
+    except (ValueError, OSError, KeyError) as e:
+        print(f"Warning: Failed to detect installation type ({e}), defaulting to production", file=sys.stderr)
+        _installation_type = "production"
+        MOTHBOX_HOME = Path("/opt/mothbox")
+elif Path("/opt/mothbox").exists() and not MOTHBOX_HOME_ENV:
     # Production FHS-compliant installation
+    # Only if /opt/mothbox exists AND no env var override
     MOTHBOX_HOME = Path("/opt/mothbox")
     _installation_type = "production"
+elif MOTHBOX_HOME_ENV:
+    # Custom location via environment variable
+    MOTHBOX_HOME = Path(MOTHBOX_HOME_ENV)
+    _installation_type = "custom"
 else:
     # Legacy Desktop installation (backward compatibility)
     MOTHBOX_HOME = Path("/home/pi/Desktop/Mothbox")
@@ -72,6 +85,7 @@ CAMERA_SETTINGS_FILE = CONFIG_DIR / "camera_settings.csv"
 SCHEDULE_SETTINGS_FILE = CONFIG_DIR / "schedule_settings.csv"
 CONTROLS_FILE = CONFIG_DIR / "controls.txt"
 WORDLIST_FILE = CONFIG_DIR / "wordlist.csv"
+WEBUI_SETTINGS_FILE = CONFIG_DIR / "webui_settings.txt"
 
 # Helper function to parse controls.txt
 def get_control_values(filename: Union[Path, str]) -> Dict[str, str]:
@@ -217,11 +231,11 @@ def get_hardware_config() -> Dict[str, Any]:
             'relay_enabled': config.get('relay_enabled', 'true').lower() == 'true',
 
             # INA260 power sensor
-            'ina260_enabled': config.get('ina260_enabled', 'true').lower() == 'true',
+            'ina260_enabled': config.get('ina260_enabled', 'false').lower() == 'true',
             'ina260_address': int(config.get('ina260_address', '0x40'), 16),
 
             # E-paper display
-            'epaper_enabled': config.get('epaper_enabled', 'true').lower() == 'true',
+            'epaper_enabled': config.get('epaper_enabled', 'false').lower() == 'true',
             'epaper_rst_pin': int(config.get('epaper_rst_pin', '17')),
             'epaper_dc_pin': int(config.get('epaper_dc_pin', '25')),
             'epaper_cs_pin': int(config.get('epaper_cs_pin', '8')),
@@ -229,7 +243,7 @@ def get_hardware_config() -> Dict[str, Any]:
             'epaper_pwr_pin': int(config.get('epaper_pwr_pin', '18')),
 
             # GPS module
-            'gps_enabled': config.get('gps_enabled', 'true').lower() == 'true',
+            'gps_enabled': config.get('gps_enabled', 'false').lower() == 'true',
             'gps_device': config.get('gps_device', '/dev/ttyAMA0'),
             'gps_baudrate': int(config.get('gps_baudrate', '9600')),
             'gps_timeout': int(config.get('gps_timeout', '10')),
@@ -258,18 +272,18 @@ def get_hardware_config() -> Dict[str, Any]:
     except (FileNotFoundError, ValueError, KeyError) as e:
         import sys
         print(f"Warning: Could not load hardware configuration ({e}). Using defaults.", file=sys.stderr)
-        # Return defaults for all modules
+        # Return defaults for all modules - all disabled by default except relays
         return {
-            'relay_enabled': True,
-            'ina260_enabled': True,
+            'relay_enabled': True,  # Relays are core hardware, enabled by default
+            'ina260_enabled': False,
             'ina260_address': 0x40,
-            'epaper_enabled': True,
+            'epaper_enabled': False,
             'epaper_rst_pin': 17,
             'epaper_dc_pin': 25,
             'epaper_cs_pin': 8,
             'epaper_busy_pin': 24,
             'epaper_pwr_pin': 18,
-            'gps_enabled': True,
+            'gps_enabled': False,
             'gps_device': '/dev/ttyAMA0',
             'gps_baudrate': 9600,
             'gps_timeout': 10,
@@ -304,19 +318,40 @@ def get_script_path(script_name):
 
     Raises:
         ValueError: If script_name contains path traversal attempts or is absolute
+
+    Security validations performed:
+        1. Prevents parent directory traversal (../)
+        2. Prevents absolute path injection (/)
+        3. Prevents symlink attacks (resolves symlinks then validates)
+        4. Prevents encoded path attacks (%2e%2e/, etc. - resolved by Path)
+        5. Prevents partial directory name matches (/firmware vs /firmware-evil)
     """
-    # Security: Prevent path traversal attacks
+    # Security: Prevent obvious path traversal attacks
     if '..' in script_name or script_name.startswith('/'):
         raise ValueError(f"Invalid script name (path traversal attempt): {script_name}")
 
     script_path = FIRMWARE_DIR / script_name
 
-    # Security: Ensure resolved path stays within FIRMWARE_DIR
+    # Security: Resolve symlinks and verify final path stays within FIRMWARE_DIR
+    # This catches:
+    # - Symlink attacks (follows links to real destination)
+    # - Encoded paths (Path.resolve() normalizes these)
+    # - Partial directory name matches (relative_to() requires exact containment)
     try:
-        if not str(script_path.resolve()).startswith(str(FIRMWARE_DIR.resolve())):
-            raise ValueError(f"Script path outside firmware directory: {script_name}")
+        resolved_path = script_path.resolve()
+        firmware_base = FIRMWARE_DIR.resolve()
+
+        # Use relative_to() which raises ValueError if path is not within base
+        # This prevents partial path matching (e.g., /firmware vs /firmware-evil)
+        resolved_path.relative_to(firmware_base)
+    except ValueError:
+        raise ValueError(
+            f"Security: Script path resolves outside firmware directory. "
+            f"Script: {script_name}"
+        )
     except (OSError, RuntimeError):
         # Handle cases where resolve() fails (e.g., path doesn't exist yet)
+        # This is acceptable - we validate at runtime when path exists
         pass
 
     return script_path

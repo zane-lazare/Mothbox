@@ -12,22 +12,27 @@
 #
 # Usage:
 #   ./install_mothbox.sh                          # Interactive mode (recommended)
-#   ./install_mothbox.sh [--type TYPE] [--quick] [--path PATH]
+#   ./install_mothbox.sh [--type TYPE] [--quick] [--with-webui] [--path PATH]
 #
 # Interactive Mode (default when no arguments):
 #   - Guided menu for installation type selection
 #   - Option for quick install or custom hardware configuration
+#   - Option to install Web UI
 #   - Best for manual installations
 #
 # CLI Mode (for automation):
 #   --type [legacy|production|custom]   Installation type
 #   --path /custom/path                 Path for custom installation
 #   --quick                             Skip interactive prompts, use defaults
+#   --with-webui                        Install Web UI (Node.js + Flask + React)
+#   --env [development|production]      Web UI environment (default: development)
 #
 # Examples:
-#   ./install_mothbox.sh                          # Interactive wizard
-#   ./install_mothbox.sh --type production        # CLI: production install
-#   ./install_mothbox.sh --type legacy --quick    # CLI: quick legacy install
+#   ./install_mothbox.sh                                # Interactive wizard
+#   ./install_mothbox.sh --type production              # CLI: production install
+#   ./install_mothbox.sh --type legacy --quick          # CLI: quick legacy install
+#   ./install_mothbox.sh --type production --with-webui # CLI: production + webui (dev mode)
+#   ./install_mothbox.sh --with-webui --env production  # CLI: webui in production mode
 #   ./install_mothbox.sh --type custom --path /srv/mothbox
 #
 # ==============================================================================
@@ -45,6 +50,8 @@ NC='\033[0m' # No Color
 INSTALL_TYPE="legacy"
 CUSTOM_PATH=""
 QUICK_MODE="false"
+INSTALL_WEBUI_FLAG="false"
+MOTHBOX_ENV="development"  # Default environment for Web UI
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Detect the user who should own Mothbox files
@@ -77,6 +84,19 @@ while [[ $# -gt 0 ]]; do
         --quick)
             QUICK_MODE="true"
             shift
+            ;;
+        --with-webui)
+            INSTALL_WEBUI_FLAG="true"
+            shift
+            ;;
+        --env)
+            MOTHBOX_ENV="$2"
+            if [[ ! "$MOTHBOX_ENV" =~ ^(development|production)$ ]]; then
+                echo -e "${RED}Invalid environment: $MOTHBOX_ENV${NC}"
+                echo "Valid options: development, production"
+                exit 1
+            fi
+            shift 2
             ;;
         --help|-h)
             grep -A 100 "^#" "$0" | grep -B 100 "^# =====.*=====$" | tail -n +2 | head -n -1 | sed 's/^# //'
@@ -126,6 +146,15 @@ if [ "$INTERACTIVE_MODE" = "true" ]; then
                 echo -e "${RED}Error: Custom path cannot be empty${NC}"
                 exit 1
             fi
+            # Validate custom path for security
+            if [[ "$CUSTOM_PATH" =~ \.\. ]] || [[ "$CUSTOM_PATH" =~ ^/(etc|usr|bin|sbin|boot|sys|proc|dev|root) ]]; then
+                echo -e "${RED}Error: Custom path cannot be a system directory or contain path traversal${NC}"
+                exit 1
+            fi
+            if [[ ! "$CUSTOM_PATH" =~ ^/ ]]; then
+                echo -e "${RED}Error: Custom path must be absolute${NC}"
+                exit 1
+            fi
             MOTHBOX_HOME="$CUSTOM_PATH"
             CONFIG_DIR="$MOTHBOX_HOME"
             DATA_DIR="$MOTHBOX_HOME"
@@ -162,6 +191,15 @@ if [ "$INTERACTIVE_MODE" = "false" ]; then
         custom)
             if [ -z "$CUSTOM_PATH" ]; then
                 echo -e "${RED}Error: --path required for custom installation${NC}"
+                exit 1
+            fi
+            # Validate custom path for security
+            if [[ "$CUSTOM_PATH" =~ \.\. ]] || [[ "$CUSTOM_PATH" =~ ^/(etc|usr|bin|sbin|boot|sys|proc|dev|root) ]]; then
+                echo -e "${RED}Error: Custom path cannot be a system directory or contain path traversal${NC}"
+                exit 1
+            fi
+            if [[ ! "$CUSTOM_PATH" =~ ^/ ]]; then
+                echo -e "${RED}Error: Custom path must be absolute${NC}"
                 exit 1
             fi
             MOTHBOX_HOME="$CUSTOM_PATH"
@@ -245,7 +283,7 @@ echo ""
 echo -e "${BLUE}Hardware Configuration${NC}"
 echo ""
 
-# Set firmware-specific defaults
+# Set firmware-specific defaults for relay GPIO pins
 if [ "$FIRMWARE_VERSION" = "4" ]; then
     DEFAULT_CH1=26
     DEFAULT_CH2=20
@@ -256,53 +294,12 @@ else
     DEFAULT_CH3=9
 fi
 
-# Check for --quick flag to skip prompts
 if [ "$QUICK_MODE" = "true" ]; then
+    # Quick mode - use all defaults
+    RELAY_ENABLED="true"
     RELAY_CH1=$DEFAULT_CH1
     RELAY_CH2=$DEFAULT_CH2
     RELAY_CH3=$DEFAULT_CH3
-    echo -e "${GREEN}Using default GPIO pins (quick mode)${NC}"
-    echo "  Relay Ch1 (main):  GPIO $RELAY_CH1"
-    echo "  Relay Ch2 (flash): GPIO $RELAY_CH2"
-    echo "  Relay Ch3 (UV):    GPIO $RELAY_CH3"
-else
-    echo "Configure relay module GPIO pins:"
-    echo "  Default for ${FIRMWARE_VERSION}.x: Ch1=${DEFAULT_CH1}, Ch2=${DEFAULT_CH2}, Ch3=${DEFAULT_CH3}"
-    echo ""
-
-    read -p "Relay Ch1 (main) GPIO pin [$DEFAULT_CH1]: " RELAY_CH1
-    RELAY_CH1=${RELAY_CH1:-$DEFAULT_CH1}
-
-    read -p "Relay Ch2 (flash) GPIO pin [$DEFAULT_CH2]: " RELAY_CH2
-    RELAY_CH2=${RELAY_CH2:-$DEFAULT_CH2}
-
-    read -p "Relay Ch3 (UV) GPIO pin [$DEFAULT_CH3]: " RELAY_CH3
-    RELAY_CH3=${RELAY_CH3:-$DEFAULT_CH3}
-
-    # Validate GPIO pins (BCM mode: 2-27)
-    for pin in $RELAY_CH1 $RELAY_CH2 $RELAY_CH3; do
-        if [ $pin -lt 2 ] || [ $pin -gt 27 ]; then
-            echo -e "${RED}Error: GPIO pin $pin out of range (2-27)${NC}"
-            exit 1
-        fi
-    done
-
-    # Check for conflicts
-    if [ "$RELAY_CH1" = "$RELAY_CH2" ] || [ "$RELAY_CH1" = "$RELAY_CH3" ] || [ "$RELAY_CH2" = "$RELAY_CH3" ]; then
-        echo -e "${RED}Error: GPIO pins must be unique${NC}"
-        exit 1
-    fi
-
-    echo -e "${GREEN}✓ GPIO configuration validated${NC}"
-fi
-echo ""
-
-# Additional Hardware Module Configuration
-echo -e "${BLUE}Additional Hardware Modules${NC}"
-echo ""
-
-if [ "$QUICK_MODE" = "true" ]; then
-    # Quick mode - use all defaults
     INA260_ENABLED="true"
     INA260_ADDRESS="0x40"
     EPAPER_ENABLED="true"
@@ -324,7 +321,59 @@ if [ "$QUICK_MODE" = "true" ]; then
     MUX_TYPE="i2c"
     MUX_ADDRESS="0x20"
     echo -e "${GREEN}Using default hardware configuration (quick mode)${NC}"
+    echo "  Relay module:      enabled"
+    echo "    Ch1 (main):      GPIO $RELAY_CH1"
+    echo "    Ch2 (flash):     GPIO $RELAY_CH2"
+    echo "    Ch3 (UV):        GPIO $RELAY_CH3"
 else
+    # Relay Module Configuration (Core Hardware)
+    echo -e "${YELLOW}Relay Module (3-channel for attract lights/flash/UV)${NC}"
+    read -p "Enable relay module? (Y/n): " CONFIGURE_RELAY
+    CONFIGURE_RELAY=${CONFIGURE_RELAY:-Y}
+
+    if [[ "$CONFIGURE_RELAY" =~ ^[Yy]$ ]]; then
+        RELAY_ENABLED="true"
+        echo "  Configure relay module GPIO pins:"
+        echo "  Default for ${FIRMWARE_VERSION}.x: Ch1=${DEFAULT_CH1}, Ch2=${DEFAULT_CH2}, Ch3=${DEFAULT_CH3}"
+        echo ""
+
+        read -p "  Relay Ch1 (main) GPIO pin [$DEFAULT_CH1]: " RELAY_CH1
+        RELAY_CH1=${RELAY_CH1:-$DEFAULT_CH1}
+
+        read -p "  Relay Ch2 (flash) GPIO pin [$DEFAULT_CH2]: " RELAY_CH2
+        RELAY_CH2=${RELAY_CH2:-$DEFAULT_CH2}
+
+        read -p "  Relay Ch3 (UV) GPIO pin [$DEFAULT_CH3]: " RELAY_CH3
+        RELAY_CH3=${RELAY_CH3:-$DEFAULT_CH3}
+
+        # Validate GPIO pins (BCM mode: 2-27)
+        for pin in $RELAY_CH1 $RELAY_CH2 $RELAY_CH3; do
+            if [ $pin -lt 2 ] || [ $pin -gt 27 ]; then
+                echo -e "${RED}  Error: GPIO pin $pin out of range (2-27)${NC}"
+                exit 1
+            fi
+        done
+
+        # Check for conflicts
+        if [ "$RELAY_CH1" = "$RELAY_CH2" ] || [ "$RELAY_CH1" = "$RELAY_CH3" ] || [ "$RELAY_CH2" = "$RELAY_CH3" ]; then
+            echo -e "${RED}  Error: GPIO pins must be unique${NC}"
+            exit 1
+        fi
+
+        echo -e "${GREEN}  ✓ Relay module enabled${NC}"
+    else
+        RELAY_ENABLED="false"
+        RELAY_CH1=$DEFAULT_CH1
+        RELAY_CH2=$DEFAULT_CH2
+        RELAY_CH3=$DEFAULT_CH3
+        echo -e "${YELLOW}  ⊗ Relay module disabled${NC}"
+    fi
+    echo ""
+
+    # Additional Hardware Modules
+    echo -e "${BLUE}Additional Hardware Modules${NC}"
+    echo ""
+
     # Power Sensor Configuration
     echo -e "${YELLOW}Power Sensor (INA260/INA219)${NC}"
     read -p "Configure INA260 power sensor? (Y/n): " CONFIGURE_INA260
@@ -534,8 +583,20 @@ echo ""
 
 # Install Python dependencies
 echo -e "${BLUE}Installing Python dependencies...${NC}"
-pip3 install --break-system-packages -r "$SCRIPT_DIR/installation-utils/requirements.txt"
+# Use constraints file to prevent installation of conflicting packages
+pip3 install --break-system-packages \
+    -c "$SCRIPT_DIR/installation-utils/pip-constraints.txt" \
+    -r "$SCRIPT_DIR/installation-utils/requirements.txt"
 echo -e "${GREEN}✓ Python dependencies installed${NC}"
+
+# Fix GPIO compatibility on Pi 5 (Adafruit libraries override python3-rpi-lgpio)
+echo -e "${BLUE}Ensuring GPIO compatibility...${NC}"
+# Remove incompatible pip-installed RPi.GPIO (conflicts with python3-rpi-lgpio)
+pip3 uninstall -y --break-system-packages RPi.GPIO 2>/dev/null || true
+# Remove Adafruit's RPi.GPIO override files
+sudo rm -rf /usr/local/lib/python3.*/dist-packages/RPi/ 2>/dev/null || true
+echo -e "${GREEN}✓ GPIO compatibility ensured${NC}"
+
 echo ""
 
 # Configure camera
@@ -554,53 +615,110 @@ if [ "$INSTALL_TYPE" = "production" ]; then
     sudo chown -R $MOTHBOX_USER:$MOTHBOX_USER "$MOTHBOX_HOME" "$CONFIG_DIR" "$DATA_DIR"
 fi
 
-# Set permissions
-sudo chmod -R 755 "$MOTHBOX_HOME"
-sudo chmod -R 755 "$CONFIG_DIR"
-sudo chmod -R 755 "$DATA_DIR"  # Owner rwx, group rx, others rx
+# Set permissions with proper granularity
+# Directories: 755 (rwxr-xr-x)
+# Regular files: 644 (rw-r--r--)
+# Scripts (.py, .sh): 755 (rwxr-xr-x)
+echo "Setting file permissions..."
+find "$MOTHBOX_HOME" -type d -exec sudo chmod 755 {} \;
+find "$MOTHBOX_HOME" -type f -exec sudo chmod 644 {} \;
+find "$MOTHBOX_HOME" -type f \( -name "*.py" -o -name "*.sh" \) -exec sudo chmod 755 {} \;
 
-echo -e "${GREEN}✓ Directories created${NC}"
+find "$CONFIG_DIR" -type d -exec sudo chmod 755 {} \;
+find "$CONFIG_DIR" -type f -exec sudo chmod 644 {} \;
 
-# Copy firmware files
+find "$DATA_DIR" -type d -exec sudo chmod 755 {} \;
+find "$DATA_DIR" -type f -exec sudo chmod 644 {} \;
+
+echo -e "${GREEN}✓ Directories created and permissions set${NC}"
+
+# Copy firmware files (exclude development artifacts)
 echo -e "${BLUE}Copying firmware files...${NC}"
-sudo cp -r "$SCRIPT_DIR"/* "$MOTHBOX_HOME/"
 
-# For production installation, copy config files to /etc/mothbox
-if [ "$INSTALL_TYPE" = "production" ]; then
-    echo -e "${BLUE}Setting up production configuration...${NC}"
-
-    # Config files are in the firmware-version-specific directory
-    CONFIG_SOURCE="$SCRIPT_DIR/${FIRMWARE_VERSION}.x"
-
-    # Copy config files from source
-    if [ -f "$CONFIG_SOURCE/controls.txt" ]; then
-        sudo cp "$CONFIG_SOURCE/controls.txt" "$CONFIG_DIR/"
-    fi
-    if [ -f "$CONFIG_SOURCE/camera_settings.csv" ]; then
-        sudo cp "$CONFIG_SOURCE/camera_settings.csv" "$CONFIG_DIR/"
-    fi
-    if [ -f "$CONFIG_SOURCE/schedule_settings.csv" ]; then
-        sudo cp "$CONFIG_SOURCE/schedule_settings.csv" "$CONFIG_DIR/"
-    fi
-    if [ -f "$CONFIG_SOURCE/wordlist.csv" ]; then
-        sudo cp "$CONFIG_SOURCE/wordlist.csv" "$CONFIG_DIR/"
-    fi
-
-    echo -e "${GREEN}✓ Configuration files copied to $CONFIG_DIR${NC}"
-
-    # Fix permissions for config files (created by sudo cp, owned by root)
-    # These files need to be writable by user for auto-calibration, GPS updates, etc.
-    CONFIG_FILES=("controls.txt" "camera_settings.csv" "schedule_settings.csv" "wordlist.csv")
-    for file in "${CONFIG_FILES[@]}"; do
-        if [ -f "$CONFIG_DIR/$file" ]; then
-            sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$CONFIG_DIR/$file"
-            sudo chmod 664 "$CONFIG_DIR/$file"
-        fi
-    done
-    echo -e "${GREEN}✓ Config file permissions set for $MOTHBOX_USER user${NC}"
+# Determine which firmware version to exclude (copy only selected version)
+if [ "$FIRMWARE_VERSION" = "4" ]; then
+    EXCLUDE_FIRMWARE="5.x"
+else
+    EXCLUDE_FIRMWARE="4.x"
 fi
 
-echo -e "${GREEN}✓ Firmware files copied${NC}"
+# Validate selected firmware version exists
+if [ ! -d "$SCRIPT_DIR/${FIRMWARE_VERSION}.x" ]; then
+    echo -e "${RED}✗ Error: Selected firmware version ${FIRMWARE_VERSION}.x not found in $SCRIPT_DIR${NC}"
+    exit 1
+fi
+
+# Use rsync if available for better control, fallback to cp
+if command -v rsync &> /dev/null; then
+    sudo rsync -av \
+        --exclude='.git' --exclude='__pycache__' --exclude='node_modules' \
+        --exclude='*.pyc' --exclude='.DS_Store' --exclude='.gitignore' --exclude='.github' \
+        --exclude='install_mothbox.sh' --exclude='uninstall_mothbox.sh' \
+        --exclude='installation-utils' --exclude='migrate_*.py' \
+        --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
+        --exclude='*.md' \
+        --exclude="$EXCLUDE_FIRMWARE" \
+        "$SCRIPT_DIR/" "$MOTHBOX_HOME/"
+    echo -e "${GREEN}✓ Firmware files copied (${FIRMWARE_VERSION}.x only, excluding dev artifacts)${NC}"
+else
+    sudo cp -r "$SCRIPT_DIR"/* "$MOTHBOX_HOME/"
+    echo -e "${YELLOW}⚠ rsync not available, copied all files including dev artifacts${NC}"
+fi
+
+# Copy configuration files (ALL installation types need these)
+echo -e "${BLUE}Setting up configuration files...${NC}"
+
+# Config files are in the firmware-version-specific directory
+CONFIG_SOURCE="$SCRIPT_DIR/${FIRMWARE_VERSION}.x"
+
+# Copy config files from source with atomic permission setting
+# Use 'install' command to set ownership and permissions atomically
+# This prevents race conditions where files briefly have wrong permissions
+CONFIG_FILES=("controls.txt" "camera_settings.csv" "schedule_settings.csv" "wordlist.csv")
+for file in "${CONFIG_FILES[@]}"; do
+    if [ -f "$CONFIG_SOURCE/$file" ]; then
+        # install command atomically copies and sets permissions
+        # -o: owner, -g: group, -m: mode (664 = rw-rw-r--)
+        sudo install -o $MOTHBOX_USER -g $MOTHBOX_USER -m 664 \
+            "$CONFIG_SOURCE/$file" "$CONFIG_DIR/$file"
+        echo -e "${GREEN}  ✓ Copied $file${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ Warning: $file not found in $CONFIG_SOURCE${NC}"
+    fi
+done
+
+# Update softwareversion in controls.txt to match user's firmware selection
+if [ -f "$CONFIG_DIR/controls.txt" ]; then
+    echo -e "${BLUE}Updating firmware version in config...${NC}"
+    sudo sed -i "s/^softwareversion=.*/softwareversion=${FIRMWARE_VERSION}.0.0/" "$CONFIG_DIR/controls.txt"
+    echo -e "${GREEN}✓ Firmware version set to ${FIRMWARE_VERSION}.0.0${NC}"
+fi
+
+echo -e "${GREEN}✓ Configuration files set up at $CONFIG_DIR${NC}"
+
+# Create installation type marker file for reliable detection
+echo -e "${BLUE}Creating installation marker...${NC}"
+echo "$INSTALL_TYPE" | sudo tee "$MOTHBOX_HOME/.installation_type" > /dev/null
+sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$MOTHBOX_HOME/.installation_type"
+echo -e "${GREEN}✓ Installation type marked as '$INSTALL_TYPE'${NC}"
+
+# Helper function to atomically update controls.txt with file locking
+# Prevents race conditions when WebUI or firmware scripts access the file
+update_controls_atomic() {
+    local lockfile="${CONTROLS_FILE}.lock"
+
+    # Acquire exclusive lock (wait up to 10 seconds)
+    (
+        flock -x -w 10 200 || {
+            echo -e "${RED}✗ Failed to acquire lock on controls.txt${NC}"
+            return 1
+        }
+
+        # All updates happen atomically inside the lock
+        "$@"
+
+    ) 200>"$lockfile"
+}
 
 # Write GPIO configuration to controls.txt
 echo -e "${BLUE}Configuring GPIO pins...${NC}"
@@ -612,66 +730,110 @@ else
     CONTROLS_FILE="$MOTHBOX_HOME/${FIRMWARE_VERSION}.x/controls.txt"
 fi
 
+# Validate GPIO pin numbers before writing to prevent command injection
+# Valid BCM GPIO pins are 2-27 (same validation as WebUI)
+echo -e "${BLUE}Validating GPIO configuration...${NC}"
+for pin_name in "RELAY_CH1" "RELAY_CH2" "RELAY_CH3"; do
+    pin_value="${!pin_name}"
+    if ! [[ "$pin_value" =~ ^[0-9]+$ ]] || [ "$pin_value" -lt 2 ] || [ "$pin_value" -gt 27 ]; then
+        echo -e "${RED}✗ Error: Invalid GPIO pin for $pin_name: $pin_value${NC}"
+        echo -e "${RED}  Valid BCM GPIO pins are 2-27${NC}"
+        exit 1
+    fi
+done
+
+# Validate numeric values for hardware config
+if ! [[ "$GPS_BAUDRATE" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}✗ Error: GPS_BAUDRATE must be numeric: $GPS_BAUDRATE${NC}"
+    exit 1
+fi
+if ! [[ "$GPS_TIMEOUT" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}✗ Error: GPS_TIMEOUT must be numeric: $GPS_TIMEOUT${NC}"
+    exit 1
+fi
+
+# Validate I2C addresses (hex format 0xXX)
+for addr_name in "INA260_ADDRESS" "LIGHT_SENSOR_ADDRESS" "PCA9536_ADDRESS" "MUX_ADDRESS"; do
+    addr_value="${!addr_name}"
+    if ! [[ "$addr_value" =~ ^0x[0-9A-Fa-f]{2}$ ]]; then
+        echo -e "${RED}✗ Error: Invalid I2C address for $addr_name: $addr_value${NC}"
+        echo -e "${RED}  Must be in format 0xXX (e.g., 0x40)${NC}"
+        exit 1
+    fi
+done
+
+echo -e "${GREEN}✓ Configuration values validated${NC}"
+
 # Append GPIO configuration if not already present
 if ! grep -q "^Relay_Ch1=" "$CONTROLS_FILE" 2>/dev/null; then
-    echo "Relay_Ch1=$RELAY_CH1" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "Relay_Ch2=$RELAY_CH2" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "Relay_Ch3=$RELAY_CH3" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    update_controls_atomic sh -c "
+        echo 'Relay_Ch1=$RELAY_CH1' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'Relay_Ch2=$RELAY_CH2' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'Relay_Ch3=$RELAY_CH3' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+    "
     echo -e "${GREEN}✓ GPIO configuration written to controls.txt${NC}"
 else
-    # Update existing GPIO configuration
-    sudo sed -i "s/^Relay_Ch1=.*/Relay_Ch1=$RELAY_CH1/" "$CONTROLS_FILE"
-    sudo sed -i "s/^Relay_Ch2=.*/Relay_Ch2=$RELAY_CH2/" "$CONTROLS_FILE"
-    sudo sed -i "s/^Relay_Ch3=.*/Relay_Ch3=$RELAY_CH3/" "$CONTROLS_FILE"
+    # Update existing GPIO configuration with file locking
+    update_controls_atomic sh -c "
+        sudo sed -i 's/^Relay_Ch1=.*/Relay_Ch1=$RELAY_CH1/' '$CONTROLS_FILE'
+        sudo sed -i 's/^Relay_Ch2=.*/Relay_Ch2=$RELAY_CH2/' '$CONTROLS_FILE'
+        sudo sed -i 's/^Relay_Ch3=.*/Relay_Ch3=$RELAY_CH3/' '$CONTROLS_FILE'
+    "
     echo -e "${GREEN}✓ GPIO configuration updated in controls.txt${NC}"
 fi
 
 # Write hardware module configuration
 echo -e "${BLUE}Configuring hardware modules...${NC}"
-if ! grep -q "^ina260_enabled=" "$CONTROLS_FILE" 2>/dev/null; then
-    echo "ina260_enabled=$INA260_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "ina260_address=$INA260_ADDRESS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "epaper_enabled=$EPAPER_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "epaper_rst_pin=$EPAPER_RST" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "epaper_dc_pin=$EPAPER_DC" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "epaper_cs_pin=$EPAPER_CS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "epaper_busy_pin=$EPAPER_BUSY" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "epaper_pwr_pin=$EPAPER_PWR" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "gps_enabled=$GPS_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "gps_device=$GPS_DEVICE" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "gps_baudrate=$GPS_BAUDRATE" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "gps_timeout=$GPS_TIMEOUT" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "light_sensor_enabled=$LIGHT_SENSOR_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "light_sensor_type=$LIGHT_SENSOR_TYPE" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "light_sensor_address=$LIGHT_SENSOR_ADDRESS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "pca9536_enabled=$PCA9536_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "pca9536_address=$PCA9536_ADDRESS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "mux_enabled=$MUX_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "mux_type=$MUX_TYPE" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "mux_address=$MUX_ADDRESS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+if ! grep -q "^relay_enabled=" "$CONTROLS_FILE" 2>/dev/null; then
+    update_controls_atomic sh -c "
+        echo 'relay_enabled=$RELAY_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'ina260_enabled=$INA260_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'ina260_address=$INA260_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'epaper_enabled=$EPAPER_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'epaper_rst_pin=$EPAPER_RST' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'epaper_dc_pin=$EPAPER_DC' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'epaper_cs_pin=$EPAPER_CS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'epaper_busy_pin=$EPAPER_BUSY' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'epaper_pwr_pin=$EPAPER_PWR' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'gps_enabled=$GPS_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'gps_device=$GPS_DEVICE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'gps_baudrate=$GPS_BAUDRATE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'gps_timeout=$GPS_TIMEOUT' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'light_sensor_enabled=$LIGHT_SENSOR_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'light_sensor_type=$LIGHT_SENSOR_TYPE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'light_sensor_address=$LIGHT_SENSOR_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'pca9536_enabled=$PCA9536_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'pca9536_address=$PCA9536_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'mux_enabled=$MUX_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'mux_type=$MUX_TYPE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'mux_address=$MUX_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+    "
     echo -e "${GREEN}✓ Hardware module configuration written to controls.txt${NC}"
 else
-    # Update existing hardware configuration
-    sudo sed -i "s/^ina260_enabled=.*/ina260_enabled=$INA260_ENABLED/" "$CONTROLS_FILE"
-    sudo sed -i "s/^ina260_address=.*/ina260_address=$INA260_ADDRESS/" "$CONTROLS_FILE"
-    sudo sed -i "s/^epaper_enabled=.*/epaper_enabled=$EPAPER_ENABLED/" "$CONTROLS_FILE"
-    sudo sed -i "s/^epaper_rst_pin=.*/epaper_rst_pin=$EPAPER_RST/" "$CONTROLS_FILE"
-    sudo sed -i "s/^epaper_dc_pin=.*/epaper_dc_pin=$EPAPER_DC/" "$CONTROLS_FILE"
-    sudo sed -i "s/^epaper_cs_pin=.*/epaper_cs_pin=$EPAPER_CS/" "$CONTROLS_FILE"
-    sudo sed -i "s/^epaper_busy_pin=.*/epaper_busy_pin=$EPAPER_BUSY/" "$CONTROLS_FILE"
-    sudo sed -i "s/^epaper_pwr_pin=.*/epaper_pwr_pin=$EPAPER_PWR/" "$CONTROLS_FILE"
-    sudo sed -i "s/^gps_enabled=.*/gps_enabled=$GPS_ENABLED/" "$CONTROLS_FILE"
-    sudo sed -i "s|^gps_device=.*|gps_device=$GPS_DEVICE|" "$CONTROLS_FILE"
-    sudo sed -i "s/^gps_baudrate=.*/gps_baudrate=$GPS_BAUDRATE/" "$CONTROLS_FILE"
-    sudo sed -i "s/^gps_timeout=.*/gps_timeout=$GPS_TIMEOUT/" "$CONTROLS_FILE"
-    sudo sed -i "s/^light_sensor_enabled=.*/light_sensor_enabled=$LIGHT_SENSOR_ENABLED/" "$CONTROLS_FILE"
-    sudo sed -i "s/^light_sensor_type=.*/light_sensor_type=$LIGHT_SENSOR_TYPE/" "$CONTROLS_FILE"
-    sudo sed -i "s/^light_sensor_address=.*/light_sensor_address=$LIGHT_SENSOR_ADDRESS/" "$CONTROLS_FILE"
-    sudo sed -i "s/^pca9536_enabled=.*/pca9536_enabled=$PCA9536_ENABLED/" "$CONTROLS_FILE"
-    sudo sed -i "s/^pca9536_address=.*/pca9536_address=$PCA9536_ADDRESS/" "$CONTROLS_FILE"
-    sudo sed -i "s/^mux_enabled=.*/mux_enabled=$MUX_ENABLED/" "$CONTROLS_FILE"
-    sudo sed -i "s/^mux_type=.*/mux_type=$MUX_TYPE/" "$CONTROLS_FILE"
-    sudo sed -i "s/^mux_address=.*/mux_address=$MUX_ADDRESS/" "$CONTROLS_FILE"
+    # Update existing hardware configuration with file locking
+    update_controls_atomic sh -c "
+        sudo sed -i 's/^relay_enabled=.*/relay_enabled=$RELAY_ENABLED/' '$CONTROLS_FILE'
+        sudo sed -i 's/^ina260_enabled=.*/ina260_enabled=$INA260_ENABLED/' '$CONTROLS_FILE'
+        sudo sed -i 's/^ina260_address=.*/ina260_address=$INA260_ADDRESS/' '$CONTROLS_FILE'
+        sudo sed -i 's/^epaper_enabled=.*/epaper_enabled=$EPAPER_ENABLED/' '$CONTROLS_FILE'
+        sudo sed -i 's/^epaper_rst_pin=.*/epaper_rst_pin=$EPAPER_RST/' '$CONTROLS_FILE'
+        sudo sed -i 's/^epaper_dc_pin=.*/epaper_dc_pin=$EPAPER_DC/' '$CONTROLS_FILE'
+        sudo sed -i 's/^epaper_cs_pin=.*/epaper_cs_pin=$EPAPER_CS/' '$CONTROLS_FILE'
+        sudo sed -i 's/^epaper_busy_pin=.*/epaper_busy_pin=$EPAPER_BUSY/' '$CONTROLS_FILE'
+        sudo sed -i 's/^epaper_pwr_pin=.*/epaper_pwr_pin=$EPAPER_PWR/' '$CONTROLS_FILE'
+        sudo sed -i 's/^gps_enabled=.*/gps_enabled=$GPS_ENABLED/' '$CONTROLS_FILE'
+        sudo sed -i 's|^gps_device=.*|gps_device=$GPS_DEVICE|' '$CONTROLS_FILE'
+        sudo sed -i 's/^gps_baudrate=.*/gps_baudrate=$GPS_BAUDRATE/' '$CONTROLS_FILE'
+        sudo sed -i 's/^gps_timeout=.*/gps_timeout=$GPS_TIMEOUT/' '$CONTROLS_FILE'
+        sudo sed -i 's/^light_sensor_enabled=.*/light_sensor_enabled=$LIGHT_SENSOR_ENABLED/' '$CONTROLS_FILE'
+        sudo sed -i 's/^light_sensor_type=.*/light_sensor_type=$LIGHT_SENSOR_TYPE/' '$CONTROLS_FILE'
+        sudo sed -i 's/^light_sensor_address=.*/light_sensor_address=$LIGHT_SENSOR_ADDRESS/' '$CONTROLS_FILE'
+        sudo sed -i 's/^pca9536_enabled=.*/pca9536_enabled=$PCA9536_ENABLED/' '$CONTROLS_FILE'
+        sudo sed -i 's/^pca9536_address=.*/pca9536_address=$PCA9536_ADDRESS/' '$CONTROLS_FILE'
+        sudo sed -i 's/^mux_enabled=.*/mux_enabled=$MUX_ENABLED/' '$CONTROLS_FILE'
+        sudo sed -i 's/^mux_type=.*/mux_type=$MUX_TYPE/' '$CONTROLS_FILE'
+        sudo sed -i 's/^mux_address=.*/mux_address=$MUX_ADDRESS/' '$CONTROLS_FILE'
+    "
     echo -e "${GREEN}✓ Hardware module configuration updated in controls.txt${NC}"
 fi
 echo ""
@@ -681,8 +843,125 @@ echo -e "${BLUE}Setting script permissions...${NC}"
 find "$MOTHBOX_HOME" -name "*.py" -exec sudo chmod +x {} \;
 echo -e "${GREEN}✓ Script permissions set${NC}"
 
-# Print success message and next steps
+# Optional: Install Web UI
+if [ "$INSTALL_WEBUI_FLAG" = "true" ] || [ "$INTERACTIVE_MODE" = "true" ]; then
+    echo ""
+    echo -e "${BLUE}================================================================================${NC}"
+    echo -e "${BLUE}Web UI Installation (Optional)${NC}"
+    echo -e "${BLUE}================================================================================${NC}"
+    echo ""
+
+    # Only prompt in interactive mode or if flag not set
+    INSTALL_WEBUI="n"
+    if [ "$INSTALL_WEBUI_FLAG" = "true" ]; then
+        INSTALL_WEBUI="y"
+    elif [ "$INTERACTIVE_MODE" = "true" ]; then
+        echo -e "The Mothbox Web UI provides a browser-based interface for:"
+        echo "  - Real-time system monitoring (CPU, disk, photos)"
+        echo "  - Photo gallery with thumbnails"
+        echo "  - Live camera preview"
+        echo "  - GPIO controls (lights, flash)"
+        echo "  - Scheduler management"
+        echo "  - Settings configuration"
+        echo ""
+        echo -e "${YELLOW}Do you want to install the Web UI?${NC}"
+        echo "(This will install Node.js, Flask, and build the frontend)"
+        read -p "(y/N) " -n 1 -r
+        echo
+        INSTALL_WEBUI=$REPLY
+    fi
+
+    if [[ $INSTALL_WEBUI =~ ^[Yy]$ ]]; then
+        echo ""
+
+        # Ask for environment mode only in interactive mode (not if --env was specified)
+        if [ "$INTERACTIVE_MODE" = "true" ]; then
+            echo -e "${BLUE}Select Web UI environment:${NC}"
+            echo "  1) Development (recommended for testing - enables debug mode)"
+            echo "  2) Production (for deployment - requires gunicorn, not yet implemented)"
+            echo ""
+            read -p "Enter choice [1-2] (default: 1): " -r
+            echo
+            ENV_CHOICE=$REPLY
+            ENV_CHOICE=${ENV_CHOICE:-1}
+
+            if [ "$ENV_CHOICE" = "2" ]; then
+                MOTHBOX_ENV="production"
+                echo -e "${YELLOW}WARNING: Production mode is not yet fully implemented!${NC}"
+                echo -e "${YELLOW}Production mode currently uses Werkzeug development server (not recommended)${NC}"
+                echo -e "${YELLOW}For production deployment, wait for gunicorn implementation (issue #19)${NC}"
+                echo ""
+                read -p "Continue with production mode anyway? [y/N]: " -n 1 -r
+                echo
+                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                    echo -e "${YELLOW}Reverting to development mode${NC}"
+                    MOTHBOX_ENV="development"
+                fi
+            fi
+        fi
+
+        echo ""
+        echo -e "${BLUE}Installing Web UI in ${MOTHBOX_ENV} mode...${NC}"
+        # Export variables so install_webui.sh can use them for service file generation
+        export MOTHBOX_HOME
+        export MOTHBOX_ENV
+        "$SCRIPT_DIR/installation-utils/install_webui.sh"
+    fi
+fi
+
+# Post-install validation
 echo ""
+echo -e "${BLUE}================================================================================${NC}"
+echo -e "${BLUE}Validating Installation...${NC}"
+echo -e "${BLUE}================================================================================${NC}"
+echo ""
+
+VALIDATION_ERRORS=0
+
+# Check required config files exist
+echo -e "${BLUE}Checking configuration files...${NC}"
+for file in "${CONFIG_FILES[@]}"; do
+    if [ -f "$CONFIG_DIR/$file" ]; then
+        echo -e "${GREEN}  ✓ $file exists${NC}"
+    else
+        echo -e "${RED}  ✗ $file missing!${NC}"
+        VALIDATION_ERRORS=$((VALIDATION_ERRORS+1))
+    fi
+done
+
+# Check Python can import mothbox_paths
+echo -e "${BLUE}Checking Python imports...${NC}"
+if python3 -c "import sys; sys.path.insert(0, '$MOTHBOX_HOME'); from mothbox_paths import get_gpio_pins; print('✓ Python imports OK')" 2>/dev/null; then
+    echo -e "${GREEN}  ✓ mothbox_paths module loads correctly${NC}"
+else
+    echo -e "${RED}  ✗ Failed to import mothbox_paths!${NC}"
+    VALIDATION_ERRORS=$((VALIDATION_ERRORS+1))
+fi
+
+# Check GPIO pins are configured
+echo -e "${BLUE}Checking GPIO configuration...${NC}"
+if grep -q "^Relay_Ch1=" "$CONFIG_DIR/controls.txt" 2>/dev/null; then
+    echo -e "${GREEN}  ✓ GPIO pins configured in controls.txt${NC}"
+else
+    echo -e "${YELLOW}  ⚠ GPIO pins not found in controls.txt (will use defaults)${NC}"
+fi
+
+# Check firmware version was updated
+echo -e "${BLUE}Checking firmware version...${NC}"
+if grep -q "^softwareversion=${FIRMWARE_VERSION}\." "$CONFIG_DIR/controls.txt" 2>/dev/null; then
+    echo -e "${GREEN}  ✓ Firmware version correctly set to ${FIRMWARE_VERSION}.x${NC}"
+else
+    echo -e "${YELLOW}  ⚠ Firmware version may not match installation${NC}"
+fi
+
+echo ""
+if [ $VALIDATION_ERRORS -gt 0 ]; then
+    echo -e "${RED}Installation completed with $VALIDATION_ERRORS validation errors!${NC}"
+    echo -e "${YELLOW}Please check the errors above before running Mothbox.${NC}"
+    echo ""
+fi
+
+# Print success message and next steps
 echo -e "${GREEN}================================================================================${NC}"
 echo -e "${GREEN}Installation Complete!${NC}"
 echo -e "${GREEN}================================================================================${NC}"

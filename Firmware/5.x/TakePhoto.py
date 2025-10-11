@@ -15,10 +15,6 @@ Its order of operations is like this
 -Capturing the pixels
 -Turning the camera flash off as quickly as possible after
 -Saving the pixels to disk
-
-
-TODO:
--Add safety function to detect if disk space left is less than 7GB and refuse to take more photos, and give a debug flash pattern (such as SOS with ring lights)
 """
 
 import time
@@ -120,7 +116,7 @@ print("Current Mothbox MODE: ", mode)
 if(mode=="OFF"):
     print("no photo!")
     #GPIO.cleanup()
-    quit()
+    sys.exit(0)  # Normal exit when mode is OFF
 
 
 
@@ -154,7 +150,15 @@ def get_control_values(filepath):
     control_values = {}
     with open(filepath, "r") as file:
         for line in file:
-            key, value = line.strip().split("=")
+            line = line.strip()
+            # Skip empty lines silently
+            if not line:
+                continue
+            # Log warning for malformed lines (helps troubleshooting)
+            if '=' not in line:
+                print(f"WARNING: Skipping malformed line in {filepath}: '{line}'")
+                continue
+            key, value = line.split("=", 1)  # maxsplit=1 to handle values with '=' chars
             control_values[key] = value
     return control_values
 
@@ -207,9 +211,14 @@ def load_camera_settings():
     found = 0
     for path in external_media_paths:
         if(found==0):
-            files=os.listdir(path) #don't look for files recursively, only if new settings in top level
+            try:
+                files=os.listdir(path) #don't look for files recursively, only if new settings in top level
+            except (PermissionError, OSError, FileNotFoundError) as e:
+                print(f"Cannot access {path}: {e}")
+                continue  # Skip this path and try next
+
             if "camera_settings.csv" in files:
-                file_path = os.path.join(root, "camera_settings.csv")
+                file_path = os.path.join(path, "camera_settings.csv")
                 print(f"Found settings on external media: {file_path}")
                 found=1
                 break
@@ -614,7 +623,7 @@ def takePhoto_Manual():
           
           exif_dict = {"0th":zeroth_ifd, "Exif":exif_ifd, "GPS":gps_ifd, "1st":first_ifd}
           exif_bytes = piexif.dump(exif_dict)
-          img.save(filepath,exif=exif_bytes, quality=96)
+          img.save(filepath,exif=exif_bytes, quality=jpeg_quality)
           print("Image saved to "+filepath)
           i=i+1
 
@@ -681,8 +690,15 @@ print("Desktop Available Storage: \t" + str(desktop_available))
 x=extra_photo_storage_minimum
 
 if desktop_available < x * 1024**3:  # x GB in bytes
-    print("not enough space to take more photos")
-    quit()
+    print("=" * 60)
+    print("ERROR: Insufficient storage space")
+    print("=" * 60)
+    print(f"Required minimum: {x} GB")
+    print(f"Available space:  {desktop_available / (1024**3):.2f} GB")
+    print(f"Shortfall:        {(x * 1024**3 - desktop_available) / (1024**3):.2f} GB")
+    print("=" * 60)
+    print("Action: Free up disk space or reduce extra_photo_storage_minimum")
+    sys.exit(1)  # Exit with error code for insufficient storage
 
 
 
@@ -722,124 +738,137 @@ GPIO.setup(Relay_Ch2,GPIO.OUT)
 GPIO.setup(Relay_Ch3,GPIO.OUT)
 
 print("Setup The Relay Module is [success]")
-GPIO.output(Relay_Ch2,GPIO.HIGH)
-GPIO.output(Relay_Ch3,GPIO.LOW) #might as well ensure attract is on because new wiring dictates that
 
-global onlyflash
-onlyflash=False
+# Wrap GPIO operations in try/finally to ensure cleanup on crash
+try:
+    GPIO.output(Relay_Ch2,GPIO.HIGH)
+    GPIO.output(Relay_Ch3,GPIO.LOW) #might as well ensure attract is on because new wiring dictates that
 
-
-
-control_values_fpath = str(CONTROLS_FILE)
-control_values = get_control_values(control_values_fpath)
-onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
-LastCalibration = float(control_values.get("LastCalibration", 0))
-computerName = control_values.get("name", "wrong")
-
-if(onlyflash):
-    print("operating in always on flash mode")
+    global onlyflash
+    onlyflash=False
 
 
 
-#------- Setting up camera settings -------------
+    control_values_fpath = str(CONTROLS_FILE)
+    control_values = get_control_values(control_values_fpath)
+    onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
+    LastCalibration = float(control_values.get("LastCalibration", 0))
+    computerName = control_values.get("name", "wrong")
+    jpeg_quality = int(control_values.get("jpeg_quality", 96))  # Default: 96 for backward compatibility
+    print(f"Using JPEG quality: {jpeg_quality}")
 
-'''
-#This is for getting min and max details for certain settings, (See the picam pdf manual)
-print(picam2.camera_controls["AnalogueGain"])
-min_gain, max_gain, default_gain = picam2.camera_controls["AnalogueGain"]
-'''
-#This will be the path to the CSV holding the settings whether it is the one on the disk or the external CSV
-global chosen_settings_path
-default_path = str(CAMERA_SETTINGS_FILE)
-chosen_settings_path=default_path
-
-#camera_settings = load_camera_settings("camera_settings.csv")#CRONTAB CAN'T TAKE RELATIVE LINKS! 
-camera_settings = load_camera_settings()
-
+    if(onlyflash):
+        print("operating in always on flash mode")
     
-#before calibration, set these values to the default we read in
-
-calib_lens_position=6
-
-calib_lens_position = camera_settings["LensPosition"]
-calib_exposure = camera_settings["ExposureTime"]
-
-
-AutoCalibration = camera_settings.pop("AutoCalibration",1) #defaults to what is set above if not in the files being read
-AutoCalibrationPeriod = int(camera_settings.pop("AutoCalibrationPeriod",1000))
-
-
-#Start up cameras
-picam2 = Picamera2()
-
-
-#----Autocalibration ---------
-
-current_time = int(time.time())
-timesincelastcalibration= current_time - LastCalibration
-print("Last calibration was   ",timesincelastcalibration,"  seconds ago \n Autocalibration period is   ", AutoCalibrationPeriod)
-recalibrated= False
-if AutoCalibration and (timesincelastcalibration > AutoCalibrationPeriod):
-    print("Do Autocalibrate")
-    recalibrated=True
-    print(current_time)
-    #picam2.configure(preview_config)
-    #picam2.configure(capture_config_fastAuto)
-    run_calibration()
-else:
-    print("Don't Autocalibration")
-
-# ------ Prepare to take actual photo -----------
-#reload camera settings after possible calibration
-camera_settings = load_camera_settings()
-AutoCalibration = camera_settings.pop("AutoCalibration",1) #defaults to what is set above if not in the files being read
-AutoCalibrationPeriod = int(camera_settings.pop("AutoCalibrationPeriod",1000))
-
-calib_lens_position = camera_settings["LensPosition"]
-calib_exposure = camera_settings["ExposureTime"]
-
-
-#remove settings that aren't actually in picamera2
-oldsettingsnames = camera_settings.pop("Name",computerName) #defaults to what is set above if not in the files being read
-ImageFileType = int(camera_settings.pop("ImageFileType",0))
-VerticalFlip = int(camera_settings.pop("VerticalFlip",0))
-
-#HDR settings
-num_photos = int(camera_settings.pop("HDR",num_photos)) #defaults to what is set above if not in the files being read
-exposuretime_width = int(camera_settings.pop("HDR_width",exposuretime_width))
-if(num_photos<1 or num_photos==2):
-    num_photos=1
-
-capture_main = {"size": (width, height), "format": "RGB888", }
-capture_config = picam2.create_still_configuration(main=capture_main,raw=None, lores=None)
-capture_config_flipped =  picam2.create_still_configuration(main=capture_main, transform=Transform(vflip=True, hflip=True), raw=None, lores=None)
-picam2.configure(capture_config)
-
-
-if camera_settings:
-    picam2.set_controls(camera_settings)
-
-picam2.start()
-time.sleep(1)
-
-print("cam started");
-
-picam2.stop()
-
-if(VerticalFlip):
-    picam2.configure(capture_config_flipped)
-else:
+    
+    
+    #------- Setting up camera settings -------------
+    
+    '''
+    #This is for getting min and max details for certain settings, (See the picam pdf manual)
+    print(picam2.camera_controls["AnalogueGain"])
+    min_gain, max_gain, default_gain = picam2.camera_controls["AnalogueGain"]
+    '''
+    #This will be the path to the CSV holding the settings whether it is the one on the disk or the external CSV
+    global chosen_settings_path
+    default_path = str(CAMERA_SETTINGS_FILE)
+    chosen_settings_path=default_path
+    
+    #camera_settings = load_camera_settings("camera_settings.csv")#CRONTAB CAN'T TAKE RELATIVE LINKS! 
+    camera_settings = load_camera_settings()
+    
+        
+    #before calibration, set these values to the default we read in
+    
+    calib_lens_position=6
+    
+    calib_lens_position = camera_settings["LensPosition"]
+    calib_exposure = camera_settings["ExposureTime"]
+    
+    
+    AutoCalibration = camera_settings.pop("AutoCalibration",1) #defaults to what is set above if not in the files being read
+    AutoCalibrationPeriod = int(camera_settings.pop("AutoCalibrationPeriod",1000))
+    
+    
+    #Start up cameras
+    picam2 = Picamera2()
+    
+    
+    #----Autocalibration ---------
+    
+    current_time = int(time.time())
+    timesincelastcalibration= current_time - LastCalibration
+    print("Last calibration was   ",timesincelastcalibration,"  seconds ago \n Autocalibration period is   ", AutoCalibrationPeriod)
+    recalibrated= False
+    if AutoCalibration and (timesincelastcalibration > AutoCalibrationPeriod):
+        print("Do Autocalibrate")
+        recalibrated=True
+        print(current_time)
+        #picam2.configure(preview_config)
+        #picam2.configure(capture_config_fastAuto)
+        run_calibration()
+    else:
+        print("Don't Autocalibration")
+    
+    # ------ Prepare to take actual photo -----------
+    #reload camera settings after possible calibration
+    camera_settings = load_camera_settings()
+    AutoCalibration = camera_settings.pop("AutoCalibration",1) #defaults to what is set above if not in the files being read
+    AutoCalibrationPeriod = int(camera_settings.pop("AutoCalibrationPeriod",1000))
+    
+    calib_lens_position = camera_settings["LensPosition"]
+    calib_exposure = camera_settings["ExposureTime"]
+    
+    
+    #remove settings that aren't actually in picamera2
+    oldsettingsnames = camera_settings.pop("Name",computerName) #defaults to what is set above if not in the files being read
+    ImageFileType = int(camera_settings.pop("ImageFileType",0))
+    VerticalFlip = int(camera_settings.pop("VerticalFlip",0))
+    
+    #HDR settings
+    num_photos = int(camera_settings.pop("HDR",num_photos)) #defaults to what is set above if not in the files being read
+    exposuretime_width = int(camera_settings.pop("HDR_width",exposuretime_width))
+    if(num_photos<1 or num_photos==2):
+        num_photos=1
+    
+    capture_main = {"size": (width, height), "format": "RGB888", }
+    capture_config = picam2.create_still_configuration(main=capture_main,raw=None, lores=None)
+    capture_config_flipped =  picam2.create_still_configuration(main=capture_main, transform=Transform(vflip=True, hflip=True), raw=None, lores=None)
     picam2.configure(capture_config)
-
-time.sleep(.5)
-takePhoto_Manual()
-
-
-picam2.stop()
-
-#cannot call GPIO cleanup here because it will kill the relay turning on the attractor
-GPIO.output(Relay_Ch3,GPIO.LOW) #might as well ensure attract is on because new wiring dictates that
-
     
-quit()
+    
+    if camera_settings:
+        picam2.set_controls(camera_settings)
+    
+    picam2.start()
+    time.sleep(1)
+    
+    print("cam started");
+    
+    picam2.stop()
+    
+    if(VerticalFlip):
+        picam2.configure(capture_config_flipped)
+    else:
+        picam2.configure(capture_config)
+    
+    time.sleep(.5)
+    takePhoto_Manual()
+    
+    
+        picam2.stop()
+    
+        #cannot call GPIO cleanup here because it will kill the relay turning on the attractor
+        GPIO.output(Relay_Ch3,GPIO.LOW) #might as well ensure attract is on because new wiring dictates that
+
+finally:
+    # Cleanup flash relay (Relay_Ch2) on exit to ensure it's off
+    # Note: We don't cleanup Relay_Ch3 (attractor) as it's intentionally left on
+    try:
+        GPIO.cleanup(Relay_Ch2)
+        print("GPIO cleanup completed for flash relay")
+    except Exception as e:
+        print(f"Warning: GPIO cleanup failed: {e}")
+
+sys.exit(0)  # Normal exit after successful photo capture
 

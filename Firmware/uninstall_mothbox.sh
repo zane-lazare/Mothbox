@@ -35,28 +35,48 @@ echo -e "${RED}Mothbox Uninstallation Script${NC}"
 echo -e "${RED}================================================================================${NC}"
 echo ""
 
-# Detect installation using mothbox_paths.py
+# Detect installation using same logic as installer
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Try to detect installation type
-if [ -d "/opt/mothbox" ]; then
+# Priority: marker file > /opt/mothbox exists > env var > legacy path
+INSTALLATION_MARKER="/opt/mothbox/.installation_type"
+
+if [ -f "$INSTALLATION_MARKER" ]; then
+    # Read installation type from marker file (most reliable)
+    INSTALL_TYPE=$(cat "$INSTALLATION_MARKER" 2>/dev/null || echo "production")
+    MOTHBOX_HOME="/opt/mothbox"
+
+    # Set paths based on detected type
+    if [ "$INSTALL_TYPE" = "production" ]; then
+        CONFIG_DIR="/etc/mothbox"
+        DATA_DIR="/var/lib/mothbox"
+    else
+        CONFIG_DIR="$MOTHBOX_HOME"
+        DATA_DIR="$MOTHBOX_HOME"
+    fi
+elif [ -d "/opt/mothbox" ] && [ -z "$MOTHBOX_HOME" ]; then
+    # Production installation (no env var override)
     INSTALL_TYPE="production"
     MOTHBOX_HOME="/opt/mothbox"
     CONFIG_DIR="/etc/mothbox"
     DATA_DIR="/var/lib/mothbox"
-elif [ -d "/home/pi/Desktop/Mothbox" ]; then
-    INSTALL_TYPE="legacy"
-    MOTHBOX_HOME="/home/pi/Desktop/Mothbox"
+elif [ -n "$MOTHBOX_HOME" ] && [ -d "$MOTHBOX_HOME" ]; then
+    # Custom location via environment variable
+    INSTALL_TYPE="custom"
     CONFIG_DIR="$MOTHBOX_HOME"
     DATA_DIR="$MOTHBOX_HOME"
-elif [ -n "$MOTHBOX_HOME" ] && [ -d "$MOTHBOX_HOME" ]; then
-    INSTALL_TYPE="custom"
+elif [ -d "/home/pi/Desktop/Mothbox" ]; then
+    # Legacy Desktop installation
+    INSTALL_TYPE="legacy"
+    MOTHBOX_HOME="/home/pi/Desktop/Mothbox"
     CONFIG_DIR="$MOTHBOX_HOME"
     DATA_DIR="$MOTHBOX_HOME"
 else
     echo -e "${YELLOW}No Mothbox installation detected.${NC}"
     echo ""
     echo "Checked locations:"
+    echo "  - /opt/mothbox/.installation_type (marker file)"
     echo "  - /opt/mothbox (production)"
     echo "  - /home/pi/Desktop/Mothbox (legacy)"
     echo "  - \$MOTHBOX_HOME environment variable (custom)"
@@ -116,6 +136,18 @@ read -p "(y/N) " -n 1 -r
 echo
 REMOVE_CRON=$REPLY
 
+# Ask about Node.js removal
+REMOVE_NODEJS="n"
+if command -v node &> /dev/null; then
+    echo ""
+    echo -e "${YELLOW}Node.js is installed on this system.${NC}"
+    echo -e "Do you want to remove Node.js and npm?"
+    echo -e "${YELLOW}Warning: This may affect other applications that use Node.js${NC}"
+    read -p "(y/N) " -n 1 -r
+    echo
+    REMOVE_NODEJS=$REPLY
+fi
+
 echo ""
 echo -e "${RED}================================================================================${NC}"
 echo -e "${RED}WARNING: The following will be PERMANENTLY DELETED:${NC}"
@@ -140,6 +172,10 @@ fi
 
 if [[ $REMOVE_CRON =~ ^[Yy]$ ]]; then
     echo -e "  ${RED}✗${NC} Mothbox crontab entries (you will edit manually)"
+fi
+
+if [[ $REMOVE_NODEJS =~ ^[Yy]$ ]]; then
+    echo -e "  ${RED}✗${NC} Node.js and npm"
 fi
 
 echo ""
@@ -168,6 +204,26 @@ fi
 echo ""
 echo -e "${BLUE}Uninstalling Mothbox...${NC}"
 
+# Stop and remove web UI systemd service if it exists
+if systemctl is-active --quiet mothbox-webui.service 2>/dev/null; then
+    echo -e "${BLUE}Stopping mothbox-webui service...${NC}"
+    sudo systemctl stop mothbox-webui.service
+    echo -e "${GREEN}✓ Service stopped${NC}"
+fi
+
+if systemctl is-enabled --quiet mothbox-webui.service 2>/dev/null; then
+    echo -e "${BLUE}Disabling mothbox-webui service...${NC}"
+    sudo systemctl disable mothbox-webui.service
+    echo -e "${GREEN}✓ Service disabled${NC}"
+fi
+
+if [ -f "/etc/systemd/system/mothbox-webui.service" ]; then
+    echo -e "${BLUE}Removing systemd service file...${NC}"
+    sudo rm /etc/systemd/system/mothbox-webui.service
+    sudo systemctl daemon-reload
+    echo -e "${GREEN}✓ Service file removed${NC}"
+fi
+
 # Preserve photos if requested
 PHOTOS_BACKUP=""
 if [[ $PRESERVE_PHOTOS =~ ^[Yy]$ ]] || ([ -z "$PRESERVE_PHOTOS" ] && [ "$PRESERVE_PHOTOS" != "n" ]); then
@@ -180,15 +236,16 @@ fi
 
 # Remove directories based on installation type
 if [ "$INSTALL_TYPE" = "production" ]; then
+    # Production: separate directories for code, config, and data
     if [ -d "$MOTHBOX_HOME" ]; then
         sudo rm -rf "$MOTHBOX_HOME"
         echo -e "${GREEN}✓ Removed $MOTHBOX_HOME${NC}"
     fi
-    if [ -d "$CONFIG_DIR" ]; then
+    if [ -d "$CONFIG_DIR" ] && [ "$CONFIG_DIR" != "$MOTHBOX_HOME" ]; then
         sudo rm -rf "$CONFIG_DIR"
         echo -e "${GREEN}✓ Removed $CONFIG_DIR${NC}"
     fi
-    if [ -d "$DATA_DIR" ]; then
+    if [ -d "$DATA_DIR" ] && [ "$DATA_DIR" != "$MOTHBOX_HOME" ]; then
         sudo rm -rf "$DATA_DIR"
         echo -e "${GREEN}✓ Removed $DATA_DIR${NC}"
     fi
@@ -198,6 +255,42 @@ else
         sudo rm -rf "$MOTHBOX_HOME"
         echo -e "${GREEN}✓ Removed $MOTHBOX_HOME${NC}"
     fi
+fi
+
+# Remove installation marker file if it exists (created by new installer)
+if [ -f "$INSTALLATION_MARKER" ]; then
+    sudo rm -f "$INSTALLATION_MARKER"
+    echo -e "${GREEN}✓ Removed installation marker${NC}"
+fi
+
+# Clean up temporary files created by Mothbox
+echo -e "${BLUE}Cleaning up temporary files...${NC}"
+CLEANED_FILES=0
+
+# Remove GPIO state file (legacy /tmp location for backward compatibility)
+# Note: Current GPIO state is in DATA_DIR/gpio_state.json (removed with DATA_DIR cleanup)
+if [ -f "/tmp/mothbox_gpio_state.json" ]; then
+    sudo rm -f "/tmp/mothbox_gpio_state.json"
+    echo -e "${GREEN}✓ Removed /tmp/mothbox_gpio_state.json${NC}"
+    CLEANED_FILES=$((CLEANED_FILES + 1))
+fi
+
+# Remove EEPROM config file (created by Scheduler)
+if [ -f "/tmp/eeprom_config.txt" ]; then
+    sudo rm -f "/tmp/eeprom_config.txt"
+    echo -e "${GREEN}✓ Removed /tmp/eeprom_config.txt${NC}"
+    CLEANED_FILES=$((CLEANED_FILES + 1))
+fi
+
+# Remove any leftover service template file
+if [ -f "/tmp/mothbox-webui.service" ]; then
+    sudo rm -f "/tmp/mothbox-webui.service"
+    echo -e "${GREEN}✓ Removed /tmp/mothbox-webui.service${NC}"
+    CLEANED_FILES=$((CLEANED_FILES + 1))
+fi
+
+if [ $CLEANED_FILES -eq 0 ]; then
+    echo -e "${YELLOW}  No temporary files found${NC}"
 fi
 
 # Restore photos if preserved
@@ -218,6 +311,36 @@ if [[ $REMOVE_CRON =~ ^[Yy]$ ]]; then
     crontab -e
 fi
 
+# Remove Node.js if requested
+if [[ $REMOVE_NODEJS =~ ^[Yy]$ ]]; then
+    echo ""
+    echo -e "${BLUE}Removing Node.js and npm...${NC}"
+    sudo apt-get remove -y nodejs npm
+    sudo apt-get autoremove -y
+    echo -e "${GREEN}✓ Node.js and npm removed${NC}"
+fi
+
+# Remove Python packages
+REMOVE_PYTHON_PACKAGES="n"
+echo ""
+echo -e "${YELLOW}Python packages installed by Mothbox are still present.${NC}"
+echo -e "Do you want to remove them?"
+echo -e "${YELLOW}Warning: This may affect other applications that use these packages${NC}"
+read -p "(y/N) " -n 1 -r
+echo
+REMOVE_PYTHON_PACKAGES=$REPLY
+
+if [[ $REMOVE_PYTHON_PACKAGES =~ ^[Yy]$ ]]; then
+    echo ""
+    echo -e "${BLUE}Removing Python packages...${NC}"
+    pip3 uninstall -y --break-system-packages \
+        picamera2 opencv-python Pillow piexif \
+        smbus2 adafruit-circuitpython-ina260 \
+        psutil numpy python-crontab schedule \
+        Flask Flask-CORS Flask-SocketIO python-socketio 2>/dev/null || true
+    echo -e "${GREEN}✓ Python packages removed${NC}"
+fi
+
 echo ""
 echo -e "${GREEN}================================================================================${NC}"
 echo -e "${GREEN}Uninstallation Complete${NC}"
@@ -235,8 +358,10 @@ fi
 echo ""
 echo -e "${BLUE}What was NOT removed:${NC}"
 echo "  - System packages (python3, git, i2c-tools, etc.)"
-echo "  - Python packages (picamera2, opencv-python, etc.)"
-echo ""
-echo -e "If you want to remove Python packages, run:"
-echo -e "  pip3 uninstall -y picamera2 opencv-python RPi.GPIO Pillow piexif psutil smbus2 adafruit-circuitpython-ina260 numpy python-crontab schedule"
+if [[ ! $REMOVE_PYTHON_PACKAGES =~ ^[Yy]$ ]]; then
+    echo "  - Python packages (picamera2, opencv-python, Flask, etc.)"
+fi
+if [[ ! $REMOVE_NODEJS =~ ^[Yy]$ ]]; then
+    echo "  - Node.js and npm (declined removal)"
+fi
 echo ""

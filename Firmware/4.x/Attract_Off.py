@@ -3,7 +3,7 @@
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import CONTROLS_FILE, get_script_path
+from mothbox_paths import CONTROLS_FILE, get_script_path, get_gpio_pins
 
 #GPIO
 import RPi.GPIO as GPIO
@@ -21,11 +21,6 @@ global onlyflash
 onlyflash=False
 
 # Load GPIO pins from configuration
-from pathlib import Path
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import get_gpio_pins
-
 pins = get_gpio_pins()
 Relay_Ch1 = pins['Relay_Ch1']
 Relay_Ch2 = pins['Relay_Ch2']
