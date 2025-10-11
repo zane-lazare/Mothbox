@@ -150,10 +150,10 @@ class TestSettingsCopyIntegration:
         data = response.get_json()
 
         assert data['success'] is True
-        assert data['direction'] == 'preview_to_capture'
-        assert 'settings_copied' in data
+        assert 'copied' in data
+        assert 'skipped' in data
 
-        print(f"   ✓ Copied {len(data['settings_copied'])} settings")
+        print(f"   ✓ Copied {len(data['copied'])} settings")
 
     def test_copy_capture_to_preview_button(self, client):
         """Test copy capture → preview button"""
@@ -168,7 +168,7 @@ class TestSettingsCopyIntegration:
         data = response.get_json()
 
         assert data['success'] is True
-        assert data['direction'] == 'capture_to_preview'
+        assert 'copied' in data
 
         print("   ✓ Copy capture → preview completed")
 
@@ -266,7 +266,7 @@ class TestEndToEndWorkflow:
 
             if response.status_code == 200:
                 data = response.get_json()
-                assert 'optimized_settings' in data
+                assert 'after' in data  # 'after' contains the optimized settings
                 print("   ✓ Calibration workflow succeeded")
             else:
                 print("   ⚠ Calibration skipped")

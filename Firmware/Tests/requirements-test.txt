@@ -5,3 +5,6 @@ pytest>=7.0.0
 pytest-mock>=3.10.0
 pytest-timeout>=2.1.0
 pytest-cov>=4.0.0
+
+# Image quality analysis
+scipy>=1.9.0  # For Laplacian edge detection in image quality tests
