@@ -112,6 +112,9 @@ from routes.config import config_bp
 from routes.gpio import gpio_bp
 from routes.scheduler import scheduler_bp
 
+# Make camera_streamer accessible to routes via app config
+app.config['CAMERA_STREAMER'] = camera_streamer
+
 # Register blueprints
 app.register_blueprint(system_bp, url_prefix='/api/system')
 app.register_blueprint(camera_bp, url_prefix='/api/camera')

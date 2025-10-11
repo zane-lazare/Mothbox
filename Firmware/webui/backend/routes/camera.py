@@ -218,8 +218,18 @@ def trigger_autofocus():
             }), 500
 
         import time
+        from flask import current_app
 
         print("Autofocus requested via API")
+
+        # Stop camera stream if active (prevents resource conflict)
+        camera_streamer = current_app.config.get('CAMERA_STREAMER')
+        was_streaming = False
+        if camera_streamer and camera_streamer.streaming:
+            print("Stopping camera stream before autofocus...")
+            camera_streamer.stop_streaming()
+            was_streaming = True
+            time.sleep(0.5)  # Let camera release resources
 
         # Initialize camera for autofocus
         picam2 = None
@@ -292,7 +302,25 @@ def trigger_autofocus():
                     picam2.close()
                 except Exception:
                     pass
+
+            # Restart stream if it was active
+            if was_streaming and camera_streamer:
+                print("Restarting camera stream after autofocus error...")
+                try:
+                    camera_streamer.start_streaming()
+                except Exception as restart_error:
+                    print(f"Warning: Failed to restart stream: {restart_error}")
+
             raise camera_error
+
+        finally:
+            # Always restart stream if it was active
+            if was_streaming and camera_streamer:
+                print("Restarting camera stream after autofocus...")
+                try:
+                    camera_streamer.start_streaming()
+                except Exception as restart_error:
+                    print(f"Warning: Failed to restart stream: {restart_error}")
 
     except Exception as e:
         import traceback
@@ -337,6 +365,7 @@ def auto_calibrate():
 
         import time
         import csv
+        from flask import current_app
         from mothbox_paths import CAMERA_SETTINGS_FILE, CONTROLS_FILE, WEBUI_SETTINGS_FILE
 
         # Parse request parameters
@@ -350,6 +379,15 @@ def auto_calibrate():
             }), 400
 
         print(f"Auto-calibration requested via API (apply_to={apply_to})")
+
+        # Stop camera stream if active (prevents resource conflict)
+        camera_streamer = current_app.config.get('CAMERA_STREAMER')
+        was_streaming = False
+        if camera_streamer and camera_streamer.streaming:
+            print("Stopping camera stream before calibration...")
+            camera_streamer.stop_streaming()
+            was_streaming = True
+            time.sleep(0.5)  # Let camera release resources
 
         # Read current settings for "before" snapshot
         current_settings = {}
@@ -539,7 +577,25 @@ def auto_calibrate():
                     picam2.close()
                 except Exception:
                     pass
+
+            # Restart stream if it was active
+            if was_streaming and camera_streamer:
+                print("Restarting camera stream after calibration error...")
+                try:
+                    camera_streamer.start_streaming()
+                except Exception as restart_error:
+                    print(f"Warning: Failed to restart stream: {restart_error}")
+
             raise camera_error
+
+        finally:
+            # Always restart stream if it was active
+            if was_streaming and camera_streamer:
+                print("Restarting camera stream after calibration...")
+                try:
+                    camera_streamer.start_streaming()
+                except Exception as restart_error:
+                    print(f"Warning: Failed to restart stream: {restart_error}")
 
     except Exception as e:
         import traceback
