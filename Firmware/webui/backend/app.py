@@ -261,14 +261,14 @@ if __name__ == '__main__':
 
     try:
         # Run development server
-        # In development mode, allow_unsafe_werkzeug is acceptable
-        # Production deployments should use MOTHBOX_ENV=development until issue #19
+        # Require BOTH debug mode AND development environment for werkzeug
+        # This prevents accidental unsafe werkzeug in production even if DEBUG is misconfigured
         socketio.run(
             app,
             host=config.HOST,
             port=config.PORT,
             debug=config.DEBUG,
-            allow_unsafe_werkzeug=True  # Safe when DEBUG=True or using development mode
+            allow_unsafe_werkzeug=(config.DEBUG and config.ENV_NAME == 'development')
         )
     finally:
         # Cleanup camera on shutdown

@@ -116,7 +116,7 @@ print("Current Mothbox MODE: ", mode)
 if(mode=="OFF"):
     print("no photo!")
     #GPIO.cleanup()
-    quit()
+    sys.exit(0)  # Normal exit when mode is OFF
 
 
 
@@ -207,7 +207,12 @@ def load_camera_settings():
     found = 0
     for path in external_media_paths:
         if(found==0):
-            files=os.listdir(path) #don't look for files recursively, only if new settings in top level
+            try:
+                files=os.listdir(path) #don't look for files recursively, only if new settings in top level
+            except (PermissionError, OSError, FileNotFoundError) as e:
+                print(f"Cannot access {path}: {e}")
+                continue  # Skip this path and try next
+
             if "camera_settings.csv" in files:
                 file_path = os.path.join(path, "camera_settings.csv")
                 print(f"Found settings on external media: {file_path}")
@@ -614,7 +619,7 @@ def takePhoto_Manual():
           
           exif_dict = {"0th":zeroth_ifd, "Exif":exif_ifd, "GPS":gps_ifd, "1st":first_ifd}
           exif_bytes = piexif.dump(exif_dict)
-          img.save(filepath,exif=exif_bytes, quality=96)
+          img.save(filepath,exif=exif_bytes, quality=jpeg_quality)
           print("Image saved to "+filepath)
           i=i+1
 
@@ -682,7 +687,7 @@ x=extra_photo_storage_minimum
 
 if desktop_available < x * 1024**3:  # x GB in bytes
     print("not enough space to take more photos")
-    quit()
+    sys.exit(1)  # Exit with error code for insufficient storage
 
 
 
@@ -738,7 +743,9 @@ try:
     onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
     LastCalibration = float(control_values.get("LastCalibration", 0))
     computerName = control_values.get("name", "wrong")
-    
+    jpeg_quality = int(control_values.get("jpeg_quality", 96))  # Default: 96 for backward compatibility
+    print(f"Using JPEG quality: {jpeg_quality}")
+
     if(onlyflash):
         print("operating in always on flash mode")
     
@@ -852,5 +859,5 @@ finally:
     except Exception as e:
         print(f"Warning: GPIO cleanup failed: {e}")
 
-quit()
+sys.exit(0)  # Normal exit after successful photo capture
 

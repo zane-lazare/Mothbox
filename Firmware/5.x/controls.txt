@@ -17,3 +17,4 @@ Relay_Ch2=19
 Relay_Ch3=9
 relay_enabled=true
 flash_duration_ms=100
+jpeg_quality=96

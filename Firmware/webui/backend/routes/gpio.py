@@ -29,7 +29,13 @@ try:
 except (ImportError, RuntimeError) as e:
     GPIO_AVAILABLE = False
     GPIO_PERMISSION_ERROR = f"RPi.GPIO import failed: {e}"
-    print(f"Warning: RPi.GPIO not available - {e}")
+    print(f"⚠️  RPi.GPIO not available - GPIO hardware features disabled")
+    print(f"   Reason: {e}")
+    print(f"   Impact: GPIO controls and flash trigger will not function")
+    if isinstance(e, PermissionError):
+        print(f"   Hint: User may need to be in 'gpio' group: sudo usermod -a -G gpio $USER")
+    elif isinstance(e, ImportError):
+        print(f"   Hint: Install system package: sudo apt-get install python3-rpi-lgpio")
 
 def _validate_gpio_permissions():
     """
