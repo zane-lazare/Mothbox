@@ -658,12 +658,24 @@ if [ "$SERVICE_CHANGED" -gt 0 ]; then
                 MOTHBOX_ENV=$(grep "^Environment=\"MOTHBOX_ENV=" /etc/systemd/system/mothbox-webui.service | cut -d= -f3 | tr -d '"' || echo "development")
             fi
 
+            # Detect ALLOWED_ORIGINS from existing service or default to empty (same-origin only)
+            ALLOWED_ORIGINS=""
+            if [ -f "/etc/systemd/system/mothbox-webui.service" ]; then
+                # Extract ALLOWED_ORIGINS value, handling the format: Environment="ALLOWED_ORIGINS=value"
+                ALLOWED_ORIGINS=$(grep "^Environment=\"ALLOWED_ORIGINS=" /etc/systemd/system/mothbox-webui.service | sed 's/^Environment="ALLOWED_ORIGINS=//' | sed 's/"$//' || echo "")
+            fi
+
+            echo "Preserving configuration:"
+            echo "  Environment: $MOTHBOX_ENV"
+            echo "  CORS Origins: ${ALLOWED_ORIGINS:-same-origin only}"
+
             # Generate service file with substitutions
             # Use mktemp for secure temporary file creation (prevents TOCTOU race conditions)
             TEMP_SERVICE=$(mktemp)
             sed -e "s|__MOTHBOX_USER__|$MOTHBOX_USER|g" \
                 -e "s|__MOTHBOX_HOME__|$MOTHBOX_HOME|g" \
                 -e "s|__MOTHBOX_ENV__|$MOTHBOX_ENV|g" \
+                -e "s|__ALLOWED_ORIGINS__|$ALLOWED_ORIGINS|g" \
                 "$SERVICE_TEMPLATE" > "$TEMP_SERVICE"
 
             # Install service file

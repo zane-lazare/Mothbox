@@ -2,6 +2,8 @@
 
 A modern web interface for controlling and monitoring your Mothbox camera trap system.
 
+📚 **Having issues?** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common problems and solutions.
+
 ## ⚠️ IMPORTANT SECURITY NOTICE ⚠️
 
 **The Web UI currently has NO AUTHENTICATION and binds to all network interfaces (0.0.0.0) by default.**
@@ -25,6 +27,7 @@ This means anyone with network access to your Mothbox can:
 - ✅ CSRF protection on all state-changing endpoints
 - ✅ Input validation to prevent injection attacks
 - ✅ Path traversal protection for file access
+- ✅ CORS configuration for WebSocket/API origin validation
 
 ## Features
 
@@ -173,14 +176,39 @@ Full production deployment with gunicorn, authentication, and configurable netwo
 
 ## API Endpoints
 
+### Authentication & CSRF
+
+**IMPORTANT:** All POST/PUT/DELETE/PATCH endpoints require a CSRF token to prevent cross-site request forgery attacks.
+
+#### Getting a CSRF Token
+```javascript
+// Fetch CSRF token first
+const response = await fetch('/api/csrf-token');
+const { csrf_token } = await response.json();
+
+// Include token in subsequent POST requests
+await fetch('/api/gpio/control', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRFToken': csrf_token
+  },
+  body: JSON.stringify({ relay: 'Relay_Ch1', state: true })
+});
+```
+
+**Error responses without CSRF token:**
+- `400 Bad Request` - CSRF token missing or invalid
+- Response body: `{"error": "CSRF validation failed"}`
+
 ### System
 - `GET /api/system/status` - Get system status (CPU temp, disk space, etc.)
 - `GET /api/system/power` - Get power metrics from INA260
 
 ### Camera
-- `POST /api/camera/capture` - Trigger photo capture
+- `POST /api/camera/capture` - Trigger photo capture **[Requires CSRF]**
 - `GET /api/camera/settings` - Get camera settings
-- `POST /api/camera/settings` - Update camera settings
+- `POST /api/camera/settings` - Update camera settings **[Requires CSRF]**
 
 ### Gallery
 - `GET /api/gallery/photos` - List all photos
@@ -189,19 +217,19 @@ Full production deployment with gunicorn, authentication, and configurable netwo
 
 ### Config
 - `GET /api/config/controls` - Get controls.txt configuration
-- `POST /api/config/controls` - Update controls.txt
+- `POST /api/config/controls` - Update controls.txt **[Requires CSRF]**
 - `GET /api/config/schedule` - Get schedule settings
-- `POST /api/config/schedule` - Update schedule settings
+- `POST /api/config/schedule` - Update schedule settings **[Requires CSRF]**
 
 ### GPIO
 - `GET /api/gpio/status` - Get GPIO pin states
-- `POST /api/gpio/control` - Control GPIO relay (on/off)
-- `POST /api/gpio/flash` - Trigger flash momentarily
+- `POST /api/gpio/control` - Control GPIO relay (on/off) **[Requires CSRF]**
+- `POST /api/gpio/flash` - Trigger flash momentarily **[Requires CSRF]**
 
 ### Scheduler
 - `GET /api/scheduler/jobs` - List cron jobs
-- `POST /api/scheduler/job` - Add cron job
-- `DELETE /api/scheduler/job` - Delete cron job
+- `POST /api/scheduler/job` - Add cron job **[Requires CSRF]**
+- `DELETE /api/scheduler/job` - Delete cron job **[Requires CSRF]**
 - `GET /api/scheduler/status` - Get scheduler status
 
 ## Development

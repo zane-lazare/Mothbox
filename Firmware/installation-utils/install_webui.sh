@@ -59,6 +59,38 @@ if [ "$MOTHBOX_ENV" = "development" ]; then
 fi
 echo ""
 
+# Configure CORS for WebSocket/API access
+echo -e "${BLUE}Configuring network access (CORS)...${NC}"
+echo ""
+echo "The Web UI needs to know which origins can connect to its WebSocket/API."
+echo ""
+echo "Choose access mode:"
+echo "  ${GREEN}1) Same-origin only${NC} (RECOMMENDED for production)"
+echo "     - Most secure: only allows connections from the Mothbox itself"
+echo "     - Use when accessing Web UI at http://mothbox.local:5000 or http://<ip>:5000"
+echo ""
+echo "  ${YELLOW}2) Local network${NC} (for development/testing)"
+echo "     - Allows connections from any device on local network (192.168.x.x)"
+echo "     - Use when developing frontend separately or testing from other devices"
+echo "     - Less secure: any device on your network can connect"
+echo ""
+read -p "Enter choice (1 or 2) [1]: " CORS_CHOICE
+CORS_CHOICE=${CORS_CHOICE:-1}
+
+if [ "$CORS_CHOICE" = "2" ]; then
+    ALLOWED_ORIGINS="http://localhost:*,http://127.0.0.1:*,http://192.168.*.*:*,http://10.*.*.*:*"
+    echo -e "${YELLOW}✓ Configured for local network access${NC}"
+    echo -e "${YELLOW}  WebSocket/API connections allowed from:${NC}"
+    echo -e "${YELLOW}  - localhost (any port)${NC}"
+    echo -e "${YELLOW}  - 192.168.x.x (any port)${NC}"
+    echo -e "${YELLOW}  - 10.x.x.x (any port)${NC}"
+else
+    ALLOWED_ORIGINS=""
+    echo -e "${GREEN}✓ Configured for same-origin only (most secure)${NC}"
+    echo -e "${GREEN}  WebSocket/API connections only from the Mothbox itself${NC}"
+fi
+echo ""
+
 # Check if Node.js is installed
 echo -e "${BLUE}Checking Node.js installation...${NC}"
 if command -v node &> /dev/null; then
@@ -169,6 +201,7 @@ else
     sudo sed -e "s|__MOTHBOX_USER__|$MOTHBOX_USER|g" \
              -e "s|__MOTHBOX_HOME__|$MOTHBOX_HOME|g" \
              -e "s|__MOTHBOX_ENV__|$MOTHBOX_ENV|g" \
+             -e "s|__ALLOWED_ORIGINS__|$ALLOWED_ORIGINS|g" \
              "$SERVICE_TEMPLATE" > "$TEMP_SERVICE"
 
     # Install the generated service file
@@ -179,6 +212,7 @@ else
     echo -e "${GREEN}  User: $MOTHBOX_USER${NC}"
     echo -e "${GREEN}  Path: $MOTHBOX_HOME${NC}"
     echo -e "${GREEN}  Environment: $MOTHBOX_ENV${NC}"
+    echo -e "${GREEN}  CORS Origins: ${ALLOWED_ORIGINS:-same-origin only}${NC}"
 
     # Start the service
     echo -e "${BLUE}Starting Web UI service...${NC}"

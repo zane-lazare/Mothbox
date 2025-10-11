@@ -18,6 +18,24 @@ Environment="MOTHBOX_HOME=__MOTHBOX_HOME__"
 Environment="MOTHBOX_ENV=__MOTHBOX_ENV__"
 Environment="PYTHONUNBUFFERED=1"
 
+# CORS Configuration for WebSocket and API access
+# Controls which origins can connect to the Web UI from different hosts/ports
+#
+# Production (default): Empty = same-origin only (most secure)
+#   - Only allows connections from the same IP:port serving the frontend
+#   - Use when accessing Web UI directly on the Mothbox (e.g., http://mothbox.local:5000)
+#
+# Development/Testing: Set to allow local network access
+#   - Allows connections from development servers and local network devices
+#   - Example: "http://localhost:*,http://127.0.0.1:*,http://192.168.*.*:*"
+#   - Use when developing frontend separately or accessing from other devices
+#
+# To change after installation:
+#   1. Edit this line in /etc/systemd/system/mothbox-webui.service
+#   2. Run: sudo systemctl daemon-reload
+#   3. Run: sudo systemctl restart mothbox-webui
+Environment="ALLOWED_ORIGINS=__ALLOWED_ORIGINS__"
+
 # TODO: Switch to gunicorn for production deployment (issue #19)
 # Future: ExecStart=/usr/bin/gunicorn -c __MOTHBOX_HOME__/webui/backend/gunicorn_config.py app:app
 
