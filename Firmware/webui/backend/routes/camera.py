@@ -137,7 +137,7 @@ def capture_photo():
 
 @camera_bp.route('/settings', methods=['GET'])
 def get_camera_settings():
-    """Get camera settings from CSV"""
+    """Get camera settings from CSV (vertical format: SETTING,VALUE,DETAILS)"""
     try:
         from mothbox_paths import CAMERA_SETTINGS_FILE
         import csv
@@ -146,8 +146,10 @@ def get_camera_settings():
         with open(CAMERA_SETTINGS_FILE, 'r') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                settings = row
-                break
+                # Build settings dict from vertical CSV format
+                setting_name = row['SETTING'].strip()
+                setting_value = row['VALUE'].strip()
+                settings[setting_name] = setting_value
 
         return jsonify(settings)
     except Exception as e:
@@ -388,9 +390,23 @@ def auto_calibrate():
         from flask import current_app
         from mothbox_paths import CAMERA_SETTINGS_FILE, CONTROLS_FILE, WEBUI_SETTINGS_FILE
 
-        # Parse request parameters
+        # Parse request parameters (support both old and new format)
         request_data = request.json or {}
-        apply_to = request_data.get('apply_to', 'capture')  # 'preview', 'capture', or 'both'
+
+        # New format: apply_to = 'preview' | 'capture' | 'both'
+        apply_to = request_data.get('apply_to')
+
+        # Old format: update_capture=True, update_preview=True (backward compatibility)
+        if apply_to is None:
+            update_capture = request_data.get('update_capture', True)
+            update_preview = request_data.get('update_preview', False)
+
+            if update_capture and update_preview:
+                apply_to = 'both'
+            elif update_preview:
+                apply_to = 'preview'
+            else:
+                apply_to = 'capture'
 
         if apply_to not in ['preview', 'capture', 'both']:
             return jsonify({
@@ -569,8 +585,12 @@ def auto_calibrate():
             except Exception as timestamp_error:
                 print(f"Warning: Could not update LastCalibration: {timestamp_error}")
 
-            # Return results
+            # Return results (use snake_case for consistency with test expectations)
             after_snapshot = {
+                'exposure_time': calib_exposure,
+                'analogue_gain': round(calib_gain, 2),
+                'lens_position': round(calib_lens_position, 2),
+                # Also include PascalCase for backward compatibility
                 'ExposureTime': calib_exposure,
                 'AnalogueGain': round(calib_gain, 2),
                 'LensPosition': round(calib_lens_position, 2)
