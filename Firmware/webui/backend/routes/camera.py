@@ -222,13 +222,13 @@ def trigger_autofocus():
 
         print("Autofocus requested via API")
 
-        # Release camera hardware if stream active (prevents resource conflict)
+        # Release camera hardware if initialized (prevents resource conflict)
         camera_streamer = current_app.config.get('CAMERA_STREAMER')
         was_streaming = False
-        if camera_streamer and camera_streamer.streaming:
+        if camera_streamer and camera_streamer.camera:
             print("Releasing camera hardware before autofocus...")
+            was_streaming = camera_streamer.streaming
             camera_streamer.release_camera()
-            was_streaming = True
             time.sleep(0.5)  # Let camera fully release
 
         # Initialize camera for autofocus
@@ -380,13 +380,13 @@ def auto_calibrate():
 
         print(f"Auto-calibration requested via API (apply_to={apply_to})")
 
-        # Release camera hardware if stream active (prevents resource conflict)
+        # Release camera hardware if initialized (prevents resource conflict)
         camera_streamer = current_app.config.get('CAMERA_STREAMER')
         was_streaming = False
-        if camera_streamer and camera_streamer.streaming:
+        if camera_streamer and camera_streamer.camera:
             print("Releasing camera hardware before calibration...")
+            was_streaming = camera_streamer.streaming
             camera_streamer.release_camera()
-            was_streaming = True
             time.sleep(0.5)  # Let camera fully release
 
         # Read current settings for "before" snapshot
@@ -646,13 +646,13 @@ def test_capture():
         if WEBUI_SETTINGS_FILE.exists():
             preview_settings = get_control_values(WEBUI_SETTINGS_FILE)
 
-        # Release camera hardware if stream active (prevents resource conflict)
+        # Release camera hardware if initialized (prevents resource conflict)
         camera_streamer = current_app.config.get('CAMERA_STREAMER')
         was_streaming = False
-        if camera_streamer and camera_streamer.streaming:
+        if camera_streamer and camera_streamer.camera:
             print("Releasing camera hardware before test capture...")
+            was_streaming = camera_streamer.streaming
             camera_streamer.release_camera()
-            was_streaming = True
             time.sleep(0.5)  # Let camera fully release
 
         # Initialize camera for test capture
