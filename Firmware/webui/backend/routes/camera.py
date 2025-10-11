@@ -3,7 +3,6 @@ from flask import Blueprint, jsonify, request
 import subprocess
 from pathlib import Path
 import sys
-from app import limiter
 
 # Setup path to import mothbox_paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -24,7 +23,6 @@ ALLOWED_CAMERA_SETTINGS = {
 camera_bp = Blueprint('camera', __name__)
 
 @camera_bp.route('/capture', methods=['POST'])
-@limiter.limit("10 per minute")
 def capture_photo():
     """Trigger a photo capture"""
     try:

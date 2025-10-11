@@ -114,13 +114,15 @@ app.register_blueprint(config_bp, url_prefix='/api/config')
 app.register_blueprint(gpio_bp, url_prefix='/api/gpio')
 app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
 
-# Apply rate limiting to GPIO endpoints to prevent hardware abuse
-# 30 requests per minute for control operations (one per 2 seconds)
-# 10 requests per minute for flash operations (prevents rapid relay cycling)
+# Apply rate limiting to hardware endpoints to prevent abuse
+# Camera: 10 requests per minute for capture operations (prevents rapid captures)
+# GPIO: 30 requests per minute for control operations (one per 2 seconds)
+# GPIO: 10 requests per minute for flash operations (prevents rapid relay cycling)
 # Use app.view_functions with blueprint-prefixed endpoint names
+limiter.limit("10 per minute")(app.view_functions['camera.capture_photo'])
 limiter.limit("30 per minute")(app.view_functions['gpio.control_gpio'])
 limiter.limit("10 per minute")(app.view_functions['gpio.trigger_flash'])
-print("✓ Rate limiting applied to GPIO endpoints")
+print("✓ Rate limiting applied to camera and GPIO endpoints")
 
 # CSRF token endpoint
 @app.route('/api/csrf-token', methods=['GET'])
