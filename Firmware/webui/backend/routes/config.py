@@ -380,3 +380,200 @@ def update_webui_settings():
             except Exception as restore_error:
                 print(f"Failed to restore backup: {restore_error}")
         return jsonify({'error': str(e)}), 500
+
+
+@config_bp.route('/copy-settings', methods=['POST'])
+def copy_settings():
+    """
+    Copy compatible settings between preview and capture systems (Phase 2.2)
+
+    Request JSON:
+        - direction: "preview_to_capture" or "capture_to_preview"
+
+    Returns:
+        JSON with:
+        - success: bool
+        - copied: list of setting names that were copied
+        - skipped: list of setting names that were incompatible/not copied
+    """
+    try:
+        request_data = request.json or {}
+        direction = request_data.get('direction')
+
+        if direction not in ['preview_to_capture', 'capture_to_preview']:
+            return jsonify({
+                'error': 'direction must be "preview_to_capture" or "capture_to_preview"'
+            }), 400
+
+        print(f"Copy settings requested: {direction}")
+
+        # Define mapping of compatible controls between systems
+        # Format: (preview_name, capture_name, converter_func)
+        compatible_mappings = [
+            ('sharpness', 'Sharpness', lambda v: str(v)),
+            ('brightness', 'Brightness', lambda v: str(v)),
+            ('contrast', 'Contrast', lambda v: str(v)),
+            ('saturation', 'Saturation', lambda v: str(v)),
+            ('af_mode', 'AfMode', lambda v: str(v)),
+            ('af_speed', 'AfSpeed', lambda v: str(v)),
+            ('af_range', 'AfRange', lambda v: str(v)),
+            ('awb_enable', 'AwbEnable', lambda v: 'true' if v else 'false'),
+            ('awb_mode', 'AwbMode', lambda v: str(v)),
+        ]
+
+        copied = []
+        skipped = []
+
+        if direction == 'preview_to_capture':
+            # Read preview settings
+            from mothbox_paths import get_control_values
+            if not WEBUI_SETTINGS_FILE.exists():
+                return jsonify({
+                    'success': False,
+                    'error': 'webui_settings.txt not found'
+                }), 404
+
+            preview_settings = get_control_values(WEBUI_SETTINGS_FILE)
+
+            # Read current capture settings
+            import csv
+            capture_settings = {}
+            with open(CAMERA_SETTINGS_FILE, 'r') as f:
+                reader = csv.DictReader(f)
+                fieldnames = reader.fieldnames
+                for row in reader:
+                    capture_settings = row
+                    break
+
+            # Copy compatible settings
+            for preview_key, capture_key, converter in compatible_mappings:
+                if preview_key in preview_settings:
+                    try:
+                        # Convert preview value to capture format
+                        preview_value = preview_settings[preview_key]
+
+                        # Type conversion for preview settings
+                        if preview_key in ['sharpness', 'brightness', 'contrast', 'saturation']:
+                            preview_value = float(preview_value)
+                        elif preview_key in ['af_mode', 'af_speed', 'af_range', 'awb_mode']:
+                            preview_value = int(preview_value)
+                        elif preview_key == 'awb_enable':
+                            preview_value = preview_value.lower() == 'true'
+
+                        # Convert to capture format
+                        capture_value = converter(preview_value)
+
+                        # Validate using capture validator
+                        from routes.camera import ALLOWED_CAMERA_SETTINGS
+                        if capture_key in ALLOWED_CAMERA_SETTINGS:
+                            if ALLOWED_CAMERA_SETTINGS[capture_key](capture_value):
+                                capture_settings[capture_key] = capture_value
+                                copied.append(f"{preview_key} → {capture_key}")
+                            else:
+                                skipped.append(f"{preview_key} (validation failed)")
+                        else:
+                            skipped.append(f"{preview_key} (no capture validator)")
+
+                    except Exception as e:
+                        skipped.append(f"{preview_key} (error: {str(e)})")
+                else:
+                    skipped.append(f"{preview_key} (not set in preview)")
+
+            # Write updated capture settings
+            with open(CAMERA_SETTINGS_FILE, 'w', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerow(capture_settings)
+
+            print(f"Copied {len(copied)} settings to capture: {copied}")
+
+        elif direction == 'capture_to_preview':
+            # Read capture settings
+            import csv
+            capture_settings = {}
+            with open(CAMERA_SETTINGS_FILE, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    capture_settings = row
+                    break
+
+            # Read current preview settings
+            from mothbox_paths import get_control_values
+            preview_settings = {}
+            if WEBUI_SETTINGS_FILE.exists():
+                preview_settings = get_control_values(WEBUI_SETTINGS_FILE)
+            else:
+                # Start with defaults from get_webui_settings
+                response = get_webui_settings()
+                preview_settings = response.get_json()
+
+            # Copy compatible settings
+            for preview_key, capture_key, converter in compatible_mappings:
+                if capture_key in capture_settings:
+                    try:
+                        capture_value = capture_settings[capture_key]
+
+                        # Convert to preview type
+                        if preview_key in ['sharpness', 'brightness', 'contrast', 'saturation']:
+                            preview_value = float(capture_value)
+                        elif preview_key in ['af_mode', 'af_speed', 'af_range', 'awb_mode']:
+                            preview_value = int(capture_value)
+                        elif preview_key == 'awb_enable':
+                            preview_value = capture_value.lower() == 'true'
+                        else:
+                            preview_value = capture_value
+
+                        # Validate ranges (basic validation)
+                        valid = True
+                        if preview_key == 'sharpness' and not (0.0 <= preview_value <= 16.0):
+                            valid = False
+                        elif preview_key == 'brightness' and not (-1.0 <= preview_value <= 1.0):
+                            valid = False
+                        elif preview_key in ['contrast', 'saturation'] and not (0.0 <= preview_value <= 32.0):
+                            valid = False
+                        elif preview_key == 'af_mode' and preview_value not in [0, 1, 2]:
+                            valid = False
+                        elif preview_key == 'af_speed' and preview_value not in [0, 1]:
+                            valid = False
+                        elif preview_key == 'af_range' and preview_value not in [0, 1, 2]:
+                            valid = False
+                        elif preview_key == 'awb_mode' and not (0 <= preview_value <= 7):
+                            valid = False
+
+                        if valid:
+                            preview_settings[preview_key] = preview_value
+                            copied.append(f"{capture_key} → {preview_key}")
+                        else:
+                            skipped.append(f"{capture_key} (validation failed)")
+
+                    except Exception as e:
+                        skipped.append(f"{capture_key} (error: {str(e)})")
+                else:
+                    skipped.append(f"{capture_key} (not set in capture)")
+
+            # Write updated preview settings
+            with open(WEBUI_SETTINGS_FILE, 'w') as f:
+                for key, value in preview_settings.items():
+                    if isinstance(value, bool):
+                        f.write(f"{key}={'true' if value else 'false'}\n")
+                    else:
+                        f.write(f"{key}={value}\n")
+
+            print(f"Copied {len(copied)} settings to preview: {copied}")
+
+        return jsonify({
+            'success': True,
+            'copied': copied,
+            'skipped': skipped,
+            'message': f'Copied {len(copied)} settings, skipped {len(skipped)}'
+        })
+
+    except Exception as e:
+        import traceback
+        print(f"Copy settings error: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500

@@ -191,3 +191,363 @@ def update_camera_settings():
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@camera_bp.route('/autofocus', methods=['POST'])
+def trigger_autofocus():
+    """
+    Trigger autofocus cycle (Phase 2.2)
+
+    Based on PlowmanAutofocus.py and TakePhoto.py:410 pattern.
+
+    Returns:
+        JSON with:
+        - success: bool - whether autofocus succeeded
+        - af_state: str - "Idle", "Scanning", "Success", or "Fail"
+        - lens_position: float - final lens position in diopters
+        - metadata: dict - exposure, gain, etc. from final frame
+    """
+    try:
+        # Import here to avoid issues if picamera2 not available
+        try:
+            from picamera2 import Picamera2
+        except ImportError:
+            return jsonify({
+                'success': False,
+                'error': 'picamera2 not available'
+            }), 500
+
+        import time
+
+        print("Autofocus requested via API")
+
+        # Initialize camera for autofocus
+        picam2 = None
+        try:
+            # Try camera 0 first, fallback to camera 1
+            try:
+                picam2 = Picamera2(0)
+            except Exception:
+                picam2 = Picamera2(1)
+
+            # Configure for high-res preview (better for AF accuracy)
+            preview_config = picam2.create_preview_configuration(
+                main={'format': 'RGB888', 'size': (1920, 1080)}
+            )
+            picam2.configure(preview_config)
+
+            # Start camera
+            picam2.start()
+
+            # Set initial focus controls for AF
+            picam2.set_controls({
+                "AfSpeed": 0,  # Normal speed for accuracy
+                "AfMetering": 0,  # Auto metering
+                "LensPosition": 7.0  # Starting position
+            })
+
+            # Let camera stabilize
+            time.sleep(0.3)
+
+            # Trigger autofocus cycle
+            print("Running autofocus cycle...")
+            af_start = time.time()
+            success = picam2.autofocus_cycle()
+            af_duration = time.time() - af_start
+            print(f"Autofocus completed in {af_duration:.2f}s: {'Success' if success else 'Failed'}")
+
+            # Get result metadata
+            metadata = picam2.capture_metadata()
+            lens_position = metadata.get('LensPosition', 0.0)
+            af_state_code = metadata.get('AfState', 0)
+            af_state = ("Idle", "Scanning", "Success", "Fail")[af_state_code]
+
+            # Capture additional metadata for UI display
+            exposure_time = metadata.get('ExposureTime', 0)
+            analogue_gain = metadata.get('AnalogueGain', 0.0)
+            colour_temp = metadata.get('ColourTemperature', 0)
+
+            # Stop camera
+            picam2.stop()
+            picam2.close()
+
+            return jsonify({
+                'success': success,
+                'af_state': af_state,
+                'lens_position': round(lens_position, 2),
+                'duration_seconds': round(af_duration, 2),
+                'metadata': {
+                    'exposure_time': exposure_time,
+                    'analogue_gain': round(analogue_gain, 2),
+                    'colour_temperature': colour_temp
+                },
+                'message': f'Autofocus {"succeeded" if success else "failed"} at {lens_position:.2f} diopters'
+            })
+
+        except Exception as camera_error:
+            # Ensure camera is closed on error
+            if picam2:
+                try:
+                    picam2.stop()
+                    picam2.close()
+                except Exception:
+                    pass
+            raise camera_error
+
+    except Exception as e:
+        import traceback
+        error_msg = str(e)
+        print(f"Autofocus error: {error_msg}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': error_msg,
+            'traceback': traceback.format_exc()
+        }), 500
+
+
+@camera_bp.route('/calibrate', methods=['POST'])
+def auto_calibrate():
+    """
+    Auto-calibrate camera settings (Phase 2.2)
+
+    Based on TakePhoto.py:350-436 calibration logic.
+    Runs autofocus and auto-exposure, then updates settings.
+
+    Request JSON (optional):
+        - apply_to: "preview", "capture", or "both" (default: "capture")
+
+    Returns:
+        JSON with:
+        - success: bool
+        - before: dict - settings before calibration
+        - after: dict - settings after calibration
+        - af_success: bool - whether autofocus succeeded
+        - timestamp: float - calibration timestamp
+    """
+    try:
+        # Import here to avoid issues if picamera2 not available
+        try:
+            from picamera2 import Picamera2
+        except ImportError:
+            return jsonify({
+                'success': False,
+                'error': 'picamera2 not available'
+            }), 500
+
+        import time
+        import csv
+        from mothbox_paths import CAMERA_SETTINGS_FILE, CONTROLS_FILE, WEBUI_SETTINGS_FILE
+
+        # Parse request parameters
+        request_data = request.json or {}
+        apply_to = request_data.get('apply_to', 'capture')  # 'preview', 'capture', or 'both'
+
+        if apply_to not in ['preview', 'capture', 'both']:
+            return jsonify({
+                'success': False,
+                'error': "apply_to must be 'preview', 'capture', or 'both'"
+            }), 400
+
+        print(f"Auto-calibration requested via API (apply_to={apply_to})")
+
+        # Read current settings for "before" snapshot
+        current_settings = {}
+        try:
+            with open(CAMERA_SETTINGS_FILE, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    current_settings = row
+                    break
+        except Exception as e:
+            print(f"Warning: Could not read current settings: {e}")
+
+        before_snapshot = {
+            'ExposureTime': current_settings.get('ExposureTime', 'unknown'),
+            'AnalogueGain': current_settings.get('AnalogueGain', 'unknown'),
+            'LensPosition': current_settings.get('LensPosition', 'unknown')
+        }
+
+        # Initialize camera for calibration
+        picam2 = None
+        try:
+            # Try camera 0 first, fallback to camera 1
+            try:
+                picam2 = Picamera2(0)
+            except Exception:
+                picam2 = Picamera2(1)
+
+            # Configure for calibration (higher res for accuracy)
+            preview_config = picam2.create_preview_configuration(
+                main={'size': (1920*2, 1080*2)}
+            )
+            picam2.configure(preview_config)
+
+            # Start camera
+            picam2.start()
+
+            # Set initial lens position
+            picam2.set_controls({"LensPosition": 7.0})
+
+            # Let camera stabilize with auto-exposure
+            time.sleep(1.0)
+
+            # Capture initial exposure metadata
+            for i in range(5):
+                md = picam2.capture_metadata()
+                print(f"Calibrating frame {i}: "
+                      f"Exp={md.get('ExposureTime')}µs, "
+                      f"Gain={md.get('AnalogueGain'):.2f}, "
+                      f"Lens={md.get('LensPosition'):.2f}D")
+
+            # Get stabilized exposure values
+            md = picam2.capture_metadata()
+            calib_exposure = md['ExposureTime']
+            calib_gain = md['AnalogueGain']
+
+            print(f"Auto-exposure calibrated: Exp={calib_exposure}µs, Gain={calib_gain:.2f}")
+
+            # Run autofocus cycle
+            print("Running autofocus cycle...")
+            af_start = time.time()
+            af_success = picam2.autofocus_cycle()
+            af_duration = time.time() - af_start
+            print(f"Autofocus completed in {af_duration:.2f}s: {'Success' if af_success else 'Failed'}")
+
+            # Get final metadata
+            md = picam2.capture_metadata()
+            calib_lens_position = md['LensPosition']
+            af_state_code = md.get('AfState', 0)
+            af_state = ("Idle", "Scanning", "Success", "Fail")[af_state_code]
+
+            print(f"Calibrated values: "
+                  f"Exp={calib_exposure}µs, "
+                  f"Gain={calib_gain:.2f}, "
+                  f"Lens={calib_lens_position:.2f}D")
+
+            # Stop camera
+            picam2.stop()
+            picam2.close()
+
+            # Prepare calibrated settings
+            calibrated_values = {
+                'LensPosition': calib_lens_position,
+                'ExposureTime': calib_exposure,
+                'AnalogueGain': calib_gain
+            }
+
+            # Apply to requested targets
+            if apply_to in ['capture', 'both']:
+                # Update camera_settings.csv
+                print("Updating camera_settings.csv...")
+                with open(CAMERA_SETTINGS_FILE, 'r') as f:
+                    reader = csv.DictReader(f)
+                    fieldnames = reader.fieldnames
+                    for row in reader:
+                        current_settings = row
+                        break
+
+                # Update with calibrated values
+                current_settings.update({
+                    'LensPosition': str(calib_lens_position),
+                    'ExposureTime': str(calib_exposure),
+                    'AnalogueGain': str(calib_gain)
+                })
+
+                # Write back
+                with open(CAMERA_SETTINGS_FILE, 'w', newline='') as f:
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerow(current_settings)
+
+                print("✓ Updated camera_settings.csv")
+
+            if apply_to in ['preview', 'both']:
+                # Update webui_settings.txt (just focus, not exposure for preview)
+                print("Updating webui_settings.txt...")
+                from mothbox_paths import get_control_values
+
+                webui_settings = {}
+                if WEBUI_SETTINGS_FILE.exists():
+                    webui_settings = get_control_values(WEBUI_SETTINGS_FILE)
+
+                # Update focus settings (exposure controlled by camera in preview)
+                webui_settings['af_mode'] = '0'  # Manual mode
+                # Note: We don't update exposure/gain for preview as it's handled by camera auto-exposure
+
+                # Write back
+                with open(WEBUI_SETTINGS_FILE, 'w') as f:
+                    for key, value in webui_settings.items():
+                        f.write(f"{key}={value}\n")
+
+                print("✓ Updated webui_settings.txt")
+
+            # Update LastCalibration timestamp in controls.txt
+            print("Updating LastCalibration timestamp...")
+            calibration_timestamp = time.time()
+
+            try:
+                # Read controls.txt
+                controls_lines = []
+                found_calibration = False
+                if CONTROLS_FILE.exists():
+                    with open(CONTROLS_FILE, 'r') as f:
+                        for line in f:
+                            if line.startswith('LastCalibration='):
+                                controls_lines.append(f"LastCalibration={int(calibration_timestamp)}\n")
+                                found_calibration = True
+                            else:
+                                controls_lines.append(line)
+
+                # If LastCalibration not found, add it
+                if not found_calibration:
+                    controls_lines.append(f"LastCalibration={int(calibration_timestamp)}\n")
+
+                # Write back
+                with open(CONTROLS_FILE, 'w') as f:
+                    f.writelines(controls_lines)
+
+                print("✓ Updated LastCalibration timestamp")
+
+            except Exception as timestamp_error:
+                print(f"Warning: Could not update LastCalibration: {timestamp_error}")
+
+            # Return results
+            after_snapshot = {
+                'ExposureTime': calib_exposure,
+                'AnalogueGain': round(calib_gain, 2),
+                'LensPosition': round(calib_lens_position, 2)
+            }
+
+            return jsonify({
+                'success': True,
+                'before': before_snapshot,
+                'after': after_snapshot,
+                'af_success': af_success,
+                'af_state': af_state,
+                'af_duration_seconds': round(af_duration, 2),
+                'apply_to': apply_to,
+                'timestamp': calibration_timestamp,
+                'message': f'Calibration {"succeeded" if af_success else "completed with AF failure"}'
+            })
+
+        except Exception as camera_error:
+            # Ensure camera is closed on error
+            if picam2:
+                try:
+                    picam2.stop()
+                    picam2.close()
+                except Exception:
+                    pass
+            raise camera_error
+
+    except Exception as e:
+        import traceback
+        error_msg = str(e)
+        print(f"Calibration error: {error_msg}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': error_msg,
+            'traceback': traceback.format_exc()
+        }), 500

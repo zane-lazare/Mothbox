@@ -235,6 +235,101 @@ def handle_reload_stream_settings():
         print(f'Error reloading settings: {e}')
         emit('settings_reloaded', {'success': False, 'error': str(e)})
 
+@socketio.on('get_metadata')
+def handle_get_metadata():
+    """
+    Get current camera metadata (Phase 2.2)
+
+    Returns real-time camera metadata for display in UI:
+    - ExposureTime (µs)
+    - AnalogueGain (ISO)
+    - LensPosition (diopters)
+    - AfState (Idle/Scanning/Success/Fail)
+    - ColourTemperature (Kelvin)
+    """
+    try:
+        if camera_streamer.camera and camera_streamer.streaming:
+            # Camera is active - get live metadata
+            md = camera_streamer.camera.capture_metadata()
+
+            # Extract relevant metadata
+            exposure_time = md.get('ExposureTime', 0)
+            analogue_gain = md.get('AnalogueGain', 0.0)
+            lens_position = md.get('LensPosition', 0.0)
+            af_state_code = md.get('AfState', 0)
+            colour_temp = md.get('ColourTemperature', 0)
+
+            # Convert AfState code to string
+            af_state = ("Idle", "Scanning", "Success", "Fail")[af_state_code] if af_state_code < 4 else "Unknown"
+
+            emit('metadata_update', {
+                'exposure_time': exposure_time,
+                'analogue_gain': round(analogue_gain, 2),
+                'lens_position': round(lens_position, 2),
+                'af_state': af_state,
+                'colour_temperature': colour_temp,
+                'timestamp': __import__('time').time()
+            })
+
+        else:
+            # Camera not active - return unavailable status
+            emit('metadata_update', {
+                'error': 'Camera not streaming',
+                'exposure_time': 0,
+                'analogue_gain': 0,
+                'lens_position': 0,
+                'af_state': 'Unavailable',
+                'colour_temperature': 0
+            })
+
+    except Exception as e:
+        print(f'Error getting metadata: {e}')
+        emit('metadata_update', {
+            'error': str(e),
+            'exposure_time': 0,
+            'analogue_gain': 0,
+            'lens_position': 0,
+            'af_state': 'Error',
+            'colour_temperature': 0
+        })
+
+@socketio.on('update_preview_control')
+def handle_update_preview_control(data):
+    """
+    Update a single camera control without restarting stream (Phase 2.2)
+
+    Args:
+        data: dict with control name and value, e.g., {'Sharpness': 2.0}
+    """
+    try:
+        if not isinstance(data, dict):
+            emit('control_updated', {
+                'success': False,
+                'error': 'Invalid data format - expected dict'
+            })
+            return
+
+        success = camera_streamer.update_control(data)
+
+        if success:
+            emit('control_updated', {
+                'success': True,
+                'control': data,
+                'message': f'Updated {list(data.keys())[0]}'
+            })
+        else:
+            emit('control_updated', {
+                'success': False,
+                'error': 'Camera not streaming or control update failed'
+            })
+
+    except Exception as e:
+        print(f'Error updating control: {e}')
+        emit('control_updated', {
+            'success': False,
+            'error': str(e)
+        })
+
 # Serve React app
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
