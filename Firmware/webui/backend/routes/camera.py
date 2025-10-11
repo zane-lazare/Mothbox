@@ -155,7 +155,7 @@ def get_camera_settings():
 
 @camera_bp.route('/settings', methods=['POST'])
 def update_camera_settings():
-    """Update camera settings"""
+    """Update camera settings (vertical CSV format: SETTING,VALUE,DETAILS)"""
     try:
         from mothbox_paths import CAMERA_SETTINGS_FILE
         import csv
@@ -172,21 +172,41 @@ def update_camera_settings():
             except (ValueError, TypeError):
                 return jsonify({'error': f'Invalid type for {key}'}), 400
 
-        # Read existing headers
+        # Read current settings (vertical format: each row is a setting)
+        csv_rows = []
         with open(CAMERA_SETTINGS_FILE, 'r') as f:
             reader = csv.DictReader(f)
-            fieldnames = reader.fieldnames
+            for row in reader:
+                csv_rows.append(dict(row))
 
         # Sanitize values to prevent CSV injection (defense in depth)
         # Lazy import to avoid circular dependency with app.py
         from routes.config import _sanitize_csv_value
         sanitized_settings = {k: _sanitize_csv_value(v) for k, v in new_settings.items()}
 
-        # Write updated settings
+        # Update the corresponding rows
+        for setting_name, setting_value in sanitized_settings.items():
+            # Find and update the row for this setting
+            found = False
+            for row in csv_rows:
+                if row['SETTING'].strip() == setting_name:
+                    row['VALUE'] = str(setting_value)
+                    found = True
+                    break
+
+            # If setting doesn't exist, add a new row
+            if not found:
+                csv_rows.append({
+                    'SETTING': setting_name,
+                    'VALUE': str(setting_value),
+                    'DETAILS': ''
+                })
+
+        # Write back all settings in vertical format
         with open(CAMERA_SETTINGS_FILE, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer = csv.DictWriter(f, fieldnames=['SETTING', 'VALUE', 'DETAILS'])
             writer.writeheader()
-            writer.writerow(sanitized_settings)
+            writer.writerows(csv_rows)
 
         return jsonify({'success': True})
     except Exception as e:
