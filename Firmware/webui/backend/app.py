@@ -43,6 +43,12 @@ app.config.from_object(config)
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
 
+# Debug: Log CSRF configuration
+print(f"✓ CSRF Protection initialized")
+print(f"  WTF_CSRF_ENABLED: {app.config.get('WTF_CSRF_ENABLED')}")
+print(f"  WTF_CSRF_HEADERS: {app.config.get('WTF_CSRF_HEADERS')}")
+print(f"  SECRET_KEY set: {bool(app.config.get('SECRET_KEY'))}")
+
 # Initialize rate limiter to prevent hardware abuse
 # Uses remote address for rate limiting (single user device typically has same IP)
 limiter = Limiter(
@@ -135,6 +141,11 @@ def get_csrf_token():
 @app.errorhandler(CSRFError)
 def handle_csrf_error(e):
     """Handle CSRF validation errors"""
+    print(f"⚠️  CSRF validation failed: {e.description}")
+    print(f"   Request path: {request.path}")
+    print(f"   Request method: {request.method}")
+    print(f"   Request headers: {dict(request.headers)}")
+    print(f"   Request cookies: {list(request.cookies.keys())}")
     return jsonify({
         'error': 'CSRF validation failed',
         'message': str(e.description)
