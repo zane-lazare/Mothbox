@@ -139,10 +139,34 @@ def handle_csrf_error(e):
 # WebSocket event handlers
 @socketio.on('connect')
 def handle_connect():
-    """Handle client WebSocket connection"""
+    """Handle client WebSocket connection with origin validation"""
     from flask import request
+
+    # Validate Origin header to prevent cross-site WebSocket hijacking
+    # This protects against malicious websites attempting to control GPIO hardware
+    origin = request.headers.get('Origin')
+
+    if origin:
+        # Determine allowed origins based on configuration
+        if config.CORS_ORIGINS:
+            # Development/testing: use configured CORS origins
+            allowed_origins = config.CORS_ORIGINS
+        else:
+            # Production: enforce same-origin policy
+            # Build same-origin URL from request Host header
+            host = request.headers.get('Host')
+            scheme = 'https' if request.is_secure else 'http'
+            allowed_origins = [f"{scheme}://{host}"]
+
+        # Reject connection if origin is not in allowed list
+        if origin not in allowed_origins:
+            print(f"⚠ WebSocket connection rejected from unauthorized origin: {origin}")
+            print(f"  Allowed origins: {allowed_origins}")
+            return False  # Reject connection
+
+    # Origin validated (or no origin header - local connections like curl)
     client_ip = request.remote_addr
-    print(f'Client connected from {client_ip}')
+    print(f'✓ Client connected from {client_ip}')
     emit('connected', {'status': 'connected', 'message': 'Successfully connected to Mothbox'})
 
 @socketio.on('disconnect')

@@ -671,11 +671,16 @@ echo -e "${BLUE}Setting up configuration files...${NC}"
 # Config files are in the firmware-version-specific directory
 CONFIG_SOURCE="$SCRIPT_DIR/${FIRMWARE_VERSION}.x"
 
-# Copy config files from source
+# Copy config files from source with atomic permission setting
+# Use 'install' command to set ownership and permissions atomically
+# This prevents race conditions where files briefly have wrong permissions
 CONFIG_FILES=("controls.txt" "camera_settings.csv" "schedule_settings.csv" "wordlist.csv")
 for file in "${CONFIG_FILES[@]}"; do
     if [ -f "$CONFIG_SOURCE/$file" ]; then
-        sudo cp "$CONFIG_SOURCE/$file" "$CONFIG_DIR/"
+        # install command atomically copies and sets permissions
+        # -o: owner, -g: group, -m: mode (664 = rw-rw-r--)
+        sudo install -o $MOTHBOX_USER -g $MOTHBOX_USER -m 664 \
+            "$CONFIG_SOURCE/$file" "$CONFIG_DIR/$file"
         echo -e "${GREEN}  ✓ Copied $file${NC}"
     else
         echo -e "${YELLOW}  ⚠ Warning: $file not found in $CONFIG_SOURCE${NC}"
@@ -689,15 +694,6 @@ if [ -f "$CONFIG_DIR/controls.txt" ]; then
     echo -e "${GREEN}✓ Firmware version set to ${FIRMWARE_VERSION}.0.0${NC}"
 fi
 
-# Fix permissions for config files (created by sudo cp, owned by root)
-# These files need to be writable by user for auto-calibration, GPS updates, etc.
-for file in "${CONFIG_FILES[@]}"; do
-    if [ -f "$CONFIG_DIR/$file" ]; then
-        sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$CONFIG_DIR/$file"
-        sudo chmod 664 "$CONFIG_DIR/$file"
-    fi
-done
-
 echo -e "${GREEN}✓ Configuration files set up at $CONFIG_DIR${NC}"
 
 # Create installation type marker file for reliable detection
@@ -705,6 +701,24 @@ echo -e "${BLUE}Creating installation marker...${NC}"
 echo "$INSTALL_TYPE" | sudo tee "$MOTHBOX_HOME/.installation_type" > /dev/null
 sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$MOTHBOX_HOME/.installation_type"
 echo -e "${GREEN}✓ Installation type marked as '$INSTALL_TYPE'${NC}"
+
+# Helper function to atomically update controls.txt with file locking
+# Prevents race conditions when WebUI or firmware scripts access the file
+update_controls_atomic() {
+    local lockfile="${CONTROLS_FILE}.lock"
+
+    # Acquire exclusive lock (wait up to 10 seconds)
+    (
+        flock -x -w 10 200 || {
+            echo -e "${RED}✗ Failed to acquire lock on controls.txt${NC}"
+            return 1
+        }
+
+        # All updates happen atomically inside the lock
+        "$@"
+
+    ) 200>"$lockfile"
+}
 
 # Write GPIO configuration to controls.txt
 echo -e "${BLUE}Configuring GPIO pins...${NC}"
@@ -718,66 +732,74 @@ fi
 
 # Append GPIO configuration if not already present
 if ! grep -q "^Relay_Ch1=" "$CONTROLS_FILE" 2>/dev/null; then
-    echo "Relay_Ch1=$RELAY_CH1" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "Relay_Ch2=$RELAY_CH2" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "Relay_Ch3=$RELAY_CH3" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    update_controls_atomic sh -c "
+        echo 'Relay_Ch1=$RELAY_CH1' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'Relay_Ch2=$RELAY_CH2' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'Relay_Ch3=$RELAY_CH3' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+    "
     echo -e "${GREEN}✓ GPIO configuration written to controls.txt${NC}"
 else
-    # Update existing GPIO configuration
-    sudo sed -i "s/^Relay_Ch1=.*/Relay_Ch1=$RELAY_CH1/" "$CONTROLS_FILE"
-    sudo sed -i "s/^Relay_Ch2=.*/Relay_Ch2=$RELAY_CH2/" "$CONTROLS_FILE"
-    sudo sed -i "s/^Relay_Ch3=.*/Relay_Ch3=$RELAY_CH3/" "$CONTROLS_FILE"
+    # Update existing GPIO configuration with file locking
+    update_controls_atomic sh -c "
+        sudo sed -i 's/^Relay_Ch1=.*/Relay_Ch1=$RELAY_CH1/' '$CONTROLS_FILE'
+        sudo sed -i 's/^Relay_Ch2=.*/Relay_Ch2=$RELAY_CH2/' '$CONTROLS_FILE'
+        sudo sed -i 's/^Relay_Ch3=.*/Relay_Ch3=$RELAY_CH3/' '$CONTROLS_FILE'
+    "
     echo -e "${GREEN}✓ GPIO configuration updated in controls.txt${NC}"
 fi
 
 # Write hardware module configuration
 echo -e "${BLUE}Configuring hardware modules...${NC}"
 if ! grep -q "^relay_enabled=" "$CONTROLS_FILE" 2>/dev/null; then
-    echo "relay_enabled=$RELAY_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "ina260_enabled=$INA260_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "ina260_address=$INA260_ADDRESS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "epaper_enabled=$EPAPER_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "epaper_rst_pin=$EPAPER_RST" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "epaper_dc_pin=$EPAPER_DC" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "epaper_cs_pin=$EPAPER_CS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "epaper_busy_pin=$EPAPER_BUSY" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "epaper_pwr_pin=$EPAPER_PWR" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "gps_enabled=$GPS_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "gps_device=$GPS_DEVICE" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "gps_baudrate=$GPS_BAUDRATE" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "gps_timeout=$GPS_TIMEOUT" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "light_sensor_enabled=$LIGHT_SENSOR_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "light_sensor_type=$LIGHT_SENSOR_TYPE" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "light_sensor_address=$LIGHT_SENSOR_ADDRESS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "pca9536_enabled=$PCA9536_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "pca9536_address=$PCA9536_ADDRESS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "mux_enabled=$MUX_ENABLED" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "mux_type=$MUX_TYPE" | sudo tee -a "$CONTROLS_FILE" > /dev/null
-    echo "mux_address=$MUX_ADDRESS" | sudo tee -a "$CONTROLS_FILE" > /dev/null
+    update_controls_atomic sh -c "
+        echo 'relay_enabled=$RELAY_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'ina260_enabled=$INA260_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'ina260_address=$INA260_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'epaper_enabled=$EPAPER_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'epaper_rst_pin=$EPAPER_RST' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'epaper_dc_pin=$EPAPER_DC' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'epaper_cs_pin=$EPAPER_CS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'epaper_busy_pin=$EPAPER_BUSY' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'epaper_pwr_pin=$EPAPER_PWR' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'gps_enabled=$GPS_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'gps_device=$GPS_DEVICE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'gps_baudrate=$GPS_BAUDRATE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'gps_timeout=$GPS_TIMEOUT' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'light_sensor_enabled=$LIGHT_SENSOR_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'light_sensor_type=$LIGHT_SENSOR_TYPE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'light_sensor_address=$LIGHT_SENSOR_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'pca9536_enabled=$PCA9536_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'pca9536_address=$PCA9536_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'mux_enabled=$MUX_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'mux_type=$MUX_TYPE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+        echo 'mux_address=$MUX_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
+    "
     echo -e "${GREEN}✓ Hardware module configuration written to controls.txt${NC}"
 else
-    # Update existing hardware configuration
-    sudo sed -i "s/^relay_enabled=.*/relay_enabled=$RELAY_ENABLED/" "$CONTROLS_FILE"
-    sudo sed -i "s/^ina260_enabled=.*/ina260_enabled=$INA260_ENABLED/" "$CONTROLS_FILE"
-    sudo sed -i "s/^ina260_address=.*/ina260_address=$INA260_ADDRESS/" "$CONTROLS_FILE"
-    sudo sed -i "s/^epaper_enabled=.*/epaper_enabled=$EPAPER_ENABLED/" "$CONTROLS_FILE"
-    sudo sed -i "s/^epaper_rst_pin=.*/epaper_rst_pin=$EPAPER_RST/" "$CONTROLS_FILE"
-    sudo sed -i "s/^epaper_dc_pin=.*/epaper_dc_pin=$EPAPER_DC/" "$CONTROLS_FILE"
-    sudo sed -i "s/^epaper_cs_pin=.*/epaper_cs_pin=$EPAPER_CS/" "$CONTROLS_FILE"
-    sudo sed -i "s/^epaper_busy_pin=.*/epaper_busy_pin=$EPAPER_BUSY/" "$CONTROLS_FILE"
-    sudo sed -i "s/^epaper_pwr_pin=.*/epaper_pwr_pin=$EPAPER_PWR/" "$CONTROLS_FILE"
-    sudo sed -i "s/^gps_enabled=.*/gps_enabled=$GPS_ENABLED/" "$CONTROLS_FILE"
-    sudo sed -i "s|^gps_device=.*|gps_device=$GPS_DEVICE|" "$CONTROLS_FILE"
-    sudo sed -i "s/^gps_baudrate=.*/gps_baudrate=$GPS_BAUDRATE/" "$CONTROLS_FILE"
-    sudo sed -i "s/^gps_timeout=.*/gps_timeout=$GPS_TIMEOUT/" "$CONTROLS_FILE"
-    sudo sed -i "s/^light_sensor_enabled=.*/light_sensor_enabled=$LIGHT_SENSOR_ENABLED/" "$CONTROLS_FILE"
-    sudo sed -i "s/^light_sensor_type=.*/light_sensor_type=$LIGHT_SENSOR_TYPE/" "$CONTROLS_FILE"
-    sudo sed -i "s/^light_sensor_address=.*/light_sensor_address=$LIGHT_SENSOR_ADDRESS/" "$CONTROLS_FILE"
-    sudo sed -i "s/^pca9536_enabled=.*/pca9536_enabled=$PCA9536_ENABLED/" "$CONTROLS_FILE"
-    sudo sed -i "s/^pca9536_address=.*/pca9536_address=$PCA9536_ADDRESS/" "$CONTROLS_FILE"
-    sudo sed -i "s/^mux_enabled=.*/mux_enabled=$MUX_ENABLED/" "$CONTROLS_FILE"
-    sudo sed -i "s/^mux_type=.*/mux_type=$MUX_TYPE/" "$CONTROLS_FILE"
-    sudo sed -i "s/^mux_address=.*/mux_address=$MUX_ADDRESS/" "$CONTROLS_FILE"
+    # Update existing hardware configuration with file locking
+    update_controls_atomic sh -c "
+        sudo sed -i 's/^relay_enabled=.*/relay_enabled=$RELAY_ENABLED/' '$CONTROLS_FILE'
+        sudo sed -i 's/^ina260_enabled=.*/ina260_enabled=$INA260_ENABLED/' '$CONTROLS_FILE'
+        sudo sed -i 's/^ina260_address=.*/ina260_address=$INA260_ADDRESS/' '$CONTROLS_FILE'
+        sudo sed -i 's/^epaper_enabled=.*/epaper_enabled=$EPAPER_ENABLED/' '$CONTROLS_FILE'
+        sudo sed -i 's/^epaper_rst_pin=.*/epaper_rst_pin=$EPAPER_RST/' '$CONTROLS_FILE'
+        sudo sed -i 's/^epaper_dc_pin=.*/epaper_dc_pin=$EPAPER_DC/' '$CONTROLS_FILE'
+        sudo sed -i 's/^epaper_cs_pin=.*/epaper_cs_pin=$EPAPER_CS/' '$CONTROLS_FILE'
+        sudo sed -i 's/^epaper_busy_pin=.*/epaper_busy_pin=$EPAPER_BUSY/' '$CONTROLS_FILE'
+        sudo sed -i 's/^epaper_pwr_pin=.*/epaper_pwr_pin=$EPAPER_PWR/' '$CONTROLS_FILE'
+        sudo sed -i 's/^gps_enabled=.*/gps_enabled=$GPS_ENABLED/' '$CONTROLS_FILE'
+        sudo sed -i 's|^gps_device=.*|gps_device=$GPS_DEVICE|' '$CONTROLS_FILE'
+        sudo sed -i 's/^gps_baudrate=.*/gps_baudrate=$GPS_BAUDRATE/' '$CONTROLS_FILE'
+        sudo sed -i 's/^gps_timeout=.*/gps_timeout=$GPS_TIMEOUT/' '$CONTROLS_FILE'
+        sudo sed -i 's/^light_sensor_enabled=.*/light_sensor_enabled=$LIGHT_SENSOR_ENABLED/' '$CONTROLS_FILE'
+        sudo sed -i 's/^light_sensor_type=.*/light_sensor_type=$LIGHT_SENSOR_TYPE/' '$CONTROLS_FILE'
+        sudo sed -i 's/^light_sensor_address=.*/light_sensor_address=$LIGHT_SENSOR_ADDRESS/' '$CONTROLS_FILE'
+        sudo sed -i 's/^pca9536_enabled=.*/pca9536_enabled=$PCA9536_ENABLED/' '$CONTROLS_FILE'
+        sudo sed -i 's/^pca9536_address=.*/pca9536_address=$PCA9536_ADDRESS/' '$CONTROLS_FILE'
+        sudo sed -i 's/^mux_enabled=.*/mux_enabled=$MUX_ENABLED/' '$CONTROLS_FILE'
+        sudo sed -i 's/^mux_type=.*/mux_type=$MUX_TYPE/' '$CONTROLS_FILE'
+        sudo sed -i 's/^mux_address=.*/mux_address=$MUX_ADDRESS/' '$CONTROLS_FILE'
+    "
     echo -e "${GREEN}✓ Hardware module configuration updated in controls.txt${NC}"
 fi
 echo ""
