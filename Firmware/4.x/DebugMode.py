@@ -19,7 +19,6 @@ from mothbox_paths import (
 
 import subprocess
 import time
-import datetime
 from datetime import datetime
 import RPi.GPIO as GPIO
 
@@ -62,7 +61,12 @@ GPIO.setup(Relay_Ch3,GPIO.OUT)
 
 print("Setup The Relay Module is [success]")
 
+# Import get_control_values function to read controls.txt
+from mothbox_paths import get_control_values
 
+# Initialize onlyflash from controls.txt before using it
+control_values = get_control_values(str(CONTROLS_FILE))
+onlyflash = control_values.get("OnlyFlash", "False").lower() == "true"
 
 def AttractOn():
     GPIO.output(Relay_Ch3,GPIO.LOW)
