@@ -461,8 +461,8 @@ def copy_settings():
                     # Store original rows for writing back
                     csv_rows.append(dict(row))
                     # Build settings dict like TakePhoto.py does
-                    setting_name = row['SETTING']
-                    setting_value = row['VALUE']
+                    setting_name = row['SETTING'].strip()
+                    setting_value = row['VALUE'].strip()
                     capture_settings_dict[setting_name] = setting_value
 
             # Copy compatible settings
@@ -524,9 +524,11 @@ def copy_settings():
                 reader = csv.DictReader(f)
                 for row in reader:
                     # Build settings dict like TakePhoto.py does
-                    setting_name = row['SETTING']
-                    setting_value = row['VALUE']
+                    setting_name = row['SETTING'].strip()
+                    setting_value = row['VALUE'].strip()
                     capture_settings_dict[setting_name] = setting_value
+
+            print(f"Debug: capture_settings_dict keys: {list(capture_settings_dict.keys())}")
 
             # Read current preview settings
             from mothbox_paths import get_control_values
@@ -539,6 +541,7 @@ def copy_settings():
                 preview_settings = response.get_json()
 
             # Copy compatible settings
+            print(f"Debug: Looking for these capture keys: {[k for _, k, _ in compatible_mappings]}")
             for preview_key, capture_key, converter in compatible_mappings:
                 if capture_key in capture_settings_dict:
                     try:
