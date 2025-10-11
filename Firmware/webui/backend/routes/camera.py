@@ -422,7 +422,7 @@ def auto_calibrate():
 
             # Configure for calibration (higher res for accuracy)
             preview_config = picam2.create_preview_configuration(
-                main={'size': (1920*2, 1080*2)}
+                main={'size': (1920*2, 1080*2), 'format': 'BGR888'}  # BGR888 = true RGB order
             )
             picam2.configure(preview_config)
 
@@ -667,7 +667,7 @@ def test_capture():
             # Configure for full-resolution capture
             # Use maximum resolution for test captures
             capture_config = picam2.create_still_configuration(
-                main={"size": (9152, 6944)}  # Full 64MP resolution
+                main={"size": (9152, 6944), "format": "BGR888"}  # Full 64MP, BGR888 = true RGB order
             )
             picam2.configure(capture_config)
 
