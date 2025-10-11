@@ -283,29 +283,43 @@ def update_webui_settings():
     try:
         new_settings = request.json
 
-        # Validate stream/encoding settings
-        preview_width = int(new_settings.get('preview_width', 1024))
-        preview_height = int(new_settings.get('preview_height', 768))
-        frame_rate = int(new_settings.get('frame_rate', 10))
-        jpeg_quality = int(new_settings.get('jpeg_quality', 85))
+        # Validate and convert types - Stream/encoding settings
+        try:
+            preview_width = int(new_settings.get('preview_width', 1024))
+            preview_height = int(new_settings.get('preview_height', 768))
+            frame_rate = int(new_settings.get('frame_rate', 10))
+            jpeg_quality = int(new_settings.get('jpeg_quality', 85))
+        except (ValueError, TypeError) as e:
+            return jsonify({'error': f'Invalid stream setting type: {e}'}), 400
+
         stream_mode = new_settings.get('stream_mode', 'simplejpeg')
 
-        # Validate image quality controls (Phase 2.1)
-        sharpness = float(new_settings.get('sharpness', 1.0))
-        brightness = float(new_settings.get('brightness', 0.0))
-        contrast = float(new_settings.get('contrast', 1.0))
-        saturation = float(new_settings.get('saturation', 1.0))
+        # Validate and convert types - Image quality controls (Phase 2.1)
+        try:
+            sharpness = float(new_settings.get('sharpness', 1.0))
+            brightness = float(new_settings.get('brightness', 0.0))
+            contrast = float(new_settings.get('contrast', 1.0))
+            saturation = float(new_settings.get('saturation', 1.0))
+        except (ValueError, TypeError) as e:
+            return jsonify({'error': f'Invalid image quality setting type: {e}'}), 400
 
-        # Validate focus controls (Phase 2.1)
-        af_mode = int(new_settings.get('af_mode', 2))
-        af_speed = int(new_settings.get('af_speed', 0))
-        af_range = int(new_settings.get('af_range', 0))
+        # Validate and convert types - Focus controls (Phase 2.1)
+        try:
+            af_mode = int(new_settings.get('af_mode', 2))
+            af_speed = int(new_settings.get('af_speed', 0))
+            af_range = int(new_settings.get('af_range', 0))
+        except (ValueError, TypeError) as e:
+            return jsonify({'error': f'Invalid focus control type: {e}'}), 400
 
-        # Validate white balance controls (Phase 2.1)
+        # Validate and convert types - White balance controls (Phase 2.1)
         awb_enable = new_settings.get('awb_enable', True)
         if isinstance(awb_enable, str):
             awb_enable = awb_enable.lower() == 'true'
-        awb_mode = int(new_settings.get('awb_mode', 0))
+
+        try:
+            awb_mode = int(new_settings.get('awb_mode', 0))
+        except (ValueError, TypeError) as e:
+            return jsonify({'error': f'Invalid white balance mode type: {e}'}), 400
 
         # Validate ranges - Stream/encoding
         if not (320 <= preview_width <= 1920):
