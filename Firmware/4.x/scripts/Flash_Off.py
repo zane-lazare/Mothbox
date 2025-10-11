@@ -2,13 +2,18 @@
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CAMERA_SETTINGS_FILE, CONTROLS_FILE, get_gpio_pins
+from mothbox_paths import (
+    MOTHBOX_HOME,
+    PHOTOS_DIR,
+    CAMERA_SETTINGS_FILE,
+    CONTROLS_FILE,
+    get_gpio_pins
+)
 
-#GPIO
-import RPi.GPIO as GPIO
 import time
 import datetime
 from datetime import datetime
+import RPi.GPIO as GPIO
 
 print("----------------- STARTING Scheduler!-------------------")
 now = datetime.now()

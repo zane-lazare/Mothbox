@@ -541,11 +541,25 @@ else
             *) GPS_DEVICE="/dev/ttyAMA0" ;;
         esac
 
-        read -p "  GPS baud rate [9600]: " GPS_BAUDRATE
-        GPS_BAUDRATE=${GPS_BAUDRATE:-9600}
+        # GPS baud rate with validation
+        while true; do
+            read -p "  GPS baud rate [9600]: " GPS_BAUDRATE
+            GPS_BAUDRATE=${GPS_BAUDRATE:-9600}
+            if validate_positive_integer "$GPS_BAUDRATE" 115200; then
+                break
+            fi
+            echo -e "${RED}    Invalid input. Please try again.${NC}"
+        done
 
-        read -p "  GPS timeout (seconds) [10]: " GPS_TIMEOUT
-        GPS_TIMEOUT=${GPS_TIMEOUT:-10}
+        # GPS timeout with validation
+        while true; do
+            read -p "  GPS timeout (seconds) [10]: " GPS_TIMEOUT
+            GPS_TIMEOUT=${GPS_TIMEOUT:-10}
+            if validate_positive_integer "$GPS_TIMEOUT" 300; then
+                break
+            fi
+            echo -e "${RED}    Invalid input. Please try again.${NC}"
+        done
 
         echo -e "${GREEN}  ✓ GPS enabled: $GPS_DEVICE @ $GPS_BAUDRATE baud${NC}"
     else
@@ -637,8 +651,14 @@ else
         case $MUX_TYPE_CHOICE in
             1)
                 MUX_TYPE="i2c"
-                read -p "  I2C address [0x20]: " MUX_ADDRESS
-                MUX_ADDRESS=${MUX_ADDRESS:-0x20}
+                while true; do
+                    read -p "  I2C address [0x20]: " MUX_ADDRESS
+                    MUX_ADDRESS=${MUX_ADDRESS:-0x20}
+                    if validate_i2c_address "$MUX_ADDRESS"; then
+                        break
+                    fi
+                    echo -e "${RED}    Invalid input. Please try again.${NC}"
+                done
                 echo -e "${GREEN}  ✓ Multiplexer enabled: I2C at $MUX_ADDRESS${NC}"
                 ;;
             2)

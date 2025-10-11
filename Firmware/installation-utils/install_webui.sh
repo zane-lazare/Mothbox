@@ -152,6 +152,16 @@ SERVICE_TEMPLATE="$SCRIPT_DIR/mothbox-webui.service.template"
 if [ ! -f "$SERVICE_TEMPLATE" ]; then
     echo -e "${YELLOW}Warning: mothbox-webui.service.template not found, skipping service installation${NC}"
 else
+    # Validate systemd template variables to prevent injection
+    if [[ "$MOTHBOX_HOME" =~ [;$\`\(\)\|&<>\n] ]]; then
+        echo -e "${RED}Error: MOTHBOX_HOME contains invalid characters${NC}"
+        exit 1
+    fi
+    if [[ "$MOTHBOX_USER" =~ [;$\`\(\)\|&<>\n] ]]; then
+        echo -e "${RED}Error: MOTHBOX_USER contains invalid characters${NC}"
+        exit 1
+    fi
+
     # Generate service file from template with actual values
     echo "Generating service file from template..."
     # Use mktemp for secure temporary file creation (prevents TOCTOU race conditions)

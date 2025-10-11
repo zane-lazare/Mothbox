@@ -11,16 +11,17 @@ This is a special script to debug mothboxes with which will
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import CONTROLS_FILE, get_script_path, get_gpio_pins
+from mothbox_paths import (
+    CONTROLS_FILE,
+    get_script_path,
+    get_gpio_pins
+)
 
 import subprocess
-
-
-#GPIO
-import RPi.GPIO as GPIO
 import time
 import datetime
 from datetime import datetime
+import RPi.GPIO as GPIO
 
 
 
