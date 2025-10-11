@@ -173,8 +173,13 @@ def handle_connect():
             scheme = 'https' if request.is_secure else 'http'
             allowed_origins = [f"{scheme}://{host}"]
 
-        # Reject connection if origin is not in allowed list
-        if origin not in allowed_origins:
+        # Check if origin is allowed
+        # Special case: '*' means allow all origins (wildcard)
+        if allowed_origins == '*':
+            # Wildcard: allow any origin
+            pass
+        elif origin not in allowed_origins:
+            # Not in allowed list: reject connection
             print(f"⚠ WebSocket connection rejected from unauthorized origin: {origin}")
             print(f"  Allowed origins: {allowed_origins}")
             return False  # Reject connection
