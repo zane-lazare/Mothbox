@@ -449,15 +449,21 @@ def copy_settings():
 
             preview_settings = get_control_values(WEBUI_SETTINGS_FILE)
 
-            # Read current capture settings
+            # Read current capture settings (row-based CSV format)
+            # Format: SETTING,VALUE,DETAILS
             import csv
-            capture_settings = {}
+            csv_rows = []
+            capture_settings_dict = {}
+
             with open(CAMERA_SETTINGS_FILE, 'r') as f:
                 reader = csv.DictReader(f)
-                fieldnames = reader.fieldnames
                 for row in reader:
-                    capture_settings = row
-                    break
+                    # Store original rows for writing back
+                    csv_rows.append(dict(row))
+                    # Build settings dict like TakePhoto.py does
+                    setting_name = row['SETTING']
+                    setting_value = row['VALUE']
+                    capture_settings_dict[setting_name] = setting_value
 
             # Copy compatible settings
             for preview_key, capture_key, converter in compatible_mappings:
@@ -481,7 +487,15 @@ def copy_settings():
                         from routes.camera import ALLOWED_CAMERA_SETTINGS
                         if capture_key in ALLOWED_CAMERA_SETTINGS:
                             if ALLOWED_CAMERA_SETTINGS[capture_key](capture_value):
-                                capture_settings[capture_key] = capture_value
+                                # Update the settings dict
+                                capture_settings_dict[capture_key] = capture_value
+
+                                # Update the corresponding row
+                                for row in csv_rows:
+                                    if row['SETTING'] == capture_key:
+                                        row['VALUE'] = str(capture_value)
+                                        break
+
                                 copied.append(f"{preview_key} → {capture_key}")
                             else:
                                 skipped.append(f"{preview_key} (validation failed)")
@@ -493,23 +507,26 @@ def copy_settings():
                 else:
                     skipped.append(f"{preview_key} (not set in preview)")
 
-            # Write updated capture settings
+            # Write updated capture settings back in row format
             with open(CAMERA_SETTINGS_FILE, 'w', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer = csv.DictWriter(f, fieldnames=['SETTING', 'VALUE', 'DETAILS'])
                 writer.writeheader()
-                writer.writerow(capture_settings)
+                writer.writerows(csv_rows)
 
             print(f"Copied {len(copied)} settings to capture: {copied}")
 
         elif direction == 'capture_to_preview':
-            # Read capture settings
+            # Read capture settings (row-based CSV format)
+            # Format: SETTING,VALUE,DETAILS
             import csv
-            capture_settings = {}
+            capture_settings_dict = {}
             with open(CAMERA_SETTINGS_FILE, 'r') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    capture_settings = row
-                    break
+                    # Build settings dict like TakePhoto.py does
+                    setting_name = row['SETTING']
+                    setting_value = row['VALUE']
+                    capture_settings_dict[setting_name] = setting_value
 
             # Read current preview settings
             from mothbox_paths import get_control_values
@@ -523,9 +540,9 @@ def copy_settings():
 
             # Copy compatible settings
             for preview_key, capture_key, converter in compatible_mappings:
-                if capture_key in capture_settings:
+                if capture_key in capture_settings_dict:
                     try:
-                        capture_value = capture_settings[capture_key]
+                        capture_value = capture_settings_dict[capture_key]
 
                         # Convert to preview type
                         if preview_key in ['sharpness', 'brightness', 'contrast', 'saturation']:
