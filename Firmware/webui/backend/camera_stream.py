@@ -214,6 +214,27 @@ class CameraStreamer:
                 # Camera may already be stopped, which is fine
                 print(f"Note: Error stopping camera (already stopped?): {e}")
 
+    def release_camera(self):
+        """
+        Temporarily release camera hardware for external use.
+
+        This fully closes the camera, releasing the hardware lock so other
+        code can create a new Picamera2 instance (e.g., for autofocus/calibration).
+
+        Call start_streaming() afterward to re-initialize and resume streaming.
+        """
+        print("Releasing camera hardware...")
+        self.stop_streaming()
+
+        if self.camera:
+            try:
+                self.camera.close()
+                print("✓ Camera hardware released")
+            except Exception as e:
+                print(f"Warning: Error closing camera: {e}")
+            finally:
+                self.camera = None
+
     def _stream_loop(self):
         """Main streaming loop - captures and emits frames"""
         try:

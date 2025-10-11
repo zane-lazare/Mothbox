@@ -222,14 +222,14 @@ def trigger_autofocus():
 
         print("Autofocus requested via API")
 
-        # Stop camera stream if active (prevents resource conflict)
+        # Release camera hardware if stream active (prevents resource conflict)
         camera_streamer = current_app.config.get('CAMERA_STREAMER')
         was_streaming = False
         if camera_streamer and camera_streamer.streaming:
-            print("Stopping camera stream before autofocus...")
-            camera_streamer.stop_streaming()
+            print("Releasing camera hardware before autofocus...")
+            camera_streamer.release_camera()
             was_streaming = True
-            time.sleep(0.5)  # Let camera release resources
+            time.sleep(0.5)  # Let camera fully release
 
         # Initialize camera for autofocus
         picam2 = None
@@ -380,14 +380,14 @@ def auto_calibrate():
 
         print(f"Auto-calibration requested via API (apply_to={apply_to})")
 
-        # Stop camera stream if active (prevents resource conflict)
+        # Release camera hardware if stream active (prevents resource conflict)
         camera_streamer = current_app.config.get('CAMERA_STREAMER')
         was_streaming = False
         if camera_streamer and camera_streamer.streaming:
-            print("Stopping camera stream before calibration...")
-            camera_streamer.stop_streaming()
+            print("Releasing camera hardware before calibration...")
+            camera_streamer.release_camera()
             was_streaming = True
-            time.sleep(0.5)  # Let camera release resources
+            time.sleep(0.5)  # Let camera fully release
 
         # Read current settings for "before" snapshot
         current_settings = {}
