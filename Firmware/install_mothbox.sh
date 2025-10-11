@@ -643,10 +643,24 @@ else
 fi
 
 # Validate selected firmware version exists
-if [ ! -d "$SCRIPT_DIR/${FIRMWARE_VERSION}.x" ]; then
-    echo -e "${RED}✗ Error: Selected firmware version ${FIRMWARE_VERSION}.x not found in $SCRIPT_DIR${NC}"
+SELECTED_FIRMWARE="${FIRMWARE_VERSION}.x"
+if [ ! -d "$SCRIPT_DIR/$SELECTED_FIRMWARE" ]; then
+    echo -e "${RED}✗ Error: Firmware version $SELECTED_FIRMWARE not found in $SCRIPT_DIR${NC}"
+    echo -e "${RED}   Available firmware versions:${NC}"
+    ls -d "$SCRIPT_DIR"/*.x 2>/dev/null | xargs -n1 basename || echo "  None found"
     exit 1
 fi
+echo -e "${GREEN}✓ Firmware version $SELECTED_FIRMWARE validated${NC}"
+
+# Verify critical firmware files exist
+CRITICAL_FILES=("TakePhoto.py" "controls.txt" "Scheduler.py")
+for file in "${CRITICAL_FILES[@]}"; do
+    if [ ! -f "$SCRIPT_DIR/$SELECTED_FIRMWARE/$file" ]; then
+        echo -e "${RED}✗ Error: Critical file missing: $SELECTED_FIRMWARE/$file${NC}"
+        exit 1
+    fi
+done
+echo -e "${GREEN}✓ All critical firmware files present${NC}"
 
 # Use rsync if available for better control, fallback to cp
 if command -v rsync &> /dev/null; then
