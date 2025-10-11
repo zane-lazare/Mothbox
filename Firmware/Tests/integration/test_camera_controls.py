@@ -10,38 +10,17 @@ These tests interact with actual picamera2 hardware and verify
 end-to-end functionality of Phase 2.2 interactive features.
 
 Run with: pytest Tests/integration/test_camera_controls.py -v -s
+
+Note: This module uses shared fixtures from Tests/conftest.py:
+- app: Flask app with CAMERA_STREAMER registered
+- client: Flask test client
 """
 
 import pytest
-import sys
 import time
-from pathlib import Path
 
-# Setup path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
-
-from routes.camera import camera_bp
-from routes.config import config_bp
-from flask import Flask
-
-
-@pytest.fixture(scope='module')
-def app():
-    """Create Flask test app with camera and config routes"""
-    app = Flask(__name__)
-    app.config['TESTING'] = True
-    app.config['WTF_CSRF_ENABLED'] = False  # Disable CSRF for testing
-
-    app.register_blueprint(camera_bp, url_prefix='/camera')
-    app.register_blueprint(config_bp, url_prefix='/config')
-
-    return app
-
-
-@pytest.fixture(scope='module')
-def client(app):
-    """Create test client"""
-    return app.test_client()
+# Fixtures (app, client) are provided by conftest.py
+# No need to define them here!
 
 
 class TestAutofocusEndpoint:

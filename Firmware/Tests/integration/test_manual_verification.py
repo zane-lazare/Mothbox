@@ -603,6 +603,19 @@ class TestIntegrationChecklist:
         print("   [ ] Quick Actions buttons")
         print("   [ ] Settings Transfer section")
         print("   [ ] All interactive features work")
+        print("\nPhase 3 - Frontend Integration (THIS PHASE):")
+        print("   [ ] Camera page controls update preview settings via API")
+        print("   [ ] Autofocus button triggers backend correctly")
+        print("   [ ] Calibration button works with checkbox options")
+        print("   [ ] Test capture button creates photos")
+        print("   [ ] Copy preview → capture button works")
+        print("   [ ] Copy capture → preview button works")
+        print("   [ ] Real-time metadata updates during preview")
+        print("   [ ] Settings synchronization UI feedback works")
+        print("   [ ] Error messages display correctly")
+        print("   [ ] Button states (enabled/disabled) correct")
+        print("   [ ] Loading indicators show during operations")
+        print("   [ ] Success/error notifications appear")
         print("\nOverall Performance:")
         print("   [ ] Lag < 500ms")
         print("   [ ] 10 FPS sustained")
@@ -613,3 +626,178 @@ class TestIntegrationChecklist:
         print("   [ ] No backend errors")
 
         assert False, "Complete checklist verification"
+
+
+class TestPhase3ManualVerification:
+    """Phase 3 manual verification tests (Frontend Integration)"""
+
+    @pytest.mark.skip(reason="Manual verification required")
+    def test_phase3_ui_interaction_verification(self):
+        """
+        Phase 3: Frontend Integration UI Interaction Verification
+
+        This test requires manual interaction with the web interface to verify
+        that all UI components properly integrate with backend features.
+
+        Steps:
+        1. Start the WebUI: python3 webui/backend/app.py
+        2. Open browser: http://pi-ip:5000
+        3. Complete verification steps below
+
+        ======================================================================
+        CAMERA PAGE VERIFICATION
+        ======================================================================
+
+        Test Capture Button:
+        [ ] 1. Go to Camera page
+        [ ] 2. Click "Test Capture" button
+        [ ] 3. Verify button shows loading state
+        [ ] 4. Verify success notification appears
+        [ ] 5. Verify photo path displayed
+        [ ] 6. Verify metadata shown (exposure, gain, focus)
+        [ ] 7. Verify test photo saved to /photos/test_captures/
+
+        Autofocus Button:
+        [ ] 8. Click "Autofocus" button
+        [ ] 9. Verify button disabled during operation
+        [ ] 10. Verify progress indicator shows
+        [ ] 11. Verify completion notification (< 5 seconds)
+        [ ] 12. Verify lens position displayed
+        [ ] 13. Verify focus state shown (Success/Fail)
+
+        Calibration Button:
+        [ ] 14. Check "Update Capture Settings" checkbox
+        [ ] 15. Click "Calibrate" button
+        [ ] 16. Verify button disabled during operation
+        [ ] 17. Verify progress indicator shows
+        [ ] 18. Verify completion notification (< 10 seconds)
+        [ ] 19. Verify optimized settings displayed
+
+        Calibration with Both Options:
+        [ ] 20. Check both "Update Capture" and "Update Preview" checkboxes
+        [ ] 21. Click "Calibrate" button
+        [ ] 22. Verify both settings updated
+        [ ] 23. Verify preview stream reflects new settings
+
+        Real-time Metadata Display:
+        [ ] 24. Start camera preview
+        [ ] 25. Verify metadata panel shows live values
+        [ ] 26. Verify exposure time updates
+        [ ] 27. Verify analogue gain updates
+        [ ] 28. Verify lens position updates
+        [ ] 29. Verify color temperature updates
+        [ ] 30. Verify frame rate shown
+
+        ======================================================================
+        SETTINGS PAGE VERIFICATION
+        ======================================================================
+
+        Copy Preview → Capture:
+        [ ] 31. Go to Settings page
+        [ ] 32. Adjust Stream Settings (sharpness, brightness, contrast)
+        [ ] 33. Click "Copy to Capture Settings" button
+        [ ] 34. Verify confirmation dialog appears
+        [ ] 35. Confirm copy operation
+        [ ] 36. Verify success notification
+        [ ] 37. Verify Camera Settings tab reflects changes
+        [ ] 38. Verify only compatible settings copied
+
+        Copy Capture → Preview:
+        [ ] 39. Adjust Camera Settings (exposure, gain)
+        [ ] 40. Click "Copy to Preview Settings" button
+        [ ] 41. Verify confirmation dialog appears
+        [ ] 42. Confirm copy operation
+        [ ] 43. Verify success notification
+        [ ] 44. Verify Stream Settings tab reflects changes
+
+        Settings Synchronization:
+        [ ] 45. Change a preview setting (e.g., sharpness = 3.0)
+        [ ] 46. Verify preview stream updates immediately
+        [ ] 47. Copy to capture settings
+        [ ] 48. Take a production photo (Capture Photo button)
+        [ ] 49. Verify captured photo uses new settings
+
+        ======================================================================
+        END-TO-END WORKFLOW VERIFICATION
+        ======================================================================
+
+        Complete Settings Adjustment Workflow:
+        [ ] 50. Start with default settings
+        [ ] 51. Adjust preview settings for better image quality
+        [ ] 52. Test capture to preview results
+        [ ] 53. Review test photo quality
+        [ ] 54. If satisfied, copy to production settings
+        [ ] 55. Take production photo to verify
+        [ ] 56. Verify production photo matches test capture quality
+
+        Complete Calibration Workflow:
+        [ ] 57. Click Autofocus button (Camera page)
+        [ ] 58. Wait for autofocus completion
+        [ ] 59. Click Calibrate button with "Update Capture" checked
+        [ ] 60. Wait for calibration completion
+        [ ] 61. Verify optimized settings displayed
+        [ ] 62. Take test capture to verify calibration
+        [ ] 63. Verify image quality improved
+
+        ======================================================================
+        ERROR HANDLING VERIFICATION
+        ======================================================================
+
+        Camera Busy Handling:
+        [ ] 64. Start camera preview
+        [ ] 65. Immediately click Test Capture (while preview active)
+        [ ] 66. Verify graceful error message (not crash)
+        [ ] 67. Verify preview continues after error
+
+        Invalid Settings Handling:
+        [ ] 68. Try to set sharpness = 100 (out of range)
+        [ ] 69. Verify error message displayed
+        [ ] 70. Verify settings not applied
+        [ ] 71. Verify UI shows validation error
+
+        Network Error Handling:
+        [ ] 72. Disconnect network briefly
+        [ ] 73. Try to trigger autofocus
+        [ ] 74. Verify network error displayed
+        [ ] 75. Reconnect network
+        [ ] 76. Verify operation retryable
+
+        ======================================================================
+        UI STATE MANAGEMENT
+        ======================================================================
+
+        Button States:
+        [ ] 77. Verify Test Capture button disabled when no camera
+        [ ] 78. Verify Autofocus button disabled during operation
+        [ ] 79. Verify Calibrate button disabled during operation
+        [ ] 80. Verify Copy buttons enabled when settings valid
+
+        Loading Indicators:
+        [ ] 81. Verify spinner shows during autofocus
+        [ ] 82. Verify spinner shows during calibration
+        [ ] 83. Verify spinner shows during test capture
+        [ ] 84. Verify spinner shows during settings copy
+
+        Notifications:
+        [ ] 85. Verify success toast for completed operations
+        [ ] 86. Verify error toast for failed operations
+        [ ] 87. Verify warning toast for camera busy
+        [ ] 88. Verify notifications auto-dismiss after 5s
+
+        ======================================================================
+        SUCCESS CRITERIA
+        ======================================================================
+
+        [ ] All 88 verification steps completed
+        [ ] No browser console errors
+        [ ] No Python backend errors
+        [ ] UI responsive and intuitive
+        [ ] All buttons work as expected
+        [ ] All feedback mechanisms working
+        [ ] Error handling graceful
+        [ ] State management correct
+        [ ] Ready for user testing
+        """
+        print("\n📋 Phase 3 Frontend Integration Manual Verification")
+        print("\nThis requires browser interaction. See test docstring for checklist.")
+        assert False, "Complete Phase 3 manual verification checklist"

@@ -224,17 +224,99 @@ pytest Tests/ --cov=webui/backend --cov-report=html
 # View in browser: htmlcov/index.html
 ```
 
+## Test Infrastructure
+
+### Shared Fixtures (conftest.py)
+
+The test suite uses shared pytest fixtures defined in `Tests/conftest.py`:
+
+- **`camera_streamer`**: Module-scoped CameraStreamer instance with automatic cleanup
+- **`camera_streamer_func`**: Function-scoped CameraStreamer for test isolation
+- **`app`**: Flask app with CAMERA_STREAMER registered in app.config
+- **`client`**: Flask test client for API testing
+
+### Pytest Markers
+
+- **`@pytest.mark.hardware`**: Marks tests requiring real Raspberry Pi hardware
+  - Automatically applied to integration tests
+  - Skipped if not running on Pi or camera unavailable
+
+### Test Structure Update
+
+```
+Tests/
+├── __init__.py
+├── conftest.py                  # ← NEW: Shared fixtures
+├── README.md                    # This file
+├── requirements-test.txt
+├── IMPLEMENTATION_SUMMARY.md    # Phase 1.1-1.3 summary
+├── PHASE3_SUMMARY.md           # ← NEW: Phase 3 summary
+├── unit/
+│   ├── test_camera_stream.py
+│   ├── test_config_validation.py
+│   ├── test_preview_controls.py
+│   ├── test_capture_settings.py
+│   ├── test_test_capture.py
+│   └── test_settings_copy.py   # ← NEW: Phase 3
+└── integration/
+    ├── test_stream_performance.py
+    ├── test_camera_controls.py
+    ├── test_image_quality.py
+    ├── test_frontend_integration.py  # ← NEW: Phase 3
+    └── test_manual_verification.py   # Updated with Phase 3
+```
+
+## Phase 3: Frontend Integration Tests
+
+New test modules for Phase 3:
+
+### Integration Tests
+
+**`test_frontend_integration.py`** - UI/Backend integration:
+- Camera page controls update preview settings
+- Interactive buttons (Autofocus, Calibrate, Test Capture)
+- Settings copy functionality end-to-end
+- Real-time metadata display
+- Error handling and user feedback
+- Complete workflow testing
+
+### Unit Tests
+
+**`test_settings_copy.py`** - Settings copy logic:
+- Copy preview → capture settings
+- Copy capture → preview settings
+- Compatible vs incompatible settings
+- Validation and error handling
+- File operations and backups
+
+### Running Phase 3 Tests
+
+```bash
+# Run all Phase 3 tests
+./Tests/run_tests.sh phase3
+
+# Or directly with pytest
+pytest Tests/integration/test_frontend_integration.py Tests/unit/test_settings_copy.py -v -s
+
+# Run manual Phase 3 verification
+pytest Tests/integration/test_manual_verification.py::TestPhase3ManualVerification -v -s
+```
+
 ## Next Steps
 
-After Phase 1.1-1.3 completion:
-- **Phase 2**: Expand camera controls (sharpness, brightness, contrast, etc.)
-- **Phase 3**: Frontend UI enhancements
-- **Phase 4**: Advanced features (autofocus, calibration, presets)
+Completed Phases:
+- **Phase 1.1-1.3**: ✅ Camera stream performance optimizations
+- **Phase 2.1**: ✅ Expanded camera controls
+- **Phase 2.2**: ✅ Interactive features (autofocus, calibration, metadata)
+- **Phase 3**: ✅ Frontend integration tests
+
+Future Phases:
+- **Phase 4**: Advanced features (HDR, presets, profiles)
 
 See [GitHub Issue #43](https://github.com/user/repo/issues/43) for full implementation plan.
 
 ---
 
-**Last Updated**: 2025-01-11
-**Test Suite Version**: 1.0.0
+**Last Updated**: 2025-10-12
+**Test Suite Version**: 2.0.0 (Phase 3 Complete)
 **Mothbox Version**: 5.x

@@ -70,13 +70,21 @@ case "$TEST_TYPE" in
         ;;
 
     "phase2")
-        # Phase 2: Full test suite (when interactive tests exist)
+        # Phase 2: Full test suite
         echo "🚀 Running Phase 2 complete test suite..."
         echo ""
         echo "Phase 2.1: Testing controls validation..."
         pytest Tests/unit/test_preview_controls.py Tests/unit/test_capture_settings.py -v -s
         echo ""
-        echo "Note: Phase 2.2+ tests (interactive features) not yet implemented"
+        echo "Phase 2.2: Testing interactive features..."
+        pytest Tests/integration/test_camera_controls.py Tests/integration/test_image_quality.py -v -s
+        ;;
+
+    "phase3"|"frontend")
+        # Phase 3: Frontend integration tests
+        echo "🚀 Running Phase 3 frontend integration tests..."
+        echo ""
+        pytest Tests/integration/test_frontend_integration.py Tests/unit/test_settings_copy.py -v -s
         ;;
 
     "phase4"|"testcapture")
@@ -107,6 +115,8 @@ case "$TEST_TYPE" in
         echo "  integration   - Run integration/performance tests"
         echo "  controls      - Test Phase 2 camera controls validation"
         echo "  phase2        - Run Phase 2 complete test suite"
+        echo "  phase3        - Run Phase 3 frontend integration tests"
+        echo "  frontend      - Same as phase3"
         echo "  phase4        - Test Phase 4.5 test capture endpoint"
         echo "  testcapture   - Same as phase4"
         echo "  all           - Run full automated test suite (default)"
@@ -119,6 +129,7 @@ case "$TEST_TYPE" in
         echo "  ./run_tests.sh unit         # Unit tests only"
         echo "  ./run_tests.sh controls     # Phase 2 controls validation"
         echo "  ./run_tests.sh phase2       # Full Phase 2 test suite"
+        echo "  ./run_tests.sh phase3       # Frontend integration tests"
         echo "  ./run_tests.sh phase4       # Test capture endpoint"
         echo "  ./run_tests.sh manual       # Show manual test steps"
         exit 0

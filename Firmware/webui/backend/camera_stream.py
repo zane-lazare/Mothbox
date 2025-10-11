@@ -284,6 +284,65 @@ class CameraStreamer:
                     # Camera may already be stopped, which is fine
                     print(f"Note: Error stopping camera in stream cleanup: {e}")
 
+    def capture_frame(self):
+        """
+        Capture a single frame for testing purposes (Test utility method)
+
+        This method is used by automated tests to capture and analyze image quality
+        metrics (sharpness, contrast, brightness). It's NOT for production use.
+
+        Returns:
+            bytes: JPEG-encoded image data
+
+        Raises:
+            RuntimeError: If camera initialization fails
+
+        Note:
+            - Camera must be initialized first (call initialize_camera())
+            - Returns raw JPEG bytes, not base64 encoded
+            - Uses same quality/encoding as streaming
+        """
+        if not self.camera:
+            raise RuntimeError("Camera not initialized. Call initialize_camera() first.")
+
+        try:
+            # Start camera if not already started
+            was_started = False
+            try:
+                self.camera.start()
+                was_started = True
+            except RuntimeError:
+                # Camera already started, that's fine
+                pass
+
+            # Capture single frame
+            frame = self.camera.capture_array()
+
+            # Encode as JPEG using same method as streaming
+            if SIMPLEJPEG_AVAILABLE:
+                jpeg_bytes = simplejpeg.encode_jpeg(
+                    frame,
+                    quality=self.jpeg_quality,
+                    colorspace='RGB'
+                )
+            else:
+                # Fallback to PIL
+                img = Image.fromarray(frame)
+                buffer = io.BytesIO()
+                img.save(buffer, format='JPEG', quality=self.jpeg_quality)
+                buffer.seek(0)
+                jpeg_bytes = buffer.read()
+
+            # Stop camera if we started it
+            if was_started:
+                self.camera.stop()
+
+            return jpeg_bytes
+
+        except Exception as e:
+            print(f"Error capturing frame: {e}")
+            raise
+
     def update_control(self, control_dict):
         """
         Update camera control(s) without restarting stream (Phase 2.1)

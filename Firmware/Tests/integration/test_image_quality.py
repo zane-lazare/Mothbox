@@ -9,52 +9,20 @@ Tests that Phase 2 camera controls actually affect image quality:
 These tests capture actual images and analyze quality metrics.
 
 Run with: pytest Tests/integration/test_image_quality.py -v -s
+
+Note: This module uses shared fixtures from Tests/conftest.py:
+- app: Flask app with routes registered
+- client: Flask test client
+- camera_streamer: Module-scoped camera streamer with proper cleanup
 """
 
 import pytest
-import sys
 import time
 import numpy as np
-from pathlib import Path
 from PIL import Image
 import io
 
-# Setup path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
-
-from camera_stream import CameraStreamer
-from routes.config import config_bp
-from flask import Flask
-
-
-@pytest.fixture(scope='module')
-def app():
-    """Create Flask test app"""
-    app = Flask(__name__)
-    app.config['TESTING'] = True
-    app.config['WTF_CSRF_ENABLED'] = False
-
-    app.register_blueprint(config_bp, url_prefix='/config')
-
-    return app
-
-
-@pytest.fixture(scope='module')
-def client(app):
-    """Create test client"""
-    return app.test_client()
-
-
-@pytest.fixture(scope='function')
-def camera_streamer():
-    """Create camera streamer for testing (mock SocketIO)"""
-    class MockSocketIO:
-        def emit(self, event, data, **kwargs):
-            pass
-
-    streamer = CameraStreamer(MockSocketIO())
-    yield streamer
-    streamer.cleanup()
+# Fixtures (app, client, camera_streamer) are provided by conftest.py
 
 
 def analyze_image_sharpness(image_bytes):
