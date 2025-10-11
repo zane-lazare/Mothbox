@@ -151,8 +151,12 @@ def get_control_values(filepath):
     with open(filepath, "r") as file:
         for line in file:
             line = line.strip()
-            # Skip empty lines and lines without '=' to prevent crashes
-            if not line or '=' not in line:
+            # Skip empty lines silently
+            if not line:
+                continue
+            # Log warning for malformed lines (helps troubleshooting)
+            if '=' not in line:
+                print(f"WARNING: Skipping malformed line in {filepath}: '{line}'")
                 continue
             key, value = line.split("=", 1)  # maxsplit=1 to handle values with '=' chars
             control_values[key] = value
@@ -686,7 +690,14 @@ print("Desktop Available Storage: \t" + str(desktop_available))
 x=extra_photo_storage_minimum
 
 if desktop_available < x * 1024**3:  # x GB in bytes
-    print("not enough space to take more photos")
+    print("=" * 60)
+    print("ERROR: Insufficient storage space")
+    print("=" * 60)
+    print(f"Required minimum: {x} GB")
+    print(f"Available space:  {desktop_available / (1024**3):.2f} GB")
+    print(f"Shortfall:        {(x * 1024**3 - desktop_available) / (1024**3):.2f} GB")
+    print("=" * 60)
+    print("Action: Free up disk space or reduce extra_photo_storage_minimum")
     sys.exit(1)  # Exit with error code for insufficient storage
 
 
