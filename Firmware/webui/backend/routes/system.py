@@ -34,13 +34,13 @@ system_bp = Blueprint('system', __name__)
 config = get_config()
 
 # Photo count cache to avoid expensive directory scans on every request
-# Cache is valid for 60 seconds
+# Cache is valid for 15 seconds (better balance between performance and freshness)
 _photo_count_cache = {
     'count': None,
     'timestamp': 0,
     'lock': threading.Lock()
 }
-PHOTO_COUNT_CACHE_TTL = 60  # seconds
+PHOTO_COUNT_CACHE_TTL = 15  # seconds - reduced from 60 for better UX
 
 def _get_cached_photo_count():
     """
@@ -76,6 +76,16 @@ def _get_cached_photo_count():
             print(f"Warning: Failed to count photos: {e}")
             # Return cached value if available, otherwise 0
             return _photo_count_cache['count'] if _photo_count_cache['count'] is not None else 0
+
+def invalidate_photo_count_cache():
+    """
+    Invalidate photo count cache to force refresh on next request.
+
+    Called after photo capture to ensure count updates immediately
+    without waiting for cache TTL to expire.
+    """
+    with _photo_count_cache['lock']:
+        _photo_count_cache['timestamp'] = 0  # Force cache miss on next read
 
 @system_bp.route('/status', methods=['GET'])
 def get_system_status():
@@ -161,15 +171,14 @@ def get_system_info():
         import traceback
 
         # Log full traceback server-side for debugging
+        # Server logs are only accessible to administrators
         print("Error in /api/system/info:")
         print(traceback.format_exc())
 
-        # Build error response
+        # Build error response - never include traceback in API response
+        # Tracebacks reveal internal paths, versions, and code structure
+        # even in development mode, as the API may be accessible from network
         error_response = {'error': str(e)}
-
-        # Only include traceback in development/debug mode to prevent information disclosure
-        if config.DEBUG:
-            error_response['traceback'] = traceback.format_exc()
 
         return jsonify(error_response), 500
 

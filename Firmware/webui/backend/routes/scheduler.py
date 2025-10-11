@@ -83,7 +83,7 @@ def add_cron_job():
 
 @scheduler_bp.route('/job', methods=['DELETE'])
 def delete_cron_job():
-    """Delete a cron job"""
+    """Delete a cron job (with validation to prevent deleting non-Mothbox jobs)"""
     try:
         data = request.json
         command = data.get('command')
@@ -91,11 +91,38 @@ def delete_cron_job():
         if not command:
             return jsonify({'error': 'Missing command'}), 400
 
+        # Validate that command looks like a Mothbox job
+        # Use same filtering logic as GET /jobs endpoint
+        is_mothbox_job = (
+            'mothbox' in command.lower() or
+            'TakePhoto' in command or
+            '/usr/bin/python3' in command  # All Mothbox jobs use this
+        )
+
+        if not is_mothbox_job:
+            return jsonify({
+                'error': 'Command does not appear to be a Mothbox job. Deletion rejected for safety.',
+                'command': command
+            }), 400
+
+        # Additional validation: Check if command path is within MOTHBOX_HOME
+        from mothbox_paths import MOTHBOX_HOME
+        if str(MOTHBOX_HOME) not in command:
+            return jsonify({
+                'error': f'Command path is not within MOTHBOX_HOME ({MOTHBOX_HOME}). Deletion rejected.',
+                'command': command
+            }), 400
+
+        # Validation passed - safe to delete
         cron = CronTab(user=True)
-        cron.remove_all(command=command)
+        removed_count = cron.remove_all(command=command)
         cron.write()
 
-        return jsonify({'success': True})
+        return jsonify({
+            'success': True,
+            'removed_count': removed_count,
+            'command': command
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

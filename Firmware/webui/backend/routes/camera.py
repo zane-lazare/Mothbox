@@ -83,6 +83,10 @@ def capture_photo():
             photos = sorted(PHOTOS_DIR.glob('**/*.jpg'), key=lambda p: p.stat().st_mtime, reverse=True)
             latest_photo = str(photos[0].relative_to(PHOTOS_DIR)) if photos else None
 
+            # Invalidate photo count cache so dashboard shows updated count immediately
+            from routes.system import invalidate_photo_count_cache
+            invalidate_photo_count_cache()
+
             return jsonify({
                 'success': True,
                 'latest_photo': latest_photo,
