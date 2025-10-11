@@ -390,13 +390,18 @@ def auto_calibrate():
             time.sleep(0.5)  # Let camera fully release
 
         # Read current settings for "before" snapshot
+        # camera_settings.csv format: SETTING,VALUE,DETAILS (vertical key-value pairs)
         current_settings = {}
+        settings_details = {}  # Preserve DETAILS column
         try:
             with open(CAMERA_SETTINGS_FILE, 'r') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    current_settings = row
-                    break
+                    setting = row['SETTING']
+                    value = row['VALUE']
+                    details = row.get('DETAILS', '')
+                    current_settings[setting] = value
+                    settings_details[setting] = details
         except Exception as e:
             print(f"Warning: Could not read current settings: {e}")
 
@@ -476,27 +481,21 @@ def auto_calibrate():
 
             # Apply to requested targets
             if apply_to in ['capture', 'both']:
-                # Update camera_settings.csv
+                # Update camera_settings.csv (vertical SETTING,VALUE,DETAILS format)
                 print("Updating camera_settings.csv...")
-                with open(CAMERA_SETTINGS_FILE, 'r') as f:
-                    reader = csv.DictReader(f)
-                    fieldnames = reader.fieldnames
-                    for row in reader:
-                        current_settings = row
-                        break
 
                 # Update with calibrated values
-                current_settings.update({
-                    'LensPosition': str(calib_lens_position),
-                    'ExposureTime': str(calib_exposure),
-                    'AnalogueGain': str(calib_gain)
-                })
+                current_settings['LensPosition'] = str(calib_lens_position)
+                current_settings['ExposureTime'] = str(calib_exposure)
+                current_settings['AnalogueGain'] = str(calib_gain)
 
-                # Write back
+                # Write back in vertical format
                 with open(CAMERA_SETTINGS_FILE, 'w', newline='') as f:
-                    writer = csv.DictWriter(f, fieldnames=fieldnames)
-                    writer.writeheader()
-                    writer.writerow(current_settings)
+                    writer = csv.writer(f)
+                    writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+                    for setting, value in current_settings.items():
+                        details = settings_details.get(setting, '')
+                        writer.writerow([setting, value, details])
 
                 print("✓ Updated camera_settings.csv")
 
