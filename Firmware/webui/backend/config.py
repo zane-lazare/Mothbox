@@ -34,6 +34,7 @@ class Config:
     WTF_CSRF_ENABLED = True
     WTF_CSRF_TIME_LIMIT = None  # No time limit for single-user device
     WTF_CSRF_CHECK_DEFAULT = True  # Check all POST/PUT/DELETE/PATCH by default
+    WTF_CSRF_HEADERS = ['X-CSRFToken']  # Accept CSRF token from header for JSON API requests
 
     # Application settings
     HOST = '0.0.0.0'
