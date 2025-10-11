@@ -27,6 +27,7 @@
 #   ./Firmware/update_mothbox.sh --branch <name>    # Pull from specific branch
 #   ./Firmware/update_mothbox.sh --force            # Reprocess current state
 #   ./Firmware/update_mothbox.sh --verify           # Check installation health
+#   ./Firmware/update_mothbox.sh --rebuild          # Force clean frontend rebuild
 #
 # ==============================================================================
 
@@ -61,6 +62,7 @@ BACKUP_BEFORE_UPDATE="false"
 FORCE_UPDATE="false"
 VERIFY_ONLY="false"
 SKIP_FILE_COPY="false"
+FORCE_FRONTEND_REBUILD="false"
 
 # Installation location variables (will be detected)
 MOTHBOX_HOME=""
@@ -100,6 +102,10 @@ while [[ $# -gt 0 ]]; do
             SKIP_FILE_COPY="true"
             shift
             ;;
+        --rebuild)
+            FORCE_FRONTEND_REBUILD="true"
+            shift
+            ;;
         --help|-h)
             echo "Mothbox Update Script"
             echo ""
@@ -113,6 +119,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --force, -f       Force reprocess updates even if no git changes"
             echo "  --verify          Check installation status without updating"
             echo "  --skip-copy       Skip copying files to installation (for testing)"
+            echo "  --rebuild         Force clean rebuild of frontend (clears Vite cache)"
             echo "  --help, -h        Show this help message"
             exit 0
             ;;
@@ -596,12 +603,14 @@ if [ "$WEBUI_BACKEND_CHANGED" -gt 0 ]; then
     echo ""
 fi
 
-# Rebuild Web UI frontend if frontend files OR critical backend config changed
-if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] || [ "$BACKEND_CONFIG_CHANGED" -gt 0 ]; then
+# Rebuild Web UI frontend if frontend files OR critical backend config changed OR --rebuild flag
+if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] || [ "$BACKEND_CONFIG_CHANGED" -gt 0 ] || [ "$FORCE_FRONTEND_REBUILD" = "true" ]; then
     echo -e "${BLUE}Rebuilding Web UI frontend...${NC}"
 
     # Explain why we're rebuilding
-    if [ "$BACKEND_CONFIG_CHANGED" -gt 0 ] && [ "$WEBUI_FRONTEND_CHANGED" -eq 0 ]; then
+    if [ "$FORCE_FRONTEND_REBUILD" = "true" ]; then
+        echo "Force rebuild requested - performing clean build"
+    elif [ "$BACKEND_CONFIG_CHANGED" -gt 0 ] && [ "$WEBUI_FRONTEND_CHANGED" -eq 0 ]; then
         echo "Backend configuration changed - rebuilding frontend to ensure compatibility"
     fi
 
@@ -619,8 +628,9 @@ if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] || [ "$BACKEND_CONFIG_CHANGED" -gt 0 ]; t
         fi
 
         # Clean build to avoid Vite caching issues with incremental builds
-        echo "Cleaning previous build artifacts..."
+        echo "Cleaning previous build artifacts and Vite cache..."
         rm -rf dist
+        rm -rf node_modules/.vite
 
         echo "Building production frontend..."
         sudo -u "$MOTHBOX_USER" npm run build
