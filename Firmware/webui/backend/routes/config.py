@@ -234,13 +234,18 @@ def get_webui_settings():
         # Load from file if it exists
         if WEBUI_SETTINGS_FILE.exists():
             settings = get_control_values(WEBUI_SETTINGS_FILE)
-            # Convert string values to integers
+            # Load settings from file, converting to appropriate types
             for key in defaults:
                 if key in settings:
-                    try:
-                        defaults[key] = int(settings[key])
-                    except ValueError:
-                        pass  # Keep default if conversion fails
+                    if key == 'stream_mode':
+                        # stream_mode is a string, don't convert
+                        defaults[key] = settings[key]
+                    else:
+                        # Other settings are integers
+                        try:
+                            defaults[key] = int(settings[key])
+                        except ValueError:
+                            pass  # Keep default if conversion fails
 
         return jsonify(defaults)
     except Exception as e:
