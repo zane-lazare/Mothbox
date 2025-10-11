@@ -154,6 +154,7 @@ class TestContrastControl:
 class TestBrightnessControl:
     """Test brightness control affects image quality (Phase 2.1)"""
 
+    @pytest.mark.skip(reason="Environment-dependent: requires controlled lighting and test targets")
     def test_brightness_changes_exposure(self, camera_streamer):
         """Test that brightness control changes overall exposure"""
         print("\n💡 Testing brightness control...")
@@ -195,6 +196,7 @@ class TestBrightnessControl:
 class TestFocusControls:
     """Test focus controls affect image sharpness (Phase 2.1)"""
 
+    @pytest.mark.skip(reason="Environment-dependent: requires controlled lighting and test targets")
     def test_continuous_autofocus_produces_sharp_images(self, camera_streamer):
         """Test that continuous AF mode produces sharp images"""
         print("\n🎯 Testing continuous autofocus...")
@@ -252,6 +254,7 @@ class TestFocusControls:
 class TestWhiteBalanceControls:
     """Test white balance controls affect color (Phase 2.1)"""
 
+    @pytest.mark.skip(reason="Environment-dependent: requires controlled lighting and test targets")
     def test_white_balance_modes(self, camera_streamer):
         """Test different white balance modes produce different color temps"""
         print("\n🌡️ Testing white balance modes...")
@@ -306,6 +309,7 @@ class TestWhiteBalanceControls:
 class TestCombinedControls:
     """Test multiple controls working together (Phase 2.1)"""
 
+    @pytest.mark.skip(reason="Environment-dependent: requires controlled lighting and test targets")
     def test_optimized_settings_produce_quality_image(self, camera_streamer):
         """Test that well-chosen settings produce high-quality image"""
         print("\n⭐ Testing optimized combined settings...")
