@@ -57,6 +57,21 @@ class CameraStreamer:
         self.jpeg_quality = DEFAULT_JPEG_QUALITY
         self.stream_mode = 'simplejpeg'  # Default: fast software encoding
 
+        # Image quality controls (Phase 2.1)
+        self.sharpness = 1.0
+        self.brightness = 0.0
+        self.contrast = 1.0
+        self.saturation = 1.0
+
+        # Focus controls (Phase 2.1)
+        self.af_mode = 2  # Continuous autofocus by default
+        self.af_speed = 0  # Normal speed
+        self.af_range = 0  # Normal range
+
+        # White balance controls (Phase 2.1)
+        self.awb_enable = True
+        self.awb_mode = 0  # Auto
+
         try:
             if WEBUI_SETTINGS_FILE.exists():
                 settings = get_control_values(WEBUI_SETTINGS_FILE)
@@ -74,8 +89,36 @@ class CameraStreamer:
                 if 'stream_mode' in settings:
                     self.stream_mode = settings['stream_mode']
 
+                # Image quality settings (Phase 2.1)
+                if 'sharpness' in settings:
+                    self.sharpness = float(settings['sharpness'])
+                if 'brightness' in settings:
+                    self.brightness = float(settings['brightness'])
+                if 'contrast' in settings:
+                    self.contrast = float(settings['contrast'])
+                if 'saturation' in settings:
+                    self.saturation = float(settings['saturation'])
+
+                # Focus settings (Phase 2.1)
+                if 'af_mode' in settings:
+                    self.af_mode = int(settings['af_mode'])
+                if 'af_speed' in settings:
+                    self.af_speed = int(settings['af_speed'])
+                if 'af_range' in settings:
+                    self.af_range = int(settings['af_range'])
+
+                # White balance settings (Phase 2.1)
+                if 'awb_enable' in settings:
+                    self.awb_enable = settings['awb_enable'].lower() == 'true'
+                if 'awb_mode' in settings:
+                    self.awb_mode = int(settings['awb_mode'])
+
                 print(f"Stream settings loaded: {self.preview_width}x{self.preview_height}, "
                       f"FPS: {1/self.frame_delay:.1f}, Quality: {self.jpeg_quality}, Mode: {self.stream_mode}")
+                print(f"  Image quality: Sharp={self.sharpness}, Bright={self.brightness}, "
+                      f"Contrast={self.contrast}, Sat={self.saturation}")
+                print(f"  Focus: Mode={self.af_mode}, Speed={self.af_speed}, Range={self.af_range}")
+                print(f"  White balance: AWB={self.awb_enable}, Mode={self.awb_mode}")
         except Exception as e:
             print(f"Error loading stream settings, using defaults: {e}")
 
@@ -104,18 +147,34 @@ class CameraStreamer:
                 # Start camera to set controls
                 self.camera.start()
 
-                # Enable continuous autofocus for Arducam Owlsight
+                # Apply camera controls (Phase 2.1: expanded from basic AF to full controls)
                 try:
-                    # AfMode: 2 = Continuous autofocus
-                    # AfSpeed: 0 = Normal (1 = Fast)
-                    self.camera.set_controls({
-                        "AfMode": 2,
-                        "AfSpeed": 0,
-                        "AfMetering": 0  # Auto metering
-                    })
-                    print("Autofocus enabled: Continuous mode")
-                except Exception as af_error:
-                    print(f"Autofocus configuration: {af_error}")
+                    controls_dict = {
+                        # Focus controls
+                        "AfMode": self.af_mode,
+                        "AfSpeed": self.af_speed,
+                        "AfRange": self.af_range,
+                        "AfMetering": 0,  # Auto metering
+
+                        # Image quality controls
+                        "Sharpness": self.sharpness,
+                        "Brightness": self.brightness,
+                        "Contrast": self.contrast,
+                        "Saturation": self.saturation,
+
+                        # White balance controls
+                        "AwbEnable": self.awb_enable,
+                    }
+
+                    # Only set AwbMode if AWB is disabled (manual mode)
+                    if not self.awb_enable:
+                        controls_dict["AwbMode"] = self.awb_mode
+
+                    self.camera.set_controls(controls_dict)
+                    print(f"Camera controls applied: AF Mode {self.af_mode}, "
+                          f"Sharpness {self.sharpness}, AWB {'On' if self.awb_enable else 'Off'}")
+                except Exception as controls_error:
+                    print(f"Camera controls configuration: {controls_error}")
 
                 # Stop camera - will be started again by stream_loop
                 self.camera.stop()
@@ -203,6 +262,27 @@ class CameraStreamer:
                 except Exception as e:
                     # Camera may already be stopped, which is fine
                     print(f"Note: Error stopping camera in stream cleanup: {e}")
+
+    def update_control(self, control_dict):
+        """
+        Update camera control(s) without restarting stream (Phase 2.1)
+
+        Args:
+            control_dict: Dictionary of control names and values
+                          e.g., {"Sharpness": 2.0, "Brightness": 0.1}
+
+        Returns:
+            bool: True if successful, False if camera not ready
+        """
+        if self.camera and self.streaming:
+            try:
+                self.camera.set_controls(control_dict)
+                print(f"Updated controls: {control_dict}")
+                return True
+            except Exception as e:
+                print(f"Error updating controls: {e}")
+                return False
+        return False
 
     def cleanup(self):
         """

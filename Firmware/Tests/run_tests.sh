@@ -62,6 +62,23 @@ case "$TEST_TYPE" in
         pytest Tests/integration/test_stream_performance.py -v -s
         ;;
 
+    "controls")
+        # Phase 2: Test camera controls validation
+        echo "🚀 Testing Phase 2 camera controls validation..."
+        echo ""
+        pytest Tests/unit/test_preview_controls.py Tests/unit/test_capture_settings.py -v -s
+        ;;
+
+    "phase2")
+        # Phase 2: Full test suite (when interactive tests exist)
+        echo "🚀 Running Phase 2 complete test suite..."
+        echo ""
+        echo "Phase 2.1: Testing controls validation..."
+        pytest Tests/unit/test_preview_controls.py Tests/unit/test_capture_settings.py -v -s
+        echo ""
+        echo "Note: Phase 2.2+ tests (interactive features) not yet implemented"
+        ;;
+
     "all")
         echo "🚀 Running full test suite..."
         echo ""
@@ -81,6 +98,8 @@ case "$TEST_TYPE" in
         echo "  quick       - Run single most important test (encoding speed)"
         echo "  unit        - Run all unit tests"
         echo "  integration - Run integration/performance tests"
+        echo "  controls    - Test Phase 2 camera controls validation"
+        echo "  phase2      - Run Phase 2 complete test suite"
         echo "  all         - Run full automated test suite (default)"
         echo "  manual      - Show manual verification checklist"
         echo "  help        - Show this help message"
@@ -89,6 +108,8 @@ case "$TEST_TYPE" in
         echo "  ./run_tests.sh              # Run all automated tests"
         echo "  ./run_tests.sh quick        # Quick performance check"
         echo "  ./run_tests.sh unit         # Unit tests only"
+        echo "  ./run_tests.sh controls     # Phase 2 controls validation"
+        echo "  ./run_tests.sh phase2       # Full Phase 2 test suite"
         echo "  ./run_tests.sh manual       # Show manual test steps"
         exit 0
         ;;

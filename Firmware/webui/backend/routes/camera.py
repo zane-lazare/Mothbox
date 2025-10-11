@@ -10,14 +10,42 @@ import mothbox_import  # Sets up sys.path for mothbox
 
 from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR
 
-# Allowed camera settings with validation functions
+# Allowed camera settings with validation functions (Phase 2.1: expanded controls)
 ALLOWED_CAMERA_SETTINGS = {
-    'ExposureTime': lambda v: str(v).isdigit() and 0 < int(v) < 1000000,
-    'AnalogGain': lambda v: 1.0 <= float(v) <= 16.0,
-    'Contrast': lambda v: -1.0 <= float(v) <= 1.0,
-    'Brightness': lambda v: -1.0 <= float(v) <= 1.0,
-    'Saturation': lambda v: -1.0 <= float(v) <= 1.0,
+    # Image quality controls
     'Sharpness': lambda v: 0.0 <= float(v) <= 16.0,
+    'Brightness': lambda v: -1.0 <= float(v) <= 1.0,
+    'Contrast': lambda v: -1.0 <= float(v) <= 1.0,
+    'Saturation': lambda v: -1.0 <= float(v) <= 1.0,
+
+    # Exposure controls
+    'ExposureTime': lambda v: str(v).isdigit() and 0 < int(v) < 1000000,  # microseconds
+    'ExposureValue': lambda v: -8.0 <= float(v) <= 8.0,  # EV compensation
+    'AnalogueGain': lambda v: 1.0 <= float(v) <= 16.0,  # ISO gain
+    'AeEnable': lambda v: str(v).lower() in ['true', 'false'],  # Auto exposure
+
+    # Focus controls (Phase 2.1)
+    'AfMode': lambda v: int(v) in [0, 1, 2],  # 0=Manual, 1=Auto Single, 2=Continuous
+    'AfSpeed': lambda v: int(v) in [0, 1],  # 0=Normal, 1=Fast
+    'AfRange': lambda v: int(v) in [0, 1, 2],  # 0=Normal, 1=Macro, 2=Full
+    'AfMetering': lambda v: int(v) in [0, 1, 2],  # Metering mode
+    'LensPosition': lambda v: 0.0 <= float(v) <= 10.0,  # Diopters (manual focus)
+
+    # White balance controls (Phase 2.1)
+    'AwbEnable': lambda v: str(v).lower() in ['true', 'false'],
+    'AwbMode': lambda v: 0 <= int(v) <= 7,  # 0=Auto, 1=Incandescent, ..., 7=Custom
+
+    # HDR/Bracketing (Phase 2.1)
+    'HDR': lambda v: int(v) in [1, 3, 5, 7],  # Number of bracketed exposures
+    'HDR_width': lambda v: 1000 <= int(v) <= 50000,  # Bracket step size (µs)
+
+    # Auto-calibration (Phase 2.1)
+    'AutoCalibration': lambda v: int(v) in [0, 1],  # 0=Off, 1=On
+    'AutoCalibrationPeriod': lambda v: 1 <= int(v) <= 10000,  # Photos between calibrations
+
+    # Image format
+    'ImageFileType': lambda v: int(v) in [0, 1, 2],  # 0=JPEG, 1=PNG, 2=BMP
+    'VerticalFlip': lambda v: int(v) in [0, 1],  # 0=No flip, 1=Flip
 }
 
 camera_bp = Blueprint('camera', __name__)

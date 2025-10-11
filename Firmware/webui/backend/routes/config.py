@@ -222,13 +222,29 @@ def update_schedule_settings():
 def get_webui_settings():
     """Get WebUI stream settings"""
     try:
-        # Default settings
+        # Default settings (Phase 2.1: expanded with image quality, focus, WB controls)
         defaults = {
+            # Stream/encoding settings
             'preview_width': 1024,
             'preview_height': 768,
             'frame_rate': 10,
             'jpeg_quality': 85,  # Optimized default: faster encoding, good quality
-            'stream_mode': 'simplejpeg'  # Fast software encoding (5-7x faster than PIL)
+            'stream_mode': 'simplejpeg',  # Fast software encoding (5-7x faster than PIL)
+
+            # Image quality controls (Phase 2.1)
+            'sharpness': 1.0,
+            'brightness': 0.0,
+            'contrast': 1.0,
+            'saturation': 1.0,
+
+            # Focus controls (Phase 2.1)
+            'af_mode': 2,  # Continuous autofocus
+            'af_speed': 0,  # Normal speed
+            'af_range': 0,  # Normal range
+
+            # White balance controls (Phase 2.1)
+            'awb_enable': True,
+            'awb_mode': 0  # Auto
         }
 
         # Load from file if it exists
@@ -240,8 +256,17 @@ def get_webui_settings():
                     if key == 'stream_mode':
                         # stream_mode is a string, don't convert
                         defaults[key] = settings[key]
+                    elif key == 'awb_enable':
+                        # Boolean value
+                        defaults[key] = settings[key].lower() == 'true'
+                    elif key in ['sharpness', 'brightness', 'contrast', 'saturation']:
+                        # Float values
+                        try:
+                            defaults[key] = float(settings[key])
+                        except ValueError:
+                            pass  # Keep default if conversion fails
                     else:
-                        # Other settings are integers
+                        # Integer values
                         try:
                             defaults[key] = int(settings[key])
                         except ValueError:
@@ -253,19 +278,36 @@ def get_webui_settings():
 
 @config_bp.route('/webui', methods=['POST'])
 def update_webui_settings():
-    """Update WebUI stream settings (with backup)"""
+    """Update WebUI stream settings (with backup) - Phase 2.1: expanded validation"""
     backup_path = None
     try:
         new_settings = request.json
 
-        # Validate settings
+        # Validate stream/encoding settings
         preview_width = int(new_settings.get('preview_width', 1024))
         preview_height = int(new_settings.get('preview_height', 768))
         frame_rate = int(new_settings.get('frame_rate', 10))
         jpeg_quality = int(new_settings.get('jpeg_quality', 85))
         stream_mode = new_settings.get('stream_mode', 'simplejpeg')
 
-        # Validate ranges
+        # Validate image quality controls (Phase 2.1)
+        sharpness = float(new_settings.get('sharpness', 1.0))
+        brightness = float(new_settings.get('brightness', 0.0))
+        contrast = float(new_settings.get('contrast', 1.0))
+        saturation = float(new_settings.get('saturation', 1.0))
+
+        # Validate focus controls (Phase 2.1)
+        af_mode = int(new_settings.get('af_mode', 2))
+        af_speed = int(new_settings.get('af_speed', 0))
+        af_range = int(new_settings.get('af_range', 0))
+
+        # Validate white balance controls (Phase 2.1)
+        awb_enable = new_settings.get('awb_enable', True)
+        if isinstance(awb_enable, str):
+            awb_enable = awb_enable.lower() == 'true'
+        awb_mode = int(new_settings.get('awb_mode', 0))
+
+        # Validate ranges - Stream/encoding
         if not (320 <= preview_width <= 1920):
             return jsonify({'error': 'Width must be between 320 and 1920'}), 400
         if not (240 <= preview_height <= 1080):
@@ -277,16 +319,56 @@ def update_webui_settings():
         if stream_mode not in ['simplejpeg', 'mjpeg_hardware']:
             return jsonify({'error': 'stream_mode must be simplejpeg or mjpeg_hardware'}), 400
 
+        # Validate ranges - Image quality (Phase 2.1)
+        if not (0.0 <= sharpness <= 16.0):
+            return jsonify({'error': 'Sharpness must be between 0.0 and 16.0'}), 400
+        if not (-1.0 <= brightness <= 1.0):
+            return jsonify({'error': 'Brightness must be between -1.0 and 1.0'}), 400
+        if not (0.0 <= contrast <= 32.0):
+            return jsonify({'error': 'Contrast must be between 0.0 and 32.0'}), 400
+        if not (0.0 <= saturation <= 32.0):
+            return jsonify({'error': 'Saturation must be between 0.0 and 32.0'}), 400
+
+        # Validate ranges - Focus controls (Phase 2.1)
+        if af_mode not in [0, 1, 2]:
+            return jsonify({'error': 'AfMode must be 0 (Manual), 1 (Auto Single), or 2 (Continuous)'}), 400
+        if af_speed not in [0, 1]:
+            return jsonify({'error': 'AfSpeed must be 0 (Normal) or 1 (Fast)'}), 400
+        if af_range not in [0, 1, 2]:
+            return jsonify({'error': 'AfRange must be 0 (Normal), 1 (Macro), or 2 (Full)'}), 400
+
+        # Validate ranges - White balance (Phase 2.1)
+        if not isinstance(awb_enable, bool):
+            return jsonify({'error': 'AwbEnable must be a boolean'}), 400
+        if not (0 <= awb_mode <= 7):
+            return jsonify({'error': 'AwbMode must be between 0 and 7'}), 400
+
         # Create backup before modification
         backup_path = _create_backup(WEBUI_SETTINGS_FILE)
 
-        # Write settings to file
+        # Write settings to file (Phase 2.1: expanded settings)
         with open(WEBUI_SETTINGS_FILE, 'w') as f:
+            # Stream/encoding settings
             f.write(f"preview_width={preview_width}\n")
             f.write(f"preview_height={preview_height}\n")
             f.write(f"frame_rate={frame_rate}\n")
             f.write(f"jpeg_quality={jpeg_quality}\n")
             f.write(f"stream_mode={stream_mode}\n")
+
+            # Image quality controls
+            f.write(f"sharpness={sharpness}\n")
+            f.write(f"brightness={brightness}\n")
+            f.write(f"contrast={contrast}\n")
+            f.write(f"saturation={saturation}\n")
+
+            # Focus controls
+            f.write(f"af_mode={af_mode}\n")
+            f.write(f"af_speed={af_speed}\n")
+            f.write(f"af_range={af_range}\n")
+
+            # White balance controls
+            f.write(f"awb_enable={'true' if awb_enable else 'false'}\n")
+            f.write(f"awb_mode={awb_mode}\n")
 
         return jsonify({'success': True})
     except Exception as e:
