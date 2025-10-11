@@ -447,7 +447,7 @@ if [ "$NEED_GIT_PULL" = "true" ]; then
 fi
 
 # Check if processing is needed (now comparing against pulled code)
-if [ "$BASE_COMMIT" = "$COMPARE_COMMIT" ] && [ "$FORCE_UPDATE" = "false" ]; then
+if [ "$BASE_COMMIT" = "$COMPARE_COMMIT" ] && [ "$FORCE_UPDATE" = "false" ] && [ "$FORCE_FRONTEND_REBUILD" = "false" ]; then
     echo -e "${GREEN}✓ No updates to process!${NC}"
     echo ""
 
@@ -455,6 +455,12 @@ if [ "$BASE_COMMIT" = "$COMPARE_COMMIT" ] && [ "$FORCE_UPDATE" = "false" ]; then
     verify_installation
 
     exit 0
+fi
+
+# If only rebuild requested (no git changes), skip to rebuild section
+if [ "$BASE_COMMIT" = "$COMPARE_COMMIT" ] && [ "$FORCE_FRONTEND_REBUILD" = "true" ]; then
+    echo -e "${YELLOW}No git changes, but --rebuild requested${NC}"
+    echo ""
 fi
 
 echo ""
