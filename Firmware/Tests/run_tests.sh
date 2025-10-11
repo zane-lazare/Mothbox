@@ -79,6 +79,13 @@ case "$TEST_TYPE" in
         echo "Note: Phase 2.2+ tests (interactive features) not yet implemented"
         ;;
 
+    "phase4"|"testcapture")
+        # Phase 4.5: Test capture endpoint
+        echo "🚀 Testing Phase 4.5 test capture endpoint..."
+        echo ""
+        pytest Tests/unit/test_test_capture.py -v -s
+        ;;
+
     "all")
         echo "🚀 Running full test suite..."
         echo ""
@@ -95,14 +102,16 @@ case "$TEST_TYPE" in
         echo "Usage: ./run_tests.sh [TEST_TYPE]"
         echo ""
         echo "TEST_TYPE options:"
-        echo "  quick       - Run single most important test (encoding speed)"
-        echo "  unit        - Run all unit tests"
-        echo "  integration - Run integration/performance tests"
-        echo "  controls    - Test Phase 2 camera controls validation"
-        echo "  phase2      - Run Phase 2 complete test suite"
-        echo "  all         - Run full automated test suite (default)"
-        echo "  manual      - Show manual verification checklist"
-        echo "  help        - Show this help message"
+        echo "  quick         - Run single most important test (encoding speed)"
+        echo "  unit          - Run all unit tests"
+        echo "  integration   - Run integration/performance tests"
+        echo "  controls      - Test Phase 2 camera controls validation"
+        echo "  phase2        - Run Phase 2 complete test suite"
+        echo "  phase4        - Test Phase 4.5 test capture endpoint"
+        echo "  testcapture   - Same as phase4"
+        echo "  all           - Run full automated test suite (default)"
+        echo "  manual        - Show manual verification checklist"
+        echo "  help          - Show this help message"
         echo ""
         echo "Examples:"
         echo "  ./run_tests.sh              # Run all automated tests"
@@ -110,6 +119,7 @@ case "$TEST_TYPE" in
         echo "  ./run_tests.sh unit         # Unit tests only"
         echo "  ./run_tests.sh controls     # Phase 2 controls validation"
         echo "  ./run_tests.sh phase2       # Full Phase 2 test suite"
+        echo "  ./run_tests.sh phase4       # Test capture endpoint"
         echo "  ./run_tests.sh manual       # Show manual test steps"
         exit 0
         ;;
