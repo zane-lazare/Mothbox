@@ -673,6 +673,16 @@ if [ "$SERVICE_CHANGED" -gt 0 ]; then
                 ALLOWED_ORIGINS=$(grep "^Environment=\"ALLOWED_ORIGINS=" /etc/systemd/system/mothbox-webui.service | sed 's/^Environment="ALLOWED_ORIGINS=//' | sed 's/"$//' || echo "")
             fi
 
+            # Fix old wildcard patterns that don't work with Flask-SocketIO
+            # Flask-SocketIO only supports '*' (all origins) or specific origin lists
+            # Patterns like http://192.168.*.*:* or http://localhost:* don't work
+            if [[ "$ALLOWED_ORIGINS" == *"*.*"* ]] || [[ "$ALLOWED_ORIGINS" == *":*"* ]]; then
+                echo "  Detected invalid wildcard patterns in ALLOWED_ORIGINS"
+                echo "  Flask-SocketIO doesn't support shell-style wildcards"
+                echo "  Converting to '*' (allow all origins)"
+                ALLOWED_ORIGINS="*"
+            fi
+
             echo "Preserving configuration:"
             echo "  Environment: $MOTHBOX_ENV"
             echo "  CORS Origins: ${ALLOWED_ORIGINS:-same-origin only}"

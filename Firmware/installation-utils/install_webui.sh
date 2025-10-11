@@ -62,32 +62,40 @@ echo ""
 # Configure CORS for WebSocket/API access
 echo -e "${BLUE}Configuring network access (CORS)...${NC}"
 echo ""
-echo "The Web UI needs to know which origins can connect to its WebSocket/API."
-echo ""
-echo "Choose access mode:"
-echo "  ${GREEN}1) Same-origin only${NC} (RECOMMENDED for production)"
-echo "     - Most secure: only allows connections from the Mothbox itself"
-echo "     - Use when accessing Web UI at http://mothbox.local:5000 or http://<ip>:5000"
-echo ""
-echo "  ${YELLOW}2) Local network${NC} (for development/testing)"
-echo "     - Allows connections from any device on local network (192.168.x.x)"
-echo "     - Use when developing frontend separately or testing from other devices"
-echo "     - Less secure: any device on your network can connect"
-echo ""
-read -p "Enter choice (1 or 2) [1]: " CORS_CHOICE
-CORS_CHOICE=${CORS_CHOICE:-1}
 
-if [ "$CORS_CHOICE" = "2" ]; then
-    ALLOWED_ORIGINS="http://localhost:*,http://127.0.0.1:*,http://192.168.*.*:*,http://10.*.*.*:*"
-    echo -e "${YELLOW}✓ Configured for local network access${NC}"
-    echo -e "${YELLOW}  WebSocket/API connections allowed from:${NC}"
-    echo -e "${YELLOW}  - localhost (any port)${NC}"
-    echo -e "${YELLOW}  - 192.168.x.x (any port)${NC}"
-    echo -e "${YELLOW}  - 10.x.x.x (any port)${NC}"
+# Auto-configure based on environment mode
+if [ "$MOTHBOX_ENV" = "development" ]; then
+    # Development: Allow all origins for local testing and development flexibility
+    ALLOWED_ORIGINS="*"
+    echo -e "${YELLOW}✓ Development mode: Allowing all origins for local testing${NC}"
+    echo -e "${YELLOW}  WebSocket/API connections allowed from any origin${NC}"
+    echo -e "${YELLOW}  Note: This is convenient but less secure. Use production mode for deployment.${NC}"
 else
-    ALLOWED_ORIGINS=""
-    echo -e "${GREEN}✓ Configured for same-origin only (most secure)${NC}"
-    echo -e "${GREEN}  WebSocket/API connections only from the Mothbox itself${NC}"
+    # Production: Prompt user for security choice
+    echo "The Web UI needs to know which origins can connect to its WebSocket/API."
+    echo ""
+    echo "Choose access mode:"
+    echo "  ${GREEN}1) Same-origin only${NC} (RECOMMENDED for production)"
+    echo "     - Most secure: only allows connections from the Mothbox itself"
+    echo "     - Use when accessing Web UI at http://mothbox.local:5000 or http://<ip>:5000"
+    echo ""
+    echo "  ${YELLOW}2) Allow all origins${NC} (for testing/development)"
+    echo "     - Allows connections from any device/origin"
+    echo "     - Use when developing frontend separately or testing from other devices"
+    echo "     - Less secure: any device can connect"
+    echo ""
+    read -p "Enter choice (1 or 2) [1]: " CORS_CHOICE
+    CORS_CHOICE=${CORS_CHOICE:-1}
+
+    if [ "$CORS_CHOICE" = "2" ]; then
+        ALLOWED_ORIGINS="*"
+        echo -e "${YELLOW}✓ Configured to allow all origins${NC}"
+        echo -e "${YELLOW}  WebSocket/API connections allowed from any origin${NC}"
+    else
+        ALLOWED_ORIGINS=""
+        echo -e "${GREEN}✓ Configured for same-origin only (most secure)${NC}"
+        echo -e "${GREEN}  WebSocket/API connections only from the Mothbox itself${NC}"
+    fi
 fi
 echo ""
 
