@@ -220,6 +220,265 @@ class TestManualVerification:
         assert False, "Complete manual verification steps above"
 
 
+class TestPhase2ManualVerification:
+    """Phase 2 manual verification tests"""
+
+    @pytest.mark.skip(reason="Manual test - run interactively")
+    def test_phase2_settings_page_controls(self):
+        """
+        MANUAL TEST: Phase 2.1 Settings Page Controls
+
+        Steps:
+        1. Navigate to Settings > Stream Settings tab
+        2. Verify new sections present:
+           - Image Quality (sharpness, brightness, contrast, saturation)
+           - Focus Settings (mode, speed, range dropdowns)
+           - White Balance (enable checkbox, mode dropdown)
+        3. Adjust each slider/dropdown
+        4. Save settings
+        5. Reload page and verify persistence
+        6. Navigate to Settings > Camera Settings tab
+        7. Verify new sections:
+           - Auto-Calibration (prominent green box)
+           - Exposure (ExposureTime, AnalogueGain, ExposureValue sliders)
+           - HDR/Bracketing (count dropdown, conditional bracket step)
+           - Focus (mode/range/speed dropdowns, conditional LensPosition)
+           - Image Format (file type dropdown, vertical flip checkbox)
+           - Collapsible Advanced Settings
+
+        Expected:
+        - All controls visible and functional
+        - Conditional controls appear/disappear correctly
+        - Settings persist after save and reload
+        - UI is organized and user-friendly
+        """
+        print("\n⚙️  Phase 2 Settings Page Verification:")
+        print("\n   Stream Settings Tab:")
+        print("      [ ] Image Quality section (4 sliders)")
+        print("      [ ] Focus Settings section (3 dropdowns)")
+        print("      [ ] White Balance section (checkbox + conditional dropdown)")
+        print("      [ ] All controls save and persist")
+        print("\n   Camera Settings Tab:")
+        print("      [ ] Auto-Calibration section (prominent green box)")
+        print("      [ ] Exposure section (3 sliders)")
+        print("      [ ] HDR/Bracketing (dropdown + conditional slider)")
+        print("      [ ] Focus section (dropdowns + conditional slider)")
+        print("      [ ] Image Format section (dropdown + checkbox)")
+        print("      [ ] Advanced Settings (collapsible)")
+        print("      [ ] Conditional controls work correctly")
+
+        assert False, "Complete Phase 2 settings verification"
+
+    @pytest.mark.skip(reason="Manual test - run interactively")
+    def test_phase2_camera_page_metadata(self):
+        """
+        MANUAL TEST: Phase 2.2 Live Metadata Display
+
+        Steps:
+        1. Navigate to Camera page
+        2. Start preview
+        3. Verify metadata display appears below preview:
+           - Exposure Time (µs)
+           - Gain/ISO
+           - Focus/Lens Position (diopters)
+           - AF State (Idle/Scanning/Success/Fail)
+           - Color Temperature (Kelvin)
+        4. Wave hand in front of camera
+        5. Verify metadata updates in real-time (~2 Hz)
+        6. Check that AF State changes during focus adjustments
+
+        Expected:
+        - Metadata displays in blue info box
+        - Values update smoothly (500ms intervals)
+        - AF state reflects autofocus activity
+        - All values in reasonable ranges
+        """
+        print("\n📊 Phase 2 Live Metadata Verification:")
+        print("      [ ] Metadata box appears when preview active")
+        print("      [ ] Shows 5 fields (exposure, gain, focus, AF state, color temp)")
+        print("      [ ] Updates every ~500ms (2 Hz)")
+        print("      [ ] Values change with scene/lighting")
+        print("      [ ] AF state reflects focus activity")
+        print("      [ ] All values in reasonable ranges")
+
+        assert False, "Complete Phase 2 metadata verification"
+
+    @pytest.mark.skip(reason="Manual test - run interactively")
+    def test_phase2_quick_actions(self):
+        """
+        MANUAL TEST: Phase 2.2 Quick Action Buttons
+
+        Steps:
+        1. Navigate to Camera page
+        2. Verify Quick Actions section with 3 buttons:
+           - Trigger Autofocus
+           - Auto-Calibrate
+           - Preview → Capture
+        3. Test Trigger Autofocus:
+           - Click button
+           - Verify button shows "Focusing..." during operation
+           - Check success message with lens position and duration
+        4. Test Auto-Calibrate:
+           - Click button
+           - Verify button shows "Calibrating..." during operation
+           - Check success message with before/after values
+        5. Test Preview → Capture:
+           - Click button
+           - Verify button shows "Copying..." during operation
+           - Check success message with copied settings count
+
+        Expected:
+        - All buttons functional
+        - Loading states display correctly
+        - Success/error messages are informative
+        - Operations complete in reasonable time (<10s)
+        """
+        print("\n🔧 Phase 2 Quick Actions Verification:")
+        print("      [ ] Three buttons present (Autofocus, Calibrate, Copy)")
+        print("      [ ] Buttons disabled when disconnected")
+        print("      [ ] Loading states display during operations")
+        print("      [ ] Autofocus: completes in <5s, shows lens position")
+        print("      [ ] Calibrate: completes in <10s, shows before/after")
+        print("      [ ] Copy: completes in <1s, shows copied count")
+        print("      [ ] Success messages are informative")
+        print("      [ ] Error handling works (try when disconnected)")
+
+        assert False, "Complete Phase 2 quick actions verification"
+
+    @pytest.mark.skip(reason="Manual test - run interactively")
+    def test_phase2_settings_transfer(self):
+        """
+        MANUAL TEST: Phase 2.2 Settings Transfer
+
+        Steps:
+        1. Navigate to Camera page
+        2. Scroll to Settings Transfer section
+        3. Verify two-column layout:
+           - Left: Preview Settings (blue box)
+           - Right: Capture Settings (green box)
+        4. Test Preview → Capture:
+           - Adjust some preview settings (Settings page)
+           - Click "Copy to Capture →" button
+           - Navigate to Settings > Camera Settings
+           - Verify compatible settings were copied
+        5. Test Capture → Preview:
+           - Adjust some capture settings
+           - Click "← Copy to Preview" button
+           - Navigate to Settings > Stream Settings
+           - Verify compatible settings were copied
+        6. Verify warning note about incompatible settings
+
+        Expected:
+        - Two-column layout is clear and intuitive
+        - Copy operations complete quickly (<1s)
+        - Compatible settings transfer correctly
+        - Incompatible settings remain unchanged
+        - Warning note explains limitations
+        """
+        print("\n📋 Phase 2 Settings Transfer Verification:")
+        print("      [ ] Two-column layout (Preview blue, Capture green)")
+        print("      [ ] Descriptive text explains each mode")
+        print("      [ ] Copy Preview → Capture works")
+        print("      [ ] Copy Capture → Preview works")
+        print("      [ ] Compatible settings transfer correctly")
+        print("      [ ] Incompatible settings preserved")
+        print("      [ ] Warning note about compatibility visible")
+        print("      [ ] Success messages show copied count")
+
+        assert False, "Complete Phase 2 settings transfer verification"
+
+    @pytest.mark.skip(reason="Manual test - run interactively")
+    def test_phase2_image_quality_visual(self):
+        """
+        MANUAL TEST: Phase 2 Image Quality Visual Check
+
+        Steps:
+        1. Navigate to Settings > Stream Settings
+        2. Test Image Quality controls:
+           - Sharpness: Set to 0 (soft), then 4 (sharp)
+           - Brightness: Set to -0.5 (dark), then +0.5 (bright)
+           - Contrast: Set to 0.5 (flat), then 2.0 (high contrast)
+           - Saturation: Set to 0.5 (desaturated), then 2.0 (vibrant)
+        3. For each setting:
+           - Start preview
+           - Verify visual effect is correct
+           - Stop preview
+        4. Test Focus controls:
+           - Set to Manual mode, adjust LensPosition (should blur/sharpen)
+           - Set to Continuous mode (should autofocus)
+        5. Test White Balance:
+           - Disable AWB, observe color shift
+           - Enable AWB, try different modes (Tungsten, Daylight, etc.)
+
+        Expected:
+        - Each control produces visible, correct effect
+        - Sharpness affects edge detail
+        - Brightness affects overall exposure
+        - Contrast affects tonal range
+        - Saturation affects color intensity
+        - Focus controls affect sharpness
+        - WB controls affect color temperature
+        """
+        print("\n🎨 Phase 2 Image Quality Visual Verification:")
+        print("\n   Image Quality Controls:")
+        print("      [ ] Sharpness: 0 (soft) vs 4 (sharp) - visible difference")
+        print("      [ ] Brightness: -0.5 (dark) vs +0.5 (bright) - visible change")
+        print("      [ ] Contrast: 0.5 (flat) vs 2.0 (punchy) - tonal range changes")
+        print("      [ ] Saturation: 0.5 (muted) vs 2.0 (vibrant) - color intensity")
+        print("\n   Focus Controls:")
+        print("      [ ] Manual mode + LensPosition: focus changes")
+        print("      [ ] Continuous mode: autofocus works")
+        print("      [ ] AF state updates correctly")
+        print("\n   White Balance:")
+        print("      [ ] AWB disabled: color shifts")
+        print("      [ ] AWB modes: Tungsten (warm), Daylight (cool), etc.")
+        print("      [ ] Color temperature changes visibly")
+
+        assert False, "Complete Phase 2 image quality verification"
+
+    @pytest.mark.skip(reason="Manual test - run interactively")
+    def test_phase2_end_to_end_workflow(self):
+        """
+        MANUAL TEST: Phase 2 Complete User Workflow
+
+        Steps:
+        1. Fresh start: Navigate to Camera page
+        2. Start preview (should use default settings)
+        3. Notice image is not optimal (too bright/dark, wrong focus, etc.)
+        4. Click "Auto-Calibrate" button
+        5. Verify image improves (exposure, focus optimized)
+        6. Fine-tune in Settings > Stream Settings:
+           - Adjust sharpness, contrast, saturation to taste
+           - Save settings
+        7. Return to Camera page, start preview
+        8. Verify fine-tuned settings applied
+        9. Click "Preview → Capture" to copy optimized settings
+        10. Capture a full-resolution photo
+        11. Navigate to Gallery
+        12. Verify captured photo has same quality characteristics
+
+        Expected:
+        - Complete workflow feels natural and intuitive
+        - Auto-calibrate provides good starting point
+        - Fine-tuning controls allow personalization
+        - Settings transfer works seamlessly
+        - Captured photos reflect preview quality
+        """
+        print("\n🚀 Phase 2 End-to-End Workflow Verification:")
+        print("      1. [ ] Start preview with defaults")
+        print("      2. [ ] Notice suboptimal image (too dark/bright, wrong focus)")
+        print("      3. [ ] Click Auto-Calibrate")
+        print("      4. [ ] Image improves noticeably")
+        print("      5. [ ] Fine-tune controls in Settings page")
+        print("      6. [ ] Save and verify settings applied")
+        print("      7. [ ] Copy settings Preview → Capture")
+        print("      8. [ ] Capture full-resolution photo")
+        print("      9. [ ] Gallery photo has same quality as preview")
+        print("     10. [ ] Workflow feels intuitive and natural")
+
+        assert False, "Complete Phase 2 end-to-end workflow verification"
+
+
 class TestIntegrationChecklist:
     """Final integration checklist"""
 
@@ -247,19 +506,62 @@ class TestIntegrationChecklist:
         [ ] Mode persists in config file
         [ ] Settings file includes stream_mode line
 
+        Phase 2.1 - Camera Controls (Backend + Validation):
+        [ ] Preview controls: 11 new settings (sharpness, brightness, etc.)
+        [ ] Capture controls: 17 new settings (exposure, HDR, focus, etc.)
+        [ ] webui_settings.txt validation works
+        [ ] camera_settings.csv validation works
+        [ ] All validation ranges enforced correctly
+        [ ] Settings persist correctly in both files
+        [ ] Backward compatibility maintained (defaults work)
+
+        Phase 2.2 - Interactive Features:
+        [ ] Autofocus endpoint works (/api/camera/autofocus)
+        [ ] Calibration endpoint works (/api/camera/calibrate)
+        [ ] Copy settings endpoint works (/api/config/copy-settings)
+        [ ] Live metadata via WebSocket works (get_metadata)
+        [ ] Live control updates work (update_preview_control)
+        [ ] All endpoints return correct data structures
+
+        Phase 2.3 - Settings Page UI:
+        [ ] Stream Settings tab: Image Quality section
+        [ ] Stream Settings tab: Focus Settings section
+        [ ] Stream Settings tab: White Balance section
+        [ ] Camera Settings tab: Auto-Calibration section
+        [ ] Camera Settings tab: Exposure section
+        [ ] Camera Settings tab: HDR/Bracketing section
+        [ ] Camera Settings tab: Focus section
+        [ ] Camera Settings tab: Image Format section
+        [ ] Camera Settings tab: Advanced Settings (collapsible)
+        [ ] All controls save and load correctly
+        [ ] Conditional controls work (HDR_width, LensPosition, etc.)
+
+        Phase 2.4 - Camera Page UI:
+        [ ] Live metadata display appears when preview active
+        [ ] Metadata updates at ~2 Hz (500ms intervals)
+        [ ] Quick Actions buttons present (Autofocus, Calibrate, Copy)
+        [ ] Quick Actions show loading states
+        [ ] Quick Actions display success/error results
+        [ ] Settings Transfer section present (two-column layout)
+        [ ] Both copy directions work (preview↔capture)
+        [ ] Warning note about compatibility present
+
         Overall Performance:
         [ ] Preview lag < 500ms (vs 2-3s before)
         [ ] 10 FPS sustained without backlog
         [ ] Settings changes apply correctly
+        [ ] Image quality controls produce visible effects
+        [ ] Autofocus completes in <5s
+        [ ] Calibration completes in <10s
         [ ] No errors in browser console
         [ ] No errors in Python backend logs
 
         Success Criteria:
         [ ] All unit tests pass (pytest Tests/unit/)
         [ ] All integration tests pass (pytest Tests/integration/)
-        [ ] Manual verification complete
+        [ ] Manual verification complete (Phase 1 + Phase 2)
         [ ] Documentation updated
-        [ ] Ready for testing on real hardware
+        [ ] Ready for production deployment
         """
         print("\n✅ Final Integration Checklist:")
         print("\nPhase 1.1 - simplejpeg Encoding:")
@@ -277,10 +579,36 @@ class TestIntegrationChecklist:
         print("   [ ] UI shows dropdown")
         print("   [ ] Validation works")
         print("   [ ] Mode persists")
+        print("\nPhase 2.1 - Camera Controls:")
+        print("   [ ] Preview: 11 new settings")
+        print("   [ ] Capture: 17 new settings")
+        print("   [ ] Validation works for all")
+        print("   [ ] Settings persist correctly")
+        print("   [ ] Backward compatibility maintained")
+        print("\nPhase 2.2 - Interactive Features:")
+        print("   [ ] Autofocus endpoint works")
+        print("   [ ] Calibration endpoint works")
+        print("   [ ] Copy settings endpoint works")
+        print("   [ ] Live metadata via WebSocket")
+        print("   [ ] Live control updates work")
+        print("\nPhase 2.3 - Settings Page UI:")
+        print("   [ ] Stream Settings: Image Quality section")
+        print("   [ ] Stream Settings: Focus/WB sections")
+        print("   [ ] Camera Settings: Auto-Calibration section")
+        print("   [ ] Camera Settings: Exposure/HDR/Focus sections")
+        print("   [ ] All controls save/load correctly")
+        print("   [ ] Conditional controls work")
+        print("\nPhase 2.4 - Camera Page UI:")
+        print("   [ ] Live metadata display")
+        print("   [ ] Quick Actions buttons")
+        print("   [ ] Settings Transfer section")
+        print("   [ ] All interactive features work")
         print("\nOverall Performance:")
         print("   [ ] Lag < 500ms")
         print("   [ ] 10 FPS sustained")
         print("   [ ] Settings apply correctly")
+        print("   [ ] Image quality controls work visually")
+        print("   [ ] Autofocus/calibration complete quickly")
         print("   [ ] No console errors")
         print("   [ ] No backend errors")
 
