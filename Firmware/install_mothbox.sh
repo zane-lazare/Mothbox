@@ -763,7 +763,36 @@ SELECTED_FIRMWARE="${FIRMWARE_VERSION}.x"
 if [ ! -d "$SCRIPT_DIR/$SELECTED_FIRMWARE" ]; then
     echo -e "${RED}✗ Error: Firmware version $SELECTED_FIRMWARE not found in $SCRIPT_DIR${NC}"
     echo -e "${RED}   Available firmware versions:${NC}"
-    ls -d "$SCRIPT_DIR"/*.x 2>/dev/null | xargs -n1 basename || echo "  None found"
+
+    # Show available firmware versions with completeness status
+    found_any=false
+    for fw_dir in "$SCRIPT_DIR"/*.x; do
+        if [ -d "$fw_dir" ]; then
+            found_any=true
+            fw_name=$(basename "$fw_dir")
+
+            # Check if all critical files are present
+            has_all_files=true
+            for file in TakePhoto.py controls.txt Scheduler.py; do
+                if [ ! -f "$fw_dir/$file" ]; then
+                    has_all_files=false
+                    break
+                fi
+            done
+
+            # Display with status indicator
+            if [ "$has_all_files" = true ]; then
+                echo -e "  ${GREEN}✓${NC} $fw_name (complete)"
+            else
+                echo -e "  ${YELLOW}⚠${NC} $fw_name (incomplete)"
+            fi
+        fi
+    done
+
+    if [ "$found_any" = false ]; then
+        echo "  None found"
+    fi
+
     exit 1
 fi
 echo -e "${GREEN}✓ Firmware version $SELECTED_FIRMWARE validated${NC}"
@@ -772,7 +801,7 @@ echo -e "${GREEN}✓ Firmware version $SELECTED_FIRMWARE validated${NC}"
 CRITICAL_FILES=("TakePhoto.py" "controls.txt" "Scheduler.py")
 for file in "${CRITICAL_FILES[@]}"; do
     if [ ! -f "$SCRIPT_DIR/$SELECTED_FIRMWARE/$file" ]; then
-        echo -e "${RED}✗ Error: Critical file missing: $SELECTED_FIRMWARE/$file${NC}"
+        echo -e "${RED}✗ Error: Critical file missing: $SCRIPT_DIR/$SELECTED_FIRMWARE/$file${NC}"
         exit 1
     fi
 done
