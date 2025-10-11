@@ -46,6 +46,54 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Input validation and sanitization functions
+sanitize_input() {
+    local input="$1"
+    # Remove dangerous characters: newlines, semicolons, command substitutions
+    echo "$input" | tr -d '\n;$`()|&<>' | sed 's/[[:space:]]*$//'
+}
+
+validate_gpio_pin() {
+    local pin="$1"
+    if ! [[ "$pin" =~ ^[0-9]+$ ]]; then
+        echo "Error: GPIO pin must be numeric"
+        return 1
+    fi
+    if [ "$pin" -lt 2 ] || [ "$pin" -gt 27 ]; then
+        echo "Error: GPIO pin out of range (2-27)"
+        return 1
+    fi
+    return 0
+}
+
+validate_i2c_address() {
+    local addr="$1"
+    if [[ ! "$addr" =~ ^0x[0-9a-fA-F]{1,2}$ ]]; then
+        echo "Error: Invalid I2C address format (expected: 0xNN)"
+        return 1
+    fi
+    local decimal=$((addr))
+    if [ "$decimal" -lt 3 ] || [ "$decimal" -gt 119 ]; then
+        echo "Error: I2C address out of valid range (0x03-0x77)"
+        return 1
+    fi
+    return 0
+}
+
+validate_positive_integer() {
+    local num="$1"
+    local max="${2:-999999}"
+    if ! [[ "$num" =~ ^[0-9]+$ ]]; then
+        echo "Error: Must be a positive integer"
+        return 1
+    fi
+    if [ "$num" -gt "$max" ]; then
+        echo "Error: Value exceeds maximum ($max)"
+        return 1
+    fi
+    return 0
+}
+
 # Default values
 INSTALL_TYPE="legacy"
 CUSTOM_PATH=""
@@ -381,8 +429,14 @@ else
 
     if [[ "$CONFIGURE_INA260" =~ ^[Yy]$ ]]; then
         INA260_ENABLED="true"
-        read -p "  INA260 I2C address [0x40]: " INA260_ADDRESS
-        INA260_ADDRESS=${INA260_ADDRESS:-0x40}
+        while true; do
+            read -p "  INA260 I2C address [0x40]: " INA260_ADDRESS
+            INA260_ADDRESS=${INA260_ADDRESS:-0x40}
+            if validate_i2c_address "$INA260_ADDRESS"; then
+                break
+            fi
+            echo -e "${RED}    Invalid input. Please try again.${NC}"
+        done
         echo -e "${GREEN}  ✓ INA260 enabled at address $INA260_ADDRESS${NC}"
     else
         INA260_ENABLED="false"
@@ -401,20 +455,55 @@ else
         echo "  E-paper GPIO pins [RST=17, DC=25, CS=8, BUSY=24, PWR=18]"
         echo "  Press Enter to use defaults, or configure custom pins:"
 
-        read -p "    RST pin [17]: " EPAPER_RST
-        EPAPER_RST=${EPAPER_RST:-17}
+        # RST pin with validation
+        while true; do
+            read -p "    RST pin [17]: " EPAPER_RST
+            EPAPER_RST=${EPAPER_RST:-17}
+            if validate_gpio_pin "$EPAPER_RST"; then
+                break
+            fi
+            echo -e "${RED}      Invalid input. Please try again.${NC}"
+        done
 
-        read -p "    DC pin [25]: " EPAPER_DC
-        EPAPER_DC=${EPAPER_DC:-25}
+        # DC pin with validation
+        while true; do
+            read -p "    DC pin [25]: " EPAPER_DC
+            EPAPER_DC=${EPAPER_DC:-25}
+            if validate_gpio_pin "$EPAPER_DC"; then
+                break
+            fi
+            echo -e "${RED}      Invalid input. Please try again.${NC}"
+        done
 
-        read -p "    CS pin [8]: " EPAPER_CS
-        EPAPER_CS=${EPAPER_CS:-8}
+        # CS pin with validation
+        while true; do
+            read -p "    CS pin [8]: " EPAPER_CS
+            EPAPER_CS=${EPAPER_CS:-8}
+            if validate_gpio_pin "$EPAPER_CS"; then
+                break
+            fi
+            echo -e "${RED}      Invalid input. Please try again.${NC}"
+        done
 
-        read -p "    BUSY pin [24]: " EPAPER_BUSY
-        EPAPER_BUSY=${EPAPER_BUSY:-24}
+        # BUSY pin with validation
+        while true; do
+            read -p "    BUSY pin [24]: " EPAPER_BUSY
+            EPAPER_BUSY=${EPAPER_BUSY:-24}
+            if validate_gpio_pin "$EPAPER_BUSY"; then
+                break
+            fi
+            echo -e "${RED}      Invalid input. Please try again.${NC}"
+        done
 
-        read -p "    PWR pin [18]: " EPAPER_PWR
-        EPAPER_PWR=${EPAPER_PWR:-18}
+        # PWR pin with validation
+        while true; do
+            read -p "    PWR pin [18]: " EPAPER_PWR
+            EPAPER_PWR=${EPAPER_PWR:-18}
+            if validate_gpio_pin "$EPAPER_PWR"; then
+                break
+            fi
+            echo -e "${RED}      Invalid input. Please try again.${NC}"
+        done
 
         echo -e "${GREEN}  ✓ E-paper display enabled${NC}"
     else
@@ -516,8 +605,14 @@ else
 
     if [[ "$CONFIGURE_PCA9536" =~ ^[Yy]$ ]]; then
         PCA9536_ENABLED="true"
-        read -p "  I2C address [0x21]: " PCA9536_ADDRESS
-        PCA9536_ADDRESS=${PCA9536_ADDRESS:-0x21}
+        while true; do
+            read -p "  I2C address [0x21]: " PCA9536_ADDRESS
+            PCA9536_ADDRESS=${PCA9536_ADDRESS:-0x21}
+            if validate_i2c_address "$PCA9536_ADDRESS"; then
+                break
+            fi
+            echo -e "${RED}    Invalid input. Please try again.${NC}"
+        done
         echo -e "${GREEN}  ✓ PCA9536 enabled at $PCA9536_ADDRESS${NC}"
     else
         PCA9536_ENABLED="false"
@@ -643,10 +738,24 @@ else
 fi
 
 # Validate selected firmware version exists
-if [ ! -d "$SCRIPT_DIR/${FIRMWARE_VERSION}.x" ]; then
-    echo -e "${RED}✗ Error: Selected firmware version ${FIRMWARE_VERSION}.x not found in $SCRIPT_DIR${NC}"
+SELECTED_FIRMWARE="${FIRMWARE_VERSION}.x"
+if [ ! -d "$SCRIPT_DIR/$SELECTED_FIRMWARE" ]; then
+    echo -e "${RED}✗ Error: Firmware version $SELECTED_FIRMWARE not found in $SCRIPT_DIR${NC}"
+    echo -e "${RED}   Available firmware versions:${NC}"
+    ls -d "$SCRIPT_DIR"/*.x 2>/dev/null | xargs -n1 basename || echo "  None found"
     exit 1
 fi
+echo -e "${GREEN}✓ Firmware version $SELECTED_FIRMWARE validated${NC}"
+
+# Verify critical firmware files exist
+CRITICAL_FILES=("TakePhoto.py" "controls.txt" "Scheduler.py")
+for file in "${CRITICAL_FILES[@]}"; do
+    if [ ! -f "$SCRIPT_DIR/$SELECTED_FIRMWARE/$file" ]; then
+        echo -e "${RED}✗ Error: Critical file missing: $SELECTED_FIRMWARE/$file${NC}"
+        exit 1
+    fi
+done
+echo -e "${GREEN}✓ All critical firmware files present${NC}"
 
 # Use rsync if available for better control, fallback to cp
 if command -v rsync &> /dev/null; then
