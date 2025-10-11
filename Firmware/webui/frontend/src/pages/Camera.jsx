@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings } from '../utils/api'
+import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCapture } from '../utils/api'
 import { io } from 'socket.io-client'
 
 export default function Camera() {
@@ -13,6 +13,8 @@ export default function Camera() {
   const [calibrating, setCalibrating] = useState(false)
   const [copyingSettings, setCopyingSettings] = useState(false)
   const [actionResult, setActionResult] = useState(null)
+  const [testCapturing, setTestCapturing] = useState(false)
+  const [testCaptureResult, setTestCaptureResult] = useState(null)
   const socketRef = useRef(null)
   const metadataIntervalRef = useRef(null)
 
@@ -207,6 +209,27 @@ export default function Camera() {
     }
   }
 
+  const handleTestCapture = async () => {
+    setTestCapturing(true)
+    setTestCaptureResult(null)
+    try {
+      const response = await testCapture()
+      setTestCaptureResult({
+        success: true,
+        test_photo_path: response.data.test_photo_path,
+        metadata: response.data.metadata
+      })
+    } catch (error) {
+      console.error('Test capture failed:', error)
+      setTestCaptureResult({
+        success: false,
+        error: error.response?.data?.error || 'Failed to capture test photo'
+      })
+    } finally {
+      setTestCapturing(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">Camera Control</h2>
@@ -385,6 +408,60 @@ export default function Camera() {
           <p className="text-xs text-yellow-800">
             <strong>⚠️ Note:</strong> Only compatible settings are copied (sharpness, contrast, saturation, focus mode, white balance, etc.).
             Some settings like resolution and frame rate are specific to each mode.
+          </p>
+        </div>
+      </div>
+
+      {/* Test Capture (Phase 4.5) */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4">🧪 Test Capture</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Capture a full-resolution test photo using your current <strong>preview settings</strong>.
+          This doesn't affect your scheduled capture settings.
+        </p>
+
+        <button
+          onClick={handleTestCapture}
+          disabled={testCapturing || !connected}
+          className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 font-medium"
+        >
+          {testCapturing ? '📸 Capturing Test Photo...' : '🧪 Test Capture (Preview Settings)'}
+        </button>
+
+        {testCaptureResult && (
+          <div className={`mt-4 p-4 rounded-lg border-2 ${
+            testCaptureResult.success
+              ? 'bg-green-50 border-green-200'
+              : 'bg-red-50 border-red-200'
+          }`}>
+            <p className={`font-semibold ${
+              testCaptureResult.success ? 'text-green-900' : 'text-red-900'
+            }`}>
+              {testCaptureResult.success ? 'Test Capture Successful!' : 'Test Capture Failed'}
+            </p>
+            {testCaptureResult.success && (
+              <>
+                <p className="text-sm text-green-700 mt-1">
+                  Photo saved: {testCaptureResult.test_photo_path}
+                </p>
+                <p className="text-xs text-green-600 mt-2">
+                  Exposure: {testCaptureResult.metadata.exposure_time}µs |
+                  Gain: {testCaptureResult.metadata.analogue_gain} |
+                  Focus: {testCaptureResult.metadata.lens_position}D
+                </p>
+              </>
+            )}
+            {!testCaptureResult.success && (
+              <p className="text-sm text-red-700 mt-1">{testCaptureResult.error}</p>
+            )}
+          </div>
+        )}
+
+        <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+          <p className="text-xs text-gray-600">
+            <strong>Tip:</strong> Use this to test your preview settings at full resolution
+            before copying them to capture settings. Test photos are saved in
+            <code className="px-1 bg-gray-200 rounded ml-1">test_captures/</code>
           </p>
         </div>
       </div>

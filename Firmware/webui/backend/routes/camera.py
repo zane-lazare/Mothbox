@@ -606,3 +606,168 @@ def auto_calibrate():
             'error': error_msg,
             'traceback': traceback.format_exc()
         }), 500
+
+
+@camera_bp.route('/test-capture', methods=['POST'])
+def test_capture():
+    """
+    Capture a test photo using current preview settings (Phase 4.5)
+
+    Allows testing camera settings without modifying camera_settings.csv.
+    Uses webui_settings.txt controls for full-resolution capture.
+
+    Returns:
+        JSON with:
+        - success: bool
+        - test_photo_path: str (relative path from PHOTOS_DIR)
+        - settings_used: dict (controls that were applied)
+        - metadata: dict (exposure, gain, lens position, color temp)
+        - timestamp: float
+    """
+    try:
+        # Import here to avoid issues if picamera2 not available
+        try:
+            from picamera2 import Picamera2
+        except ImportError:
+            return jsonify({
+                'success': False,
+                'error': 'picamera2 not available'
+            }), 500
+
+        from mothbox_paths import WEBUI_SETTINGS_FILE, PHOTOS_DIR, get_control_values
+        from datetime import datetime
+        from flask import current_app
+        import time
+
+        print("Test capture requested via API")
+
+        # Load preview settings
+        preview_settings = {}
+        if WEBUI_SETTINGS_FILE.exists():
+            preview_settings = get_control_values(WEBUI_SETTINGS_FILE)
+
+        # Release camera hardware if stream active (prevents resource conflict)
+        camera_streamer = current_app.config.get('CAMERA_STREAMER')
+        was_streaming = False
+        if camera_streamer and camera_streamer.streaming:
+            print("Releasing camera hardware before test capture...")
+            camera_streamer.release_camera()
+            was_streaming = True
+            time.sleep(0.5)  # Let camera fully release
+
+        # Initialize camera for test capture
+        picam2 = None
+        try:
+            # Try camera 0 first, fallback to camera 1
+            try:
+                picam2 = Picamera2(0)
+            except Exception:
+                picam2 = Picamera2(1)
+
+            # Configure for full-resolution capture
+            # Use maximum resolution for test captures
+            capture_config = picam2.create_still_configuration(
+                main={"size": (9152, 6944)}  # Full 64MP resolution
+            )
+            picam2.configure(capture_config)
+
+            # Start camera
+            picam2.start()
+
+            # Apply preview controls to full-res capture
+            controls = {
+                'Sharpness': float(preview_settings.get('sharpness', 1.0)),
+                'Brightness': float(preview_settings.get('brightness', 0.0)),
+                'Contrast': float(preview_settings.get('contrast', 1.0)),
+                'Saturation': float(preview_settings.get('saturation', 1.0)),
+                'AfMode': int(preview_settings.get('af_mode', 2)),
+                'AfSpeed': int(preview_settings.get('af_speed', 0)),
+                'AfRange': int(preview_settings.get('af_range', 0)),
+                'AwbEnable': preview_settings.get('awb_enable', 'true').lower() == 'true',
+            }
+
+            # Only set AwbMode if AWB is disabled
+            if not controls['AwbEnable']:
+                controls['AwbMode'] = int(preview_settings.get('awb_mode', 0))
+
+            picam2.set_controls(controls)
+            print(f"Applied preview controls to test capture: {controls}")
+
+            # Wait for settings to stabilize
+            time.sleep(0.5)
+
+            # Create test_captures directory
+            test_dir = PHOTOS_DIR / "test_captures"
+            test_dir.mkdir(parents=True, exist_ok=True)
+
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"test_capture_{timestamp}.jpg"
+            filepath = test_dir / filename
+
+            # Capture photo
+            print(f"Capturing test photo to: {filepath}")
+            picam2.capture_file(str(filepath))
+
+            # Get metadata for reference
+            md = picam2.capture_metadata()
+
+            # Stop camera
+            picam2.stop()
+            picam2.close()
+
+            # Return relative path from PHOTOS_DIR
+            relative_path = str(filepath.relative_to(PHOTOS_DIR))
+
+            return jsonify({
+                'success': True,
+                'test_photo_path': relative_path,
+                'settings_used': controls,
+                'metadata': {
+                    'exposure_time': md.get('ExposureTime', 0),
+                    'analogue_gain': round(md.get('AnalogueGain', 0.0), 2),
+                    'lens_position': round(md.get('LensPosition', 0.0), 2),
+                    'colour_temperature': md.get('ColourTemperature', 0)
+                },
+                'timestamp': time.time(),
+                'message': f'Test capture saved to {relative_path}'
+            })
+
+        except Exception as camera_error:
+            # Ensure camera is closed on error
+            if picam2:
+                try:
+                    picam2.stop()
+                    picam2.close()
+                except Exception:
+                    pass
+
+            # Restart stream if it was active
+            if was_streaming and camera_streamer:
+                print("Restarting camera stream after test capture error...")
+                try:
+                    camera_streamer.start_streaming()
+                except Exception as restart_error:
+                    print(f"Warning: Failed to restart stream: {restart_error}")
+
+            raise camera_error
+
+        finally:
+            # Always restart stream if it was active
+            if was_streaming and camera_streamer:
+                print("Restarting camera stream after test capture...")
+                try:
+                    camera_streamer.start_streaming()
+                except Exception as restart_error:
+                    print(f"Warning: Failed to restart stream: {restart_error}")
+
+    except Exception as e:
+        import traceback
+        error_msg = str(e)
+        print(f"Test capture error: {error_msg}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': error_msg,
+            'traceback': traceback.format_exc()
+        }), 500
