@@ -16,3 +16,4 @@ Relay_Ch1=26
 Relay_Ch2=20
 Relay_Ch3=21
 relay_enabled=true
+flash_duration_ms=100

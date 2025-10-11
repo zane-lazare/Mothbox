@@ -242,16 +242,33 @@ if __name__ == '__main__':
         print("   See issue #19: https://github.com/zane-lazare/Mothbox/issues/19")
         print("=" * 60 + "\n")
 
+    # Block production mode until gunicorn is implemented (issue #19)
+    # Production installations should run in development mode for now
+    if config.ENV_NAME == 'production' and not config.DEBUG:
+        raise RuntimeError(
+            "\n" + "="*60 + "\n"
+            "ERROR: Production mode requires gunicorn deployment\n"
+            "="*60 + "\n"
+            "The Werkzeug development server is not safe for production use.\n"
+            "\n"
+            "For now, run in development mode:\n"
+            "  export MOTHBOX_ENV=development\n"
+            "\n"
+            "Or wait for gunicorn implementation:\n"
+            "  https://github.com/zane-lazare/Mothbox/issues/19\n"
+            "="*60
+        )
+
     try:
         # Run development server
         # In development mode, allow_unsafe_werkzeug is acceptable
-        # In production mode, this is a temporary measure until issue #19 is resolved
+        # Production deployments should use MOTHBOX_ENV=development until issue #19
         socketio.run(
             app,
             host=config.HOST,
             port=config.PORT,
             debug=config.DEBUG,
-            allow_unsafe_werkzeug=config.DEBUG  # Only allow in debug/development mode
+            allow_unsafe_werkzeug=True  # Safe when DEBUG=True or using development mode
         )
     finally:
         # Cleanup camera on shutdown

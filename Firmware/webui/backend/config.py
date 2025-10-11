@@ -60,10 +60,11 @@ class DevelopmentConfig(Config):
     # Set to False if you want to test without CSRF during development
     WTF_CSRF_ENABLED = True
 
-    # CORS: Allow all origins in development for remote access to Pi
-    # Allows testing from any IP address (e.g., accessing Pi via 192.168.x.x)
-    # Can still be overridden via ALLOWED_ORIGINS env var for specific origins
-    allowed_origins_env = os.environ.get('ALLOWED_ORIGINS', '*')
+    # CORS: Default to localhost and local network patterns in development
+    # Allows testing from local machine and LAN (e.g., accessing Pi via 192.168.x.x)
+    # More secure than wildcard while maintaining development flexibility
+    # Override with ALLOWED_ORIGINS='*' if you need unrestricted access
+    allowed_origins_env = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:*,http://127.0.0.1:*,http://192.168.*.*:*,http://10.*.*.*:*')
     CORS_ORIGINS = '*' if allowed_origins_env == '*' else allowed_origins_env.split(',')
 
 

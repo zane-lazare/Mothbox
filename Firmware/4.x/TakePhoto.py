@@ -154,7 +154,11 @@ def get_control_values(filepath):
     control_values = {}
     with open(filepath, "r") as file:
         for line in file:
-            key, value = line.strip().split("=", 1)  # maxsplit=1 to handle values with '=' chars
+            line = line.strip()
+            # Skip empty lines and lines without '=' to prevent crashes
+            if not line or '=' not in line:
+                continue
+            key, value = line.split("=", 1)  # maxsplit=1 to handle values with '=' chars
             control_values[key] = value
     return control_values
 

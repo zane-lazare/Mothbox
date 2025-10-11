@@ -208,6 +208,9 @@ def control_gpio():
         if not relay or state is None:
             return jsonify({'error': 'Missing relay or state parameter'}), 400
 
+        if not isinstance(state, bool):
+            return jsonify({'error': 'State must be a boolean value (true/false)'}), 400
+
         pins = get_gpio_pins()
         if relay not in pins:
             return jsonify({'error': f'Invalid relay: {relay}'}), 400
@@ -249,13 +252,19 @@ def trigger_flash():
         pins = get_gpio_pins()
         flash_pin = pins['Relay_Ch2']
 
-        print(f"Triggering flash on pin {flash_pin} (100ms pulse)")
+        # Get configurable flash duration from controls.txt (default: 100ms)
+        from mothbox_paths import CONTROLS_FILE, get_control_values
+        controls = get_control_values(CONTROLS_FILE)
+        flash_duration_ms = int(controls.get('flash_duration_ms', 100))
+        flash_duration_sec = flash_duration_ms / 1000.0
+
+        print(f"Triggering flash on pin {flash_pin} ({flash_duration_ms}ms pulse)")
 
         # Setup pin as output
         GPIO.setup(flash_pin, GPIO.OUT)
         # Turn on
         GPIO.output(flash_pin, GPIO.HIGH)
-        time.sleep(0.1)  # 100ms
+        time.sleep(flash_duration_sec)
         # Turn off
         GPIO.output(flash_pin, GPIO.LOW)
 
