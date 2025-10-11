@@ -227,7 +227,8 @@ def get_webui_settings():
             'preview_width': 1024,
             'preview_height': 768,
             'frame_rate': 10,
-            'jpeg_quality': 95
+            'jpeg_quality': 85,  # Optimized default: faster encoding, good quality
+            'stream_mode': 'simplejpeg'  # Fast software encoding (5-7x faster than PIL)
         }
 
         # Load from file if it exists
@@ -256,7 +257,8 @@ def update_webui_settings():
         preview_width = int(new_settings.get('preview_width', 1024))
         preview_height = int(new_settings.get('preview_height', 768))
         frame_rate = int(new_settings.get('frame_rate', 10))
-        jpeg_quality = int(new_settings.get('jpeg_quality', 95))
+        jpeg_quality = int(new_settings.get('jpeg_quality', 85))
+        stream_mode = new_settings.get('stream_mode', 'simplejpeg')
 
         # Validate ranges
         if not (320 <= preview_width <= 1920):
@@ -267,6 +269,8 @@ def update_webui_settings():
             return jsonify({'error': 'Frame rate must be between 1 and 30'}), 400
         if not (50 <= jpeg_quality <= 100):
             return jsonify({'error': 'JPEG quality must be between 50 and 100'}), 400
+        if stream_mode not in ['simplejpeg', 'mjpeg_hardware']:
+            return jsonify({'error': 'stream_mode must be simplejpeg or mjpeg_hardware'}), 400
 
         # Create backup before modification
         backup_path = _create_backup(WEBUI_SETTINGS_FILE)
@@ -277,6 +281,7 @@ def update_webui_settings():
             f.write(f"preview_height={preview_height}\n")
             f.write(f"frame_rate={frame_rate}\n")
             f.write(f"jpeg_quality={jpeg_quality}\n")
+            f.write(f"stream_mode={stream_mode}\n")
 
         return jsonify({'success': True})
     except Exception as e:

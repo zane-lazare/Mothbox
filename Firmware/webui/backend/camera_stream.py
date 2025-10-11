@@ -20,12 +20,21 @@ except (ImportError, RuntimeError):
     PICAMERA_AVAILABLE = False
     print("Warning: picamera2 not available - camera preview disabled")
 
+# Try to import simplejpeg for fast JPEG encoding (5-7x faster than PIL)
+try:
+    import simplejpeg
+    SIMPLEJPEG_AVAILABLE = True
+    print("✓ simplejpeg available for fast JPEG encoding")
+except ImportError:
+    SIMPLEJPEG_AVAILABLE = False
+    print("⚠ simplejpeg not available - using PIL (slower)")
+
 # Default camera stream configuration constants
 DEFAULT_PREVIEW_WIDTH = 1024
 DEFAULT_PREVIEW_HEIGHT = 768
 DEFAULT_PREVIEW_FORMAT = "RGB888"
 DEFAULT_FRAME_DELAY = 0.1  # seconds (10 fps)
-DEFAULT_JPEG_QUALITY = 95
+DEFAULT_JPEG_QUALITY = 85  # Balanced quality - faster encoding, smaller files
 
 
 class CameraStreamer:
@@ -46,6 +55,7 @@ class CameraStreamer:
         self.preview_format = DEFAULT_PREVIEW_FORMAT
         self.frame_delay = DEFAULT_FRAME_DELAY
         self.jpeg_quality = DEFAULT_JPEG_QUALITY
+        self.stream_mode = 'simplejpeg'  # Default: fast software encoding
 
         try:
             if WEBUI_SETTINGS_FILE.exists():
@@ -61,9 +71,11 @@ class CameraStreamer:
                     self.frame_delay = 1.0 / fps if fps > 0 else DEFAULT_FRAME_DELAY
                 if 'jpeg_quality' in settings:
                     self.jpeg_quality = int(settings['jpeg_quality'])
+                if 'stream_mode' in settings:
+                    self.stream_mode = settings['stream_mode']
 
                 print(f"Stream settings loaded: {self.preview_width}x{self.preview_height}, "
-                      f"FPS: {1/self.frame_delay:.1f}, Quality: {self.jpeg_quality}")
+                      f"FPS: {1/self.frame_delay:.1f}, Quality: {self.jpeg_quality}, Mode: {self.stream_mode}")
         except Exception as e:
             print(f"Error loading stream settings, using defaults: {e}")
 
@@ -153,16 +165,24 @@ class CameraStreamer:
                     # Capture frame
                     frame = self.camera.capture_array()
 
-                    # Convert to PIL Image
-                    img = Image.fromarray(frame)
-
-                    # Encode as JPEG with higher quality
-                    buffer = io.BytesIO()
-                    img.save(buffer, format='JPEG', quality=self.jpeg_quality, optimize=True)
-                    buffer.seek(0)
+                    # Encode as JPEG using fastest available method
+                    if SIMPLEJPEG_AVAILABLE:
+                        # Fast path: simplejpeg (5-7x faster than PIL)
+                        jpeg_bytes = simplejpeg.encode_jpeg(
+                            frame,
+                            quality=self.jpeg_quality,
+                            colorspace='RGB'
+                        )
+                    else:
+                        # Fallback path: PIL (slower, remove optimize=True for speed)
+                        img = Image.fromarray(frame)
+                        buffer = io.BytesIO()
+                        img.save(buffer, format='JPEG', quality=self.jpeg_quality)
+                        buffer.seek(0)
+                        jpeg_bytes = buffer.read()
 
                     # Convert to base64
-                    img_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+                    img_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
 
                     # Emit to all connected clients
                     self.socketio.emit('camera_frame', {

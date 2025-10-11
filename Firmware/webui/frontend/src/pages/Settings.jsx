@@ -482,6 +482,25 @@ export default function Settings() {
               </p>
             </div>
 
+            {/* Stream Mode Selection */}
+            <div>
+              <label htmlFor="stream_mode" className="block text-sm font-medium text-gray-700 mb-2">
+                Encoding Mode
+              </label>
+              <select
+                id="stream_mode"
+                value={webuiForm.stream_mode || 'simplejpeg'}
+                onChange={(e) => setWebuiForm({...webuiForm, stream_mode: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="simplejpeg">Fast Software (simplejpeg) - Recommended</option>
+                <option value="mjpeg_hardware">Hardware MJPEG (Experimental)</option>
+              </select>
+              <p className="mt-2 text-xs text-gray-500">
+                simplejpeg provides 5-7x faster encoding than PIL. Hardware MJPEG is experimental and may offer lower latency.
+              </p>
+            </div>
+
             {/* Info Box */}
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
