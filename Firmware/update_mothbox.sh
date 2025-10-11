@@ -659,13 +659,15 @@ if [ "$SERVICE_CHANGED" -gt 0 ]; then
             fi
 
             # Generate service file with substitutions
+            # Use mktemp for secure temporary file creation (prevents TOCTOU race conditions)
+            TEMP_SERVICE=$(mktemp)
             sed -e "s|__MOTHBOX_USER__|$MOTHBOX_USER|g" \
                 -e "s|__MOTHBOX_HOME__|$MOTHBOX_HOME|g" \
                 -e "s|__MOTHBOX_ENV__|$MOTHBOX_ENV|g" \
-                "$SERVICE_TEMPLATE" > /tmp/mothbox-webui.service
+                "$SERVICE_TEMPLATE" > "$TEMP_SERVICE"
 
             # Install service file
-            sudo mv /tmp/mothbox-webui.service /etc/systemd/system/mothbox-webui.service
+            sudo mv "$TEMP_SERVICE" /etc/systemd/system/mothbox-webui.service
             sudo systemctl daemon-reload
 
             echo -e "${GREEN}✓ Service file updated and daemon reloaded${NC}"

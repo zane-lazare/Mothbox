@@ -730,6 +730,40 @@ else
     CONTROLS_FILE="$MOTHBOX_HOME/${FIRMWARE_VERSION}.x/controls.txt"
 fi
 
+# Validate GPIO pin numbers before writing to prevent command injection
+# Valid BCM GPIO pins are 2-27 (same validation as WebUI)
+echo -e "${BLUE}Validating GPIO configuration...${NC}"
+for pin_name in "RELAY_CH1" "RELAY_CH2" "RELAY_CH3"; do
+    pin_value="${!pin_name}"
+    if ! [[ "$pin_value" =~ ^[0-9]+$ ]] || [ "$pin_value" -lt 2 ] || [ "$pin_value" -gt 27 ]; then
+        echo -e "${RED}✗ Error: Invalid GPIO pin for $pin_name: $pin_value${NC}"
+        echo -e "${RED}  Valid BCM GPIO pins are 2-27${NC}"
+        exit 1
+    fi
+done
+
+# Validate numeric values for hardware config
+if ! [[ "$GPS_BAUDRATE" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}✗ Error: GPS_BAUDRATE must be numeric: $GPS_BAUDRATE${NC}"
+    exit 1
+fi
+if ! [[ "$GPS_TIMEOUT" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}✗ Error: GPS_TIMEOUT must be numeric: $GPS_TIMEOUT${NC}"
+    exit 1
+fi
+
+# Validate I2C addresses (hex format 0xXX)
+for addr_name in "INA260_ADDRESS" "LIGHT_SENSOR_ADDRESS" "PCA9536_ADDRESS" "MUX_ADDRESS"; do
+    addr_value="${!addr_name}"
+    if ! [[ "$addr_value" =~ ^0x[0-9A-Fa-f]{2}$ ]]; then
+        echo -e "${RED}✗ Error: Invalid I2C address for $addr_name: $addr_value${NC}"
+        echo -e "${RED}  Must be in format 0xXX (e.g., 0x40)${NC}"
+        exit 1
+    fi
+done
+
+echo -e "${GREEN}✓ Configuration values validated${NC}"
+
 # Append GPIO configuration if not already present
 if ! grep -q "^Relay_Ch1=" "$CONTROLS_FILE" 2>/dev/null; then
     update_controls_atomic sh -c "

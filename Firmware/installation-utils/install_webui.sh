@@ -154,13 +154,15 @@ if [ ! -f "$SERVICE_TEMPLATE" ]; then
 else
     # Generate service file from template with actual values
     echo "Generating service file from template..."
+    # Use mktemp for secure temporary file creation (prevents TOCTOU race conditions)
+    TEMP_SERVICE=$(mktemp)
     sudo sed -e "s|__MOTHBOX_USER__|$MOTHBOX_USER|g" \
              -e "s|__MOTHBOX_HOME__|$MOTHBOX_HOME|g" \
              -e "s|__MOTHBOX_ENV__|$MOTHBOX_ENV|g" \
-             "$SERVICE_TEMPLATE" > /tmp/mothbox-webui.service
+             "$SERVICE_TEMPLATE" > "$TEMP_SERVICE"
 
     # Install the generated service file
-    sudo mv /tmp/mothbox-webui.service /etc/systemd/system/mothbox-webui.service
+    sudo mv "$TEMP_SERVICE" /etc/systemd/system/mothbox-webui.service
     sudo systemctl daemon-reload
     sudo systemctl enable mothbox-webui.service
     echo -e "${GREEN}✓ Systemd service installed and enabled${NC}"

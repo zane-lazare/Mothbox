@@ -64,9 +64,11 @@ else:
 # Configure SocketIO with proper CORS and transport settings
 # WebSocket connections are exempt from CSRF by Flask-WTF
 # Use same CORS origins as REST API for consistency
+# Production (no CORS_ORIGINS): empty list = reject all cross-origin connections
+# Development (CORS_ORIGINS set): allow configured origins
 socketio = SocketIO(
     app,
-    cors_allowed_origins=config.CORS_ORIGINS if config.CORS_ORIGINS else "*",
+    cors_allowed_origins=config.CORS_ORIGINS if config.CORS_ORIGINS else [],
     async_mode='threading',
     logger=True,
     engineio_logger=True,
