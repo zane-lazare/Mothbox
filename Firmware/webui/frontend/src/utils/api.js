@@ -78,6 +78,8 @@ export const getDiagnosticInfo = () => api.get('/system/diagnostic')
 export const capturePhoto = () => api.post('/camera/capture')
 export const getCameraSettings = () => api.get('/camera/settings')
 export const updateCameraSettings = (settings) => api.post('/camera/settings', settings)
+export const triggerAutofocus = () => api.post('/camera/autofocus')
+export const autoCalibrate = (data) => api.post('/camera/calibrate', data)
 
 // Gallery APIs
 export const getPhotos = () => api.get('/gallery/photos')
@@ -91,6 +93,7 @@ export const getScheduleSettings = () => api.get('/config/schedule')
 export const updateScheduleSettings = (settings) => api.post('/config/schedule', settings)
 export const getWebUISettings = () => api.get('/config/webui')
 export const updateWebUISettings = (settings) => api.post('/config/webui', settings)
+export const copySettings = (data) => api.post('/config/copy-settings', data)
 
 // GPIO APIs
 export const getGpioStatus = () => api.get('/gpio/status')
