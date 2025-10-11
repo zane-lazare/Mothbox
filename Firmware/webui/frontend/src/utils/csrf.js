@@ -26,19 +26,23 @@ let csrfToken = null
  */
 export async function fetchCsrfToken() {
   try {
+    console.log('[CSRF] Fetching token from:', `${API_URL}/csrf-token`)
     const response = await fetch(`${API_URL}/csrf-token`, {
       credentials: 'include', // Include cookies for session
     })
 
     if (!response.ok) {
+      console.error('[CSRF] Failed to fetch token:', response.status, response.statusText)
       throw new Error(`Failed to fetch CSRF token: ${response.statusText}`)
     }
 
     const data = await response.json()
     csrfToken = data.csrf_token
+    console.log('[CSRF] Token fetched successfully:', csrfToken ? 'YES' : 'NO')
+    console.log('[CSRF] Token value:', csrfToken)
     return csrfToken
   } catch (error) {
-    console.error('Error fetching CSRF token:', error)
+    console.error('[CSRF] Error fetching CSRF token:', error)
     throw error
   }
 }

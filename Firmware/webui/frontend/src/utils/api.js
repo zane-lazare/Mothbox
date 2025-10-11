@@ -28,9 +28,12 @@ api.interceptors.request.use(
     if (['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase())) {
       try {
         const token = await getCsrfToken()
+        console.log('[API] Adding CSRF token to request:', config.url, 'Token:', token ? 'YES' : 'NO')
+        console.log('[API] Token value:', token)
         config.headers['X-CSRFToken'] = token
+        console.log('[API] Headers after adding token:', config.headers)
       } catch (error) {
-        console.error('Failed to get CSRF token:', error)
+        console.error('[API] Failed to get CSRF token:', error)
       }
     }
     return config
