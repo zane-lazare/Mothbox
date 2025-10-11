@@ -467,6 +467,8 @@ fi
 FIRMWARE_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/.*\.py$' | wc -l)
 WEBUI_BACKEND_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/backend/' | wc -l)
 WEBUI_FRONTEND_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/frontend/' | wc -l)
+# Also rebuild frontend if backend config or dependencies changed (may affect CSRF, CORS, API behavior)
+BACKEND_CONFIG_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/backend/(config\.py|requirements\.txt)$' | wc -l)
 INSTALLER_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/install.*\.sh$|^Firmware/installation-utils/' | wc -l)
 SERVICE_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '\.service\.template$' | wc -l)
 CONFIG_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E 'controls\.txt$|camera_settings\.csv$|schedule_settings\.csv$|wordlist\.csv$' | wc -l)
@@ -475,6 +477,7 @@ echo -e "${CYAN}Components affected:${NC}"
 [ "$FIRMWARE_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Firmware Python scripts ($FIRMWARE_CHANGED files)"
 [ "$WEBUI_BACKEND_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Web UI backend ($WEBUI_BACKEND_CHANGED files)"
 [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Web UI frontend ($WEBUI_FRONTEND_CHANGED files)"
+[ "$BACKEND_CONFIG_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Backend config/dependencies ($BACKEND_CONFIG_CHANGED files) - requires frontend rebuild"
 [ "$SERVICE_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Systemd service files ($SERVICE_CHANGED files)"
 [ "$INSTALLER_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Installer scripts ($INSTALLER_CHANGED files)"
 [ "$CONFIG_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Configuration files ($CONFIG_CHANGED files)"
@@ -593,9 +596,14 @@ if [ "$WEBUI_BACKEND_CHANGED" -gt 0 ]; then
     echo ""
 fi
 
-# Rebuild Web UI frontend
-if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ]; then
+# Rebuild Web UI frontend if frontend files OR critical backend config changed
+if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] || [ "$BACKEND_CONFIG_CHANGED" -gt 0 ]; then
     echo -e "${BLUE}Rebuilding Web UI frontend...${NC}"
+
+    # Explain why we're rebuilding
+    if [ "$BACKEND_CONFIG_CHANGED" -gt 0 ] && [ "$WEBUI_FRONTEND_CHANGED" -eq 0 ]; then
+        echo "Backend configuration changed - rebuilding frontend to ensure compatibility"
+    fi
 
     if [ -d "$MOTHBOX_HOME/webui/frontend" ]; then
         cd "$MOTHBOX_HOME/webui/frontend"

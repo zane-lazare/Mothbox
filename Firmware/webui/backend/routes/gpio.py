@@ -197,9 +197,6 @@ def get_gpio_status():
 @gpio_bp.route('/control', methods=['POST'])
 def control_gpio():
     """Control GPIO pins using RPi.GPIO (rate limited to prevent hardware abuse)"""
-    print(f"→ GPIO control request received")
-    print(f"  Headers: {dict(request.headers)}")
-    print(f"  JSON: {request.json}")
     try:
         if not GPIO_AVAILABLE:
             return jsonify({'error': 'GPIO not available'}), 500
