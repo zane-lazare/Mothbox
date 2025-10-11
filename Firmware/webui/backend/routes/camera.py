@@ -152,12 +152,8 @@ def update_camera_settings():
             fieldnames = reader.fieldnames
 
         # Sanitize values to prevent CSV injection (defense in depth)
-        # Import sanitizer from config module
-        import sys
-        from pathlib import Path
-        sys.path.insert(0, str(Path(__file__).parent))
-        from config import _sanitize_csv_value
-
+        # Lazy import to avoid circular dependency with app.py
+        from routes.config import _sanitize_csv_value
         sanitized_settings = {k: _sanitize_csv_value(v) for k, v in new_settings.items()}
 
         # Write updated settings
