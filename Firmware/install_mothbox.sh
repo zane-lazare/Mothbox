@@ -46,13 +46,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Input validation and sanitization functions
-sanitize_input() {
-    local input="$1"
-    # Remove dangerous characters: newlines, semicolons, command substitutions
-    echo "$input" | tr -d '\n;$`()|&<>' | sed 's/[[:space:]]*$//'
-}
-
+# Input validation functions
 validate_gpio_pin() {
     local pin="$1"
     if ! [[ "$pin" =~ ^[0-9]+$ ]]; then
@@ -68,7 +62,7 @@ validate_gpio_pin() {
 
 validate_i2c_address() {
     local addr="$1"
-    if [[ ! "$addr" =~ ^0x[0-9a-fA-F]{1,2}$ ]]; then
+    if [[ ! "$addr" =~ ^0x[0-9a-fA-F]{2}$ ]]; then
         echo "Error: Invalid I2C address format (expected: 0xNN)"
         return 1
     fi
@@ -195,6 +189,13 @@ if [ "$INTERACTIVE_MODE" = "true" ]; then
                 echo -e "${RED}Error: Custom path cannot be empty${NC}"
                 exit 1
             fi
+            # Remove trailing slashes for consistency
+            CUSTOM_PATH="${CUSTOM_PATH%/}"
+            # Check for dangerous characters
+            if [[ "$CUSTOM_PATH" =~ [[:space:]\;\$\`\(\)\|&\<\>] ]]; then
+                echo -e "${RED}Error: Custom path contains invalid characters${NC}"
+                exit 1
+            fi
             # Validate custom path for security
             if [[ "$CUSTOM_PATH" =~ \.\. ]] || [[ "$CUSTOM_PATH" =~ ^/(etc|usr|bin|sbin|boot|sys|proc|dev|root) ]]; then
                 echo -e "${RED}Error: Custom path cannot be a system directory or contain path traversal${NC}"
@@ -240,6 +241,13 @@ if [ "$INTERACTIVE_MODE" = "false" ]; then
         custom)
             if [ -z "$CUSTOM_PATH" ]; then
                 echo -e "${RED}Error: --path required for custom installation${NC}"
+                exit 1
+            fi
+            # Remove trailing slashes for consistency
+            CUSTOM_PATH="${CUSTOM_PATH%/}"
+            # Check for dangerous characters
+            if [[ "$CUSTOM_PATH" =~ [[:space:]\;\$\`\(\)\|&\<\>] ]]; then
+                echo -e "${RED}Error: Custom path contains invalid characters${NC}"
                 exit 1
             fi
             # Validate custom path for security
