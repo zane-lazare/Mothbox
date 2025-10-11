@@ -2,29 +2,32 @@
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CAMERA_SETTINGS_FILE, CONTROLS_FILE, get_gpio_pins
-
-import time
-from picamera2 import Picamera2, Preview
-from libcamera import controls
+from mothbox_paths import (
+    MOTHBOX_HOME,
+    PHOTOS_DIR,
+    CAMERA_SETTINGS_FILE,
+    CONTROLS_FILE,
+    get_gpio_pins
+)
 
 import time
 import datetime
-computerName = "mothbox"
+import os
+import platform
+from picamera2 import Picamera2, Preview
+from libcamera import controls
 import cv2
+import RPi.GPIO as GPIO
 
-import os, platform
+computerName = "mothbox"
+
 if platform.system() == "Windows":
 	print(platform.uname().node)
 else:
 	computerName = os.uname()[1]
 	print(os.uname()[1])   # doesnt work on windows
 
-
 #GPIO
-import RPi.GPIO as GPIO
-import time
-
 # Load GPIO pins from configuration
 pins = get_gpio_pins()
 Relay_Ch1 = pins['Relay_Ch1']
