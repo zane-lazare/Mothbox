@@ -84,6 +84,8 @@ def capture_photo():
         # Determine Pi version to find correct TakePhoto.py
         import platform
         from mothbox_paths import MOTHBOX_HOME
+        from flask import current_app
+        import time
 
         print(f"Photo capture requested. MOTHBOX_HOME: {MOTHBOX_HOME}")
 
@@ -119,37 +121,64 @@ def capture_photo():
                 'error': error_msg
             }), 500
 
-        print(f"Running: python3 {script_path}")
-        result = subprocess.run(
-            ['python3', str(script_path)],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-
-        print(f"TakePhoto.py exit code: {result.returncode}")
-        print(f"stdout: {result.stdout}")
-        print(f"stderr: {result.stderr}")
-
-        if result.returncode == 0:
-            # Find the most recent photo
-            photos = sorted(PHOTOS_DIR.glob('**/*.jpg'), key=lambda p: p.stat().st_mtime, reverse=True)
-            latest_photo = str(photos[0].relative_to(PHOTOS_DIR)) if photos else None
-
-            # Invalidate photo count cache so dashboard shows updated count immediately
-            from routes.system import invalidate_photo_count_cache
-            invalidate_photo_count_cache()
-
-            return jsonify({
-                'success': True,
-                'latest_photo': latest_photo,
-                'output': result.stdout
-            })
-        else:
+        # Acquire operation lock to prevent concurrent camera access
+        camera_streamer = current_app.config.get('CAMERA_STREAMER')
+        if not camera_streamer:
             return jsonify({
                 'success': False,
-                'error': result.stderr or result.stdout
+                'error': 'Camera streamer not initialized'
             }), 500
+
+        with camera_streamer.acquire_for_operation():
+            # Release streaming camera if active
+            was_streaming = False
+            if camera_streamer.camera:
+                print("Releasing camera hardware before TakePhoto.py subprocess...")
+                was_streaming = camera_streamer.streaming
+                camera_streamer.release_camera()
+                time.sleep(0.5)  # Let camera fully release
+
+            try:
+                print(f"Running: python3 {script_path}")
+                result = subprocess.run(
+                    ['python3', str(script_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+
+                print(f"TakePhoto.py exit code: {result.returncode}")
+                print(f"stdout: {result.stdout}")
+                print(f"stderr: {result.stderr}")
+
+                if result.returncode == 0:
+                    # Find the most recent photo
+                    photos = sorted(PHOTOS_DIR.glob('**/*.jpg'), key=lambda p: p.stat().st_mtime, reverse=True)
+                    latest_photo = str(photos[0].relative_to(PHOTOS_DIR)) if photos else None
+
+                    # Invalidate photo count cache so dashboard shows updated count immediately
+                    from routes.system import invalidate_photo_count_cache
+                    invalidate_photo_count_cache()
+
+                    return jsonify({
+                        'success': True,
+                        'latest_photo': latest_photo,
+                        'output': result.stdout
+                    })
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': result.stderr or result.stdout
+                    }), 500
+
+            finally:
+                # Always restart stream if it was active
+                if was_streaming and camera_streamer:
+                    print("Restarting camera stream after TakePhoto.py subprocess...")
+                    try:
+                        camera_streamer.start_streaming()
+                    except Exception as restart_error:
+                        print(f"Warning: Failed to restart stream: {restart_error}")
 
     except subprocess.TimeoutExpired:
         error_msg = 'Photo capture timed out'
