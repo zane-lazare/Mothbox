@@ -4,8 +4,8 @@
 
 set -e  # Exit on error
 
-echo "🧪 Mothbox Phase 1.1-1.3 Test Runner"
-echo "====================================="
+echo "🧪 Mothbox Test Runner - Issue #43 Complete Test Suite"
+echo "======================================================="
 echo ""
 
 # Get the script directory
@@ -94,6 +94,66 @@ case "$TEST_TYPE" in
         pytest Tests/unit/test_test_capture.py -v -s
         ;;
 
+    "performance"|"streaming")
+        # Performance & Streaming tests
+        echo "🚀 Running Performance & Streaming tests..."
+        echo ""
+        echo "Testing stream modes, stability, and concurrent performance..."
+        pytest Tests/unit/test_stream_modes.py \
+               Tests/integration/test_stream_stability.py \
+               Tests/integration/test_stream_performance.py -v -s
+        ;;
+
+    "quality"|"image-quality")
+        # Image Quality Controls tests
+        echo "🚀 Running Image Quality Controls tests..."
+        echo ""
+        echo "Testing quality validation, persistence, and visual metrics..."
+        pytest Tests/unit/test_image_quality_validation.py \
+               Tests/integration/test_quality_settings_persistence.py \
+               Tests/integration/test_image_quality.py -v -s
+        ;;
+
+    "focus"|"exposure")
+        # Focus & Exposure Controls tests
+        echo "🚀 Running Focus & Exposure Controls tests..."
+        echo ""
+        echo "Testing autofocus, calibration, and exposure workflows..."
+        pytest Tests/unit/test_focus_control_validation.py \
+               Tests/integration/test_autofocus_workflows.py \
+               Tests/integration/test_calibration_workflows.py \
+               Tests/integration/test_camera_controls.py -v -s
+        ;;
+
+    "workflows"|"interactive")
+        # Interactive Features & Workflows tests
+        echo "🚀 Running Interactive Features & Workflows tests..."
+        echo ""
+        echo "Testing WebSocket events, test capture, and end-to-end workflows..."
+        pytest Tests/unit/test_websocket_handlers.py \
+               Tests/integration/test_websocket_integration.py \
+               Tests/integration/test_test_capture_workflows.py \
+               Tests/integration/test_end_to_end_workflows.py \
+               Tests/integration/test_frontend_integration.py -v -s
+        ;;
+
+    "issue43"|"complete")
+        # All tests for GitHub issue #43
+        echo "🚀 Running COMPLETE test suite for GitHub issue #43..."
+        echo ""
+        echo "=== Performance & Streaming ==="
+        pytest Tests/unit/test_stream_modes.py Tests/integration/test_stream_stability.py -v -s
+        echo ""
+        echo "=== Image Quality Controls ==="
+        pytest Tests/unit/test_image_quality_validation.py Tests/integration/test_quality_settings_persistence.py -v -s
+        echo ""
+        echo "=== Focus & Exposure Controls ==="
+        pytest Tests/unit/test_focus_control_validation.py Tests/integration/test_autofocus_workflows.py Tests/integration/test_calibration_workflows.py -v -s
+        echo ""
+        echo "=== Interactive Features & Workflows ==="
+        pytest Tests/unit/test_websocket_handlers.py Tests/integration/test_websocket_integration.py Tests/integration/test_test_capture_workflows.py Tests/integration/test_end_to_end_workflows.py -v -s
+        ;;
+
     "all")
         echo "🚀 Running full test suite..."
         echo ""
@@ -109,29 +169,43 @@ case "$TEST_TYPE" in
     "help"|"-h"|"--help")
         echo "Usage: ./run_tests.sh [TEST_TYPE]"
         echo ""
-        echo "TEST_TYPE options:"
-        echo "  quick         - Run single most important test (encoding speed)"
-        echo "  unit          - Run all unit tests"
-        echo "  integration   - Run integration/performance tests"
-        echo "  controls      - Test Phase 2 camera controls validation"
+        echo "=== GitHub Issue #43 Test Categories ==="
+        echo "  issue43       - Run ALL tests for issue #43 (comprehensive)"
+        echo "  complete      - Same as issue43"
+        echo "  performance   - Performance & Streaming tests"
+        echo "  streaming     - Same as performance"
+        echo "  quality       - Image Quality Controls tests"
+        echo "  image-quality - Same as quality"
+        echo "  focus         - Focus & Exposure Controls tests"
+        echo "  exposure      - Same as focus"
+        echo "  workflows     - Interactive Features & Workflows tests"
+        echo "  interactive   - Same as workflows"
+        echo ""
+        echo "=== Legacy Phase Commands (backward compatibility) ==="
         echo "  phase2        - Run Phase 2 complete test suite"
         echo "  phase3        - Run Phase 3 frontend integration tests"
         echo "  frontend      - Same as phase3"
         echo "  phase4        - Test Phase 4.5 test capture endpoint"
         echo "  testcapture   - Same as phase4"
+        echo "  controls      - Test Phase 2 camera controls validation"
+        echo ""
+        echo "=== General Test Commands ==="
+        echo "  quick         - Run single most important test (encoding speed)"
+        echo "  unit          - Run all unit tests"
+        echo "  integration   - Run integration/performance tests"
         echo "  all           - Run full automated test suite (default)"
         echo "  manual        - Show manual verification checklist"
         echo "  help          - Show this help message"
         echo ""
         echo "Examples:"
-        echo "  ./run_tests.sh              # Run all automated tests"
-        echo "  ./run_tests.sh quick        # Quick performance check"
-        echo "  ./run_tests.sh unit         # Unit tests only"
-        echo "  ./run_tests.sh controls     # Phase 2 controls validation"
-        echo "  ./run_tests.sh phase2       # Full Phase 2 test suite"
-        echo "  ./run_tests.sh phase3       # Frontend integration tests"
-        echo "  ./run_tests.sh phase4       # Test capture endpoint"
-        echo "  ./run_tests.sh manual       # Show manual test steps"
+        echo "  ./run_tests.sh                  # Run all automated tests"
+        echo "  ./run_tests.sh issue43          # Run all issue #43 tests (recommended)"
+        echo "  ./run_tests.sh performance      # Test performance & streaming"
+        echo "  ./run_tests.sh quality          # Test image quality controls"
+        echo "  ./run_tests.sh focus            # Test focus & exposure"
+        echo "  ./run_tests.sh workflows        # Test interactive features"
+        echo "  ./run_tests.sh quick            # Quick performance check"
+        echo "  ./run_tests.sh manual           # Show manual test steps"
         exit 0
         ;;
 
