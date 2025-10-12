@@ -271,105 +271,113 @@ def trigger_autofocus():
 
         print("Autofocus requested via API")
 
-        # Release camera hardware if initialized (prevents resource conflict)
+        # Acquire operation lock to prevent concurrent camera access
         camera_streamer = current_app.config.get('CAMERA_STREAMER')
-        was_streaming = False
-        if camera_streamer and camera_streamer.camera:
-            print("Releasing camera hardware before autofocus...")
-            was_streaming = camera_streamer.streaming
-            camera_streamer.release_camera()
-            time.sleep(0.5)  # Let camera fully release
-
-        # Initialize camera for autofocus
-        picam2 = None
-        try:
-            # Try camera 0 first, fallback to camera 1
-            try:
-                picam2 = Picamera2(0)
-            except Exception:
-                picam2 = Picamera2(1)
-
-            # Configure for high-res preview (better for AF accuracy)
-            preview_config = picam2.create_preview_configuration(
-                main={'format': 'RGB888', 'size': (1920, 1080)}
-            )
-            picam2.configure(preview_config)
-
-            # Start camera
-            picam2.start()
-
-            # Set initial focus controls for AF
-            picam2.set_controls({
-                "AfSpeed": 0,  # Normal speed for accuracy
-                "AfMetering": 0,  # Auto metering
-                "LensPosition": 7.0  # Starting position
-            })
-
-            # Let camera stabilize
-            time.sleep(0.3)
-
-            # Trigger autofocus cycle
-            print("Running autofocus cycle...")
-            af_start = time.time()
-            success = picam2.autofocus_cycle()
-            af_duration = time.time() - af_start
-            print(f"Autofocus completed in {af_duration:.2f}s: {'Success' if success else 'Failed'}")
-
-            # Get result metadata
-            metadata = picam2.capture_metadata()
-            lens_position = metadata.get('LensPosition', 0.0)
-            af_state_code = metadata.get('AfState', 0)
-            af_state = ("Idle", "Scanning", "Success", "Fail")[af_state_code]
-
-            # Capture additional metadata for UI display
-            exposure_time = metadata.get('ExposureTime', 0)
-            analogue_gain = metadata.get('AnalogueGain', 0.0)
-            colour_temp = metadata.get('ColourTemperature', 0)
-
-            # Stop camera
-            picam2.stop()
-            picam2.close()
-
+        if not camera_streamer:
             return jsonify({
-                'success': success,
-                'af_state': af_state,
-                'lens_position': round(lens_position, 2),
-                'duration_seconds': round(af_duration, 2),
-                'metadata': {
-                    'exposure_time': exposure_time,
-                    'analogue_gain': round(analogue_gain, 2),
-                    'colour_temperature': colour_temp
-                },
-                'message': f'Autofocus {"succeeded" if success else "failed"} at {lens_position:.2f} diopters'
-            })
+                'success': False,
+                'error': 'Camera streamer not initialized'
+            }), 500
 
-        except Exception as camera_error:
-            # Ensure camera is closed on error
-            if picam2:
+        with camera_streamer.acquire_for_operation():
+            # Release camera hardware if initialized (prevents resource conflict)
+            was_streaming = False
+            if camera_streamer.camera:
+                print("Releasing camera hardware before autofocus...")
+                was_streaming = camera_streamer.streaming
+                camera_streamer.release_camera()
+                time.sleep(0.5)  # Let camera fully release
+
+            # Initialize camera for autofocus
+            picam2 = None
+            try:
+                # Try camera 0 first, fallback to camera 1
                 try:
-                    picam2.stop()
-                    picam2.close()
+                    picam2 = Picamera2(0)
                 except Exception:
-                    pass
+                    picam2 = Picamera2(1)
 
-            # Restart stream if it was active
-            if was_streaming and camera_streamer:
-                print("Restarting camera stream after autofocus error...")
-                try:
-                    camera_streamer.start_streaming()
-                except Exception as restart_error:
-                    print(f"Warning: Failed to restart stream: {restart_error}")
+                # Configure for high-res preview (better for AF accuracy)
+                preview_config = picam2.create_preview_configuration(
+                    main={'format': 'RGB888', 'size': (1920, 1080)}
+                )
+                picam2.configure(preview_config)
 
-            raise camera_error
+                # Start camera
+                picam2.start()
 
-        finally:
-            # Always restart stream if it was active
-            if was_streaming and camera_streamer:
-                print("Restarting camera stream after autofocus...")
-                try:
-                    camera_streamer.start_streaming()
-                except Exception as restart_error:
-                    print(f"Warning: Failed to restart stream: {restart_error}")
+                # Set initial focus controls for AF
+                picam2.set_controls({
+                    "AfSpeed": 0,  # Normal speed for accuracy
+                    "AfMetering": 0,  # Auto metering
+                    "LensPosition": 7.0  # Starting position
+                })
+
+                # Let camera stabilize
+                time.sleep(0.3)
+
+                # Trigger autofocus cycle
+                print("Running autofocus cycle...")
+                af_start = time.time()
+                success = picam2.autofocus_cycle()
+                af_duration = time.time() - af_start
+                print(f"Autofocus completed in {af_duration:.2f}s: {'Success' if success else 'Failed'}")
+
+                # Get result metadata
+                metadata = picam2.capture_metadata()
+                lens_position = metadata.get('LensPosition', 0.0)
+                af_state_code = metadata.get('AfState', 0)
+                af_state = ("Idle", "Scanning", "Success", "Fail")[af_state_code]
+
+                # Capture additional metadata for UI display
+                exposure_time = metadata.get('ExposureTime', 0)
+                analogue_gain = metadata.get('AnalogueGain', 0.0)
+                colour_temp = metadata.get('ColourTemperature', 0)
+
+                # Stop camera
+                picam2.stop()
+                picam2.close()
+
+                return jsonify({
+                    'success': success,
+                    'af_state': af_state,
+                    'lens_position': round(lens_position, 2),
+                    'duration_seconds': round(af_duration, 2),
+                    'metadata': {
+                        'exposure_time': exposure_time,
+                        'analogue_gain': round(analogue_gain, 2),
+                        'colour_temperature': colour_temp
+                    },
+                    'message': f'Autofocus {"succeeded" if success else "failed"} at {lens_position:.2f} diopters'
+                })
+
+            except Exception as camera_error:
+                # Ensure camera is closed on error
+                if picam2:
+                    try:
+                        picam2.stop()
+                        picam2.close()
+                    except Exception:
+                        pass
+
+                # Restart stream if it was active
+                if was_streaming and camera_streamer:
+                    print("Restarting camera stream after autofocus error...")
+                    try:
+                        camera_streamer.start_streaming()
+                    except Exception as restart_error:
+                        print(f"Warning: Failed to restart stream: {restart_error}")
+
+                raise camera_error
+
+            finally:
+                # Always restart stream if it was active
+                if was_streaming and camera_streamer:
+                    print("Restarting camera stream after autofocus...")
+                    try:
+                        camera_streamer.start_streaming()
+                    except Exception as restart_error:
+                        print(f"Warning: Failed to restart stream: {restart_error}")
 
     except Exception as e:
         import traceback
@@ -446,246 +454,254 @@ def auto_calibrate():
         # Step 1: Starting calibration (0%)
         _emit_calibration_progress(1, 8, 'Starting calibration...', 0)
 
-        # Release camera hardware if initialized (prevents resource conflict)
+        # Acquire operation lock to prevent concurrent camera access
         camera_streamer = current_app.config.get('CAMERA_STREAMER')
-        was_streaming = False
-        if camera_streamer and camera_streamer.camera:
-            print("Releasing camera hardware before calibration...")
-            was_streaming = camera_streamer.streaming
-            camera_streamer.release_camera()
-            time.sleep(0.5)  # Let camera fully release
-
-        # Step 2: Camera released (12%)
-        _emit_calibration_progress(2, 8, 'Releasing streaming camera...', 12)
-
-        # Read current settings for "before" snapshot
-        # camera_settings.csv format: SETTING,VALUE,DETAILS (vertical key-value pairs)
-        current_settings = {}
-        settings_details = {}  # Preserve DETAILS column
-        try:
-            with open(CAMERA_SETTINGS_FILE, 'r') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    setting = row['SETTING']
-                    value = row['VALUE']
-                    details = row.get('DETAILS', '')
-                    current_settings[setting] = value
-                    settings_details[setting] = details
-        except Exception as e:
-            print(f"Warning: Could not read current settings: {e}")
-
-        before_snapshot = {
-            'ExposureTime': current_settings.get('ExposureTime', 'unknown'),
-            'AnalogueGain': current_settings.get('AnalogueGain', 'unknown'),
-            'LensPosition': current_settings.get('LensPosition', 'unknown')
-        }
-
-        # Initialize camera for calibration
-        picam2 = None
-        try:
-            # Try camera 0 first, fallback to camera 1
-            try:
-                picam2 = Picamera2(0)
-            except Exception:
-                picam2 = Picamera2(1)
-
-            # Configure for calibration (higher res for accuracy)
-            preview_config = picam2.create_preview_configuration(
-                main={'size': (1920*2, 1080*2), 'format': 'BGR888'}  # BGR888 = true RGB order
-            )
-            picam2.configure(preview_config)
-
-            # Start camera
-            picam2.start()
-
-            # Step 3: Camera initialized (25%)
-            _emit_calibration_progress(3, 8, 'Initializing camera for calibration...', 25)
-
-            # Set initial lens position
-            picam2.set_controls({"LensPosition": 7.0})
-
-            # Let camera stabilize with auto-exposure
-            time.sleep(1.0)
-
-            # Capture initial exposure metadata
-            for i in range(5):
-                md = picam2.capture_metadata()
-                print(f"Calibrating frame {i}: "
-                      f"Exp={md.get('ExposureTime')}µs, "
-                      f"Gain={md.get('AnalogueGain'):.2f}, "
-                      f"Lens={md.get('LensPosition'):.2f}D")
-
-            # Get stabilized exposure values
-            md = picam2.capture_metadata()
-            calib_exposure = md['ExposureTime']
-            calib_gain = md['AnalogueGain']
-
-            print(f"Auto-exposure calibrated: Exp={calib_exposure}µs, Gain={calib_gain:.2f}")
-
-            # Step 4: Auto-exposure complete (37%)
-            _emit_calibration_progress(4, 8, 'Capturing baseline exposure metrics...', 37)
-
-            # Run autofocus cycle
-            print("Running autofocus cycle...")
-            af_start = time.time()
-            af_success = picam2.autofocus_cycle()
-            af_duration = time.time() - af_start
-            print(f"Autofocus completed in {af_duration:.2f}s: {'Success' if af_success else 'Failed'}")
-
-            # Get final metadata
-            md = picam2.capture_metadata()
-            calib_lens_position = md['LensPosition']
-            af_state_code = md.get('AfState', 0)
-            af_state = ("Idle", "Scanning", "Success", "Fail")[af_state_code]
-
-            print(f"Calibrated values: "
-                  f"Exp={calib_exposure}µs, "
-                  f"Gain={calib_gain:.2f}, "
-                  f"Lens={calib_lens_position:.2f}D")
-
-            # Step 5: Autofocus complete (50%)
-            _emit_calibration_progress(5, 8, 'Autofocus cycle complete!', 50)
-
-            # Stop camera
-            picam2.stop()
-            picam2.close()
-
-            # Prepare calibrated settings
-            calibrated_values = {
-                'LensPosition': calib_lens_position,
-                'ExposureTime': calib_exposure,
-                'AnalogueGain': calib_gain
-            }
-
-            # Apply to requested targets
-            if apply_to in ['capture', 'both']:
-                # Update camera_settings.csv (vertical SETTING,VALUE,DETAILS format)
-                print("Updating camera_settings.csv...")
-
-                # Update with calibrated values
-                current_settings['LensPosition'] = str(calib_lens_position)
-                current_settings['ExposureTime'] = str(calib_exposure)
-                current_settings['AnalogueGain'] = str(calib_gain)
-
-                # Write back in vertical format
-                with open(CAMERA_SETTINGS_FILE, 'w', newline='') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
-                    for setting, value in current_settings.items():
-                        details = settings_details.get(setting, '')
-                        writer.writerow([setting, value, details])
-
-                print("✓ Updated camera_settings.csv")
-
-            if apply_to in ['preview', 'both']:
-                # Update webui_settings.txt (just focus, not exposure for preview)
-                print("Updating webui_settings.txt...")
-                from mothbox_paths import get_control_values
-
-                webui_settings = {}
-                if WEBUI_SETTINGS_FILE.exists():
-                    webui_settings = get_control_values(WEBUI_SETTINGS_FILE)
-
-                # Update focus settings (exposure controlled by camera in preview)
-                webui_settings['af_mode'] = '0'  # Manual mode
-                # Note: We don't update exposure/gain for preview as it's handled by camera auto-exposure
-
-                # Write back
-                with open(WEBUI_SETTINGS_FILE, 'w') as f:
-                    for key, value in webui_settings.items():
-                        f.write(f"{key}={value}\n")
-
-                print("✓ Updated webui_settings.txt")
-
-            # Step 6: Settings applied (75%)
-            _emit_calibration_progress(6, 8, 'Applying calibrated settings...', 75)
-
-            # Update LastCalibration timestamp in controls.txt
-            print("Updating LastCalibration timestamp...")
-            calibration_timestamp = time.time()
-
-            try:
-                # Read controls.txt
-                controls_lines = []
-                found_calibration = False
-                if CONTROLS_FILE.exists():
-                    with open(CONTROLS_FILE, 'r') as f:
-                        for line in f:
-                            if line.startswith('LastCalibration='):
-                                controls_lines.append(f"LastCalibration={int(calibration_timestamp)}\n")
-                                found_calibration = True
-                            else:
-                                controls_lines.append(line)
-
-                # If LastCalibration not found, add it
-                if not found_calibration:
-                    controls_lines.append(f"LastCalibration={int(calibration_timestamp)}\n")
-
-                # Write back
-                with open(CONTROLS_FILE, 'w') as f:
-                    f.writelines(controls_lines)
-
-                print("✓ Updated LastCalibration timestamp")
-
-            except Exception as timestamp_error:
-                print(f"Warning: Could not update LastCalibration: {timestamp_error}")
-
-            # Step 7: Finalizing (87%)
-            _emit_calibration_progress(7, 8, 'Finalizing calibration...', 87)
-
-            # Return results (use snake_case for consistency with test expectations)
-            after_snapshot = {
-                'exposure_time': calib_exposure,
-                'analogue_gain': round(calib_gain, 2),
-                'lens_position': round(calib_lens_position, 2),
-                # Also include PascalCase for backward compatibility
-                'ExposureTime': calib_exposure,
-                'AnalogueGain': round(calib_gain, 2),
-                'LensPosition': round(calib_lens_position, 2)
-            }
-
-            # Step 8: Complete! (100%)
-            _emit_calibration_progress(8, 8, 'Calibration complete!', 100)
-
+        if not camera_streamer:
             return jsonify({
-                'success': True,
-                'before': before_snapshot,
-                'after': after_snapshot,
-                'af_success': af_success,
-                'af_state': af_state,
-                'af_duration_seconds': round(af_duration, 2),
-                'apply_to': apply_to,
-                'timestamp': calibration_timestamp,
-                'message': f'Calibration {"succeeded" if af_success else "completed with AF failure"}'
-            })
+                'success': False,
+                'error': 'Camera streamer not initialized'
+            }), 500
 
-        except Exception as camera_error:
-            # Ensure camera is closed on error
-            if picam2:
+        with camera_streamer.acquire_for_operation():
+            # Release camera hardware if initialized (prevents resource conflict)
+            was_streaming = False
+            if camera_streamer.camera:
+                print("Releasing camera hardware before calibration...")
+                was_streaming = camera_streamer.streaming
+                camera_streamer.release_camera()
+                time.sleep(0.5)  # Let camera fully release
+
+            # Step 2: Camera released (12%)
+            _emit_calibration_progress(2, 8, 'Releasing streaming camera...', 12)
+
+            # Read current settings for "before" snapshot
+            # camera_settings.csv format: SETTING,VALUE,DETAILS (vertical key-value pairs)
+            current_settings = {}
+            settings_details = {}  # Preserve DETAILS column
+            try:
+                with open(CAMERA_SETTINGS_FILE, 'r') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        setting = row['SETTING']
+                        value = row['VALUE']
+                        details = row.get('DETAILS', '')
+                        current_settings[setting] = value
+                        settings_details[setting] = details
+            except Exception as e:
+                print(f"Warning: Could not read current settings: {e}")
+
+            before_snapshot = {
+                'ExposureTime': current_settings.get('ExposureTime', 'unknown'),
+                'AnalogueGain': current_settings.get('AnalogueGain', 'unknown'),
+                'LensPosition': current_settings.get('LensPosition', 'unknown')
+            }
+
+            # Initialize camera for calibration
+            picam2 = None
+            try:
+                # Try camera 0 first, fallback to camera 1
                 try:
-                    picam2.stop()
-                    picam2.close()
+                    picam2 = Picamera2(0)
                 except Exception:
-                    pass
+                    picam2 = Picamera2(1)
 
-            # Restart stream if it was active
-            if was_streaming and camera_streamer:
-                print("Restarting camera stream after calibration error...")
+                # Configure for calibration (higher res for accuracy)
+                preview_config = picam2.create_preview_configuration(
+                    main={'size': (1920*2, 1080*2), 'format': 'BGR888'}  # BGR888 = true RGB order
+                )
+                picam2.configure(preview_config)
+
+                # Start camera
+                picam2.start()
+
+                # Step 3: Camera initialized (25%)
+                _emit_calibration_progress(3, 8, 'Initializing camera for calibration...', 25)
+
+                # Set initial lens position
+                picam2.set_controls({"LensPosition": 7.0})
+
+                # Let camera stabilize with auto-exposure
+                time.sleep(1.0)
+
+                # Capture initial exposure metadata
+                for i in range(5):
+                    md = picam2.capture_metadata()
+                    print(f"Calibrating frame {i}: "
+                          f"Exp={md.get('ExposureTime')}µs, "
+                          f"Gain={md.get('AnalogueGain'):.2f}, "
+                          f"Lens={md.get('LensPosition'):.2f}D")
+
+                # Get stabilized exposure values
+                md = picam2.capture_metadata()
+                calib_exposure = md['ExposureTime']
+                calib_gain = md['AnalogueGain']
+
+                print(f"Auto-exposure calibrated: Exp={calib_exposure}µs, Gain={calib_gain:.2f}")
+
+                # Step 4: Auto-exposure complete (37%)
+                _emit_calibration_progress(4, 8, 'Capturing baseline exposure metrics...', 37)
+
+                # Run autofocus cycle
+                print("Running autofocus cycle...")
+                af_start = time.time()
+                af_success = picam2.autofocus_cycle()
+                af_duration = time.time() - af_start
+                print(f"Autofocus completed in {af_duration:.2f}s: {'Success' if af_success else 'Failed'}")
+
+                # Get final metadata
+                md = picam2.capture_metadata()
+                calib_lens_position = md['LensPosition']
+                af_state_code = md.get('AfState', 0)
+                af_state = ("Idle", "Scanning", "Success", "Fail")[af_state_code]
+
+                print(f"Calibrated values: "
+                      f"Exp={calib_exposure}µs, "
+                      f"Gain={calib_gain:.2f}, "
+                      f"Lens={calib_lens_position:.2f}D")
+
+                # Step 5: Autofocus complete (50%)
+                _emit_calibration_progress(5, 8, 'Autofocus cycle complete!', 50)
+
+                # Stop camera
+                picam2.stop()
+                picam2.close()
+
+                # Prepare calibrated settings
+                calibrated_values = {
+                    'LensPosition': calib_lens_position,
+                    'ExposureTime': calib_exposure,
+                    'AnalogueGain': calib_gain
+                }
+
+                # Apply to requested targets
+                if apply_to in ['capture', 'both']:
+                    # Update camera_settings.csv (vertical SETTING,VALUE,DETAILS format)
+                    print("Updating camera_settings.csv...")
+
+                    # Update with calibrated values
+                    current_settings['LensPosition'] = str(calib_lens_position)
+                    current_settings['ExposureTime'] = str(calib_exposure)
+                    current_settings['AnalogueGain'] = str(calib_gain)
+
+                    # Write back in vertical format
+                    with open(CAMERA_SETTINGS_FILE, 'w', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+                        for setting, value in current_settings.items():
+                            details = settings_details.get(setting, '')
+                            writer.writerow([setting, value, details])
+
+                    print("✓ Updated camera_settings.csv")
+
+                if apply_to in ['preview', 'both']:
+                    # Update webui_settings.txt (just focus, not exposure for preview)
+                    print("Updating webui_settings.txt...")
+                    from mothbox_paths import get_control_values
+
+                    webui_settings = {}
+                    if WEBUI_SETTINGS_FILE.exists():
+                        webui_settings = get_control_values(WEBUI_SETTINGS_FILE)
+
+                    # Update focus settings (exposure controlled by camera in preview)
+                    webui_settings['af_mode'] = '0'  # Manual mode
+                    # Note: We don't update exposure/gain for preview as it's handled by camera auto-exposure
+
+                    # Write back
+                    with open(WEBUI_SETTINGS_FILE, 'w') as f:
+                        for key, value in webui_settings.items():
+                            f.write(f"{key}={value}\n")
+
+                    print("✓ Updated webui_settings.txt")
+
+                # Step 6: Settings applied (75%)
+                _emit_calibration_progress(6, 8, 'Applying calibrated settings...', 75)
+
+                # Update LastCalibration timestamp in controls.txt
+                print("Updating LastCalibration timestamp...")
+                calibration_timestamp = time.time()
+
                 try:
-                    camera_streamer.start_streaming()
-                except Exception as restart_error:
-                    print(f"Warning: Failed to restart stream: {restart_error}")
+                    # Read controls.txt
+                    controls_lines = []
+                    found_calibration = False
+                    if CONTROLS_FILE.exists():
+                        with open(CONTROLS_FILE, 'r') as f:
+                            for line in f:
+                                if line.startswith('LastCalibration='):
+                                    controls_lines.append(f"LastCalibration={int(calibration_timestamp)}\n")
+                                    found_calibration = True
+                                else:
+                                    controls_lines.append(line)
 
-            raise camera_error
+                    # If LastCalibration not found, add it
+                    if not found_calibration:
+                        controls_lines.append(f"LastCalibration={int(calibration_timestamp)}\n")
 
-        finally:
-            # Always restart stream if it was active
-            if was_streaming and camera_streamer:
-                print("Restarting camera stream after calibration...")
-                try:
-                    camera_streamer.start_streaming()
-                except Exception as restart_error:
-                    print(f"Warning: Failed to restart stream: {restart_error}")
+                    # Write back
+                    with open(CONTROLS_FILE, 'w') as f:
+                        f.writelines(controls_lines)
+
+                    print("✓ Updated LastCalibration timestamp")
+
+                except Exception as timestamp_error:
+                    print(f"Warning: Could not update LastCalibration: {timestamp_error}")
+
+                # Step 7: Finalizing (87%)
+                _emit_calibration_progress(7, 8, 'Finalizing calibration...', 87)
+
+                # Return results (use snake_case for consistency with test expectations)
+                after_snapshot = {
+                    'exposure_time': calib_exposure,
+                    'analogue_gain': round(calib_gain, 2),
+                    'lens_position': round(calib_lens_position, 2),
+                    # Also include PascalCase for backward compatibility
+                    'ExposureTime': calib_exposure,
+                    'AnalogueGain': round(calib_gain, 2),
+                    'LensPosition': round(calib_lens_position, 2)
+                }
+
+                # Step 8: Complete! (100%)
+                _emit_calibration_progress(8, 8, 'Calibration complete!', 100)
+
+                return jsonify({
+                    'success': True,
+                    'before': before_snapshot,
+                    'after': after_snapshot,
+                    'af_success': af_success,
+                    'af_state': af_state,
+                    'af_duration_seconds': round(af_duration, 2),
+                    'apply_to': apply_to,
+                    'timestamp': calibration_timestamp,
+                    'message': f'Calibration {"succeeded" if af_success else "completed with AF failure"}'
+                })
+
+            except Exception as camera_error:
+                # Ensure camera is closed on error
+                if picam2:
+                    try:
+                        picam2.stop()
+                        picam2.close()
+                    except Exception:
+                        pass
+
+                # Restart stream if it was active
+                if was_streaming and camera_streamer:
+                    print("Restarting camera stream after calibration error...")
+                    try:
+                        camera_streamer.start_streaming()
+                    except Exception as restart_error:
+                        print(f"Warning: Failed to restart stream: {restart_error}")
+
+                raise camera_error
+
+            finally:
+                # Always restart stream if it was active
+                if was_streaming and camera_streamer:
+                    print("Restarting camera stream after calibration...")
+                    try:
+                        camera_streamer.start_streaming()
+                    except Exception as restart_error:
+                        print(f"Warning: Failed to restart stream: {restart_error}")
 
     except Exception as e:
         import traceback
@@ -719,83 +735,92 @@ def freeze_settings():
         import csv
         import time
 
-        # Release streaming camera if active
+        # Acquire operation lock to prevent concurrent camera access
         from flask import current_app
-        if hasattr(current_app, 'camera_streamer') and current_app.camera_streamer.streaming:
-            current_app.camera_streamer.stop_stream()
+        camera_streamer = current_app.config.get('CAMERA_STREAMER')
+        if not camera_streamer:
+            return jsonify({
+                'success': False,
+                'error': 'Camera streamer not initialized'
+            }), 500
+
+        with camera_streamer.acquire_for_operation():
+            # Release streaming camera if active
+            if hasattr(current_app, 'camera_streamer') and current_app.camera_streamer.streaming:
+                current_app.camera_streamer.stop_stream()
+                time.sleep(0.5)
+
+            # Initialize camera to get current metadata
+            picam2 = Picamera2()
+            preview_config = picam2.create_preview_configuration(
+                main={'size': (1920, 1080), 'format': 'RGB888'}
+            )
+            picam2.configure(preview_config)
+            picam2.start()
+
+            # Let camera stabilize
             time.sleep(0.5)
 
-        # Initialize camera to get current metadata
-        picam2 = Picamera2()
-        preview_config = picam2.create_preview_configuration(
-            main={'size': (1920, 1080), 'format': 'RGB888'}
-        )
-        picam2.configure(preview_config)
-        picam2.start()
+            # Capture current metadata
+            md = picam2.capture_metadata()
 
-        # Let camera stabilize
-        time.sleep(0.5)
+            current_exposure = md.get('ExposureTime', 0)
+            current_gain = md.get('AnalogueGain', 1.0)
+            current_lens_position = md.get('LensPosition', 0.0)
 
-        # Capture current metadata
-        md = picam2.capture_metadata()
+            picam2.stop()
+            picam2.close()
 
-        current_exposure = md.get('ExposureTime', 0)
-        current_gain = md.get('AnalogueGain', 1.0)
-        current_lens_position = md.get('LensPosition', 0.0)
+            # Read current settings
+            current_settings = {}
+            settings_details = {}
 
-        picam2.stop()
-        picam2.close()
+            with open(CAMERA_SETTINGS_FILE, 'r', newline='') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    setting = row.get('SETTING', '').strip()
+                    value = row.get('VALUE', '').strip()
+                    details = row.get('DETAILS', '').strip()
+                    if setting:
+                        current_settings[setting] = value
+                        settings_details[setting] = details
 
-        # Read current settings
-        current_settings = {}
-        settings_details = {}
+            # Update with frozen values and disable auto modes
+            current_settings['AeEnable'] = 'False'  # Disable auto-exposure
+            current_settings['AwbEnable'] = 'False'  # Disable auto white balance
+            current_settings['AfMode'] = '0'  # Set to manual focus
+            current_settings['ExposureTime'] = str(int(current_exposure))
+            current_settings['AnalogueGain'] = str(round(current_gain, 2))
+            current_settings['LensPosition'] = str(round(current_lens_position, 2))
 
-        with open(CAMERA_SETTINGS_FILE, 'r', newline='') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                setting = row.get('SETTING', '').strip()
-                value = row.get('VALUE', '').strip()
-                details = row.get('DETAILS', '').strip()
-                if setting:
-                    current_settings[setting] = value
-                    settings_details[setting] = details
+            # Write back to CSV
+            fieldnames = ['SETTING', 'VALUE', 'DETAILS']
+            with open(CAMERA_SETTINGS_FILE, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(fieldnames)
+                for setting, value in current_settings.items():
+                    details = settings_details.get(setting, '')
+                    writer.writerow([setting, value, details])
 
-        # Update with frozen values and disable auto modes
-        current_settings['AeEnable'] = 'False'  # Disable auto-exposure
-        current_settings['AwbEnable'] = 'False'  # Disable auto white balance
-        current_settings['AfMode'] = '0'  # Set to manual focus
-        current_settings['ExposureTime'] = str(int(current_exposure))
-        current_settings['AnalogueGain'] = str(round(current_gain, 2))
-        current_settings['LensPosition'] = str(round(current_lens_position, 2))
+            # Restart streaming camera
+            if hasattr(current_app, 'camera_streamer'):
+                current_app.camera_streamer.start_stream()
 
-        # Write back to CSV
-        fieldnames = ['SETTING', 'VALUE', 'DETAILS']
-        with open(CAMERA_SETTINGS_FILE, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(fieldnames)
-            for setting, value in current_settings.items():
-                details = settings_details.get(setting, '')
-                writer.writerow([setting, value, details])
+            frozen_values = {
+                'ExposureTime': int(current_exposure),
+                'AnalogueGain': round(current_gain, 2),
+                'LensPosition': round(current_lens_position, 2),
+                'AeEnable': False,
+                'AwbEnable': False,
+                'AfMode': 0
+            }
 
-        # Restart streaming camera
-        if hasattr(current_app, 'camera_streamer'):
-            current_app.camera_streamer.start_stream()
-
-        frozen_values = {
-            'ExposureTime': int(current_exposure),
-            'AnalogueGain': round(current_gain, 2),
-            'LensPosition': round(current_lens_position, 2),
-            'AeEnable': False,
-            'AwbEnable': False,
-            'AfMode': 0
-        }
-
-        return jsonify({
-            'success': True,
-            'frozen_settings': frozen_values,
-            'message': f'Settings frozen at Exp={int(current_exposure)}µs, Gain={round(current_gain, 2)}, Focus={round(current_lens_position, 2)}D',
-            'timestamp': time.time()
-        })
+            return jsonify({
+                'success': True,
+                'frozen_settings': frozen_values,
+                'message': f'Settings frozen at Exp={int(current_exposure)}µs, Gain={round(current_gain, 2)}, Focus={round(current_lens_position, 2)}D',
+                'timestamp': time.time()
+            })
 
     except Exception as e:
         import traceback
@@ -843,120 +868,128 @@ def test_capture():
         if WEBUI_SETTINGS_FILE.exists():
             preview_settings = get_control_values(WEBUI_SETTINGS_FILE)
 
-        # Release camera hardware if initialized (prevents resource conflict)
+        # Acquire operation lock to prevent concurrent camera access
         camera_streamer = current_app.config.get('CAMERA_STREAMER')
-        was_streaming = False
-        if camera_streamer and camera_streamer.camera:
-            print("Releasing camera hardware before test capture...")
-            was_streaming = camera_streamer.streaming
-            camera_streamer.release_camera()
-            time.sleep(0.5)  # Let camera fully release
-
-        # Initialize camera for test capture
-        picam2 = None
-        try:
-            # Try camera 0 first, fallback to camera 1
-            try:
-                picam2 = Picamera2(0)
-            except Exception:
-                picam2 = Picamera2(1)
-
-            # Configure for full-resolution capture
-            # Use maximum resolution for test captures
-            capture_config = picam2.create_still_configuration(
-                main={"size": (9152, 6944), "format": "BGR888"}  # Full 64MP, BGR888 = true RGB order
-            )
-            picam2.configure(capture_config)
-
-            # Start camera
-            picam2.start()
-
-            # Apply preview controls to full-res capture
-            controls = {
-                'Sharpness': float(preview_settings.get('sharpness', 1.0)),
-                'Brightness': float(preview_settings.get('brightness', 0.0)),
-                'Contrast': float(preview_settings.get('contrast', 1.0)),
-                'Saturation': float(preview_settings.get('saturation', 1.0)),
-                'AfMode': int(preview_settings.get('af_mode', 2)),
-                'AfSpeed': int(preview_settings.get('af_speed', 0)),
-                'AfRange': int(preview_settings.get('af_range', 0)),
-                'AwbEnable': preview_settings.get('awb_enable', 'true').lower() == 'true',
-            }
-
-            # Only set AwbMode if AWB is disabled
-            if not controls['AwbEnable']:
-                controls['AwbMode'] = int(preview_settings.get('awb_mode', 0))
-
-            picam2.set_controls(controls)
-            print(f"Applied preview controls to test capture: {controls}")
-
-            # Wait for settings to stabilize
-            time.sleep(0.5)
-
-            # Create test_captures directory
-            test_dir = PHOTOS_DIR / "test_captures"
-            test_dir.mkdir(parents=True, exist_ok=True)
-
-            # Generate filename with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"test_capture_{timestamp}.jpg"
-            filepath = test_dir / filename
-
-            # Capture photo
-            print(f"Capturing test photo to: {filepath}")
-            picam2.capture_file(str(filepath))
-
-            # Get metadata for reference
-            md = picam2.capture_metadata()
-
-            # Stop camera
-            picam2.stop()
-            picam2.close()
-
-            # Return relative path from PHOTOS_DIR
-            relative_path = str(filepath.relative_to(PHOTOS_DIR))
-
+        if not camera_streamer:
             return jsonify({
-                'success': True,
-                'test_photo_path': relative_path,
-                'settings_used': controls,
-                'metadata': {
-                    'exposure_time': md.get('ExposureTime', 0),
-                    'analogue_gain': round(md.get('AnalogueGain', 0.0), 2),
-                    'lens_position': round(md.get('LensPosition', 0.0), 2),
-                    'colour_temperature': md.get('ColourTemperature', 0)
-                },
-                'timestamp': time.time(),
-                'message': f'Test capture saved to {relative_path}'
-            })
+                'success': False,
+                'error': 'Camera streamer not initialized'
+            }), 500
 
-        except Exception as camera_error:
-            # Ensure camera is closed on error
-            if picam2:
+        with camera_streamer.acquire_for_operation():
+            # Release camera hardware if initialized (prevents resource conflict)
+            was_streaming = False
+            if camera_streamer.camera:
+                print("Releasing camera hardware before test capture...")
+                was_streaming = camera_streamer.streaming
+                camera_streamer.release_camera()
+                time.sleep(0.5)  # Let camera fully release
+
+            # Initialize camera for test capture
+            picam2 = None
+            try:
+                # Try camera 0 first, fallback to camera 1
                 try:
-                    picam2.stop()
-                    picam2.close()
+                    picam2 = Picamera2(0)
                 except Exception:
-                    pass
+                    picam2 = Picamera2(1)
 
-            # Restart stream if it was active
-            if was_streaming and camera_streamer:
-                print("Restarting camera stream after test capture error...")
-                try:
-                    camera_streamer.start_streaming()
-                except Exception as restart_error:
-                    print(f"Warning: Failed to restart stream: {restart_error}")
+                # Configure for full-resolution capture
+                # Use maximum resolution for test captures
+                capture_config = picam2.create_still_configuration(
+                    main={"size": (9152, 6944), "format": "BGR888"}  # Full 64MP, BGR888 = true RGB order
+                )
+                picam2.configure(capture_config)
 
-            raise camera_error
+                # Start camera
+                picam2.start()
 
-        finally:
-            # Always restart stream if it was active
-            if was_streaming and camera_streamer:
-                print("Restarting camera stream after test capture...")
-                try:
-                    camera_streamer.start_streaming()
-                except Exception as restart_error:
-                    print(f"Warning: Failed to restart stream: {restart_error}")
+                # Apply preview controls to full-res capture
+                controls = {
+                    'Sharpness': float(preview_settings.get('sharpness', 1.0)),
+                    'Brightness': float(preview_settings.get('brightness', 0.0)),
+                    'Contrast': float(preview_settings.get('contrast', 1.0)),
+                    'Saturation': float(preview_settings.get('saturation', 1.0)),
+                    'AfMode': int(preview_settings.get('af_mode', 2)),
+                    'AfSpeed': int(preview_settings.get('af_speed', 0)),
+                    'AfRange': int(preview_settings.get('af_range', 0)),
+                    'AwbEnable': preview_settings.get('awb_enable', 'true').lower() == 'true',
+                }
+
+                # Only set AwbMode if AWB is disabled
+                if not controls['AwbEnable']:
+                    controls['AwbMode'] = int(preview_settings.get('awb_mode', 0))
+
+                picam2.set_controls(controls)
+                print(f"Applied preview controls to test capture: {controls}")
+
+                # Wait for settings to stabilize
+                time.sleep(0.5)
+
+                # Create test_captures directory
+                test_dir = PHOTOS_DIR / "test_captures"
+                test_dir.mkdir(parents=True, exist_ok=True)
+
+                # Generate filename with timestamp
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"test_capture_{timestamp}.jpg"
+                filepath = test_dir / filename
+
+                # Capture photo
+                print(f"Capturing test photo to: {filepath}")
+                picam2.capture_file(str(filepath))
+
+                # Get metadata for reference
+                md = picam2.capture_metadata()
+
+                # Stop camera
+                picam2.stop()
+                picam2.close()
+
+                # Return relative path from PHOTOS_DIR
+                relative_path = str(filepath.relative_to(PHOTOS_DIR))
+
+                return jsonify({
+                    'success': True,
+                    'test_photo_path': relative_path,
+                    'settings_used': controls,
+                    'metadata': {
+                        'exposure_time': md.get('ExposureTime', 0),
+                        'analogue_gain': round(md.get('AnalogueGain', 0.0), 2),
+                        'lens_position': round(md.get('LensPosition', 0.0), 2),
+                        'colour_temperature': md.get('ColourTemperature', 0)
+                    },
+                    'timestamp': time.time(),
+                    'message': f'Test capture saved to {relative_path}'
+                })
+
+            except Exception as camera_error:
+                # Ensure camera is closed on error
+                if picam2:
+                    try:
+                        picam2.stop()
+                        picam2.close()
+                    except Exception:
+                        pass
+
+                # Restart stream if it was active
+                if was_streaming and camera_streamer:
+                    print("Restarting camera stream after test capture error...")
+                    try:
+                        camera_streamer.start_streaming()
+                    except Exception as restart_error:
+                        print(f"Warning: Failed to restart stream: {restart_error}")
+
+                raise camera_error
+
+            finally:
+                # Always restart stream if it was active
+                if was_streaming and camera_streamer:
+                    print("Restarting camera stream after test capture...")
+                    try:
+                        camera_streamer.start_streaming()
+                    except Exception as restart_error:
+                        print(f"Warning: Failed to restart stream: {restart_error}")
 
     except Exception as e:
         import traceback

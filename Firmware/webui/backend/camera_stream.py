@@ -4,7 +4,8 @@ Camera streaming module for WebSocket live preview
 import io
 import time
 import base64
-from threading import Thread, Event
+from threading import Thread, Event, Lock
+from contextlib import contextmanager
 from PIL import Image
 from pathlib import Path
 import sys
@@ -39,6 +40,10 @@ DEFAULT_PREVIEW_HEIGHT = 768
 DEFAULT_PREVIEW_FORMAT = "BGR888"  # BGR888 produces true RGB order for correct colors
 DEFAULT_FRAME_DELAY = 0.1  # seconds (10 fps)
 DEFAULT_JPEG_QUALITY = 85  # Balanced quality - faster encoding, smaller files
+
+# Global lock to prevent concurrent camera operations (autofocus, calibration, etc.)
+# Picamera2 enforces exclusive hardware access - only one instance can exist at a time
+CAMERA_OPERATION_LOCK = Lock()
 
 
 class CameraStreamer:
@@ -238,6 +243,32 @@ class CameraStreamer:
                 print(f"Warning: Error closing camera: {e}")
             finally:
                 self.camera = None
+
+    @contextmanager
+    def acquire_for_operation(self):
+        """
+        Context manager for exclusive camera operations (autofocus, calibration, etc.)
+
+        Acquires the global camera operation lock to prevent concurrent access.
+        Automatically releases the lock on exit, even if an exception occurs.
+
+        Usage:
+            with camera_streamer.acquire_for_operation():
+                # Perform camera operation
+                picam2 = Picamera2(0)
+                # ... use camera ...
+
+        Raises:
+            Any exception from the wrapped code is propagated after lock release
+        """
+        print("🔒 Acquiring camera operation lock...")
+        CAMERA_OPERATION_LOCK.acquire()
+        try:
+            print("✓ Camera operation lock acquired")
+            yield
+        finally:
+            CAMERA_OPERATION_LOCK.release()
+            print("🔓 Camera operation lock released")
 
     def _stream_hardware_mjpeg(self):
         """
