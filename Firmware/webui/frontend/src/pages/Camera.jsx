@@ -18,8 +18,30 @@ export default function Camera() {
   const [testCapturing, setTestCapturing] = useState(false)
   const [testCaptureResult, setTestCaptureResult] = useState(null)
   const [calibrationProgress, setCalibrationProgress] = useState(null)  // Task 4: Real-time progress
+  const [liveControls, setLiveControls] = useState({  // Task 5: Real-time control sliders
+    sharpness: 1.0,
+    brightness: 0.0,
+    contrast: 1.0,
+    saturation: 1.0
+  })
   const socketRef = useRef(null)
   const metadataIntervalRef = useRef(null)
+  const debounceTimerRef = useRef(null)  // Task 5: Debounce timer for control updates
+
+  // Debounced function to emit control updates to backend (Task 5)
+  const debouncedEmitControl = (controlName, value) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      if (socketRef.current && previewActive) {
+        socketRef.current.emit('update_preview_control', {
+          [controlName]: value
+        })
+        console.log(`Emitting control update: ${controlName}=${value}`)
+      }
+    }, 150) // 150ms debounce - balances responsiveness vs network usage
+  }
 
   useEffect(() => {
     // Connect to WebSocket server using current window location
@@ -61,6 +83,15 @@ export default function Camera() {
     socketRef.current.on('calibration_progress', (data) => {
       console.log('Calibration progress:', data)
       setCalibrationProgress(data)
+    })
+
+    socketRef.current.on('control_updated', (data) => {
+      if (data.success) {
+        console.log('Control updated successfully:', data.control)
+      } else {
+        console.error('Control update failed:', data.error)
+        toast.error(`Failed to update control: ${data.error}`)
+      }
     })
 
     return () => {
@@ -286,6 +317,42 @@ export default function Camera() {
     }
   }
 
+  // Task 5: Real-time control slider handlers
+  const handleControlChange = (controlName, value) => {
+    // Update local state immediately for responsive UI
+    const key = controlName.toLowerCase()
+    setLiveControls(prev => ({
+      ...prev,
+      [key]: value
+    }))
+
+    // Emit to backend (debounced)
+    debouncedEmitControl(controlName, value)
+  }
+
+  const handleResetControls = () => {
+    const defaults = {
+      sharpness: 1.0,
+      brightness: 0.0,
+      contrast: 1.0,
+      saturation: 1.0
+    }
+
+    setLiveControls(defaults)
+
+    // Emit all resets to backend
+    if (socketRef.current && previewActive) {
+      Object.entries(defaults).forEach(([key, value]) => {
+        // Convert lowercase key to PascalCase (sharpness -> Sharpness)
+        const controlName = key.charAt(0).toUpperCase() + key.slice(1)
+        socketRef.current.emit('update_preview_control', {
+          [controlName]: value
+        })
+      })
+      toast.success('Controls reset to defaults')
+    }
+  }
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">Camera Control</h2>
@@ -365,6 +432,122 @@ export default function Camera() {
           </div>
         )}
       </div>
+
+      {/* Live Controls (Task 5: Real-time Control Sliders) */}
+      {previewActive && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">🎨 Live Controls</h3>
+            <button
+              onClick={handleResetControls}
+              className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+            >
+              Reset to Defaults
+            </button>
+          </div>
+
+          <p className="text-sm text-gray-600 mb-4">
+            Adjust image quality settings in real-time. Changes apply instantly to the preview.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Sharpness Slider */}
+            <div>
+              <label className="flex justify-between items-center text-sm font-medium text-gray-700 mb-2">
+                <span>Sharpness</span>
+                <span className="text-blue-600 font-mono">{liveControls.sharpness.toFixed(1)}</span>
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="16"
+                step="0.1"
+                value={liveControls.sharpness}
+                onChange={(e) => handleControlChange('Sharpness', parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>Soft (0)</span>
+                <span className="font-medium">Default (1.0)</span>
+                <span>Sharp (16)</span>
+              </div>
+            </div>
+
+            {/* Brightness Slider */}
+            <div>
+              <label className="flex justify-between items-center text-sm font-medium text-gray-700 mb-2">
+                <span>Brightness</span>
+                <span className="text-blue-600 font-mono">{liveControls.brightness.toFixed(1)}</span>
+              </label>
+              <input
+                type="range"
+                min="-1"
+                max="1"
+                step="0.1"
+                value={liveControls.brightness}
+                onChange={(e) => handleControlChange('Brightness', parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>Dark (-1)</span>
+                <span className="font-medium">Default (0)</span>
+                <span>Bright (+1)</span>
+              </div>
+            </div>
+
+            {/* Contrast Slider */}
+            <div>
+              <label className="flex justify-between items-center text-sm font-medium text-gray-700 mb-2">
+                <span>Contrast</span>
+                <span className="text-blue-600 font-mono">{liveControls.contrast.toFixed(1)}</span>
+              </label>
+              <input
+                type="range"
+                min="-1"
+                max="1"
+                step="0.1"
+                value={liveControls.contrast}
+                onChange={(e) => handleControlChange('Contrast', parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>Low (-1)</span>
+                <span className="font-medium">Default (1.0)</span>
+                <span>High (+1)</span>
+              </div>
+            </div>
+
+            {/* Saturation Slider */}
+            <div>
+              <label className="flex justify-between items-center text-sm font-medium text-gray-700 mb-2">
+                <span>Saturation</span>
+                <span className="text-blue-600 font-mono">{liveControls.saturation.toFixed(1)}</span>
+              </label>
+              <input
+                type="range"
+                min="-1"
+                max="1"
+                step="0.1"
+                value={liveControls.saturation}
+                onChange={(e) => handleControlChange('Saturation', parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>Gray (-1)</span>
+                <span className="font-medium">Default (1.0)</span>
+                <span>Vivid (+1)</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-xs text-blue-800">
+              <strong>💡 Tip:</strong> These controls only affect the live preview. To save settings permanently,
+              adjust them in Settings → Stream Settings, then restart the preview.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions (Phase 2.2) */}
       <div className="bg-white rounded-lg shadow p-6">
