@@ -648,6 +648,112 @@ def auto_calibrate():
         }), 500
 
 
+@camera_bp.route('/freeze-settings', methods=['POST'])
+def freeze_settings():
+    """
+    Freeze camera settings to current values (Phase 2.2 - Task 2)
+
+    Locks exposure, gain, and focus to prevent automatic adjustments.
+    Useful for reproducible captures under consistent conditions.
+
+    Returns:
+        JSON with:
+        - success: bool
+        - frozen_settings: dict - values that were locked
+        - message: str
+    """
+    try:
+        from picamera2 import Picamera2
+        from mothbox_paths import CAMERA_SETTINGS_FILE
+        import csv
+        import time
+
+        # Release streaming camera if active
+        from flask import current_app
+        if hasattr(current_app, 'camera_streamer') and current_app.camera_streamer.streaming:
+            current_app.camera_streamer.stop_stream()
+            time.sleep(0.5)
+
+        # Initialize camera to get current metadata
+        picam2 = Picamera2()
+        preview_config = picam2.create_preview_configuration(
+            main={'size': (1920, 1080), 'format': 'RGB888'}
+        )
+        picam2.configure(preview_config)
+        picam2.start()
+
+        # Let camera stabilize
+        time.sleep(0.5)
+
+        # Capture current metadata
+        md = picam2.capture_metadata()
+
+        current_exposure = md.get('ExposureTime', 0)
+        current_gain = md.get('AnalogueGain', 1.0)
+        current_lens_position = md.get('LensPosition', 0.0)
+
+        picam2.stop()
+        picam2.close()
+
+        # Read current settings
+        current_settings = {}
+        settings_details = {}
+
+        with open(CAMERA_SETTINGS_FILE, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                setting = row.get('SETTING', '').strip()
+                value = row.get('VALUE', '').strip()
+                details = row.get('DETAILS', '').strip()
+                if setting:
+                    current_settings[setting] = value
+                    settings_details[setting] = details
+
+        # Update with frozen values and disable auto modes
+        current_settings['AeEnable'] = 'False'  # Disable auto-exposure
+        current_settings['AwbEnable'] = 'False'  # Disable auto white balance
+        current_settings['AfMode'] = '0'  # Set to manual focus
+        current_settings['ExposureTime'] = str(int(current_exposure))
+        current_settings['AnalogueGain'] = str(round(current_gain, 2))
+        current_settings['LensPosition'] = str(round(current_lens_position, 2))
+
+        # Write back to CSV
+        fieldnames = ['SETTING', 'VALUE', 'DETAILS']
+        with open(CAMERA_SETTINGS_FILE, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(fieldnames)
+            for setting, value in current_settings.items():
+                details = settings_details.get(setting, '')
+                writer.writerow([setting, value, details])
+
+        # Restart streaming camera
+        if hasattr(current_app, 'camera_streamer'):
+            current_app.camera_streamer.start_stream()
+
+        frozen_values = {
+            'ExposureTime': int(current_exposure),
+            'AnalogueGain': round(current_gain, 2),
+            'LensPosition': round(current_lens_position, 2),
+            'AeEnable': False,
+            'AwbEnable': False,
+            'AfMode': 0
+        }
+
+        return jsonify({
+            'success': True,
+            'frozen_settings': frozen_values,
+            'message': f'Settings frozen at Exp={int(current_exposure)}µs, Gain={round(current_gain, 2)}, Focus={round(current_lens_position, 2)}D',
+            'timestamp': time.time()
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
 @camera_bp.route('/test-capture', methods=['POST'])
 def test_capture():
     """

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCapture } from '../utils/api'
+import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCapture, freezeSettings } from '../utils/api'
 import { io } from 'socket.io-client'
+import toast from 'react-hot-toast'
 
 export default function Camera() {
   const [capturing, setCapturing] = useState(false)
@@ -11,6 +12,7 @@ export default function Camera() {
   const [metadata, setMetadata] = useState(null)
   const [autofocusing, setAutofocusing] = useState(false)
   const [calibrating, setCalibrating] = useState(false)
+  const [freezing, setFreezing] = useState(false)
   const [copyingSettings, setCopyingSettings] = useState(false)
   const [actionResult, setActionResult] = useState(null)
   const [testCapturing, setTestCapturing] = useState(false)
@@ -118,17 +120,24 @@ export default function Camera() {
     setActionResult(null)
     try {
       const response = await triggerAutofocus()
+      const { lens_position, af_state, duration_seconds } = response.data
+      toast.success(
+        `Autofocus ${af_state}: Locked at ${lens_position}D (${(duration_seconds * 1000).toFixed(0)}ms)`,
+        { duration: 4000 }
+      )
       setActionResult({
         type: 'success',
         title: 'Autofocus Complete',
-        message: `Focus locked at ${response.data.lens_position} diopters (${response.data.af_state}) in ${response.data.duration_ms}ms`
+        message: `Focus locked at ${lens_position} diopters (${af_state})`
       })
     } catch (error) {
       console.error('Autofocus failed:', error)
+      const message = error.response?.data?.error || 'Failed to trigger autofocus'
+      toast.error(`Autofocus failed: ${message}`)
       setActionResult({
         type: 'error',
         title: 'Autofocus Failed',
-        message: error.response?.data?.error || 'Failed to trigger autofocus'
+        message
       })
     } finally {
       setAutofocusing(false)
@@ -144,20 +153,49 @@ export default function Camera() {
         update_preview: true
       })
       const { before, after } = response.data
+      toast.success('Camera calibrated successfully!', { duration: 4000 })
       setActionResult({
         type: 'success',
         title: 'Calibration Complete',
-        message: `Exposure: ${before.exposure_time}µs → ${after.exposure_time}µs, Gain: ${before.analogue_gain} → ${after.analogue_gain}, Focus: ${before.lens_position} → ${after.lens_position}`
+        message: `Exposure: ${before.ExposureTime || before.exposure_time}µs → ${after.ExposureTime || after.exposure_time}µs, Gain: ${before.AnalogueGain || before.analogue_gain} → ${after.AnalogueGain || after.analogue_gain}, Focus: ${before.LensPosition || before.lens_position} → ${after.LensPosition || after.lens_position}`
       })
     } catch (error) {
       console.error('Calibration failed:', error)
+      const message = error.response?.data?.error || 'Failed to calibrate camera'
+      toast.error(`Calibration failed: ${message}`)
       setActionResult({
         type: 'error',
         title: 'Calibration Failed',
-        message: error.response?.data?.error || 'Failed to calibrate camera'
+        message
       })
     } finally {
       setCalibrating(false)
+    }
+  }
+
+  const handleFreezeSettings = async () => {
+    setFreezing(true)
+    setActionResult(null)
+    try {
+      const response = await freezeSettings()
+      const { frozen_settings } = response.data
+      toast.success(`Settings frozen! Exp=${frozen_settings.ExposureTime}µs, Gain=${frozen_settings.AnalogueGain}, Focus=${frozen_settings.LensPosition}D`, { duration: 5000 })
+      setActionResult({
+        type: 'success',
+        title: 'Settings Frozen',
+        message: `Locked to: Exp=${frozen_settings.ExposureTime}µs, Gain=${frozen_settings.AnalogueGain}, Focus=${frozen_settings.LensPosition}D. Auto modes disabled.`
+      })
+    } catch (error) {
+      console.error('Freeze failed:', error)
+      const message = error.response?.data?.error || 'Failed to freeze settings'
+      toast.error(`Freeze failed: ${message}`)
+      setActionResult({
+        type: 'error',
+        title: 'Freeze Failed',
+        message
+      })
+    } finally {
+      setFreezing(false)
     }
   }
 
@@ -168,6 +206,7 @@ export default function Camera() {
       const response = await copySettings({
         direction: 'preview_to_capture'
       })
+      toast.success(`Copied ${response.data.copied_count} settings from preview to capture`)
       setActionResult({
         type: 'success',
         title: 'Settings Copied',
@@ -175,10 +214,12 @@ export default function Camera() {
       })
     } catch (error) {
       console.error('Copy settings failed:', error)
+      const message = error.response?.data?.error || 'Failed to copy settings'
+      toast.error(`Copy failed: ${message}`)
       setActionResult({
         type: 'error',
         title: 'Copy Failed',
-        message: error.response?.data?.error || 'Failed to copy settings'
+        message
       })
     } finally {
       setCopyingSettings(false)
@@ -192,6 +233,7 @@ export default function Camera() {
       const response = await copySettings({
         direction: 'capture_to_preview'
       })
+      toast.success(`Copied ${response.data.copied_count} settings from capture to preview`)
       setActionResult({
         type: 'success',
         title: 'Settings Copied',
@@ -199,10 +241,12 @@ export default function Camera() {
       })
     } catch (error) {
       console.error('Copy settings failed:', error)
+      const message = error.response?.data?.error || 'Failed to copy settings'
+      toast.error(`Copy failed: ${message}`)
       setActionResult({
         type: 'error',
         title: 'Copy Failed',
-        message: error.response?.data?.error || 'Failed to copy settings'
+        message
       })
     } finally {
       setCopyingSettings(false)
@@ -214,6 +258,7 @@ export default function Camera() {
     setTestCaptureResult(null)
     try {
       const response = await testCapture()
+      toast.success(`Test photo captured: ${response.data.test_photo_path}`)
       setTestCaptureResult({
         success: true,
         test_photo_path: response.data.test_photo_path,
@@ -221,9 +266,11 @@ export default function Camera() {
       })
     } catch (error) {
       console.error('Test capture failed:', error)
+      const message = error.response?.data?.error || 'Failed to capture test photo'
+      toast.error(`Test capture failed: ${message}`)
       setTestCaptureResult({
         success: false,
-        error: error.response?.data?.error || 'Failed to capture test photo'
+        error: message
       })
     } finally {
       setTestCapturing(false)
@@ -329,11 +376,11 @@ export default function Camera() {
             {calibrating ? '🔧 Calibrating...' : '🔧 Auto-Calibrate'}
           </button>
           <button
-            onClick={handleCopyPreviewToCapture}
-            disabled={copyingSettings || !connected}
-            className="px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 font-medium"
+            onClick={handleFreezeSettings}
+            disabled={freezing || !connected}
+            className="px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 font-medium"
           >
-            {copyingSettings ? '⏳ Copying...' : '📋 Preview → Capture'}
+            {freezing ? '❄️ Freezing...' : '❄️ Freeze Settings'}
           </button>
         </div>
 
@@ -341,7 +388,7 @@ export default function Camera() {
           <p className="text-xs text-gray-600">
             <strong>Autofocus:</strong> Quickly lock focus on the current scene<br/>
             <strong>Calibrate:</strong> Optimize exposure, gain, and focus for current conditions<br/>
-            <strong>Preview → Capture:</strong> Copy preview settings to full-resolution capture settings
+            <strong>Freeze Settings:</strong> Lock current camera values and disable auto-adjustments
           </p>
         </div>
 

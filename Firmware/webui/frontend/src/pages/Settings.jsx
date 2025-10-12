@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getControls, updateControls, getCameraSettings, updateCameraSettings, getSystemInfo, getDiagnosticInfo, getWebUISettings, updateWebUISettings } from '../utils/api'
 import { useState, useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
+import toast from 'react-hot-toast'
 
 export default function Settings() {
   const queryClient = useQueryClient()
@@ -37,7 +38,11 @@ export default function Settings() {
     mutationFn: updateControls,
     onSuccess: () => {
       queryClient.invalidateQueries(['controls'])
-      alert('Controls updated successfully')
+      toast.success('Hardware controls updated successfully!')
+    },
+    onError: (error) => {
+      const message = error.response?.data?.error || 'Failed to update controls'
+      toast.error(`Error: ${message}`)
     },
   })
 
@@ -45,7 +50,11 @@ export default function Settings() {
     mutationFn: updateCameraSettings,
     onSuccess: () => {
       queryClient.invalidateQueries(['camera-settings'])
-      alert('Camera settings updated successfully')
+      toast.success('Camera settings updated successfully!')
+    },
+    onError: (error) => {
+      const message = error.response?.data?.error || 'Failed to update camera settings'
+      toast.error(`Error: ${message}`)
     },
   })
 
@@ -57,7 +66,11 @@ export default function Settings() {
       if (socketRef.current) {
         socketRef.current.emit('reload_stream_settings')
       }
-      alert('Stream settings updated successfully. Changes will apply to new preview sessions.')
+      toast.success('Stream settings updated successfully! Changes will apply to new preview sessions.')
+    },
+    onError: (error) => {
+      const message = error.response?.data?.error || 'Failed to update stream settings'
+      toast.error(`Error: ${message}`)
     },
   })
 
@@ -325,9 +338,17 @@ export default function Settings() {
             ))}
             <button
               type="submit"
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+              disabled={updateControlsMutation.isPending}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              Save Controls
+              {updateControlsMutation.isPending ? (
+                <>
+                  <span className="inline-block animate-spin mr-2">⏳</span>
+                  Saving...
+                </>
+              ) : (
+                'Save Controls'
+              )}
             </button>
           </form>
         </div>
@@ -685,9 +706,17 @@ export default function Settings() {
 
             <button
               type="submit"
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+              disabled={updateCameraMutation.isPending}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              Save Camera Settings
+              {updateCameraMutation.isPending ? (
+                <>
+                  <span className="inline-block animate-spin mr-2">⏳</span>
+                  Saving...
+                </>
+              ) : (
+                'Save Camera Settings'
+              )}
             </button>
           </form>
         </div>
@@ -1059,9 +1088,17 @@ export default function Settings() {
 
             <button
               type="submit"
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+              disabled={updateWebuiMutation.isPending}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              Save Stream Settings
+              {updateWebuiMutation.isPending ? (
+                <>
+                  <span className="inline-block animate-spin mr-2">⏳</span>
+                  Saving...
+                </>
+              ) : (
+                'Save Stream Settings'
+              )}
             </button>
           </form>
         </div>

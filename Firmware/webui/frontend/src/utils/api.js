@@ -80,6 +80,7 @@ export const getCameraSettings = () => api.get('/camera/settings')
 export const updateCameraSettings = (settings) => api.post('/camera/settings', settings)
 export const triggerAutofocus = () => api.post('/camera/autofocus')
 export const autoCalibrate = (data) => api.post('/camera/calibrate', data)
+export const freezeSettings = () => api.post('/camera/freeze-settings')  // Phase 2.2 - Task 2
 export const testCapture = () => api.post('/camera/test-capture')  // Phase 4.5
 
 // Gallery APIs
