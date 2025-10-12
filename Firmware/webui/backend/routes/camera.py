@@ -1,5 +1,6 @@
 """Camera control endpoints"""
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
+from flask_socketio import emit
 import subprocess
 from pathlib import Path
 import sys
@@ -9,6 +10,32 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import mothbox_import  # Sets up sys.path for mothbox
 
 from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR
+
+
+def _emit_calibration_progress(step, total_steps, message, progress):
+    """
+    Emit calibration progress via WebSocket (Task 4: Real-time Calibration Progress)
+
+    Args:
+        step: Current step number (1-indexed)
+        total_steps: Total number of steps
+        message: Human-readable status message
+        progress: Progress percentage (0-100)
+    """
+    try:
+        socketio = current_app.extensions.get('socketio')
+        if socketio:
+            socketio.emit('calibration_progress', {
+                'step': step,
+                'total_steps': total_steps,
+                'message': message,
+                'progress': progress
+            })
+            print(f"📊 Calibration progress: Step {step}/{total_steps} ({progress}%) - {message}")
+    except Exception as e:
+        # Don't fail calibration if progress emission fails
+        print(f"Warning: Failed to emit calibration progress: {e}")
+
 
 # Allowed camera settings with validation functions (Phase 2.1: expanded controls)
 ALLOWED_CAMERA_SETTINGS = {
@@ -416,6 +443,9 @@ def auto_calibrate():
 
         print(f"Auto-calibration requested via API (apply_to={apply_to})")
 
+        # Step 1: Starting calibration (0%)
+        _emit_calibration_progress(1, 8, 'Starting calibration...', 0)
+
         # Release camera hardware if initialized (prevents resource conflict)
         camera_streamer = current_app.config.get('CAMERA_STREAMER')
         was_streaming = False
@@ -424,6 +454,9 @@ def auto_calibrate():
             was_streaming = camera_streamer.streaming
             camera_streamer.release_camera()
             time.sleep(0.5)  # Let camera fully release
+
+        # Step 2: Camera released (12%)
+        _emit_calibration_progress(2, 8, 'Releasing streaming camera...', 12)
 
         # Read current settings for "before" snapshot
         # camera_settings.csv format: SETTING,VALUE,DETAILS (vertical key-value pairs)
@@ -465,6 +498,9 @@ def auto_calibrate():
             # Start camera
             picam2.start()
 
+            # Step 3: Camera initialized (25%)
+            _emit_calibration_progress(3, 8, 'Initializing camera for calibration...', 25)
+
             # Set initial lens position
             picam2.set_controls({"LensPosition": 7.0})
 
@@ -486,6 +522,9 @@ def auto_calibrate():
 
             print(f"Auto-exposure calibrated: Exp={calib_exposure}µs, Gain={calib_gain:.2f}")
 
+            # Step 4: Auto-exposure complete (37%)
+            _emit_calibration_progress(4, 8, 'Capturing baseline exposure metrics...', 37)
+
             # Run autofocus cycle
             print("Running autofocus cycle...")
             af_start = time.time()
@@ -503,6 +542,9 @@ def auto_calibrate():
                   f"Exp={calib_exposure}µs, "
                   f"Gain={calib_gain:.2f}, "
                   f"Lens={calib_lens_position:.2f}D")
+
+            # Step 5: Autofocus complete (50%)
+            _emit_calibration_progress(5, 8, 'Autofocus cycle complete!', 50)
 
             # Stop camera
             picam2.stop()
@@ -555,6 +597,9 @@ def auto_calibrate():
 
                 print("✓ Updated webui_settings.txt")
 
+            # Step 6: Settings applied (75%)
+            _emit_calibration_progress(6, 8, 'Applying calibrated settings...', 75)
+
             # Update LastCalibration timestamp in controls.txt
             print("Updating LastCalibration timestamp...")
             calibration_timestamp = time.time()
@@ -585,6 +630,9 @@ def auto_calibrate():
             except Exception as timestamp_error:
                 print(f"Warning: Could not update LastCalibration: {timestamp_error}")
 
+            # Step 7: Finalizing (87%)
+            _emit_calibration_progress(7, 8, 'Finalizing calibration...', 87)
+
             # Return results (use snake_case for consistency with test expectations)
             after_snapshot = {
                 'exposure_time': calib_exposure,
@@ -595,6 +643,9 @@ def auto_calibrate():
                 'AnalogueGain': round(calib_gain, 2),
                 'LensPosition': round(calib_lens_position, 2)
             }
+
+            # Step 8: Complete! (100%)
+            _emit_calibration_progress(8, 8, 'Calibration complete!', 100)
 
             return jsonify({
                 'success': True,

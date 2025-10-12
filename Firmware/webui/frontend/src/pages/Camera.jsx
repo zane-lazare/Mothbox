@@ -17,6 +17,7 @@ export default function Camera() {
   const [actionResult, setActionResult] = useState(null)
   const [testCapturing, setTestCapturing] = useState(false)
   const [testCaptureResult, setTestCaptureResult] = useState(null)
+  const [calibrationProgress, setCalibrationProgress] = useState(null)  // Task 4: Real-time progress
   const socketRef = useRef(null)
   const metadataIntervalRef = useRef(null)
 
@@ -55,6 +56,11 @@ export default function Camera() {
 
     socketRef.current.on('metadata_update', (data) => {
       setMetadata(data)
+    })
+
+    socketRef.current.on('calibration_progress', (data) => {
+      console.log('Calibration progress:', data)
+      setCalibrationProgress(data)
     })
 
     return () => {
@@ -147,6 +153,7 @@ export default function Camera() {
   const handleCalibrate = async () => {
     setCalibrating(true)
     setActionResult(null)
+    setCalibrationProgress(null)  // Reset progress at start
     try {
       const response = await autoCalibrate({
         update_capture: true,
@@ -170,6 +177,8 @@ export default function Camera() {
       })
     } finally {
       setCalibrating(false)
+      // Reset progress after 2s delay (so user sees 100%)
+      setTimeout(() => setCalibrationProgress(null), 2000)
     }
   }
 
@@ -391,6 +400,29 @@ export default function Camera() {
             <strong>Freeze Settings:</strong> Lock current camera values and disable auto-adjustments
           </p>
         </div>
+
+        {/* Calibration Progress Indicator (Task 4) */}
+        {calibrationProgress && (
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-blue-900">
+                Step {calibrationProgress.step} of {calibrationProgress.total_steps}
+              </span>
+              <span className="text-sm font-medium text-blue-900">
+                {calibrationProgress.progress}%
+              </span>
+            </div>
+            <div className="w-full bg-blue-200 rounded-full h-2.5 mb-2">
+              <div
+                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                style={{ width: `${calibrationProgress.progress}%` }}
+              ></div>
+            </div>
+            <p className="text-sm text-blue-700">
+              {calibrationProgress.message}
+            </p>
+          </div>
+        )}
 
         {/* Action Results */}
         {actionResult && (
