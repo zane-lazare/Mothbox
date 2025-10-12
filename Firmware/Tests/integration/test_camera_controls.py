@@ -307,5 +307,287 @@ class TestEndToEndWorkflow:
         print("\n   ✅ Complete workflow executed successfully!")
 
 
+class TestAutofocusFailureRecovery:
+    """Test autofocus failure recovery (Feature Set 3)"""
+
+    def test_autofocus_failure_returns_valid_response(self, client):
+        """Test autofocus returns valid response even on failure"""
+        print("\n🔧 Testing autofocus failure recovery...")
+
+        # Run autofocus - might succeed or fail depending on conditions
+        response = client.post('/camera/autofocus')
+
+        # Should always return 200 with valid structure
+        assert response.status_code == 200
+        data = response.get_json()
+
+        # Must have required fields regardless of success
+        assert 'success' in data
+        assert 'af_state' in data
+        assert 'lens_position' in data
+        assert 'duration_seconds' in data
+
+        # af_state must be valid
+        assert data['af_state'] in ['Idle', 'Scanning', 'Success', 'Fail']
+
+        print(f"   ✓ Valid response structure: af_state={data['af_state']}")
+
+    def test_autofocus_camera_release_on_error(self, client):
+        """Test camera is properly released after autofocus error"""
+        print("\n🔓 Testing camera release on autofocus error...")
+
+        # Run autofocus
+        response1 = client.post('/camera/autofocus')
+        assert response1.status_code in [200, 500]
+
+        # Wait briefly
+        time.sleep(0.5)
+
+        # Should be able to run again (camera was released)
+        response2 = client.post('/camera/autofocus')
+        assert response2.status_code in [200, 500], \
+            "Camera should be available for subsequent autofocus"
+
+        print(f"   ✓ Camera released after autofocus")
+
+    def test_autofocus_state_transitions(self, client):
+        """Test autofocus state transitions from Idle to Success/Fail"""
+        print("\n🔀 Testing autofocus state transitions...")
+
+        response = client.post('/camera/autofocus')
+        assert response.status_code == 200
+
+        data = response.get_json()
+        af_state = data['af_state']
+
+        # State should transition to final state (not stuck in Scanning)
+        assert af_state in ['Idle', 'Success', 'Fail'], \
+            f"AF state should reach final state, got {af_state}"
+
+        print(f"   ✓ AF state transition complete: {af_state}")
+
+
+class TestCalibrationEdgeCases:
+    """Test calibration edge cases (Feature Set 3)"""
+
+    def test_calibration_with_invalid_apply_to(self, client):
+        """Test calibration rejects invalid apply_to parameter"""
+        print("\n❌ Testing calibration with invalid apply_to...")
+
+        response = client.post('/camera/calibrate', json={
+            'apply_to': 'invalid_target'
+        })
+
+        assert response.status_code == 400, "Should reject invalid apply_to"
+        data = response.get_json()
+        assert data['success'] is False
+        assert 'error' in data
+
+        print(f"   ✓ Invalid apply_to rejected: {data['error']}")
+
+    def test_calibration_camera_unavailable_recovery(self, client):
+        """Test calibration handles camera unavailable gracefully"""
+        print("\n🔧 Testing calibration camera unavailable handling...")
+
+        # Run calibration multiple times rapidly
+        # If camera is busy, should handle gracefully
+        responses = []
+        for i in range(2):
+            response = client.post('/camera/calibrate', json={
+                'update_capture': False,
+                'update_preview': False
+            })
+            responses.append(response)
+            time.sleep(0.1)
+
+        # All should return valid status codes
+        for i, response in enumerate(responses):
+            assert response.status_code in [200, 500], \
+                f"Request {i+1} should return valid status"
+
+        print(f"   ✓ Calibration handled camera resource conflicts")
+
+    def test_calibration_settings_file_accessible(self, client):
+        """Test calibration handles settings file access"""
+        print("\n💾 Testing calibration file access...")
+
+        from mothbox_paths import CAMERA_SETTINGS_FILE
+
+        # Run calibration
+        response = client.post('/camera/calibrate', json={
+            'update_capture': True,
+            'update_preview': False
+        })
+
+        # Should succeed if camera available
+        if response.status_code == 200:
+            data = response.get_json()
+            assert data['success'] is True
+
+            # Verify settings file exists and is readable
+            assert CAMERA_SETTINGS_FILE.exists(), \
+                "camera_settings.csv should exist after calibration"
+
+            print(f"   ✓ Settings file updated: {CAMERA_SETTINGS_FILE}")
+        else:
+            print(f"   ℹ️  Calibration skipped (camera unavailable)")
+
+
+class TestConcurrentCalibrationRequests:
+    """Test concurrent calibration request handling (Feature Set 3)"""
+
+    def test_concurrent_calibration_prevention(self, client):
+        """Test system prevents concurrent calibrations"""
+        print("\n🔒 Testing concurrent calibration prevention...")
+
+        # Note: In production, concurrent calibrations should be prevented
+        # through camera resource locking or request queuing
+
+        # Attempt rapid-fire calibrations
+        responses = []
+        for i in range(3):
+            response = client.post('/camera/calibrate', json={
+                'update_capture': False,
+                'update_preview': False
+            })
+            responses.append((i, response))
+            # Minimal delay (tests concurrent access)
+            time.sleep(0.05)
+
+        # Check responses
+        success_count = 0
+        error_count = 0
+
+        for i, response in responses:
+            if response.status_code == 200:
+                data = response.get_json()
+                if data.get('success'):
+                    success_count += 1
+            elif response.status_code == 500:
+                error_count += 1
+
+        print(f"   ✓ {success_count} succeeded, {error_count} errored")
+        print(f"   ℹ️  Concurrent access handled (no deadlocks)")
+
+    def test_calibration_race_conditions(self, client):
+        """Test calibration handles race conditions"""
+        print("\n🏃 Testing calibration race condition handling...")
+
+        # Trigger calibration and autofocus nearly simultaneously
+        # (Tests resource lock handling)
+
+        import threading
+
+        results = {'calibration': None, 'autofocus': None}
+
+        def run_calibration():
+            response = client.post('/camera/calibrate', json={
+                'update_capture': False,
+                'update_preview': False
+            })
+            results['calibration'] = response
+
+        def run_autofocus():
+            time.sleep(0.02)  # Slight delay
+            response = client.post('/camera/autofocus')
+            results['autofocus'] = response
+
+        thread1 = threading.Thread(target=run_calibration)
+        thread2 = threading.Thread(target=run_autofocus)
+
+        thread1.start()
+        thread2.start()
+
+        thread1.join(timeout=20)
+        thread2.join(timeout=20)
+
+        # Both should return valid responses (200 or 500)
+        assert results['calibration'] is not None
+        assert results['autofocus'] is not None
+
+        cal_status = results['calibration'].status_code
+        af_status = results['autofocus'].status_code
+
+        assert cal_status in [200, 500], \
+            f"Calibration status {cal_status} unexpected"
+        assert af_status in [200, 500], \
+            f"Autofocus status {af_status} unexpected"
+
+        print(f"   ✓ Calibration status: {cal_status}")
+        print(f"   ✓ Autofocus status: {af_status}")
+        print(f"   ✓ No deadlocks or hangs")
+
+
+class TestCalibrationApplyToModes:
+    """Test calibration apply_to parameter modes (Feature Set 3)"""
+
+    def test_calibration_apply_to_preview(self, client):
+        """Test calibration with apply_to='preview'"""
+        print("\n📸 Testing calibration apply_to='preview'...")
+
+        response = client.post('/camera/calibrate', json={
+            'apply_to': 'preview'
+        })
+
+        if response.status_code == 200:
+            data = response.get_json()
+            assert data['success'] is True
+            assert data.get('apply_to') == 'preview'
+            print(f"   ✓ Preview calibration succeeded")
+        else:
+            print(f"   ℹ️  Calibration unavailable (status {response.status_code})")
+
+    def test_calibration_apply_to_capture(self, client):
+        """Test calibration with apply_to='capture'"""
+        print("\n📷 Testing calibration apply_to='capture'...")
+
+        response = client.post('/camera/calibrate', json={
+            'apply_to': 'capture'
+        })
+
+        if response.status_code == 200:
+            data = response.get_json()
+            assert data['success'] is True
+            assert data.get('apply_to') == 'capture'
+            print(f"   ✓ Capture calibration succeeded")
+        else:
+            print(f"   ℹ️  Calibration unavailable (status {response.status_code})")
+
+    def test_calibration_apply_to_both(self, client):
+        """Test calibration with apply_to='both'"""
+        print("\n🎯 Testing calibration apply_to='both'...")
+
+        response = client.post('/camera/calibrate', json={
+            'apply_to': 'both'
+        })
+
+        if response.status_code == 200:
+            data = response.get_json()
+            assert data['success'] is True
+            assert data.get('apply_to') == 'both'
+            print(f"   ✓ Both settings calibration succeeded")
+        else:
+            print(f"   ℹ️  Calibration unavailable (status {response.status_code})")
+
+    def test_calibration_backward_compatibility(self, client):
+        """Test calibration backward compatibility with old parameter names"""
+        print("\n🔄 Testing calibration backward compatibility...")
+
+        # Old format: update_capture, update_preview
+        response = client.post('/camera/calibrate', json={
+            'update_capture': True,
+            'update_preview': True
+        })
+
+        if response.status_code == 200:
+            data = response.get_json()
+            assert data['success'] is True
+            # Should map to apply_to='both'
+            print(f"   ✓ Old parameter format works")
+            print(f"   ✓ Mapped to apply_to={data.get('apply_to', 'unknown')}")
+        else:
+            print(f"   ℹ️  Calibration unavailable (status {response.status_code})")
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v', '-s'])

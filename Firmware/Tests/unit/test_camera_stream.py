@@ -158,3 +158,195 @@ class TestQualitySettings:
         # Q=85 should be at least 20% smaller than Q=95
         assert size_reduction >= 20, \
             f"Expected ≥20% size reduction, got {size_reduction:.1f}%"
+
+
+class TestErrorConditions:
+    """Test error handling and edge cases (Feature Set 1 enhancement)"""
+
+    def test_corrupted_frame_handling(self):
+        """Test encoding with corrupted/malformed frame data"""
+        print("\n🔧 Testing corrupted frame handling...")
+
+        # Test 1: Wrong data type (float instead of uint8)
+        float_frame = np.random.rand(480, 640, 3).astype(np.float32)
+        try:
+            jpeg_bytes = simplejpeg.encode_jpeg(float_frame, quality=85, colorspace='RGB')
+            # If it succeeds, verify output
+            assert len(jpeg_bytes) > 0
+            print("   ✓ Float frame auto-converted and encoded")
+        except (ValueError, RuntimeError) as e:
+            print(f"   ✓ Float frame rejected: {type(e).__name__}")
+
+        # Test 2: Out of range values
+        invalid_frame = np.random.randint(-100, 300, (480, 640, 3), dtype=np.int16)
+        try:
+            jpeg_bytes = simplejpeg.encode_jpeg(invalid_frame, quality=85, colorspace='RGB')
+            assert len(jpeg_bytes) > 0
+            print("   ✓ Out-of-range values handled")
+        except (ValueError, RuntimeError, TypeError) as e:
+            print(f"   ✓ Out-of-range values rejected: {type(e).__name__}")
+
+    def test_invalid_frame_data(self):
+        """Test encoding with invalid frame shapes and types"""
+        print("\n🔧 Testing invalid frame data...")
+
+        # Test 1: Empty frame
+        with pytest.raises((ValueError, RuntimeError)):
+            empty_frame = np.zeros((0, 0, 3), dtype=np.uint8)
+            simplejpeg.encode_jpeg(empty_frame, quality=85, colorspace='RGB')
+        print("   ✓ Empty frame rejected")
+
+        # Test 2: Wrong channel count (4 channels for RGB)
+        with pytest.raises((ValueError, RuntimeError)):
+            rgba_frame = np.random.randint(0, 255, (480, 640, 4), dtype=np.uint8)
+            simplejpeg.encode_jpeg(rgba_frame, quality=85, colorspace='RGB')
+        print("   ✓ Invalid channel count rejected")
+
+        # Test 3: 1D array
+        with pytest.raises((ValueError, RuntimeError)):
+            flat_frame = np.random.randint(0, 255, (921600,), dtype=np.uint8)
+            simplejpeg.encode_jpeg(flat_frame, quality=85, colorspace='RGB')
+        print("   ✓ 1D array rejected")
+
+    def test_edge_case_quality_bounds(self):
+        """Test quality parameter edge cases"""
+        print("\n🔧 Testing quality edge cases...")
+
+        test_frame = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+
+        # Test boundary value: 49 (below minimum)
+        with pytest.raises((ValueError, RuntimeError)):
+            simplejpeg.encode_jpeg(test_frame, quality=49, colorspace='RGB')
+        print("   ✓ Quality 49 rejected")
+
+        # Test boundary value: 101 (above maximum)
+        with pytest.raises((ValueError, RuntimeError)):
+            simplejpeg.encode_jpeg(test_frame, quality=101, colorspace='RGB')
+        print("   ✓ Quality 101 rejected")
+
+        # Test negative quality
+        with pytest.raises((ValueError, RuntimeError, TypeError)):
+            simplejpeg.encode_jpeg(test_frame, quality=-10, colorspace='RGB')
+        print("   ✓ Negative quality rejected")
+
+        # Test string quality
+        with pytest.raises((ValueError, TypeError)):
+            simplejpeg.encode_jpeg(test_frame, quality="85", colorspace='RGB')
+        print("   ✓ String quality rejected")
+
+        # Test None quality
+        with pytest.raises((ValueError, TypeError)):
+            simplejpeg.encode_jpeg(test_frame, quality=None, colorspace='RGB')
+        print("   ✓ None quality rejected")
+
+    def test_extreme_resolutions(self):
+        """Test encoding with extreme resolutions"""
+        print("\n🔧 Testing extreme resolutions...")
+
+        # Test 1: Very small resolution (minimum viable)
+        small_frame = np.random.randint(0, 255, (16, 16, 3), dtype=np.uint8)
+        jpeg_bytes = simplejpeg.encode_jpeg(small_frame, quality=85, colorspace='RGB')
+        assert len(jpeg_bytes) > 0
+        print(f"   ✓ 16x16 frame encoded: {len(jpeg_bytes):,} bytes")
+
+        # Test 2: Very small resolution (1x1)
+        tiny_frame = np.random.randint(0, 255, (1, 1, 3), dtype=np.uint8)
+        try:
+            jpeg_bytes = simplejpeg.encode_jpeg(tiny_frame, quality=85, colorspace='RGB')
+            assert len(jpeg_bytes) > 0
+            print(f"   ✓ 1x1 frame encoded: {len(jpeg_bytes):,} bytes")
+        except (ValueError, RuntimeError) as e:
+            print(f"   ✓ 1x1 frame rejected: {type(e).__name__}")
+
+        # Test 3: Non-standard aspect ratio
+        wide_frame = np.random.randint(0, 255, (100, 2000, 3), dtype=np.uint8)
+        jpeg_bytes = simplejpeg.encode_jpeg(wide_frame, quality=85, colorspace='RGB')
+        assert len(jpeg_bytes) > 0
+        print(f"   ✓ 2000x100 (20:1 aspect) encoded: {len(jpeg_bytes):,} bytes")
+
+        # Test 4: Tall aspect ratio
+        tall_frame = np.random.randint(0, 255, (2000, 100, 3), dtype=np.uint8)
+        jpeg_bytes = simplejpeg.encode_jpeg(tall_frame, quality=85, colorspace='RGB')
+        assert len(jpeg_bytes) > 0
+        print(f"   ✓ 100x2000 (1:20 aspect) encoded: {len(jpeg_bytes):,} bytes")
+
+    def test_encoding_timeout_scenarios(self):
+        """Test encoding doesn't timeout with large frames"""
+        print("\n🔧 Testing encoding timeout scenarios...")
+
+        # 4K resolution frame
+        large_frame = np.random.randint(0, 255, (2160, 3840, 3), dtype=np.uint8)
+
+        start = time.perf_counter()
+        jpeg_bytes = simplejpeg.encode_jpeg(large_frame, quality=85, colorspace='RGB')
+        elapsed = time.perf_counter() - start
+
+        print(f"   4K frame: {len(jpeg_bytes):,} bytes in {elapsed:.2f}s")
+        assert elapsed < 2.0, f"4K encoding took too long: {elapsed:.2f}s"
+        print("   ✓ 4K encoding completed within timeout")
+
+    def test_pil_fallback_verification(self):
+        """Verify PIL fallback works when simplejpeg fails"""
+        print("\n🔧 Testing PIL fallback verification...")
+
+        test_frame = np.random.randint(0, 255, (768, 1024, 3), dtype=np.uint8)
+
+        # Encode with PIL
+        img = Image.fromarray(test_frame)
+        buffer = io.BytesIO()
+        img.save(buffer, format='JPEG', quality=85)
+        buffer.seek(0)
+        pil_bytes = buffer.read()
+
+        # Verify PIL encoding produces valid JPEG
+        assert len(pil_bytes) > 0, "PIL encoding failed"
+        assert pil_bytes[0:2] == b'\xff\xd8', "PIL produced invalid JPEG"
+        assert pil_bytes[-2:] == b'\xff\xd9', "PIL JPEG missing end marker"
+
+        print(f"   ✓ PIL fallback encoding successful: {len(pil_bytes):,} bytes")
+
+        # Verify PIL can handle same edge cases
+        small_frame = np.random.randint(0, 255, (16, 16, 3), dtype=np.uint8)
+        img = Image.fromarray(small_frame)
+        buffer = io.BytesIO()
+        img.save(buffer, format='JPEG', quality=85)
+        buffer.seek(0)
+        pil_bytes = buffer.read()
+        assert len(pil_bytes) > 0
+        print(f"   ✓ PIL handles small frames: {len(pil_bytes):,} bytes")
+
+    def test_concurrent_encoding_safety(self):
+        """Test encoding is safe for concurrent access"""
+        print("\n🔧 Testing concurrent encoding safety...")
+
+        test_frame = np.random.randint(0, 255, (768, 1024, 3), dtype=np.uint8)
+        results = []
+        errors = []
+
+        def encode_frame(frame_id):
+            try:
+                jpeg_bytes = simplejpeg.encode_jpeg(test_frame, quality=85, colorspace='RGB')
+                results.append({'id': frame_id, 'size': len(jpeg_bytes)})
+            except Exception as e:
+                errors.append({'id': frame_id, 'error': str(e)})
+
+        # Create multiple threads
+        import threading
+        threads = []
+        num_threads = 5
+
+        for i in range(num_threads):
+            thread = threading.Thread(target=encode_frame, args=(i,))
+            threads.append(thread)
+            thread.start()
+
+        # Wait for all threads
+        for thread in threads:
+            thread.join()
+
+        print(f"   Successful encodes: {len(results)}/{num_threads}")
+        print(f"   Errors: {len(errors)}")
+
+        assert len(results) == num_threads, f"Some threads failed: {len(errors)} errors"
+        assert len(errors) == 0, f"Encoding errors in concurrent test: {errors}"
+        print("   ✓ Concurrent encoding successful")

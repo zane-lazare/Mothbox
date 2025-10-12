@@ -457,3 +457,329 @@ class TestCombinedSettings:
                     matches = actual == expected
                 print(f"   {key}: {actual} {'✓' if matches else '✗'}")
                 assert matches, f"{key} mismatch: expected {expected}, got {actual}"
+
+
+class TestWhiteBalanceEdgeCases:
+    """Test white balance edge cases and all mode combinations"""
+
+    def test_awb_disabled_with_all_modes(self, client):
+        """Test AWB disabled (manual) with each mode setting"""
+        print("\n🌡️  Testing AWB disabled with all modes:")
+
+        mode_names = {
+            0: "Auto", 1: "Incandescent", 2: "Tungsten", 3: "Fluorescent",
+            4: "Indoor", 5: "Daylight", 6: "Cloudy", 7: "Custom"
+        }
+
+        for mode in range(8):
+            settings = {'awb_enable': False, 'awb_mode': mode}
+            response = client.post('/config/webui', json=settings)
+            assert response.status_code == 200, f"Should accept AWB disabled + mode {mode}"
+            print(f"   ✓ AWB disabled + {mode_names[mode]}")
+
+    def test_awb_enabled_with_all_modes(self, client):
+        """Test AWB enabled (auto) with each mode setting"""
+        print("\n🌡️  Testing AWB enabled with all modes:")
+
+        mode_names = {
+            0: "Auto", 1: "Incandescent", 2: "Tungsten", 3: "Fluorescent",
+            4: "Indoor", 5: "Daylight", 6: "Cloudy", 7: "Custom"
+        }
+
+        for mode in range(8):
+            settings = {'awb_enable': True, 'awb_mode': mode}
+            response = client.post('/config/webui', json=settings)
+            assert response.status_code == 200, f"Should accept AWB enabled + mode {mode}"
+            print(f"   ✓ AWB enabled + {mode_names[mode]}")
+
+    def test_awb_toggle_preserves_mode(self, client):
+        """Test that toggling AWB enable preserves the mode setting"""
+        print("\n🌡️  Testing AWB toggle preserves mode:")
+
+        # Set specific mode
+        response = client.post('/config/webui', json={'awb_mode': 5})  # Daylight
+        assert response.status_code == 200
+
+        # Disable AWB
+        response = client.post('/config/webui', json={'awb_enable': False})
+        assert response.status_code == 200
+        print("   ✓ AWB disabled")
+
+        # Check mode preserved
+        response = client.get('/config/webui')
+        data = response.get_json()
+        assert data['awb_mode'] == 5, "Mode should be preserved"
+        print("   ✓ Mode preserved (still Daylight)")
+
+        # Enable AWB
+        response = client.post('/config/webui', json={'awb_enable': True})
+        assert response.status_code == 200
+        print("   ✓ AWB re-enabled")
+
+        # Check mode still preserved
+        response = client.get('/config/webui')
+        data = response.get_json()
+        assert data['awb_mode'] == 5, "Mode should still be preserved"
+        print("   ✓ Mode still preserved after re-enable")
+
+
+class TestCombinedControlInteractions:
+    """Test combined control interactions and extreme combinations"""
+
+    def test_sharpness_contrast_brightness_together(self, client):
+        """Test sharpness + contrast + brightness combined"""
+        print("\n🎨 Testing sharpness + contrast + brightness together:")
+
+        # Low sharpness, high contrast, low brightness
+        settings = {'sharpness': 0.5, 'contrast': 3.0, 'brightness': -0.8}
+        response = client.post('/config/webui', json=settings)
+        assert response.status_code == 200
+        print("   ✓ Low sharpness + high contrast + low brightness")
+
+        # High sharpness, low contrast, high brightness
+        settings = {'sharpness': 8.0, 'contrast': 0.5, 'brightness': 0.9}
+        response = client.post('/config/webui', json=settings)
+        assert response.status_code == 200
+        print("   ✓ High sharpness + low contrast + high brightness")
+
+        # All maximum
+        settings = {'sharpness': 16.0, 'contrast': 32.0, 'brightness': 1.0}
+        response = client.post('/config/webui', json=settings)
+        assert response.status_code == 200
+        print("   ✓ All at maximum values")
+
+        # All minimum
+        settings = {'sharpness': 0.0, 'contrast': 0.0, 'brightness': -1.0}
+        response = client.post('/config/webui', json=settings)
+        assert response.status_code == 200
+        print("   ✓ All at minimum values")
+
+    def test_all_image_quality_controls_extreme_combinations(self, client):
+        """Test all 4 image quality controls in extreme combinations"""
+        print("\n🎨 Testing all image quality controls - extreme combos:")
+
+        # Combination 1: Maximum sharpness/contrast, minimum brightness/saturation
+        settings = {
+            'sharpness': 16.0,
+            'contrast': 32.0,
+            'brightness': -1.0,
+            'saturation': 0.0
+        }
+        response = client.post('/config/webui', json=settings)
+        assert response.status_code == 200
+        print("   ✓ Max sharp/contrast + min bright/sat")
+
+        # Combination 2: Minimum sharpness/contrast, maximum brightness/saturation
+        settings = {
+            'sharpness': 0.0,
+            'contrast': 0.0,
+            'brightness': 1.0,
+            'saturation': 32.0
+        }
+        response = client.post('/config/webui', json=settings)
+        assert response.status_code == 200
+        print("   ✓ Min sharp/contrast + max bright/sat")
+
+        # Combination 3: Alternating extremes
+        settings = {
+            'sharpness': 16.0,
+            'contrast': 0.0,
+            'brightness': 1.0,
+            'saturation': 0.0
+        }
+        response = client.post('/config/webui', json=settings)
+        assert response.status_code == 200
+        print("   ✓ Alternating min/max values")
+
+    def test_quality_controls_with_focus_and_wb(self, client):
+        """Test image quality controls combined with focus and WB settings"""
+        print("\n🎨 Testing quality + focus + WB combined:")
+
+        comprehensive_settings = {
+            # Image quality
+            'sharpness': 3.5,
+            'brightness': 0.2,
+            'contrast': 1.8,
+            'saturation': 1.2,
+            # Focus
+            'af_mode': 1,      # Auto single
+            'af_speed': 1,     # Fast
+            'af_range': 1,     # Macro
+            # White balance
+            'awb_enable': False,
+            'awb_mode': 5      # Daylight
+        }
+
+        response = client.post('/config/webui', json=comprehensive_settings)
+        assert response.status_code == 200
+        print("   ✓ All controls combined accepted")
+
+        # Verify all persisted
+        response = client.get('/config/webui')
+        data = response.get_json()
+
+        assert abs(data['sharpness'] - 3.5) < 0.01
+        assert abs(data['brightness'] - 0.2) < 0.01
+        assert abs(data['contrast'] - 1.8) < 0.01
+        assert abs(data['saturation'] - 1.2) < 0.01
+        assert data['af_mode'] == 1
+        assert data['af_speed'] == 1
+        assert data['af_range'] == 1
+        assert data['awb_enable'] == False
+        assert data['awb_mode'] == 5
+        print("   ✓ All combined settings persisted correctly")
+
+
+class TestSettingsValidationChains:
+    """Test validation chains and sequences"""
+
+    def test_sequential_quality_control_updates(self, client):
+        """Test updating quality controls in sequence"""
+        print("\n🔗 Testing sequential quality control updates:")
+
+        # Update each control sequentially
+        response = client.post('/config/webui', json={'sharpness': 4.0})
+        assert response.status_code == 200
+        print("   ✓ Step 1: sharpness")
+
+        response = client.post('/config/webui', json={'brightness': 0.3})
+        assert response.status_code == 200
+        print("   ✓ Step 2: brightness")
+
+        response = client.post('/config/webui', json={'contrast': 2.0})
+        assert response.status_code == 200
+        print("   ✓ Step 3: contrast")
+
+        response = client.post('/config/webui', json={'saturation': 1.5})
+        assert response.status_code == 200
+        print("   ✓ Step 4: saturation")
+
+        # Verify final state
+        response = client.get('/config/webui')
+        data = response.get_json()
+
+        assert abs(data['sharpness'] - 4.0) < 0.01
+        assert abs(data['brightness'] - 0.3) < 0.01
+        assert abs(data['contrast'] - 2.0) < 0.01
+        assert abs(data['saturation'] - 1.5) < 0.01
+        print("   ✓ All sequential updates persisted")
+
+    def test_incremental_adjustments(self, client):
+        """Test incremental adjustments to same control"""
+        print("\n🔗 Testing incremental adjustments:")
+
+        # Start at default
+        response = client.post('/config/webui', json={'sharpness': 1.0})
+        assert response.status_code == 200
+
+        # Increment in steps
+        for step in [2.0, 3.0, 4.0, 5.0]:
+            response = client.post('/config/webui', json={'sharpness': step})
+            assert response.status_code == 200
+            print(f"   ✓ Incremented to {step}")
+
+        # Verify final value
+        response = client.get('/config/webui')
+        data = response.get_json()
+        assert abs(data['sharpness'] - 5.0) < 0.01
+        print("   ✓ Final value correct after increments")
+
+    def test_validation_chain_with_one_failure(self, client):
+        """Test that one failed validation doesn't affect other valid settings"""
+        print("\n🔗 Testing validation chain with failure:")
+
+        # Set valid baseline
+        baseline = {
+            'sharpness': 2.0,
+            'brightness': 0.1,
+            'contrast': 1.5
+        }
+        response = client.post('/config/webui', json=baseline)
+        assert response.status_code == 200
+        print("   ✓ Baseline settings saved")
+
+        # Try to update with one invalid value
+        invalid_update = {
+            'sharpness': 2.5,      # Valid
+            'brightness': 10.0,    # INVALID
+            'contrast': 1.8        # Valid
+        }
+        response = client.post('/config/webui', json=invalid_update)
+        assert response.status_code == 400
+        print("   ✓ Invalid update rejected")
+
+        # Verify original settings preserved
+        response = client.get('/config/webui')
+        data = response.get_json()
+
+        assert abs(data['sharpness'] - 2.0) < 0.01, "Should preserve original sharpness"
+        assert abs(data['brightness'] - 0.1) < 0.01, "Should preserve original brightness"
+        assert abs(data['contrast'] - 1.5) < 0.01, "Should preserve original contrast"
+        print("   ✓ Original settings preserved after failed update")
+
+
+class TestInvalidCombinations:
+    """Test combinations that should fail validation"""
+
+    def test_all_invalid_values(self, client):
+        """Test update with all invalid values"""
+        print("\n❌ Testing all invalid values:")
+
+        invalid_settings = {
+            'sharpness': 100.0,    # Invalid: > 16.0
+            'brightness': 5.0,     # Invalid: > 1.0
+            'contrast': -10.0,     # Invalid: < 0.0
+            'saturation': 50.0     # Invalid: > 32.0
+        }
+
+        response = client.post('/config/webui', json=invalid_settings)
+        assert response.status_code == 400, "Should reject all invalid values"
+        data = response.get_json()
+        assert 'error' in data
+        print("   ✓ Correctly rejected all invalid values")
+
+    def test_mixed_valid_invalid_types(self, client):
+        """Test mixing valid values with invalid types"""
+        print("\n❌ Testing mixed valid/invalid types:")
+
+        mixed_settings = {
+            'sharpness': 3.0,       # Valid
+            'brightness': 'high',   # Invalid type
+            'contrast': 1.5,        # Valid
+            'saturation': None      # Invalid type
+        }
+
+        response = client.post('/config/webui', json=mixed_settings)
+        assert response.status_code == 400, "Should reject due to invalid types"
+        print("   ✓ Correctly rejected mixed types")
+
+    def test_invalid_focus_and_wb_combination(self, client):
+        """Test invalid focus and WB values together"""
+        print("\n❌ Testing invalid focus + WB combination:")
+
+        invalid_combo = {
+            'af_mode': 5,       # Invalid: only 0-2
+            'af_speed': 2,      # Invalid: only 0-1
+            'awb_mode': 10      # Invalid: only 0-7
+        }
+
+        response = client.post('/config/webui', json=invalid_combo)
+        assert response.status_code == 400, "Should reject invalid focus/WB"
+        data = response.get_json()
+        assert 'error' in data
+        print("   ✓ Correctly rejected invalid focus/WB values")
+
+    def test_extreme_out_of_range_values(self, client):
+        """Test extremely out of range values"""
+        print("\n❌ Testing extreme out of range values:")
+
+        extreme_settings = {
+            'sharpness': 999999.0,
+            'brightness': -1000.0,
+            'contrast': 9999.0,
+            'saturation': 888888.0
+        }
+
+        response = client.post('/config/webui', json=extreme_settings)
+        assert response.status_code == 400, "Should reject extreme values"
+        print("   ✓ Correctly rejected extreme out of range values")

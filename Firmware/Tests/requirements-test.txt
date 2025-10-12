@@ -8,3 +8,6 @@ pytest-cov>=4.0.0
 
 # Image quality analysis
 scipy>=1.9.0  # For Laplacian edge detection in image quality tests
+
+# Performance monitoring (Feature Set 1: Stream Stability tests)
+psutil>=5.9.0  # For memory usage monitoring in long-running tests
