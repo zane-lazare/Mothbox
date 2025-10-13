@@ -51,7 +51,6 @@ class TestLongRunningStability:
             for i in range(frame_count):
                 try:
                     # Capture and encode frame
-                    frame = camera_streamer_func.camera.capture_array()
                     jpeg_bytes = camera_streamer_func.capture_frame()
 
                     # Verify frame is valid
@@ -67,6 +66,10 @@ class TestLongRunningStability:
                     # Progress updates
                     if (i + 1) % 100 == 0:
                         print(f"   Progress: {i + 1}/{frame_count} frames captured")
+
+                    # Rate limit to prevent camera buffer overflow
+                    # Small delay allows ISP to process frames and prevents timeout
+                    time.sleep(0.01)  # 10ms delay → max ~100 fps (well above 10 fps target)
 
                 except Exception as e:
                     errors.append({'index': i, 'error': str(e)})
@@ -144,6 +147,10 @@ class TestLongRunningStability:
                         'vms_mb': mem_info.vms / 1024 / 1024
                     })
                     print(f"   Frame {i:4d}: RSS={mem_info.rss / 1024 / 1024:.1f}MB")
+
+                # Rate limit to prevent camera buffer overflow
+                # Small delay allows ISP to process frames and prevents timeout
+                time.sleep(0.01)  # 10ms delay → max ~100 fps (well above 10 fps target)
 
             camera_streamer_func.camera.stop()
 
@@ -346,6 +353,9 @@ class TestConcurrentClients:
                 if (i + 1) % 10 == 0:
                     print(f"   Progress: {i + 1}/{frame_count} frames sent")
 
+                # Rate limit to prevent camera buffer overflow
+                time.sleep(0.01)
+
             camera_streamer_func.camera.stop()
 
         finally:
@@ -418,6 +428,9 @@ class TestConcurrentClients:
                     client.receive_frame(jpeg_bytes)
 
                 frames_sent += 1
+
+                # Rate limit to prevent camera buffer overflow
+                time.sleep(0.01)
 
             camera_streamer_func.camera.stop()
 
@@ -634,6 +647,8 @@ class TestPerformanceDegradation:
 
                 for _ in range(batch_size):
                     jpeg_bytes = camera_streamer_func.capture_frame()
+                    # Small delay to prevent camera buffer overflow
+                    time.sleep(0.01)
 
                 batch_elapsed = time.time() - batch_start
                 avg_time = batch_elapsed / batch_size * 1000  # ms per frame
