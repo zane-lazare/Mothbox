@@ -43,6 +43,11 @@ class TestLongRunningStability:
         try:
             camera_streamer_func.camera.start()
 
+            # Let camera ISP stabilize after control changes
+            # Sharpness/brightness/contrast controls need warm-up frames
+            time.sleep(1.0)
+            print("   Camera ISP stabilized")
+
             for i in range(frame_count):
                 try:
                     # Capture and encode frame
@@ -120,6 +125,11 @@ class TestLongRunningStability:
         try:
             camera_streamer_func.camera.start()
 
+            # Let camera ISP stabilize after control changes
+            # Sharpness/brightness/contrast controls need warm-up frames
+            time.sleep(1.0)
+            print("   Camera ISP stabilized")
+
             for i in range(total_frames):
                 # Capture frame
                 jpeg_bytes = camera_streamer_func.capture_frame()
@@ -174,6 +184,11 @@ class TestLongRunningStability:
 
         try:
             camera_streamer_func.camera.start()
+
+            # Let camera ISP stabilize after control changes
+            # Sharpness/brightness/contrast controls need warm-up frames
+            time.sleep(1.0)
+            print("   Camera ISP stabilized")
 
             last_time = time.time()
 
