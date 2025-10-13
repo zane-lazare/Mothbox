@@ -19,9 +19,18 @@ import pytest
 import time
 import threading
 import gc
+import io
 import numpy as np
 from collections import deque
 from unittest.mock import Mock, MagicMock
+from PIL import Image
+
+# Try to import simplejpeg for fast JPEG encoding
+try:
+    import simplejpeg
+    SIMPLEJPEG_AVAILABLE = True
+except ImportError:
+    SIMPLEJPEG_AVAILABLE = False
 
 
 class TestLongRunningStability:
@@ -50,8 +59,18 @@ class TestLongRunningStability:
 
             for i in range(frame_count):
                 try:
-                    # Capture and encode frame
-                    jpeg_bytes = camera_streamer_func.capture_frame()
+                    # Capture frame directly (camera already started by test)
+                    frame = camera_streamer_func.camera.capture_array()
+
+                    # Encode as JPEG using fastest available method
+                    if SIMPLEJPEG_AVAILABLE:
+                        jpeg_bytes = simplejpeg.encode_jpeg(frame, quality=85, colorspace='RGB')
+                    else:
+                        img = Image.fromarray(frame)
+                        buffer = io.BytesIO()
+                        img.save(buffer, format='JPEG', quality=85)
+                        buffer.seek(0)
+                        jpeg_bytes = buffer.read()
 
                     # Verify frame is valid
                     assert len(jpeg_bytes) > 0, f"Empty frame at {i}"
@@ -134,8 +153,18 @@ class TestLongRunningStability:
             print("   Camera ISP stabilized")
 
             for i in range(total_frames):
-                # Capture frame
-                jpeg_bytes = camera_streamer_func.capture_frame()
+                # Capture frame directly (camera already started by test)
+                frame = camera_streamer_func.camera.capture_array()
+
+                # Encode as JPEG using fastest available method
+                if SIMPLEJPEG_AVAILABLE:
+                    jpeg_bytes = simplejpeg.encode_jpeg(frame, quality=85, colorspace='RGB')
+                else:
+                    img = Image.fromarray(frame)
+                    buffer = io.BytesIO()
+                    img.save(buffer, format='JPEG', quality=85)
+                    buffer.seek(0)
+                    jpeg_bytes = buffer.read()
 
                 # Sample memory periodically
                 if i % sample_interval == 0:
@@ -200,8 +229,18 @@ class TestLongRunningStability:
             last_time = time.time()
 
             for i in range(frame_count):
-                # Capture frame
-                jpeg_bytes = camera_streamer_func.capture_frame()
+                # Capture frame directly (camera already started by test)
+                frame = camera_streamer_func.camera.capture_array()
+
+                # Encode as JPEG using fastest available method
+                if SIMPLEJPEG_AVAILABLE:
+                    jpeg_bytes = simplejpeg.encode_jpeg(frame, quality=85, colorspace='RGB')
+                else:
+                    img = Image.fromarray(frame)
+                    buffer = io.BytesIO()
+                    img.save(buffer, format='JPEG', quality=85)
+                    buffer.seek(0)
+                    jpeg_bytes = buffer.read()
 
                 # Record timing
                 current_time = time.time()
@@ -342,8 +381,18 @@ class TestConcurrentClients:
             camera_streamer_func.camera.start()
 
             for i in range(frame_count):
-                # Capture frame
-                jpeg_bytes = camera_streamer_func.capture_frame()
+                # Capture frame directly (camera already started by test)
+                frame = camera_streamer_func.camera.capture_array()
+
+                # Encode as JPEG using fastest available method
+                if SIMPLEJPEG_AVAILABLE:
+                    jpeg_bytes = simplejpeg.encode_jpeg(frame, quality=85, colorspace='RGB')
+                else:
+                    img = Image.fromarray(frame)
+                    buffer = io.BytesIO()
+                    img.save(buffer, format='JPEG', quality=85)
+                    buffer.seek(0)
+                    jpeg_bytes = buffer.read()
 
                 # Send to all clients
                 for client in clients:
@@ -420,8 +469,18 @@ class TestConcurrentClients:
                     client.maybe_connect(i)
                     client.maybe_disconnect(i)
 
-                # Capture frame
-                jpeg_bytes = camera_streamer_func.capture_frame()
+                # Capture frame directly (camera already started by test)
+                frame = camera_streamer_func.camera.capture_array()
+
+                # Encode as JPEG using fastest available method
+                if SIMPLEJPEG_AVAILABLE:
+                    jpeg_bytes = simplejpeg.encode_jpeg(frame, quality=85, colorspace='RGB')
+                else:
+                    img = Image.fromarray(frame)
+                    buffer = io.BytesIO()
+                    img.save(buffer, format='JPEG', quality=85)
+                    buffer.seek(0)
+                    jpeg_bytes = buffer.read()
 
                 # Send to connected clients
                 for client in clients:
@@ -646,7 +705,19 @@ class TestPerformanceDegradation:
                 batch_start = time.time()
 
                 for _ in range(batch_size):
-                    jpeg_bytes = camera_streamer_func.capture_frame()
+                    # Capture frame directly (camera already started by test)
+                    frame = camera_streamer_func.camera.capture_array()
+
+                    # Encode as JPEG using fastest available method
+                    if SIMPLEJPEG_AVAILABLE:
+                        jpeg_bytes = simplejpeg.encode_jpeg(frame, quality=85, colorspace='RGB')
+                    else:
+                        img = Image.fromarray(frame)
+                        buffer = io.BytesIO()
+                        img.save(buffer, format='JPEG', quality=85)
+                        buffer.seek(0)
+                        jpeg_bytes = buffer.read()
+
                     # Small delay to prevent camera buffer overflow
                     time.sleep(0.01)
 
