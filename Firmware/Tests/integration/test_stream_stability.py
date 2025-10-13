@@ -305,8 +305,18 @@ class TestFrameDropDetection:
             for i in range(frame_count):
                 frame_start = time.time()
 
-                # Capture frame
-                jpeg_bytes = camera_streamer_func.capture_frame()
+                # Capture frame directly (camera already started by test)
+                frame = camera_streamer_func.camera.capture_array()
+
+                # Encode as JPEG using fastest available method
+                if SIMPLEJPEG_AVAILABLE:
+                    jpeg_bytes = simplejpeg.encode_jpeg(frame, quality=85, colorspace='RGB')
+                else:
+                    img = Image.fromarray(frame)
+                    buffer = io.BytesIO()
+                    img.save(buffer, format='JPEG', quality=85)
+                    buffer.seek(0)
+                    jpeg_bytes = buffer.read()
 
                 frames_captured.append({
                     'index': i,
@@ -667,7 +677,19 @@ class TestResourceCleanup:
 
             # Capture a few frames
             for i in range(3):
-                jpeg_bytes = camera_streamer_func.capture_frame()
+                # Capture frame directly (camera already started by test)
+                frame = camera_streamer_func.camera.capture_array()
+
+                # Encode as JPEG using fastest available method
+                if SIMPLEJPEG_AVAILABLE:
+                    jpeg_bytes = simplejpeg.encode_jpeg(frame, quality=85, colorspace='RGB')
+                else:
+                    img = Image.fromarray(frame)
+                    buffer = io.BytesIO()
+                    img.save(buffer, format='JPEG', quality=85)
+                    buffer.seek(0)
+                    jpeg_bytes = buffer.read()
+
                 print(f"   Frame {i + 1} captured: {len(jpeg_bytes):,} bytes")
 
             # Cleanup while "active"
