@@ -99,9 +99,18 @@ class TestLongRunningStability:
 
         print("\n💾 Testing memory usage over time...")
 
+        # Disable continuous autofocus to prevent blocking during rapid frame capture
+        # AF operations can pause frame delivery, causing timeouts in tight capture loops
+        camera_streamer_func.af_mode = 0  # Manual focus mode
+
         # Initialize camera
         success = camera_streamer_func.initialize_camera()
         assert success, "Camera initialization failed"
+
+        # Ensure AF is disabled (re-apply after initialization)
+        if camera_streamer_func.camera:
+            camera_streamer_func.camera.set_controls({"AfMode": 0})
+            print("   Autofocus disabled for stability test")
 
         # Capture memory samples
         memory_samples = []
