@@ -121,18 +121,12 @@ def capture_photo():
                 'error': error_msg
             }), 500
 
-        # Acquire operation lock to prevent concurrent camera access
-        camera_streamer = current_app.config.get('CAMERA_STREAMER')
-        if not camera_streamer:
-            return jsonify({
-                'success': False,
-                'error': 'Camera streamer not initialized'
-            }), 500
-
-        with camera_streamer.acquire_for_operation():
+        # Helper function for subprocess execution (used with or without lock)
+        def run_takephoto_subprocess():
+            """Execute TakePhoto.py subprocess with optional stream management"""
             # Release streaming camera if active
             was_streaming = False
-            if camera_streamer.camera:
+            if camera_streamer and camera_streamer.camera:
                 print("Releasing camera hardware before TakePhoto.py subprocess...")
                 was_streaming = camera_streamer.streaming
                 camera_streamer.release_camera()
@@ -179,6 +173,17 @@ def capture_photo():
                         camera_streamer.start_streaming()
                     except Exception as restart_error:
                         print(f"Warning: Failed to restart stream: {restart_error}")
+
+        # Acquire operation lock to prevent concurrent camera access (if available)
+        camera_streamer = current_app.config.get('CAMERA_STREAMER')
+
+        if camera_streamer:
+            # Production mode: use lock to serialize with other camera operations
+            with camera_streamer.acquire_for_operation():
+                return run_takephoto_subprocess()
+        else:
+            # Standalone/test mode: no lock available, run subprocess directly
+            return run_takephoto_subprocess()
 
     except subprocess.TimeoutExpired:
         error_msg = 'Photo capture timed out'
