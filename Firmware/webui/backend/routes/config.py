@@ -283,41 +283,46 @@ def update_webui_settings():
     try:
         new_settings = request.json
 
+        # Load existing settings to merge with updates (preserves unmodified values)
+        existing = {}
+        if WEBUI_SETTINGS_FILE.exists():
+            existing = get_control_values(WEBUI_SETTINGS_FILE)
+
         # Validate and convert types - Stream/encoding settings
         try:
-            preview_width = int(new_settings.get('preview_width', 1024))
-            preview_height = int(new_settings.get('preview_height', 768))
-            frame_rate = int(new_settings.get('frame_rate', 10))
-            jpeg_quality = int(new_settings.get('jpeg_quality', 85))
+            preview_width = int(new_settings.get('preview_width', existing.get('preview_width', 1024)))
+            preview_height = int(new_settings.get('preview_height', existing.get('preview_height', 768)))
+            frame_rate = int(new_settings.get('frame_rate', existing.get('frame_rate', 10)))
+            jpeg_quality = int(new_settings.get('jpeg_quality', existing.get('jpeg_quality', 85)))
         except (ValueError, TypeError) as e:
             return jsonify({'error': f'Invalid stream setting type: {e}'}), 400
 
-        stream_mode = new_settings.get('stream_mode', 'simplejpeg')
+        stream_mode = new_settings.get('stream_mode', existing.get('stream_mode', 'simplejpeg'))
 
         # Validate and convert types - Image quality controls (Phase 2.1)
         try:
-            sharpness = float(new_settings.get('sharpness', 1.0))
-            brightness = float(new_settings.get('brightness', 0.0))
-            contrast = float(new_settings.get('contrast', 1.0))
-            saturation = float(new_settings.get('saturation', 1.0))
+            sharpness = float(new_settings.get('sharpness', existing.get('sharpness', 1.0)))
+            brightness = float(new_settings.get('brightness', existing.get('brightness', 0.0)))
+            contrast = float(new_settings.get('contrast', existing.get('contrast', 1.0)))
+            saturation = float(new_settings.get('saturation', existing.get('saturation', 1.0)))
         except (ValueError, TypeError) as e:
             return jsonify({'error': f'Invalid image quality setting type: {e}'}), 400
 
         # Validate and convert types - Focus controls (Phase 2.1)
         try:
-            af_mode = int(new_settings.get('af_mode', 2))
-            af_speed = int(new_settings.get('af_speed', 0))
-            af_range = int(new_settings.get('af_range', 0))
+            af_mode = int(new_settings.get('af_mode', existing.get('af_mode', 2)))
+            af_speed = int(new_settings.get('af_speed', existing.get('af_speed', 0)))
+            af_range = int(new_settings.get('af_range', existing.get('af_range', 0)))
         except (ValueError, TypeError) as e:
             return jsonify({'error': f'Invalid focus control type: {e}'}), 400
 
         # Validate and convert types - White balance controls (Phase 2.1)
-        awb_enable = new_settings.get('awb_enable', True)
+        awb_enable = new_settings.get('awb_enable', existing.get('awb_enable', 'true'))
         if isinstance(awb_enable, str):
             awb_enable = awb_enable.lower() == 'true'
 
         try:
-            awb_mode = int(new_settings.get('awb_mode', 0))
+            awb_mode = int(new_settings.get('awb_mode', existing.get('awb_mode', 0)))
         except (ValueError, TypeError) as e:
             return jsonify({'error': f'Invalid white balance mode type: {e}'}), 400
 
@@ -595,7 +600,9 @@ def copy_settings():
         return jsonify({
             'success': True,
             'copied': copied,
+            'copied_count': len(copied),
             'skipped': skipped,
+            'skipped_count': len(skipped),
             'message': f'Copied {len(copied)} settings, skipped {len(skipped)}'
         })
 

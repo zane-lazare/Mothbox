@@ -129,9 +129,9 @@ def app():
     app.config['TESTING'] = True
     app.config['WTF_CSRF_ENABLED'] = False
 
-    # Register blueprints
-    app.register_blueprint(camera_bp, url_prefix='/camera')
-    app.register_blueprint(config_bp, url_prefix='/config')
+    # Register blueprints with /api prefix to match production
+    app.register_blueprint(camera_bp, url_prefix='/api/camera')
+    app.register_blueprint(config_bp, url_prefix='/api/config')
 
     # Create camera_streamer and register in app config
     # This is critical - many endpoints expect this
