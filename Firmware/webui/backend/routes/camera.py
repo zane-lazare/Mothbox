@@ -930,8 +930,11 @@ def test_capture():
 
                 # Configure for full-resolution capture
                 # Use maximum resolution for test captures
+                # Disable raw/lores buffers to reduce CMA usage (matches TakePhoto.py pattern)
                 capture_config = picam2.create_still_configuration(
-                    main={"size": (9152, 6944), "format": "BGR888"}  # Full 64MP, BGR888 = true RGB order
+                    main={"size": (9152, 6944), "format": "BGR888"},  # Full 64MP, BGR888 = true RGB order
+                    raw=None,
+                    lores=None
                 )
                 picam2.configure(capture_config)
 
