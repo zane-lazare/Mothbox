@@ -25,7 +25,7 @@ class TestConfigDefaults:
         app.register_blueprint(config_bp, url_prefix='/config')
 
         with app.test_client() as client:
-            response = client.get('/config/webui')
+            response = client.get('/api/config/webui')
             assert response.status_code == 200
             data = response.get_json()
 
@@ -51,7 +51,7 @@ class TestConfigDefaults:
         app.register_blueprint(config_bp, url_prefix='/config')
 
         with app.test_client() as client:
-            response = client.get('/config/webui')
+            response = client.get('/api/config/webui')
             assert response.status_code == 200
             data = response.get_json()
 
@@ -95,18 +95,18 @@ class TestQualityValidation:
 
         with app.test_client() as client:
             # Invalid: too low
-            response = client.post('/config/webui', json={'jpeg_quality': 49})
+            response = client.post('/api/config/webui', json={'jpeg_quality': 49})
             assert response.status_code == 400, "Should reject quality < 50"
             print(f"\n✓ Rejected quality=49 (too low)")
 
             # Invalid: too high
-            response = client.post('/config/webui', json={'jpeg_quality': 101})
+            response = client.post('/api/config/webui', json={'jpeg_quality': 101})
             assert response.status_code == 400, "Should reject quality > 100"
             print(f"✓ Rejected quality=101 (too high)")
 
             # Valid: boundary values
             for quality in [50, 100]:
-                response = client.post('/config/webui', json={'jpeg_quality': quality})
+                response = client.post('/api/config/webui', json={'jpeg_quality': quality})
                 assert response.status_code == 200, \
                     f"Should accept quality={quality}"
                 print(f"✓ Accepted quality={quality}")
@@ -124,7 +124,7 @@ class TestQualityValidation:
 
             print(f"\n📊 Testing recommended quality values:")
             for quality in recommended_values:
-                response = client.post('/config/webui', json={'jpeg_quality': quality})
+                response = client.post('/api/config/webui', json={'jpeg_quality': quality})
                 assert response.status_code == 200, \
                     f"Should accept quality={quality}"
                 print(f"   Q={quality}: ✓")
@@ -143,14 +143,14 @@ class TestResolutionValidation:
 
         with app.test_client() as client:
             # Invalid: width too low
-            response = client.post('/config/webui', json={
+            response = client.post('/api/config/webui', json={
                 'preview_width': 319,
                 'preview_height': 768
             })
             assert response.status_code == 400, "Should reject width < 320"
 
             # Invalid: height too high
-            response = client.post('/config/webui', json={
+            response = client.post('/api/config/webui', json={
                 'preview_width': 1024,
                 'preview_height': 1081
             })
@@ -165,7 +165,7 @@ class TestResolutionValidation:
 
             print(f"\n📐 Testing valid resolutions:")
             for width, height in valid_resolutions:
-                response = client.post('/config/webui', json={
+                response = client.post('/api/config/webui', json={
                     'preview_width': width,
                     'preview_height': height
                 })
@@ -187,11 +187,11 @@ class TestFrameRateValidation:
 
         with app.test_client() as client:
             # Invalid: too low
-            response = client.post('/config/webui', json={'frame_rate': 0})
+            response = client.post('/api/config/webui', json={'frame_rate': 0})
             assert response.status_code == 400, "Should reject FPS < 1"
 
             # Invalid: too high
-            response = client.post('/config/webui', json={'frame_rate': 31})
+            response = client.post('/api/config/webui', json={'frame_rate': 31})
             assert response.status_code == 400, "Should reject FPS > 30"
 
             # Valid: common frame rates
@@ -199,7 +199,7 @@ class TestFrameRateValidation:
 
             print(f"\n🎬 Testing valid frame rates:")
             for fps in valid_fps:
-                response = client.post('/config/webui', json={'frame_rate': fps})
+                response = client.post('/api/config/webui', json={'frame_rate': fps})
                 assert response.status_code == 200, \
                     f"Should accept {fps} FPS"
                 print(f"   {fps} FPS: ✓")
@@ -225,11 +225,11 @@ class TestSettingsPersistence:
 
         with app.test_client() as client:
             # Update settings
-            response = client.post('/config/webui', json=test_settings)
+            response = client.post('/api/config/webui', json=test_settings)
             assert response.status_code == 200
 
             # Retrieve settings
-            response = client.get('/config/webui')
+            response = client.get('/api/config/webui')
             assert response.status_code == 200
             data = response.get_json()
 
@@ -254,7 +254,7 @@ class TestStreamModeValidation:
         app.register_blueprint(config_bp, url_prefix='/config')
 
         with app.test_client() as client:
-            response = client.get('/config/webui')
+            response = client.get('/api/config/webui')
             assert response.status_code == 200
             data = response.get_json()
 
@@ -274,12 +274,12 @@ class TestStreamModeValidation:
 
         with app.test_client() as client:
             # Invalid mode
-            response = client.post('/config/webui', json={'stream_mode': 'invalid_mode'})
+            response = client.post('/api/config/webui', json={'stream_mode': 'invalid_mode'})
             assert response.status_code == 400, "Should reject invalid stream_mode"
             print(f"\n✓ Rejected invalid stream_mode")
 
             # Invalid mode with typo
-            response = client.post('/config/webui', json={'stream_mode': 'simple_jpeg'})
+            response = client.post('/api/config/webui', json={'stream_mode': 'simple_jpeg'})
             assert response.status_code == 400, "Should reject typo in stream_mode"
             print(f"✓ Rejected typo in stream_mode")
 
@@ -287,7 +287,7 @@ class TestStreamModeValidation:
             valid_modes = ['simplejpeg', 'mjpeg_hardware']
             print(f"\n📹 Testing valid stream modes:")
             for mode in valid_modes:
-                response = client.post('/config/webui', json={
+                response = client.post('/api/config/webui', json={
                     'stream_mode': mode,
                     'jpeg_quality': 85  # Include other required fields
                 })
@@ -306,12 +306,12 @@ class TestStreamModeValidation:
 
         with app.test_client() as client:
             # Get current mode first
-            response = client.get('/config/webui')
+            response = client.get('/api/config/webui')
             original_mode = response.get_json().get('stream_mode', 'simplejpeg')
 
             # Set to a different mode
             new_mode = 'mjpeg_hardware' if original_mode == 'simplejpeg' else 'simplejpeg'
-            response = client.post('/config/webui', json={
+            response = client.post('/api/config/webui', json={
                 'stream_mode': new_mode,
                 'jpeg_quality': 85
             })
@@ -326,7 +326,7 @@ class TestStreamModeValidation:
                 print(f"\n💾 Stream mode written to file: {new_mode} ✓")
 
             # Verify it reads back correctly
-            response = client.get('/config/webui')
+            response = client.get('/api/config/webui')
             assert response.status_code == 200
             data = response.get_json()
 
@@ -335,14 +335,14 @@ class TestStreamModeValidation:
             print(f"💾 Stream mode persists: {data['stream_mode']} ✓")
 
             # Set back to original
-            response = client.post('/config/webui', json={
+            response = client.post('/api/config/webui', json={
                 'stream_mode': original_mode,
                 'jpeg_quality': 85
             })
             assert response.status_code == 200
 
             # Verify change
-            response = client.get('/config/webui')
+            response = client.get('/api/config/webui')
             data = response.get_json()
             assert data['stream_mode'] == original_mode
             print(f"💾 Stream mode updated: {data['stream_mode']} ✓")
@@ -357,7 +357,7 @@ class TestStreamModeValidation:
 
         with app.test_client() as client:
             # Update only quality, not stream_mode
-            response = client.post('/config/webui', json={'jpeg_quality': 90})
+            response = client.post('/api/config/webui', json={'jpeg_quality': 90})
             assert response.status_code == 200, \
                 "Should allow updating without stream_mode"
             print(f"\n✓ Can update settings without specifying stream_mode")

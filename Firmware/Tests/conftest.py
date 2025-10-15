@@ -117,7 +117,7 @@ def app():
     Usage:
         def test_something(app):
             with app.test_client() as client:
-                response = client.post('/camera/autofocus')
+                response = client.post('/api/camera/autofocus')
     """
     from flask import Flask
     from routes.camera import camera_bp
@@ -160,7 +160,7 @@ def client(app):
 
     Usage:
         def test_something(client):
-            response = client.post('/camera/autofocus')
+            response = client.post('/api/camera/autofocus')
             assert response.status_code == 200
     """
     return app.test_client()

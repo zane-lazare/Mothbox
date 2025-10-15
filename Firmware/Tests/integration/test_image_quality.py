@@ -355,7 +355,7 @@ class TestSettingsPersistence:
         print("\n💾 Testing preview settings persistence...")
 
         # Update settings via API
-        response = client.post('/config/webui', json={
+        response = client.post('/api/config/webui', json={
             'sharpness': 3.5,
             'contrast': 1.8,
             'brightness': 0.3

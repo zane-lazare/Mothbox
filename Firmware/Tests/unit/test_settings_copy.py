@@ -30,7 +30,7 @@ class TestSettingsCopyLogic:
 
         with app.test_client() as client:
             # Set preview settings
-            client.post('/config/webui', json={
+            client.post('/api/config/webui', json={
                 'sharpness': 2.5,
                 'brightness': 0.3,
                 'contrast': 1.4,
@@ -41,7 +41,7 @@ class TestSettingsCopyLogic:
             })
 
             # Copy to capture
-            response = client.post('/config/copy-settings', json={
+            response = client.post('/api/config/copy-settings', json={
                 'direction': 'preview_to_capture'
             })
 
@@ -69,7 +69,7 @@ class TestSettingsCopyLogic:
         app.register_blueprint(config_bp, url_prefix='/config')
 
         with app.test_client() as client:
-            response = client.post('/config/copy-settings', json={
+            response = client.post('/api/config/copy-settings', json={
                 'direction': 'capture_to_preview'
             })
 
@@ -91,11 +91,11 @@ class TestSettingsCopyLogic:
 
         with app.test_client() as client:
             # Get capture settings before copy
-            response_before = client.get('/camera/settings')
+            response_before = client.get('/api/camera/settings')
             settings_before = response_before.get_json()
 
             # Copy preview to capture
-            response = client.post('/config/copy-settings', json={
+            response = client.post('/api/config/copy-settings', json={
                 'direction': 'preview_to_capture'
             })
 
@@ -103,7 +103,7 @@ class TestSettingsCopyLogic:
             data = response.get_json()
 
             # Get capture settings after copy
-            response_after = client.get('/camera/settings')
+            response_after = client.get('/api/camera/settings')
             settings_after = response_after.get_json()
 
             # Verify mode-specific settings like ExposureTime, AnalogueGain
@@ -126,7 +126,7 @@ class TestSettingsCopyValidation:
         app.register_blueprint(config_bp, url_prefix='/config')
 
         with app.test_client() as client:
-            response = client.post('/config/copy-settings', json={
+            response = client.post('/api/config/copy-settings', json={
                 'direction': 'invalid'
             })
 
@@ -145,7 +145,7 @@ class TestSettingsCopyValidation:
         app.register_blueprint(config_bp, url_prefix='/config')
 
         with app.test_client() as client:
-            response = client.post('/config/copy-settings', json={})
+            response = client.post('/api/config/copy-settings', json={})
 
             assert response.status_code == 400
             data = response.get_json()
@@ -163,13 +163,13 @@ class TestSettingsCopyValidation:
 
         with app.test_client() as client:
             # Test preview_to_capture
-            response = client.post('/config/copy-settings', json={
+            response = client.post('/api/config/copy-settings', json={
                 'direction': 'preview_to_capture'
             })
             assert response.status_code == 200
 
             # Test capture_to_preview
-            response = client.post('/config/copy-settings', json={
+            response = client.post('/api/config/copy-settings', json={
                 'direction': 'capture_to_preview'
             })
             assert response.status_code == 200
@@ -198,7 +198,7 @@ class TestSettingsCopyFileOperations:
             initial_count = len(existing_backups)
 
             # Perform copy
-            response = client.post('/config/copy-settings', json={
+            response = client.post('/api/config/copy-settings', json={
                 'direction': 'preview_to_capture'
             })
 
@@ -229,7 +229,7 @@ class TestSettingsCopyFileOperations:
 
         with app.test_client() as client:
             # Attempt copy with invalid direction (will error)
-            response = client.post('/config/copy-settings', json={
+            response = client.post('/api/config/copy-settings', json={
                 'direction': 'invalid'
             })
 
@@ -321,7 +321,7 @@ class TestSettingsCopyEdgeCases:
             WEBUI_SETTINGS_FILE.write_text("")
 
             with app.test_client() as client:
-                response = client.post('/config/copy-settings', json={
+                response = client.post('/api/config/copy-settings', json={
                     'direction': 'preview_to_capture'
                 })
 
@@ -359,7 +359,7 @@ class TestSettingsCopyEdgeCases:
             WEBUI_SETTINGS_FILE.write_text("corrupted\ndata\nno=equals")
 
             with app.test_client() as client:
-                response = client.post('/config/copy-settings', json={
+                response = client.post('/api/config/copy-settings', json={
                     'direction': 'preview_to_capture'
                 })
 
@@ -393,7 +393,7 @@ class TestSettingsCopyEdgeCases:
 
         try:
             with app.test_client() as client:
-                response = client.post('/config/copy-settings', json={
+                response = client.post('/api/config/copy-settings', json={
                     'direction': 'preview_to_capture'
                 })
 
@@ -434,7 +434,7 @@ class TestIncompatibleSettingsCombinations:
 
         with app.test_client() as client:
             # Copy settings
-            response = client.post('/config/copy-settings', json={
+            response = client.post('/api/config/copy-settings', json={
                 'direction': 'preview_to_capture'
             })
 
@@ -521,7 +521,7 @@ class TestPartiallyValidSettings:
         with app.test_client() as client:
             # Set mix of valid and invalid preview settings
             # Valid settings should still be copied
-            response = client.post('/config/webui', json={
+            response = client.post('/api/config/webui', json={
                 'sharpness': 2.5,  # Valid
                 'brightness': 0.2,  # Valid
             })
@@ -529,7 +529,7 @@ class TestPartiallyValidSettings:
             assert response.status_code == 200
 
             # Copy - valid settings should be copied
-            response = client.post('/config/copy-settings', json={
+            response = client.post('/api/config/copy-settings', json={
                 'direction': 'preview_to_capture'
             })
 
@@ -550,7 +550,7 @@ class TestPartiallyValidSettings:
         app.register_blueprint(config_bp, url_prefix='/config')
 
         with app.test_client() as client:
-            response = client.post('/config/copy-settings', json={
+            response = client.post('/api/config/copy-settings', json={
                 'direction': 'preview_to_capture'
             })
 

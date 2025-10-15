@@ -23,7 +23,7 @@ class TestAutofocusSuccessScenarios:
         """Test autofocus success in well-lit, high-contrast scene"""
         print("\n🔍 Testing autofocus in well-lit conditions...")
 
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
 
         assert response.status_code == 200
         data = response.get_json()
@@ -61,7 +61,7 @@ class TestAutofocusSuccessScenarios:
         results = []
         for i in range(5):
             print(f"   Cycle {i+1}/5...")
-            response = client.post('/camera/autofocus')
+            response = client.post('/api/camera/autofocus')
             assert response.status_code == 200
 
             data = response.get_json()
@@ -99,13 +99,13 @@ class TestAutofocusSuccessScenarios:
         print("\n📏 Testing autofocus with normal range...")
 
         # Set AfRange to Normal (0) via webui settings
-        response = client.post('/config/webui', json={'af_range': 0})
+        response = client.post('/api/config/webui', json={'af_range': 0})
         assert response.status_code == 200
 
         time.sleep(0.2)
 
         # Run autofocus
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
         assert response.status_code == 200
 
         data = response.get_json()
@@ -122,7 +122,7 @@ class TestAutofocusFailureScenarios:
         """Test autofocus returns valid result even if it fails"""
         print("\n❌ Testing autofocus failure handling...")
 
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
         assert response.status_code == 200, "Should return 200 even if AF fails"
 
         data = response.get_json()
@@ -149,7 +149,7 @@ class TestAutofocusFailureScenarios:
         print("\n⏱️  Testing autofocus timeout...")
 
         start_time = time.time()
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
         elapsed = time.time() - start_time
 
         assert response.status_code == 200
@@ -172,13 +172,13 @@ class TestFocusRangeModes:
         print("\n🔬 Testing autofocus with macro range...")
 
         # Set AfRange to Macro (1)
-        response = client.post('/config/webui', json={'af_range': 1})
+        response = client.post('/api/config/webui', json={'af_range': 1})
         assert response.status_code == 200
 
         time.sleep(0.2)
 
         # Run autofocus
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
         assert response.status_code == 200
 
         data = response.get_json()
@@ -197,13 +197,13 @@ class TestFocusRangeModes:
         print("\n🌐 Testing autofocus with full range...")
 
         # Set AfRange to Full (2)
-        response = client.post('/config/webui', json={'af_range': 2})
+        response = client.post('/api/config/webui', json={'af_range': 2})
         assert response.status_code == 200
 
         time.sleep(0.2)
 
         # Run autofocus
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
         assert response.status_code == 200
 
         data = response.get_json()
@@ -228,12 +228,12 @@ class TestFocusRangeModes:
 
         for range_val, description in ranges.items():
             # Set range
-            response = client.post('/config/webui', json={'af_range': range_val})
+            response = client.post('/api/config/webui', json={'af_range': range_val})
             assert response.status_code == 200
             time.sleep(0.2)
 
             # Run autofocus
-            response = client.post('/camera/autofocus')
+            response = client.post('/api/camera/autofocus')
             assert response.status_code == 200
 
             data = response.get_json()
@@ -268,7 +268,7 @@ class TestAutofocusDuringStreaming:
         # Note: The camera_streamer should be active from conftest.py fixtures
         # The autofocus endpoint should handle camera resource management
 
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
 
         # Should succeed even with stream active
         assert response.status_code == 200, \
@@ -286,7 +286,7 @@ class TestAutofocusDuringStreaming:
         print("\n🔄 Testing stream recovery after autofocus...")
 
         # Trigger autofocus
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
         assert response.status_code == 200
 
         # Wait for camera to be released back to stream
@@ -294,7 +294,7 @@ class TestAutofocusDuringStreaming:
 
         # Verify stream can be accessed again
         # (If stream is broken, subsequent operations would fail)
-        response2 = client.post('/camera/autofocus')
+        response2 = client.post('/api/camera/autofocus')
         assert response2.status_code == 200, \
             "Stream should recover after autofocus"
 
@@ -308,7 +308,7 @@ class TestAutofocusAccuracy:
         """Test lens position is reported with reasonable precision"""
         print("\n🎯 Testing lens position precision...")
 
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
         assert response.status_code == 200
 
         data = response.get_json()
@@ -332,7 +332,7 @@ class TestAutofocusAccuracy:
         """Test autofocus metadata values are accurate"""
         print("\n📊 Testing metadata accuracy...")
 
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
         assert response.status_code == 200
 
         data = response.get_json()
@@ -369,7 +369,7 @@ class TestAutofocusStateTransitions:
 
         # Run multiple autofocus cycles
         for i in range(3):
-            response = client.post('/camera/autofocus')
+            response = client.post('/api/camera/autofocus')
             assert response.status_code == 200
 
             data = response.get_json()
@@ -385,7 +385,7 @@ class TestAutofocusStateTransitions:
         """Test success flag matches AF state"""
         print("\n🔗 Testing success flag consistency...")
 
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
         assert response.status_code == 200
 
         data = response.get_json()
@@ -413,13 +413,13 @@ class TestFocusHuntingDetection:
         print("\n🎭 Testing focus hunting detection...")
 
         # Fast autofocus might cause hunting
-        response = client.post('/config/webui', json={'af_speed': 1})
+        response = client.post('/api/config/webui', json={'af_speed': 1})
         assert response.status_code == 200
         time.sleep(0.2)
 
         positions = []
         for i in range(7):
-            response = client.post('/camera/autofocus')
+            response = client.post('/api/camera/autofocus')
             assert response.status_code == 200
 
             data = response.get_json()
@@ -443,7 +443,7 @@ class TestFocusHuntingDetection:
         assert len(positions) == 7
 
         # Reset to normal speed
-        response = client.post('/config/webui', json={'af_speed': 0})
+        response = client.post('/api/config/webui', json={'af_speed': 0})
         assert response.status_code == 200
 
 

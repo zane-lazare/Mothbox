@@ -43,7 +43,7 @@ class TestSettingsSurviveCameraRestart:
             'saturation': 1.3
         }
 
-        response = client.post('/config/webui', json=test_settings)
+        response = client.post('/api/config/webui', json=test_settings)
         assert response.status_code == 200
         print("   ✓ Settings saved via API")
 
@@ -88,7 +88,7 @@ class TestSettingsSurviveCameraRestart:
         }
 
         # Save settings
-        response = client.post('/config/webui', json=test_settings)
+        response = client.post('/api/config/webui', json=test_settings)
         assert response.status_code == 200
         print("   ✓ Initial settings saved")
 
@@ -126,7 +126,7 @@ class TestBackupMechanismVerification:
         print("   ✓ Cleared existing backups")
 
         # Update settings to trigger backup
-        response = client.post('/config/webui', json={'sharpness': 3.5})
+        response = client.post('/api/config/webui', json={'sharpness': 3.5})
         assert response.status_code == 200
         print("   ✓ Settings updated")
 
@@ -145,7 +145,7 @@ class TestBackupMechanismVerification:
 
         # Perform 8 updates to generate multiple backups
         for i in range(8):
-            response = client.post('/config/webui', json={'sharpness': float(i)})
+            response = client.post('/api/config/webui', json={'sharpness': float(i)})
             assert response.status_code == 200
             time.sleep(0.2)  # Ensure different timestamps
 
@@ -167,7 +167,7 @@ class TestBackupMechanismVerification:
             'brightness': 0.4,
             'contrast': 2.2
         }
-        response = client.post('/config/webui', json=good_settings)
+        response = client.post('/api/config/webui', json=good_settings)
         assert response.status_code == 200
         print("   ✓ Good settings saved")
 
@@ -197,7 +197,7 @@ class TestBackupMechanismVerification:
         print("   ✓ Settings restored from backup")
 
         # Verify restoration
-        response = client.get('/config/webui')
+        response = client.get('/api/config/webui')
         assert response.status_code == 200
         data = response.get_json()
 
@@ -219,7 +219,7 @@ class TestConcurrentSettingsUpdates:
 
         def update_setting(value):
             try:
-                response = client.post('/config/webui', json={'sharpness': value})
+                response = client.post('/api/config/webui', json={'sharpness': value})
                 results.append(response.status_code)
             except Exception as e:
                 results.append(str(e))
@@ -238,7 +238,7 @@ class TestConcurrentSettingsUpdates:
         print(f"   Completed {len(results)} concurrent updates")
 
         # Verify file is still valid
-        response = client.get('/config/webui')
+        response = client.get('/api/config/webui')
         assert response.status_code == 200
         data = response.get_json()
 
@@ -257,19 +257,19 @@ class TestConcurrentSettingsUpdates:
         def update_sharpness():
             for _ in range(5):
                 value = random.uniform(0.0, 16.0)
-                client.post('/config/webui', json={'sharpness': value})
+                client.post('/api/config/webui', json={'sharpness': value})
                 time.sleep(0.01)
 
         def update_brightness():
             for _ in range(5):
                 value = random.uniform(-1.0, 1.0)
-                client.post('/config/webui', json={'brightness': value})
+                client.post('/api/config/webui', json={'brightness': value})
                 time.sleep(0.01)
 
         def update_contrast():
             for _ in range(5):
                 value = random.uniform(0.0, 32.0)
-                client.post('/config/webui', json={'contrast': value})
+                client.post('/api/config/webui', json={'contrast': value})
                 time.sleep(0.01)
 
         # Run concurrent updates
@@ -288,7 +288,7 @@ class TestConcurrentSettingsUpdates:
         print("   ✓ All concurrent updates completed")
 
         # Verify file integrity
-        response = client.get('/config/webui')
+        response = client.get('/api/config/webui')
         assert response.status_code == 200
         data = response.get_json()
 
@@ -319,7 +319,7 @@ class TestSettingsDuringActiveStreaming:
             'contrast': 2.5
         }
 
-        response = client.post('/config/webui', json=new_settings)
+        response = client.post('/api/config/webui', json=new_settings)
         assert response.status_code == 200
         print("   ✓ Settings updated during streaming")
 
@@ -346,7 +346,7 @@ class TestSettingsDuringActiveStreaming:
 
         # Perform 5 updates while streaming
         for i in range(5):
-            response = client.post('/config/webui', json={
+            response = client.post('/api/config/webui', json={
                 'sharpness': float(i * 2),
                 'brightness': float(i * 0.2 - 0.4)
             })
@@ -359,7 +359,7 @@ class TestSettingsDuringActiveStreaming:
         camera_streamer.stop_streaming()
 
         # Verify final settings
-        response = client.get('/config/webui')
+        response = client.get('/api/config/webui')
         data = response.get_json()
 
         # Should have last values from loop (i=4)
@@ -391,7 +391,7 @@ class TestSettingsPropagationToFile:
         }
 
         # Save settings
-        response = client.post('/config/webui', json=comprehensive_settings)
+        response = client.post('/api/config/webui', json=comprehensive_settings)
         assert response.status_code == 200
         print("   ✓ Comprehensive settings saved")
 
@@ -432,7 +432,7 @@ class TestSettingsPropagationToFile:
         print("\n📝 Testing file format validity...")
 
         # Update settings
-        response = client.post('/config/webui', json={'sharpness': 4.0})
+        response = client.post('/api/config/webui', json={'sharpness': 4.0})
         assert response.status_code == 200
 
         # Read and parse file
@@ -478,7 +478,7 @@ class TestFileLockingAndConcurrentWriteSafety:
                     'contrast': random.uniform(0.0, 32.0),
                     'saturation': random.uniform(0.0, 32.0)
                 }
-                response = client.post('/config/webui', json=settings)
+                response = client.post('/api/config/webui', json=settings)
                 if response.status_code == 200:
                     write_count[0] += 1
                 else:
@@ -502,7 +502,7 @@ class TestFileLockingAndConcurrentWriteSafety:
         print(f"   Writes failed: {error_count[0]}")
 
         # Verify file is still readable and valid
-        response = client.get('/config/webui')
+        response = client.get('/api/config/webui')
         assert response.status_code == 200
         data = response.get_json()
 
@@ -525,13 +525,13 @@ class TestFileLockingAndConcurrentWriteSafety:
             'saturation': 1.0
         }
 
-        response = client.post('/config/webui', json=good_settings)
+        response = client.post('/api/config/webui', json=good_settings)
         assert response.status_code == 200
         print("   ✓ Good settings saved")
 
         # Verify we can still read settings after any interruption
         # (The backup mechanism should protect against corruption)
-        response = client.get('/config/webui')
+        response = client.get('/api/config/webui')
         assert response.status_code == 200
         data = response.get_json()
 

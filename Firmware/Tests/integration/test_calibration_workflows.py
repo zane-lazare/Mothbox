@@ -29,7 +29,7 @@ class TestCalibrationBasicWorkflows:
         """Test calibration updating capture settings only"""
         print("\n🔧 Testing calibration for capture settings...")
 
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': False
         })
@@ -59,7 +59,7 @@ class TestCalibrationBasicWorkflows:
         """Test calibration updating preview settings only"""
         print("\n🔧 Testing calibration for preview settings...")
 
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': False,
             'update_preview': True
         })
@@ -78,7 +78,7 @@ class TestCalibrationBasicWorkflows:
         """Test calibration updating both capture and preview"""
         print("\n🔧 Testing calibration for both settings...")
 
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': True
         })
@@ -96,7 +96,7 @@ class TestCalibrationBasicWorkflows:
         print("\n🔧 Testing calibration with defaults...")
 
         # No parameters = defaults (update capture only)
-        response = client.post('/camera/calibrate', json={})
+        response = client.post('/api/camera/calibrate', json={})
 
         assert response.status_code in [200, 400]
 
@@ -115,7 +115,7 @@ class TestCalibrationMetadataChanges:
         """Test calibration produces different exposure values"""
         print("\n📈 Testing calibration changes exposure...")
 
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': False,
             'update_preview': False
         })
@@ -156,7 +156,7 @@ class TestCalibrationMetadataChanges:
         """Test calibration changes lens position"""
         print("\n🎯 Testing calibration changes focus...")
 
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': False,
             'update_preview': False
         })
@@ -179,7 +179,7 @@ class TestCalibrationMetadataChanges:
 
         results = []
         for i in range(3):
-            response = client.post('/camera/calibrate', json={
+            response = client.post('/api/camera/calibrate', json={
                 'update_capture': False,
                 'update_preview': False
             })
@@ -235,7 +235,7 @@ class TestCalibrationFileUpdates:
                     before_values[row['SETTING']] = row['VALUE']
 
         # Run calibration (update capture)
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': False
         })
@@ -276,7 +276,7 @@ class TestCalibrationFileUpdates:
             before_values = get_control_values(WEBUI_SETTINGS_FILE)
 
         # Run calibration (update preview)
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': False,
             'update_preview': True
         })
@@ -315,7 +315,7 @@ class TestCalibrationFileUpdates:
                     before_all_settings[row['SETTING']] = row['VALUE']
 
         # Run calibration
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': False
         })
@@ -363,7 +363,7 @@ class TestLastCalibrationTimestamp:
 
         # Run calibration
         start_time = time.time()
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': False
         })
@@ -404,7 +404,7 @@ class TestLastCalibrationTimestamp:
         from mothbox_paths import CONTROLS_FILE, get_control_values
 
         # Run calibration
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': False
         })
@@ -438,7 +438,7 @@ class TestCalibrationProgressEvents:
         # In test environment with MockSocketIO, events are discarded
         # But we can verify calibration completes in steps
 
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': False
         })
@@ -458,7 +458,7 @@ class TestCalibrationProgressEvents:
         print("\n⏱️  Testing calibration timing...")
 
         start_time = time.time()
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': False
         })
@@ -486,7 +486,7 @@ class TestCalibrationDuringStreaming:
         # Note: camera_streamer should be active from conftest.py
         # Calibration endpoint should handle camera resource management
 
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': False
         })
@@ -504,7 +504,7 @@ class TestCalibrationDuringStreaming:
         print("\n🔄 Testing stream recovery after calibration...")
 
         # Trigger calibration
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': False
         })
@@ -515,7 +515,7 @@ class TestCalibrationDuringStreaming:
 
         # Verify stream can be accessed again
         # (If stream is broken, subsequent operations would fail)
-        response2 = client.post('/camera/autofocus')
+        response2 = client.post('/api/camera/autofocus')
         assert response2.status_code == 200, \
             "Stream should recover after calibration"
 
@@ -529,7 +529,7 @@ class TestCalibrationErrorRecovery:
         """Test calibration rejects invalid apply_to parameter"""
         print("\n❌ Testing invalid apply_to parameter...")
 
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'apply_to': 'invalid_target'
         })
 
@@ -552,7 +552,7 @@ class TestCalibrationErrorRecovery:
         responses = []
         for i in range(3):
             print(f"   Request {i+1}/3...")
-            response = client.post('/camera/calibrate', json={
+            response = client.post('/api/camera/calibrate', json={
                 'update_capture': False,
                 'update_preview': False
             })
@@ -582,7 +582,7 @@ class TestCalibrationUnderDifferentLighting:
         print("\n💡 Testing calibration value validity...")
 
         # Run calibration (actual lighting depends on test environment)
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': False,
             'update_preview': False
         })
@@ -623,7 +623,7 @@ class TestAutoCalibrationPeriod:
         print("\n🔄 Testing AutoCalibrationPeriod configuration...")
 
         # Try to update camera settings with AutoCalibrationPeriod
-        response = client.post('/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'AutoCalibrationPeriod': 100
         })
 

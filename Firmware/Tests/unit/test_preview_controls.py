@@ -26,18 +26,18 @@ class TestImageQualityValidation:
 
         with app.test_client() as client:
             # Invalid: too low
-            response = client.post('/config/webui', json={'sharpness': -0.1})
+            response = client.post('/api/config/webui', json={'sharpness': -0.1})
             assert response.status_code == 400, "Should reject sharpness < 0.0"
             print(f"\n✓ Rejected sharpness=-0.1 (too low)")
 
             # Invalid: too high
-            response = client.post('/config/webui', json={'sharpness': 16.1})
+            response = client.post('/api/config/webui', json={'sharpness': 16.1})
             assert response.status_code == 400, "Should reject sharpness > 16.0"
             print(f"✓ Rejected sharpness=16.1 (too high)")
 
             # Valid: boundary values
             for sharpness in [0.0, 1.0, 8.0, 16.0]:
-                response = client.post('/config/webui', json={'sharpness': sharpness})
+                response = client.post('/api/config/webui', json={'sharpness': sharpness})
                 assert response.status_code == 200, \
                     f"Should accept sharpness={sharpness}"
                 print(f"✓ Accepted sharpness={sharpness}")
@@ -52,18 +52,18 @@ class TestImageQualityValidation:
 
         with app.test_client() as client:
             # Invalid: too low
-            response = client.post('/config/webui', json={'brightness': -1.1})
+            response = client.post('/api/config/webui', json={'brightness': -1.1})
             assert response.status_code == 400, "Should reject brightness < -1.0"
             print(f"\n✓ Rejected brightness=-1.1 (too low)")
 
             # Invalid: too high
-            response = client.post('/config/webui', json={'brightness': 1.1})
+            response = client.post('/api/config/webui', json={'brightness': 1.1})
             assert response.status_code == 400, "Should reject brightness > 1.0"
             print(f"✓ Rejected brightness=1.1 (too high)")
 
             # Valid: range including boundaries
             for brightness in [-1.0, -0.5, 0.0, 0.5, 1.0]:
-                response = client.post('/config/webui', json={'brightness': brightness})
+                response = client.post('/api/config/webui', json={'brightness': brightness})
                 assert response.status_code == 200, \
                     f"Should accept brightness={brightness}"
                 print(f"✓ Accepted brightness={brightness}")
@@ -80,34 +80,34 @@ class TestImageQualityValidation:
             print(f"\n📊 Testing contrast validation:")
 
             # Contrast: invalid values
-            response = client.post('/config/webui', json={'contrast': -0.1})
+            response = client.post('/api/config/webui', json={'contrast': -0.1})
             assert response.status_code == 400, "Should reject contrast < 0.0"
             print(f"   ✓ Rejected contrast=-0.1")
 
-            response = client.post('/config/webui', json={'contrast': 32.1})
+            response = client.post('/api/config/webui', json={'contrast': 32.1})
             assert response.status_code == 400, "Should reject contrast > 32.0"
             print(f"   ✓ Rejected contrast=32.1")
 
             # Contrast: valid values
             for contrast in [0.0, 1.0, 16.0, 32.0]:
-                response = client.post('/config/webui', json={'contrast': contrast})
+                response = client.post('/api/config/webui', json={'contrast': contrast})
                 assert response.status_code == 200, f"Should accept contrast={contrast}"
                 print(f"   ✓ Accepted contrast={contrast}")
 
             print(f"\n📊 Testing saturation validation:")
 
             # Saturation: invalid values
-            response = client.post('/config/webui', json={'saturation': -0.1})
+            response = client.post('/api/config/webui', json={'saturation': -0.1})
             assert response.status_code == 400, "Should reject saturation < 0.0"
             print(f"   ✓ Rejected saturation=-0.1")
 
-            response = client.post('/config/webui', json={'saturation': 32.1})
+            response = client.post('/api/config/webui', json={'saturation': 32.1})
             assert response.status_code == 400, "Should reject saturation > 32.0"
             print(f"   ✓ Rejected saturation=32.1")
 
             # Saturation: valid values
             for saturation in [0.0, 1.0, 16.0, 32.0]:
-                response = client.post('/config/webui', json={'saturation': saturation})
+                response = client.post('/api/config/webui', json={'saturation': saturation})
                 assert response.status_code == 200, f"Should accept saturation={saturation}"
                 print(f"   ✓ Accepted saturation={saturation}")
 
@@ -126,7 +126,7 @@ class TestFocusControlsValidation:
         with app.test_client() as client:
             # Invalid values
             for invalid in [-1, 3, 10, 'auto']:
-                response = client.post('/config/webui', json={'af_mode': invalid})
+                response = client.post('/api/config/webui', json={'af_mode': invalid})
                 assert response.status_code == 400, f"Should reject af_mode={invalid}"
                 print(f"\n✓ Rejected af_mode={invalid}")
 
@@ -139,7 +139,7 @@ class TestFocusControlsValidation:
 
             print(f"\n🎯 Testing valid AfMode values:")
             for mode, description in af_modes.items():
-                response = client.post('/config/webui', json={'af_mode': mode})
+                response = client.post('/api/config/webui', json={'af_mode': mode})
                 assert response.status_code == 200, f"Should accept af_mode={mode}"
                 print(f"   {mode} ({description}): ✓")
 
@@ -153,11 +153,11 @@ class TestFocusControlsValidation:
 
         with app.test_client() as client:
             # Invalid values
-            response = client.post('/config/webui', json={'af_range': -1})
+            response = client.post('/api/config/webui', json={'af_range': -1})
             assert response.status_code == 400, "Should reject af_range=-1"
             print(f"\n✓ Rejected af_range=-1")
 
-            response = client.post('/config/webui', json={'af_range': 3})
+            response = client.post('/api/config/webui', json={'af_range': 3})
             assert response.status_code == 400, "Should reject af_range=3"
             print(f"✓ Rejected af_range=3")
 
@@ -170,7 +170,7 @@ class TestFocusControlsValidation:
 
             print(f"\n📏 Testing valid AfRange values:")
             for range_val, description in af_ranges.items():
-                response = client.post('/config/webui', json={'af_range': range_val})
+                response = client.post('/api/config/webui', json={'af_range': range_val})
                 assert response.status_code == 200, f"Should accept af_range={range_val}"
                 print(f"   {range_val} ({description}): ✓")
 
@@ -185,7 +185,7 @@ class TestFocusControlsValidation:
         with app.test_client() as client:
             # Invalid values
             for invalid in [-1, 2, 10]:
-                response = client.post('/config/webui', json={'af_speed': invalid})
+                response = client.post('/api/config/webui', json={'af_speed': invalid})
                 assert response.status_code == 400, f"Should reject af_speed={invalid}"
                 print(f"\n✓ Rejected af_speed={invalid}")
 
@@ -197,7 +197,7 @@ class TestFocusControlsValidation:
 
             print(f"\n⚡ Testing valid AfSpeed values:")
             for speed, description in af_speeds.items():
-                response = client.post('/config/webui', json={'af_speed': speed})
+                response = client.post('/api/config/webui', json={'af_speed': speed})
                 assert response.status_code == 200, f"Should accept af_speed={speed}"
                 print(f"   {speed} ({description}): ✓")
 
@@ -217,7 +217,7 @@ class TestWhiteBalanceValidation:
             # Valid: boolean values
             print(f"\n🌡️  Testing AwbEnable validation:")
             for awb_enable in [True, False]:
-                response = client.post('/config/webui', json={'awb_enable': awb_enable})
+                response = client.post('/api/config/webui', json={'awb_enable': awb_enable})
                 assert response.status_code == 200, f"Should accept awb_enable={awb_enable}"
                 print(f"   {awb_enable}: ✓")
 
@@ -231,11 +231,11 @@ class TestWhiteBalanceValidation:
 
         with app.test_client() as client:
             # Invalid values
-            response = client.post('/config/webui', json={'awb_mode': -1})
+            response = client.post('/api/config/webui', json={'awb_mode': -1})
             assert response.status_code == 400, "Should reject awb_mode=-1"
             print(f"\n✓ Rejected awb_mode=-1")
 
-            response = client.post('/config/webui', json={'awb_mode': 8})
+            response = client.post('/api/config/webui', json={'awb_mode': 8})
             assert response.status_code == 400, "Should reject awb_mode=8"
             print(f"✓ Rejected awb_mode=8")
 
@@ -253,7 +253,7 @@ class TestWhiteBalanceValidation:
 
             print(f"\n🌡️  Testing all AwbMode presets:")
             for mode, description in awb_modes.items():
-                response = client.post('/config/webui', json={'awb_mode': mode})
+                response = client.post('/api/config/webui', json={'awb_mode': mode})
                 assert response.status_code == 200, f"Should accept awb_mode={mode}"
                 print(f"   {mode} ({description}): ✓")
 
@@ -278,11 +278,11 @@ class TestPreviewControlsPersistence:
 
         with app.test_client() as client:
             # Update settings
-            response = client.post('/config/webui', json=test_settings)
+            response = client.post('/api/config/webui', json=test_settings)
             assert response.status_code == 200, "Should save image quality settings"
 
             # Retrieve settings
-            response = client.get('/config/webui')
+            response = client.get('/api/config/webui')
             assert response.status_code == 200
             data = response.get_json()
 
@@ -310,11 +310,11 @@ class TestPreviewControlsPersistence:
 
         with app.test_client() as client:
             # Update settings
-            response = client.post('/config/webui', json=test_settings)
+            response = client.post('/api/config/webui', json=test_settings)
             assert response.status_code == 200, "Should save focus settings"
 
             # Retrieve settings
-            response = client.get('/config/webui')
+            response = client.get('/api/config/webui')
             assert response.status_code == 200
             data = response.get_json()
 
@@ -341,11 +341,11 @@ class TestPreviewControlsPersistence:
 
         with app.test_client() as client:
             # Update settings
-            response = client.post('/config/webui', json=test_settings)
+            response = client.post('/api/config/webui', json=test_settings)
             assert response.status_code == 200, "Should save WB settings"
 
             # Retrieve settings
-            response = client.get('/config/webui')
+            response = client.get('/api/config/webui')
             assert response.status_code == 200
             data = response.get_json()
 
@@ -367,7 +367,7 @@ class TestPreviewControlsPersistence:
         app.register_blueprint(config_bp, url_prefix='/config')
 
         with app.test_client() as client:
-            response = client.get('/config/webui')
+            response = client.get('/api/config/webui')
             assert response.status_code == 200
             data = response.get_json()
 
@@ -440,12 +440,12 @@ class TestCombinedSettings:
 
         with app.test_client() as client:
             # Update all settings
-            response = client.post('/config/webui', json=all_settings)
+            response = client.post('/api/config/webui', json=all_settings)
             assert response.status_code == 200, "Should accept all controls together"
             print(f"\n✓ Accepted combined update of all Phase 2.1 controls")
 
             # Verify all persisted correctly
-            response = client.get('/config/webui')
+            response = client.get('/api/config/webui')
             data = response.get_json()
 
             print(f"\n📊 Verifying combined settings:")
@@ -473,7 +473,7 @@ class TestWhiteBalanceEdgeCases:
 
         for mode in range(8):
             settings = {'awb_enable': False, 'awb_mode': mode}
-            response = client.post('/config/webui', json=settings)
+            response = client.post('/api/config/webui', json=settings)
             assert response.status_code == 200, f"Should accept AWB disabled + mode {mode}"
             print(f"   ✓ AWB disabled + {mode_names[mode]}")
 
@@ -488,7 +488,7 @@ class TestWhiteBalanceEdgeCases:
 
         for mode in range(8):
             settings = {'awb_enable': True, 'awb_mode': mode}
-            response = client.post('/config/webui', json=settings)
+            response = client.post('/api/config/webui', json=settings)
             assert response.status_code == 200, f"Should accept AWB enabled + mode {mode}"
             print(f"   ✓ AWB enabled + {mode_names[mode]}")
 
@@ -497,27 +497,27 @@ class TestWhiteBalanceEdgeCases:
         print("\n🌡️  Testing AWB toggle preserves mode:")
 
         # Set specific mode
-        response = client.post('/config/webui', json={'awb_mode': 5})  # Daylight
+        response = client.post('/api/config/webui', json={'awb_mode': 5})  # Daylight
         assert response.status_code == 200
 
         # Disable AWB
-        response = client.post('/config/webui', json={'awb_enable': False})
+        response = client.post('/api/config/webui', json={'awb_enable': False})
         assert response.status_code == 200
         print("   ✓ AWB disabled")
 
         # Check mode preserved
-        response = client.get('/config/webui')
+        response = client.get('/api/config/webui')
         data = response.get_json()
         assert data['awb_mode'] == 5, "Mode should be preserved"
         print("   ✓ Mode preserved (still Daylight)")
 
         # Enable AWB
-        response = client.post('/config/webui', json={'awb_enable': True})
+        response = client.post('/api/config/webui', json={'awb_enable': True})
         assert response.status_code == 200
         print("   ✓ AWB re-enabled")
 
         # Check mode still preserved
-        response = client.get('/config/webui')
+        response = client.get('/api/config/webui')
         data = response.get_json()
         assert data['awb_mode'] == 5, "Mode should still be preserved"
         print("   ✓ Mode still preserved after re-enable")
@@ -532,25 +532,25 @@ class TestCombinedControlInteractions:
 
         # Low sharpness, high contrast, low brightness
         settings = {'sharpness': 0.5, 'contrast': 3.0, 'brightness': -0.8}
-        response = client.post('/config/webui', json=settings)
+        response = client.post('/api/config/webui', json=settings)
         assert response.status_code == 200
         print("   ✓ Low sharpness + high contrast + low brightness")
 
         # High sharpness, low contrast, high brightness
         settings = {'sharpness': 8.0, 'contrast': 0.5, 'brightness': 0.9}
-        response = client.post('/config/webui', json=settings)
+        response = client.post('/api/config/webui', json=settings)
         assert response.status_code == 200
         print("   ✓ High sharpness + low contrast + high brightness")
 
         # All maximum
         settings = {'sharpness': 16.0, 'contrast': 32.0, 'brightness': 1.0}
-        response = client.post('/config/webui', json=settings)
+        response = client.post('/api/config/webui', json=settings)
         assert response.status_code == 200
         print("   ✓ All at maximum values")
 
         # All minimum
         settings = {'sharpness': 0.0, 'contrast': 0.0, 'brightness': -1.0}
-        response = client.post('/config/webui', json=settings)
+        response = client.post('/api/config/webui', json=settings)
         assert response.status_code == 200
         print("   ✓ All at minimum values")
 
@@ -565,7 +565,7 @@ class TestCombinedControlInteractions:
             'brightness': -1.0,
             'saturation': 0.0
         }
-        response = client.post('/config/webui', json=settings)
+        response = client.post('/api/config/webui', json=settings)
         assert response.status_code == 200
         print("   ✓ Max sharp/contrast + min bright/sat")
 
@@ -576,7 +576,7 @@ class TestCombinedControlInteractions:
             'brightness': 1.0,
             'saturation': 32.0
         }
-        response = client.post('/config/webui', json=settings)
+        response = client.post('/api/config/webui', json=settings)
         assert response.status_code == 200
         print("   ✓ Min sharp/contrast + max bright/sat")
 
@@ -587,7 +587,7 @@ class TestCombinedControlInteractions:
             'brightness': 1.0,
             'saturation': 0.0
         }
-        response = client.post('/config/webui', json=settings)
+        response = client.post('/api/config/webui', json=settings)
         assert response.status_code == 200
         print("   ✓ Alternating min/max values")
 
@@ -610,12 +610,12 @@ class TestCombinedControlInteractions:
             'awb_mode': 5      # Daylight
         }
 
-        response = client.post('/config/webui', json=comprehensive_settings)
+        response = client.post('/api/config/webui', json=comprehensive_settings)
         assert response.status_code == 200
         print("   ✓ All controls combined accepted")
 
         # Verify all persisted
-        response = client.get('/config/webui')
+        response = client.get('/api/config/webui')
         data = response.get_json()
 
         assert abs(data['sharpness'] - 3.5) < 0.01
@@ -638,24 +638,24 @@ class TestSettingsValidationChains:
         print("\n🔗 Testing sequential quality control updates:")
 
         # Update each control sequentially
-        response = client.post('/config/webui', json={'sharpness': 4.0})
+        response = client.post('/api/config/webui', json={'sharpness': 4.0})
         assert response.status_code == 200
         print("   ✓ Step 1: sharpness")
 
-        response = client.post('/config/webui', json={'brightness': 0.3})
+        response = client.post('/api/config/webui', json={'brightness': 0.3})
         assert response.status_code == 200
         print("   ✓ Step 2: brightness")
 
-        response = client.post('/config/webui', json={'contrast': 2.0})
+        response = client.post('/api/config/webui', json={'contrast': 2.0})
         assert response.status_code == 200
         print("   ✓ Step 3: contrast")
 
-        response = client.post('/config/webui', json={'saturation': 1.5})
+        response = client.post('/api/config/webui', json={'saturation': 1.5})
         assert response.status_code == 200
         print("   ✓ Step 4: saturation")
 
         # Verify final state
-        response = client.get('/config/webui')
+        response = client.get('/api/config/webui')
         data = response.get_json()
 
         assert abs(data['sharpness'] - 4.0) < 0.01
@@ -669,17 +669,17 @@ class TestSettingsValidationChains:
         print("\n🔗 Testing incremental adjustments:")
 
         # Start at default
-        response = client.post('/config/webui', json={'sharpness': 1.0})
+        response = client.post('/api/config/webui', json={'sharpness': 1.0})
         assert response.status_code == 200
 
         # Increment in steps
         for step in [2.0, 3.0, 4.0, 5.0]:
-            response = client.post('/config/webui', json={'sharpness': step})
+            response = client.post('/api/config/webui', json={'sharpness': step})
             assert response.status_code == 200
             print(f"   ✓ Incremented to {step}")
 
         # Verify final value
-        response = client.get('/config/webui')
+        response = client.get('/api/config/webui')
         data = response.get_json()
         assert abs(data['sharpness'] - 5.0) < 0.01
         print("   ✓ Final value correct after increments")
@@ -694,7 +694,7 @@ class TestSettingsValidationChains:
             'brightness': 0.1,
             'contrast': 1.5
         }
-        response = client.post('/config/webui', json=baseline)
+        response = client.post('/api/config/webui', json=baseline)
         assert response.status_code == 200
         print("   ✓ Baseline settings saved")
 
@@ -704,12 +704,12 @@ class TestSettingsValidationChains:
             'brightness': 10.0,    # INVALID
             'contrast': 1.8        # Valid
         }
-        response = client.post('/config/webui', json=invalid_update)
+        response = client.post('/api/config/webui', json=invalid_update)
         assert response.status_code == 400
         print("   ✓ Invalid update rejected")
 
         # Verify original settings preserved
-        response = client.get('/config/webui')
+        response = client.get('/api/config/webui')
         data = response.get_json()
 
         assert abs(data['sharpness'] - 2.0) < 0.01, "Should preserve original sharpness"
@@ -732,7 +732,7 @@ class TestInvalidCombinations:
             'saturation': 50.0     # Invalid: > 32.0
         }
 
-        response = client.post('/config/webui', json=invalid_settings)
+        response = client.post('/api/config/webui', json=invalid_settings)
         assert response.status_code == 400, "Should reject all invalid values"
         data = response.get_json()
         assert 'error' in data
@@ -749,7 +749,7 @@ class TestInvalidCombinations:
             'saturation': None      # Invalid type
         }
 
-        response = client.post('/config/webui', json=mixed_settings)
+        response = client.post('/api/config/webui', json=mixed_settings)
         assert response.status_code == 400, "Should reject due to invalid types"
         print("   ✓ Correctly rejected mixed types")
 
@@ -763,7 +763,7 @@ class TestInvalidCombinations:
             'awb_mode': 10      # Invalid: only 0-7
         }
 
-        response = client.post('/config/webui', json=invalid_combo)
+        response = client.post('/api/config/webui', json=invalid_combo)
         assert response.status_code == 400, "Should reject invalid focus/WB"
         data = response.get_json()
         assert 'error' in data
@@ -780,6 +780,6 @@ class TestInvalidCombinations:
             'saturation': 888888.0
         }
 
-        response = client.post('/config/webui', json=extreme_settings)
+        response = client.post('/api/config/webui', json=extreme_settings)
         assert response.status_code == 400, "Should reject extreme values"
         print("   ✓ Correctly rejected extreme out of range values")

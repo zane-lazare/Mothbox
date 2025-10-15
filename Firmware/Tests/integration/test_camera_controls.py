@@ -30,7 +30,7 @@ class TestAutofocusEndpoint:
         """Test successful autofocus operation"""
         print("\n🔍 Testing autofocus trigger...")
 
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
 
         assert response.status_code == 200
         data = response.get_json()
@@ -62,7 +62,7 @@ class TestAutofocusEndpoint:
         """Test autofocus returns valid metadata"""
         print("\n📊 Testing autofocus metadata values...")
 
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
         data = response.get_json()
 
         metadata = data['metadata']
@@ -91,7 +91,7 @@ class TestCalibrationEndpoint:
         """Test calibration updating capture settings only"""
         print("\n🔧 Testing calibration (capture settings only)...")
 
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': False
         })
@@ -119,7 +119,7 @@ class TestCalibrationEndpoint:
         """Test calibration updating both capture and preview"""
         print("\n🔧 Testing calibration (both capture and preview)...")
 
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': True
         })
@@ -138,14 +138,14 @@ class TestCalibrationEndpoint:
         print("\n📈 Testing calibration optimization...")
 
         # Run calibration twice and verify it produces reasonable results
-        response1 = client.post('/camera/calibrate', json={
+        response1 = client.post('/api/camera/calibrate', json={
             'update_capture': False,
             'update_preview': False
         })
 
         time.sleep(1)  # Brief delay between calibrations
 
-        response2 = client.post('/camera/calibrate', json={
+        response2 = client.post('/api/camera/calibrate', json={
             'update_capture': False,
             'update_preview': False
         })
@@ -171,7 +171,7 @@ class TestCalibrationEndpoint:
         print("\n❌ Testing calibration with missing parameters...")
 
         # Missing parameters - API provides defaults, so this succeeds
-        response = client.post('/camera/calibrate', json={})
+        response = client.post('/api/camera/calibrate', json={})
         # API provides default values, so 200 is expected
         assert response.status_code in [200, 400]
 
@@ -188,7 +188,7 @@ class TestSettingsCopyEndpoint:
         """Test copying settings from preview to capture"""
         print("\n📋 Testing copy preview → capture...")
 
-        response = client.post('/config/copy-settings', json={
+        response = client.post('/api/config/copy-settings', json={
             'direction': 'preview_to_capture'
         })
 
@@ -211,7 +211,7 @@ class TestSettingsCopyEndpoint:
         """Test copying settings from capture to preview"""
         print("\n📋 Testing copy capture → preview...")
 
-        response = client.post('/config/copy-settings', json={
+        response = client.post('/api/config/copy-settings', json={
             'direction': 'capture_to_preview'
         })
 
@@ -229,11 +229,11 @@ class TestSettingsCopyEndpoint:
         print("\n❌ Testing copy settings error handling...")
 
         # Missing direction
-        response = client.post('/config/copy-settings', json={})
+        response = client.post('/api/config/copy-settings', json={})
         assert response.status_code == 400
 
         # Invalid direction
-        response = client.post('/config/copy-settings', json={
+        response = client.post('/api/config/copy-settings', json={
             'direction': 'invalid_direction'
         })
         assert response.status_code == 400
@@ -245,18 +245,18 @@ class TestSettingsCopyEndpoint:
         print("\n🔒 Testing incompatible settings preservation...")
 
         # Get current capture settings
-        response_before = client.get('/camera/settings')
+        response_before = client.get('/api/camera/settings')
         settings_before = response_before.get_json()
 
         # Copy preview to capture
-        response = client.post('/config/copy-settings', json={
+        response = client.post('/api/config/copy-settings', json={
             'direction': 'preview_to_capture'
         })
 
         data = response.get_json()
 
         # Get capture settings after copy
-        response_after = client.get('/camera/settings')
+        response_after = client.get('/api/camera/settings')
         settings_after = response_after.get_json()
 
         # Verify incompatible settings like ExposureTime, AnalogueGain were NOT copied
@@ -276,7 +276,7 @@ class TestEndToEndWorkflow:
 
         # Step 1: Trigger autofocus
         print("   Step 1: Autofocus...")
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
         assert response.status_code == 200
         af_data = response.get_json()
         print(f"     ✓ Focus: {af_data['lens_position']} diopters")
@@ -285,7 +285,7 @@ class TestEndToEndWorkflow:
 
         # Step 2: Run calibration
         print("   Step 2: Calibrate...")
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': True
         })
@@ -297,7 +297,7 @@ class TestEndToEndWorkflow:
 
         # Step 3: Copy settings
         print("   Step 3: Copy settings...")
-        response = client.post('/config/copy-settings', json={
+        response = client.post('/api/config/copy-settings', json={
             'direction': 'preview_to_capture'
         })
         assert response.status_code == 200
@@ -315,7 +315,7 @@ class TestAutofocusFailureRecovery:
         print("\n🔧 Testing autofocus failure recovery...")
 
         # Run autofocus - might succeed or fail depending on conditions
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
 
         # Should always return 200 with valid structure
         assert response.status_code == 200
@@ -337,14 +337,14 @@ class TestAutofocusFailureRecovery:
         print("\n🔓 Testing camera release on autofocus error...")
 
         # Run autofocus
-        response1 = client.post('/camera/autofocus')
+        response1 = client.post('/api/camera/autofocus')
         assert response1.status_code in [200, 500]
 
         # Wait briefly
         time.sleep(0.5)
 
         # Should be able to run again (camera was released)
-        response2 = client.post('/camera/autofocus')
+        response2 = client.post('/api/camera/autofocus')
         assert response2.status_code in [200, 500], \
             "Camera should be available for subsequent autofocus"
 
@@ -354,7 +354,7 @@ class TestAutofocusFailureRecovery:
         """Test autofocus state transitions from Idle to Success/Fail"""
         print("\n🔀 Testing autofocus state transitions...")
 
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
         assert response.status_code == 200
 
         data = response.get_json()
@@ -374,7 +374,7 @@ class TestCalibrationEdgeCases:
         """Test calibration rejects invalid apply_to parameter"""
         print("\n❌ Testing calibration with invalid apply_to...")
 
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'apply_to': 'invalid_target'
         })
 
@@ -393,7 +393,7 @@ class TestCalibrationEdgeCases:
         # If camera is busy, should handle gracefully
         responses = []
         for i in range(2):
-            response = client.post('/camera/calibrate', json={
+            response = client.post('/api/camera/calibrate', json={
                 'update_capture': False,
                 'update_preview': False
             })
@@ -414,7 +414,7 @@ class TestCalibrationEdgeCases:
         from mothbox_paths import CAMERA_SETTINGS_FILE
 
         # Run calibration
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': False
         })
@@ -446,7 +446,7 @@ class TestConcurrentCalibrationRequests:
         # Attempt rapid-fire calibrations
         responses = []
         for i in range(3):
-            response = client.post('/camera/calibrate', json={
+            response = client.post('/api/camera/calibrate', json={
                 'update_capture': False,
                 'update_preview': False
             })
@@ -481,7 +481,7 @@ class TestConcurrentCalibrationRequests:
         results = {'calibration': None, 'autofocus': None}
 
         def run_calibration():
-            response = client.post('/camera/calibrate', json={
+            response = client.post('/api/camera/calibrate', json={
                 'update_capture': False,
                 'update_preview': False
             })
@@ -489,7 +489,7 @@ class TestConcurrentCalibrationRequests:
 
         def run_autofocus():
             time.sleep(0.02)  # Slight delay
-            response = client.post('/camera/autofocus')
+            response = client.post('/api/camera/autofocus')
             results['autofocus'] = response
 
         thread1 = threading.Thread(target=run_calibration)
@@ -525,7 +525,7 @@ class TestCalibrationApplyToModes:
         """Test calibration with apply_to='preview'"""
         print("\n📸 Testing calibration apply_to='preview'...")
 
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'apply_to': 'preview'
         })
 
@@ -541,7 +541,7 @@ class TestCalibrationApplyToModes:
         """Test calibration with apply_to='capture'"""
         print("\n📷 Testing calibration apply_to='capture'...")
 
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'apply_to': 'capture'
         })
 
@@ -557,7 +557,7 @@ class TestCalibrationApplyToModes:
         """Test calibration with apply_to='both'"""
         print("\n🎯 Testing calibration apply_to='both'...")
 
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'apply_to': 'both'
         })
 
@@ -574,7 +574,7 @@ class TestCalibrationApplyToModes:
         print("\n🔄 Testing calibration backward compatibility...")
 
         # Old format: update_capture, update_preview
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': True
         })

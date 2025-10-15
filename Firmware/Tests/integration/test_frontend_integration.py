@@ -30,7 +30,7 @@ class TestCameraPageIntegration:
         print("\n🎬 Testing preview settings update...")
 
         # Simulate user changing preview settings via Camera page
-        response = client.post('/config/webui', json={
+        response = client.post('/api/config/webui', json={
             'sharpness': 2.5,
             'brightness': 0.2,
             'contrast': 1.3,
@@ -42,7 +42,7 @@ class TestCameraPageIntegration:
         assert data['success'] is True
 
         # Verify settings were persisted
-        response = client.get('/config/webui')
+        response = client.get('/api/config/webui')
         settings = response.get_json()
 
         assert float(settings.get('sharpness', 0)) == 2.5
@@ -57,7 +57,7 @@ class TestCameraPageIntegration:
         print("\n🔍 Testing autofocus button integration...")
 
         # Simulate user clicking "Autofocus" button
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
 
         # Should succeed or gracefully handle camera busy
         assert response.status_code in [200, 500]
@@ -76,7 +76,7 @@ class TestCameraPageIntegration:
         print("\n⚙️ Testing calibration button integration...")
 
         # Test 1: Calibrate capture settings only
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': False
         })
@@ -93,7 +93,7 @@ class TestCameraPageIntegration:
         time.sleep(0.5)
 
         # Test 2: Calibrate both
-        response = client.post('/camera/calibrate', json={
+        response = client.post('/api/camera/calibrate', json={
             'update_capture': True,
             'update_preview': True
         })
@@ -106,7 +106,7 @@ class TestCameraPageIntegration:
         print("\n📸 Testing test capture button integration...")
 
         # Simulate user clicking "Test Capture" button
-        response = client.post('/camera/test-capture')
+        response = client.post('/api/camera/test-capture')
 
         assert response.status_code in [200, 500]
 
@@ -135,14 +135,14 @@ class TestSettingsCopyIntegration:
         print("\n📋 Testing copy preview → capture button...")
 
         # Set some preview settings
-        client.post('/config/webui', json={
+        client.post('/api/config/webui', json={
             'sharpness': 3.0,
             'brightness': 0.3,
             'contrast': 1.5
         })
 
         # Simulate user clicking "Copy to Capture Settings" button
-        response = client.post('/config/copy-settings', json={
+        response = client.post('/api/config/copy-settings', json={
             'direction': 'preview_to_capture'
         })
 
@@ -160,7 +160,7 @@ class TestSettingsCopyIntegration:
         print("\n📋 Testing copy capture → preview button...")
 
         # Simulate user clicking "Copy to Preview Settings" button
-        response = client.post('/config/copy-settings', json={
+        response = client.post('/api/config/copy-settings', json={
             'direction': 'capture_to_preview'
         })
 
@@ -177,7 +177,7 @@ class TestSettingsCopyIntegration:
         print("\n❌ Testing copy settings error handling...")
 
         # Invalid direction
-        response = client.post('/config/copy-settings', json={
+        response = client.post('/api/config/copy-settings', json={
             'direction': 'invalid'
         })
 
@@ -185,7 +185,7 @@ class TestSettingsCopyIntegration:
         print("   ✓ Invalid direction rejected")
 
         # Missing direction
-        response = client.post('/config/copy-settings', json={})
+        response = client.post('/api/config/copy-settings', json={})
 
         assert response.status_code == 400
         print("   ✓ Missing direction rejected")
@@ -198,7 +198,7 @@ class TestMetadataDisplay:
         """Test that camera/settings endpoint returns metadata for display"""
         print("\n📊 Testing metadata endpoint...")
 
-        response = client.get('/camera/settings')
+        response = client.get('/api/camera/settings')
 
         assert response.status_code == 200
         data = response.get_json()
@@ -219,7 +219,7 @@ class TestEndToEndWorkflow:
 
         # Step 1: User adjusts preview settings
         print("   Step 1: Adjusting preview settings...")
-        response = client.post('/config/webui', json={
+        response = client.post('/api/config/webui', json={
             'sharpness': 2.0,
             'brightness': 0.1,
             'contrast': 1.2
@@ -228,7 +228,7 @@ class TestEndToEndWorkflow:
 
         # Step 2: User clicks "Test Capture" to see results
         print("   Step 2: Test capture...")
-        response = client.post('/camera/test-capture')
+        response = client.post('/api/camera/test-capture')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -237,7 +237,7 @@ class TestEndToEndWorkflow:
 
             # Step 3: User likes results, copies to production
             print("   Step 3: Copy to production settings...")
-            response = client.post('/config/copy-settings', json={
+            response = client.post('/api/config/copy-settings', json={
                 'direction': 'preview_to_capture'
             })
             assert response.status_code == 200
@@ -252,14 +252,14 @@ class TestEndToEndWorkflow:
 
         # Step 1: Run autofocus
         print("   Step 1: Autofocus...")
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
 
         if response.status_code == 200:
             time.sleep(1)
 
             # Step 2: Run calibration
             print("   Step 2: Calibrate...")
-            response = client.post('/camera/calibrate', json={
+            response = client.post('/api/camera/calibrate', json={
                 'update_capture': True,
                 'update_preview': False
             })
@@ -282,12 +282,12 @@ class TestErrorHandling:
         print("\n🛡️ Testing invalid settings rejection...")
 
         # Sharpness out of range
-        response = client.post('/config/webui', json={'sharpness': 20.0})
+        response = client.post('/api/config/webui', json={'sharpness': 20.0})
         assert response.status_code == 400
         print("   ✓ Invalid sharpness rejected")
 
         # Brightness out of range
-        response = client.post('/config/webui', json={'brightness': 5.0})
+        response = client.post('/api/config/webui', json={'brightness': 5.0})
         assert response.status_code == 400
         print("   ✓ Invalid brightness rejected")
 
@@ -297,7 +297,7 @@ class TestErrorHandling:
 
         # This test may pass or fail depending on camera state
         # Just verify it returns proper HTTP status
-        response = client.post('/camera/autofocus')
+        response = client.post('/api/camera/autofocus')
         assert response.status_code in [200, 500, 503]
 
         if response.status_code != 200:
