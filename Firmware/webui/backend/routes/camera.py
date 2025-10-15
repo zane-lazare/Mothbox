@@ -983,6 +983,12 @@ def test_capture():
                 picam2.stop()
                 picam2.close()
 
+                # Force garbage collection to free CMA buffers immediately
+                # Critical for tests doing multiple captures in sequence
+                import gc
+                gc.collect()
+                gc.collect()
+
                 # Return relative path from PHOTOS_DIR
                 relative_path = str(filepath.relative_to(PHOTOS_DIR))
 
