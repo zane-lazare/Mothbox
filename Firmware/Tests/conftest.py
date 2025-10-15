@@ -12,6 +12,7 @@ Usage:
 
 import pytest
 import sys
+import gc
 from pathlib import Path
 
 # Setup path for imports
@@ -209,3 +210,18 @@ def pytest_runtest_setup(item):
             Picamera2.global_camera_info()
         except Exception as e:
             pytest.skip(f"Camera not available: {e}")
+
+
+def pytest_runtest_teardown(item, nextitem):
+    """
+    Force garbage collection after each test to prevent memory exhaustion
+
+    Camera operations allocate GPU memory that isn't immediately freed.
+    This hook ensures memory is released before the next test starts.
+    """
+    # Force garbage collection to free camera buffers
+    gc.collect()
+
+    # Small delay to let GPU memory fully release
+    import time
+    time.sleep(0.1)
