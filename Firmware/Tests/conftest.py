@@ -216,15 +216,13 @@ def pytest_runtest_teardown(item, nextitem):
     """
     Force garbage collection after each test to prevent memory exhaustion
 
-    Camera operations allocate GPU memory that isn't immediately freed.
-    This hook ensures memory is released before the next test starts.
-    """
-    # Force garbage collection multiple times to free camera buffers
-    # Multiple collections needed because camera objects may have circular refs
-    gc.collect()
-    gc.collect()
+    Camera operations allocate CMA (Contiguous Memory Allocator) memory for
+    image buffers. Explicit GC helps free these buffers between tests.
 
-    # Longer delay to let GPU memory fully release at hardware level
-    # Camera buffers (especially 64MP images) need time to deallocate
-    import time
-    time.sleep(0.5)
+    Note: With adequate CMA allocation (256MB+), the delays are not needed.
+    The GC calls are kept as defensive cleanup.
+    """
+    # Force garbage collection to free camera buffers
+    # Multiple collections handle circular references in camera objects
+    gc.collect()
+    gc.collect()
