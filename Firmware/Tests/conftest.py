@@ -219,9 +219,12 @@ def pytest_runtest_teardown(item, nextitem):
     Camera operations allocate GPU memory that isn't immediately freed.
     This hook ensures memory is released before the next test starts.
     """
-    # Force garbage collection to free camera buffers
+    # Force garbage collection multiple times to free camera buffers
+    # Multiple collections needed because camera objects may have circular refs
+    gc.collect()
     gc.collect()
 
-    # Small delay to let GPU memory fully release
+    # Longer delay to let GPU memory fully release at hardware level
+    # Camera buffers (especially 64MP images) need time to deallocate
     import time
-    time.sleep(0.1)
+    time.sleep(0.5)
