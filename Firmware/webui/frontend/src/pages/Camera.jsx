@@ -390,425 +390,370 @@ export default function Camera() {
         </p>
       </div>
 
-      {/* Two-Column Layout: Camera Stream (Left) + Metadata & Controls (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-[2.7fr_1fr] gap-2">
+      {/* Full-Width Camera Stream with Overlay Controls */}
+      <div className="space-y-2">
+        {/* Camera Preview with Control Overlays */}
+        <div className="bg-white rounded-lg shadow p-3">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Live Preview</h3>
+            <button
+              onClick={togglePreview}
+              disabled={!connected}
+              className={`px-4 py-2 rounded-lg font-medium ${
+                previewActive
+                  ? 'bg-red-600 text-white hover:bg-red-700'
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              } disabled:bg-gray-400`}
+            >
+              {previewActive ? 'Stop Preview' : 'Start Preview'}
+            </button>
+          </div>
 
-        {/* LEFT COLUMN: Camera Stream */}
-        <div className="space-y-2">
-          {/* Camera Preview */}
-          <div className="bg-white rounded-lg shadow p-3">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Live Preview</h3>
-          <button
-            onClick={togglePreview}
-            disabled={!connected}
-            className={`px-4 py-2 rounded-lg font-medium ${
-              previewActive
-                ? 'bg-red-600 text-white hover:bg-red-700'
-                : 'bg-green-600 text-white hover:bg-green-700'
-            } disabled:bg-gray-400`}
-          >
-            {previewActive ? 'Stop Preview' : 'Start Preview'}
-          </button>
-        </div>
+          <div className="bg-gray-900 rounded-lg overflow-hidden relative" style={{ minHeight: '600px' }}>
+            {currentFrame ? (
+              <img
+                src={currentFrame}
+                alt="Camera preview"
+                className="w-full h-auto"
+              />
+            ) : (
+              <div className="h-96 flex items-center justify-center">
+                <p className="text-gray-400">
+                  {previewActive ? 'Loading preview...' : 'Click "Start Preview" to begin'}
+                </p>
+              </div>
+            )}
 
-        <div className="bg-gray-900 rounded-lg overflow-hidden relative" style={{ minHeight: '400px' }}>
-          {currentFrame ? (
-            <img
-              src={currentFrame}
-              alt="Camera preview"
-              className="w-full h-auto"
-            />
-          ) : (
-            <div className="h-96 flex items-center justify-center">
-              <p className="text-gray-400">
-                {previewActive ? 'Loading preview...' : 'Click "Start Preview" to begin'}
-              </p>
-            </div>
-          )}
-
-          {/* Metadata Overlay */}
-          {previewActive && metadata && !metadata.error && (
-            <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white shadow-lg max-w-xs">
-              <h4 className="text-sm font-semibold mb-2 text-gray-200">📊 Live Metadata</h4>
-              <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-300">Exposure:</span>
-                  <span className="font-semibold text-blue-300">{metadata.exposure_time} µs</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-300">Gain (ISO):</span>
-                  <span className="font-semibold text-blue-300">{metadata.analogue_gain}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-300">Focus:</span>
-                  <span className="font-semibold text-blue-300">{metadata.lens_position} dpt</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-300">AF State:</span>
-                  <span className="font-semibold text-blue-300">{metadata.af_state}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-300">Color Temp:</span>
-                  <span className="font-semibold text-blue-300">{metadata.colour_temperature}K</span>
+            {/* Metadata Overlay - Top Right */}
+            {previewActive && metadata && !metadata.error && (
+              <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white shadow-lg max-w-xs">
+                <h4 className="text-sm font-semibold mb-2 text-gray-200">📊 Live Metadata</h4>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-300">Exposure:</span>
+                    <span className="font-semibold text-blue-300">{metadata.exposure_time} µs</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-300">Gain (ISO):</span>
+                    <span className="font-semibold text-blue-300">{metadata.analogue_gain}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-300">Focus:</span>
+                    <span className="font-semibold text-blue-300">{metadata.lens_position} dpt</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-300">AF State:</span>
+                    <span className="font-semibold text-blue-300">{metadata.af_state}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-300">Color Temp:</span>
+                    <span className="font-semibold text-blue-300">{metadata.colour_temperature}K</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-
-        {previewActive && (
-          <p className="text-xs text-gray-500 mt-2">
-            Preview running at ~10 FPS (1024x768) with continuous autofocus
-          </p>
-        )}
-
-        {/* HDR Mode Indicator (Feature 11) */}
-        {cameraSettings && (
-          <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">🌄 HDR Mode</span>
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                parseInt(cameraSettings.HDR || 1) > 1
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-200 text-gray-600'
-              }`}>
-                {parseInt(cameraSettings.HDR || 1) === 1
-                  ? 'Single Exposure'
-                  : `${cameraSettings.HDR} Exposures (HDR)`}
-              </span>
-            </div>
-            {parseInt(cameraSettings.HDR || 1) > 1 && (
-              <p className="mt-2 text-xs text-purple-700">
-                Bracket width: {cameraSettings.HDR_width || 7000}µs · Captures {cameraSettings.HDR} images with different exposures
-              </p>
             )}
-          </div>
-        )}
-          </div>
-        </div>
 
-        {/* RIGHT COLUMN: Metadata & Controls */}
-        <div className="space-y-2">
+            {/* Live Controls Overlay - Top Left */}
+            {previewActive && (
+              <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white shadow-lg w-72 max-h-[calc(100vh-200px)] overflow-y-auto">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-sm font-semibold text-gray-200">🎨 Live Controls</h3>
+                  <button
+                    onClick={handleResetControls}
+                    className="px-2 py-1 text-xs bg-white/20 text-white rounded hover:bg-white/30"
+                  >
+                    Reset
+                  </button>
+                </div>
 
-          {/* Live Controls (Task 5: Real-time Control Sliders) */}
-          {previewActive && (
-            <div className="bg-white rounded-lg shadow p-3">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">🎨 Live Controls</h3>
+                <div className="space-y-3">
+                  {/* Sharpness Slider */}
+                  <div>
+                    <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                      <span>Sharpness</span>
+                      <span className="text-blue-300 font-mono">{liveControls.sharpness.toFixed(1)}</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="16"
+                      step="0.1"
+                      value={liveControls.sharpness}
+                      onChange={(e) => handleControlChange('Sharpness', parseFloat(e.target.value))}
+                      className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                      <span>0</span>
+                      <span>1.0</span>
+                      <span>16</span>
+                    </div>
+                  </div>
+
+                  {/* Brightness Slider */}
+                  <div>
+                    <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                      <span>Brightness</span>
+                      <span className="text-blue-300 font-mono">{liveControls.brightness.toFixed(1)}</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="-1"
+                      max="1"
+                      step="0.1"
+                      value={liveControls.brightness}
+                      onChange={(e) => handleControlChange('Brightness', parseFloat(e.target.value))}
+                      className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                      <span>-1</span>
+                      <span>0</span>
+                      <span>+1</span>
+                    </div>
+                  </div>
+
+                  {/* Contrast Slider */}
+                  <div>
+                    <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                      <span>Contrast</span>
+                      <span className="text-blue-300 font-mono">{liveControls.contrast.toFixed(1)}</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="-1"
+                      max="1"
+                      step="0.1"
+                      value={liveControls.contrast}
+                      onChange={(e) => handleControlChange('Contrast', parseFloat(e.target.value))}
+                      className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                      <span>-1</span>
+                      <span>1.0</span>
+                      <span>+1</span>
+                    </div>
+                  </div>
+
+                  {/* Saturation Slider */}
+                  <div>
+                    <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                      <span>Saturation</span>
+                      <span className="text-blue-300 font-mono">{liveControls.saturation.toFixed(1)}</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="-1"
+                      max="1"
+                      step="0.1"
+                      value={liveControls.saturation}
+                      onChange={(e) => handleControlChange('Saturation', parseFloat(e.target.value))}
+                      className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                      <span>-1</span>
+                      <span>1.0</span>
+                      <span>+1</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 p-2 bg-blue-500/20 border border-blue-400/30 rounded text-[10px] text-blue-200">
+                  <strong>💡 Tip:</strong> Changes apply instantly to preview only.
+                </div>
+              </div>
+            )}
+
+            {/* Quick Actions Overlay - Bottom Left */}
+            <div className="absolute bottom-2 left-2 bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white shadow-lg w-64">
+              <h3 className="text-sm font-semibold text-gray-200 mb-2">⚡ Quick Actions</h3>
+              <div className="space-y-2">
                 <button
-                  onClick={handleResetControls}
-                  className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                  onClick={handleAutofocus}
+                  disabled={autofocusing || !connected}
+                  className="w-full px-3 py-2 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-600 font-medium"
                 >
-                  Reset to Defaults
+                  {autofocusing ? '🔍 Focusing...' : '🔍 Autofocus'}
+                </button>
+                <button
+                  onClick={handleCalibrate}
+                  disabled={calibrating || !connected}
+                  className="w-full px-3 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-600 font-medium"
+                >
+                  {calibrating ? '🔧 Calibrating...' : '🔧 Calibrate'}
+                </button>
+                <button
+                  onClick={handleFreezeSettings}
+                  disabled={freezing || !connected}
+                  className="w-full px-3 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-600 font-medium"
+                >
+                  {freezing ? '❄️ Freezing...' : '❄️ Freeze'}
                 </button>
               </div>
 
-              <p className="text-sm text-gray-600 mb-4">
-                Adjust image quality settings in real-time. Changes apply instantly to the preview.
-              </p>
-
-              <div className="grid grid-cols-1 gap-4">
-                {/* Sharpness Slider */}
-                <div>
-                  <label className="flex justify-between items-center text-sm font-medium text-gray-700 mb-2">
-                    <span>Sharpness</span>
-                    <span className="text-blue-600 font-mono">{liveControls.sharpness.toFixed(1)}</span>
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="16"
-                    step="0.1"
-                    value={liveControls.sharpness}
-                    onChange={(e) => handleControlChange('Sharpness', parseFloat(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>Soft (0)</span>
-                    <span className="font-medium">Default (1.0)</span>
-                    <span>Sharp (16)</span>
+              {/* Calibration Progress Indicator (Task 4) */}
+              {calibrationProgress && (
+                <div className="mt-2 p-2 bg-blue-500/20 border border-blue-400/30 rounded">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-medium text-blue-200">
+                      Step {calibrationProgress.step}/{calibrationProgress.total_steps}
+                    </span>
+                    <span className="text-[10px] font-medium text-blue-200">
+                      {calibrationProgress.progress}%
+                    </span>
                   </div>
-                </div>
-
-                {/* Brightness Slider */}
-                <div>
-                  <label className="flex justify-between items-center text-sm font-medium text-gray-700 mb-2">
-                    <span>Brightness</span>
-                    <span className="text-blue-600 font-mono">{liveControls.brightness.toFixed(1)}</span>
-                  </label>
-                  <input
-                    type="range"
-                    min="-1"
-                    max="1"
-                    step="0.1"
-                    value={liveControls.brightness}
-                    onChange={(e) => handleControlChange('Brightness', parseFloat(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>Dark (-1)</span>
-                    <span className="font-medium">Default (0)</span>
-                    <span>Bright (+1)</span>
+                  <div className="w-full bg-blue-300/30 rounded-full h-1.5 mb-1">
+                    <div
+                      className="bg-blue-400 h-1.5 rounded-full transition-all duration-300"
+                      style={{ width: `${calibrationProgress.progress}%` }}
+                    ></div>
                   </div>
+                  <p className="text-[10px] text-blue-200">
+                    {calibrationProgress.message}
+                  </p>
                 </div>
+              )}
 
-                {/* Contrast Slider */}
-                <div>
-                  <label className="flex justify-between items-center text-sm font-medium text-gray-700 mb-2">
-                    <span>Contrast</span>
-                    <span className="text-blue-600 font-mono">{liveControls.contrast.toFixed(1)}</span>
-                  </label>
-                  <input
-                    type="range"
-                    min="-1"
-                    max="1"
-                    step="0.1"
-                    value={liveControls.contrast}
-                    onChange={(e) => handleControlChange('Contrast', parseFloat(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>Low (-1)</span>
-                    <span className="font-medium">Default (1.0)</span>
-                    <span>High (+1)</span>
-                  </div>
-                </div>
-
-                {/* Saturation Slider */}
-                <div>
-                  <label className="flex justify-between items-center text-sm font-medium text-gray-700 mb-2">
-                    <span>Saturation</span>
-                    <span className="text-blue-600 font-mono">{liveControls.saturation.toFixed(1)}</span>
-                  </label>
-                  <input
-                    type="range"
-                    min="-1"
-                    max="1"
-                    step="0.1"
-                    value={liveControls.saturation}
-                    onChange={(e) => handleControlChange('Saturation', parseFloat(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>Gray (-1)</span>
-                    <span className="font-medium">Default (1.0)</span>
-                    <span>Vivid (+1)</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs text-blue-800">
-                  <strong>💡 Tip:</strong> These controls only affect the live preview. To save settings permanently,
-                  adjust them in Settings → Stream Settings, then restart the preview.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Quick Actions (Phase 2.2) */}
-          <div className="bg-white rounded-lg shadow p-3">
-            <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-1 gap-3">
-              <button
-                onClick={handleAutofocus}
-                disabled={autofocusing || !connected}
-                className="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 font-medium"
-              >
-                {autofocusing ? '🔍 Focusing...' : '🔍 Trigger Autofocus'}
-              </button>
-              <button
-                onClick={handleCalibrate}
-                disabled={calibrating || !connected}
-                className="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 font-medium"
-              >
-                {calibrating ? '🔧 Calibrating...' : '🔧 Auto-Calibrate'}
-              </button>
-              <button
-                onClick={handleFreezeSettings}
-                disabled={freezing || !connected}
-                className="px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 font-medium"
-              >
-                {freezing ? '❄️ Freezing...' : '❄️ Freeze Settings'}
-              </button>
-            </div>
-
-            <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-600">
-                <strong>Autofocus:</strong> Quickly lock focus on the current scene<br/>
-                <strong>Calibrate:</strong> Optimize exposure, gain, and focus for current conditions<br/>
-                <strong>Freeze Settings:</strong> Lock current camera values and disable auto-adjustments
-              </p>
-            </div>
-
-            {/* Calibration Progress Indicator (Task 4) */}
-            {calibrationProgress && (
-              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-blue-900">
-                    Step {calibrationProgress.step} of {calibrationProgress.total_steps}
-                  </span>
-                  <span className="text-sm font-medium text-blue-900">
-                    {calibrationProgress.progress}%
-                  </span>
-                </div>
-                <div className="w-full bg-blue-200 rounded-full h-2.5 mb-2">
-                  <div
-                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
-                    style={{ width: `${calibrationProgress.progress}%` }}
-                  ></div>
-                </div>
-                <p className="text-sm text-blue-700">
-                  {calibrationProgress.message}
-                </p>
-              </div>
-            )}
-
-            {/* Action Results */}
-            {actionResult && (
-              <div className={`mt-4 p-4 rounded-lg border-2 ${
-                actionResult.type === 'success'
-                  ? 'bg-green-50 border-green-200'
-                  : 'bg-red-50 border-red-200'
-              }`}>
-                <p className={`font-semibold ${
-                  actionResult.type === 'success' ? 'text-green-900' : 'text-red-900'
+              {/* Action Results */}
+              {actionResult && (
+                <div className={`mt-2 p-2 rounded border ${
+                  actionResult.type === 'success'
+                    ? 'bg-green-500/20 border-green-400/30'
+                    : 'bg-red-500/20 border-red-400/30'
                 }`}>
-                  {actionResult.title}
-                </p>
-                <p className={`text-sm mt-1 ${
-                  actionResult.type === 'success' ? 'text-green-700' : 'text-red-700'
-                }`}>
-                  {actionResult.message}
-                </p>
-              </div>
-            )}
-          </div>
+                  <p className={`text-xs font-semibold ${
+                    actionResult.type === 'success' ? 'text-green-200' : 'text-red-200'
+                  }`}>
+                    {actionResult.title}
+                  </p>
+                  <p className={`text-[10px] mt-0.5 ${
+                    actionResult.type === 'success' ? 'text-green-300' : 'text-red-300'
+                  }`}>
+                    {actionResult.message}
+                  </p>
+                </div>
+              )}
+            </div>
 
-          {/* Settings Transfer (Phase 2.2) */}
-          <div className="bg-white rounded-lg shadow p-3">
-            <h3 className="text-lg font-semibold mb-4">Settings Transfer</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Mothbox has two separate camera configurations: <strong>Preview</strong> (stream settings)
-              and <strong>Capture</strong> (full-resolution photo settings). Use these buttons to synchronize them.
-            </p>
-
-            <div className="grid grid-cols-1 gap-4">
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h4 className="font-semibold text-blue-900 mb-2">📹 Preview Settings</h4>
-                <p className="text-sm text-blue-700 mb-3">
-                  Used for live stream (1024x768, ~10 FPS). Adjust in Settings → Stream Settings tab.
-                </p>
+            {/* Settings Transfer Overlay - Bottom Center-Left */}
+            <div className="absolute bottom-2 left-72 bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white shadow-lg w-56">
+              <h3 className="text-sm font-semibold text-gray-200 mb-2">🔄 Settings Transfer</h3>
+              <div className="space-y-2">
                 <button
                   onClick={handleCopyPreviewToCapture}
                   disabled={copyingSettings || !connected}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                  className="w-full px-3 py-2 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-600 font-medium"
                 >
-                  {copyingSettings ? 'Copying...' : 'Copy to Capture →'}
+                  {copyingSettings ? 'Copying...' : '📹 Preview → 📷 Capture'}
                 </button>
-              </div>
-
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <h4 className="font-semibold text-green-900 mb-2">📷 Capture Settings</h4>
-                <p className="text-sm text-green-700 mb-3">
-                  Used for full-res photos (4608x2592). Adjust in Settings → Camera Settings tab.
-                </p>
                 <button
                   onClick={handleCopyCaptureToPreview}
                   disabled={copyingSettings || !connected}
-                  className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400"
+                  className="w-full px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-600 font-medium"
                 >
-                  {copyingSettings ? 'Copying...' : '← Copy to Preview'}
+                  {copyingSettings ? 'Copying...' : '📷 Capture → 📹 Preview'}
                 </button>
+              </div>
+              <div className="mt-2 p-2 bg-yellow-500/20 border border-yellow-400/30 rounded text-[10px] text-yellow-200">
+                <strong>⚠️</strong> Sync settings between preview and capture modes
               </div>
             </div>
 
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-xs text-yellow-800">
-                <strong>⚠️ Note:</strong> Only compatible settings are copied (sharpness, contrast, saturation, focus mode, white balance, etc.).
-                Some settings like resolution and frame rate are specific to each mode.
-              </p>
+            {/* Test Capture Overlay - Bottom Center */}
+            <div className="absolute bottom-2 right-80 bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white shadow-lg w-60">
+              <h3 className="text-sm font-semibold text-gray-200 mb-2">🧪 Test Capture</h3>
+              <button
+                onClick={handleTestCapture}
+                disabled={testCapturing || !connected}
+                className="w-full px-3 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-600 font-medium"
+              >
+                {testCapturing ? '📸 Capturing...' : '🧪 Test Photo'}
+              </button>
+
+              {testCaptureResult && (
+                <div className={`mt-2 p-2 rounded border ${
+                  testCaptureResult.success
+                    ? 'bg-green-500/20 border-green-400/30'
+                    : 'bg-red-500/20 border-red-400/30'
+                }`}>
+                  <p className={`text-xs font-semibold ${
+                    testCaptureResult.success ? 'text-green-200' : 'text-red-200'
+                  }`}>
+                    {testCaptureResult.success ? 'Success!' : 'Failed'}
+                  </p>
+                  {testCaptureResult.success && (
+                    <p className="text-[10px] text-green-300 mt-0.5">
+                      {testCaptureResult.metadata.exposure_time}µs |
+                      {testCaptureResult.metadata.analogue_gain}x |
+                      {testCaptureResult.metadata.lens_position}D
+                    </p>
+                  )}
+                  {!testCaptureResult.success && (
+                    <p className="text-[10px] text-red-300 mt-0.5">{testCaptureResult.error}</p>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-2 p-2 bg-gray-500/20 border border-gray-400/30 rounded text-[10px] text-gray-300">
+                <strong>💡</strong> Test preview settings at full resolution
+              </div>
             </div>
+
+            {/* Capture Control Overlay - Bottom Right */}
+            <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white shadow-lg w-64">
+              <h3 className="text-sm font-semibold text-gray-200 mb-2">📷 Capture Control</h3>
+              <button
+                onClick={handleCapture}
+                disabled={capturing}
+                className="w-full px-4 py-3 text-base bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-600 font-semibold"
+              >
+                {capturing ? 'Capturing...' : '📸 Capture Photo'}
+              </button>
+
+              {lastCapture && (
+                <div className="mt-2 p-2 bg-green-500/20 border border-green-400/30 rounded">
+                  <p className="text-xs font-semibold text-green-200">Last capture successful!</p>
+                  {lastCapture.latest_photo && (
+                    <p className="text-[10px] text-green-300 mt-0.5 truncate">
+                      {lastCapture.latest_photo}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
           </div>
 
-          {/* Test Capture (Phase 4.5) */}
-          <div className="bg-white rounded-lg shadow p-3">
-            <h3 className="text-lg font-semibold mb-4">🧪 Test Capture</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Capture a full-resolution test photo using your current <strong>preview settings</strong>.
-              This doesn't affect your scheduled capture settings.
-            </p>
-
-            <button
-              onClick={handleTestCapture}
-              disabled={testCapturing || !connected}
-              className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 font-medium"
-            >
-              {testCapturing ? '📸 Capturing Test Photo...' : '🧪 Test Capture (Preview Settings)'}
-            </button>
-
-            {testCaptureResult && (
-              <div className={`mt-4 p-4 rounded-lg border-2 ${
-                testCaptureResult.success
-                  ? 'bg-green-50 border-green-200'
-                  : 'bg-red-50 border-red-200'
-              }`}>
-                <p className={`font-semibold ${
-                  testCaptureResult.success ? 'text-green-900' : 'text-red-900'
-                }`}>
-                  {testCaptureResult.success ? 'Test Capture Successful!' : 'Test Capture Failed'}
+          {/* Preview Info & HDR Indicator - Below Stream */}
+          <div className="mt-2 flex flex-col sm:flex-row gap-2">
+            {previewActive && (
+              <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
+                <p className="text-xs text-gray-600">
+                  📹 Preview running at ~10 FPS (1024x768) with continuous autofocus
                 </p>
-                {testCaptureResult.success && (
-                  <>
-                    <p className="text-sm text-green-700 mt-1">
-                      Photo saved: {testCaptureResult.test_photo_path}
-                    </p>
-                    <p className="text-xs text-green-600 mt-2">
-                      Exposure: {testCaptureResult.metadata.exposure_time}µs |
-                      Gain: {testCaptureResult.metadata.analogue_gain} |
-                      Focus: {testCaptureResult.metadata.lens_position}D
-                    </p>
-                  </>
-                )}
-                {!testCaptureResult.success && (
-                  <p className="text-sm text-red-700 mt-1">{testCaptureResult.error}</p>
-                )}
               </div>
             )}
 
-            <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-600">
-                <strong>Tip:</strong> Use this to test your preview settings at full resolution
-                before copying them to capture settings. Test photos are saved in
-                <code className="px-1 bg-gray-200 rounded ml-1">test_captures/</code>
-              </p>
-            </div>
-          </div>
-
-          {/* Capture Controls */}
-          <div className="bg-white rounded-lg shadow p-3">
-            <h3 className="text-lg font-semibold mb-4">Capture Control</h3>
-            <button
-              onClick={handleCapture}
-              disabled={capturing}
-              className="w-full bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 text-lg font-semibold"
-            >
-              {capturing ? 'Capturing...' : 'Capture Photo'}
-            </button>
-
-            {lastCapture && (
-              <div className="mt-4 p-4 bg-green-50 rounded-lg">
-                <p className="text-green-800 font-medium">Last capture successful!</p>
-                {lastCapture.latest_photo && (
-                  <p className="text-sm text-green-600 mt-1">
-                    Photo: {lastCapture.latest_photo}
+            {cameraSettings && (
+              <div className="flex-1 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-700">🌄 HDR Mode</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                    parseInt(cameraSettings.HDR || 1) > 1
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-200 text-gray-600'
+                  }`}>
+                    {parseInt(cameraSettings.HDR || 1) === 1
+                      ? 'Single'
+                      : `${cameraSettings.HDR} Exp HDR`}
+                  </span>
+                </div>
+                {parseInt(cameraSettings.HDR || 1) > 1 && (
+                  <p className="mt-1 text-[10px] text-purple-700">
+                    Bracket: {cameraSettings.HDR_width || 7000}µs · {cameraSettings.HDR} images
                   </p>
                 )}
               </div>
             )}
           </div>
-
         </div>
       </div>
     </div>
