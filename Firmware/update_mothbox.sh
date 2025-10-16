@@ -572,32 +572,6 @@ elif [ "$INSTALL_TYPE" = "legacy" ]; then
     echo ""
 fi
 
-# Fix config file permissions for WebUI write access (all installation types)
-# This runs on every update to ensure WebUI can modify settings
-echo -e "${BLUE}Ensuring config file permissions for WebUI...${NC}"
-PERMISSION_FIXES=0
-for config_file in "$CONFIG_DIR/webui_settings.txt" "$CONFIG_DIR/controls.txt" "$CONFIG_DIR/camera_settings.csv" "$CONFIG_DIR/schedule_settings.csv"; do
-    if [ -f "$config_file" ]; then
-        # Check if file needs permission fix (not owned by user or wrong permissions)
-        CURRENT_OWNER=$(stat -c '%U' "$config_file" 2>/dev/null || echo "unknown")
-        CURRENT_PERMS=$(stat -c '%a' "$config_file" 2>/dev/null || echo "000")
-
-        if [ "$CURRENT_OWNER" != "$MOTHBOX_USER" ] || [ "$CURRENT_PERMS" != "664" ]; then
-            sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$config_file"
-            sudo chmod 664 "$config_file"
-            PERMISSION_FIXES=$((PERMISSION_FIXES + 1))
-            echo "  Fixed: $(basename $config_file)"
-        fi
-    fi
-done
-
-if [ $PERMISSION_FIXES -gt 0 ]; then
-    echo -e "${GREEN}✓ Fixed permissions on $PERMISSION_FIXES config file(s) (owner: $MOTHBOX_USER, mode: 664)${NC}"
-else
-    echo -e "${GREEN}✓ Config file permissions already correct${NC}"
-fi
-echo ""
-
 # Update components based on what changed
 UPDATES_PERFORMED=0
 
