@@ -24,6 +24,7 @@ export default function Camera() {
     contrast: 1.0,
     saturation: 1.0
   })
+  const [cameraSettings, setCameraSettings] = useState(null)  // HDR and other camera settings
   const socketRef = useRef(null)
   const metadataIntervalRef = useRef(null)
   const debounceTimerRef = useRef(null)  // Task 5: Debounce timer for control updates
@@ -44,6 +45,21 @@ export default function Camera() {
   }
 
   useEffect(() => {
+    // Fetch camera settings on mount (for HDR status display)
+    const fetchSettings = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || '/api'
+        const response = await fetch(`${API_URL}/camera/settings`)
+        if (response.ok) {
+          const data = await response.json()
+          setCameraSettings(data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch camera settings:', error)
+      }
+    }
+    fetchSettings()
+
     // Connect to WebSocket server using current window location
     // This ensures it works whether accessed via localhost, IP, or hostname
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -132,10 +148,20 @@ export default function Camera() {
     try {
       const response = await capturePhoto()
       setLastCapture(response.data)
-      alert('Photo captured successfully!')
+
+      // Display HDR-aware success message
+      if (response.data.hdr_mode) {
+        toast.success(
+          `HDR capture complete: ${response.data.hdr_count} exposures with ${response.data.hdr_width}µs bracket width`,
+          { duration: 5000 }
+        )
+      } else {
+        toast.success('Photo captured successfully!')
+      }
     } catch (error) {
       console.error('Capture failed:', error)
-      alert('Failed to capture photo')
+      const message = error.response?.data?.error || 'Failed to capture photo'
+      toast.error(`Capture failed: ${message}`)
     } finally {
       setCapturing(false)
     }
@@ -429,6 +455,29 @@ export default function Camera() {
                 <p className="text-blue-900">{metadata.colour_temperature}K</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* HDR Mode Indicator (Feature 11) */}
+        {cameraSettings && (
+          <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">🌄 HDR Mode</span>
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                parseInt(cameraSettings.HDR || 1) > 1
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-200 text-gray-600'
+              }`}>
+                {parseInt(cameraSettings.HDR || 1) === 1
+                  ? 'Single Exposure'
+                  : `${cameraSettings.HDR} Exposures (HDR)`}
+              </span>
+            </div>
+            {parseInt(cameraSettings.HDR || 1) > 1 && (
+              <p className="mt-2 text-xs text-purple-700">
+                Bracket width: {cameraSettings.HDR_width || 7000}µs · Captures {cameraSettings.HDR} images with different exposures
+              </p>
+            )}
           </div>
         )}
       </div>

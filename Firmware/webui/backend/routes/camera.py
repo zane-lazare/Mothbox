@@ -77,17 +77,81 @@ ALLOWED_CAMERA_SETTINGS = {
 
 camera_bp = Blueprint('camera', __name__)
 
+
+def _should_use_hdr_mode():
+    """
+    Check if HDR mode is enabled in camera settings
+
+    Returns:
+        tuple: (bool, int, int) - (use_hdr, hdr_count, hdr_width)
+               use_hdr: True if HDR > 1
+               hdr_count: Number of exposures (1, 3, 5, or 7)
+               hdr_width: Bracket step size in microseconds
+    """
+    try:
+        import csv
+        from mothbox_paths import CAMERA_SETTINGS_FILE
+
+        hdr_count = 1
+        hdr_width = 7000  # Default bracket width
+
+        if not CAMERA_SETTINGS_FILE.exists():
+            print("ℹ️  camera_settings.csv not found, defaulting to single exposure")
+            return False, 1, 7000
+
+        with open(CAMERA_SETTINGS_FILE, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row['SETTING'] == 'HDR':
+                    try:
+                        hdr_count = int(row['VALUE'])
+                        # Validate HDR count is one of the allowed values
+                        if hdr_count not in [1, 3, 5, 7]:
+                            print(f"⚠️  Invalid HDR count {hdr_count}, must be 1, 3, 5, or 7. Defaulting to 1.")
+                            hdr_count = 1
+                    except (ValueError, KeyError) as e:
+                        print(f"⚠️  Could not parse HDR setting value: {e}. Defaulting to 1.")
+                        hdr_count = 1
+                elif row['SETTING'] == 'HDR_width':
+                    try:
+                        hdr_width = int(row['VALUE'])
+                        # Validate bracket width is in reasonable range (1ms - 50ms)
+                        if not (1000 <= hdr_width <= 50000):
+                            print(f"⚠️  Invalid HDR_width {hdr_width}µs, must be 1000-50000. Defaulting to 7000.")
+                            hdr_width = 7000
+                    except (ValueError, KeyError) as e:
+                        print(f"⚠️  Could not parse HDR_width setting value: {e}. Defaulting to 7000.")
+                        hdr_width = 7000
+
+        use_hdr = hdr_count > 1
+
+        # Log the decision
+        if use_hdr:
+            print(f"✓ HDR mode enabled: {hdr_count} exposures with {hdr_width}µs bracket width")
+        else:
+            print(f"✓ Single exposure mode (HDR={hdr_count})")
+
+        return use_hdr, hdr_count, hdr_width
+
+    except Exception as e:
+        print(f"❌ Error reading HDR settings: {e}. Defaulting to single exposure.")
+        return False, 1, 7000
+
+
 @camera_bp.route('/capture', methods=['POST'])
 def capture_photo():
-    """Trigger a photo capture"""
+    """Trigger a photo capture (automatically uses HDR if configured)"""
     try:
-        # Determine Pi version to find correct TakePhoto.py
+        # Determine Pi version to find correct TakePhoto.py or TakePhoto_HDR.py
         import platform
         from mothbox_paths import MOTHBOX_HOME
         from flask import current_app
         import time
 
         print(f"Photo capture requested. MOTHBOX_HOME: {MOTHBOX_HOME}")
+
+        # Check if HDR mode is enabled
+        use_hdr, hdr_count, hdr_width = _should_use_hdr_mode()
 
         # Check if Pi 4 or Pi 5
         pi_version = None
@@ -110,15 +174,24 @@ def capture_photo():
         else:
             print(f"Detected Pi version: {pi_version}")
 
-        script_path = MOTHBOX_HOME / f"{pi_version}.x" / "TakePhoto.py"
-        print(f"Looking for TakePhoto.py at: {script_path}")
+        # Determine which script to use based on HDR setting
+        script_name = 'TakePhoto_HDR.py' if use_hdr else 'TakePhoto.py'
+        script_path = MOTHBOX_HOME / f"{pi_version}.x" / "scripts" / script_name
+
+        if use_hdr:
+            print(f"📸 HDR mode enabled: {hdr_count} exposures, {hdr_width}µs bracket width")
+        else:
+            print(f"📸 Standard single-exposure mode")
+
+        print(f"Looking for {script_name} at: {script_path}")
 
         if not script_path.exists():
-            error_msg = f'TakePhoto.py not found at {script_path}'
+            error_msg = f'{script_name} not found at {script_path}'
             print(error_msg)
             return jsonify({
                 'success': False,
-                'error': error_msg
+                'error': error_msg,
+                'help': f'Ensure {script_name} exists in the {pi_version}.x/scripts directory'
             }), 500
 
         # Helper function for subprocess execution (used with or without lock)
@@ -146,7 +219,7 @@ def capture_photo():
                 print(f"stderr: {result.stderr}")
 
                 if result.returncode == 0:
-                    # Find the most recent photo
+                    # Find the most recent photo(s)
                     photos = sorted(PHOTOS_DIR.glob('**/*.jpg'), key=lambda p: p.stat().st_mtime, reverse=True)
                     latest_photo = str(photos[0].relative_to(PHOTOS_DIR)) if photos else None
 
@@ -154,11 +227,23 @@ def capture_photo():
                     from routes.system import invalidate_photo_count_cache
                     invalidate_photo_count_cache()
 
-                    return jsonify({
+                    # Build success response with HDR metadata
+                    response_data = {
                         'success': True,
                         'latest_photo': latest_photo,
-                        'output': result.stdout
-                    })
+                        'output': result.stdout,
+                        'hdr_mode': use_hdr,
+                        'script_used': script_name
+                    }
+
+                    if use_hdr:
+                        response_data['hdr_count'] = hdr_count
+                        response_data['hdr_width'] = hdr_width
+                        response_data['message'] = f'HDR capture complete: {hdr_count} exposures with {hdr_width}µs bracket width'
+                    else:
+                        response_data['message'] = 'Single exposure capture complete'
+
+                    return jsonify(response_data)
                 else:
                     return jsonify({
                         'success': False,
