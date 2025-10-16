@@ -24,10 +24,12 @@ export default function Camera() {
     contrast: 1.0,
     saturation: 1.0
   })
+  const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
   const [cameraSettings, setCameraSettings] = useState(null)  // HDR and other camera settings
   const socketRef = useRef(null)
   const metadataIntervalRef = useRef(null)
   const debounceTimerRef = useRef(null)  // Task 5: Debounce timer for control updates
+  const zoomDebounceTimerRef = useRef(null)  // Debounce timer for zoom updates
 
   // Debounced function to emit control updates to backend (Task 5)
   const debouncedEmitControl = (controlName, value) => {
@@ -40,6 +42,21 @@ export default function Camera() {
           [controlName]: value
         })
         console.log(`Emitting control update: ${controlName}=${value}`)
+      }
+    }, 150) // 150ms debounce - balances responsiveness vs network usage
+  }
+
+  // Debounced function to emit zoom updates to backend
+  const debouncedEmitZoom = (zoomLevel) => {
+    if (zoomDebounceTimerRef.current) {
+      clearTimeout(zoomDebounceTimerRef.current)
+    }
+    zoomDebounceTimerRef.current = setTimeout(() => {
+      if (socketRef.current && previewActive) {
+        socketRef.current.emit('set_zoom', {
+          zoom_level: zoomLevel
+        })
+        console.log(`Emitting zoom update: ${zoomLevel}x`)
       }
     }, 150) // 150ms debounce - balances responsiveness vs network usage
   }
@@ -107,6 +124,15 @@ export default function Camera() {
       } else {
         console.error('Control update failed:', data.error)
         toast.error(`Failed to update control: ${data.error}`)
+      }
+    })
+
+    socketRef.current.on('zoom_updated', (data) => {
+      if (data.success) {
+        console.log('Zoom updated successfully:', data.zoom_level)
+      } else {
+        console.error('Zoom update failed:', data.error)
+        toast.error(`Failed to update zoom: ${data.error}`)
       }
     })
 
@@ -356,6 +382,14 @@ export default function Camera() {
     debouncedEmitControl(controlName, value)
   }
 
+  const handleZoomChange = (value) => {
+    // Update local state immediately for responsive UI
+    setZoomLevel(value)
+
+    // Emit to backend (debounced)
+    debouncedEmitZoom(value)
+  }
+
   const handleResetControls = () => {
     const defaults = {
       sharpness: 1.0,
@@ -365,6 +399,7 @@ export default function Camera() {
     }
 
     setLiveControls(defaults)
+    setZoomLevel(1.0)  // Reset zoom to 1x
 
     // Emit all resets to backend
     if (socketRef.current && previewActive) {
@@ -375,7 +410,9 @@ export default function Camera() {
           [controlName]: value
         })
       })
-      toast.success('Controls reset to defaults')
+      // Reset zoom
+      socketRef.current.emit('set_zoom', { zoom_level: 1.0 })
+      toast.success('Controls and zoom reset to defaults')
     }
   }
 
@@ -552,6 +589,28 @@ export default function Camera() {
                       <span>-1</span>
                       <span>1.0</span>
                       <span>+1</span>
+                    </div>
+                  </div>
+
+                  {/* Zoom Slider */}
+                  <div className="pt-2 mt-2 border-t border-white/20">
+                    <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                      <span>🔍 Digital Zoom</span>
+                      <span className="text-green-300 font-mono">{zoomLevel.toFixed(1)}x</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="4"
+                      step="0.1"
+                      value={zoomLevel}
+                      onChange={(e) => handleZoomChange(parseFloat(e.target.value))}
+                      className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-green-500"
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                      <span>1.0x</span>
+                      <span>2.5x</span>
+                      <span>4.0x</span>
                     </div>
                   </div>
                 </div>

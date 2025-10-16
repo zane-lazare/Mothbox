@@ -84,6 +84,12 @@ class CameraStreamer:
         # Important: These values lock down color balance under white LED flash
         self.colour_gains = (2.259, 1.500)  # (red, blue)
 
+        # Digital zoom / ROI controls
+        self.zoom_level = 1.0  # 1.0 = no zoom, 4.0 = 4x zoom
+        self.zoom_center_x = 0.5  # Normalized 0-1, 0.5 = center
+        self.zoom_center_y = 0.5  # Normalized 0-1, 0.5 = center
+        self.sensor_resolution = None  # Will be set after camera initialization
+
         try:
             if WEBUI_SETTINGS_FILE.exists():
                 settings = get_control_values(WEBUI_SETTINGS_FILE)
@@ -154,6 +160,10 @@ class CameraStreamer:
                     print(f"Camera 0 unavailable ({e}), trying camera 1...")
                     self.camera = Picamera2(1)
                     print("Using camera 1")
+
+                # Get sensor resolution for zoom calculations
+                self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
+                print(f"Sensor resolution: {self.sensor_resolution}")
 
                 # Configure for preview - 4:3 aspect ratio for better compatibility
                 preview_config = self.camera.create_preview_configuration(
@@ -542,6 +552,98 @@ class CameraStreamer:
                 print(f"Error updating controls: {e}")
                 return False
         return False
+
+    def calculate_scaler_crop(self):
+        """
+        Calculate ScalerCrop rectangle for current zoom level and center point.
+
+        ScalerCrop uses absolute pixel coordinates relative to the full sensor resolution.
+        Format: (offset_x, offset_y, width, height) in sensor pixels
+
+        Returns:
+            tuple: (x, y, width, height) ScalerCrop coordinates, or None if sensor not initialized
+
+        Example:
+            For 2x zoom centered on sensor:
+            - Sensor: 4056x3040
+            - Cropped size: 2028x1520 (50% of sensor)
+            - Offset: (1014, 760) to center the crop
+            - ScalerCrop: (1014, 760, 2028, 1520)
+        """
+        if not self.sensor_resolution:
+            return None
+
+        sensor_width, sensor_height = self.sensor_resolution
+
+        # Calculate cropped dimensions (inverse of zoom level)
+        # zoom=1.0 -> 100% of sensor, zoom=2.0 -> 50% of sensor, zoom=4.0 -> 25% of sensor
+        crop_width = int(sensor_width / self.zoom_level)
+        crop_height = int(sensor_height / self.zoom_level)
+
+        # Ensure even dimensions (required by some encoders)
+        crop_width = crop_width & ~1  # Clear lowest bit to make even
+        crop_height = crop_height & ~1
+
+        # Calculate offsets based on zoom center point
+        # Center point is normalized (0-1), where 0.5,0.5 = center of sensor
+        offset_x = int((sensor_width - crop_width) * self.zoom_center_x)
+        offset_y = int((sensor_height - crop_height) * self.zoom_center_y)
+
+        # Clamp offsets to valid range
+        offset_x = max(0, min(offset_x, sensor_width - crop_width))
+        offset_y = max(0, min(offset_y, sensor_height - crop_height))
+
+        # Ensure even offsets (required by some encoders)
+        offset_x = offset_x & ~1
+        offset_y = offset_y & ~1
+
+        return (offset_x, offset_y, crop_width, crop_height)
+
+    def set_zoom(self, zoom_level, center_x=None, center_y=None):
+        """
+        Set digital zoom level and optionally reposition zoom center.
+
+        Args:
+            zoom_level (float): Zoom level, 1.0 = no zoom, 4.0 = 4x zoom
+            center_x (float, optional): Normalized horizontal center (0-1), 0.5 = center
+            center_y (float, optional): Normalized vertical center (0-1), 0.5 = center
+
+        Returns:
+            bool: True if successful, False if camera not ready
+
+        Example:
+            # 2x zoom centered
+            set_zoom(2.0)
+
+            # 3x zoom focused on upper-left quadrant
+            set_zoom(3.0, center_x=0.25, center_y=0.25)
+        """
+        if not self.camera or not self.streaming:
+            return False
+
+        # Update zoom state
+        self.zoom_level = max(1.0, min(zoom_level, 10.0))  # Clamp between 1x and 10x
+
+        if center_x is not None:
+            self.zoom_center_x = max(0.0, min(center_x, 1.0))  # Clamp 0-1
+        if center_y is not None:
+            self.zoom_center_y = max(0.0, min(center_y, 1.0))  # Clamp 0-1
+
+        # Calculate ScalerCrop coordinates
+        scaler_crop = self.calculate_scaler_crop()
+        if not scaler_crop:
+            print("⚠ Cannot calculate ScalerCrop - sensor resolution not available")
+            return False
+
+        # Apply ScalerCrop control
+        try:
+            self.camera.set_controls({"ScalerCrop": scaler_crop})
+            print(f"✓ Zoom applied: {self.zoom_level:.2f}x at ({self.zoom_center_x:.2f}, {self.zoom_center_y:.2f})")
+            print(f"  ScalerCrop: {scaler_crop}")
+            return True
+        except Exception as e:
+            print(f"⚠ Error setting zoom: {e}")
+            return False
 
     def cleanup(self):
         """

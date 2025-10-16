@@ -333,6 +333,56 @@ def handle_update_preview_control(data):
             'error': str(e)
         })
 
+@socketio.on('set_zoom')
+def handle_set_zoom(data):
+    """
+    Set digital zoom level and optionally reposition zoom center (ROI feature)
+
+    Args:
+        data: dict with zoom parameters:
+            - zoom_level (float): Zoom level, 1.0 = no zoom, 4.0 = 4x zoom
+            - center_x (float, optional): Normalized horizontal center (0-1), 0.5 = center
+            - center_y (float, optional): Normalized vertical center (0-1), 0.5 = center
+
+    Example:
+        {'zoom_level': 2.0}  # 2x zoom, centered
+        {'zoom_level': 3.0, 'center_x': 0.25, 'center_y': 0.25}  # 3x zoom, upper-left
+    """
+    try:
+        if not isinstance(data, dict):
+            emit('zoom_updated', {
+                'success': False,
+                'error': 'Invalid data format - expected dict'
+            })
+            return
+
+        zoom_level = data.get('zoom_level', 1.0)
+        center_x = data.get('center_x')
+        center_y = data.get('center_y')
+
+        success = camera_streamer.set_zoom(zoom_level, center_x, center_y)
+
+        if success:
+            emit('zoom_updated', {
+                'success': True,
+                'zoom_level': camera_streamer.zoom_level,
+                'center_x': camera_streamer.zoom_center_x,
+                'center_y': camera_streamer.zoom_center_y,
+                'message': f'Zoom set to {camera_streamer.zoom_level:.2f}x'
+            })
+        else:
+            emit('zoom_updated', {
+                'success': False,
+                'error': 'Camera not streaming or zoom failed'
+            })
+
+    except Exception as e:
+        print(f'Error setting zoom: {e}')
+        emit('zoom_updated', {
+            'success': False,
+            'error': str(e)
+        })
+
 # Serve React app
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
