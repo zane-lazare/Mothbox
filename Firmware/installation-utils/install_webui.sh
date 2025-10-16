@@ -185,6 +185,53 @@ else
 fi
 echo ""
 
+# Create webui_settings.txt if it doesn't exist and set proper permissions
+echo -e "${BLUE}Setting up WebUI configuration files...${NC}"
+# Detect installation type to find config directory
+if [ -f "/opt/mothbox/.installation_type" ]; then
+    CONFIG_DIR="/etc/mothbox"
+elif [ -d "$MOTHBOX_HOME" ]; then
+    CONFIG_DIR="$MOTHBOX_HOME"
+else
+    CONFIG_DIR="/etc/mothbox"
+fi
+
+WEBUI_SETTINGS_FILE="$CONFIG_DIR/webui_settings.txt"
+if [ ! -f "$WEBUI_SETTINGS_FILE" ]; then
+    echo "Creating webui_settings.txt with default values..."
+    sudo tee "$WEBUI_SETTINGS_FILE" > /dev/null <<EOF
+# Mothbox WebUI Settings
+# Live preview stream settings (Task 5: Real-time control sliders)
+sharpness=1.0
+brightness=0.0
+contrast=1.0
+saturation=1.0
+af_mode=2
+af_speed=0
+af_range=0
+awb_enable=true
+awb_mode=0
+EOF
+    echo -e "${GREEN}✓ Created webui_settings.txt with defaults${NC}"
+fi
+
+# Set ownership and permissions for WebUI to write to config files
+# Use mode 664 (rw-rw-r--) so both user and group can write
+echo "Setting config file permissions..."
+sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$WEBUI_SETTINGS_FILE"
+sudo chmod 664 "$WEBUI_SETTINGS_FILE"
+
+# Also fix permissions on other config files that WebUI needs to modify
+for config_file in "$CONFIG_DIR/controls.txt" "$CONFIG_DIR/camera_settings.csv" "$CONFIG_DIR/schedule_settings.csv"; do
+    if [ -f "$config_file" ]; then
+        sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$config_file"
+        sudo chmod 664 "$config_file"
+    fi
+done
+
+echo -e "${GREEN}✓ Config file permissions set (owner: $MOTHBOX_USER, mode: 664)${NC}"
+echo ""
+
 # Install systemd service
 echo -e "${BLUE}Installing systemd service...${NC}"
 SERVICE_TEMPLATE="$SCRIPT_DIR/mothbox-webui.service.template"
