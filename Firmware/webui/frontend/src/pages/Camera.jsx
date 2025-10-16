@@ -391,7 +391,7 @@ export default function Camera() {
       </div>
 
       {/* Two-Column Layout: Camera Stream (Left) + Metadata & Controls (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[2.7fr_1fr] gap-6">
 
         {/* LEFT COLUMN: Camera Stream */}
         <div className="space-y-6">
