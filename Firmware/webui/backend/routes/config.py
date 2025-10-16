@@ -244,7 +244,12 @@ def get_webui_settings():
 
             # White balance controls (Phase 2.1)
             'awb_enable': True,
-            'awb_mode': 0  # Auto
+            'awb_mode': 0,  # Auto
+
+            # Colour gains (Phase 2.1 - fix for blue/white saturation)
+            # These values from TakePhoto.py calibration lock color balance under LED flash
+            'colour_gains_red': 2.259,
+            'colour_gains_blue': 1.500
         }
 
         # Load from file if it exists
@@ -259,7 +264,8 @@ def get_webui_settings():
                     elif key == 'awb_enable':
                         # Boolean value
                         defaults[key] = settings[key].lower() == 'true'
-                    elif key in ['sharpness', 'brightness', 'contrast', 'saturation']:
+                    elif key in ['sharpness', 'brightness', 'contrast', 'saturation',
+                                'colour_gains_red', 'colour_gains_blue']:
                         # Float values
                         try:
                             defaults[key] = float(settings[key])
@@ -326,6 +332,13 @@ def update_webui_settings():
         except (ValueError, TypeError) as e:
             return jsonify({'error': f'Invalid white balance mode type: {e}'}), 400
 
+        # Validate and convert types - Colour gains (Phase 2.1 - blue/white saturation fix)
+        try:
+            colour_gains_red = float(new_settings.get('colour_gains_red', existing.get('colour_gains_red', 2.259)))
+            colour_gains_blue = float(new_settings.get('colour_gains_blue', existing.get('colour_gains_blue', 1.500)))
+        except (ValueError, TypeError) as e:
+            return jsonify({'error': f'Invalid colour gains type: {e}'}), 400
+
         # Validate ranges - Stream/encoding
         if not (320 <= preview_width <= 1920):
             return jsonify({'error': 'Width must be between 320 and 1920'}), 400
@@ -362,6 +375,12 @@ def update_webui_settings():
         if not (0 <= awb_mode <= 7):
             return jsonify({'error': 'AwbMode must be between 0 and 7'}), 400
 
+        # Validate ranges - Colour gains (Phase 2.1)
+        if not (0.0 <= colour_gains_red <= 8.0):
+            return jsonify({'error': 'Red colour gain must be between 0.0 and 8.0'}), 400
+        if not (0.0 <= colour_gains_blue <= 8.0):
+            return jsonify({'error': 'Blue colour gain must be between 0.0 and 8.0'}), 400
+
         # Create backup before modification
         backup_path = _create_backup(WEBUI_SETTINGS_FILE)
 
@@ -388,6 +407,10 @@ def update_webui_settings():
             # White balance controls
             f.write(f"awb_enable={'true' if awb_enable else 'false'}\n")
             f.write(f"awb_mode={awb_mode}\n")
+
+            # Colour gains (Phase 2.1 - fix for blue/white saturation)
+            f.write(f"colour_gains_red={colour_gains_red}\n")
+            f.write(f"colour_gains_blue={colour_gains_blue}\n")
 
         return jsonify({'success': True})
     except Exception as e:

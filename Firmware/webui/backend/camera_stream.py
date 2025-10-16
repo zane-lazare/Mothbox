@@ -80,6 +80,9 @@ class CameraStreamer:
         # White balance controls (Phase 2.1)
         self.awb_enable = True
         self.awb_mode = 0  # Auto
+        # ColourGains: Fixed gains for LED illumination (from TakePhoto.py calibration)
+        # Important: These values lock down color balance under white LED flash
+        self.colour_gains = (2.259, 1.500)  # (red, blue)
 
         try:
             if WEBUI_SETTINGS_FILE.exists():
@@ -122,12 +125,17 @@ class CameraStreamer:
                 if 'awb_mode' in settings:
                     self.awb_mode = int(settings['awb_mode'])
 
+                # Colour gains (load red/blue separately if present)
+                if 'colour_gains_red' in settings and 'colour_gains_blue' in settings:
+                    self.colour_gains = (float(settings['colour_gains_red']),
+                                        float(settings['colour_gains_blue']))
+
                 print(f"Stream settings loaded: {self.preview_width}x{self.preview_height}, "
                       f"FPS: {1/self.frame_delay:.1f}, Quality: {self.jpeg_quality}, Mode: {self.stream_mode}")
                 print(f"  Image quality: Sharp={self.sharpness}, Bright={self.brightness}, "
                       f"Contrast={self.contrast}, Sat={self.saturation}")
                 print(f"  Focus: Mode={self.af_mode}, Speed={self.af_speed}, Range={self.af_range}")
-                print(f"  White balance: AWB={self.awb_enable}, Mode={self.awb_mode}")
+                print(f"  White balance: AWB={self.awb_enable}, Mode={self.awb_mode}, ColourGains={self.colour_gains}")
         except Exception as e:
             print(f"Error loading stream settings, using defaults: {e}")
 
@@ -173,6 +181,9 @@ class CameraStreamer:
 
                         # White balance controls
                         "AwbEnable": self.awb_enable,
+                        # ColourGains: Critical for locking color balance under LED illumination
+                        # Note: Must be set even with AwbEnable to lock white balance (TakePhoto.py:519)
+                        "ColourGains": self.colour_gains,
                     }
 
                     # Only set AwbMode if AWB is disabled (manual mode)
@@ -181,7 +192,8 @@ class CameraStreamer:
 
                     self.camera.set_controls(controls_dict)
                     print(f"Camera controls applied: AF Mode {self.af_mode}, "
-                          f"Sharpness {self.sharpness}, AWB {'On' if self.awb_enable else 'Off'}")
+                          f"Sharpness {self.sharpness}, AWB {'On' if self.awb_enable else 'Off'}, "
+                          f"ColourGains {self.colour_gains}")
                 except Exception as controls_error:
                     print(f"Camera controls configuration: {controls_error}")
 
