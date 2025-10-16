@@ -412,7 +412,7 @@ export default function Camera() {
           </button>
         </div>
 
-        <div className="bg-gray-900 rounded-lg overflow-hidden" style={{ minHeight: '400px' }}>
+        <div className="bg-gray-900 rounded-lg overflow-hidden relative" style={{ minHeight: '400px' }}>
           {currentFrame ? (
             <img
               src={currentFrame}
@@ -424,6 +424,35 @@ export default function Camera() {
               <p className="text-gray-400">
                 {previewActive ? 'Loading preview...' : 'Click "Start Preview" to begin'}
               </p>
+            </div>
+          )}
+
+          {/* Metadata Overlay */}
+          {previewActive && metadata && !metadata.error && (
+            <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white shadow-lg max-w-xs">
+              <h4 className="text-sm font-semibold mb-2 text-gray-200">📊 Live Metadata</h4>
+              <div className="space-y-1.5 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-300">Exposure:</span>
+                  <span className="font-semibold text-blue-300">{metadata.exposure_time} µs</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-300">Gain (ISO):</span>
+                  <span className="font-semibold text-blue-300">{metadata.analogue_gain}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-300">Focus:</span>
+                  <span className="font-semibold text-blue-300">{metadata.lens_position} dpt</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-300">AF State:</span>
+                  <span className="font-semibold text-blue-300">{metadata.af_state}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-300">Color Temp:</span>
+                  <span className="font-semibold text-blue-300">{metadata.colour_temperature}K</span>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -461,35 +490,6 @@ export default function Camera() {
 
         {/* RIGHT COLUMN: Metadata & Controls */}
         <div className="space-y-2">
-
-          {/* Live Metadata Display (Phase 2.2) */}
-          {previewActive && metadata && !metadata.error && (
-            <div className="bg-white rounded-lg shadow p-3">
-              <h4 className="text-lg font-semibold text-gray-900 mb-4">📊 Live Camera Metadata</h4>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <p className="text-blue-600 font-medium mb-1">Exposure</p>
-                  <p className="text-blue-900 text-lg font-semibold">{metadata.exposure_time} µs</p>
-                </div>
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <p className="text-blue-600 font-medium mb-1">Gain (ISO)</p>
-                  <p className="text-blue-900 text-lg font-semibold">{metadata.analogue_gain}</p>
-                </div>
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <p className="text-blue-600 font-medium mb-1">Focus</p>
-                  <p className="text-blue-900 text-lg font-semibold">{metadata.lens_position} dpt</p>
-                </div>
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <p className="text-blue-600 font-medium mb-1">AF State</p>
-                  <p className="text-blue-900 text-lg font-semibold">{metadata.af_state}</p>
-                </div>
-                <div className="p-3 bg-blue-50 rounded-lg col-span-2">
-                  <p className="text-blue-600 font-medium mb-1">Color Temp</p>
-                  <p className="text-blue-900 text-lg font-semibold">{metadata.colour_temperature}K</p>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Live Controls (Task 5: Real-time Control Sliders) */}
           {previewActive && (
