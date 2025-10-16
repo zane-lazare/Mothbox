@@ -928,11 +928,13 @@ def test_capture():
                 except Exception:
                     picam2 = Picamera2(1)
 
-                # Configure for full-resolution capture
-                # Use maximum resolution for test captures
+                # Configure for high-resolution test capture
+                # Use 4K instead of 64MP to fit within Pi 5's 64MB CMA constraint (~24MB vs ~180MB)
+                # Production 64MP captures still work via /api/camera/capture → TakePhoto.py (standalone process)
+                # 4K provides excellent quality for previewing settings in WebUI
                 # Disable raw/lores buffers to reduce CMA usage (matches TakePhoto.py pattern)
                 capture_config = picam2.create_still_configuration(
-                    main={"size": (9152, 6944), "format": "BGR888"},  # Full 64MP, BGR888 = true RGB order
+                    main={"size": (3840, 2160), "format": "BGR888"},  # 4K UHD (8.3MP), BGR888 = true RGB order
                     raw=None,
                     lores=None
                 )
