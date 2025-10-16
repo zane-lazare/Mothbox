@@ -380,7 +380,7 @@ export default function Camera() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       <h2 className="text-2xl font-bold text-gray-900">Camera Control</h2>
 
       {/* Connection Status */}
@@ -391,12 +391,12 @@ export default function Camera() {
       </div>
 
       {/* Two-Column Layout: Camera Stream (Left) + Metadata & Controls (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-[2.7fr_1fr] gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[2.7fr_1fr] gap-2">
 
         {/* LEFT COLUMN: Camera Stream */}
-        <div className="space-y-6">
+        <div className="space-y-2">
           {/* Camera Preview */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-lg shadow p-3">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Live Preview</h3>
           <button
@@ -460,11 +460,11 @@ export default function Camera() {
         </div>
 
         {/* RIGHT COLUMN: Metadata & Controls */}
-        <div className="space-y-6">
+        <div className="space-y-2">
 
           {/* Live Metadata Display (Phase 2.2) */}
           {previewActive && metadata && !metadata.error && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-lg shadow p-3">
               <h4 className="text-lg font-semibold text-gray-900 mb-4">📊 Live Camera Metadata</h4>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="p-3 bg-blue-50 rounded-lg">
@@ -493,7 +493,7 @@ export default function Camera() {
 
           {/* Live Controls (Task 5: Real-time Control Sliders) */}
           {previewActive && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-lg shadow p-3">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold">🎨 Live Controls</h3>
                 <button
@@ -608,7 +608,7 @@ export default function Camera() {
           )}
 
           {/* Quick Actions (Phase 2.2) */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-lg shadow p-3">
             <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
             <div className="grid grid-cols-1 gap-3">
               <button
@@ -687,7 +687,7 @@ export default function Camera() {
           </div>
 
           {/* Settings Transfer (Phase 2.2) */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-lg shadow p-3">
             <h3 className="text-lg font-semibold mb-4">Settings Transfer</h3>
             <p className="text-sm text-gray-600 mb-4">
               Mothbox has two separate camera configurations: <strong>Preview</strong> (stream settings)
@@ -733,7 +733,7 @@ export default function Camera() {
           </div>
 
           {/* Test Capture (Phase 4.5) */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-lg shadow p-3">
             <h3 className="text-lg font-semibold mb-4">🧪 Test Capture</h3>
             <p className="text-sm text-gray-600 mb-4">
               Capture a full-resolution test photo using your current <strong>preview settings</strong>.
@@ -787,7 +787,7 @@ export default function Camera() {
           </div>
 
           {/* Capture Controls */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-lg shadow p-3">
             <h3 className="text-lg font-semibold mb-4">Capture Control</h3>
             <button
               onClick={handleCapture}
