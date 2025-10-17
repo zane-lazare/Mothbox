@@ -313,6 +313,14 @@ class CameraStreamer:
             return self._stream_software_encoding()
 
         try:
+            # Ensure sensor resolution is captured (defensive programming for zoom feature)
+            if not self.sensor_resolution and self.camera:
+                try:
+                    self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
+                    print(f"📷 Captured sensor resolution: {self.sensor_resolution}")
+                except Exception as e:
+                    print(f"⚠ Could not capture sensor resolution: {e}")
+
             # Create hardware MJPEG encoder with quality settings
             encoder = MJPEGEncoder(q=self.jpeg_quality)
 
@@ -399,6 +407,15 @@ class CameraStreamer:
         - PIL: ~60-80% CPU @ 10fps on Pi 4 (slowest, but most compatible)
         """
         try:
+            # Ensure sensor resolution is captured (defensive programming for zoom feature)
+            # This handles the case where hardware MJPEG fails and falls back to software encoding
+            if not self.sensor_resolution and self.camera:
+                try:
+                    self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
+                    print(f"📷 Captured sensor resolution: {self.sensor_resolution}")
+                except Exception as e:
+                    print(f"⚠ Could not capture sensor resolution: {e}")
+
             self.camera.start()
             print(f"✓ Software encoding streaming started (mode: {'simplejpeg' if SIMPLEJPEG_AVAILABLE else 'PIL'})")
 
