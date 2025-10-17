@@ -322,7 +322,7 @@ class CameraStreamer:
                     print(f"⚠ Could not capture sensor resolution: {e}")
 
             # Create hardware MJPEG encoder with quality settings
-            encoder = MJPEGEncoder(q=self.jpeg_quality)
+            encoder = MJPEGEncoder(qp=self.jpeg_quality)
 
             # Create custom output handler for WebSocket streaming
             class WebSocketOutput(FileOutput):
