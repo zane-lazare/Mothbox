@@ -322,9 +322,11 @@ class CameraStreamer:
                     print(f"⚠ Could not capture sensor resolution: {e}")
 
             # Create hardware MJPEG encoder with quality settings
-            # Convert JPEG quality (0-100, higher=better) to qp (0-50, lower=better)
-            # Formula: qp = 50 - (quality * 0.4) maps quality 85 → qp 16 (good quality)
-            qp_value = max(1, min(50, int(50 - (self.jpeg_quality * 0.4))))
+            # Convert JPEG quality (0-100, higher=better) to qp (1-25, lower=better)
+            # Hardware MJPEG is sensitive - qp > 20 produces poor quality
+            # Formula: qp = 25 - (quality * 0.24) maps quality to good qp range
+            # Examples: quality 100 → qp 1, quality 85 → qp 5, quality 50 → qp 13
+            qp_value = max(1, min(25, int(25 - (self.jpeg_quality * 0.24))))
             encoder = MJPEGEncoder(qp=qp_value)
             print(f"Hardware MJPEG: quality={self.jpeg_quality}% → qp={qp_value}")
 
