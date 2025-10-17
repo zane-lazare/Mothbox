@@ -25,6 +25,7 @@ export default function Camera() {
     saturation: 1.0
   })
   const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
+  const [zoomCenter, setZoomCenter] = useState({ x: 0.5, y: 0.5 })  // Normalized zoom center (0.5, 0.5 = center)
   const [cameraSettings, setCameraSettings] = useState(null)  // HDR and other camera settings
   const socketRef = useRef(null)
   const metadataIntervalRef = useRef(null)
@@ -47,16 +48,18 @@ export default function Camera() {
   }
 
   // Debounced function to emit zoom updates to backend
-  const debouncedEmitZoom = (zoomLevel) => {
+  const debouncedEmitZoom = (zoomLevel, centerX, centerY) => {
     if (zoomDebounceTimerRef.current) {
       clearTimeout(zoomDebounceTimerRef.current)
     }
     zoomDebounceTimerRef.current = setTimeout(() => {
       if (socketRef.current && previewActive) {
         socketRef.current.emit('set_zoom', {
-          zoom_level: zoomLevel
+          zoom_level: zoomLevel,
+          center_x: centerX,
+          center_y: centerY
         })
-        console.log(`Emitting zoom update: ${zoomLevel}x`)
+        console.log(`Emitting zoom update: ${zoomLevel}x at (${centerX.toFixed(2)}, ${centerY.toFixed(2)})`)
       }
     }, 150) // 150ms debounce - balances responsiveness vs network usage
   }
@@ -386,8 +389,35 @@ export default function Camera() {
     // Update local state immediately for responsive UI
     setZoomLevel(value)
 
-    // Emit to backend (debounced)
-    debouncedEmitZoom(value)
+    // Emit to backend (debounced) with current zoom center
+    debouncedEmitZoom(value, zoomCenter.x, zoomCenter.y)
+  }
+
+  const handlePreviewClick = (e) => {
+    // Only process clicks when zoomed (zoom > 1.0)
+    if (zoomLevel <= 1.0 || !previewActive) return
+
+    // Get click position relative to image element
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    // Convert to normalized coordinates (0-1)
+    const normalizedX = Math.max(0, Math.min(x / rect.width, 1))
+    const normalizedY = Math.max(0, Math.min(y / rect.height, 1))
+
+    // Update zoom center state
+    setZoomCenter({ x: normalizedX, y: normalizedY })
+
+    // Emit to backend immediately (no debounce for clicks - user expects instant response)
+    if (socketRef.current) {
+      socketRef.current.emit('set_zoom', {
+        zoom_level: zoomLevel,
+        center_x: normalizedX,
+        center_y: normalizedY
+      })
+      console.log(`Click-to-zoom: ${zoomLevel}x at (${normalizedX.toFixed(2)}, ${normalizedY.toFixed(2)})`)
+    }
   }
 
   const handleResetControls = () => {
@@ -400,6 +430,7 @@ export default function Camera() {
 
     setLiveControls(defaults)
     setZoomLevel(1.0)  // Reset zoom to 1x
+    setZoomCenter({ x: 0.5, y: 0.5 })  // Reset zoom center to center
 
     // Emit all resets to backend
     if (socketRef.current && previewActive) {
@@ -410,8 +441,12 @@ export default function Camera() {
           [controlName]: value
         })
       })
-      // Reset zoom
-      socketRef.current.emit('set_zoom', { zoom_level: 1.0 })
+      // Reset zoom with centered position
+      socketRef.current.emit('set_zoom', {
+        zoom_level: 1.0,
+        center_x: 0.5,
+        center_y: 0.5
+      })
       toast.success('Controls and zoom reset to defaults')
     }
   }
@@ -448,11 +483,36 @@ export default function Camera() {
 
           <div className="bg-gray-900 rounded-lg overflow-hidden relative" style={{ minHeight: '600px' }}>
             {currentFrame ? (
-              <img
-                src={currentFrame}
-                alt="Camera preview"
-                className="w-full h-auto"
-              />
+              <>
+                <img
+                  src={currentFrame}
+                  alt="Camera preview"
+                  className={`w-full h-auto ${zoomLevel > 1.0 ? 'cursor-crosshair' : ''}`}
+                  onClick={handlePreviewClick}
+                />
+
+                {/* Zoom Center Indicator - Only show when zoomed */}
+                {zoomLevel > 1.0 && (
+                  <div
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: `${zoomCenter.x * 100}%`,
+                      top: `${zoomCenter.y * 100}%`,
+                      transform: 'translate(-50%, -50%)'
+                    }}
+                  >
+                    {/* Crosshair */}
+                    <div className="relative">
+                      {/* Horizontal line */}
+                      <div className="absolute w-8 h-0.5 bg-green-400 -left-4 top-1/2 -translate-y-1/2"></div>
+                      {/* Vertical line */}
+                      <div className="absolute h-8 w-0.5 bg-green-400 -top-4 left-1/2 -translate-x-1/2"></div>
+                      {/* Center dot */}
+                      <div className="w-2 h-2 bg-green-400 rounded-full border-2 border-gray-900"></div>
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="h-96 flex items-center justify-center">
                 <p className="text-gray-400">
@@ -612,6 +672,11 @@ export default function Camera() {
                       <span>2.5x</span>
                       <span>4.0x</span>
                     </div>
+                    {zoomLevel > 1.0 && (
+                      <div className="mt-1 text-[10px] text-green-300">
+                        🎯 Click on preview to reposition zoom
+                      </div>
+                    )}
                   </div>
                 </div>
 
