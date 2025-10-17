@@ -333,7 +333,7 @@ class CameraStreamer:
                     self.last_emit = 0
                     super().__init__()
 
-                def outputframe(self, frame, keyframe=True, timestamp=None):
+                def outputframe(self, frame, keyframe=True, timestamp=None, packet=None, audio=None):
                     """Called by encoder for each MJPEG frame"""
                     current_time = time.time()
 
