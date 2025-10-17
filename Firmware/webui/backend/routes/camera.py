@@ -457,6 +457,13 @@ def trigger_autofocus():
                 picam2.stop()
                 picam2.close()
 
+                # Lock to manual focus mode to preserve AF position (Phase 2.2: AF preservation)
+                # This prevents continuous AF from overriding the locked focus when stream restarts
+                if success:
+                    print("Locking to manual focus mode to preserve autofocus position...")
+                    camera_streamer.set_manual_focus_mode(True)
+                    print(f"✓ Manual focus locked at {lens_position:.2f} diopters")
+
                 return jsonify({
                     'success': success,
                     'af_state': af_state,

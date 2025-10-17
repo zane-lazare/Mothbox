@@ -90,6 +90,9 @@ class CameraStreamer:
         self.zoom_center_y = 0.5  # Normalized 0-1, 0.5 = center
         self.sensor_resolution = None  # Will be set after camera initialization
 
+        # Autofocus override (set by autofocus button to preserve manual focus)
+        self._af_mode_override = None  # None = use configured mode, 0 = force manual
+
         try:
             if WEBUI_SETTINGS_FILE.exists():
                 settings = get_control_values(WEBUI_SETTINGS_FILE)
@@ -176,9 +179,12 @@ class CameraStreamer:
 
                 # Apply camera controls (Phase 2.1: expanded from basic AF to full controls)
                 try:
+                    # Use AF mode override if set (e.g., after autofocus button locks focus)
+                    af_mode_to_use = self._af_mode_override if self._af_mode_override is not None else self.af_mode
+
                     controls_dict = {
                         # Focus controls
-                        "AfMode": self.af_mode,
+                        "AfMode": af_mode_to_use,
                         "AfSpeed": self.af_speed,
                         "AfRange": self.af_range,
                         "AfMetering": 0,  # Auto metering
@@ -201,7 +207,7 @@ class CameraStreamer:
                         controls_dict["AwbMode"] = self.awb_mode
 
                     self.camera.set_controls(controls_dict)
-                    print(f"Camera controls applied: AF Mode {self.af_mode}, "
+                    print(f"Camera controls applied: AF Mode {af_mode_to_use}, "
                           f"Sharpness {self.sharpness}, AWB {'On' if self.awb_enable else 'Off'}, "
                           f"ColourGains {self.colour_gains}")
                 except Exception as controls_error:
@@ -667,6 +673,50 @@ class CameraStreamer:
         except Exception as e:
             print(f"⚠ Error setting zoom: {e}")
             return False
+
+    def set_manual_focus_mode(self, enabled=True):
+        """
+        Enable or disable manual focus mode override (Phase 2.2: AF preservation)
+
+        This method sets an AF mode override that persists across camera restarts.
+        Used by the autofocus button to lock focus after autofocus completes.
+
+        Args:
+            enabled (bool): True to force manual focus (AfMode 0), False to use configured mode
+
+        Returns:
+            bool: True if override was set successfully
+
+        Example:
+            # After autofocus succeeds, preserve manual focus
+            camera_streamer.set_manual_focus_mode(True)
+
+            # Reset to configured AF mode from settings
+            camera_streamer.set_manual_focus_mode(False)
+
+        Note:
+            The override takes effect on the next camera initialization (start_streaming).
+            If camera is already streaming, the mode change applies immediately.
+        """
+        if enabled:
+            self._af_mode_override = 0  # Manual focus (AfMode 0)
+            print("✓ Manual focus mode override enabled (AfMode 0)")
+        else:
+            self._af_mode_override = None  # Use configured mode from settings
+            print("✓ AF mode override cleared - using configured mode")
+
+        # If camera is active, apply the change immediately
+        if self.camera and self.streaming:
+            try:
+                af_mode_to_use = self._af_mode_override if self._af_mode_override is not None else self.af_mode
+                self.camera.set_controls({"AfMode": af_mode_to_use})
+                print(f"✓ Applied AF mode change immediately: AfMode {af_mode_to_use}")
+                return True
+            except Exception as e:
+                print(f"⚠ Error applying AF mode change: {e}")
+                return False
+
+        return True
 
     def cleanup(self):
         """
