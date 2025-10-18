@@ -373,10 +373,16 @@ export default function Camera() {
     }
   }
 
+  // Helper: Convert PascalCase control names to camelCase for state keys
+  // e.g., 'AeMeteringMode' -> 'aeMeteringMode', 'Sharpness' -> 'sharpness'
+  const pascalToCamelCase = (str) => {
+    return str.charAt(0).toLowerCase() + str.slice(1)
+  }
+
   // Task 5: Real-time control slider handlers
   const handleControlChange = (controlName, value) => {
     // Update local state immediately for responsive UI
-    const key = controlName.toLowerCase()
+    const key = pascalToCamelCase(controlName)
     setLiveControls(prev => ({
       ...prev,
       [key]: value
