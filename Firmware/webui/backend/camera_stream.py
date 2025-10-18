@@ -15,6 +15,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import mothbox_paths
 from mothbox_paths import get_control_values
 
+# Import ISP tuning loader
+try:
+    from tuning_loader import get_tuning_path, apply_isp_controls
+    ISP_TUNING_AVAILABLE = True
+except ImportError:
+    ISP_TUNING_AVAILABLE = False
+    print("Warning: ISP tuning loader not available")
+
 try:
     from picamera2 import Picamera2
     from picamera2.encoders import MJPEGEncoder
@@ -103,6 +111,10 @@ class CameraStreamer:
         # Autofocus override (set by autofocus button to preserve manual focus)
         self._af_mode_override = None  # None = use configured mode, 0 = force manual
 
+        # ISP feature toggles (Phase: ISP Tuning)
+        self.lens_shading_enable = True
+        self.defect_correction_enable = True
+
         try:
             if mothbox_paths.WEBUI_SETTINGS_FILE.exists():
                 settings = get_control_values(mothbox_paths.WEBUI_SETTINGS_FILE)
@@ -163,12 +175,19 @@ class CameraStreamer:
                     self.colour_gains = (float(settings['colour_gains_red']),
                                         float(settings['colour_gains_blue']))
 
+                # ISP settings (Phase: ISP Tuning)
+                if 'lens_shading_enable' in settings:
+                    self.lens_shading_enable = settings['lens_shading_enable'].lower() == 'true'
+                if 'defect_correction_enable' in settings:
+                    self.defect_correction_enable = settings['defect_correction_enable'].lower() == 'true'
+
                 print(f"Stream settings loaded: {self.stream_width}x{self.stream_height}, "
                       f"FPS: {1/self.frame_delay:.1f}, Quality: {self.jpeg_quality}, Mode: {self.stream_mode}")
                 print(f"  Image quality: Sharp={self.sharpness}, Bright={self.brightness}, "
                       f"Contrast={self.contrast}, Sat={self.saturation}")
                 print(f"  Focus: Mode={self.af_mode}, Speed={self.af_speed}, Range={self.af_range}")
                 print(f"  White balance: AWB={self.awb_enable}, Mode={self.awb_mode}, ColourGains={self.colour_gains}")
+                print(f"  ISP: LensShading={self.lens_shading_enable}, DefectCorrection={self.defect_correction_enable}")
         except Exception as e:
             print(f"Error loading stream settings, using defaults: {e}")
 
@@ -179,13 +198,30 @@ class CameraStreamer:
 
         try:
             if self.camera is None:
+                # Load ISP tuning file if available (Phase: ISP Tuning)
+                tuning_file = None
+                if ISP_TUNING_AVAILABLE:
+                    try:
+                        tuning_path = get_tuning_path()
+                        if tuning_path:
+                            tuning_file = Picamera2.load_tuning_file(str(tuning_path))
+                            print(f"Loaded ISP tuning file: {tuning_path}")
+                    except Exception as tuning_error:
+                        print(f"Warning: Could not load tuning file: {tuning_error}")
+
                 # Try camera 0 first, fallback to camera 1
                 try:
-                    self.camera = Picamera2(0)
+                    if tuning_file:
+                        self.camera = Picamera2(0, tuning=tuning_file)
+                    else:
+                        self.camera = Picamera2(0)
                     print("Using camera 0")
                 except Exception as e:
                     print(f"Camera 0 unavailable ({e}), trying camera 1...")
-                    self.camera = Picamera2(1)
+                    if tuning_file:
+                        self.camera = Picamera2(1, tuning=tuning_file)
+                    else:
+                        self.camera = Picamera2(1)
                     print("Using camera 1")
 
                 # Get sensor resolution for zoom calculations
@@ -208,6 +244,16 @@ class CameraStreamer:
                 # Apply camera controls
                 # CRITICAL: Must be called after configure() as configure() resets controls to defaults
                 applied_controls = self._apply_camera_controls()
+
+                # Apply ISP controls (Phase: ISP Tuning)
+                # Must be done after camera.start() as ISP controls require running camera
+                if ISP_TUNING_AVAILABLE:
+                    try:
+                        apply_isp_controls(self.camera,
+                                         lens_shading=self.lens_shading_enable,
+                                         defect_correction=self.defect_correction_enable)
+                    except Exception as isp_error:
+                        print(f"Warning: Could not apply ISP controls: {isp_error}")
 
                 # Log applied controls for debugging
                 print(f"✓ Camera controls applied: AF Mode {applied_controls['AfMode']}, "

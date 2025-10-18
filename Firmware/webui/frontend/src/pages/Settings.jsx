@@ -1168,6 +1168,50 @@ export default function Settings() {
               )}
             </div>
 
+            {/* ISP Features (Phase: ISP Tuning) */}
+            <div className="pt-6 mt-6 border-t border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4">🔬 ISP Features</h4>
+              <p className="text-sm text-gray-600 mb-4">
+                Image Signal Processor corrections for improved image quality
+              </p>
+
+              {/* Lens Shading Correction */}
+              <div className="mb-6">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={webuiForm.lens_shading_enable !== undefined ? webuiForm.lens_shading_enable : true}
+                    onChange={(e) => setWebuiForm({...webuiForm, lens_shading_enable: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">
+                    Lens Shading Correction
+                  </span>
+                </label>
+                <p className="mt-2 ml-6 text-xs text-gray-500">
+                  Corrects vignetting (darker corners). Recommended: enabled for uniform brightness.
+                </p>
+              </div>
+
+              {/* Defect Correction */}
+              <div className="mb-6">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={webuiForm.defect_correction_enable !== undefined ? webuiForm.defect_correction_enable : true}
+                    onChange={(e) => setWebuiForm({...webuiForm, defect_correction_enable: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">
+                    Defect Pixel Correction
+                  </span>
+                </label>
+                <p className="mt-2 ml-6 text-xs text-gray-500">
+                  Fixes stuck or dead pixels. Recommended: enabled to remove sensor defects.
+                </p>
+              </div>
+            </div>
+
             {/* Stream Mode Selection */}
             <div className="pt-6 mt-6 border-t border-gray-200">
               <h4 className="text-md font-semibold text-gray-800 mb-4">⚙️ Encoding</h4>
