@@ -24,7 +24,9 @@ export default function Camera() {
     contrast: 1.0,
     saturation: 1.0,
     aeMeteringMode: 0,
-    aeEnable: true  // Auto exposure enabled by default
+    aeEnable: true,  // Auto exposure enabled by default
+    exposureTime: 500,  // Manual exposure time in microseconds
+    analogueGain: 8.0  // Manual gain/ISO
   })
   const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
   const [zoomCenter, setZoomCenter] = useState({ x: 0.5, y: 0.5 })  // Normalized zoom center (0.5, 0.5 = center)
@@ -691,6 +693,63 @@ export default function Camera() {
                       {liveControls.aeEnable ? 'Camera adjusts exposure automatically' : 'Using fixed exposure settings'}
                     </div>
                   </div>
+
+                  {/* Manual Exposure Controls - Show only when Manual mode */}
+                  {!liveControls.aeEnable && (
+                    <>
+                      {/* Exposure Time Slider */}
+                      <div className="pt-2 mt-2">
+                        <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                          <span>⏱️ Exposure Time</span>
+                          <span className="text-orange-300 font-mono">{liveControls.exposureTime} µs</span>
+                        </label>
+                        <input
+                          type="range"
+                          min="100"
+                          max="200000"
+                          step="100"
+                          value={liveControls.exposureTime}
+                          onChange={(e) => {
+                            const newValue = parseInt(e.target.value)
+                            setLiveControls(prev => ({ ...prev, exposureTime: newValue }))
+                            handleControlChange('ExposureTime', newValue)
+                          }}
+                          className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                        />
+                        <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                          <span>100µs</span>
+                          <span>100ms</span>
+                          <span>200ms</span>
+                        </div>
+                      </div>
+
+                      {/* Analogue Gain Slider */}
+                      <div className="pt-2 mt-2">
+                        <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                          <span>📈 Gain (ISO)</span>
+                          <span className="text-orange-300 font-mono">{liveControls.analogueGain.toFixed(1)}x</span>
+                        </label>
+                        <input
+                          type="range"
+                          min="1"
+                          max="16"
+                          step="0.5"
+                          value={liveControls.analogueGain}
+                          onChange={(e) => {
+                            const newValue = parseFloat(e.target.value)
+                            setLiveControls(prev => ({ ...prev, analogueGain: newValue }))
+                            handleControlChange('AnalogueGain', newValue)
+                          }}
+                          className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                        />
+                        <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                          <span>1x</span>
+                          <span>8x</span>
+                          <span>16x</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   {/* Exposure Metering Mode Dropdown - Only show in Auto mode */}
                   {liveControls.aeEnable && (
