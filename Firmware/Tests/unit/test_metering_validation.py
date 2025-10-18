@@ -90,3 +90,60 @@ class TestMeteringValidation:
 
         # Just above valid range
         assert validator(3) is False, "Value 3 should be rejected"
+
+
+class TestMeteringSettingsLoading:
+    """Test that CameraStreamer correctly loads AeMeteringMode from settings"""
+
+    def test_metering_mode_loads_from_settings(self, mock_socketio, temp_webui_settings):
+        """CameraStreamer should load ae_metering_mode from settings file"""
+        from camera_stream import CameraStreamer
+        from mothbox_paths import WEBUI_SETTINGS_FILE
+
+        # Write test settings with specific metering mode
+        with open(WEBUI_SETTINGS_FILE, 'w') as f:
+            f.write("ae_metering_mode=1\n")  # Spot mode
+
+        streamer = CameraStreamer(mock_socketio)
+
+        assert streamer.ae_metering_mode == 1, \
+            "ae_metering_mode should be loaded from settings file"
+
+    def test_metering_mode_defaults_to_centre_weighted(self, mock_socketio, temp_webui_settings):
+        """CameraStreamer should default to Centre-Weighted (0) if not specified"""
+        from camera_stream import CameraStreamer
+        from mothbox_paths import WEBUI_SETTINGS_FILE
+
+        # Write settings without metering mode
+        with open(WEBUI_SETTINGS_FILE, 'w') as f:
+            f.write("sharpness=1.0\n")
+
+        streamer = CameraStreamer(mock_socketio)
+
+        assert streamer.ae_metering_mode == 0, \
+            "ae_metering_mode should default to 0 (Centre-Weighted)"
+
+    def test_all_metering_modes_valid(self, mock_socketio, temp_webui_settings):
+        """All metering modes (0, 1, 2) should be accepted"""
+        from camera_stream import CameraStreamer
+        from mothbox_paths import WEBUI_SETTINGS_FILE
+
+        metering_modes = {
+            0: "Centre-Weighted",
+            1: "Spot",
+            2: "Matrix"
+        }
+
+        for mode_value, mode_name in metering_modes.items():
+            # Write settings with specific mode
+            with open(WEBUI_SETTINGS_FILE, 'w') as f:
+                f.write(f"ae_metering_mode={mode_value}\n")
+
+            streamer = CameraStreamer(mock_socketio)
+
+            assert streamer.ae_metering_mode == mode_value, \
+                f"{mode_name} mode ({mode_value}) should be loaded correctly"
+
+            # Cleanup
+            if streamer.camera:
+                streamer.release_camera()
