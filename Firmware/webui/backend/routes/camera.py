@@ -9,7 +9,49 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import mothbox_import  # Sets up sys.path for mothbox
 
-from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR
+from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CAMERA_SETTINGS_FILE, CONTROLS_FILE, WEBUI_SETTINGS_FILE
+
+
+# ============================================================================
+# Helper Functions (Issue #46)
+# ============================================================================
+
+def acquire_camera_with_retry(camera_id=0, max_retries=3, wait_time=2.0):
+    """
+    Acquire camera with retry logic for busy state (Issue #46 Solution #3)
+
+    Handles cases where hardware hasn't fully released yet after
+    camera_streamer.release_camera() call. Common when switching
+    between photo and stream workflows.
+
+    Args:
+        camera_id: Camera index (0 or 1)
+        max_retries: Maximum number of retry attempts
+        wait_time: Seconds to wait between retries
+
+    Returns:
+        Picamera2: Initialized camera instance
+
+    Raises:
+        RuntimeError: If camera cannot be acquired after max_retries
+    """
+    from picamera2 import Picamera2
+    import time
+
+    for attempt in range(max_retries):
+        try:
+            print(f"🎥 Attempting to acquire camera {camera_id} (attempt {attempt + 1}/{max_retries})")
+            return Picamera2(camera_id)
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if ("busy" in error_msg or "resource" in error_msg) and attempt < max_retries - 1:
+                print(f"⚠️  Camera busy, waiting {wait_time}s before retry...")
+                time.sleep(wait_time)
+            else:
+                # Last attempt or non-busy error
+                raise
+
+    raise RuntimeError(f"Failed to acquire camera {camera_id} after {max_retries} attempts")
 
 
 def _emit_calibration_progress(step, total_steps, message, progress):
@@ -431,11 +473,11 @@ def trigger_autofocus():
             # Initialize camera for autofocus
             picam2 = None
             try:
-                # Try camera 0 first, fallback to camera 1
+                # Try camera 0 first with retry logic, fallback to camera 1
                 try:
-                    picam2 = Picamera2(0)
+                    picam2 = acquire_camera_with_retry(0)
                 except Exception:
-                    picam2 = Picamera2(1)
+                    picam2 = acquire_camera_with_retry(1)
 
                 # Configure for high-res preview (better for AF accuracy)
                 preview_config = picam2.create_preview_configuration(
@@ -646,11 +688,11 @@ def auto_calibrate():
             # Initialize camera for calibration
             picam2 = None
             try:
-                # Try camera 0 first, fallback to camera 1
+                # Try camera 0 first with retry logic, fallback to camera 1
                 try:
-                    picam2 = Picamera2(0)
+                    picam2 = acquire_camera_with_retry(0)
                 except Exception:
-                    picam2 = Picamera2(1)
+                    picam2 = acquire_camera_with_retry(1)
 
                 # Configure for calibration (higher res for accuracy)
                 preview_config = picam2.create_preview_configuration(
@@ -1035,11 +1077,11 @@ def test_capture():
             # Initialize camera for test capture
             picam2 = None
             try:
-                # Try camera 0 first, fallback to camera 1
+                # Try camera 0 first with retry logic, fallback to camera 1
                 try:
-                    picam2 = Picamera2(0)
+                    picam2 = acquire_camera_with_retry(0)
                 except Exception:
-                    picam2 = Picamera2(1)
+                    picam2 = acquire_camera_with_retry(1)
 
                 # Configure for high-resolution test capture
                 # Use 4K instead of 64MP to fit within Pi 5's 64MB CMA constraint (~24MB vs ~180MB)

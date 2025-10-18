@@ -13,6 +13,7 @@ Usage:
 import pytest
 import sys
 import gc
+import time
 from pathlib import Path
 
 # Setup path for imports
@@ -24,10 +25,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'webui' / 'backend'))
 # ============================================================================
 
 def pytest_configure(config):
-    """Register custom pytest markers"""
+    """Register custom pytest markers (Issue #46 Solution #5)"""
     config.addinivalue_line(
         "markers",
         "hardware: mark test as requiring real Raspberry Pi hardware (camera, GPIO)"
+    )
+    config.addinivalue_line(
+        "markers",
+        "photo: test uses photo workflow (subprocess/TakePhoto.py)"
+    )
+    config.addinivalue_line(
+        "markers",
+        "stream: test uses stream workflow (live CameraStreamer instance)"
     )
 
 
@@ -168,6 +177,79 @@ def client(app):
 
 
 # ============================================================================
+# Workflow-Specific Fixtures (Issue #46)
+# ============================================================================
+
+@pytest.fixture
+def photo_ready(app):
+    """
+    Prepare for photo workflow tests (Issue #46 Solution #1)
+
+    Ensures camera is released so subprocess (TakePhoto.py) can use it.
+    Use this fixture for tests that call endpoints triggering subprocess operations:
+    - /api/camera/calibrate-photo (future)
+    - /api/camera/test-capture
+    - Any endpoint that runs TakePhoto.py
+
+    Usage:
+        def test_photo_calibration(client, photo_ready):
+            response = client.post('/api/camera/calibrate-photo')
+    """
+    camera_streamer = app.config.get('CAMERA_STREAMER')
+
+    # BEFORE test: Release camera if held
+    if camera_streamer and camera_streamer.camera:
+        print("📸 Preparing for photo workflow - releasing camera...")
+        camera_streamer.release_camera()
+        time.sleep(2.0)  # Ensure hardware fully released
+
+    yield
+
+    # AFTER test: Ensure camera still released
+    if camera_streamer and camera_streamer.camera:
+        print("⚠️  Warning: Photo test left camera open - cleaning up...")
+        camera_streamer.release_camera()
+        time.sleep(2.0)
+
+
+@pytest.fixture
+def stream_ready(app):
+    """
+    Prepare for stream workflow tests (Issue #46 Solution #1)
+
+    Ensures CameraStreamer is initialized and ready for streaming.
+    Use this fixture for tests that use the live camera instance:
+    - /api/camera/calibrate-stream (future)
+    - /api/camera/autofocus (stream mode)
+    - Live control updates
+
+    Usage:
+        def test_stream_calibration(client, stream_ready):
+            response = client.post('/api/camera/calibrate-stream')
+    """
+    camera_streamer = app.config.get('CAMERA_STREAMER')
+
+    if not camera_streamer:
+        pytest.skip("Camera streamer not available")
+
+    # BEFORE test: Initialize camera if needed
+    if not camera_streamer.camera:
+        print("📹 Preparing for stream workflow - initializing camera...")
+        if not camera_streamer.initialize_camera():
+            pytest.skip("Camera initialization failed - hardware may not be available")
+
+    # Start streaming for tests that need it
+    if not camera_streamer.streaming:
+        camera_streamer.start_streaming()
+
+    yield camera_streamer
+
+    # AFTER test: Stop streaming but keep camera initialized
+    if camera_streamer.streaming:
+        camera_streamer.stop_streaming()
+
+
+# ============================================================================
 # Pytest Hooks
 # ============================================================================
 
@@ -207,6 +289,55 @@ def pytest_runtest_setup(item):
         # The global_camera_info() call creates internal libcamera state that prevents
         # tests from initializing their own camera instances.
         # Tests will fail naturally if camera is not available.
+
+
+@pytest.fixture(autouse=True)
+def verify_camera_state(request, app):
+    """
+    Verify and enforce clean camera state before/after each test (Issue #46 Solution #2)
+
+    This autouse fixture automatically runs for every test and ensures:
+    - Photo tests start with camera released
+    - Stream tests start with camera initialized
+    - Tests clean up after themselves
+    - State pollution is detected and logged
+    """
+    camera_streamer = app.config.get('CAMERA_STREAMER')
+
+    if not camera_streamer:
+        yield
+        return
+
+    # BEFORE test: Prepare camera based on test markers
+    photo_marker = request.node.get_closest_marker('photo')
+    stream_marker = request.node.get_closest_marker('stream')
+
+    if photo_marker:
+        # Photo tests need clean slate
+        if camera_streamer.camera:
+            print(f"📸 Photo test {request.node.name} - releasing camera from previous test...")
+            camera_streamer.release_camera()
+            time.sleep(2.0)
+    elif stream_marker:
+        # Stream tests need initialized camera
+        if not camera_streamer.camera:
+            print(f"📹 Stream test {request.node.name} - initializing camera...")
+            camera_streamer.initialize_camera()
+
+    yield  # Run the test
+
+    # AFTER test: Verify cleanup based on marker
+    if photo_marker:
+        # Photo tests should have released camera
+        if camera_streamer.camera:
+            print(f"⚠️  WARNING: Photo test {request.node.name} left camera open!")
+            camera_streamer.release_camera()
+            time.sleep(2.0)
+    elif stream_marker:
+        # Stream tests should stop streaming
+        if camera_streamer.streaming:
+            print(f"⚠️  WARNING: Stream test {request.node.name} left streaming active!")
+            camera_streamer.stop_streaming()
 
 
 def pytest_runtest_teardown(item, nextitem):
