@@ -22,7 +22,8 @@ export default function Camera() {
     sharpness: 1.0,
     brightness: 0.0,
     contrast: 1.0,
-    saturation: 1.0
+    saturation: 1.0,
+    aeMeteringMode: 0
   })
   const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
   const [zoomCenter, setZoomCenter] = useState({ x: 0.5, y: 0.5 })  // Normalized zoom center (0.5, 0.5 = center)
@@ -649,6 +650,27 @@ export default function Camera() {
                       <span>0</span>
                       <span>1.0</span>
                       <span>4</span>
+                    </div>
+                  </div>
+
+                  {/* Exposure Metering Mode Dropdown */}
+                  <div className="pt-2 mt-2 border-t border-white/20">
+                    <label className="block text-xs font-medium text-gray-200 mb-1">
+                      📊 Metering Mode
+                    </label>
+                    <select
+                      value={liveControls.aeMeteringMode}
+                      onChange={(e) => handleControlChange('AeMeteringMode', parseInt(e.target.value))}
+                      className="w-full px-2 py-1.5 text-xs bg-white/10 text-white border border-white/20 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="0" className="bg-gray-800">Centre-Weighted</option>
+                      <option value="1" className="bg-gray-800">Spot</option>
+                      <option value="2" className="bg-gray-800">Matrix/Average</option>
+                    </select>
+                    <div className="mt-1 text-[10px] text-gray-300">
+                      {liveControls.aeMeteringMode === 0 && '⚪ Centre: Prioritizes center of frame'}
+                      {liveControls.aeMeteringMode === 1 && '🎯 Spot: Uses small center area only'}
+                      {liveControls.aeMeteringMode === 2 && '🌐 Matrix: Evaluates entire frame'}
                     </div>
                   </div>
 

@@ -77,6 +77,9 @@ class CameraStreamer:
         self.af_speed = 0  # Normal speed
         self.af_range = 0  # Normal range
 
+        # Exposure metering controls
+        self.ae_metering_mode = 0  # Centre-weighted by default
+
         # White balance controls (Phase 2.1)
         self.awb_enable = True
         self.awb_mode = 0  # Auto
@@ -127,6 +130,10 @@ class CameraStreamer:
                     self.af_speed = int(settings['af_speed'])
                 if 'af_range' in settings:
                     self.af_range = int(settings['af_range'])
+
+                # Exposure metering settings
+                if 'ae_metering_mode' in settings:
+                    self.ae_metering_mode = int(settings['ae_metering_mode'])
 
                 # White balance settings (Phase 2.1)
                 if 'awb_enable' in settings:
@@ -227,6 +234,9 @@ class CameraStreamer:
             "Brightness": self.brightness,
             "Contrast": self.contrast,
             "Saturation": self.saturation,
+
+            # Exposure metering controls
+            "AeMeteringMode": self.ae_metering_mode,
 
             # White balance controls
             "AwbEnable": self.awb_enable,

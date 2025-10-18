@@ -1008,6 +1008,32 @@ export default function Settings() {
               </div>
             </div>
 
+            {/* Exposure Metering Controls */}
+            <div className="pt-6 mt-6 border-t border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4">📊 Exposure Metering</h4>
+
+              {/* AeMeteringMode Dropdown */}
+              <div className="mb-6">
+                <label htmlFor="ae_metering_mode" className="block text-sm font-medium text-gray-700 mb-2">
+                  Metering Mode
+                </label>
+                <select
+                  id="ae_metering_mode"
+                  value={webuiForm.ae_metering_mode !== undefined ? webuiForm.ae_metering_mode : 0}
+                  onChange={(e) => setWebuiForm({...webuiForm, ae_metering_mode: parseInt(e.target.value)})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="0">Centre-Weighted</option>
+                  <option value="1">Spot</option>
+                  <option value="2">Matrix/Average</option>
+                </select>
+                <p className="mt-2 text-xs text-gray-500">
+                  Controls which part of the frame is used for exposure calculation.
+                  Centre-Weighted prioritizes the center, Spot uses a small center area only, Matrix evaluates the entire frame.
+                </p>
+              </div>
+            </div>
+
             {/* White Balance Controls (Phase 2.1) */}
             <div className="pt-6 mt-6 border-t border-gray-200">
               <h4 className="text-md font-semibold text-gray-800 mb-4">🌡️ White Balance</h4>

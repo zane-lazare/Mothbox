@@ -58,6 +58,9 @@ ALLOWED_CAMERA_SETTINGS = {
     'AfMetering': lambda v: int(v) in [0, 1, 2],  # Metering mode
     'LensPosition': lambda v: 0.0 <= float(v) <= 10.0,  # Diopters (manual focus)
 
+    # Exposure metering controls
+    'AeMeteringMode': lambda v: int(v) in [0, 1, 2],  # 0=Centre, 1=Spot, 2=Matrix
+
     # White balance controls (Phase 2.1)
     'AwbEnable': lambda v: str(v).lower() in ['true', 'false'],
     'AwbMode': lambda v: 0 <= int(v) <= 7,  # 0=Auto, 1=Incandescent, ..., 7=Custom
