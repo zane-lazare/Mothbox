@@ -1,7 +1,8 @@
 """
 Integration tests for streaming performance
 
-RUN ON RASPBERRY PI ONLY - tests sustained streaming performance
+Note: These are CPU-bound performance tests using simplejpeg library.
+They do NOT require Raspberry Pi hardware or actual camera.
 """
 import pytest
 import time
@@ -10,6 +11,8 @@ import simplejpeg
 import base64
 
 
+@pytest.mark.stream
+@pytest.mark.performance
 @pytest.mark.timeout(30)
 class TestStreamingPerformance:
     """Test sustained streaming performance"""
@@ -168,6 +171,8 @@ class TestStreamingPerformance:
         assert simple_avg < 50, f"Simple frame encoding too slow: {simple_avg:.1f}ms"
 
 
+@pytest.mark.stream
+@pytest.mark.performance
 class TestConcurrentClientStress:
     """Test concurrent client stress scenarios (Feature Set 1 enhancement)"""
 
@@ -293,6 +298,8 @@ class TestConcurrentClientStress:
         print("✓ Bandwidth variations handled correctly")
 
 
+@pytest.mark.stream
+@pytest.mark.performance
 class TestNetworkLatencySimulation:
     """Test performance under simulated network conditions (Feature Set 1 enhancement)"""
 
@@ -401,6 +408,8 @@ class TestNetworkLatencySimulation:
         print("✓ Frame backlog prevented successfully")
 
 
+@pytest.mark.stream
+@pytest.mark.performance
 class TestVariableFrameRate:
     """Test performance with variable frame rates (Feature Set 1 enhancement)"""
 
@@ -486,6 +495,8 @@ class TestVariableFrameRate:
         print("✓ Burst mode performance acceptable")
 
 
+@pytest.mark.stream
+@pytest.mark.performance
 class TestResolutionSwitching:
     """Test resolution switching during streaming (Feature Set 1 enhancement)"""
 
@@ -572,6 +583,8 @@ class TestResolutionSwitching:
         print("✓ Rapid resolution changes handled successfully")
 
 
+@pytest.mark.stream
+@pytest.mark.performance
 class TestCPULoadPerformance:
     """Test performance under CPU load (Feature Set 1 enhancement)"""
 

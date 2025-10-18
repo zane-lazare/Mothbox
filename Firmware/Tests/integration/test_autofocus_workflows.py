@@ -16,6 +16,7 @@ from pathlib import Path
 # Fixtures (app, client) are provided by conftest.py
 
 
+@pytest.mark.stream
 class TestAutofocusSuccessScenarios:
     """Test autofocus under favorable conditions"""
 
@@ -115,6 +116,7 @@ class TestAutofocusSuccessScenarios:
         print(f"   ✓ Lens position: {data['lens_position']}D")
 
 
+@pytest.mark.stream
 class TestAutofocusFailureScenarios:
     """Test autofocus under challenging conditions"""
 
@@ -164,6 +166,7 @@ class TestAutofocusFailureScenarios:
         print(f"   ✓ Reported duration: {data['duration_seconds']:.2f}s")
 
 
+@pytest.mark.stream
 class TestFocusRangeModes:
     """Test different focus range modes"""
 
@@ -258,6 +261,7 @@ class TestFocusRangeModes:
             assert result['af_state'] in ['Idle', 'Scanning', 'Success', 'Fail']
 
 
+@pytest.mark.stream
 class TestAutofocusDuringStreaming:
     """Test autofocus interaction with active streaming"""
 
@@ -301,6 +305,7 @@ class TestAutofocusDuringStreaming:
         print(f"   ✓ Stream recovered after autofocus")
 
 
+@pytest.mark.stream
 class TestAutofocusAccuracy:
     """Test autofocus accuracy and lens position verification"""
 
@@ -358,6 +363,7 @@ class TestAutofocusAccuracy:
         print(f"   ✓ Color temp: {color_temp}K (valid)")
 
 
+@pytest.mark.stream
 class TestAutofocusStateTransitions:
     """Test autofocus state machine transitions"""
 
@@ -405,6 +411,7 @@ class TestAutofocusStateTransitions:
         print(f"   ✓ success={success_flag}, af_state={af_state} (consistent)")
 
 
+@pytest.mark.stream
 class TestFocusHuntingDetection:
     """Test detection of focus hunting behavior"""
 

@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'
 from mothbox_paths import PHOTOS_DIR, WEBUI_SETTINGS_FILE, CAMERA_SETTINGS_FILE
 
 
+@pytest.mark.photo
 class TestTestCaptureWithVariousSettings:
     """Test test capture with different preview settings"""
 
@@ -155,6 +156,7 @@ class TestTestCaptureWithVariousSettings:
             print("   ⚠ Camera busy, skipping")
 
 
+@pytest.mark.photo
 class TestTestCaptureDirectoryManagement:
     """Test test capture directory creation and management"""
 
@@ -215,6 +217,7 @@ class TestTestCaptureDirectoryManagement:
             print("\n⚠ Camera busy, skipping")
 
 
+@pytest.mark.photo
 class TestFullResolutionValidation:
     """Test test captures are full resolution (9152x6944)"""
 
@@ -258,6 +261,7 @@ class TestFullResolutionValidation:
             print("\n⚠ Camera busy, skipping")
 
 
+@pytest.mark.photo
 class TestMetadataAccuracy:
     """Test metadata accuracy in test captures"""
 
@@ -344,6 +348,7 @@ class TestMetadataAccuracy:
             print("\n⚠ Camera busy, skipping")
 
 
+@pytest.mark.photo
 class TestStreamReleaseAndRestart:
     """Test stream is properly released and restarted during test capture"""
 
@@ -400,6 +405,7 @@ class TestStreamReleaseAndRestart:
         camera_streamer.stop_streaming()
 
 
+@pytest.mark.photo
 class TestProductionIsolation:
     """Test test capture doesn't affect production settings"""
 
@@ -456,6 +462,7 @@ class TestProductionIsolation:
             print("\n⚠ Camera busy, skipping")
 
 
+@pytest.mark.photo
 class TestConcurrentTestCaptures:
     """Test concurrent test capture request handling"""
 
@@ -490,6 +497,7 @@ class TestConcurrentTestCaptures:
         print(f"\n✓ Rapid successive captures: {successful}/3 succeeded")
 
 
+@pytest.mark.photo
 class TestCameraUnavailable:
     """Test test capture with camera unavailable"""
 
@@ -535,6 +543,7 @@ class TestCameraUnavailable:
         print(f"\n✓ Error handling consistent: {responses}")
 
 
+@pytest.mark.photo
 class TestTestCaptureCleanup:
     """Test test capture cleanup and resource management"""
 

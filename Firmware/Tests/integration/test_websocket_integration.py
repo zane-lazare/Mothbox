@@ -21,6 +21,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
 
+@pytest.mark.stream
+@pytest.mark.websocket
 class TestMultiClientConnections:
     """Test multiple simultaneous WebSocket connections"""
 
@@ -101,6 +103,8 @@ class TestMultiClientConnections:
                 client2.disconnect()
 
 
+@pytest.mark.stream
+@pytest.mark.websocket
 class TestWebSocketDisconnectDuringOperations:
     """Test WebSocket disconnect during active operations"""
 
@@ -168,6 +172,8 @@ class TestWebSocketDisconnectDuringOperations:
                 client.disconnect()
 
 
+@pytest.mark.stream
+@pytest.mark.websocket
 class TestMetadataPollingUnderLoad:
     """Test metadata polling with rapid requests"""
 
@@ -249,6 +255,8 @@ class TestMetadataPollingUnderLoad:
                 client.disconnect()
 
 
+@pytest.mark.stream
+@pytest.mark.websocket
 class TestControlUpdatesDuringStreaming:
     """Test control updates while streaming is active"""
 
@@ -325,6 +333,8 @@ class TestControlUpdatesDuringStreaming:
                 client.disconnect()
 
 
+@pytest.mark.stream
+@pytest.mark.websocket
 class TestWebSocketReconnection:
     """Test WebSocket reconnection handling"""
 
@@ -376,6 +386,8 @@ class TestWebSocketReconnection:
                 client2.disconnect()
 
 
+@pytest.mark.stream
+@pytest.mark.websocket
 class TestEventBroadcasting:
     """Test event broadcasting to multiple clients"""
 
@@ -415,6 +427,8 @@ class TestEventBroadcasting:
                     client.disconnect()
 
 
+@pytest.mark.stream
+@pytest.mark.websocket
 class TestWebSocketMessageOrdering:
     """Test WebSocket message ordering"""
 
@@ -447,6 +461,8 @@ class TestWebSocketMessageOrdering:
                 client.disconnect()
 
 
+@pytest.mark.stream
+@pytest.mark.websocket
 class TestConnectionTimeoutHandling:
     """Test connection timeout handling"""
 
@@ -496,6 +512,8 @@ class TestConnectionTimeoutHandling:
                 client.disconnect()
 
 
+@pytest.mark.stream
+@pytest.mark.websocket
 class TestWebSocketErrorPropagation:
     """Test error propagation through WebSocket layer"""
 
@@ -552,6 +570,8 @@ class TestWebSocketErrorPropagation:
                 client.disconnect()
 
 
+@pytest.mark.stream
+@pytest.mark.websocket
 class TestConcurrentOperations:
     """Test concurrent WebSocket operations"""
 

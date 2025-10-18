@@ -38,6 +38,18 @@ def pytest_configure(config):
         "markers",
         "stream: test uses stream workflow (live CameraStreamer instance)"
     )
+    config.addinivalue_line(
+        "markers",
+        "both: test uses both photo and stream workflows (needs splitting in Issue #45)"
+    )
+    config.addinivalue_line(
+        "markers",
+        "websocket: test uses WebSocket layer for real-time communication"
+    )
+    config.addinivalue_line(
+        "markers",
+        "performance: performance/benchmark test (CPU-bound, not hardware-dependent)"
+    )
 
 
 # ============================================================================
@@ -174,6 +186,87 @@ def client(app):
             assert response.status_code == 200
     """
     return app.test_client()
+
+
+# ============================================================================
+# Test Isolation Fixtures (Issue #46 Phase 2)
+# ============================================================================
+
+@pytest.fixture
+def mock_socketio():
+    """
+    Mock SocketIO for testing CameraStreamer
+
+    Provides a minimal SocketIO interface for tests that instantiate
+    CameraStreamer directly without needing a real WebSocket connection.
+
+    Usage:
+        def test_something(mock_socketio):
+            streamer = CameraStreamer(mock_socketio)
+            # ... test code ...
+    """
+    class MockSocketIO:
+        """Mock SocketIO that silently accepts all emit() calls"""
+        def emit(self, event, data, **kwargs):
+            pass
+
+    return MockSocketIO()
+
+
+@pytest.fixture
+def temp_webui_settings(tmp_path, monkeypatch):
+    """
+    Temporary webui_settings.txt for isolated testing
+
+    Creates a temporary settings file and patches mothbox_paths.WEBUI_SETTINGS_FILE
+    to point to it. This ensures tests don't modify the real settings file.
+
+    Usage:
+        def test_something(temp_webui_settings):
+            # Write test settings
+            with open(temp_webui_settings, 'w') as f:
+                f.write("sharpness=2.0\\n")
+            # ... test code ...
+    """
+    import mothbox_paths
+
+    # Create temporary file
+    temp_file = tmp_path / "webui_settings.txt"
+    temp_file.touch()
+
+    # Patch the module-level constant
+    monkeypatch.setattr(mothbox_paths, 'WEBUI_SETTINGS_FILE', str(temp_file))
+
+    yield temp_file
+    # Cleanup happens automatically with tmp_path
+
+
+@pytest.fixture
+def temp_camera_settings(tmp_path, monkeypatch):
+    """
+    Temporary camera_settings.csv for isolated testing
+
+    Creates a temporary settings file and patches mothbox_paths.CAMERA_SETTINGS_FILE
+    to point to it. This ensures photo workflow tests don't modify real settings.
+
+    Usage:
+        def test_something(temp_camera_settings):
+            # Write test settings
+            with open(temp_camera_settings, 'w') as f:
+                f.write("ExposureTime,500\\n")
+            # ... test code ...
+    """
+    import mothbox_paths
+
+    # Create temporary file
+    temp_file = tmp_path / "camera_settings.csv"
+    temp_file.touch()
+
+    # Patch the module-level constant
+    monkeypatch.setattr(mothbox_paths, 'CAMERA_SETTINGS_FILE', str(temp_file))
+
+    yield temp_file
+    # Cleanup happens automatically with tmp_path
 
 
 # ============================================================================

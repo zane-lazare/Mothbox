@@ -20,6 +20,7 @@ from mothbox_paths import WEBUI_SETTINGS_FILE
 pytest.importorskip("picamera2")
 
 
+@pytest.mark.stream
 class TestMeteringExposure:
     """Integration tests for AeMeteringMode in CameraStreamer"""
 

@@ -26,6 +26,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'
 from camera_stream import CameraStreamer
 
 
+@pytest.mark.both
+@pytest.mark.websocket
 class TestNoiseReductionSettingsUpdate:
     """Test noise reduction updates via WebSocket"""
 
@@ -71,6 +73,7 @@ class TestNoiseReductionSettingsUpdate:
                 sio.disconnect()
 
 
+@pytest.mark.both
 class TestNoiseReductionEndToEnd:
     """End-to-end test of noise reduction workflow"""
 

@@ -23,6 +23,7 @@ import time
 # No need to define them here!
 
 
+@pytest.mark.both
 class TestAutofocusEndpoint:
     """Test POST /camera/autofocus endpoint (Phase 2.2)"""
 
@@ -84,6 +85,7 @@ class TestAutofocusEndpoint:
         print(f"     - Color Temp: {metadata['colour_temperature']}K")
 
 
+@pytest.mark.both
 class TestCalibrationEndpoint:
     """Test POST /camera/calibrate endpoint (Phase 2.2)"""
 
@@ -181,6 +183,7 @@ class TestCalibrationEndpoint:
             print("   ✓ Missing parameters rejected")
 
 
+@pytest.mark.both
 class TestSettingsCopyEndpoint:
     """Test POST /config/copy-settings endpoint (Phase 2.2)"""
 
@@ -267,6 +270,7 @@ class TestSettingsCopyEndpoint:
         print(f"   ✓ Copy completed safely without breaking incompatible settings")
 
 
+@pytest.mark.both
 class TestEndToEndWorkflow:
     """Test complete Phase 2.2 workflow"""
 
@@ -307,6 +311,7 @@ class TestEndToEndWorkflow:
         print("\n   ✅ Complete workflow executed successfully!")
 
 
+@pytest.mark.both
 class TestAutofocusFailureRecovery:
     """Test autofocus failure recovery (Feature Set 3)"""
 
@@ -367,6 +372,7 @@ class TestAutofocusFailureRecovery:
         print(f"   ✓ AF state transition complete: {af_state}")
 
 
+@pytest.mark.both
 class TestCalibrationEdgeCases:
     """Test calibration edge cases (Feature Set 3)"""
 
@@ -433,6 +439,7 @@ class TestCalibrationEdgeCases:
             print(f"   ℹ️  Calibration skipped (camera unavailable)")
 
 
+@pytest.mark.both
 class TestConcurrentCalibrationRequests:
     """Test concurrent calibration request handling (Feature Set 3)"""
 
@@ -518,6 +525,7 @@ class TestConcurrentCalibrationRequests:
         print(f"   ✓ No deadlocks or hangs")
 
 
+@pytest.mark.both
 class TestCalibrationApplyToModes:
     """Test calibration apply_to parameter modes (Feature Set 3)"""
 

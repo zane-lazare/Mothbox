@@ -22,6 +22,7 @@ from pathlib import Path
 # Fixtures (app, client) are provided by conftest.py
 
 
+@pytest.mark.both
 class TestCalibrationBasicWorkflows:
     """Test basic calibration workflows"""
 
@@ -108,6 +109,7 @@ class TestCalibrationBasicWorkflows:
             print(f"   ✓ Calibration requires explicit parameters")
 
 
+@pytest.mark.both
 class TestCalibrationMetadataChanges:
     """Test calibration actually changes settings"""
 
@@ -216,6 +218,7 @@ class TestCalibrationMetadataChanges:
         assert lens_range < 2.0, "Focus too inconsistent"
 
 
+@pytest.mark.both
 class TestCalibrationFileUpdates:
     """Test calibration updates settings files correctly"""
 
@@ -346,6 +349,7 @@ class TestCalibrationFileUpdates:
             pytest.skip("camera_settings.csv not found")
 
 
+@pytest.mark.both
 class TestLastCalibrationTimestamp:
     """Test LastCalibration timestamp in controls.txt"""
 
@@ -427,6 +431,7 @@ class TestLastCalibrationTimestamp:
             pytest.skip("controls.txt not found")
 
 
+@pytest.mark.both
 class TestCalibrationProgressEvents:
     """Test WebSocket calibration progress events"""
 
@@ -476,6 +481,7 @@ class TestCalibrationProgressEvents:
         print(f"   ✓ AF duration: {data['af_duration_seconds']:.2f}s")
 
 
+@pytest.mark.both
 class TestCalibrationDuringStreaming:
     """Test calibration with active streaming"""
 
@@ -522,6 +528,7 @@ class TestCalibrationDuringStreaming:
         print(f"   ✓ Stream recovered after calibration")
 
 
+@pytest.mark.both
 class TestCalibrationErrorRecovery:
     """Test calibration error handling and recovery"""
 
@@ -574,6 +581,7 @@ class TestCalibrationErrorRecovery:
         print(f"   ✓ {successes}/3 calibrations succeeded")
 
 
+@pytest.mark.both
 class TestCalibrationUnderDifferentLighting:
     """Test calibration behavior under different lighting conditions"""
 
@@ -615,6 +623,7 @@ class TestCalibrationUnderDifferentLighting:
             print(f"   ℹ️  Normal light detected (gain: {gain})")
 
 
+@pytest.mark.both
 class TestAutoCalibrationPeriod:
     """Test auto-calibration period functionality"""
 
