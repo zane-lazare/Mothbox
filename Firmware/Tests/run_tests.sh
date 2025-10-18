@@ -141,9 +141,11 @@ case "$TEST_TYPE" in
         # Noise Reduction Mode tests
         echo "🚀 Running Noise Reduction Mode tests..."
         echo ""
-        echo "Testing noise reduction validation, hardware, API, and quality workflows..."
+        echo "=== Hardware Tests (exclusive camera access) ==="
+        pytest Tests/integration/test_noise_reduction_hardware.py -v -s
+        echo ""
+        echo "=== Validation, API, and Quality Tests ==="
         pytest Tests/unit/test_noise_reduction_validation.py \
-               Tests/integration/test_noise_reduction_hardware.py \
                Tests/integration/test_noise_reduction_api.py \
                Tests/integration/test_noise_reduction_quality.py -v -s
         ;;
