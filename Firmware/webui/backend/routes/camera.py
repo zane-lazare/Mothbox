@@ -94,9 +94,15 @@ def _validate_exposure_time(v):
         raise TypeError("None not allowed for ExposureTime")
     if isinstance(v, bool):
         raise TypeError("Boolean not allowed for ExposureTime")
-    if not str(v).isdigit():
+
+    # Try to convert to integer
+    try:
+        value = int(v)
+    except (ValueError, TypeError):
         raise ValueError(f"ExposureTime must be integer or digit string, got {type(v).__name__}")
-    return 0 < int(v) < 1000000
+
+    # Check range: must be positive and less than 1 second (1000000µs)
+    return 0 < value < 1000000
 
 ALLOWED_CAMERA_SETTINGS = {
     # Image quality controls (practical ranges: 0-4 for sharpness/contrast/saturation)
