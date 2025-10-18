@@ -137,6 +137,15 @@ case "$TEST_TYPE" in
                Tests/integration/test_frontend_integration.py -v -s
         ;;
 
+    "noise-reduction"|"noise")
+        # Noise Reduction Mode tests
+        echo "🚀 Running Noise Reduction Mode tests..."
+        echo ""
+        echo "Testing noise reduction validation and quality workflows..."
+        pytest Tests/unit/test_noise_reduction_validation.py \
+               Tests/integration/test_noise_reduction_quality.py -v -s
+        ;;
+
     "issue43"|"complete")
         # All tests for GitHub issue #43
         echo "🚀 Running COMPLETE test suite for GitHub issue #43..."
@@ -180,6 +189,8 @@ case "$TEST_TYPE" in
         echo "  exposure      - Same as focus"
         echo "  workflows     - Interactive Features & Workflows tests"
         echo "  interactive   - Same as workflows"
+        echo "  noise         - Noise Reduction Mode tests"
+        echo "  noise-reduction - Same as noise"
         echo ""
         echo "=== Legacy Phase Commands (backward compatibility) ==="
         echo "  phase2        - Run Phase 2 complete test suite"
@@ -204,6 +215,7 @@ case "$TEST_TYPE" in
         echo "  ./run_tests.sh quality          # Test image quality controls"
         echo "  ./run_tests.sh focus            # Test focus & exposure"
         echo "  ./run_tests.sh workflows        # Test interactive features"
+        echo "  ./run_tests.sh noise            # Test noise reduction modes"
         echo "  ./run_tests.sh quick            # Quick performance check"
         echo "  ./run_tests.sh manual           # Show manual test steps"
         exit 0

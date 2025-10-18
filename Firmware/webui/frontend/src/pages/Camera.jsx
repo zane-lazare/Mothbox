@@ -22,7 +22,8 @@ export default function Camera() {
     sharpness: 1.0,
     brightness: 0.0,
     contrast: 1.0,
-    saturation: 1.0
+    saturation: 1.0,
+    noiseReductionMode: 0
   })
   const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
   const [zoomCenter, setZoomCenter] = useState({ x: 0.5, y: 0.5 })  // Normalized zoom center (0.5, 0.5 = center)
@@ -650,6 +651,29 @@ export default function Camera() {
                       <span>1.0</span>
                       <span>4</span>
                     </div>
+                  </div>
+
+                  {/* Noise Reduction Mode Dropdown */}
+                  <div>
+                    <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                      <span>Noise Reduction</span>
+                      <span className="text-blue-300 font-mono">
+                        {liveControls.noiseReductionMode === 0 ? 'Off' :
+                         liveControls.noiseReductionMode === 1 ? 'Fast' : 'High Quality'}
+                      </span>
+                    </label>
+                    <select
+                      value={liveControls.noiseReductionMode}
+                      onChange={(e) => handleControlChange('NoiseReductionMode', parseInt(e.target.value))}
+                      className="w-full px-2 py-1.5 bg-white/20 text-white text-xs rounded border border-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="0">Off</option>
+                      <option value="1">Fast</option>
+                      <option value="2">High Quality</option>
+                    </select>
+                    <p className="mt-1 text-[10px] text-gray-400">
+                      Critical for night insect photography
+                    </p>
                   </div>
 
                   {/* Zoom Slider */}
