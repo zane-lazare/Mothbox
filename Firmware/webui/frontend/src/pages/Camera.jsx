@@ -617,7 +617,7 @@ export default function Camera() {
                     <input
                       type="range"
                       min="0"
-                      max="32"
+                      max="4"
                       step="0.1"
                       value={liveControls.contrast}
                       onChange={(e) => handleControlChange('Contrast', parseFloat(e.target.value))}
@@ -626,7 +626,7 @@ export default function Camera() {
                     <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
                       <span>0</span>
                       <span>1.0</span>
-                      <span>32</span>
+                      <span>4</span>
                     </div>
                   </div>
 
@@ -639,7 +639,7 @@ export default function Camera() {
                     <input
                       type="range"
                       min="0"
-                      max="32"
+                      max="4"
                       step="0.1"
                       value={liveControls.saturation}
                       onChange={(e) => handleControlChange('Saturation', parseFloat(e.target.value))}
@@ -648,7 +648,7 @@ export default function Camera() {
                     <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
                       <span>0</span>
                       <span>1.0</span>
-                      <span>32</span>
+                      <span>4</span>
                     </div>
                   </div>
 

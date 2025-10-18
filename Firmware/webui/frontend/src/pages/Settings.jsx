@@ -855,7 +855,7 @@ export default function Settings() {
                 <input
                   type="range"
                   min="0"
-                  max="16"
+                  max="4"
                   step="0.1"
                   value={webuiForm.sharpness !== undefined ? webuiForm.sharpness : 1.0}
                   onChange={(e) => setWebuiForm({ ...webuiForm, sharpness: parseFloat(e.target.value) })}
@@ -864,10 +864,10 @@ export default function Settings() {
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
                   <span>0.0 (Soft)</span>
                   <span>1.0 (Default)</span>
-                  <span>16.0 (Maximum)</span>
+                  <span>4.0 (Sharp)</span>
                 </div>
                 <p className="mt-2 text-xs text-gray-500">
-                  Increase for more detail, decrease for softer images. Values above 4.0 may create artifacts.
+                  Increase for more detail, decrease for softer images. 1.0 is the normal setting.
                 </p>
               </div>
 
@@ -903,7 +903,7 @@ export default function Settings() {
                 <input
                   type="range"
                   min="0"
-                  max="32"
+                  max="4"
                   step="0.1"
                   value={webuiForm.contrast !== undefined ? webuiForm.contrast : 1.0}
                   onChange={(e) => setWebuiForm({ ...webuiForm, contrast: parseFloat(e.target.value) })}
@@ -912,7 +912,7 @@ export default function Settings() {
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
                   <span>0.0 (Flat)</span>
                   <span>1.0 (Default)</span>
-                  <span>32.0 (Maximum)</span>
+                  <span>4.0 (High)</span>
                 </div>
                 <p className="mt-2 text-xs text-gray-500">
                   Adjust difference between light and dark areas. 0.0 = no contrast, 1.0 = normal.
@@ -927,7 +927,7 @@ export default function Settings() {
                 <input
                   type="range"
                   min="0"
-                  max="32"
+                  max="4"
                   step="0.1"
                   value={webuiForm.saturation !== undefined ? webuiForm.saturation : 1.0}
                   onChange={(e) => setWebuiForm({ ...webuiForm, saturation: parseFloat(e.target.value) })}
@@ -936,7 +936,7 @@ export default function Settings() {
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
                   <span>0.0 (Grayscale)</span>
                   <span>1.0 (Default)</span>
-                  <span>32.0 (Maximum)</span>
+                  <span>4.0 (Vivid)</span>
                 </div>
                 <p className="mt-2 text-xs text-gray-500">
                   Adjust color intensity. 0.0 = grayscale, 1.0 = normal saturation.
