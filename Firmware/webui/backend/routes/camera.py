@@ -62,6 +62,9 @@ ALLOWED_CAMERA_SETTINGS = {
     'AwbEnable': lambda v: str(v).lower() in ['true', 'false'],
     'AwbMode': lambda v: 0 <= int(v) <= 7,  # 0=Auto, 1=Incandescent, ..., 7=Custom
 
+    # Noise reduction controls
+    'NoiseReductionMode': lambda v: isinstance(v, int) and v in [0, 1, 2] or (isinstance(v, str) and v.isdigit() and int(v) in [0, 1, 2]),  # 0=Off, 1=Fast, 2=High Quality
+
     # HDR/Bracketing (Phase 2.1)
     'HDR': lambda v: int(v) in [1, 3, 5, 7],  # Number of bracketed exposures
     'HDR_width': lambda v: 1000 <= int(v) <= 50000,  # Bracket step size (µs)

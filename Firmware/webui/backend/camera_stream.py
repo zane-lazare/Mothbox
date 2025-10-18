@@ -72,6 +72,9 @@ class CameraStreamer:
         self.contrast = 1.0
         self.saturation = 1.0
 
+        # Noise reduction control
+        self.noise_reduction_mode = 0  # 0=Off, 1=Fast, 2=High Quality
+
         # Focus controls (Phase 2.1)
         self.af_mode = 2  # Continuous autofocus by default
         self.af_speed = 0  # Normal speed
@@ -119,6 +122,10 @@ class CameraStreamer:
                     self.contrast = float(settings['contrast'])
                 if 'saturation' in settings:
                     self.saturation = float(settings['saturation'])
+
+                # Noise reduction setting
+                if 'noise_reduction_mode' in settings:
+                    self.noise_reduction_mode = int(settings['noise_reduction_mode'])
 
                 # Focus settings (Phase 2.1)
                 if 'af_mode' in settings:
@@ -227,6 +234,9 @@ class CameraStreamer:
             "Brightness": self.brightness,
             "Contrast": self.contrast,
             "Saturation": self.saturation,
+
+            # Noise reduction control
+            "NoiseReductionMode": self.noise_reduction_mode,
 
             # White balance controls
             "AwbEnable": self.awb_enable,

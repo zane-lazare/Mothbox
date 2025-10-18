@@ -237,6 +237,9 @@ def get_webui_settings():
             'contrast': 1.0,
             'saturation': 1.0,
 
+            # Noise reduction control
+            'noise_reduction_mode': 0,  # 0=Off, 1=Fast, 2=High Quality
+
             # Focus controls (Phase 2.1)
             'af_mode': 2,  # Continuous autofocus
             'af_speed': 0,  # Normal speed
@@ -269,6 +272,12 @@ def get_webui_settings():
                         # Float values
                         try:
                             defaults[key] = float(settings[key])
+                        except ValueError:
+                            pass  # Keep default if conversion fails
+                    elif key == 'noise_reduction_mode':
+                        # Integer value (0, 1, or 2)
+                        try:
+                            defaults[key] = int(settings[key])
                         except ValueError:
                             pass  # Keep default if conversion fails
                     else:
@@ -313,6 +322,16 @@ def update_webui_settings():
             saturation = float(new_settings.get('saturation', existing.get('saturation', 1.0)))
         except (ValueError, TypeError) as e:
             return jsonify({'error': f'Invalid image quality setting type: {e}'}), 400
+
+        # Validate and convert types - Noise reduction control
+        try:
+            noise_reduction_mode = new_settings.get('noise_reduction_mode', existing.get('noise_reduction_mode', 0))
+            # Ensure it's an integer (reject floats)
+            if isinstance(noise_reduction_mode, float) and not noise_reduction_mode.is_integer():
+                return jsonify({'error': 'noise_reduction_mode must be an integer (0, 1, or 2)'}), 400
+            noise_reduction_mode = int(noise_reduction_mode)
+        except (ValueError, TypeError) as e:
+            return jsonify({'error': f'Invalid noise_reduction_mode type: {e}'}), 400
 
         # Validate and convert types - Focus controls (Phase 2.1)
         try:
@@ -361,6 +380,10 @@ def update_webui_settings():
         if not (0.0 <= saturation <= 32.0):
             return jsonify({'error': 'Saturation must be between 0.0 and 32.0'}), 400
 
+        # Validate ranges - Noise reduction
+        if noise_reduction_mode not in [0, 1, 2]:
+            return jsonify({'error': 'noise_reduction_mode must be 0 (Off), 1 (Fast), or 2 (High Quality)'}), 400
+
         # Validate ranges - Focus controls (Phase 2.1)
         if af_mode not in [0, 1, 2]:
             return jsonify({'error': 'AfMode must be 0 (Manual), 1 (Auto Single), or 2 (Continuous)'}), 400
@@ -398,6 +421,9 @@ def update_webui_settings():
             f.write(f"brightness={brightness}\n")
             f.write(f"contrast={contrast}\n")
             f.write(f"saturation={saturation}\n")
+
+            # Noise reduction control
+            f.write(f"noise_reduction_mode={noise_reduction_mode}\n")
 
             # Focus controls
             f.write(f"af_mode={af_mode}\n")

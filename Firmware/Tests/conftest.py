@@ -203,13 +203,10 @@ def pytest_runtest_setup(item):
         except FileNotFoundError:
             pytest.skip("Hardware tests require Raspberry Pi")
 
-        # Check if camera available
-        try:
-            from picamera2 import Picamera2
-            # Quick check - don't actually initialize
-            Picamera2.global_camera_info()
-        except Exception as e:
-            pytest.skip(f"Camera not available: {e}")
+        # Camera availability check disabled - causes conflicts with test camera initialization
+        # The global_camera_info() call creates internal libcamera state that prevents
+        # tests from initializing their own camera instances.
+        # Tests will fail naturally if camera is not available.
 
 
 def pytest_runtest_teardown(item, nextitem):
