@@ -448,20 +448,35 @@ export default function Settings() {
                     </label>
                     <input
                       type="range"
-                      min="100"
-                      max="200000"
-                      step="100"
-                      value={cameraForm.ExposureTime || 499}
-                      onChange={(e) => setCameraForm({ ...cameraForm, ExposureTime: e.target.value })}
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={(() => {
+                        // Convert exposure time to logarithmic slider position (base-2)
+                        const exposure = parseInt(cameraForm.ExposureTime) || 500
+                        const minLog = Math.log2(100)      // ~6.64
+                        const maxLog = Math.log2(200000)   // ~17.61
+                        const logValue = Math.log2(Math.max(100, Math.min(200000, exposure)))
+                        return Math.round(((logValue - minLog) / (maxLog - minLog)) * 100)
+                      })()}
+                      onChange={(e) => {
+                        // Convert logarithmic slider position to exposure time (base-2)
+                        const sliderValue = parseInt(e.target.value)
+                        const minLog = Math.log2(100)
+                        const maxLog = Math.log2(200000)
+                        const logValue = minLog + (sliderValue / 100) * (maxLog - minLog)
+                        const exposureTime = Math.round(Math.pow(2, logValue))
+                        setCameraForm({ ...cameraForm, ExposureTime: exposureTime })
+                      }}
                       className="w-full cursor-pointer"
                     />
                     <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>100µs (Fast)</span>
-                      <span>50ms</span>
-                      <span>200ms (Long)</span>
+                      <span>100µs</span>
+                      <span>3ms</span>
+                      <span>200ms</span>
                     </div>
                     <p className="mt-2 text-xs text-gray-500">
-                      Shorter = less motion blur, Longer = brighter in low light
+                      Logarithmic scale: each step ≈ doubles exposure time (one photographic stop)
                     </p>
                   </div>
 

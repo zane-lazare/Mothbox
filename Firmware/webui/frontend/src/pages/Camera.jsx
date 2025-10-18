@@ -705,20 +705,32 @@ export default function Camera() {
                         </label>
                         <input
                           type="range"
-                          min="100"
-                          max="200000"
-                          step="100"
-                          value={liveControls.exposureTime}
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={(() => {
+                            // Convert exposure time to logarithmic slider position (base-2)
+                            const exposure = liveControls.exposureTime || 500
+                            const minLog = Math.log2(100)      // ~6.64
+                            const maxLog = Math.log2(200000)   // ~17.61
+                            const logValue = Math.log2(Math.max(100, Math.min(200000, exposure)))
+                            return Math.round(((logValue - minLog) / (maxLog - minLog)) * 100)
+                          })()}
                           onChange={(e) => {
-                            const newValue = parseInt(e.target.value)
-                            setLiveControls(prev => ({ ...prev, exposureTime: newValue }))
-                            handleControlChange('ExposureTime', newValue)
+                            // Convert logarithmic slider position to exposure time (base-2)
+                            const sliderValue = parseInt(e.target.value)
+                            const minLog = Math.log2(100)
+                            const maxLog = Math.log2(200000)
+                            const logValue = minLog + (sliderValue / 100) * (maxLog - minLog)
+                            const exposureTime = Math.round(Math.pow(2, logValue))
+                            setLiveControls(prev => ({ ...prev, exposureTime: exposureTime }))
+                            handleControlChange('ExposureTime', exposureTime)
                           }}
                           className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-orange-500"
                         />
                         <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
                           <span>100µs</span>
-                          <span>100ms</span>
+                          <span>3ms</span>
                           <span>200ms</span>
                         </div>
                       </div>
