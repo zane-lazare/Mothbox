@@ -38,6 +38,24 @@ def _emit_calibration_progress(step, total_steps, message, progress):
 
 
 # Allowed camera settings with validation functions (Phase 2.1: expanded controls)
+def _validate_int_enum(v, allowed_values):
+    """Validate integer enum - rejects floats, raises exception for invalid types"""
+    if isinstance(v, bool):
+        raise TypeError("Boolean not allowed")
+    if isinstance(v, float):
+        raise TypeError("Float not allowed for integer enum")
+    return int(v) in allowed_values
+
+def _validate_exposure_time(v):
+    """Validate ExposureTime - must be integer or digit string in range"""
+    if v is None:
+        raise TypeError("None not allowed for ExposureTime")
+    if isinstance(v, bool):
+        raise TypeError("Boolean not allowed for ExposureTime")
+    if not str(v).isdigit():
+        raise ValueError(f"ExposureTime must be integer or digit string, got {type(v).__name__}")
+    return 0 < int(v) < 1000000
+
 ALLOWED_CAMERA_SETTINGS = {
     # Image quality controls (practical ranges: 0-4 for sharpness/contrast/saturation)
     'Sharpness': lambda v: 0.0 <= float(v) <= 4.0,
@@ -46,16 +64,16 @@ ALLOWED_CAMERA_SETTINGS = {
     'Saturation': lambda v: 0.0 <= float(v) <= 4.0,
 
     # Exposure controls
-    'ExposureTime': lambda v: str(v).isdigit() and 0 < int(v) < 1000000,  # microseconds
+    'ExposureTime': _validate_exposure_time,  # microseconds
     'ExposureValue': lambda v: -8.0 <= float(v) <= 8.0,  # EV compensation
     'AnalogueGain': lambda v: 1.0 <= float(v) <= 16.0,  # ISO gain
     'AeEnable': lambda v: str(v).lower() in ['true', 'false'],  # Auto exposure
 
     # Focus controls (Phase 2.1)
-    'AfMode': lambda v: int(v) in [0, 1, 2],  # 0=Manual, 1=Auto Single, 2=Continuous
-    'AfSpeed': lambda v: int(v) in [0, 1],  # 0=Normal, 1=Fast
-    'AfRange': lambda v: int(v) in [0, 1, 2],  # 0=Normal, 1=Macro, 2=Full
-    'AfMetering': lambda v: int(v) in [0, 1, 2],  # Metering mode
+    'AfMode': lambda v: _validate_int_enum(v, [0, 1, 2]),  # 0=Manual, 1=Auto Single, 2=Continuous
+    'AfSpeed': lambda v: _validate_int_enum(v, [0, 1]),  # 0=Normal, 1=Fast
+    'AfRange': lambda v: _validate_int_enum(v, [0, 1, 2]),  # 0=Normal, 1=Macro, 2=Full
+    'AfMetering': lambda v: _validate_int_enum(v, [0, 1, 2]),  # Metering mode
     'LensPosition': lambda v: 0.0 <= float(v) <= 10.0,  # Diopters (manual focus)
 
     # White balance controls (Phase 2.1)
@@ -408,7 +426,7 @@ def trigger_autofocus():
                 print("Releasing camera hardware before autofocus...")
                 was_streaming = camera_streamer.streaming
                 camera_streamer.release_camera()
-                time.sleep(0.5)  # Let camera fully release
+                time.sleep(1.5)  # Let camera fully release (increased from 0.5s)
 
             # Initialize camera for autofocus
             picam2 = None
@@ -598,7 +616,7 @@ def auto_calibrate():
                 print("Releasing camera hardware before calibration...")
                 was_streaming = camera_streamer.streaming
                 camera_streamer.release_camera()
-                time.sleep(0.5)  # Let camera fully release
+                time.sleep(1.5)  # Let camera fully release (increased from 0.5s)
 
             # Step 2: Camera released (12%)
             _emit_calibration_progress(2, 8, 'Releasing streaming camera...', 12)
