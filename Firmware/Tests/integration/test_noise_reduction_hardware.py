@@ -42,10 +42,17 @@ class TestNoiseReductionHardware:
             streamer = current_app.config.get('CAMERA_STREAMER')
             assert streamer is not None
 
+            # DEBUG: Check camera state
+            print(f"   DEBUG: streamer.camera = {streamer.camera}")
+            print(f"   DEBUG: streamer object id = {id(streamer)}")
+
             # Load settings from file (includes noise_reduction_mode)
             streamer.load_stream_settings()
             assert streamer.noise_reduction_mode == 0
             print("   ✓ Setting loaded into streamer")
+
+            # DEBUG: Check camera state after loading settings
+            print(f"   DEBUG: After load_stream_settings, streamer.camera = {streamer.camera}")
 
             # Initialize camera if needed, then verify controls can be applied
             if not streamer.camera:
