@@ -204,12 +204,14 @@ def pytest_runtest_setup(item):
             pytest.skip("Hardware tests require Raspberry Pi")
 
         # Check if camera available
-        try:
-            from picamera2 import Picamera2
-            # Quick check - don't actually initialize
-            Picamera2.global_camera_info()
-        except Exception as e:
-            pytest.skip(f"Camera not available: {e}")
+        # TEMPORARILY DISABLED: This check seems to create a camera instance
+        # that conflicts with the test's camera initialization
+        # try:
+        #     from picamera2 import Picamera2
+        #     # Quick check - don't actually initialize
+        #     Picamera2.global_camera_info()
+        # except Exception as e:
+        #     pytest.skip(f"Camera not available: {e}")
 
 
 def pytest_runtest_teardown(item, nextitem):
