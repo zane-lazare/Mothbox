@@ -32,47 +32,47 @@ from mothbox_paths import WEBUI_SETTINGS_FILE
 class TestNoiseReductionApplication:
     """Test that noise reduction modes are applied to camera"""
 
-    def test_noise_reduction_off_applied(self, camera_streamer_func):
+    def test_noise_reduction_off_applied(self, camera_streamer):
         """Test that NoiseReductionMode=0 (Off) is applied to camera"""
         # Set noise reduction mode
-        camera_streamer_func.noise_reduction_mode = 0
+        camera_streamer.noise_reduction_mode = 0
 
         # Initialize camera
-        camera_streamer_func.initialize_camera()
+        camera_streamer.initialize_camera()
 
         # Verify camera initialized
-        assert camera_streamer_func.camera is not None, "Camera should be initialized"
+        assert camera_streamer.camera is not None, "Camera should be initialized"
 
         # The _apply_camera_controls method should have been called
         # Verify noise reduction mode was set to 0
-        print(f"\n✓ Noise reduction mode set to: {camera_streamer_func.noise_reduction_mode}")
-        assert camera_streamer_func.noise_reduction_mode == 0
+        print(f"\n✓ Noise reduction mode set to: {camera_streamer.noise_reduction_mode}")
+        assert camera_streamer.noise_reduction_mode == 0
 
-    def test_noise_reduction_fast_applied(self, camera_streamer_func):
+    def test_noise_reduction_fast_applied(self, camera_streamer):
         """Test that NoiseReductionMode=1 (Fast) is applied to camera"""
         # Set noise reduction mode
-        camera_streamer_func.noise_reduction_mode = 1
+        camera_streamer.noise_reduction_mode = 1
 
         # Initialize camera
-        camera_streamer_func.initialize_camera()
+        camera_streamer.initialize_camera()
 
         # Verify camera initialized and noise reduction mode set
-        assert camera_streamer_func.camera is not None
-        print(f"\n✓ Noise reduction mode set to: {camera_streamer_func.noise_reduction_mode}")
-        assert camera_streamer_func.noise_reduction_mode == 1
+        assert camera_streamer.camera is not None
+        print(f"\n✓ Noise reduction mode set to: {camera_streamer.noise_reduction_mode}")
+        assert camera_streamer.noise_reduction_mode == 1
 
-    def test_noise_reduction_high_quality_applied(self, camera_streamer_func):
+    def test_noise_reduction_high_quality_applied(self, camera_streamer):
         """Test that NoiseReductionMode=2 (High Quality) is applied to camera"""
         # Set noise reduction mode
-        camera_streamer_func.noise_reduction_mode = 2
+        camera_streamer.noise_reduction_mode = 2
 
         # Initialize camera
-        camera_streamer_func.initialize_camera()
+        camera_streamer.initialize_camera()
 
         # Verify camera initialized and noise reduction mode set
-        assert camera_streamer_func.camera is not None
-        print(f"\n✓ Noise reduction mode set to: {camera_streamer_func.noise_reduction_mode}")
-        assert camera_streamer_func.noise_reduction_mode == 2
+        assert camera_streamer.camera is not None
+        print(f"\n✓ Noise reduction mode set to: {camera_streamer.noise_reduction_mode}")
+        assert camera_streamer.noise_reduction_mode == 2
 
 
 class TestNoiseReductionPersistence:
