@@ -1,4 +1,7 @@
 """
+import os
+os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
+
 Integration tests for AeMeteringMode exposure control
 
 Tests that different metering modes affect exposure calculation as expected
