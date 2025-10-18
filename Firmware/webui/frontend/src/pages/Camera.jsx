@@ -534,21 +534,13 @@ export default function Camera() {
             {/* Metadata Overlay - Top Right */}
             {previewActive && metadata && !metadata.error && (
               <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white shadow-lg max-w-xs">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-semibold text-gray-200">📊 Live Metadata</h4>
-                  {/* Exposure Mode Badge */}
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                    liveControls.aeEnable
-                      ? 'bg-green-500/20 text-green-300 border border-green-500/30'
-                      : 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
-                  }`}>
-                    {liveControls.aeEnable ? '✨ Auto' : '🔧 Manual'}
-                  </span>
-                </div>
+                <h4 className="text-sm font-semibold text-gray-200 mb-2">📊 Live Metadata</h4>
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between items-center">
                     <span className="text-gray-300">Exposure:</span>
-                    <span className="font-semibold text-blue-300">{metadata.exposure_time} µs</span>
+                    <span className="font-semibold text-blue-300">
+                      {metadata.exposure_time}µs/{liveControls.aeEnable ? 'Auto' : 'Man.'}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-300">Gain (ISO):</span>
