@@ -375,8 +375,11 @@ export default function Camera() {
 
   // Task 5: Real-time control slider handlers
   const handleControlChange = (controlName, value) => {
+    // Convert PascalCase control name to camelCase state key
+    // e.g., 'NoiseReductionMode' -> 'noiseReductionMode', 'Sharpness' -> 'sharpness'
+    const key = controlName.charAt(0).toLowerCase() + controlName.slice(1)
+
     // Update local state immediately for responsive UI
-    const key = controlName.toLowerCase()
     setLiveControls(prev => ({
       ...prev,
       [key]: value
