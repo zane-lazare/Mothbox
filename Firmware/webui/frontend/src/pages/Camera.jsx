@@ -23,7 +23,8 @@ export default function Camera() {
     brightness: 0.0,
     contrast: 1.0,
     saturation: 1.0,
-    aeMeteringMode: 0
+    aeMeteringMode: 0,
+    aeEnable: true  // Auto exposure enabled by default
   })
   const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
   const [zoomCenter, setZoomCenter] = useState({ x: 0.5, y: 0.5 })  // Normalized zoom center (0.5, 0.5 = center)
@@ -531,7 +532,17 @@ export default function Camera() {
             {/* Metadata Overlay - Top Right */}
             {previewActive && metadata && !metadata.error && (
               <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white shadow-lg max-w-xs">
-                <h4 className="text-sm font-semibold mb-2 text-gray-200">📊 Live Metadata</h4>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-gray-200">📊 Live Metadata</h4>
+                  {/* Exposure Mode Badge */}
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                    liveControls.aeEnable
+                      ? 'bg-green-500/20 text-green-300 border border-green-500/30'
+                      : 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                  }`}>
+                    {liveControls.aeEnable ? '✨ Auto' : '🔧 Manual'}
+                  </span>
+                </div>
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between items-center">
                     <span className="text-gray-300">Exposure:</span>
@@ -659,26 +670,50 @@ export default function Camera() {
                     </div>
                   </div>
 
-                  {/* Exposure Metering Mode Dropdown */}
+                  {/* Exposure Mode Toggle */}
                   <div className="pt-2 mt-2 border-t border-white/20">
                     <label className="block text-xs font-medium text-gray-200 mb-1">
-                      📊 Metering Mode
+                      💡 Exposure Mode
                     </label>
                     <select
-                      value={liveControls.aeMeteringMode}
-                      onChange={(e) => handleControlChange('AeMeteringMode', parseInt(e.target.value))}
+                      value={liveControls.aeEnable ? 'true' : 'false'}
+                      onChange={(e) => {
+                        const newValue = e.target.value === 'true'
+                        setLiveControls(prev => ({ ...prev, aeEnable: newValue }))
+                        handleControlChange('AeEnable', newValue)
+                      }}
                       className="w-full px-2 py-1.5 text-xs bg-white/10 text-white border border-white/20 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
-                      <option value="0" className="bg-gray-800">Centre-Weighted</option>
-                      <option value="1" className="bg-gray-800">Spot</option>
-                      <option value="2" className="bg-gray-800">Matrix/Average</option>
+                      <option value="true" className="bg-gray-800">✨ Auto Exposure</option>
+                      <option value="false" className="bg-gray-800">🔧 Manual Exposure</option>
                     </select>
                     <div className="mt-1 text-[10px] text-gray-300">
-                      {liveControls.aeMeteringMode === 0 && '⚪ Centre: Prioritizes center of frame'}
-                      {liveControls.aeMeteringMode === 1 && '🎯 Spot: Uses small center area only'}
-                      {liveControls.aeMeteringMode === 2 && '🌐 Matrix: Evaluates entire frame'}
+                      {liveControls.aeEnable ? 'Camera adjusts exposure automatically' : 'Using fixed exposure settings'}
                     </div>
                   </div>
+
+                  {/* Exposure Metering Mode Dropdown - Only show in Auto mode */}
+                  {liveControls.aeEnable && (
+                    <div className="pt-2 mt-2 border-t border-white/20">
+                      <label className="block text-xs font-medium text-gray-200 mb-1">
+                        📊 Metering Mode
+                      </label>
+                      <select
+                        value={liveControls.aeMeteringMode}
+                        onChange={(e) => handleControlChange('AeMeteringMode', parseInt(e.target.value))}
+                        className="w-full px-2 py-1.5 text-xs bg-white/10 text-white border border-white/20 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="0" className="bg-gray-800">Centre-Weighted</option>
+                        <option value="1" className="bg-gray-800">Spot</option>
+                        <option value="2" className="bg-gray-800">Matrix/Average</option>
+                      </select>
+                      <div className="mt-1 text-[10px] text-gray-300">
+                        {liveControls.aeMeteringMode === 0 && '⚪ Centre: Prioritizes center of frame'}
+                        {liveControls.aeMeteringMode === 1 && '🎯 Spot: Uses small center area only'}
+                        {liveControls.aeMeteringMode === 2 && '🌐 Matrix: Evaluates entire frame'}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Zoom Slider */}
                   <div className="pt-2 mt-2 border-t border-white/20">

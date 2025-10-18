@@ -77,7 +77,8 @@ class CameraStreamer:
         self.af_speed = 0  # Normal speed
         self.af_range = 0  # Normal range
 
-        # Exposure metering controls
+        # Exposure controls
+        self.ae_enable = True  # Auto exposure enabled by default
         self.ae_metering_mode = 0  # Centre-weighted by default
 
         # White balance controls (Phase 2.1)
@@ -131,7 +132,9 @@ class CameraStreamer:
                 if 'af_range' in settings:
                     self.af_range = int(settings['af_range'])
 
-                # Exposure metering settings
+                # Exposure settings
+                if 'ae_enable' in settings:
+                    self.ae_enable = settings['ae_enable'].lower() == 'true'
                 if 'ae_metering_mode' in settings:
                     self.ae_metering_mode = int(settings['ae_metering_mode'])
 
@@ -235,7 +238,8 @@ class CameraStreamer:
             "Contrast": self.contrast,
             "Saturation": self.saturation,
 
-            # Exposure metering controls
+            # Exposure controls
+            "AeEnable": self.ae_enable,
             "AeMeteringMode": self.ae_metering_mode,
 
             # White balance controls

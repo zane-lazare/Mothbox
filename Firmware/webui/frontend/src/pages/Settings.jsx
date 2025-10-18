@@ -418,77 +418,104 @@ export default function Settings() {
             <div className="pt-4">
               <h4 className="text-md font-semibold text-gray-800 mb-4">📷 Exposure Settings</h4>
 
-              {/* Exposure Time */}
-              <div className="mb-4">
+              {/* AeEnable Toggle */}
+              <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Exposure Time: {cameraForm.ExposureTime || 0} µs
+                  Exposure Mode
                 </label>
-                <input
-                  type="range"
-                  min="100"
-                  max="200000"
-                  step="100"
-                  value={cameraForm.ExposureTime || 499}
-                  onChange={(e) => setCameraForm({ ...cameraForm, ExposureTime: e.target.value })}
-                  className="w-full cursor-pointer"
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>100µs (Fast)</span>
-                  <span>50ms</span>
-                  <span>200ms (Long)</span>
-                </div>
+                <select
+                  value={cameraForm.AeEnable !== undefined ? cameraForm.AeEnable : 'True'}
+                  onChange={(e) => setCameraForm({ ...cameraForm, AeEnable: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="True">✨ Auto Exposure</option>
+                  <option value="False">🔧 Manual Exposure</option>
+                </select>
                 <p className="mt-2 text-xs text-gray-500">
-                  Shorter = less motion blur, Longer = brighter in low light
+                  {cameraForm.AeEnable === 'False' || cameraForm.AeEnable === false
+                    ? 'Manual mode: You control exposure time and gain directly'
+                    : 'Auto mode: Camera automatically adjusts exposure based on scene brightness'}
                 </p>
               </div>
 
-              {/* Analogue Gain */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  ISO (Analogue Gain): {parseFloat(cameraForm.AnalogueGain || 1).toFixed(1)}x
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="16"
-                  step="0.5"
-                  value={cameraForm.AnalogueGain || 8.0}
-                  onChange={(e) => setCameraForm({ ...cameraForm, AnalogueGain: e.target.value })}
-                  className="w-full cursor-pointer"
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>1x (Clean)</span>
-                  <span>8x</span>
-                  <span>16x (Noisy)</span>
-                </div>
-                <p className="mt-2 text-xs text-gray-500">
-                  Higher ISO = brighter but more noise
-                </p>
-              </div>
+              {/* Manual Mode Controls - Show only when AeEnable is False */}
+              {(cameraForm.AeEnable === 'False' || cameraForm.AeEnable === false) && (
+                <>
+                  {/* Exposure Time */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Exposure Time: {cameraForm.ExposureTime || 0} µs
+                    </label>
+                    <input
+                      type="range"
+                      min="100"
+                      max="200000"
+                      step="100"
+                      value={cameraForm.ExposureTime || 499}
+                      onChange={(e) => setCameraForm({ ...cameraForm, ExposureTime: e.target.value })}
+                      className="w-full cursor-pointer"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>100µs (Fast)</span>
+                      <span>50ms</span>
+                      <span>200ms (Long)</span>
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                      Shorter = less motion blur, Longer = brighter in low light
+                    </p>
+                  </div>
 
-              {/* Exposure Value */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Exposure Compensation: {parseFloat(cameraForm.ExposureValue || 0).toFixed(1)} EV
-                </label>
-                <input
-                  type="range"
-                  min="-8"
-                  max="8"
-                  step="0.1"
-                  value={cameraForm.ExposureValue || 0.6}
-                  onChange={(e) => setCameraForm({ ...cameraForm, ExposureValue: e.target.value })}
-                  className="w-full cursor-pointer"
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>-8 EV (Much darker)</span>
-                  <span>0 EV</span>
-                  <span>+8 EV (Much brighter)</span>
+                  {/* Analogue Gain */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      ISO (Analogue Gain): {parseFloat(cameraForm.AnalogueGain || 1).toFixed(1)}x
+                    </label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="16"
+                      step="0.5"
+                      value={cameraForm.AnalogueGain || 8.0}
+                      onChange={(e) => setCameraForm({ ...cameraForm, AnalogueGain: e.target.value })}
+                      className="w-full cursor-pointer"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>1x (Clean)</span>
+                      <span>8x</span>
+                      <span>16x (Noisy)</span>
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                      Higher ISO = brighter but more noise
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {/* Auto Mode Controls - Show only when AeEnable is True */}
+              {(cameraForm.AeEnable === 'True' || cameraForm.AeEnable === true || cameraForm.AeEnable === undefined) && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Exposure Compensation: {parseFloat(cameraForm.ExposureValue || 0).toFixed(1)} EV
+                  </label>
+                  <input
+                    type="range"
+                    min="-8"
+                    max="8"
+                    step="0.1"
+                    value={cameraForm.ExposureValue || 0.6}
+                    onChange={(e) => setCameraForm({ ...cameraForm, ExposureValue: e.target.value })}
+                    className="w-full cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>-8 EV (Much darker)</span>
+                    <span>0 EV</span>
+                    <span>+8 EV (Much brighter)</span>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Adjust auto-exposure bias (positive = brighter, negative = darker)
+                  </p>
                 </div>
-                <p className="mt-2 text-xs text-gray-500">
-                  Adjust auto-exposure bias (positive = brighter, negative = darker)
-                </p>
-              </div>
+              )}
             </div>
 
             {/* HDR/Bracketing Section (Phase 2.1) */}
@@ -1008,30 +1035,52 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* Exposure Metering Controls */}
+            {/* Exposure Controls (Preview Stream) */}
             <div className="pt-6 mt-6 border-t border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">📊 Exposure Metering</h4>
+              <h4 className="text-md font-semibold text-gray-800 mb-4">📊 Exposure (Preview Stream)</h4>
 
-              {/* AeMeteringMode Dropdown */}
+              {/* AeEnable Toggle for Stream */}
               <div className="mb-6">
-                <label htmlFor="ae_metering_mode" className="block text-sm font-medium text-gray-700 mb-2">
-                  Metering Mode
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Preview Exposure Mode
                 </label>
                 <select
-                  id="ae_metering_mode"
-                  value={webuiForm.ae_metering_mode !== undefined ? webuiForm.ae_metering_mode : 0}
-                  onChange={(e) => setWebuiForm({...webuiForm, ae_metering_mode: parseInt(e.target.value)})}
+                  value={webuiForm.ae_enable !== undefined ? webuiForm.ae_enable : true}
+                  onChange={(e) => setWebuiForm({ ...webuiForm, ae_enable: e.target.value === 'true' })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="0">Centre-Weighted</option>
-                  <option value="1">Spot</option>
-                  <option value="2">Matrix/Average</option>
+                  <option value="true">✨ Auto Exposure</option>
+                  <option value="false">🔧 Manual Exposure</option>
                 </select>
                 <p className="mt-2 text-xs text-gray-500">
-                  Controls which part of the frame is used for exposure calculation.
-                  Centre-Weighted prioritizes the center, Spot uses a small center area only, Matrix evaluates the entire frame.
+                  {!webuiForm.ae_enable || webuiForm.ae_enable === true
+                    ? 'Auto mode: Preview stream uses automatic exposure adjustment'
+                    : 'Manual mode: Preview uses fixed exposure settings from Camera settings'}
                 </p>
               </div>
+
+              {/* AeMeteringMode Dropdown - Show only in Auto mode */}
+              {(!webuiForm.ae_enable || webuiForm.ae_enable === true) && (
+                <div className="mb-6">
+                  <label htmlFor="ae_metering_mode" className="block text-sm font-medium text-gray-700 mb-2">
+                    Metering Mode
+                  </label>
+                  <select
+                    id="ae_metering_mode"
+                    value={webuiForm.ae_metering_mode !== undefined ? webuiForm.ae_metering_mode : 0}
+                    onChange={(e) => setWebuiForm({...webuiForm, ae_metering_mode: parseInt(e.target.value)})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="0">Centre-Weighted</option>
+                    <option value="1">Spot</option>
+                    <option value="2">Matrix/Average</option>
+                  </select>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Controls which part of the frame is used for exposure calculation.
+                    Centre-Weighted prioritizes the center, Spot uses a small center area only, Matrix evaluates the entire frame.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* White Balance Controls (Phase 2.1) */}
