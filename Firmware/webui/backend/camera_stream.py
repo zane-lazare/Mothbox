@@ -12,7 +12,8 @@ import sys
 
 # Setup path for mothbox imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import WEBUI_SETTINGS_FILE, get_control_values
+import mothbox_paths
+from mothbox_paths import get_control_values
 
 try:
     from picamera2 import Picamera2
@@ -101,8 +102,8 @@ class CameraStreamer:
         self._af_mode_override = None  # None = use configured mode, 0 = force manual
 
         try:
-            if WEBUI_SETTINGS_FILE.exists():
-                settings = get_control_values(WEBUI_SETTINGS_FILE)
+            if mothbox_paths.WEBUI_SETTINGS_FILE.exists():
+                settings = get_control_values(mothbox_paths.WEBUI_SETTINGS_FILE)
 
                 # Load and validate settings
                 if 'stream_width' in settings:
