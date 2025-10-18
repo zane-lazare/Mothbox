@@ -152,6 +152,15 @@ case "$TEST_TYPE" in
                Tests/integration/test_noise_reduction_quality.py -v -s
         ;;
 
+    "metering"|"exposure-metering")
+        # Exposure Metering Mode tests (feature/exposure-metering branch)
+        echo "🚀 Running Exposure Metering Mode tests..."
+        echo ""
+        echo "Testing AeMeteringMode control (Centre-Weighted, Spot, Matrix)..."
+        pytest Tests/unit/test_metering_validation.py \
+               Tests/integration/test_metering_exposure.py -v -s
+        ;;
+
     "issue43"|"complete")
         # All tests for GitHub issue #43
         echo "🚀 Running COMPLETE test suite for GitHub issue #43..."
@@ -197,6 +206,8 @@ case "$TEST_TYPE" in
         echo "  interactive   - Same as workflows"
         echo "  noise         - Noise Reduction Mode tests"
         echo "  noise-reduction - Same as noise"
+        echo "  metering      - Exposure Metering Mode tests (feature branch)"
+        echo "  exposure-metering - Same as metering"
         echo ""
         echo "=== Legacy Phase Commands (backward compatibility) ==="
         echo "  phase2        - Run Phase 2 complete test suite"
@@ -222,6 +233,7 @@ case "$TEST_TYPE" in
         echo "  ./run_tests.sh focus            # Test focus & exposure"
         echo "  ./run_tests.sh workflows        # Test interactive features"
         echo "  ./run_tests.sh noise            # Test noise reduction modes"
+        echo "  ./run_tests.sh metering         # Test exposure metering mode (feature)"
         echo "  ./run_tests.sh quick            # Quick performance check"
         echo "  ./run_tests.sh manual           # Show manual test steps"
         exit 0
