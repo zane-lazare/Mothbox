@@ -14,7 +14,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
 from camera_stream import CameraStreamer
-from mothbox_paths import WEBUI_SETTINGS_FILE
 
 # Skip all tests if not on hardware
 pytest.importorskip("picamera2")
@@ -27,7 +26,7 @@ class TestMeteringExposure:
     def test_metering_mode_applied_to_camera(self, stream_ready, temp_webui_settings):
         """AeMeteringMode should be applied to camera controls"""
         # Write test settings with Matrix mode
-        with open(WEBUI_SETTINGS_FILE, 'w') as f:
+        with open(temp_webui_settings, 'w') as f:
             f.write("ae_metering_mode=2\n")  # Matrix mode
 
         # Reload settings into the streamer
@@ -48,7 +47,7 @@ class TestMeteringExposure:
         (Hardware-only test - requires actual camera)
         """
         # Write test settings with Spot mode
-        with open(WEBUI_SETTINGS_FILE, 'w') as f:
+        with open(temp_webui_settings, 'w') as f:
             f.write("ae_metering_mode=1\n")  # Spot mode
 
         # Reload settings into the streamer
@@ -81,7 +80,7 @@ class TestMeteringExposure:
     def test_metering_mode_integration_with_other_controls(self, stream_ready, temp_webui_settings):
         """AeMeteringMode should work alongside other camera controls"""
         # Write comprehensive settings
-        with open(WEBUI_SETTINGS_FILE, 'w') as f:
+        with open(temp_webui_settings, 'w') as f:
             f.write("ae_metering_mode=1\n")  # Spot mode
             f.write("sharpness=2.0\n")
             f.write("brightness=0.1\n")
