@@ -1,0 +1,263 @@
+"""
+Integration tests for Focus Bracket capture workflow
+
+Tests the complete focus bracketing workflow from settings update through capture routing
+"""
+
+import pytest
+import sys
+import csv
+import time
+from pathlib import Path
+from unittest.mock import patch, MagicMock
+
+# Add webui backend to path
+FIRMWARE_DIR = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(FIRMWARE_DIR / "webui" / "backend"))
+sys.path.insert(0, str(FIRMWARE_DIR))
+
+from mothbox_paths import CAMERA_SETTINGS_FILE, PHOTOS_DIR
+
+
+@pytest.fixture
+def client(tmp_path, monkeypatch):
+    """Create Flask test client with temporary paths"""
+    # Patch paths to use temp directory
+    temp_settings = tmp_path / "camera_settings.csv"
+    temp_photos = tmp_path / "photos"
+    temp_photos.mkdir()
+
+    monkeypatch.setattr('mothbox_paths.CAMERA_SETTINGS_FILE', temp_settings)
+    monkeypatch.setattr('mothbox_paths.PHOTOS_DIR', temp_photos)
+
+    # Create default settings file
+    with open(temp_settings, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+        writer.writerow(['FocusBracket', '1', 'Number of focus steps'])
+        writer.writerow(['FocusBracket_Start', '2.0', 'Start focus position'])
+        writer.writerow(['FocusBracket_End', '8.0', 'End focus position'])
+        writer.writerow(['HDR', '1', 'Number of exposures'])
+        writer.writerow(['ExposureTime', '10000', 'Exposure time'])
+        writer.writerow(['AnalogueGain', '2.0', 'ISO gain'])
+
+    # Import and configure Flask app
+    from app import create_app
+    app = create_app()
+    app.config['TESTING'] = True
+
+    with app.test_client() as client:
+        yield client, temp_settings, temp_photos
+
+
+class TestFocusBracketCapture:
+    """Test focus bracket capture workflow"""
+
+    def test_focus_bracket_settings_update(self, client):
+        """Test updating focus bracket settings via API"""
+        test_client, settings_file, _ = client
+
+        # Update focus bracket settings
+        response = test_client.post('/api/camera/settings', json={
+            'FocusBracket': '5',
+            'FocusBracket_Start': '2.0',
+            'FocusBracket_End': '8.0'
+        })
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] == True
+
+        # Verify settings were written to CSV
+        with open(settings_file, 'r') as f:
+            reader = csv.DictReader(f)
+            settings = {row['SETTING']: row['VALUE'] for row in reader}
+
+        assert settings['FocusBracket'] == '5'
+        assert settings['FocusBracket_Start'] == '2.0'
+        assert settings['FocusBracket_End'] == '8.0'
+
+    def test_focus_bracket_validation_rejects_invalid(self, client):
+        """Test that invalid focus bracket settings are rejected"""
+        test_client, _, _ = client
+
+        # Invalid step count (too high)
+        response = test_client.post('/api/camera/settings', json={
+            'FocusBracket': '15'
+        })
+        assert response.status_code == 400
+
+        # Invalid start position (negative)
+        response = test_client.post('/api/camera/settings', json={
+            'FocusBracket_Start': '-1.0'
+        })
+        assert response.status_code == 400
+
+        # Invalid end position (too high)
+        response = test_client.post('/api/camera/settings', json={
+            'FocusBracket_End': '15.0'
+        })
+        assert response.status_code == 400
+
+    def test_focus_bracket_mode_detection(self, client):
+        """Test that _should_use_focus_bracket_mode detects settings correctly"""
+        test_client, settings_file, _ = client
+
+        from routes.camera import _should_use_focus_bracket_mode
+
+        # Set focus bracketing to single step (disabled)
+        with open(settings_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+            writer.writerow(['FocusBracket', '1', ''])
+
+        use_fb, steps, start, end = _should_use_focus_bracket_mode()
+        assert use_fb == False
+        assert steps == 1
+
+        # Enable focus bracketing
+        with open(settings_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+            writer.writerow(['FocusBracket', '5', ''])
+            writer.writerow(['FocusBracket_Start', '2.0', ''])
+            writer.writerow(['FocusBracket_End', '8.0', ''])
+
+        use_fb, steps, start, end = _should_use_focus_bracket_mode()
+        assert use_fb == True
+        assert steps == 5
+        assert start == 2.0
+        assert end == 8.0
+
+    def test_focus_bracket_priority_over_hdr(self, client):
+        """Test that focus bracketing takes priority over HDR when both enabled"""
+        test_client, settings_file, _ = client
+
+        from routes.camera import _should_use_focus_bracket_mode, _should_use_hdr_mode
+
+        # Enable both focus bracketing and HDR
+        with open(settings_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+            writer.writerow(['FocusBracket', '5', ''])
+            writer.writerow(['FocusBracket_Start', '2.0', ''])
+            writer.writerow(['FocusBracket_End', '8.0', ''])
+            writer.writerow(['HDR', '3', ''])
+
+        # Check focus bracket detection
+        use_fb, fb_steps, fb_start, fb_end = _should_use_focus_bracket_mode()
+        assert use_fb == True
+        assert fb_steps == 5
+
+        # HDR should still detect settings
+        use_hdr, hdr_count, hdr_width = _should_use_hdr_mode()
+        assert use_hdr == True
+        assert hdr_count == 3
+
+    @patch('subprocess.run')
+    def test_focus_bracket_script_routing(self, mock_subprocess, client, monkeypatch):
+        """Test that capture endpoint routes to focus bracket script"""
+        test_client, settings_file, temp_photos = client
+
+        # Mock MOTHBOX_HOME to use test directory
+        mock_mothbox_home = Path(__file__).parent.parent.parent
+        monkeypatch.setattr('mothbox_paths.MOTHBOX_HOME', mock_mothbox_home)
+
+        # Create mock focus bracket script
+        script_dir = mock_mothbox_home / "webui" / "backend" / "scripts"
+        script_dir.mkdir(parents=True, exist_ok=True)
+        script_path = script_dir / "capture_focus_bracket.py"
+        script_path.write_text("#!/usr/bin/env python3\nprint('Mock focus bracket script')")
+        script_path.chmod(0o755)
+
+        # Enable focus bracketing
+        with open(settings_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+            writer.writerow(['FocusBracket', '5', ''])
+            writer.writerow(['FocusBracket_Start', '2.0', ''])
+            writer.writerow(['FocusBracket_End', '8.0', ''])
+            writer.writerow(['HDR', '1', ''])
+
+        # Mock successful subprocess execution
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "Focus bracket capture complete"
+        mock_result.stderr = ""
+        mock_subprocess.return_value = mock_result
+
+        # Create a dummy photo file
+        (temp_photos / "test.jpg").touch()
+
+        # Trigger capture
+        response = test_client.post('/api/camera/capture')
+
+        assert response.status_code == 200
+        data = response.get_json()
+
+        # Verify focus bracket mode was detected
+        assert data['success'] == True
+        assert data['focus_bracket_mode'] == True
+        assert data['focus_bracket_steps'] == 5
+        assert data['focus_bracket_start'] == 2.0
+        assert data['focus_bracket_end'] == 8.0
+        assert 'Focus bracket' in data['message']
+
+        # Verify correct script was called
+        called_script = str(mock_subprocess.call_args[0][0][1])
+        assert 'capture_focus_bracket.py' in called_script
+
+    def test_focus_bracket_default_values(self, client):
+        """Test default values when focus bracket settings are missing"""
+        test_client, settings_file, _ = client
+
+        from routes.camera import _should_use_focus_bracket_mode
+
+        # Empty settings file
+        with open(settings_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+
+        use_fb, steps, start, end = _should_use_focus_bracket_mode()
+
+        # Should use defaults and disable bracketing
+        assert use_fb == False
+        assert steps == 1
+        assert start == 2.0  # Default start
+        assert end == 8.0    # Default end
+
+    def test_focus_bracket_edge_cases(self, client):
+        """Test edge cases for focus bracket configuration"""
+        test_client, settings_file, _ = client
+
+        from routes.camera import _should_use_focus_bracket_mode
+
+        # Test with start > end (unusual but valid)
+        with open(settings_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+            writer.writerow(['FocusBracket', '3', ''])
+            writer.writerow(['FocusBracket_Start', '8.0', ''])
+            writer.writerow(['FocusBracket_End', '2.0', ''])
+
+        use_fb, steps, start, end = _should_use_focus_bracket_mode()
+        assert use_fb == True
+        assert steps == 3
+        assert start == 8.0
+        assert end == 2.0
+
+        # Test with start == end (valid for single step)
+        with open(settings_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+            writer.writerow(['FocusBracket', '1', ''])
+            writer.writerow(['FocusBracket_Start', '5.0', ''])
+            writer.writerow(['FocusBracket_End', '5.0', ''])
+
+        use_fb, steps, start, end = _should_use_focus_bracket_mode()
+        assert use_fb == False
+        assert steps == 1
+
+
+if __name__ == '__main__':
+    pytest.main([__file__, '-v'])

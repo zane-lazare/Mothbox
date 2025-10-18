@@ -183,6 +183,15 @@ case "$TEST_TYPE" in
                Tests/integration/test_isp_features.py -v -s
         ;;
 
+    "focusbracket"|"focus-bracket")
+        # Focus Bracketing tests
+        echo "🚀 Running Focus Bracketing tests..."
+        echo ""
+        echo "Testing focus bracket validation and capture workflows..."
+        pytest Tests/unit/test_focus_bracket_validation.py \
+               Tests/integration/test_focus_bracket_capture.py -v -s
+        ;;
+
     "issue43"|"complete")
         # All tests for GitHub issue #43
         echo "🚀 Running COMPLETE test suite for GitHub issue #43..."
@@ -232,6 +241,8 @@ case "$TEST_TYPE" in
         echo "  exposure-metering - Same as metering"
         echo "  isp           - ISP Tuning Feature tests"
         echo "  tuning        - Same as isp"
+        echo "  focusbracket  - Focus Bracketing tests"
+        echo "  focus-bracket - Same as focusbracket"
         echo ""
         echo "=== Legacy Phase Commands (backward compatibility) ==="
         echo "  phase2        - Run Phase 2 complete test suite"
@@ -255,6 +266,7 @@ case "$TEST_TYPE" in
         echo "  ./run_tests.sh performance      # Test performance & streaming"
         echo "  ./run_tests.sh quality          # Test image quality controls"
         echo "  ./run_tests.sh focus            # Test focus & exposure"
+        echo "  ./run_tests.sh focusbracket     # Test focus bracketing"
         echo "  ./run_tests.sh workflows        # Test interactive features"
         echo "  ./run_tests.sh noise            # Test noise reduction modes"
         echo "  ./run_tests.sh metering         # Test exposure metering mode (feature)"

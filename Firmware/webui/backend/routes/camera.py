@@ -143,6 +143,11 @@ ALLOWED_CAMERA_SETTINGS = {
     'HDR': lambda v: int(v) in [1, 3, 5, 7],  # Number of bracketed exposures
     'HDR_width': lambda v: 1000 <= int(v) <= 50000,  # Bracket step size (µs)
 
+    # Focus Bracketing
+    'FocusBracket': lambda v: 1 <= int(v) <= 10,  # Number of focus steps
+    'FocusBracket_Start': lambda v: 0.0 <= float(v) <= 10.0,  # Start focus position (diopters)
+    'FocusBracket_End': lambda v: 0.0 <= float(v) <= 10.0,  # End focus position (diopters)
+
     # Auto-calibration (Phase 2.1)
     'AutoCalibration': lambda v: int(v) in [0, 1],  # 0=Off, 1=On
     'AutoCalibrationPeriod': lambda v: 1 <= int(v) <= 10000,  # Photos between calibrations
@@ -215,6 +220,78 @@ def _should_use_hdr_mode():
         return False, 1, 7000
 
 
+def _should_use_focus_bracket_mode():
+    """
+    Check if Focus Bracketing mode is enabled in camera settings
+
+    Returns:
+        tuple: (bool, int, float, float) - (use_focus_bracket, steps, start, end)
+               use_focus_bracket: True if FocusBracket > 1
+               steps: Number of focus steps (1-10)
+               start: Starting focus position in diopters (0-10)
+               end: Ending focus position in diopters (0-10)
+    """
+    try:
+        import csv
+        from mothbox_paths import CAMERA_SETTINGS_FILE
+
+        steps = 1
+        start = 2.0  # Default start position
+        end = 8.0    # Default end position
+
+        if not CAMERA_SETTINGS_FILE.exists():
+            print("ℹ️  camera_settings.csv not found, defaulting to single focus")
+            return False, 1, 2.0, 8.0
+
+        with open(CAMERA_SETTINGS_FILE, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row['SETTING'] == 'FocusBracket':
+                    try:
+                        steps = int(row['VALUE'])
+                        # Validate steps is in allowed range
+                        if not (1 <= steps <= 10):
+                            print(f"⚠️  Invalid FocusBracket count {steps}, must be 1-10. Defaulting to 1.")
+                            steps = 1
+                    except (ValueError, KeyError) as e:
+                        print(f"⚠️  Could not parse FocusBracket setting value: {e}. Defaulting to 1.")
+                        steps = 1
+                elif row['SETTING'] == 'FocusBracket_Start':
+                    try:
+                        start = float(row['VALUE'])
+                        # Validate start is in reasonable range
+                        if not (0.0 <= start <= 10.0):
+                            print(f"⚠️  Invalid FocusBracket_Start {start}, must be 0.0-10.0. Defaulting to 2.0.")
+                            start = 2.0
+                    except (ValueError, KeyError) as e:
+                        print(f"⚠️  Could not parse FocusBracket_Start setting value: {e}. Defaulting to 2.0.")
+                        start = 2.0
+                elif row['SETTING'] == 'FocusBracket_End':
+                    try:
+                        end = float(row['VALUE'])
+                        # Validate end is in reasonable range
+                        if not (0.0 <= end <= 10.0):
+                            print(f"⚠️  Invalid FocusBracket_End {end}, must be 0.0-10.0. Defaulting to 8.0.")
+                            end = 8.0
+                    except (ValueError, KeyError) as e:
+                        print(f"⚠️  Could not parse FocusBracket_End setting value: {e}. Defaulting to 8.0.")
+                        end = 8.0
+
+        use_focus_bracket = steps > 1
+
+        # Log the decision
+        if use_focus_bracket:
+            print(f"✓ Focus Bracket mode enabled: {steps} steps from {start} to {end} diopters")
+        else:
+            print(f"✓ Single focus mode (FocusBracket={steps})")
+
+        return use_focus_bracket, steps, start, end
+
+    except Exception as e:
+        print(f"❌ Error reading Focus Bracket settings: {e}. Defaulting to single focus.")
+        return False, 1, 2.0, 8.0
+
+
 @camera_bp.route('/capture', methods=['POST'])
 def capture_photo():
     """Trigger a photo capture (automatically uses HDR if configured)"""
@@ -227,8 +304,11 @@ def capture_photo():
 
         print(f"Photo capture requested. MOTHBOX_HOME: {MOTHBOX_HOME}")
 
-        # Check if HDR mode is enabled
-        use_hdr, hdr_count, hdr_width = _should_use_hdr_mode()
+        # Check if Focus Bracket mode is enabled (takes priority over HDR)
+        use_focus_bracket, fb_steps, fb_start, fb_end = _should_use_focus_bracket_mode()
+
+        # Check if HDR mode is enabled (only if not doing focus bracketing)
+        use_hdr, hdr_count, hdr_width = _should_use_hdr_mode() if not use_focus_bracket else (False, 1, 7000)
 
         # Check if Pi 4 or Pi 5
         pi_version = None
@@ -251,13 +331,18 @@ def capture_photo():
         else:
             print(f"Detected Pi version: {pi_version}")
 
-        # Determine which script to use based on HDR setting
-        script_name = 'TakePhoto_HDR.py' if use_hdr else 'TakePhoto.py'
-        script_path = MOTHBOX_HOME / f"{pi_version}.x" / "scripts" / script_name
-
-        if use_hdr:
+        # Determine which script to use based on Focus Bracket and HDR settings
+        if use_focus_bracket:
+            script_name = 'capture_focus_bracket.py'
+            script_path = MOTHBOX_HOME / "webui" / "backend" / "scripts" / script_name
+            print(f"🎯 Focus Bracket mode enabled: {fb_steps} steps from {fb_start} to {fb_end} diopters")
+        elif use_hdr:
+            script_name = 'TakePhoto_HDR.py'
+            script_path = MOTHBOX_HOME / f"{pi_version}.x" / "scripts" / script_name
             print(f"📸 HDR mode enabled: {hdr_count} exposures, {hdr_width}µs bracket width")
         else:
+            script_name = 'TakePhoto.py'
+            script_path = MOTHBOX_HOME / f"{pi_version}.x" / "scripts" / script_name
             print(f"📸 Standard single-exposure mode")
 
         print(f"Looking for {script_name} at: {script_path}")
@@ -304,16 +389,22 @@ def capture_photo():
                     from routes.system import invalidate_photo_count_cache
                     invalidate_photo_count_cache()
 
-                    # Build success response with HDR metadata
+                    # Build success response with Focus Bracket / HDR metadata
                     response_data = {
                         'success': True,
                         'latest_photo': latest_photo,
                         'output': result.stdout,
+                        'focus_bracket_mode': use_focus_bracket,
                         'hdr_mode': use_hdr,
                         'script_used': script_name
                     }
 
-                    if use_hdr:
+                    if use_focus_bracket:
+                        response_data['focus_bracket_steps'] = fb_steps
+                        response_data['focus_bracket_start'] = fb_start
+                        response_data['focus_bracket_end'] = fb_end
+                        response_data['message'] = f'Focus bracket capture complete: {fb_steps} steps from {fb_start} to {fb_end} diopters'
+                    elif use_hdr:
                         response_data['hdr_count'] = hdr_count
                         response_data['hdr_width'] = hdr_width
                         response_data['message'] = f'HDR capture complete: {hdr_count} exposures with {hdr_width}µs bracket width'

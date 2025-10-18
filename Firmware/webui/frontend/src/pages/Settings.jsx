@@ -588,6 +588,94 @@ export default function Settings() {
               )}
             </div>
 
+            {/* Focus Bracketing Section */}
+            <div className="pt-4 mt-4 border-t border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4">🎯 Focus Bracketing</h4>
+              <p className="text-sm text-gray-600 mb-4">
+                Capture multiple photos at different focus positions for depth-of-field stacking
+              </p>
+
+              {/* Focus Bracket Steps */}
+              <div className="mb-4">
+                <label htmlFor="focus_bracket_steps" className="block text-sm font-medium text-gray-700 mb-2">
+                  Number of Focus Steps
+                </label>
+                <select
+                  id="focus_bracket_steps"
+                  value={cameraForm.FocusBracket || '1'}
+                  onChange={(e) => setCameraForm({...cameraForm, FocusBracket: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="1">Single Focus (No Bracketing)</option>
+                  <option value="3">3 Steps</option>
+                  <option value="5">5 Steps (Recommended)</option>
+                  <option value="7">7 Steps</option>
+                  <option value="10">10 Steps (Maximum)</option>
+                </select>
+                <p className="mt-2 text-xs text-gray-500">
+                  More steps = greater depth coverage, but slower capture
+                </p>
+              </div>
+
+              {/* Focus Range (only if Focus Bracketing enabled) */}
+              {(parseInt(cameraForm.FocusBracket) > 1) && (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Focus Start Position: {parseFloat(cameraForm.FocusBracket_Start || 2.0).toFixed(1)} diopters
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="10"
+                      step="0.5"
+                      value={cameraForm.FocusBracket_Start || 2.0}
+                      onChange={(e) => setCameraForm({ ...cameraForm, FocusBracket_Start: e.target.value })}
+                      className="w-full cursor-pointer"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>0 (Far)</span>
+                      <span>5</span>
+                      <span>10 (Near)</span>
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                      Starting focus distance (lower = farther)
+                    </p>
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Focus End Position: {parseFloat(cameraForm.FocusBracket_End || 8.0).toFixed(1)} diopters
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="10"
+                      step="0.5"
+                      value={cameraForm.FocusBracket_End || 8.0}
+                      onChange={(e) => setCameraForm({ ...cameraForm, FocusBracket_End: e.target.value })}
+                      className="w-full cursor-pointer"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>0 (Far)</span>
+                      <span>5</span>
+                      <span>10 (Near)</span>
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                      Ending focus distance (higher = closer)
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      <strong>Tip:</strong> For insect photography, try Start=2.0, End=8.0 to cover macro to mid-range distances.
+                      Focus bracketing takes priority over HDR when both are enabled.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
             {/* Focus Section (Phase 2.1) */}
             <div className="pt-4 mt-4 border-t border-gray-200">
               <h4 className="text-md font-semibold text-gray-800 mb-4">🎯 Focus Controls</h4>
@@ -720,8 +808,8 @@ export default function Settings() {
               <div className="mt-4 space-y-4">
                 {Object.entries(cameraForm)
                   .filter(([key]) => !['AutoCalibration', 'AutoCalibrationPeriod', 'ExposureTime', 'AnalogueGain',
-                    'ExposureValue', 'HDR', 'HDR_width', 'AfMode', 'LensPosition', 'AfRange', 'AfSpeed',
-                    'ImageFileType', 'VerticalFlip'].includes(key))
+                    'ExposureValue', 'HDR', 'HDR_width', 'FocusBracket', 'FocusBracket_Start', 'FocusBracket_End',
+                    'AfMode', 'LensPosition', 'AfRange', 'AfSpeed', 'ImageFileType', 'VerticalFlip'].includes(key))
                   .map(([key, value]) => (
                     <div key={key}>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
