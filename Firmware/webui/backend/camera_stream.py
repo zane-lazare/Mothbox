@@ -35,9 +35,9 @@ except ImportError:
     print("⚠ simplejpeg not available - using PIL (slower)")
 
 # Default camera stream configuration constants
-DEFAULT_PREVIEW_WIDTH = 1024
-DEFAULT_PREVIEW_HEIGHT = 768
-DEFAULT_PREVIEW_FORMAT = "BGR888"  # BGR888 produces true RGB order for correct colors
+DEFAULT_STREAM_WIDTH = 1024
+DEFAULT_STREAM_HEIGHT = 768
+DEFAULT_STREAM_FORMAT = "BGR888"  # BGR888 produces true RGB order for correct colors
 DEFAULT_FRAME_DELAY = 0.1  # seconds (10 fps)
 DEFAULT_JPEG_QUALITY = 85  # Balanced quality - faster encoding, smaller files
 
@@ -59,9 +59,9 @@ class CameraStreamer:
 
     def load_stream_settings(self):
         """Load stream settings from configuration file"""
-        self.preview_width = DEFAULT_PREVIEW_WIDTH
-        self.preview_height = DEFAULT_PREVIEW_HEIGHT
-        self.preview_format = DEFAULT_PREVIEW_FORMAT
+        self.stream_width = DEFAULT_STREAM_WIDTH
+        self.stream_height = DEFAULT_STREAM_HEIGHT
+        self.stream_format = DEFAULT_STREAM_FORMAT
         self.frame_delay = DEFAULT_FRAME_DELAY
         self.jpeg_quality = DEFAULT_JPEG_QUALITY
         self.stream_mode = 'simplejpeg'  # Default: fast software encoding
@@ -98,10 +98,10 @@ class CameraStreamer:
                 settings = get_control_values(WEBUI_SETTINGS_FILE)
 
                 # Load and validate settings
-                if 'preview_width' in settings:
-                    self.preview_width = int(settings['preview_width'])
-                if 'preview_height' in settings:
-                    self.preview_height = int(settings['preview_height'])
+                if 'stream_width' in settings:
+                    self.stream_width = int(settings['stream_width'])
+                if 'stream_height' in settings:
+                    self.stream_height = int(settings['stream_height'])
                 if 'frame_rate' in settings:
                     fps = int(settings['frame_rate'])
                     self.frame_delay = 1.0 / fps if fps > 0 else DEFAULT_FRAME_DELAY
@@ -139,7 +139,7 @@ class CameraStreamer:
                     self.colour_gains = (float(settings['colour_gains_red']),
                                         float(settings['colour_gains_blue']))
 
-                print(f"Stream settings loaded: {self.preview_width}x{self.preview_height}, "
+                print(f"Stream settings loaded: {self.stream_width}x{self.stream_height}, "
                       f"FPS: {1/self.frame_delay:.1f}, Quality: {self.jpeg_quality}, Mode: {self.stream_mode}")
                 print(f"  Image quality: Sharp={self.sharpness}, Bright={self.brightness}, "
                       f"Contrast={self.contrast}, Sat={self.saturation}")
@@ -149,7 +149,7 @@ class CameraStreamer:
             print(f"Error loading stream settings, using defaults: {e}")
 
     def initialize_camera(self):
-        """Initialize the camera for preview"""
+        """Initialize camera hardware and configure for streaming"""
         if not PICAMERA_AVAILABLE:
             return False
 
@@ -168,50 +168,28 @@ class CameraStreamer:
                 self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
                 print(f"Sensor resolution: {self.sensor_resolution}")
 
-                # Configure for preview - 4:3 aspect ratio for better compatibility
-                preview_config = self.camera.create_preview_configuration(
-                    main={"size": (self.preview_width, self.preview_height), "format": self.preview_format}
+                # Configure camera with video_config for both encoding paths:
+                # - Hardware MJPEG: Requires video_config for start_recording() with encoder
+                # - Software encoding: Works fine with video_config + capture_array()
+                # Using video_config universally eliminates need to reconfigure between modes.
+                video_config = self.camera.create_video_configuration(
+                    main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
+                    encode="main"  # Required for encoder support
                 )
-                self.camera.configure(preview_config)
+                self.camera.configure(video_config)
 
-                # Start camera to set controls
+                # Start camera to apply controls
                 self.camera.start()
 
-                # Apply camera controls (Phase 2.1: expanded from basic AF to full controls)
-                try:
-                    # Use AF mode override if set (e.g., after autofocus button locks focus)
-                    af_mode_to_use = self._af_mode_override if self._af_mode_override is not None else self.af_mode
+                # Apply camera controls
+                # CRITICAL: Must be called after configure() as configure() resets controls to defaults
+                applied_controls = self._apply_camera_controls()
 
-                    controls_dict = {
-                        # Focus controls
-                        "AfMode": af_mode_to_use,
-                        "AfSpeed": self.af_speed,
-                        "AfRange": self.af_range,
-                        "AfMetering": 0,  # Auto metering
-
-                        # Image quality controls
-                        "Sharpness": self.sharpness,
-                        "Brightness": self.brightness,
-                        "Contrast": self.contrast,
-                        "Saturation": self.saturation,
-
-                        # White balance controls
-                        "AwbEnable": self.awb_enable,
-                        # ColourGains: Critical for locking color balance under LED illumination
-                        # Note: Must be set even with AwbEnable to lock white balance (TakePhoto.py:519)
-                        "ColourGains": self.colour_gains,
-                    }
-
-                    # Only set AwbMode if AWB is disabled (manual mode)
-                    if not self.awb_enable:
-                        controls_dict["AwbMode"] = self.awb_mode
-
-                    self.camera.set_controls(controls_dict)
-                    print(f"Camera controls applied: AF Mode {af_mode_to_use}, "
-                          f"Sharpness {self.sharpness}, AWB {'On' if self.awb_enable else 'Off'}, "
-                          f"ColourGains {self.colour_gains}")
-                except Exception as controls_error:
-                    print(f"Camera controls configuration: {controls_error}")
+                # Log applied controls for debugging
+                print(f"✓ Camera controls applied: AF Mode {applied_controls['AfMode']}, "
+                      f"Speed {applied_controls['AfSpeed']}, Range {applied_controls['AfRange']}, "
+                      f"Sharpness {applied_controls['Sharpness']}, "
+                      f"AWB {'Enabled' if applied_controls['AwbEnable'] else 'Disabled'}")
 
                 # Stop camera - will be started again by stream_loop
                 self.camera.stop()
@@ -220,6 +198,53 @@ class CameraStreamer:
         except Exception as e:
             print(f"Failed to initialize camera: {e}")
             return False
+
+    def _apply_camera_controls(self):
+        """
+        Apply camera controls (autofocus, quality, white balance).
+
+        CRITICAL: Must be called after any camera.configure() call.
+        Picamera2's configure() method resets all controls to defaults.
+        This is not well-documented but causes controls to be lost if not re-applied
+        after every configure() call. This helper ensures controls are always applied
+        consistently after configuration changes.
+
+        Returns:
+            dict: Applied controls for verification logging
+        """
+        # Use AF mode override if set (e.g., after autofocus button locks focus)
+        af_mode_to_use = self._af_mode_override if self._af_mode_override is not None else self.af_mode
+
+        controls_dict = {
+            # Focus controls
+            "AfMode": af_mode_to_use,
+            "AfSpeed": self.af_speed,
+            "AfRange": self.af_range,
+            "AfMetering": 0,  # Auto metering
+
+            # Image quality controls
+            "Sharpness": self.sharpness,
+            "Brightness": self.brightness,
+            "Contrast": self.contrast,
+            "Saturation": self.saturation,
+
+            # White balance controls
+            "AwbEnable": self.awb_enable,
+            # ColourGains: Critical for locking color balance under LED illumination
+            # Note: Must be set even with AwbEnable to lock white balance (TakePhoto.py:519)
+            "ColourGains": self.colour_gains,
+        }
+
+        # Only set AwbMode if AWB is disabled (manual mode)
+        if not self.awb_enable:
+            controls_dict["AwbMode"] = self.awb_mode
+
+        self.camera.set_controls(controls_dict)
+
+        # Small delay to allow controls to settle
+        time.sleep(0.05)
+
+        return controls_dict
 
     def start_streaming(self):
         """Start streaming camera frames"""
@@ -363,19 +388,37 @@ class CameraStreamer:
                         'image': f'data:image/jpeg;base64,{img_base64}'
                     })
 
-            # Configure camera for video (required for encoder)
-            video_config = self.camera.create_video_configuration(
-                main={"size": (self.preview_width, self.preview_height)},
-                encode="main"
-            )
-            self.camera.configure(video_config)
-
             # Create WebSocket output handler
             output = WebSocketOutput(self.socketio, self.frame_delay)
 
-            # Start encoder and camera
+            # Start encoder and camera (already configured with video_config in initialize_camera)
             self.camera.start_recording(encoder, output)
-            print(f"✓ Hardware MJPEG streaming started at {self.preview_width}x{self.preview_height}")
+            print(f"✓ Hardware MJPEG streaming started at {self.stream_width}x{self.stream_height}")
+
+            # Self-test: Verify autofocus is functioning (if configured for continuous AF)
+            if self.af_mode == 2 and self._af_mode_override is None:
+                print("Running hardware MJPEG self-test...")
+                time.sleep(0.5)  # Wait for camera to stabilize
+
+                try:
+                    # Try to get metadata to verify AF is working
+                    request = self.camera.capture_request()
+                    md = request.get_metadata()
+                    request.release()
+
+                    af_state = md.get('AfState', 0)
+                    af_state_name = ("Idle", "Scanning", "Focused", "Failed")[af_state] if af_state < 4 else "Unknown"
+
+                    print(f"Self-test: AfState = {af_state_name}")
+
+                    # If stuck at Idle, controls may not have been applied
+                    if af_state == 0:
+                        print("⚠ Warning: Autofocus appears idle. Controls may not be active.")
+                        self.socketio.emit('stream_warning', {
+                            'message': 'Autofocus may not be functioning. Try restarting the stream.'
+                        })
+                except Exception as e:
+                    print(f"Self-test failed (non-critical): {e}")
 
             # Keep streaming until stopped
             while self.streaming and not self.stop_event.is_set():

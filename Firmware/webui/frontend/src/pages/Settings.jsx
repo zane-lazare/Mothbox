@@ -66,7 +66,7 @@ export default function Settings() {
       if (socketRef.current) {
         socketRef.current.emit('reload_stream_settings')
       }
-      toast.success('Stream settings updated successfully! Changes will apply to new preview sessions.')
+      toast.success('Stream settings updated successfully! Changes will apply to new stream sessions.')
     },
     onError: (error) => {
       const message = error.response?.data?.error || 'Failed to update stream settings'
@@ -763,7 +763,7 @@ export default function Settings() {
           `}</style>
           <h3 className="text-lg font-semibold mb-4">Camera Stream Configuration</h3>
           <p className="text-sm text-gray-600 mb-6">
-            Configure the camera preview stream quality and performance. Changes apply to new preview sessions.
+            Configure the live camera stream quality and performance. Changes apply to new stream sessions.
           </p>
 
           <form onSubmit={handleWebuiSubmit} className="space-y-6">
@@ -773,14 +773,14 @@ export default function Settings() {
                 Resolution Preset
               </label>
               <select
-                value={`${webuiForm.preview_width}x${webuiForm.preview_height}`}
+                value={`${webuiForm.stream_width}x${webuiForm.stream_height}`}
                 onChange={(e) => {
                   const preset = resolutionPresets.find(p => `${p.width}x${p.height}` === e.target.value)
                   if (preset) {
                     setWebuiForm({
                       ...webuiForm,
-                      preview_width: preset.width,
-                      preview_height: preset.height
+                      stream_width: preset.width,
+                      stream_height: preset.height
                     })
                   }
                 }}
@@ -793,7 +793,7 @@ export default function Settings() {
                 ))}
               </select>
               <p className="mt-1 text-xs text-gray-500">
-                Current: {webuiForm.preview_width} x {webuiForm.preview_height}
+                Current: {webuiForm.stream_width} x {webuiForm.stream_height}
               </p>
             </div>
 
@@ -1081,8 +1081,8 @@ export default function Settings() {
             {/* Info Box */}
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Note:</strong> Changes will take effect when you start a new camera preview session.
-                If the preview is currently running, stop it and start it again to apply the new settings.
+                <strong>Note:</strong> Changes will take effect when you start a new stream session.
+                If the stream is currently running, stop it and start it again to apply the new settings.
               </p>
             </div>
 

@@ -225,8 +225,8 @@ def get_webui_settings():
         # Default settings (Phase 2.1: expanded with image quality, focus, WB controls)
         defaults = {
             # Stream/encoding settings
-            'preview_width': 1024,
-            'preview_height': 768,
+            'stream_width': 1024,
+            'stream_height': 768,
             'frame_rate': 10,
             'jpeg_quality': 85,  # Optimized default: faster encoding, good quality
             'stream_mode': 'simplejpeg',  # Fast software encoding (5-7x faster than PIL)
@@ -296,8 +296,8 @@ def update_webui_settings():
 
         # Validate and convert types - Stream/encoding settings
         try:
-            preview_width = int(new_settings.get('preview_width', existing.get('preview_width', 1024)))
-            preview_height = int(new_settings.get('preview_height', existing.get('preview_height', 768)))
+            stream_width = int(new_settings.get('stream_width', existing.get('stream_width', 1024)))
+            stream_height = int(new_settings.get('stream_height', existing.get('stream_height', 768)))
             frame_rate = int(new_settings.get('frame_rate', existing.get('frame_rate', 10)))
             jpeg_quality = int(new_settings.get('jpeg_quality', existing.get('jpeg_quality', 85)))
         except (ValueError, TypeError) as e:
@@ -340,9 +340,9 @@ def update_webui_settings():
             return jsonify({'error': f'Invalid colour gains type: {e}'}), 400
 
         # Validate ranges - Stream/encoding
-        if not (320 <= preview_width <= 1920):
+        if not (320 <= stream_width <= 1920):
             return jsonify({'error': 'Width must be between 320 and 1920'}), 400
-        if not (240 <= preview_height <= 1080):
+        if not (240 <= stream_height <= 1080):
             return jsonify({'error': 'Height must be between 240 and 1080'}), 400
         if not (1 <= frame_rate <= 30):
             return jsonify({'error': 'Frame rate must be between 1 and 30'}), 400
@@ -387,8 +387,8 @@ def update_webui_settings():
         # Write settings to file (Phase 2.1: expanded settings)
         with open(WEBUI_SETTINGS_FILE, 'w') as f:
             # Stream/encoding settings
-            f.write(f"preview_width={preview_width}\n")
-            f.write(f"preview_height={preview_height}\n")
+            f.write(f"stream_width={stream_width}\n")
+            f.write(f"stream_height={stream_height}\n")
             f.write(f"frame_rate={frame_rate}\n")
             f.write(f"jpeg_quality={jpeg_quality}\n")
             f.write(f"stream_mode={stream_mode}\n")
