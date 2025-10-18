@@ -79,7 +79,31 @@ export default function Camera() {
         console.error('Failed to fetch camera settings:', error)
       }
     }
+
+    // Fetch webui settings to initialize live controls with actual values
+    const fetchWebuiSettings = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || '/api'
+        const response = await fetch(`${API_URL}/config/webui`)
+        if (response.ok) {
+          const data = await response.json()
+          // Update live controls with actual settings from backend
+          setLiveControls({
+            sharpness: data.sharpness || 1.0,
+            brightness: data.brightness || 0.0,
+            contrast: data.contrast || 1.0,
+            saturation: data.saturation || 1.0,
+            noiseReductionMode: data.noise_reduction_mode || 0
+          })
+          console.log('Loaded live controls from settings:', data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch webui settings:', error)
+      }
+    }
+
     fetchSettings()
+    fetchWebuiSettings()
 
     // Connect to WebSocket server using current window location
     // This ensures it works whether accessed via localhost, IP, or hostname
