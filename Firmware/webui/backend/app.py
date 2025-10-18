@@ -253,16 +253,21 @@ def handle_get_metadata():
     try:
         if camera_streamer.camera and camera_streamer.streaming:
             # Camera is active - get live metadata
-            # Use request metadata when in recording mode (hardware MJPEG), as capture_metadata
-            # returns stale data during video recording
+            # Note: During hardware MJPEG recording, capture_request() returns stale
+            # ExposureTime and ColourTemperature. Use capture_metadata() instead.
             try:
-                # Try request-based metadata first (works during recording)
-                request = camera_streamer.camera.capture_request()
-                md = request.get_metadata()
-                request.release()
-            except Exception:
-                # Fallback to capture_metadata (works in preview/software mode)
+                # Use capture_metadata which works better during hardware MJPEG
                 md = camera_streamer.camera.capture_metadata()
+            except Exception as e:
+                print(f"Failed to get metadata via capture_metadata: {e}")
+                # Fallback: try request-based metadata
+                try:
+                    request = camera_streamer.camera.capture_request()
+                    md = request.get_metadata()
+                    request.release()
+                except Exception as e2:
+                    print(f"Failed to get metadata via capture_request: {e2}")
+                    raise
 
             # Extract relevant metadata
             exposure_time = md.get('ExposureTime', 0)
