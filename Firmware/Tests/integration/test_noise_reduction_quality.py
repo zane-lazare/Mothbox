@@ -32,79 +32,47 @@ from mothbox_paths import WEBUI_SETTINGS_FILE
 class TestNoiseReductionApplication:
     """Test that noise reduction modes are applied to camera"""
 
-    def test_noise_reduction_off_applied(self):
+    def test_noise_reduction_off_applied(self, camera_streamer_func):
         """Test that NoiseReductionMode=0 (Off) is applied to camera"""
-        from unittest.mock import MagicMock
+        # Set noise reduction mode
+        camera_streamer_func.noise_reduction_mode = 0
 
-        # Create mock socketio
-        socketio = MagicMock()
+        # Initialize camera
+        camera_streamer_func.initialize_camera()
 
-        # Create streamer
-        streamer = CameraStreamer(socketio)
-        streamer.noise_reduction_mode = 0
+        # Verify camera initialized
+        assert camera_streamer_func.camera is not None, "Camera should be initialized"
 
-        # Initialize camera (may fail if camera busy, that's OK)
-        try:
-            streamer.initialize_camera()
+        # The _apply_camera_controls method should have been called
+        # Verify noise reduction mode was set to 0
+        print(f"\n✓ Noise reduction mode set to: {camera_streamer_func.noise_reduction_mode}")
+        assert camera_streamer_func.noise_reduction_mode == 0
 
-            # Verify camera initialized
-            assert streamer.camera is not None, "Camera should be initialized"
-
-            # The _apply_camera_controls method should have been called
-            # Verify noise reduction mode was set to 0
-            print(f"\n✓ Noise reduction mode set to: {streamer.noise_reduction_mode}")
-            assert streamer.noise_reduction_mode == 0
-
-        except Exception as e:
-            print(f"⚠️  Camera initialization failed (may be in use): {e}")
-            pytest.skip("Camera not available for test")
-        finally:
-            if streamer.camera:
-                streamer.release_camera()
-
-    def test_noise_reduction_fast_applied(self):
+    def test_noise_reduction_fast_applied(self, camera_streamer_func):
         """Test that NoiseReductionMode=1 (Fast) is applied to camera"""
-        from unittest.mock import MagicMock
+        # Set noise reduction mode
+        camera_streamer_func.noise_reduction_mode = 1
 
-        socketio = MagicMock()
-        streamer = CameraStreamer(socketio)
-        streamer.noise_reduction_mode = 1
+        # Initialize camera
+        camera_streamer_func.initialize_camera()
 
-        try:
-            streamer.initialize_camera()
-            assert streamer.camera is not None
+        # Verify camera initialized and noise reduction mode set
+        assert camera_streamer_func.camera is not None
+        print(f"\n✓ Noise reduction mode set to: {camera_streamer_func.noise_reduction_mode}")
+        assert camera_streamer_func.noise_reduction_mode == 1
 
-            print(f"\n✓ Noise reduction mode set to: {streamer.noise_reduction_mode}")
-            assert streamer.noise_reduction_mode == 1
-
-        except Exception as e:
-            print(f"⚠️  Camera initialization failed: {e}")
-            pytest.skip("Camera not available")
-        finally:
-            if streamer.camera:
-                streamer.release_camera()
-
-    def test_noise_reduction_high_quality_applied(self):
+    def test_noise_reduction_high_quality_applied(self, camera_streamer_func):
         """Test that NoiseReductionMode=2 (High Quality) is applied to camera"""
-        from unittest.mock import MagicMock
+        # Set noise reduction mode
+        camera_streamer_func.noise_reduction_mode = 2
 
-        socketio = MagicMock()
-        streamer = CameraStreamer(socketio)
-        streamer.noise_reduction_mode = 2
+        # Initialize camera
+        camera_streamer_func.initialize_camera()
 
-        try:
-            streamer.initialize_camera()
-            assert streamer.camera is not None
-
-            print(f"\n✓ Noise reduction mode set to: {streamer.noise_reduction_mode}")
-            assert streamer.noise_reduction_mode == 2
-
-        except Exception as e:
-            print(f"⚠️  Camera initialization failed: {e}")
-            pytest.skip("Camera not available")
-        finally:
-            if streamer.camera:
-                streamer.release_camera()
+        # Verify camera initialized and noise reduction mode set
+        assert camera_streamer_func.camera is not None
+        print(f"\n✓ Noise reduction mode set to: {camera_streamer_func.noise_reduction_mode}")
+        assert camera_streamer_func.noise_reduction_mode == 2
 
 
 class TestNoiseReductionPersistence:
