@@ -42,8 +42,8 @@ ALLOWED_CAMERA_SETTINGS = {
     # Image quality controls
     'Sharpness': lambda v: 0.0 <= float(v) <= 16.0,
     'Brightness': lambda v: -1.0 <= float(v) <= 1.0,
-    'Contrast': lambda v: -1.0 <= float(v) <= 1.0,
-    'Saturation': lambda v: -1.0 <= float(v) <= 1.0,
+    'Contrast': lambda v: 0.0 <= float(v) <= 32.0,
+    'Saturation': lambda v: 0.0 <= float(v) <= 32.0,
 
     # Exposure controls
     'ExposureTime': lambda v: str(v).isdigit() and 0 < int(v) < 1000000,  # microseconds
