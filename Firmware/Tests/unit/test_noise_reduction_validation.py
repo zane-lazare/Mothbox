@@ -12,6 +12,9 @@ RUN ON RASPBERRY PI ONLY - tests Flask routes
 Usage:
     pytest Tests/unit/test_noise_reduction_validation.py -v -s
 """
+import os
+os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
+
 import pytest
 import sys
 from pathlib import Path

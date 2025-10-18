@@ -14,6 +14,9 @@ RUN ON RASPBERRY PI ONLY - requires camera hardware
 Usage:
     pytest Tests/integration/test_noise_reduction_quality.py -v -s
 """
+import os
+os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
+
 import pytest
 import sys
 import time
