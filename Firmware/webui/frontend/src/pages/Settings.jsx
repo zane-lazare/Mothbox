@@ -984,6 +984,26 @@ export default function Settings() {
                   Adjust color intensity. 0.0 = grayscale, 1.0 = normal saturation.
                 </p>
               </div>
+
+              {/* Noise Reduction Mode Dropdown */}
+              <div className="mb-6">
+                <label htmlFor="noise_reduction_mode" className="block text-sm font-medium text-gray-700 mb-2">
+                  Noise Reduction Mode
+                </label>
+                <select
+                  id="noise_reduction_mode"
+                  value={webuiForm.noise_reduction_mode !== undefined ? webuiForm.noise_reduction_mode : 0}
+                  onChange={(e) => setWebuiForm({...webuiForm, noise_reduction_mode: parseInt(e.target.value)})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="0">Off (Fastest)</option>
+                  <option value="1">Fast (Balanced)</option>
+                  <option value="2">High Quality (Best for night photography)</option>
+                </select>
+                <p className="mt-2 text-xs text-gray-500">
+                  Critical for night insect photography. Higher quality reduces noise but may be slower.
+                </p>
+              </div>
             </div>
 
             {/* Focus Controls (Phase 2.1) */}

@@ -26,7 +26,8 @@ export default function Camera() {
     aeMeteringMode: 0,
     aeEnable: true,  // Auto exposure enabled by default
     exposureTime: 500,  // Manual exposure time in microseconds
-    analogueGain: 8.0  // Manual gain/ISO
+    analogueGain: 8.0,  // Manual gain/ISO
+    noiseReductionMode: 0
   })
   const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
   const [zoomCenter, setZoomCenter] = useState({ x: 0.5, y: 0.5 })  // Normalized zoom center (0.5, 0.5 = center)
@@ -82,7 +83,31 @@ export default function Camera() {
         console.error('Failed to fetch camera settings:', error)
       }
     }
+
+    // Fetch webui settings to initialize live controls with actual values
+    const fetchWebuiSettings = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || '/api'
+        const response = await fetch(`${API_URL}/config/webui`)
+        if (response.ok) {
+          const data = await response.json()
+          // Update live controls with actual settings from backend
+          setLiveControls({
+            sharpness: data.sharpness || 1.0,
+            brightness: data.brightness || 0.0,
+            contrast: data.contrast || 1.0,
+            saturation: data.saturation || 1.0,
+            noiseReductionMode: data.noise_reduction_mode || 0
+          })
+          console.log('Loaded live controls from settings:', data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch webui settings:', error)
+      }
+    }
+
     fetchSettings()
+    fetchWebuiSettings()
 
     // Connect to WebSocket server using current window location
     // This ensures it works whether accessed via localhost, IP, or hostname
@@ -117,6 +142,16 @@ export default function Camera() {
     })
 
     socketRef.current.on('metadata_update', (data) => {
+      // Debug: Log metadata to see what values we're getting
+      if (data && !data.error) {
+        console.log('Metadata:', {
+          exposure: data.exposure_time,
+          gain: data.analogue_gain,
+          focus: data.lens_position,
+          colorTemp: data.colour_temperature,
+          afState: data.af_state
+        })
+      }
       setMetadata(data)
     })
 
@@ -384,8 +419,11 @@ export default function Camera() {
 
   // Task 5: Real-time control slider handlers
   const handleControlChange = (controlName, value) => {
+    // Convert PascalCase control name to camelCase state key
+    // e.g., 'NoiseReductionMode' -> 'noiseReductionMode', 'Sharpness' -> 'sharpness'
+    const key = controlName.charAt(0).toLowerCase() + controlName.slice(1)
+
     // Update local state immediately for responsive UI
-    const key = pascalToCamelCase(controlName)
     setLiveControls(prev => ({
       ...prev,
       [key]: value
@@ -777,6 +815,29 @@ export default function Camera() {
                       </div>
                     </div>
                   )}
+
+                  {/* Noise Reduction Mode Dropdown */}
+                  <div className="pt-2 mt-2 border-t border-white/20">
+                    <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                      <span>Noise Reduction</span>
+                      <span className="text-blue-300 font-mono">
+                        {liveControls.noiseReductionMode === 0 ? 'Off' :
+                         liveControls.noiseReductionMode === 1 ? 'Fast' : 'High Quality'}
+                      </span>
+                    </label>
+                    <select
+                      value={liveControls.noiseReductionMode}
+                      onChange={(e) => handleControlChange('NoiseReductionMode', parseInt(e.target.value))}
+                      className="w-full px-2 py-1.5 bg-white/20 text-white text-xs rounded border border-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="0">Off</option>
+                      <option value="1">Fast</option>
+                      <option value="2">High Quality</option>
+                    </select>
+                    <p className="mt-1 text-[10px] text-gray-400">
+                      Critical for night insect photography
+                    </p>
+                  </div>
 
                   {/* Zoom Slider */}
                   <div className="pt-2 mt-2 border-t border-white/20">

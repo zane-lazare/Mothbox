@@ -72,6 +72,9 @@ class CameraStreamer:
         self.contrast = 1.0
         self.saturation = 1.0
 
+        # Noise reduction control
+        self.noise_reduction_mode = 0  # 0=Off, 1=Fast, 2=High Quality
+
         # Focus controls (Phase 2.1)
         self.af_mode = 2  # Continuous autofocus by default
         self.af_speed = 0  # Normal speed
@@ -123,6 +126,10 @@ class CameraStreamer:
                     self.contrast = float(settings['contrast'])
                 if 'saturation' in settings:
                     self.saturation = float(settings['saturation'])
+
+                # Noise reduction setting
+                if 'noise_reduction_mode' in settings:
+                    self.noise_reduction_mode = int(settings['noise_reduction_mode'])
 
                 # Focus settings (Phase 2.1)
                 if 'af_mode' in settings:
@@ -241,6 +248,9 @@ class CameraStreamer:
             # Exposure controls
             "AeEnable": self.ae_enable,
             "AeMeteringMode": self.ae_metering_mode,
+
+            # Noise reduction control
+            "NoiseReductionMode": self.noise_reduction_mode,
 
             # White balance controls
             "AwbEnable": self.awb_enable,
@@ -777,36 +787,58 @@ class CameraStreamer:
 
     def cleanup(self):
         """
-        Cleanup camera resources with timeout protection.
+        Cleanup camera resources with timeout protection (Issue #46 Solution #4)
+
+        Improvements:
+        - Waits for stream thread to fully stop before closing camera
+        - Forces camera to None even on error to prevent state pollution
+        - Increased timeout for camera close operation
 
         Called by:
         - atexit handler (registered in app.py)
         - Signal handlers (SIGTERM/SIGINT in app.py)
         - Finally block (app.py main)
+        - Test fixtures (conftest.py)
         """
         print("Cleaning up camera resources...")
 
         # Stop streaming gracefully
         self.stop_streaming()
 
+        # Wait for stream thread to actually finish (Issue #46 fix)
+        if self.stream_thread and self.stream_thread.is_alive():
+            print("⏳ Waiting for stream thread to stop...")
+            self.stream_thread.join(timeout=5.0)
+
+            if self.stream_thread.is_alive():
+                print("⚠️  Warning: Stream thread did not stop gracefully")
+
         # Close camera with timeout protection
         if self.camera:
             try:
                 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
+                # Check if camera is started before trying to stop
+                try:
+                    if hasattr(self.camera, 'started') and self.camera.started:
+                        self.camera.stop()
+                except Exception as e:
+                    print(f"⚠️  Note: Camera stop failed (may already be stopped): {e}")
+
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(self.camera.close)
                     try:
-                        future.result(timeout=2.0)
+                        future.result(timeout=3.0)  # Increased from 2.0s
                         print("✓ Camera closed successfully")
                     except TimeoutError:
-                        print("⚠ Camera close timed out - forcing cleanup")
+                        print("⚠️  Camera close timed out - forcing cleanup")
                     except Exception as e:
-                        print(f"⚠ Error closing camera: {e}")
+                        print(f"⚠️  Error closing camera: {e}")
 
             except Exception as e:
                 # Catch any errors in the cleanup mechanism itself
-                print(f"⚠ Error during camera cleanup: {e}")
+                print(f"⚠️  Error during camera cleanup: {e}")
             finally:
+                # ALWAYS set to None, even on error (Issue #46 fix)
                 self.camera = None
                 print("✓ Camera cleanup complete")

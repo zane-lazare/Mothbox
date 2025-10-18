@@ -9,7 +9,49 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import mothbox_import  # Sets up sys.path for mothbox
 
-from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR
+from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CAMERA_SETTINGS_FILE, CONTROLS_FILE, WEBUI_SETTINGS_FILE
+
+
+# ============================================================================
+# Helper Functions (Issue #46)
+# ============================================================================
+
+def acquire_camera_with_retry(camera_id=0, max_retries=3, wait_time=2.0):
+    """
+    Acquire camera with retry logic for busy state (Issue #46 Solution #3)
+
+    Handles cases where hardware hasn't fully released yet after
+    camera_streamer.release_camera() call. Common when switching
+    between photo and stream workflows.
+
+    Args:
+        camera_id: Camera index (0 or 1)
+        max_retries: Maximum number of retry attempts
+        wait_time: Seconds to wait between retries
+
+    Returns:
+        Picamera2: Initialized camera instance
+
+    Raises:
+        RuntimeError: If camera cannot be acquired after max_retries
+    """
+    from picamera2 import Picamera2
+    import time
+
+    for attempt in range(max_retries):
+        try:
+            print(f"🎥 Attempting to acquire camera {camera_id} (attempt {attempt + 1}/{max_retries})")
+            return Picamera2(camera_id)
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if ("busy" in error_msg or "resource" in error_msg) and attempt < max_retries - 1:
+                print(f"⚠️  Camera busy, waiting {wait_time}s before retry...")
+                time.sleep(wait_time)
+            else:
+                # Last attempt or non-busy error
+                raise
+
+    raise RuntimeError(f"Failed to acquire camera {camera_id} after {max_retries} attempts")
 
 
 def _emit_calibration_progress(step, total_steps, message, progress):
@@ -38,6 +80,24 @@ def _emit_calibration_progress(step, total_steps, message, progress):
 
 
 # Allowed camera settings with validation functions (Phase 2.1: expanded controls)
+def _validate_int_enum(v, allowed_values):
+    """Validate integer enum - rejects floats, raises exception for invalid types"""
+    if isinstance(v, bool):
+        raise TypeError("Boolean not allowed")
+    if isinstance(v, float):
+        raise TypeError("Float not allowed for integer enum")
+    return int(v) in allowed_values
+
+def _validate_exposure_time(v):
+    """Validate ExposureTime - must be integer or digit string in range"""
+    if v is None:
+        raise TypeError("None not allowed for ExposureTime")
+    if isinstance(v, bool):
+        raise TypeError("Boolean not allowed for ExposureTime")
+    if not str(v).isdigit():
+        raise ValueError(f"ExposureTime must be integer or digit string, got {type(v).__name__}")
+    return 0 < int(v) < 1000000
+
 ALLOWED_CAMERA_SETTINGS = {
     # Image quality controls (practical ranges: 0-4 for sharpness/contrast/saturation)
     'Sharpness': lambda v: 0.0 <= float(v) <= 4.0,
@@ -46,16 +106,16 @@ ALLOWED_CAMERA_SETTINGS = {
     'Saturation': lambda v: 0.0 <= float(v) <= 4.0,
 
     # Exposure controls
-    'ExposureTime': lambda v: str(v).isdigit() and 0 < int(v) < 1000000,  # microseconds
+    'ExposureTime': _validate_exposure_time,  # microseconds
     'ExposureValue': lambda v: -8.0 <= float(v) <= 8.0,  # EV compensation
     'AnalogueGain': lambda v: 1.0 <= float(v) <= 16.0,  # ISO gain
     'AeEnable': lambda v: str(v).lower() in ['true', 'false'],  # Auto exposure
 
     # Focus controls (Phase 2.1)
-    'AfMode': lambda v: int(v) in [0, 1, 2],  # 0=Manual, 1=Auto Single, 2=Continuous
-    'AfSpeed': lambda v: int(v) in [0, 1],  # 0=Normal, 1=Fast
-    'AfRange': lambda v: int(v) in [0, 1, 2],  # 0=Normal, 1=Macro, 2=Full
-    'AfMetering': lambda v: int(v) in [0, 1, 2],  # Metering mode
+    'AfMode': lambda v: _validate_int_enum(v, [0, 1, 2]),  # 0=Manual, 1=Auto Single, 2=Continuous
+    'AfSpeed': lambda v: _validate_int_enum(v, [0, 1]),  # 0=Normal, 1=Fast
+    'AfRange': lambda v: _validate_int_enum(v, [0, 1, 2]),  # 0=Normal, 1=Macro, 2=Full
+    'AfMetering': lambda v: _validate_int_enum(v, [0, 1, 2]),  # Metering mode
     'LensPosition': lambda v: 0.0 <= float(v) <= 10.0,  # Diopters (manual focus)
 
     # Exposure metering controls
@@ -64,6 +124,9 @@ ALLOWED_CAMERA_SETTINGS = {
     # White balance controls (Phase 2.1)
     'AwbEnable': lambda v: str(v).lower() in ['true', 'false'],
     'AwbMode': lambda v: 0 <= int(v) <= 7,  # 0=Auto, 1=Incandescent, ..., 7=Custom
+
+    # Noise reduction controls
+    'NoiseReductionMode': lambda v: isinstance(v, int) and v in [0, 1, 2] or (isinstance(v, str) and v.isdigit() and int(v) in [0, 1, 2]),  # 0=Off, 1=Fast, 2=High Quality
 
     # HDR/Bracketing (Phase 2.1)
     'HDR': lambda v: int(v) in [1, 3, 5, 7],  # Number of bracketed exposures
@@ -408,16 +471,16 @@ def trigger_autofocus():
                 print("Releasing camera hardware before autofocus...")
                 was_streaming = camera_streamer.streaming
                 camera_streamer.release_camera()
-                time.sleep(0.5)  # Let camera fully release
+                time.sleep(1.5)  # Let camera fully release (increased from 0.5s)
 
             # Initialize camera for autofocus
             picam2 = None
             try:
-                # Try camera 0 first, fallback to camera 1
+                # Try camera 0 first with retry logic, fallback to camera 1
                 try:
-                    picam2 = Picamera2(0)
+                    picam2 = acquire_camera_with_retry(0)
                 except Exception:
-                    picam2 = Picamera2(1)
+                    picam2 = acquire_camera_with_retry(1)
 
                 # Configure for high-res preview (better for AF accuracy)
                 preview_config = picam2.create_preview_configuration(
@@ -598,7 +661,7 @@ def auto_calibrate():
                 print("Releasing camera hardware before calibration...")
                 was_streaming = camera_streamer.streaming
                 camera_streamer.release_camera()
-                time.sleep(0.5)  # Let camera fully release
+                time.sleep(1.5)  # Let camera fully release (increased from 0.5s)
 
             # Step 2: Camera released (12%)
             _emit_calibration_progress(2, 8, 'Releasing streaming camera...', 12)
@@ -628,11 +691,11 @@ def auto_calibrate():
             # Initialize camera for calibration
             picam2 = None
             try:
-                # Try camera 0 first, fallback to camera 1
+                # Try camera 0 first with retry logic, fallback to camera 1
                 try:
-                    picam2 = Picamera2(0)
+                    picam2 = acquire_camera_with_retry(0)
                 except Exception:
-                    picam2 = Picamera2(1)
+                    picam2 = acquire_camera_with_retry(1)
 
                 # Configure for calibration (higher res for accuracy)
                 preview_config = picam2.create_preview_configuration(
@@ -1017,11 +1080,11 @@ def test_capture():
             # Initialize camera for test capture
             picam2 = None
             try:
-                # Try camera 0 first, fallback to camera 1
+                # Try camera 0 first with retry logic, fallback to camera 1
                 try:
-                    picam2 = Picamera2(0)
+                    picam2 = acquire_camera_with_retry(0)
                 except Exception:
-                    picam2 = Picamera2(1)
+                    picam2 = acquire_camera_with_retry(1)
 
                 # Configure for high-resolution test capture
                 # Use 4K instead of 64MP to fit within Pi 5's 64MB CMA constraint (~24MB vs ~180MB)
