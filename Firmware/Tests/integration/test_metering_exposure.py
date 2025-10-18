@@ -46,30 +46,23 @@ class TestMeteringExposure:
         assert streamer.ae_metering_mode == 0, \
             "ae_metering_mode should default to 0 (Centre-Weighted)"
 
-    def test_metering_mode_applied_to_camera(self, mock_socketio, temp_webui_settings):
+    @pytest.mark.hardware
+    def test_metering_mode_applied_to_camera(self, stream_ready, temp_webui_settings):
         """AeMeteringMode should be applied to camera controls"""
         # Write test settings with Matrix mode
         with open(WEBUI_SETTINGS_FILE, 'w') as f:
             f.write("ae_metering_mode=2\n")  # Matrix mode
 
-        streamer = CameraStreamer(mock_socketio)
+        # Reload settings into the streamer
+        stream_ready.load_stream_settings()
 
-        # Initialize camera to trigger control application
-        if streamer.initialize_camera():
-            try:
-                # Get the applied controls
-                applied_controls = streamer._apply_camera_controls()
+        # Get the applied controls
+        applied_controls = stream_ready._apply_camera_controls()
 
-                assert 'AeMeteringMode' in applied_controls, \
-                    "AeMeteringMode should be in applied controls"
-                assert applied_controls['AeMeteringMode'] == 2, \
-                    "AeMeteringMode should be set to Matrix mode (2)"
-
-            finally:
-                # Cleanup
-                streamer.release_camera()
-        else:
-            pytest.skip("Camera initialization failed - hardware may not be available")
+        assert 'AeMeteringMode' in applied_controls, \
+            "AeMeteringMode should be in applied controls"
+        assert applied_controls['AeMeteringMode'] == 2, \
+            "AeMeteringMode should be set to Matrix mode (2)"
 
     def test_all_metering_modes_valid(self, mock_socketio, temp_webui_settings):
         """All metering modes (0, 1, 2) should be accepted"""
@@ -94,7 +87,7 @@ class TestMeteringExposure:
                 streamer.release_camera()
 
     @pytest.mark.hardware
-    def test_metering_mode_affects_metadata(self, mock_socketio, temp_webui_settings):
+    def test_metering_mode_affects_metadata(self, stream_ready, temp_webui_settings):
         """
         Metering mode should be reflected in camera metadata
         (Hardware-only test - requires actual camera)
@@ -103,39 +96,34 @@ class TestMeteringExposure:
         with open(WEBUI_SETTINGS_FILE, 'w') as f:
             f.write("ae_metering_mode=1\n")  # Spot mode
 
-        streamer = CameraStreamer(mock_socketio)
+        # Reload settings into the streamer
+        stream_ready.load_stream_settings()
 
-        if streamer.initialize_camera():
-            try:
-                # Start camera
-                streamer.camera.start()
+        # Start camera (if not already started by fixture)
+        if not stream_ready.camera.started:
+            stream_ready.camera.start()
 
-                # Apply controls
-                streamer._apply_camera_controls()
+        # Apply controls
+        stream_ready._apply_camera_controls()
 
-                # Let camera stabilize
-                import time
-                time.sleep(0.3)
+        # Let camera stabilize
+        import time
+        time.sleep(0.3)
 
-                # Capture metadata
-                try:
-                    metadata = streamer.camera.capture_metadata()
+        # Capture metadata
+        try:
+            metadata = stream_ready.camera.capture_metadata()
 
-                    # AeMeteringMode should be reflected in metadata
-                    # Note: metadata key may be 'AeMeteringMode' depending on Picamera2 version
-                    assert 'AeMeteringMode' in metadata or 'ExposureMode' in metadata, \
-                        "Metering mode should be in metadata"
+            # AeMeteringMode should be reflected in metadata
+            # Note: metadata key may be 'AeMeteringMode' depending on Picamera2 version
+            assert 'AeMeteringMode' in metadata or 'ExposureMode' in metadata, \
+                "Metering mode should be in metadata"
 
-                except Exception as e:
-                    pytest.skip(f"Could not capture metadata: {e}")
+        except Exception as e:
+            pytest.skip(f"Could not capture metadata: {e}")
 
-            finally:
-                # Cleanup
-                streamer.release_camera()
-        else:
-            pytest.skip("Camera initialization failed - hardware may not be available")
-
-    def test_metering_mode_integration_with_other_controls(self, mock_socketio, temp_webui_settings):
+    @pytest.mark.hardware
+    def test_metering_mode_integration_with_other_controls(self, stream_ready, temp_webui_settings):
         """AeMeteringMode should work alongside other camera controls"""
         # Write comprehensive settings
         with open(WEBUI_SETTINGS_FILE, 'w') as f:
@@ -145,27 +133,21 @@ class TestMeteringExposure:
             f.write("contrast=1.5\n")
             f.write("saturation=1.2\n")
 
-        streamer = CameraStreamer(mock_socketio)
+        # Reload settings into the streamer
+        stream_ready.load_stream_settings()
 
         # Verify all settings loaded correctly
-        assert streamer.ae_metering_mode == 1
-        assert streamer.sharpness == 2.0
-        assert streamer.brightness == 0.1
-        assert streamer.contrast == 1.5
-        assert streamer.saturation == 1.2
+        assert stream_ready.ae_metering_mode == 1
+        assert stream_ready.sharpness == 2.0
+        assert stream_ready.brightness == 0.1
+        assert stream_ready.contrast == 1.5
+        assert stream_ready.saturation == 1.2
 
         # Verify controls can be applied without error
-        if streamer.initialize_camera():
-            try:
-                applied_controls = streamer._apply_camera_controls()
+        applied_controls = stream_ready._apply_camera_controls()
 
-                assert applied_controls['AeMeteringMode'] == 1
-                assert applied_controls['Sharpness'] == 2.0
-                assert applied_controls['Brightness'] == 0.1
-                assert applied_controls['Contrast'] == 1.5
-                assert applied_controls['Saturation'] == 1.2
-
-            finally:
-                streamer.release_camera()
-        else:
-            pytest.skip("Camera initialization failed - hardware may not be available")
+        assert applied_controls['AeMeteringMode'] == 1
+        assert applied_controls['Sharpness'] == 2.0
+        assert applied_controls['Brightness'] == 0.1
+        assert applied_controls['Contrast'] == 1.5
+        assert applied_controls['Saturation'] == 1.2
