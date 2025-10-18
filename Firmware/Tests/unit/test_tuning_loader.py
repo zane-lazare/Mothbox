@@ -1,4 +1,7 @@
 """
+import os
+os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
+
 Unit tests for ISP tuning loader module
 
 Tests:

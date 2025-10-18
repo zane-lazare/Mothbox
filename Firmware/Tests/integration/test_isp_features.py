@@ -1,4 +1,7 @@
 """
+import os
+os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
+
 Integration tests for ISP features
 
 Tests ISP integration with camera_stream and settings endpoints.
