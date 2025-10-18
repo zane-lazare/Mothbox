@@ -118,11 +118,13 @@ case "$TEST_TYPE" in
         # Focus & Exposure Controls tests
         echo "🚀 Running Focus & Exposure Controls tests..."
         echo ""
-        echo "Testing autofocus, calibration, and exposure workflows..."
+        echo "Testing autofocus, calibration, exposure, and metering workflows..."
         pytest Tests/unit/test_focus_control_validation.py \
+               Tests/unit/test_metering_validation.py \
                Tests/integration/test_autofocus_workflows.py \
                Tests/integration/test_calibration_workflows.py \
-               Tests/integration/test_camera_controls.py -v -s
+               Tests/integration/test_camera_controls.py \
+               Tests/integration/test_metering_exposure.py -v -s
         ;;
 
     "workflows"|"interactive")
