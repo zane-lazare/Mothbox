@@ -64,17 +64,23 @@ class TestMeteringExposure:
         import time
         time.sleep(0.3)
 
-        # Capture metadata
+        # Capture metadata (using production fallback pattern from app.py)
         try:
+            # Try capture_metadata first (works during hardware MJPEG)
             metadata = stream_ready.camera.capture_metadata()
+        except Exception:
+            # Fallback: use capture_request (works during software encoding)
+            try:
+                request = stream_ready.camera.capture_request()
+                metadata = request.get_metadata()
+                request.release()
+            except Exception as e:
+                pytest.skip(f"Could not capture metadata: {e}")
 
-            # AeMeteringMode should be reflected in metadata
-            # Note: metadata key may be 'AeMeteringMode' depending on Picamera2 version
-            assert 'AeMeteringMode' in metadata or 'ExposureMode' in metadata, \
-                "Metering mode should be in metadata"
-
-        except Exception as e:
-            pytest.skip(f"Could not capture metadata: {e}")
+        # AeMeteringMode should be reflected in metadata
+        # Note: metadata key may be 'AeMeteringMode' depending on Picamera2 version
+        assert 'AeMeteringMode' in metadata or 'ExposureMode' in metadata, \
+            "Metering mode should be in metadata"
 
     @pytest.mark.hardware
     def test_metering_mode_integration_with_other_controls(self, stream_ready, temp_webui_settings):
