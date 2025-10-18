@@ -276,9 +276,6 @@ def handle_get_metadata():
             af_state_code = md.get('AfState', 0)
             colour_temp = md.get('ColourTemperature', 0)
 
-            # DEBUG: Log metadata values to diagnose frozen exposure/color temp
-            print(f"Metadata from camera: Exp={exposure_time}, Gain={analogue_gain:.2f}, Focus={lens_position:.2f}, Temp={colour_temp}K")
-
             # Convert AfState code to string
             af_state = ("Idle", "Scanning", "Success", "Fail")[af_state_code] if af_state_code < 4 else "Unknown"
 
