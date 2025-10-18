@@ -41,10 +41,14 @@ class TestMeteringExposure:
             "AeMeteringMode should be set to Matrix mode (2)"
 
     @pytest.mark.hardware
-    def test_metering_mode_affects_metadata(self, stream_ready, temp_webui_settings):
+    def test_metering_mode_with_metadata_capture(self, stream_ready, temp_webui_settings):
         """
-        Metering mode should be reflected in camera metadata
+        Test that metering mode settings load and metadata can be captured
         (Hardware-only test - requires actual camera)
+
+        Note: AeMeteringMode is a control input but doesn't appear in metadata output.
+        Metadata contains exposure results (ExposureTime, AnalogueGain) not all inputs.
+        This test verifies the workflow works, not that the mode is in metadata.
         """
         # Write test settings with Spot mode
         with open(temp_webui_settings, 'w') as f:
@@ -53,12 +57,20 @@ class TestMeteringExposure:
         # Reload settings into the streamer
         stream_ready.load_stream_settings()
 
+        # Verify metering mode was loaded correctly
+        assert stream_ready.ae_metering_mode == 1, \
+            "Metering mode should be loaded from settings"
+
         # Start camera (if not already started by fixture)
         if not stream_ready.camera.started:
             stream_ready.camera.start()
 
         # Apply controls
-        stream_ready._apply_camera_controls()
+        applied_controls = stream_ready._apply_camera_controls()
+
+        # Verify metering mode was applied to controls
+        assert applied_controls['AeMeteringMode'] == 1, \
+            "AeMeteringMode should be in applied controls"
 
         # Let camera stabilize
         import time
@@ -77,10 +89,12 @@ class TestMeteringExposure:
             except Exception as e:
                 pytest.skip(f"Could not capture metadata: {e}")
 
-        # AeMeteringMode should be reflected in metadata
-        # Note: metadata key may be 'AeMeteringMode' depending on Picamera2 version
-        assert 'AeMeteringMode' in metadata or 'ExposureMode' in metadata, \
-            "Metering mode should be in metadata"
+        # Verify metadata contains expected camera information
+        # Note: AeMeteringMode is NOT in metadata (Picamera2 API limitation)
+        assert 'ExposureTime' in metadata, "ExposureTime should be in metadata"
+        assert 'AnalogueGain' in metadata, "AnalogueGain should be in metadata"
+        assert isinstance(metadata['ExposureTime'], int), "ExposureTime should be an integer"
+        assert isinstance(metadata['AnalogueGain'], float), "AnalogueGain should be a float"
 
     @pytest.mark.hardware
     def test_metering_mode_integration_with_other_controls(self, stream_ready, temp_webui_settings):
