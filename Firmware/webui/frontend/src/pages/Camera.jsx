@@ -114,6 +114,16 @@ export default function Camera() {
     })
 
     socketRef.current.on('metadata_update', (data) => {
+      // Debug: Log metadata to see what values we're getting
+      if (data && !data.error) {
+        console.log('Metadata:', {
+          exposure: data.exposure_time,
+          gain: data.analogue_gain,
+          focus: data.lens_position,
+          colorTemp: data.colour_temperature,
+          afState: data.af_state
+        })
+      }
       setMetadata(data)
     })
 
