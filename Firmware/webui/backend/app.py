@@ -249,6 +249,21 @@ def handle_get_metadata():
     - LensPosition (diopters)
     - AfState (Idle/Scanning/Success/Fail)
     - ColourTemperature (Kelvin)
+    - DigitalGain (software amplification)
+    - FocusFoM (Focus Figure of Merit - sharpness score)
+    - SensorTimestamp (microseconds)
+    - ColourGains (red/blue gains)
+    - FrameDuration (actual frame time in microseconds)
+    - SensorBlackLevel (dark current offset)
+    - SensorTemperature (if available)
+    - ScalerCrop (digital zoom crop coordinates)
+    - AeLocked (auto-exposure lock state)
+    - AwbLocked (auto white balance lock state)
+    - LuxValue (scene brightness estimate)
+    - Saturation (applied saturation value)
+    - Contrast (applied contrast value)
+    - Sharpness (applied sharpness value)
+    - Brightness (applied brightness value)
     """
     try:
         if camera_streamer.camera and camera_streamer.streaming:
@@ -269,22 +284,56 @@ def handle_get_metadata():
                     print(f"Failed to get metadata via capture_request: {e2}")
                     raise
 
-            # Extract relevant metadata
+            # Extract primary metadata fields (existing)
             exposure_time = md.get('ExposureTime', 0)
             analogue_gain = md.get('AnalogueGain', 0.0)
             lens_position = md.get('LensPosition', 0.0)
             af_state_code = md.get('AfState', 0)
             colour_temp = md.get('ColourTemperature', 0)
 
+            # Extract extended metadata fields (new)
+            digital_gain = md.get('DigitalGain', 0.0)
+            focus_fom = md.get('FocusFoM', 0)
+            sensor_timestamp = md.get('SensorTimestamp', 0)
+            colour_gains = md.get('ColourGains', (0.0, 0.0))
+            frame_duration = md.get('FrameDuration', 0)
+            sensor_black_level = md.get('SensorBlackLevel', 0)
+            sensor_temperature = md.get('SensorTemperature', None)
+            scaler_crop = md.get('ScalerCrop', (0, 0, 0, 0))
+            ae_locked = md.get('AeLocked', False)
+            awb_locked = md.get('AwbLocked', False)
+            lux = md.get('Lux', 0)
+            saturation = md.get('Saturation', 0.0)
+            contrast = md.get('Contrast', 0.0)
+            sharpness = md.get('Sharpness', 0.0)
+            brightness = md.get('Brightness', 0.0)
+
             # Convert AfState code to string
             af_state = ("Idle", "Scanning", "Success", "Fail")[af_state_code] if af_state_code < 4 else "Unknown"
 
             emit('metadata_update', {
+                # Primary metadata (existing)
                 'exposure_time': exposure_time,
                 'analogue_gain': round(analogue_gain, 2),
                 'lens_position': round(lens_position, 2),
                 'af_state': af_state,
                 'colour_temperature': colour_temp,
+                # Extended metadata (new)
+                'digital_gain': round(digital_gain, 2),
+                'focus_fom': round(focus_fom, 3) if focus_fom else 0,
+                'sensor_timestamp': sensor_timestamp,
+                'colour_gains': (round(colour_gains[0], 2), round(colour_gains[1], 2)) if len(colour_gains) >= 2 else (0.0, 0.0),
+                'frame_duration': frame_duration,
+                'sensor_black_level': sensor_black_level,
+                'sensor_temperature': round(sensor_temperature, 1) if sensor_temperature is not None else None,
+                'scaler_crop': scaler_crop if scaler_crop else (0, 0, 0, 0),
+                'ae_locked': ae_locked,
+                'awb_locked': awb_locked,
+                'lux': lux,
+                'saturation': round(saturation, 2),
+                'contrast': round(contrast, 2),
+                'sharpness': round(sharpness, 2),
+                'brightness': round(brightness, 2),
                 'timestamp': __import__('time').time()
             })
 
@@ -296,7 +345,22 @@ def handle_get_metadata():
                 'analogue_gain': 0,
                 'lens_position': 0,
                 'af_state': 'Unavailable',
-                'colour_temperature': 0
+                'colour_temperature': 0,
+                'digital_gain': 0,
+                'focus_fom': 0,
+                'sensor_timestamp': 0,
+                'colour_gains': (0.0, 0.0),
+                'frame_duration': 0,
+                'sensor_black_level': 0,
+                'sensor_temperature': None,
+                'scaler_crop': (0, 0, 0, 0),
+                'ae_locked': False,
+                'awb_locked': False,
+                'lux': 0,
+                'saturation': 0,
+                'contrast': 0,
+                'sharpness': 0,
+                'brightness': 0
             })
 
     except Exception as e:
@@ -307,7 +371,22 @@ def handle_get_metadata():
             'analogue_gain': 0,
             'lens_position': 0,
             'af_state': 'Error',
-            'colour_temperature': 0
+            'colour_temperature': 0,
+            'digital_gain': 0,
+            'focus_fom': 0,
+            'sensor_timestamp': 0,
+            'colour_gains': (0.0, 0.0),
+            'frame_duration': 0,
+            'sensor_black_level': 0,
+            'sensor_temperature': None,
+            'scaler_crop': (0, 0, 0, 0),
+            'ae_locked': False,
+            'awb_locked': False,
+            'lux': 0,
+            'saturation': 0,
+            'contrast': 0,
+            'sharpness': 0,
+            'brightness': 0
         })
 
 @socketio.on('update_preview_control')

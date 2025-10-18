@@ -576,8 +576,10 @@ export default function Camera() {
 
             {/* Metadata Overlay - Top Right */}
             {previewActive && metadata && !metadata.error && (
-              <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white shadow-lg max-w-xs">
+              <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white shadow-lg max-w-sm">
                 <h4 className="text-sm font-semibold text-gray-200 mb-2">📊 Live Metadata</h4>
+
+                {/* Primary Metadata (Always Visible) */}
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between items-center">
                     <span className="text-gray-300">Exposure:</span>
@@ -602,6 +604,85 @@ export default function Camera() {
                     <span className="font-semibold text-blue-300">{metadata.colour_temperature}K</span>
                   </div>
                 </div>
+
+                {/* Extended Metadata (Collapsible) */}
+                <details className="mt-2">
+                  <summary className="text-xs cursor-pointer text-gray-300 hover:text-white select-none">
+                    More Details ▼
+                  </summary>
+                  <div className="space-y-1.5 text-xs mt-2 pt-2 border-t border-gray-600">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Digital Gain:</span>
+                      <span className="text-blue-300">{metadata.digital_gain}x</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Focus FoM:</span>
+                      <span className="text-blue-300">{metadata.focus_fom}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Sensor Time:</span>
+                      <span className="text-blue-300">{metadata.sensor_timestamp} µs</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Colour Gains:</span>
+                      <span className="text-blue-300">
+                        R:{metadata.colour_gains?.[0] ?? 0} B:{metadata.colour_gains?.[1] ?? 0}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Frame Duration:</span>
+                      <span className="text-blue-300">{metadata.frame_duration} µs</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Black Level:</span>
+                      <span className="text-blue-300">{metadata.sensor_black_level}</span>
+                    </div>
+                    {metadata.sensor_temperature !== null && metadata.sensor_temperature !== undefined && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-300">Sensor Temp:</span>
+                        <span className="text-blue-300">{metadata.sensor_temperature}°C</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Scaler Crop:</span>
+                      <span className="text-blue-300 text-[10px]">
+                        {metadata.scaler_crop?.[0]},{metadata.scaler_crop?.[1]} {metadata.scaler_crop?.[2]}x{metadata.scaler_crop?.[3]}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">AE Lock:</span>
+                      <span className={metadata.ae_locked ? "text-yellow-300" : "text-green-300"}>
+                        {metadata.ae_locked ? "Locked" : "Auto"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">AWB Lock:</span>
+                      <span className={metadata.awb_locked ? "text-yellow-300" : "text-green-300"}>
+                        {metadata.awb_locked ? "Locked" : "Auto"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Lux:</span>
+                      <span className="text-blue-300">{metadata.lux}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Saturation:</span>
+                      <span className="text-blue-300">{metadata.saturation}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Contrast:</span>
+                      <span className="text-blue-300">{metadata.contrast}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Sharpness:</span>
+                      <span className="text-blue-300">{metadata.sharpness}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Brightness:</span>
+                      <span className="text-blue-300">{metadata.brightness}</span>
+                    </div>
+                  </div>
+                </details>
               </div>
             )}
 

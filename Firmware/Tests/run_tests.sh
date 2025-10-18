@@ -192,6 +192,15 @@ case "$TEST_TYPE" in
                Tests/integration/test_focus_bracket_capture.py -v -s
         ;;
 
+    "metadata"|"extended-metadata")
+        # Extended Metadata tests
+        echo "🚀 Running Extended Metadata tests..."
+        echo ""
+        echo "Testing extraction and accuracy of 15+ new metadata fields..."
+        pytest Tests/unit/test_metadata_extraction.py \
+               Tests/integration/test_metadata_accuracy.py -v -s
+        ;;
+
     "issue43"|"complete")
         # All tests for GitHub issue #43
         echo "🚀 Running COMPLETE test suite for GitHub issue #43..."
@@ -243,6 +252,8 @@ case "$TEST_TYPE" in
         echo "  tuning        - Same as isp"
         echo "  focusbracket  - Focus Bracketing tests"
         echo "  focus-bracket - Same as focusbracket"
+        echo "  metadata      - Extended Metadata extraction tests (15+ fields)"
+        echo "  extended-metadata - Same as metadata"
         echo ""
         echo "=== Legacy Phase Commands (backward compatibility) ==="
         echo "  phase2        - Run Phase 2 complete test suite"
@@ -271,6 +282,7 @@ case "$TEST_TYPE" in
         echo "  ./run_tests.sh noise            # Test noise reduction modes"
         echo "  ./run_tests.sh metering         # Test exposure metering mode (feature)"
         echo "  ./run_tests.sh isp              # Test ISP tuning features"
+        echo "  ./run_tests.sh metadata         # Test extended metadata (15+ fields)"
         echo "  ./run_tests.sh quick            # Quick performance check"
         echo "  ./run_tests.sh manual           # Show manual test steps"
         exit 0
