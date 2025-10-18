@@ -1,4 +1,7 @@
 """
+import os
+os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
+
 Unit tests for Focus Bracket settings validation
 
 Tests the validation logic for FocusBracket, FocusBracket_Start, and FocusBracket_End settings

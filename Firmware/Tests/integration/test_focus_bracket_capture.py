@@ -1,4 +1,7 @@
 """
+import os
+os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
+
 Integration tests for Focus Bracket capture workflow
 
 Tests the complete focus bracketing workflow from settings update through capture routing
