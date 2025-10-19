@@ -23,7 +23,7 @@ class TestMeteringExposure:
     """Integration tests for AeMeteringMode in CameraStreamer (hardware-only)"""
 
     @pytest.mark.hardware
-    def test_metering_mode_applied_to_camera(self, stream_ready, temp_webui_settings):
+    def test_metering_mode_applied_to_camera(self, integration_ready, stream_ready, temp_webui_settings):
         """AeMeteringMode should be applied to camera controls"""
         # Write test settings with Matrix mode
         with open(temp_webui_settings, 'w') as f:
@@ -41,7 +41,7 @@ class TestMeteringExposure:
             "AeMeteringMode should be set to Matrix mode (2)"
 
     @pytest.mark.hardware
-    def test_metering_mode_with_metadata_capture(self, stream_ready, temp_webui_settings):
+    def test_metering_mode_with_metadata_capture(self, integration_ready, stream_ready, temp_webui_settings):
         """
         Test that metering mode settings load and metadata can be captured
         (Hardware-only test - requires actual camera)
@@ -97,7 +97,7 @@ class TestMeteringExposure:
         assert isinstance(metadata['AnalogueGain'], float), "AnalogueGain should be a float"
 
     @pytest.mark.hardware
-    def test_metering_mode_integration_with_other_controls(self, stream_ready, temp_webui_settings):
+    def test_metering_mode_integration_with_other_controls(self, integration_ready, stream_ready, temp_webui_settings):
         """AeMeteringMode should work alongside other camera controls"""
         # Write comprehensive settings
         with open(temp_webui_settings, 'w') as f:

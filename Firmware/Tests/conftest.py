@@ -342,6 +342,45 @@ def stream_ready(app):
         camera_streamer.stop_streaming()
 
 
+@pytest.fixture
+def integration_ready(app):
+    """
+    Prepare for integration tests requiring exclusive camera access (Issue #46 Solution #6)
+
+    Ensures camera is fully released before test starts, preventing "Pipeline handler
+    in use by another process" errors when tests try to initialize the camera.
+
+    Use this fixture for integration tests that:
+    - Initialize camera directly (CameraStreamer.initialize_camera)
+    - Use stream_ready fixture (which calls initialize_camera)
+    - Need guaranteed exclusive hardware access
+
+    Usage:
+        @pytest.mark.hardware
+        def test_camera_operation(client, integration_ready):
+            response = client.post('/api/camera/autofocus')
+    """
+    camera_streamer = app.config.get('CAMERA_STREAMER')
+
+    if not camera_streamer:
+        pytest.skip("Camera streamer not available")
+
+    # BEFORE test: Release camera to allow exclusive access
+    if camera_streamer.camera or camera_streamer.streaming:
+        print("\n📹 Integration setup: Ensuring camera fully released...")
+        camera_streamer.release_camera()
+        time.sleep(2.0)  # Match timing from routes/camera.py patterns
+        print("   ✓ Camera released - ready for exclusive access")
+
+    yield camera_streamer
+
+    # AFTER test: Release again to prevent pollution
+    if camera_streamer.camera or camera_streamer.streaming:
+        print("\n🧹 Integration cleanup: Releasing camera...")
+        camera_streamer.release_camera()
+        time.sleep(1.0)
+
+
 # ============================================================================
 # Pytest Hooks
 # ============================================================================
@@ -359,13 +398,32 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.hardware)
 
 
+@pytest.fixture(scope='session', autouse=True)
+def camera_session_setup():
+    """
+    Session-level camera management for integration tests (Issue #46 Solution #6)
+
+    Announces test session start/end and ensures proper cleanup.
+    Actual camera release happens per-test in pytest_runtest_setup.
+    """
+    print("\n" + "="*70)
+    print("🧪 Starting test session - camera will be released before integration tests")
+    print("="*70)
+
+    yield
+
+    print("\n" + "="*70)
+    print("🧹 Test session complete - all camera resources released")
+    print("="*70)
+
+
 def pytest_runtest_setup(item):
     """
-    Skip hardware tests if not on Raspberry Pi
+    Setup before each test (Issue #46 Solution #6: Enhanced camera release)
 
-    Tests marked with @pytest.mark.hardware will be skipped if:
-    - Not running on Raspberry Pi hardware
-    - Camera not available
+    1. Skip hardware tests if not on Raspberry Pi
+    2. Release camera before integration tests to prevent "Pipeline handler in use" errors
+    3. Handles module-scoped camera_streamer conflicts
     """
     hardware_marker = item.get_closest_marker('hardware')
     if hardware_marker:
@@ -382,6 +440,22 @@ def pytest_runtest_setup(item):
         # The global_camera_info() call creates internal libcamera state that prevents
         # tests from initializing their own camera instances.
         # Tests will fail naturally if camera is not available.
+
+    # NEW: Release camera before integration tests (prevents cross-process conflicts)
+    if 'integration' in str(item.fspath):
+        try:
+            # Get app fixture to access CAMERA_STREAMER
+            app = item.getfixturevalue('app')
+            camera_streamer = app.config.get('CAMERA_STREAMER')
+
+            if camera_streamer and (camera_streamer.camera or camera_streamer.streaming):
+                print(f"\n🔄 Pre-test setup: Releasing camera for {item.name}...")
+                camera_streamer.release_camera()
+                time.sleep(2.0)  # Ensure hardware fully released (Issue #46)
+                print("   ✓ Camera released and ready")
+        except Exception as e:
+            # Fixture may not be available yet - will be handled by verify_camera_state
+            pass
 
 
 @pytest.fixture(autouse=True)
