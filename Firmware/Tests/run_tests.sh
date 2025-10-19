@@ -40,6 +40,19 @@ fi
 
 echo ""
 
+# Stop mothbox-webui service if running (camera must be released for tests)
+echo "🔍 Checking mothbox-webui service..."
+if systemctl is-active --quiet mothbox-webui 2>/dev/null; then
+    echo "   ⚠️  mothbox-webui is running - stopping for tests..."
+    sudo systemctl stop mothbox-webui
+    WEBUI_WAS_RUNNING=true
+    echo "   ✓ Service stopped"
+else
+    echo "   ✓ Service not running"
+    WEBUI_WAS_RUNNING=false
+fi
+echo ""
+
 # Parse command line arguments
 TEST_TYPE="${1:-all}"
 
@@ -249,6 +262,14 @@ esac
 echo ""
 echo "✅ Tests complete!"
 echo ""
+
+# Restart web service if it was running before tests
+if [ "$WEBUI_WAS_RUNNING" = "true" ]; then
+    echo "🔄 Restarting mothbox-webui service..."
+    sudo systemctl start mothbox-webui
+    echo "   ✓ Service restarted"
+    echo ""
+fi
 
 # Show next steps
 if [ "$TEST_TYPE" != "manual" ] && [ "$TEST_TYPE" != "help" ]; then
