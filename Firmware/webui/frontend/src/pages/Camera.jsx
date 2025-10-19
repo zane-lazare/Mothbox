@@ -97,7 +97,12 @@ export default function Camera() {
             brightness: data.brightness || 0.0,
             contrast: data.contrast || 1.0,
             saturation: data.saturation || 1.0,
-            noiseReductionMode: data.noise_reduction_mode || 0
+            noiseReductionMode: data.noise_reduction_mode || 0,
+            // Exposure controls - load from backend or use defaults
+            aeMeteringMode: data.ae_metering_mode !== undefined ? data.ae_metering_mode : 0,
+            aeEnable: data.ae_enable !== undefined ? data.ae_enable : true,
+            exposureTime: data.exposure_time || 500,
+            analogueGain: data.analogue_gain || 8.0
           })
           console.log('Loaded live controls from settings:', data)
         }

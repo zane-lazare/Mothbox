@@ -84,6 +84,8 @@ class CameraStreamer:
         # Exposure controls
         self.ae_enable = True  # Auto exposure enabled by default
         self.ae_metering_mode = 0  # Centre-weighted by default
+        self.exposure_time = 500  # Microseconds (for manual mode)
+        self.analogue_gain = 8.0  # ISO gain (for manual mode)
 
         # White balance controls (Phase 2.1)
         self.awb_enable = True
@@ -145,6 +147,10 @@ class CameraStreamer:
                     self.ae_enable = settings['ae_enable'].lower() == 'true'
                 if 'ae_metering_mode' in settings:
                     self.ae_metering_mode = int(settings['ae_metering_mode'])
+                if 'exposure_time' in settings:
+                    self.exposure_time = int(settings['exposure_time'])
+                if 'analogue_gain' in settings:
+                    self.analogue_gain = float(settings['analogue_gain'])
 
                 # White balance settings (Phase 2.1)
                 if 'awb_enable' in settings:
@@ -263,6 +269,11 @@ class CameraStreamer:
         # Only set AwbMode if AWB is disabled (manual mode)
         if not self.awb_enable:
             controls_dict["AwbMode"] = self.awb_mode
+
+        # Only set manual exposure values if auto exposure is disabled
+        if not self.ae_enable:
+            controls_dict["ExposureTime"] = self.exposure_time
+            controls_dict["AnalogueGain"] = self.analogue_gain
 
         self.camera.set_controls(controls_dict)
 

@@ -252,7 +252,13 @@ def get_webui_settings():
             # Colour gains (Phase 2.1 - fix for blue/white saturation)
             # These values from TakePhoto.py calibration lock color balance under LED flash
             'colour_gains_red': 2.259,
-            'colour_gains_blue': 1.500
+            'colour_gains_blue': 1.500,
+
+            # Exposure controls (exposure-metering feature)
+            'ae_metering_mode': 0,      # 0=Centre-Weighted, 1=Spot, 2=Matrix
+            'ae_enable': True,           # True=Auto, False=Manual
+            'exposure_time': 500,        # Microseconds (100-200000)
+            'analogue_gain': 8.0,        # ISO gain (1.0-16.0)
         }
 
         # Load from file if it exists
@@ -264,24 +270,24 @@ def get_webui_settings():
                     if key == 'stream_mode':
                         # stream_mode is a string, don't convert
                         defaults[key] = settings[key]
-                    elif key == 'awb_enable':
-                        # Boolean value
+                    elif key in ['awb_enable', 'ae_enable']:
+                        # Boolean values
                         defaults[key] = settings[key].lower() == 'true'
                     elif key in ['sharpness', 'brightness', 'contrast', 'saturation',
-                                'colour_gains_red', 'colour_gains_blue']:
+                                'colour_gains_red', 'colour_gains_blue', 'analogue_gain']:
                         # Float values
                         try:
                             defaults[key] = float(settings[key])
                         except ValueError:
                             pass  # Keep default if conversion fails
-                    elif key == 'noise_reduction_mode':
-                        # Integer value (0, 1, or 2)
+                    elif key in ['noise_reduction_mode', 'ae_metering_mode', 'exposure_time']:
+                        # Integer values (noise_reduction_mode: 0-2, ae_metering_mode: 0-2, exposure_time: microseconds)
                         try:
                             defaults[key] = int(settings[key])
                         except ValueError:
                             pass  # Keep default if conversion fails
                     else:
-                        # Integer values
+                        # Other integer values
                         try:
                             defaults[key] = int(settings[key])
                         except ValueError:
@@ -358,6 +364,25 @@ def update_webui_settings():
         except (ValueError, TypeError) as e:
             return jsonify({'error': f'Invalid colour gains type: {e}'}), 400
 
+        # Validate and convert types - Exposure controls (exposure-metering feature)
+        try:
+            ae_metering_mode = new_settings.get('ae_metering_mode', existing.get('ae_metering_mode', 0))
+            if isinstance(ae_metering_mode, float) and not ae_metering_mode.is_integer():
+                return jsonify({'error': 'ae_metering_mode must be an integer (0, 1, or 2)'}), 400
+            ae_metering_mode = int(ae_metering_mode)
+        except (ValueError, TypeError) as e:
+            return jsonify({'error': f'Invalid ae_metering_mode type: {e}'}), 400
+
+        ae_enable = new_settings.get('ae_enable', existing.get('ae_enable', True))
+        if isinstance(ae_enable, str):
+            ae_enable = ae_enable.lower() == 'true'
+
+        try:
+            exposure_time = int(new_settings.get('exposure_time', existing.get('exposure_time', 500)))
+            analogue_gain = float(new_settings.get('analogue_gain', existing.get('analogue_gain', 8.0)))
+        except (ValueError, TypeError) as e:
+            return jsonify({'error': f'Invalid exposure settings type: {e}'}), 400
+
         # Validate ranges - Stream/encoding
         if not (320 <= stream_width <= 1920):
             return jsonify({'error': 'Width must be between 320 and 1920'}), 400
@@ -404,6 +429,16 @@ def update_webui_settings():
         if not (0.0 <= colour_gains_blue <= 8.0):
             return jsonify({'error': 'Blue colour gain must be between 0.0 and 8.0'}), 400
 
+        # Validate ranges - Exposure controls (exposure-metering feature)
+        if ae_metering_mode not in [0, 1, 2]:
+            return jsonify({'error': 'ae_metering_mode must be 0 (Centre-Weighted), 1 (Spot), or 2 (Matrix)'}), 400
+        if not isinstance(ae_enable, bool):
+            return jsonify({'error': 'ae_enable must be a boolean'}), 400
+        if not (100 <= exposure_time <= 200000):
+            return jsonify({'error': 'exposure_time must be between 100 and 200000 microseconds'}), 400
+        if not (1.0 <= analogue_gain <= 16.0):
+            return jsonify({'error': 'analogue_gain must be between 1.0 and 16.0'}), 400
+
         # Create backup before modification
         backup_path = _create_backup(WEBUI_SETTINGS_FILE)
 
@@ -437,6 +472,12 @@ def update_webui_settings():
             # Colour gains (Phase 2.1 - fix for blue/white saturation)
             f.write(f"colour_gains_red={colour_gains_red}\n")
             f.write(f"colour_gains_blue={colour_gains_blue}\n")
+
+            # Exposure controls (exposure-metering feature)
+            f.write(f"ae_metering_mode={ae_metering_mode}\n")
+            f.write(f"ae_enable={'true' if ae_enable else 'false'}\n")
+            f.write(f"exposure_time={exposure_time}\n")
+            f.write(f"analogue_gain={analogue_gain}\n")
 
         return jsonify({'success': True})
     except Exception as e:
