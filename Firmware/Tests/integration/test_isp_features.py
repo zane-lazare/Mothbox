@@ -1,5 +1,9 @@
 """
 import os
+from pathlib import Path
+
+# Set MOTHBOX_HOME to use local development paths instead of /etc/mothbox
+os.environ['MOTHBOX_HOME'] = str(Path(__file__).parent.parent.parent)
 os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
 
 Integration tests for ISP features - REAL HARDWARE ONLY
@@ -11,7 +15,6 @@ Tests will FAIL if camera is unavailable (no false positives).
 
 import pytest
 import sys
-from pathlib import Path
 
 # Add paths for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))

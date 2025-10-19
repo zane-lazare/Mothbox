@@ -1,5 +1,9 @@
 """
 import os
+from pathlib import Path
+
+# Set MOTHBOX_HOME to use local development paths instead of /etc/mothbox
+os.environ['MOTHBOX_HOME'] = str(Path(__file__).parent.parent.parent)
 os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
 
 Unit tests for ISP tuning loader module - REAL HARDWARE ONLY
@@ -16,7 +20,6 @@ Tests:
 import pytest
 import sys
 import json
-from pathlib import Path
 
 # Add webui/backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
