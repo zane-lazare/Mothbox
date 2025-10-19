@@ -1175,7 +1175,7 @@ export default function Settings() {
                 Image Signal Processor corrections for improved image quality
               </p>
 
-              {/* Lens Shading Correction */}
+              {/* Lens Shading Correction (Requires camera restart) */}
               <div className="mb-6">
                 <label className="flex items-center">
                   <input
@@ -1187,9 +1187,12 @@ export default function Settings() {
                   <span className="ml-2 text-sm font-medium text-gray-700">
                     Lens Shading Correction
                   </span>
+                  <span className="ml-2 px-2 py-0.5 text-xs font-medium text-orange-600 bg-orange-100 rounded">
+                    Restart Required
+                  </span>
                 </label>
                 <p className="mt-2 ml-6 text-xs text-gray-500">
-                  Corrects vignetting (darker corners). Recommended: enabled for uniform brightness.
+                  Corrects vignetting (darker corners). Changes require camera restart to take effect - cannot be toggled at runtime on this camera model.
                 </p>
               </div>
 

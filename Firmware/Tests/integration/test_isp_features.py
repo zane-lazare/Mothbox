@@ -115,7 +115,11 @@ class TestCameraStreamerISPIntegration:
             "Camera should be real Picamera2 instance, not a mock"
 
     def test_isp_controls_applied_after_camera_start(self, camera_streamer):
-        """Test that ISP controls are applied after camera starts (real hardware)"""
+        """Test that ISP controls are applied after camera starts (real hardware)
+
+        Note: Only defect correction is verified via metadata. Lens shading is
+        always enabled via tuning file (LensShadingMapMode not available at runtime).
+        """
         # Set specific ISP settings
         camera_streamer.lens_shading_enable = True
         camera_streamer.defect_correction_enable = False
@@ -136,8 +140,7 @@ class TestCameraStreamerISPIntegration:
         # Verify controls were applied by reading REAL metadata
         metadata = camera_streamer.camera.capture_metadata()
         assert result is True, "ISP controls should apply successfully"
-        assert metadata['LensShadingMapMode'] == 1, \
-            "Lens shading should be enabled in camera metadata"
+        # LensShadingMapMode not checked - not available on ov64a40
         assert metadata['HotPixelMode'] == 0, \
             "Defect correction should be disabled in camera metadata"
 
@@ -147,84 +150,47 @@ class TestCameraStreamerISPIntegration:
 @pytest.mark.stream
 @pytest.mark.hardware
 class TestISPControlCombinations:
-    """Test various ISP control combinations on REAL hardware"""
+    """Test various ISP control combinations on REAL hardware
 
-    def test_lens_shading_on_defect_correction_off(self, camera_streamer):
-        """Test lens shading ON + defect correction OFF on real hardware"""
+    Note: LensShadingMapMode is NOT available on ov64a40 - lens shading is
+    always enabled via rpi.alsc in tuning file. Tests only verify defect
+    correction (HotPixelMode) which IS available at runtime.
+    """
+
+    def test_defect_correction_off(self, camera_streamer):
+        """Test defect correction OFF on real hardware"""
         assert camera_streamer.initialize_camera(), \
             "Camera initialization failed - real hardware required"
 
         camera_streamer.camera.start()
         apply_isp_controls(
             camera_streamer.camera,
-            lens_shading=True,
+            lens_shading=True,  # Ignored - always on via tuning file
             defect_correction=False
         )
 
         metadata = camera_streamer.camera.capture_metadata()
-        assert metadata['LensShadingMapMode'] == 1, \
-            "Lens shading should be ON"
+        # LensShadingMapMode not checked - not available on ov64a40
         assert metadata['HotPixelMode'] == 0, \
             "Defect correction should be OFF"
 
         camera_streamer.camera.stop()
 
-    def test_lens_shading_off_defect_correction_on(self, camera_streamer):
-        """Test lens shading OFF + defect correction ON on real hardware"""
+    def test_defect_correction_on(self, camera_streamer):
+        """Test defect correction ON on real hardware"""
         assert camera_streamer.initialize_camera(), \
             "Camera initialization failed - real hardware required"
 
         camera_streamer.camera.start()
         apply_isp_controls(
             camera_streamer.camera,
-            lens_shading=False,
+            lens_shading=True,  # Ignored - always on via tuning file
             defect_correction=True
         )
 
         metadata = camera_streamer.camera.capture_metadata()
-        assert metadata['LensShadingMapMode'] == 0, \
-            "Lens shading should be OFF"
+        # LensShadingMapMode not checked - not available on ov64a40
         assert metadata['HotPixelMode'] == 1, \
             "Defect correction should be ON"
-
-        camera_streamer.camera.stop()
-
-    def test_both_isp_controls_enabled(self, camera_streamer):
-        """Test both ISP controls enabled on real hardware"""
-        assert camera_streamer.initialize_camera(), \
-            "Camera initialization failed - real hardware required"
-
-        camera_streamer.camera.start()
-        apply_isp_controls(
-            camera_streamer.camera,
-            lens_shading=True,
-            defect_correction=True
-        )
-
-        metadata = camera_streamer.camera.capture_metadata()
-        assert metadata['LensShadingMapMode'] == 1, \
-            "Lens shading should be ON"
-        assert metadata['HotPixelMode'] == 1, \
-            "Defect correction should be ON"
-
-        camera_streamer.camera.stop()
-
-    def test_both_isp_controls_disabled(self, camera_streamer):
-        """Test both ISP controls disabled on real hardware"""
-        assert camera_streamer.initialize_camera(), \
-            "Camera initialization failed - real hardware required"
-
-        camera_streamer.camera.start()
-        apply_isp_controls(
-            camera_streamer.camera,
-            lens_shading=False,
-            defect_correction=False
-        )
-
-        metadata = camera_streamer.camera.capture_metadata()
-        assert metadata['LensShadingMapMode'] == 0, \
-            "Lens shading should be OFF"
-        assert metadata['HotPixelMode'] == 0, \
-            "Defect correction should be OFF"
 
         camera_streamer.camera.stop()

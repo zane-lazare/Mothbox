@@ -112,6 +112,7 @@ class CameraStreamer:
         self._af_mode_override = None  # None = use configured mode, 0 = force manual
 
         # ISP feature toggles (Phase: ISP Tuning)
+        # Note: Lens shading changes require camera restart - no runtime control available
         self.lens_shading_enable = True
         self.defect_correction_enable = True
         self.use_custom_tuning = False  # Load custom tuning file (disabled by default)
@@ -259,6 +260,7 @@ class CameraStreamer:
 
             # Apply ISP controls (Phase: ISP Tuning)
             # Must be done after camera.start() as ISP controls require running camera
+            # Note: Lens shading changes require camera restart - LensShadingMapMode not available at runtime
             if ISP_TUNING_AVAILABLE:
                 try:
                     apply_isp_controls(self.camera,
