@@ -564,6 +564,13 @@ if [ "$INSTALL_TYPE" = "production" ] && [ "$SKIP_FILE_COPY" = "false" ]; then
     # Set proper ownership
     sudo chown -R $MOTHBOX_USER:$MOTHBOX_USER "$MOTHBOX_HOME"
 
+    # Also fix config directory ownership for production installs
+    # Config files must be writable by webui service (runs as pi:gpio)
+    if [ "$INSTALL_TYPE" = "production" ]; then
+        echo "Setting config directory permissions..."
+        sudo chown -R $MOTHBOX_USER:gpio "$CONFIG_DIR"
+    fi
+
     echo -e "${GREEN}✓ Files synced to $MOTHBOX_HOME${NC}"
     echo ""
 elif [ "$INSTALL_TYPE" = "legacy" ]; then
