@@ -8,7 +8,7 @@ Tests ISP integration with camera_stream and settings endpoints.
 These tests verify that ISP settings flow correctly through the system.
 """
 
-import unittest
+import pytest
 import sys
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
@@ -22,26 +22,23 @@ sys.modules['flask_socketio'] = MagicMock()
 import camera_stream
 
 
-class TestISPIntegration(unittest.TestCase):
+@pytest.mark.stream
+@pytest.mark.hardware
+class TestISPIntegration:
     """Integration tests for ISP features"""
 
-    def setUp(self):
-        """Set up test fixtures"""
-        # Create mock socketio
-        self.mock_socketio = Mock()
-
     @patch('camera_stream.PICAMERA_AVAILABLE', False)
-    def test_camera_streamer_loads_isp_settings(self):
+    def test_camera_streamer_loads_isp_settings(self, camera_streamer):
         """Test that CameraStreamer loads ISP settings from config"""
-        streamer = camera_stream.CameraStreamer(self.mock_socketio)
+        streamer = camera_streamer
 
         # Default ISP settings should be loaded
-        self.assertTrue(hasattr(streamer, 'lens_shading_enable'))
-        self.assertTrue(hasattr(streamer, 'defect_correction_enable'))
+        assert hasattr(streamer, 'lens_shading_enable')
+        assert hasattr(streamer, 'defect_correction_enable')
 
         # Default values should be True
-        self.assertTrue(streamer.lens_shading_enable)
-        self.assertTrue(streamer.defect_correction_enable)
+        assert streamer.lens_shading_enable
+        assert streamer.defect_correction_enable
 
     @patch('camera_stream.PICAMERA_AVAILABLE', False)
     @patch('camera_stream.WEBUI_SETTINGS_FILE')
@@ -56,48 +53,53 @@ class TestISPIntegration(unittest.TestCase):
             'stream_height': '768',
         }
 
-        streamer = camera_stream.CameraStreamer(self.mock_socketio)
+        # Create mock socketio
+        class MockSocketIO:
+            def emit(self, event, data, **kwargs):
+                pass
+
+        streamer = camera_stream.CameraStreamer(MockSocketIO())
 
         # Custom ISP settings should be loaded
-        self.assertFalse(streamer.lens_shading_enable)
-        self.assertTrue(streamer.defect_correction_enable)
+        assert not streamer.lens_shading_enable
+        assert streamer.defect_correction_enable
 
     def test_isp_settings_in_allowed_camera_settings(self):
         """Test that ISP settings are in allowed camera settings"""
         from routes.camera import ALLOWED_CAMERA_SETTINGS
 
-        self.assertIn('LensShadingEnable', ALLOWED_CAMERA_SETTINGS)
-        self.assertIn('DefectCorrectionEnable', ALLOWED_CAMERA_SETTINGS)
+        assert 'LensShadingEnable' in ALLOWED_CAMERA_SETTINGS
+        assert 'DefectCorrectionEnable' in ALLOWED_CAMERA_SETTINGS
 
     def test_isp_validators_accept_true(self):
         """Test that ISP validators accept 'true'"""
         from routes.camera import ALLOWED_CAMERA_SETTINGS
 
-        self.assertTrue(ALLOWED_CAMERA_SETTINGS['LensShadingEnable']('true'))
-        self.assertTrue(ALLOWED_CAMERA_SETTINGS['DefectCorrectionEnable']('true'))
+        assert ALLOWED_CAMERA_SETTINGS['LensShadingEnable']('true')
+        assert ALLOWED_CAMERA_SETTINGS['DefectCorrectionEnable']('true')
 
     def test_isp_validators_accept_false(self):
         """Test that ISP validators accept 'false'"""
         from routes.camera import ALLOWED_CAMERA_SETTINGS
 
-        self.assertTrue(ALLOWED_CAMERA_SETTINGS['LensShadingEnable']('false'))
-        self.assertTrue(ALLOWED_CAMERA_SETTINGS['DefectCorrectionEnable']('false'))
+        assert ALLOWED_CAMERA_SETTINGS['LensShadingEnable']('false')
+        assert ALLOWED_CAMERA_SETTINGS['DefectCorrectionEnable']('false')
 
     def test_isp_validators_case_insensitive(self):
         """Test that ISP validators are case-insensitive"""
         from routes.camera import ALLOWED_CAMERA_SETTINGS
 
-        self.assertTrue(ALLOWED_CAMERA_SETTINGS['LensShadingEnable']('True'))
-        self.assertTrue(ALLOWED_CAMERA_SETTINGS['LensShadingEnable']('FALSE'))
+        assert ALLOWED_CAMERA_SETTINGS['LensShadingEnable']('True')
+        assert ALLOWED_CAMERA_SETTINGS['LensShadingEnable']('FALSE')
 
     def test_isp_validators_reject_invalid(self):
         """Test that ISP validators reject invalid values"""
         from routes.camera import ALLOWED_CAMERA_SETTINGS
 
         # These should return False for invalid values
-        self.assertFalse(ALLOWED_CAMERA_SETTINGS['LensShadingEnable']('invalid'))
-        self.assertFalse(ALLOWED_CAMERA_SETTINGS['LensShadingEnable']('1'))
-        self.assertFalse(ALLOWED_CAMERA_SETTINGS['LensShadingEnable']('yes'))
+        assert not ALLOWED_CAMERA_SETTINGS['LensShadingEnable']('invalid')
+        assert not ALLOWED_CAMERA_SETTINGS['LensShadingEnable']('1')
+        assert not ALLOWED_CAMERA_SETTINGS['LensShadingEnable']('yes')
 
     @patch('camera_stream.ISP_TUNING_AVAILABLE', True)
     @patch('camera_stream.PICAMERA_AVAILABLE', True)
@@ -114,7 +116,12 @@ class TestISPIntegration(unittest.TestCase):
         mock_picam2.return_value = mock_camera
         mock_picam2.load_tuning_file.return_value = {'version': 2.0}
 
-        streamer = camera_stream.CameraStreamer(self.mock_socketio)
+        # Create mock socketio
+        class MockSocketIO:
+            def emit(self, event, data, **kwargs):
+                pass
+
+        streamer = camera_stream.CameraStreamer(MockSocketIO())
 
         # Initialize camera
         result = streamer.initialize_camera()
@@ -134,7 +141,12 @@ class TestISPIntegration(unittest.TestCase):
         mock_camera.camera_properties = {'PixelArraySize': (4056, 3040)}
         mock_picam2.return_value = mock_camera
 
-        streamer = camera_stream.CameraStreamer(self.mock_socketio)
+        # Create mock socketio
+        class MockSocketIO:
+            def emit(self, event, data, **kwargs):
+                pass
+
+        streamer = camera_stream.CameraStreamer(MockSocketIO())
         streamer.lens_shading_enable = True
         streamer.defect_correction_enable = False
 
@@ -146,23 +158,22 @@ class TestISPIntegration(unittest.TestCase):
 
         # Check arguments
         call_args = mock_apply_isp.call_args
-        self.assertEqual(call_args[0][0], mock_camera)  # First arg is camera
-        self.assertEqual(call_args[1]['lens_shading'], True)
-        self.assertEqual(call_args[1]['defect_correction'], False)
+        assert call_args[0][0] == mock_camera  # First arg is camera
+        assert call_args[1]['lens_shading'] == True
+        assert call_args[1]['defect_correction'] == False
 
 
-class TestTuningFileStructure(unittest.TestCase):
+@pytest.mark.stream
+@pytest.mark.hardware
+class TestTuningFileStructure:
     """Test tuning file structure and validity"""
-
-    def setUp(self):
-        """Set up test fixtures"""
-        self.tuning_dir = Path(__file__).parent.parent.parent / '5.x' / 'tuning'
 
     def test_default_tuning_has_dpc_algorithm(self):
         """Test that default tuning includes DPC (defect pixel correction)"""
         import json
 
-        default_file = self.tuning_dir / 'default.json'
+        tuning_dir = Path(__file__).parent.parent.parent / '5.x' / 'tuning'
+        default_file = tuning_dir / 'default.json'
         with open(default_file) as f:
             data = json.load(f)
 
@@ -175,13 +186,14 @@ class TestTuningFileStructure(unittest.TestCase):
                 dpc_found = True
                 break
 
-        self.assertTrue(dpc_found, "Tuning file should include rpi.dpc algorithm")
+        assert dpc_found, "Tuning file should include rpi.dpc algorithm"
 
     def test_default_tuning_has_alsc_algorithm(self):
         """Test that default tuning includes ALSC (lens shading correction)"""
         import json
 
-        default_file = self.tuning_dir / 'default.json'
+        tuning_dir = Path(__file__).parent.parent.parent / '5.x' / 'tuning'
+        default_file = tuning_dir / 'default.json'
         with open(default_file) as f:
             data = json.load(f)
 
@@ -194,8 +206,4 @@ class TestTuningFileStructure(unittest.TestCase):
                 alsc_found = True
                 break
 
-        self.assertTrue(alsc_found, "Tuning file should include rpi.alsc algorithm")
-
-
-if __name__ == '__main__':
-    unittest.main()
+        assert alsc_found, "Tuning file should include rpi.alsc algorithm"
