@@ -1,4 +1,3 @@
-"""
 import os
 from pathlib import Path
 
@@ -6,6 +5,7 @@ from pathlib import Path
 os.environ['MOTHBOX_HOME'] = str(Path(__file__).parent.parent.parent)
 os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
 
+"""
 Integration tests for ISP features - REAL HARDWARE ONLY
 
 Tests ISP integration with camera_stream and settings endpoints.
