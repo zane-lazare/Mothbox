@@ -137,6 +137,7 @@ ALLOWED_CAMERA_SETTINGS = {
     # ISP features (Phase: ISP Tuning)
     'LensShadingEnable': lambda v: str(v).lower() in ['true', 'false'],
     'DefectCorrectionEnable': lambda v: str(v).lower() in ['true', 'false'],
+    'UseCustomTuning': lambda v: str(v).lower() in ['true', 'false'],
 
     # HDR/Bracketing (Phase 2.1)
     'HDR': lambda v: int(v) in [1, 3, 5, 7],  # Number of bracketed exposures

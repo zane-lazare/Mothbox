@@ -114,6 +114,7 @@ class CameraStreamer:
         # ISP feature toggles (Phase: ISP Tuning)
         self.lens_shading_enable = True
         self.defect_correction_enable = True
+        self.use_custom_tuning = False  # Load custom tuning file (disabled by default)
 
         try:
             if mothbox_paths.WEBUI_SETTINGS_FILE.exists():
@@ -180,6 +181,8 @@ class CameraStreamer:
                     self.lens_shading_enable = settings['lens_shading_enable'].lower() == 'true'
                 if 'defect_correction_enable' in settings:
                     self.defect_correction_enable = settings['defect_correction_enable'].lower() == 'true'
+                if 'use_custom_tuning' in settings:
+                    self.use_custom_tuning = settings['use_custom_tuning'].lower() == 'true'
 
                 print(f"Stream settings loaded: {self.stream_width}x{self.stream_height}, "
                       f"FPS: {1/self.frame_delay:.1f}, Quality: {self.jpeg_quality}, Mode: {self.stream_mode}")
@@ -187,7 +190,7 @@ class CameraStreamer:
                       f"Contrast={self.contrast}, Sat={self.saturation}")
                 print(f"  Focus: Mode={self.af_mode}, Speed={self.af_speed}, Range={self.af_range}")
                 print(f"  White balance: AWB={self.awb_enable}, Mode={self.awb_mode}, ColourGains={self.colour_gains}")
-                print(f"  ISP: LensShading={self.lens_shading_enable}, DefectCorrection={self.defect_correction_enable}")
+                print(f"  ISP: LensShading={self.lens_shading_enable}, DefectCorrection={self.defect_correction_enable}, CustomTuning={self.use_custom_tuning}")
         except Exception as e:
             print(f"Error loading stream settings, using defaults: {e}")
 
@@ -202,16 +205,19 @@ class CameraStreamer:
             if self.camera is not None:
                 self.release_camera()
 
-            # Get ISP tuning file path if available (Phase: ISP Tuning)
+            # Get ISP tuning file path if custom tuning is enabled (Phase: ISP Tuning)
             # Pass path as STRING to avoid temp file creation/deletion issues
             tuning_path = None
-            if ISP_TUNING_AVAILABLE:
+            if ISP_TUNING_AVAILABLE and self.use_custom_tuning:
                 try:
                     tuning_path = get_tuning_path()
                     if tuning_path:
-                        print(f"Using ISP tuning file: {tuning_path}")
+                        print(f"Using custom ISP tuning file: {tuning_path}")
                 except Exception as tuning_error:
-                    print(f"Warning: Could not get tuning file path: {tuning_error}")
+                    print(f"Warning: Could not load custom tuning file: {tuning_error}")
+                    print(f"Falling back to libcamera default tuning")
+            elif ISP_TUNING_AVAILABLE and not self.use_custom_tuning:
+                print("Custom tuning disabled - using libcamera default tuning")
 
             # Try camera 0 first, fallback to camera 1
             try:

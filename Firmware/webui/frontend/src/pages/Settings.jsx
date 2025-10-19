@@ -1211,6 +1211,37 @@ export default function Settings() {
                 </p>
               </div>
 
+              {/* Custom Tuning File (Disabled by default) */}
+              <div className="mb-6">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={webuiForm.use_custom_tuning || false}
+                    onChange={(e) => setWebuiForm({...webuiForm, use_custom_tuning: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">
+                    Use Custom Tuning File
+                  </span>
+                  <span className="ml-2 px-2 py-0.5 text-xs font-medium text-orange-600 bg-orange-100 rounded">
+                    Advanced
+                  </span>
+                </label>
+                <p className="mt-2 ml-6 text-xs text-gray-500">
+                  Load custom ISP tuning from /etc/mothbox/isp_tuning/camera_isp_tuning.json.
+                  Only enable if you have a camera-specific tuning file.
+                  Disabled by default - libcamera's built-in tuning works well for most cameras.
+                </p>
+                {webuiForm.use_custom_tuning && (
+                  <div className="mt-2 ml-6 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                    <p className="text-xs text-yellow-800">
+                      ⚠️ Warning: Custom tuning files must match your camera model.
+                      Incompatible tuning files may cause camera initialization to fail.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Chromatic Aberration Correction (Disabled - requires Pi 5 and calibration) */}
               <div className="mb-6">
                 <label className="flex items-center opacity-50 cursor-not-allowed">
