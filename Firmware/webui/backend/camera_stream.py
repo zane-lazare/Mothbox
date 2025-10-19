@@ -201,33 +201,31 @@ class CameraStreamer:
             # This enables error recovery and allows tests to reinitialize
             if self.camera is not None:
                 self.release_camera()
-                # Wait for libcamera to fully cleanup temp tuning files
-                # Without this delay, libcamera may try to reuse deleted temp files
-                import time
-                time.sleep(0.5)
 
-            # Load ISP tuning file path if available (Phase: ISP Tuning)
-            # NOTE: Pass the path string, not the loaded dict, to avoid temp file issues on reinit
+            # Get ISP tuning file path if available (Phase: ISP Tuning)
+            # Pass path as STRING to avoid temp file creation/deletion issues
             tuning_path = None
             if ISP_TUNING_AVAILABLE:
                 try:
                     tuning_path = get_tuning_path()
                     if tuning_path:
-                        print(f"Loaded ISP tuning file: {tuning_path}")
+                        print(f"Using ISP tuning file: {tuning_path}")
                 except Exception as tuning_error:
-                    print(f"Warning: Could not load tuning file: {tuning_error}")
+                    print(f"Warning: Could not get tuning file path: {tuning_error}")
 
             # Try camera 0 first, fallback to camera 1
             try:
                 if tuning_path:
-                    self.camera = Picamera2(0, tuning=Picamera2.load_tuning_file(str(tuning_path)))
+                    # Pass path as STRING - Picamera2 will set LIBCAMERA_RPI_TUNING_FILE env var
+                    # This avoids temp file creation and works correctly on reinitialization
+                    self.camera = Picamera2(0, tuning=str(tuning_path))
                 else:
                     self.camera = Picamera2(0)
                 print("Using camera 0")
             except Exception as e:
                 print(f"Camera 0 unavailable ({e}), trying camera 1...")
                 if tuning_path:
-                    self.camera = Picamera2(1, tuning=Picamera2.load_tuning_file(str(tuning_path)))
+                    self.camera = Picamera2(1, tuning=str(tuning_path))
                 else:
                     self.camera = Picamera2(1)
                 print("Using camera 1")
