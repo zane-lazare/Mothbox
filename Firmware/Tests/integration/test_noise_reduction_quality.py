@@ -29,6 +29,7 @@ from camera_stream import CameraStreamer
 from mothbox_paths import WEBUI_SETTINGS_FILE
 
 
+@pytest.mark.stream
 class TestNoiseReductionPersistence:
     """Test that noise reduction settings persist"""
 
@@ -69,6 +70,7 @@ class TestNoiseReductionPersistence:
         print("\n✓ Noise reduction mode defaulted to 0 (Off) when not in settings")
 
 
+@pytest.mark.stream
 class TestNoiseReductionControlsIntegration:
     """Test noise reduction integration with _apply_camera_controls"""
 

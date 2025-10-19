@@ -6,6 +6,7 @@ RUN ON RASPBERRY PI ONLY - requires human verification
 import pytest
 
 
+@pytest.mark.stream
 class TestManualVerification:
     """Tests requiring manual verification in WebUI"""
 
@@ -220,6 +221,7 @@ class TestManualVerification:
         assert False, "Complete manual verification steps above"
 
 
+@pytest.mark.stream
 class TestPhase2ManualVerification:
     """Phase 2 manual verification tests"""
 
@@ -479,6 +481,7 @@ class TestPhase2ManualVerification:
         assert False, "Complete Phase 2 end-to-end workflow verification"
 
 
+@pytest.mark.stream
 class TestIntegrationChecklist:
     """Final integration checklist"""
 
@@ -628,6 +631,7 @@ class TestIntegrationChecklist:
         assert False, "Complete checklist verification"
 
 
+@pytest.mark.stream
 class TestPhase3ManualVerification:
     """Phase 3 manual verification tests (Frontend Integration)"""
 

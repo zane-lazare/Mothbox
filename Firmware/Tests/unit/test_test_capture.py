@@ -17,6 +17,7 @@ import time
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
 
+@pytest.mark.photo
 class TestTestCaptureEndpoint:
     """Test test capture endpoint with real hardware"""
 
@@ -227,6 +228,7 @@ class TestTestCaptureEndpoint:
 # Enhanced Test Capture Tests (Feature Set 4)
 # =============================================================================
 
+@pytest.mark.photo
 class TestTestCaptureErrorRecovery:
     """Test error recovery for test capture endpoint"""
 
@@ -268,6 +270,7 @@ class TestTestCaptureErrorRecovery:
         print("\n✓ Disk full error structure defined")
 
 
+@pytest.mark.photo
 class TestTestCaptureCleanup:
     """Test cleanup after test capture"""
 
@@ -321,6 +324,7 @@ class TestTestCaptureCleanup:
                 print(f"\n✓ Temp files minimal after errors: {len(temp_files)}")
 
 
+@pytest.mark.photo
 class TestConcurrentCaptureRequests:
     """Test concurrent test capture request handling"""
 
@@ -367,6 +371,7 @@ class TestConcurrentCaptureRequests:
         print(f"\n✓ Serial requests: {successes}/3 succeeded")
 
 
+@pytest.mark.photo
 class TestInvalidPreviewSettings:
     """Test test capture with invalid preview settings"""
 
@@ -442,6 +447,7 @@ class TestInvalidPreviewSettings:
                 Path(backup.name).unlink()
 
 
+@pytest.mark.photo
 class TestTestCaptureWithoutStreaming:
     """Test test capture when streaming is not active"""
 

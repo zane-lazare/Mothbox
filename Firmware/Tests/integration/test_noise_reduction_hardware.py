@@ -24,6 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
 
+@pytest.mark.stream
 class TestNoiseReductionHardware:
     """Test that noise reduction modes work with real camera hardware"""
 

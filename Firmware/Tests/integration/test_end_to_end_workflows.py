@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'
 from mothbox_paths import PHOTOS_DIR, WEBUI_SETTINGS_FILE, CAMERA_SETTINGS_FILE
 
 
+@pytest.mark.photo
 class TestWorkflow1_AdjustPreviewTestCaptureCopyVerify:
     """
     Workflow 1: Adjust preview → Test capture → Copy to capture → Verify production ready
@@ -130,6 +131,7 @@ class TestWorkflow1_AdjustPreviewTestCaptureCopyVerify:
             print("⚠ Second capture failed")
 
 
+@pytest.mark.photo
 class TestWorkflow2_AutofocusCalibrateVerify:
     """
     Workflow 2: Autofocus → Calibrate → Copy settings → Test capture
@@ -216,6 +218,7 @@ class TestWorkflow2_AutofocusCalibrateVerify:
             print("   ⚠ Calibration failed")
 
 
+@pytest.mark.photo
 class TestWorkflow3_SettingsComparison:
     """
     Workflow 3: Settings comparison (preview vs capture differences)
@@ -287,6 +290,7 @@ class TestWorkflow3_SettingsComparison:
             print("\n✅ Sync workflow complete!")
 
 
+@pytest.mark.photo
 class TestWorkflow4_FullOptimization:
     """
     Workflow 4: Full optimization (focus + calibrate + quality tune + copy)
@@ -370,6 +374,7 @@ class TestWorkflow4_FullOptimization:
             print("   ⚠ Copy failed")
 
 
+@pytest.mark.photo
 class TestMultiStepErrorRecovery:
     """Test error recovery in multi-step workflows"""
 
@@ -479,6 +484,7 @@ class TestMultiStepErrorRecovery:
         print(f"\n✅ Recovery chain: {len(successful)}/{len(operations)} succeeded")
 
 
+@pytest.mark.photo
 class TestSettingsPropagation:
     """Test settings propagation through the system"""
 
@@ -547,6 +553,7 @@ class TestSettingsPropagation:
         print("\n✅ Propagation test complete!")
 
 
+@pytest.mark.photo
 class TestNewUserOnboarding:
     """Test complete new user onboarding workflow"""
 

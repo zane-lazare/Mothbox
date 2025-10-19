@@ -22,6 +22,7 @@ from pathlib import Path
 # Fixtures (app, client) provided by conftest.py
 
 
+@pytest.mark.photo
 class TestCameraPageIntegration:
     """Test Camera page UI integration with backend (Phase 3)"""
 
@@ -127,6 +128,7 @@ class TestCameraPageIntegration:
             print("   ⚠ Test capture skipped (camera busy)")
 
 
+@pytest.mark.photo
 class TestSettingsCopyIntegration:
     """Test Settings page copy functionality (Phase 3)"""
 
@@ -191,6 +193,7 @@ class TestSettingsCopyIntegration:
         print("   ✓ Missing direction rejected")
 
 
+@pytest.mark.photo
 class TestMetadataDisplay:
     """Test real-time metadata display (Phase 3)"""
 
@@ -210,6 +213,7 @@ class TestMetadataDisplay:
         print("   ✓ Metadata endpoint returns camera settings")
 
 
+@pytest.mark.photo
 class TestEndToEndWorkflow:
     """Test complete frontend workflows (Phase 3)"""
 
@@ -274,6 +278,7 @@ class TestEndToEndWorkflow:
             print("   ⚠ Workflow skipped (camera busy)")
 
 
+@pytest.mark.photo
 class TestErrorHandling:
     """Test UI error handling (Phase 3)"""
 
@@ -312,6 +317,7 @@ class TestErrorHandling:
 # Enhanced Frontend Integration Tests (Feature Set 4)
 # =============================================================================
 
+@pytest.mark.photo
 class TestFrontendErrorStates:
     """Test frontend error state handling"""
 
@@ -372,6 +378,7 @@ class TestFrontendErrorStates:
         print(f"   ✓ Concurrent operations: {statuses}")
 
 
+@pytest.mark.photo
 class TestFrontendLoadingStates:
     """Test frontend loading state validation"""
 
@@ -413,6 +420,7 @@ class TestFrontendLoadingStates:
         print(f"   ✓ Request completed in {elapsed:.2f}s")
 
 
+@pytest.mark.photo
 class TestFrontendNotifications:
     """Test frontend notification system"""
 
@@ -471,6 +479,7 @@ class TestFrontendNotifications:
                 print("   ✓ All settings copied")
 
 
+@pytest.mark.photo
 class TestFrontendButtonStates:
     """Test button state management"""
 
@@ -522,6 +531,7 @@ class TestFrontendButtonStates:
         print("   ✓ Button usable after error")
 
 
+@pytest.mark.photo
 class TestRealTimeUIUpdates:
     """Test real-time UI updates during operations"""
 
@@ -568,6 +578,7 @@ class TestRealTimeUIUpdates:
             print("   ⚠ Metadata unavailable")
 
 
+@pytest.mark.photo
 class TestMultiTabWorkflow:
     """Test workflows across multiple pages/tabs"""
 
@@ -635,6 +646,7 @@ class TestMultiTabWorkflow:
         print("   ✓ Settings persisted across page navigation")
 
 
+@pytest.mark.photo
 class TestUIPerformance:
     """Test UI performance and responsiveness"""
 

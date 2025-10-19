@@ -92,6 +92,7 @@ class TestMeteringValidation:
         assert validator(3) is False, "Value 3 should be rejected"
 
 
+@pytest.mark.stream
 class TestMeteringSettingsLoading:
     """Test that CameraStreamer correctly loads AeMeteringMode from settings"""
 

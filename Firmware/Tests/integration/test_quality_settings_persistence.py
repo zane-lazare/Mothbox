@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'
 from mothbox_paths import WEBUI_SETTINGS_FILE, get_control_values
 
 
+@pytest.mark.stream
 class TestSettingsSurviveCameraRestart:
     """Test that settings persist across camera restarts"""
 
@@ -112,6 +113,7 @@ class TestSettingsSurviveCameraRestart:
         print("   ✓ All settings survived 3 restart cycles")
 
 
+@pytest.mark.stream
 class TestBackupMechanismVerification:
     """Test settings file backup and restore mechanisms"""
 
@@ -207,6 +209,7 @@ class TestBackupMechanismVerification:
         print("   ✓ Settings file restored and valid")
 
 
+@pytest.mark.stream
 class TestConcurrentSettingsUpdates:
     """Test race conditions and concurrent write safety"""
 
@@ -298,6 +301,7 @@ class TestConcurrentSettingsUpdates:
         print("   ✓ Settings file valid after concurrent different-setting updates")
 
 
+@pytest.mark.stream
 class TestSettingsDuringActiveStreaming:
     """Test settings updates during active camera streaming"""
 
@@ -368,6 +372,7 @@ class TestSettingsDuringActiveStreaming:
         print("   ✓ Final settings correct after multiple streaming updates")
 
 
+@pytest.mark.stream
 class TestSettingsPropagationToFile:
     """Test that settings propagate correctly to webui_settings.txt"""
 
@@ -457,6 +462,7 @@ class TestSettingsPropagationToFile:
         print("   ✓ All lines have valid key=value format")
 
 
+@pytest.mark.stream
 class TestFileLockingAndConcurrentWriteSafety:
     """Test file locking and concurrent write safety"""
 

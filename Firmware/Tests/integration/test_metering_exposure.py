@@ -19,10 +19,10 @@ from camera_stream import CameraStreamer
 pytest.importorskip("picamera2")
 
 
+@pytest.mark.stream
 class TestMeteringExposure:
     """Integration tests for AeMeteringMode in CameraStreamer (hardware-only)"""
 
-    @pytest.mark.hardware
     def test_metering_mode_applied_to_camera(self, integration_ready, stream_ready, temp_webui_settings):
         """AeMeteringMode should be applied to camera controls"""
         # Write test settings with Matrix mode
@@ -40,7 +40,6 @@ class TestMeteringExposure:
         assert applied_controls['AeMeteringMode'] == 2, \
             "AeMeteringMode should be set to Matrix mode (2)"
 
-    @pytest.mark.hardware
     def test_metering_mode_with_metadata_capture(self, integration_ready, stream_ready, temp_webui_settings):
         """
         Test that metering mode settings load and metadata can be captured
@@ -96,7 +95,6 @@ class TestMeteringExposure:
         assert isinstance(metadata['ExposureTime'], int), "ExposureTime should be an integer"
         assert isinstance(metadata['AnalogueGain'], float), "AnalogueGain should be a float"
 
-    @pytest.mark.hardware
     def test_metering_mode_integration_with_other_controls(self, integration_ready, stream_ready, temp_webui_settings):
         """AeMeteringMode should work alongside other camera controls"""
         # Write comprehensive settings

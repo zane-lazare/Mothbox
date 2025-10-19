@@ -33,6 +33,7 @@ except ImportError:
     SIMPLEJPEG_AVAILABLE = False
 
 
+@pytest.mark.stream
 class TestLongRunningStability:
     """Test stream stability over extended periods"""
 
@@ -280,6 +281,7 @@ class TestLongRunningStability:
         print("✓ Frame timing consistent over time")
 
 
+@pytest.mark.stream
 class TestFrameDropDetection:
     """Test frame drop detection and recovery"""
 
@@ -352,6 +354,7 @@ class TestFrameDropDetection:
         print("✓ No frame drops detected")
 
 
+@pytest.mark.stream
 class TestConcurrentClients:
     """Test concurrent WebSocket client handling"""
 
@@ -517,6 +520,7 @@ class TestConcurrentClients:
         print("✓ Client connect/disconnect handled correctly")
 
 
+@pytest.mark.stream
 class TestStreamRestart:
     """Test stream restart after various error conditions"""
 
@@ -618,6 +622,7 @@ class TestStreamRestart:
         print(f"✓ {num_cycles} restart cycles completed successfully")
 
 
+@pytest.mark.stream
 class TestResourceCleanup:
     """Test resource cleanup and verification"""
 
@@ -704,6 +709,8 @@ class TestResourceCleanup:
             raise
 
 
+@pytest.mark.stream
+@pytest.mark.performance
 class TestPerformanceDegradation:
     """Test for performance degradation over time"""
 

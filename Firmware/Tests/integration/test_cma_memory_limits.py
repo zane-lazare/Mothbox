@@ -16,6 +16,7 @@ import time
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
 
+@pytest.mark.photo
 class TestCMAMemoryLimits:
     """Test camera operations within 64MB CMA constraints"""
 
@@ -223,6 +224,7 @@ class TestCMAMemoryLimits:
         print("\n   ✓ Full workflow completed")
 
 
+@pytest.mark.photo
 class TestCMADocumentation:
     """Document CMA behavior and requirements"""
 

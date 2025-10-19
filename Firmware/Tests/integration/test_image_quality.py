@@ -74,6 +74,7 @@ def analyze_image_brightness(image_bytes):
     return img_array.mean()
 
 
+@pytest.mark.stream
 class TestSharpnessControl:
     """Test sharpness control affects image quality (Phase 2.1)"""
 
@@ -113,6 +114,7 @@ class TestSharpnessControl:
         print(f"   ✓ Sharpness control affects image quality")
 
 
+@pytest.mark.stream
 class TestContrastControl:
     """Test contrast control affects image quality (Phase 2.1)"""
 
@@ -151,6 +153,7 @@ class TestContrastControl:
         print(f"   ✓ Contrast control affects image quality")
 
 
+@pytest.mark.stream
 class TestBrightnessControl:
     """Test brightness control affects image quality (Phase 2.1)"""
 
@@ -193,6 +196,7 @@ class TestBrightnessControl:
         print(f"   ✓ Brightness control affects image exposure (diff: {difference:.2f})")
 
 
+@pytest.mark.stream
 class TestFocusControls:
     """Test focus controls affect image sharpness (Phase 2.1)"""
 
@@ -251,6 +255,7 @@ class TestFocusControls:
         print(f"   ✓ Manual focus control affects sharpness")
 
 
+@pytest.mark.stream
 class TestWhiteBalanceControls:
     """Test white balance controls affect color (Phase 2.1)"""
 
@@ -306,6 +311,7 @@ class TestWhiteBalanceControls:
         print(f"   ✓ White balance modes affect color temperature")
 
 
+@pytest.mark.stream
 class TestCombinedControls:
     """Test multiple controls working together (Phase 2.1)"""
 
@@ -347,6 +353,7 @@ class TestCombinedControls:
         print(f"   ✓ Optimized settings produce high-quality image")
 
 
+@pytest.mark.stream
 class TestSettingsPersistence:
     """Test that settings changes persist correctly (Phase 2.1)"""
 
@@ -377,6 +384,7 @@ class TestSettingsPersistence:
         print(f"     - Brightness: {camera_streamer.brightness}")
 
 
+@pytest.mark.stream
 class TestVisualRegressionWithMetrics:
     """Test visual regression with quality metrics"""
 
@@ -434,6 +442,7 @@ class TestVisualRegressionWithMetrics:
         print("   ✓ Contrast control affects histogram spread")
 
 
+@pytest.mark.stream
 class TestBeforeAfterComparisons:
     """Test before/after image quality comparisons"""
 
@@ -497,6 +506,7 @@ class TestBeforeAfterComparisons:
         print("   ✓ Before/after contrast change measurable")
 
 
+@pytest.mark.stream
 class TestQualityMetricThresholds:
     """Test quality metrics against expected thresholds"""
 
@@ -593,6 +603,7 @@ class TestQualityMetricThresholds:
         print("   ✓ All brightness levels produce valid luminance")
 
 
+@pytest.mark.stream
 class TestSharpnessVerificationWithEdgeDetection:
     """Test sharpness verification using edge detection"""
 
@@ -669,6 +680,7 @@ class TestSharpnessVerificationWithEdgeDetection:
         print(f"   ✓ Edge detection complete for both sharpness levels")
 
 
+@pytest.mark.stream
 class TestContrastVerificationWithHistogram:
     """Test contrast verification with histogram analysis"""
 
@@ -733,6 +745,7 @@ class TestContrastVerificationWithHistogram:
         print("   ✓ Histogram range analysis complete")
 
 
+@pytest.mark.stream
 class TestBrightnessVerificationWithLuminance:
     """Test brightness verification with mean luminance"""
 

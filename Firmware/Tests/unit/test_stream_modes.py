@@ -24,6 +24,7 @@ import time
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
 
+@pytest.mark.stream
 class TestEncoderFallback:
     """Test encoder fallback logic (simplejpeg -> PIL)"""
 
@@ -135,6 +136,7 @@ class TestEncoderFallback:
             f"simplejpeg unexpectedly slower: {simplejpeg_time:.1f}ms vs {pil_time:.1f}ms"
 
 
+@pytest.mark.stream
 class TestStreamModeValidation:
     """Test stream mode configuration and validation"""
 
@@ -305,6 +307,7 @@ class TestQualityBounds:
         print("✓ Quality correctly affects output size")
 
 
+@pytest.mark.stream
 class TestEncodingErrorHandling:
     """Test error handling during encoding"""
 
@@ -387,6 +390,7 @@ class TestEncodingErrorHandling:
             print("✓ Large frame rejected due to memory constraints (expected)")
 
 
+@pytest.mark.stream
 class TestResourceCleanup:
     """Test resource cleanup on encoding failures"""
 
@@ -444,6 +448,7 @@ class TestResourceCleanup:
         print("✓ Cleanup without initialization handled safely")
 
 
+@pytest.mark.stream
 class TestHardwareMJPEGMode:
     """Test hardware MJPEG mode validation and fallback"""
 

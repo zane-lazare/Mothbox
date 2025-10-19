@@ -24,6 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
 
+@pytest.mark.stream
 class TestSharpnessBoundaryValues:
     """Test sharpness control boundary validation (0.0-16.0)"""
 
@@ -90,6 +91,7 @@ class TestSharpnessBoundaryValues:
         print("✓ Rejected sharpness='invalid' (invalid type)")
 
 
+@pytest.mark.stream
 class TestBrightnessBoundaryValues:
     """Test brightness control boundary validation (-1.0 to 1.0)"""
 
@@ -150,6 +152,7 @@ class TestBrightnessBoundaryValues:
         print("✓ Rejected brightness='text' (invalid type)")
 
 
+@pytest.mark.stream
 class TestContrastBoundaryValues:
     """Test contrast control boundary validation (0.0-32.0)"""
 
@@ -198,6 +201,7 @@ class TestContrastBoundaryValues:
         print("✓ Rejected contrast=None (null value)")
 
 
+@pytest.mark.stream
 class TestSaturationBoundaryValues:
     """Test saturation control boundary validation (0.0-32.0)"""
 
@@ -238,6 +242,7 @@ class TestSaturationBoundaryValues:
         print("✓ Rejected saturation=-5 (negative)")
 
 
+@pytest.mark.stream
 class TestWhiteBalanceModeValidation:
     """Test white balance mode validation (0-7)"""
 
@@ -288,6 +293,7 @@ class TestWhiteBalanceModeValidation:
         print("✓ Rejected awb_mode='auto' (invalid type)")
 
 
+@pytest.mark.stream
 class TestSettingsFileCorruption:
     """Test handling of corrupted or missing settings files"""
 
@@ -322,6 +328,7 @@ class TestSettingsFileCorruption:
         print(f"   awb_mode: {data['awb_mode']} ✓")
 
 
+@pytest.mark.stream
 class TestTypeConversionEdgeCases:
     """Test type conversion edge cases"""
 
@@ -359,6 +366,7 @@ class TestTypeConversionEdgeCases:
         print("✓ Boolean true/false conversion works for awb_enable")
 
 
+@pytest.mark.stream
 class TestCombinedControlValidation:
     """Test validation of multiple settings updated together"""
 
@@ -440,6 +448,7 @@ class TestCombinedControlValidation:
         print("   All extreme values stored correctly ✓")
 
 
+@pytest.mark.stream
 class TestSettingsValidationChains:
     """Test sequential validation of settings"""
 

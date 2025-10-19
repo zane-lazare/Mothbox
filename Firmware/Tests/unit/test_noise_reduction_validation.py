@@ -23,6 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
 
+@pytest.mark.stream
 class TestNoiseReductionModeBoundaryValues:
     """Test noise reduction mode validation (0, 1, 2)"""
 
@@ -93,6 +94,7 @@ class TestNoiseReductionModeBoundaryValues:
         print("✓ Rejected NoiseReductionMode=None (null value)")
 
 
+@pytest.mark.stream
 class TestNoiseReductionPersistence:
     """Test noise reduction mode persistence"""
 
@@ -137,6 +139,7 @@ class TestNoiseReductionPersistence:
         print("✓ NoiseReductionMode=2 (High Quality) persisted correctly")
 
 
+@pytest.mark.stream
 class TestNoiseReductionWebUISettings:
     """Test noise reduction in webui_settings.txt (preview settings)"""
 
@@ -178,6 +181,7 @@ class TestNoiseReductionWebUISettings:
         print("✓ WebUI rejected all invalid noise reduction values")
 
 
+@pytest.mark.stream
 class TestNoiseReductionCombinedSettings:
     """Test noise reduction with other image quality settings"""
 
