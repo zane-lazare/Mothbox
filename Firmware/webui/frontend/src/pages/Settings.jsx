@@ -1175,42 +1175,45 @@ export default function Settings() {
                 Image Signal Processor corrections for improved image quality
               </p>
 
-              {/* Lens Shading Correction (Requires camera restart) */}
+              {/* Lens Shading Correction (Always enabled via tuning file) */}
               <div className="mb-6">
-                <label className="flex items-center">
+                <label className="flex items-center opacity-75">
                   <input
                     type="checkbox"
-                    checked={webuiForm.lens_shading_enable !== undefined ? webuiForm.lens_shading_enable : true}
-                    onChange={(e) => setWebuiForm({...webuiForm, lens_shading_enable: e.target.checked})}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    checked={true}
+                    disabled={true}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded cursor-not-allowed"
                   />
                   <span className="ml-2 text-sm font-medium text-gray-700">
                     Lens Shading Correction
                   </span>
-                  <span className="ml-2 px-2 py-0.5 text-xs font-medium text-orange-600 bg-orange-100 rounded">
-                    Restart Required
+                  <span className="ml-2 px-2 py-0.5 text-xs font-medium text-green-600 bg-green-100 rounded">
+                    Always On
                   </span>
                 </label>
                 <p className="mt-2 ml-6 text-xs text-gray-500">
-                  Corrects vignetting (darker corners). Changes require camera restart to take effect - cannot be toggled at runtime on this camera model.
+                  Corrects vignetting (darker corners). Enabled automatically via camera tuning file - runtime control not available on this camera model.
                 </p>
               </div>
 
-              {/* Defect Correction */}
+              {/* Defect Pixel Correction (Always enabled via tuning file) */}
               <div className="mb-6">
-                <label className="flex items-center">
+                <label className="flex items-center opacity-75">
                   <input
                     type="checkbox"
-                    checked={webuiForm.defect_correction_enable !== undefined ? webuiForm.defect_correction_enable : true}
-                    onChange={(e) => setWebuiForm({...webuiForm, defect_correction_enable: e.target.checked})}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    checked={true}
+                    disabled={true}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded cursor-not-allowed"
                   />
                   <span className="ml-2 text-sm font-medium text-gray-700">
                     Defect Pixel Correction
                   </span>
+                  <span className="ml-2 px-2 py-0.5 text-xs font-medium text-green-600 bg-green-100 rounded">
+                    Always On
+                  </span>
                 </label>
                 <p className="mt-2 ml-6 text-xs text-gray-500">
-                  Fixes stuck or dead pixels. Recommended: enabled to remove sensor defects.
+                  Fixes stuck or dead pixels. Enabled automatically via camera tuning file - runtime control not available on this camera model.
                 </p>
               </div>
 
