@@ -459,7 +459,7 @@ def pytest_runtest_setup(item):
 
 
 @pytest.fixture(autouse=True)
-def verify_camera_state(request, app):
+def verify_camera_state(request):
     """
     Verify and enforce clean camera state before/after each test (Issue #46 Solution #2)
 
@@ -468,8 +468,26 @@ def verify_camera_state(request, app):
     - Stream tests start with camera initialized
     - Tests clean up after themselves
     - State pollution is detected and logged
+
+    Works with both integration tests (app fixture) and unit tests (camera_streamer fixture).
     """
-    camera_streamer = app.config.get('CAMERA_STREAMER')
+    # Try to get camera_streamer from either app fixture or camera_streamer fixture
+    camera_streamer = None
+
+    # Integration tests: Get from app.config
+    if 'app' in request.fixturenames:
+        try:
+            app = request.getfixturevalue('app')
+            camera_streamer = app.config.get('CAMERA_STREAMER')
+        except Exception:
+            pass
+
+    # Unit tests: Get camera_streamer fixture directly
+    if not camera_streamer and 'camera_streamer' in request.fixturenames:
+        try:
+            camera_streamer = request.getfixturevalue('camera_streamer')
+        except Exception:
+            pass
 
     if not camera_streamer:
         yield

@@ -197,72 +197,76 @@ class CameraStreamer:
             return False
 
         try:
-            if self.camera is None:
-                # Load ISP tuning file if available (Phase: ISP Tuning)
-                tuning_file = None
-                if ISP_TUNING_AVAILABLE:
-                    try:
-                        tuning_path = get_tuning_path()
-                        if tuning_path:
-                            tuning_file = Picamera2.load_tuning_file(str(tuning_path))
-                            print(f"Loaded ISP tuning file: {tuning_path}")
-                    except Exception as tuning_error:
-                        print(f"Warning: Could not load tuning file: {tuning_error}")
+            # If camera already exists, release it first to allow reinitialization
+            # This enables error recovery and allows tests to reinitialize
+            if self.camera is not None:
+                self.release_camera()
 
-                # Try camera 0 first, fallback to camera 1
+            # Load ISP tuning file if available (Phase: ISP Tuning)
+            tuning_file = None
+            if ISP_TUNING_AVAILABLE:
                 try:
-                    if tuning_file:
-                        self.camera = Picamera2(0, tuning=tuning_file)
-                    else:
-                        self.camera = Picamera2(0)
-                    print("Using camera 0")
-                except Exception as e:
-                    print(f"Camera 0 unavailable ({e}), trying camera 1...")
-                    if tuning_file:
-                        self.camera = Picamera2(1, tuning=tuning_file)
-                    else:
-                        self.camera = Picamera2(1)
-                    print("Using camera 1")
+                    tuning_path = get_tuning_path()
+                    if tuning_path:
+                        tuning_file = Picamera2.load_tuning_file(str(tuning_path))
+                        print(f"Loaded ISP tuning file: {tuning_path}")
+                except Exception as tuning_error:
+                    print(f"Warning: Could not load tuning file: {tuning_error}")
 
-                # Get sensor resolution for zoom calculations
-                self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
-                print(f"Sensor resolution: {self.sensor_resolution}")
+            # Try camera 0 first, fallback to camera 1
+            try:
+                if tuning_file:
+                    self.camera = Picamera2(0, tuning=tuning_file)
+                else:
+                    self.camera = Picamera2(0)
+                print("Using camera 0")
+            except Exception as e:
+                print(f"Camera 0 unavailable ({e}), trying camera 1...")
+                if tuning_file:
+                    self.camera = Picamera2(1, tuning=tuning_file)
+                else:
+                    self.camera = Picamera2(1)
+                print("Using camera 1")
 
-                # Configure camera with video_config for both encoding paths:
-                # - Hardware MJPEG: Requires video_config for start_recording() with encoder
-                # - Software encoding: Works fine with video_config + capture_array()
-                # Using video_config universally eliminates need to reconfigure between modes.
-                video_config = self.camera.create_video_configuration(
-                    main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
-                    encode="main"  # Required for encoder support
-                )
-                self.camera.configure(video_config)
+            # Get sensor resolution for zoom calculations
+            self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
+            print(f"Sensor resolution: {self.sensor_resolution}")
 
-                # Start camera to apply controls
-                self.camera.start()
+            # Configure camera with video_config for both encoding paths:
+            # - Hardware MJPEG: Requires video_config for start_recording() with encoder
+            # - Software encoding: Works fine with video_config + capture_array()
+            # Using video_config universally eliminates need to reconfigure between modes.
+            video_config = self.camera.create_video_configuration(
+                main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
+                encode="main"  # Required for encoder support
+            )
+            self.camera.configure(video_config)
 
-                # Apply camera controls
-                # CRITICAL: Must be called after configure() as configure() resets controls to defaults
-                applied_controls = self._apply_camera_controls()
+            # Start camera to apply controls
+            self.camera.start()
 
-                # Apply ISP controls (Phase: ISP Tuning)
-                # Must be done after camera.start() as ISP controls require running camera
-                if ISP_TUNING_AVAILABLE:
-                    try:
-                        apply_isp_controls(self.camera,
-                                         lens_shading=self.lens_shading_enable,
-                                         defect_correction=self.defect_correction_enable)
-                    except Exception as isp_error:
-                        print(f"Warning: Could not apply ISP controls: {isp_error}")
+            # Apply camera controls
+            # CRITICAL: Must be called after configure() as configure() resets controls to defaults
+            applied_controls = self._apply_camera_controls()
 
-                # Log applied controls for debugging
-                print(f"✓ Camera controls applied: AF Mode {applied_controls['AfMode']}, "
-                      f"Speed {applied_controls['AfSpeed']}, Range {applied_controls['AfRange']}, "
-                      f"Sharpness {applied_controls['Sharpness']}, "
-                      f"AWB {'Enabled' if applied_controls['AwbEnable'] else 'Disabled'}")
+            # Apply ISP controls (Phase: ISP Tuning)
+            # Must be done after camera.start() as ISP controls require running camera
+            if ISP_TUNING_AVAILABLE:
+                try:
+                    apply_isp_controls(self.camera,
+                                     lens_shading=self.lens_shading_enable,
+                                     defect_correction=self.defect_correction_enable)
+                except Exception as isp_error:
+                    print(f"Warning: Could not apply ISP controls: {isp_error}")
 
-                # Stop camera - will be started again by stream_loop
-                self.camera.stop()
+            # Log applied controls for debugging
+            print(f"✓ Camera controls applied: AF Mode {applied_controls['AfMode']}, "
+                  f"Speed {applied_controls['AfSpeed']}, Range {applied_controls['AfRange']}, "
+                  f"Sharpness {applied_controls['Sharpness']}, "
+                  f"AWB {'Enabled' if applied_controls['AwbEnable'] else 'Disabled'}")
+
+            # Stop camera - will be started again by stream_loop
+            self.camera.stop()
 
             return True
         except Exception as e:
