@@ -201,6 +201,10 @@ class CameraStreamer:
             # This enables error recovery and allows tests to reinitialize
             if self.camera is not None:
                 self.release_camera()
+                # Wait for libcamera to fully cleanup temp tuning files
+                # Without this delay, libcamera may try to reuse deleted temp files
+                import time
+                time.sleep(0.5)
 
             # Load ISP tuning file path if available (Phase: ISP Tuning)
             # NOTE: Pass the path string, not the loaded dict, to avoid temp file issues on reinit
