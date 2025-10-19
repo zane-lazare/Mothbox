@@ -27,7 +27,9 @@ export default function Camera() {
     aeEnable: true,  // Auto exposure enabled by default
     exposureTime: 500,  // Manual exposure time in microseconds
     analogueGain: 8.0,  // Manual gain/ISO
-    noiseReductionMode: 0
+    noiseReductionMode: 0,
+    lensShadingEnable: true,  // ISP: Lens shading correction (vignetting fix)
+    defectCorrectionEnable: true  // ISP: Defect pixel correction (hot/dead pixel fix)
   })
   const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
   const [zoomCenter, setZoomCenter] = useState({ x: 0.5, y: 0.5 })  // Normalized zoom center (0.5, 0.5 = center)
@@ -93,16 +95,19 @@ export default function Camera() {
           const data = await response.json()
           // Update live controls with actual settings from backend
           setLiveControls({
-            sharpness: data.sharpness || 1.0,
-            brightness: data.brightness || 0.0,
-            contrast: data.contrast || 1.0,
-            saturation: data.saturation || 1.0,
-            noiseReductionMode: data.noise_reduction_mode || 0,
+            sharpness: data.sharpness !== undefined ? data.sharpness : 1.0,
+            brightness: data.brightness !== undefined ? data.brightness : 0.0,
+            contrast: data.contrast !== undefined ? data.contrast : 1.0,
+            saturation: data.saturation !== undefined ? data.saturation : 1.0,
+            noiseReductionMode: data.noise_reduction_mode !== undefined ? data.noise_reduction_mode : 0,
             // Exposure controls - load from backend or use defaults
             aeMeteringMode: data.ae_metering_mode !== undefined ? data.ae_metering_mode : 0,
             aeEnable: data.ae_enable !== undefined ? data.ae_enable : true,
-            exposureTime: data.exposure_time || 500,
-            analogueGain: data.analogue_gain || 8.0
+            exposureTime: data.exposure_time !== undefined ? data.exposure_time : 500,
+            analogueGain: data.analogue_gain !== undefined ? data.analogue_gain : 8.0,
+            // ISP controls - load from backend or use defaults (enabled)
+            lensShadingEnable: data.lens_shading_enable !== undefined ? data.lens_shading_enable : true,
+            defectCorrectionEnable: data.defect_correction_enable !== undefined ? data.defect_correction_enable : true
           })
           console.log('Loaded live controls from settings:', data)
         }
@@ -842,6 +847,53 @@ export default function Camera() {
                     <p className="mt-1 text-[10px] text-gray-400">
                       Critical for night insect photography
                     </p>
+                  </div>
+
+                  {/* ISP Features (Phase: ISP Tuning) */}
+                  <div className="pt-2 mt-2 border-t border-white/20">
+                    <label className="block text-xs font-medium text-gray-200 mb-2">
+                      🔬 ISP Corrections
+                    </label>
+
+                    {/* Lens Shading Correction */}
+                    <div className="mb-2">
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={liveControls.lensShadingEnable}
+                          onChange={(e) => {
+                            const newValue = e.target.checked
+                            setLiveControls(prev => ({ ...prev, lensShadingEnable: newValue }))
+                            handleControlChange('LensShadingMapMode', newValue ? 1 : 0)
+                          }}
+                          className="w-3 h-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                        />
+                        <span className="ml-2 text-xs text-gray-200">Lens Shading</span>
+                      </label>
+                      <p className="ml-5 text-[10px] text-gray-400">
+                        Fix vignetting (darker corners)
+                      </p>
+                    </div>
+
+                    {/* Defect Pixel Correction */}
+                    <div className="mb-1">
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={liveControls.defectCorrectionEnable}
+                          onChange={(e) => {
+                            const newValue = e.target.checked
+                            setLiveControls(prev => ({ ...prev, defectCorrectionEnable: newValue }))
+                            handleControlChange('HotPixelMode', newValue ? 1 : 0)
+                          }}
+                          className="w-3 h-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                        />
+                        <span className="ml-2 text-xs text-gray-200">Defect Correction</span>
+                      </label>
+                      <p className="ml-5 text-[10px] text-gray-400">
+                        Remove stuck/dead pixels
+                      </p>
+                    </div>
                   </div>
 
                   {/* Zoom Slider */}

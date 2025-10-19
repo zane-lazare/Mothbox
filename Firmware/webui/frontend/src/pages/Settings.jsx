@@ -1210,6 +1210,28 @@ export default function Settings() {
                   Fixes stuck or dead pixels. Recommended: enabled to remove sensor defects.
                 </p>
               </div>
+
+              {/* Chromatic Aberration Correction (Disabled - requires Pi 5 and calibration) */}
+              <div className="mb-6">
+                <label className="flex items-center opacity-50 cursor-not-allowed">
+                  <input
+                    type="checkbox"
+                    checked={false}
+                    disabled={true}
+                    className="w-4 h-4 text-gray-400 border-gray-300 rounded cursor-not-allowed"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-500">
+                    Chromatic Aberration Correction
+                  </span>
+                  <span className="ml-2 px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-200 rounded">
+                    Pi 5 Only
+                  </span>
+                </label>
+                <p className="mt-2 ml-6 text-xs text-gray-500">
+                  Fixes color fringing at edges. Requires Raspberry Pi 5 hardware and camera calibration with tuning file configuration.
+                  Not available for runtime toggling - must be configured in tuning file before camera initialization.
+                </p>
+              </div>
             </div>
 
             {/* Stream Mode Selection */}

@@ -2,13 +2,17 @@
 Camera ISP Tuning File Loader
 
 Loads and applies Picamera2 tuning files for ISP features:
-- Lens shading correction (vignetting correction)
-- Defect pixel correction (stuck/dead pixel correction)
-- Chromatic aberration correction (color fringing correction)
+- Lens shading correction (vignetting correction) - runtime toggle available
+- Defect pixel correction (stuck/dead pixel correction) - runtime toggle available
+- Chromatic aberration correction (color fringing correction) - Pi 5 only, tuning file only
 
 Tuning files are JSON-based configuration files that control the Image Signal
 Processor (ISP) pipeline. They must be loaded when the camera is created,
 before configuration.
+
+Note: CAC (Chromatic Aberration Correction) is only available on Raspberry Pi 5
+with the PiSP hardware. It requires camera calibration and tuning file configuration
+(rpi.cac block with lookup tables). CAC cannot be toggled at runtime.
 """
 
 import json
@@ -104,11 +108,14 @@ def apply_isp_controls(camera, lens_shading=True, defect_correction=True):
 
     Note:
         Control names used here are based on libcamera control documentation:
-        - LensShadingMapMode: 0=Off, 1=On
+        - LensShadingMapMode: 0=Off, 1=On (runtime toggle via set_controls)
         - HotPixelMode: 0=Off, 1=Fast, 2=HighQuality (we use Fast for performance)
 
-        Chromatic aberration correction is typically configured in the tuning file
-        and cannot be toggled at runtime.
+        Chromatic aberration correction (CAC) is NOT included here because:
+        - Requires Pi 5 hardware (PiSP) - not available on Pi 4
+        - Must be configured in tuning file (rpi.cac block with lookup tables)
+        - Cannot be toggled at runtime - requires camera calibration data
+        - Enabled automatically by libcamera if present in tuning file
 
     Important:
         This must be called AFTER camera.start() as controls only work on
