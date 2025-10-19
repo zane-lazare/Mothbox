@@ -109,12 +109,15 @@ def apply_isp_controls(camera, lens_shading=True, defect_correction=True):
         defect_correction (bool): Enable defect pixel correction (stuck pixel fix)
 
     Returns:
-        bool: True if controls were applied successfully, False otherwise
+        bool: True if at least one control was applied successfully, False if all failed
 
     Note:
         Control names used here are based on libcamera control documentation:
-        - LensShadingMapMode: 0=Off, 1=On (runtime toggle via set_controls)
+        - LensShadingMapMode: 0=Off, 1=On (may not be available on all cameras)
         - HotPixelMode: 0=Off, 1=Fast, 2=HighQuality (we use Fast for performance)
+
+        Controls are applied individually so one failure doesn't block others.
+        Function checks control availability before attempting to set.
 
         Chromatic aberration correction (CAC) is NOT included here because:
         - Requires Pi 5 hardware (PiSP) - not available on Pi 4
@@ -126,33 +129,41 @@ def apply_isp_controls(camera, lens_shading=True, defect_correction=True):
         This must be called AFTER camera.start() as controls only work on
         a running camera instance.
     """
-    controls = {}
+    available_controls = camera.camera_controls
+    applied_count = 0
 
     # Lens shading correction (vignetting fix)
     # Mode 0 = Off, Mode 1 = On
-    if lens_shading:
-        controls['LensShadingMapMode'] = 1
-        print("ISP: Lens shading correction enabled")
+    # Note: Not available on some cameras (e.g., ov64a40) - always on via tuning file
+    if 'LensShadingMapMode' in available_controls:
+        try:
+            camera.set_controls({'LensShadingMapMode': 1 if lens_shading else 0})
+            print(f"ISP: Lens shading correction {'enabled' if lens_shading else 'disabled'}")
+            applied_count += 1
+        except Exception as e:
+            print(f"Warning: Could not apply LensShadingMapMode: {e}")
     else:
-        controls['LensShadingMapMode'] = 0
-        print("ISP: Lens shading correction disabled")
+        print("ISP: LensShadingMapMode not available (always on via tuning file)")
 
     # Defect pixel correction (hot/dead pixel fix)
     # Mode 0 = Off, Mode 1 = Fast, Mode 2 = HighQuality
     # We use Fast (1) for better performance
-    if defect_correction:
-        controls['HotPixelMode'] = 1
-        print("ISP: Defect pixel correction enabled (Fast mode)")
+    if 'HotPixelMode' in available_controls:
+        try:
+            camera.set_controls({'HotPixelMode': 1 if defect_correction else 0})
+            print(f"ISP: Defect pixel correction {'enabled (Fast mode)' if defect_correction else 'disabled'}")
+            applied_count += 1
+        except Exception as e:
+            print(f"Warning: Could not apply HotPixelMode: {e}")
     else:
-        controls['HotPixelMode'] = 0
-        print("ISP: Defect pixel correction disabled")
+        print("Warning: HotPixelMode not available on this camera")
 
-    try:
-        camera.set_controls(controls)
-        print(f"ISP controls applied: {controls}")
+    # Return True if at least one control was applied successfully
+    if applied_count > 0:
+        print(f"ISP: {applied_count} control(s) applied successfully")
         return True
-    except Exception as e:
-        print(f"Error applying ISP controls: {e}")
+    else:
+        print("Warning: No ISP controls could be applied")
         return False
 
 
