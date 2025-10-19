@@ -732,6 +732,7 @@ echo -e "${BLUE}Creating directories...${NC}"
 # Create directories
 sudo mkdir -p "$MOTHBOX_HOME"
 sudo mkdir -p "$CONFIG_DIR"
+sudo mkdir -p "$CONFIG_DIR/isp_tuning"
 sudo mkdir -p "$DATA_DIR/photos"
 
 # Set ownership to Mothbox user
@@ -859,6 +860,17 @@ if [ -f "$CONFIG_DIR/controls.txt" ]; then
     echo -e "${BLUE}Updating firmware version in config...${NC}"
     sudo sed -i "s/^softwareversion=.*/softwareversion=${FIRMWARE_VERSION}.0.0/" "$CONFIG_DIR/controls.txt"
     echo -e "${GREEN}✓ Firmware version set to ${FIRMWARE_VERSION}.0.0${NC}"
+fi
+
+# Copy ISP tuning file (camera ISP configuration for Picamera2)
+echo -e "${BLUE}Setting up ISP tuning configuration...${NC}"
+ISP_SOURCE="$SCRIPT_DIR/isp_tuning/camera_isp_tuning.json"
+if [ -f "$ISP_SOURCE" ]; then
+    sudo install -o $MOTHBOX_USER -g $MOTHBOX_USER -m 644 \
+        "$ISP_SOURCE" "$CONFIG_DIR/isp_tuning/camera_isp_tuning.json"
+    echo -e "${GREEN}  ✓ Copied camera_isp_tuning.json${NC}"
+else
+    echo -e "${YELLOW}  ⚠ Warning: ISP tuning file not found at $ISP_SOURCE${NC}"
 fi
 
 echo -e "${GREEN}✓ Configuration files set up at $CONFIG_DIR${NC}"

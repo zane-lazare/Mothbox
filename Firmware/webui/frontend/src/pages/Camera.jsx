@@ -93,16 +93,16 @@ export default function Camera() {
           const data = await response.json()
           // Update live controls with actual settings from backend
           setLiveControls({
-            sharpness: data.sharpness || 1.0,
-            brightness: data.brightness || 0.0,
-            contrast: data.contrast || 1.0,
-            saturation: data.saturation || 1.0,
-            noiseReductionMode: data.noise_reduction_mode || 0,
+            sharpness: data.sharpness !== undefined ? data.sharpness : 1.0,
+            brightness: data.brightness !== undefined ? data.brightness : 0.0,
+            contrast: data.contrast !== undefined ? data.contrast : 1.0,
+            saturation: data.saturation !== undefined ? data.saturation : 1.0,
+            noiseReductionMode: data.noise_reduction_mode !== undefined ? data.noise_reduction_mode : 0,
             // Exposure controls - load from backend or use defaults
             aeMeteringMode: data.ae_metering_mode !== undefined ? data.ae_metering_mode : 0,
             aeEnable: data.ae_enable !== undefined ? data.ae_enable : true,
-            exposureTime: data.exposure_time || 500,
-            analogueGain: data.analogue_gain || 8.0
+            exposureTime: data.exposure_time !== undefined ? data.exposure_time : 500,
+            analogueGain: data.analogue_gain !== undefined ? data.analogue_gain : 8.0
           })
           console.log('Loaded live controls from settings:', data)
         }
@@ -843,6 +843,8 @@ export default function Camera() {
                       Critical for night insect photography
                     </p>
                   </div>
+
+                  {/* ISP Features (Phase: ISP Tuning) */}
 
                   {/* Zoom Slider */}
                   <div className="pt-2 mt-2 border-t border-white/20">

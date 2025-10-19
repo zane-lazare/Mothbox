@@ -134,6 +134,11 @@ ALLOWED_CAMERA_SETTINGS = {
     # Noise reduction controls
     'NoiseReductionMode': lambda v: isinstance(v, int) and v in [0, 1, 2] or (isinstance(v, str) and v.isdigit() and int(v) in [0, 1, 2]),  # 0=Off, 1=Fast, 2=High Quality
 
+    # ISP features (Phase: ISP Tuning)
+    'LensShadingEnable': lambda v: str(v).lower() in ['true', 'false'],
+    'DefectCorrectionEnable': lambda v: str(v).lower() in ['true', 'false'],
+    'UseCustomTuning': lambda v: str(v).lower() in ['true', 'false'],
+
     # HDR/Bracketing (Phase 2.1)
     'HDR': lambda v: int(v) in [1, 3, 5, 7],  # Number of bracketed exposures
     'HDR_width': lambda v: 1000 <= int(v) <= 50000,  # Bracket step size (µs)

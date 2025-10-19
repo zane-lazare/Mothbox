@@ -1168,6 +1168,109 @@ export default function Settings() {
               )}
             </div>
 
+            {/* ISP Features (Phase: ISP Tuning) */}
+            <div className="pt-6 mt-6 border-t border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4">🔬 ISP Features</h4>
+              <p className="text-sm text-gray-600 mb-4">
+                Image Signal Processor corrections for improved image quality
+              </p>
+
+              {/* Lens Shading Correction (Always enabled via tuning file) */}
+              <div className="mb-6">
+                <label className="flex items-center opacity-75">
+                  <input
+                    type="checkbox"
+                    checked={true}
+                    disabled={true}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded cursor-not-allowed"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">
+                    Lens Shading Correction
+                  </span>
+                  <span className="ml-2 px-2 py-0.5 text-xs font-medium text-green-600 bg-green-100 rounded">
+                    Always On
+                  </span>
+                </label>
+                <p className="mt-2 ml-6 text-xs text-gray-500">
+                  Corrects vignetting (darker corners). Enabled automatically via camera tuning file - runtime control not available on this camera model.
+                </p>
+              </div>
+
+              {/* Defect Pixel Correction (Always enabled via tuning file) */}
+              <div className="mb-6">
+                <label className="flex items-center opacity-75">
+                  <input
+                    type="checkbox"
+                    checked={true}
+                    disabled={true}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded cursor-not-allowed"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">
+                    Defect Pixel Correction
+                  </span>
+                  <span className="ml-2 px-2 py-0.5 text-xs font-medium text-green-600 bg-green-100 rounded">
+                    Always On
+                  </span>
+                </label>
+                <p className="mt-2 ml-6 text-xs text-gray-500">
+                  Fixes stuck or dead pixels. Enabled automatically via camera tuning file - runtime control not available on this camera model.
+                </p>
+              </div>
+
+              {/* Custom Tuning File (Disabled by default) */}
+              <div className="mb-6">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={webuiForm.use_custom_tuning || false}
+                    onChange={(e) => setWebuiForm({...webuiForm, use_custom_tuning: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">
+                    Use Custom Tuning File
+                  </span>
+                  <span className="ml-2 px-2 py-0.5 text-xs font-medium text-orange-600 bg-orange-100 rounded">
+                    Advanced
+                  </span>
+                </label>
+                <p className="mt-2 ml-6 text-xs text-gray-500">
+                  Load custom ISP tuning from /etc/mothbox/isp_tuning/camera_isp_tuning.json.
+                  Only enable if you have a camera-specific tuning file.
+                  Disabled by default - libcamera's built-in tuning works well for most cameras.
+                </p>
+                {webuiForm.use_custom_tuning && (
+                  <div className="mt-2 ml-6 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                    <p className="text-xs text-yellow-800">
+                      ⚠️ Warning: Custom tuning files must match your camera model.
+                      Incompatible tuning files may cause camera initialization to fail.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Chromatic Aberration Correction (Disabled - requires Pi 5 and calibration) */}
+              <div className="mb-6">
+                <label className="flex items-center opacity-50 cursor-not-allowed">
+                  <input
+                    type="checkbox"
+                    checked={false}
+                    disabled={true}
+                    className="w-4 h-4 text-gray-400 border-gray-300 rounded cursor-not-allowed"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-500">
+                    Chromatic Aberration Correction
+                  </span>
+                  <span className="ml-2 px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-200 rounded">
+                    Pi 5 Only
+                  </span>
+                </label>
+                <p className="mt-2 ml-6 text-xs text-gray-500">
+                  Fixes color fringing at edges. Requires Raspberry Pi 5 hardware and camera calibration with tuning file configuration.
+                  Not available for runtime toggling - must be configured in tuning file before camera initialization.
+                </p>
+              </div>
+            </div>
+
             {/* Stream Mode Selection */}
             <div className="pt-6 mt-6 border-t border-gray-200">
               <h4 className="text-md font-semibold text-gray-800 mb-4">⚙️ Encoding</h4>
