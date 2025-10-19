@@ -41,7 +41,7 @@ class TestISPIntegration:
         assert streamer.defect_correction_enable
 
     @patch('camera_stream.PICAMERA_AVAILABLE', False)
-    @patch('camera_stream.WEBUI_SETTINGS_FILE')
+    @patch('camera_stream.mothbox_paths.WEBUI_SETTINGS_FILE')
     @patch('camera_stream.get_control_values')
     def test_camera_streamer_loads_custom_isp_settings(self, mock_get_values, mock_settings_file):
         """Test that CameraStreamer loads custom ISP settings"""

@@ -88,7 +88,7 @@ class TestTuningLoader:
             path = tuning_loader.get_tuning_path(None)
             assert path is not None, "Should return path with auto-detect"
 
-    @patch('tuning_loader.Picamera2')
+    @patch('picamera2.Picamera2')
     def test_get_camera_model_success(self, mock_picam):
         """Test successful camera model detection"""
         mock_picam.global_camera_info.return_value = [
@@ -98,7 +98,7 @@ class TestTuningLoader:
         model = tuning_loader.get_camera_model()
         assert model == 'imx708', "Should detect camera model"
 
-    @patch('tuning_loader.Picamera2')
+    @patch('picamera2.Picamera2')
     def test_get_camera_model_failure(self, mock_picam):
         """Test camera model detection failure"""
         mock_picam.global_camera_info.side_effect = Exception("No camera")
