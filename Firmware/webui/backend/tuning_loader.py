@@ -17,9 +17,14 @@ with the PiSP hardware. It requires camera calibration and tuning file configura
 
 import json
 from pathlib import Path
+import sys
 
-# Tuning directory relative to this file: webui/backend/../../5.x/tuning
-TUNING_DIR = Path(__file__).parent.parent.parent / '5.x' / 'tuning'
+# Add parent directory to path for mothbox_paths import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import ISP_TUNING_DIR, ISP_DEFAULT_TUNING_FILE
+
+# Tuning directory from centralized path configuration
+TUNING_DIR = ISP_TUNING_DIR
 
 
 def get_camera_model():
@@ -58,8 +63,8 @@ def load_tuning_file(camera_model=None):
         dict: Parsed tuning file JSON, or None if no tuning file found
 
     Lookup order:
-        1. {camera_model}.json (e.g., imx708.json)
-        2. default.json (fallback)
+        1. {camera_model}.json (e.g., ov64a40.json)
+        2. camera_isp_tuning.json (fallback)
 
     Example:
         >>> tuning = load_tuning_file('imx708')
@@ -73,8 +78,8 @@ def load_tuning_file(camera_model=None):
     tuning_file = TUNING_DIR / f"{camera_model}.json"
 
     if not tuning_file.exists():
-        # Try fallback to default
-        tuning_file = TUNING_DIR / "default.json"
+        # Try fallback to default tuning file
+        tuning_file = ISP_DEFAULT_TUNING_FILE
         print(f"Model-specific tuning not found, using default: {tuning_file}")
 
     if tuning_file.exists():
@@ -175,8 +180,8 @@ def get_tuning_path(camera_model=None):
     tuning_file = TUNING_DIR / f"{camera_model}.json"
 
     if not tuning_file.exists():
-        # Try fallback to default
-        tuning_file = TUNING_DIR / "default.json"
+        # Try fallback to default tuning file
+        tuning_file = ISP_DEFAULT_TUNING_FILE
 
     if tuning_file.exists():
         return tuning_file

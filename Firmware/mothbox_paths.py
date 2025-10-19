@@ -87,6 +87,10 @@ CONTROLS_FILE = CONFIG_DIR / "controls.txt"
 WORDLIST_FILE = CONFIG_DIR / "wordlist.csv"
 WEBUI_SETTINGS_FILE = CONFIG_DIR / "webui_settings.txt"
 
+# ISP tuning configuration
+ISP_TUNING_DIR = CONFIG_DIR / "isp_tuning"
+ISP_DEFAULT_TUNING_FILE = ISP_TUNING_DIR / "camera_isp_tuning.json"
+
 # Helper function to parse controls.txt
 def get_control_values(filename: Union[Path, str]) -> Dict[str, str]:
     """
@@ -366,6 +370,7 @@ def ensure_directories():
         CONFIG_DIR,
         DATA_DIR,
         PHOTOS_DIR,
+        ISP_TUNING_DIR,
     ]
 
     for directory in dirs_to_create:

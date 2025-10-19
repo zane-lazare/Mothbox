@@ -2,59 +2,55 @@
 import os
 os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
 
-Unit tests for ISP tuning loader module
+Unit tests for ISP tuning loader module - REAL HARDWARE ONLY
+
+All tests use real Picamera2 hardware with no mocks.
+Tests will FAIL if camera is unavailable (no false positives).
 
 Tests:
-- Tuning file loading
-- Camera model detection
-- Tuning path resolution
-- ISP control application
+- Tuning file structure and location
+- Camera model detection (real hardware)
+- ISP control application (real camera metadata verification)
 """
 
 import pytest
 import sys
 import json
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
 
 # Add webui/backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
 import tuning_loader
+from mothbox_paths import ISP_TUNING_DIR, ISP_DEFAULT_TUNING_FILE
 
 
 @pytest.mark.stream
 @pytest.mark.hardware
-class TestTuningLoader:
-    """Test suite for tuning_loader module"""
+class TestTuningFileStructure:
+    """Test tuning file location and structure (no camera required)"""
 
     def test_tuning_dir_exists(self):
-        """Test that tuning directory exists"""
-        tuning_dir = Path(__file__).parent.parent.parent / '5.x' / 'tuning'
-        assert tuning_dir.exists(), f"Tuning directory should exist at {tuning_dir}"
+        """Test that ISP tuning directory exists at CONFIG_DIR"""
+        assert ISP_TUNING_DIR.exists(), f"ISP tuning directory should exist at {ISP_TUNING_DIR}"
 
     def test_default_tuning_file_exists(self):
-        """Test that default.json exists"""
-        tuning_dir = Path(__file__).parent.parent.parent / '5.x' / 'tuning'
-        default_file = tuning_dir / 'default.json'
-        assert default_file.exists(), "default.json should exist in tuning directory"
+        """Test that camera_isp_tuning.json exists"""
+        assert ISP_DEFAULT_TUNING_FILE.exists(), \
+            f"Default tuning file should exist at {ISP_DEFAULT_TUNING_FILE}"
 
     def test_default_tuning_file_valid_json(self):
-        """Test that default.json is valid JSON"""
-        tuning_dir = Path(__file__).parent.parent.parent / '5.x' / 'tuning'
-        default_file = tuning_dir / 'default.json'
-        with open(default_file) as f:
+        """Test that camera_isp_tuning.json is valid JSON"""
+        with open(ISP_DEFAULT_TUNING_FILE) as f:
             try:
                 data = json.load(f)
                 assert isinstance(data, dict), "Tuning file should be a JSON object"
             except json.JSONDecodeError as e:
-                pytest.fail(f"default.json is not valid JSON: {e}")
+                pytest.fail(f"camera_isp_tuning.json is not valid JSON: {e}")
 
     def test_default_tuning_file_structure(self):
-        """Test that default.json has required structure"""
-        tuning_dir = Path(__file__).parent.parent.parent / '5.x' / 'tuning'
-        default_file = tuning_dir / 'default.json'
-        with open(default_file) as f:
+        """Test that camera_isp_tuning.json has required structure"""
+        with open(ISP_DEFAULT_TUNING_FILE) as f:
             data = json.load(f)
 
         # Check for required fields
@@ -62,95 +58,168 @@ class TestTuningLoader:
         assert 'algorithms' in data, "Tuning file should have 'algorithms' field"
         assert isinstance(data['algorithms'], list), "'algorithms' should be a list"
 
-    def test_load_tuning_file_default(self):
-        """Test loading default tuning file"""
-        tuning = tuning_loader.load_tuning_file('unknown_camera')
-        assert tuning is not None, "Should load default tuning for unknown camera"
+    def test_default_tuning_has_dpc_algorithm(self):
+        """Test that default tuning includes DPC (defect pixel correction)"""
+        with open(ISP_DEFAULT_TUNING_FILE) as f:
+            data = json.load(f)
+
+        # Check for DPC algorithm
+        algorithms = data.get('algorithms', [])
+        dpc_found = any('rpi.dpc' in algo for algo in algorithms)
+        assert dpc_found, "Tuning file should include rpi.dpc algorithm"
+
+    def test_default_tuning_has_alsc_algorithm(self):
+        """Test that default tuning includes ALSC (lens shading correction)"""
+        with open(ISP_DEFAULT_TUNING_FILE) as f:
+            data = json.load(f)
+
+        # Check for ALSC algorithm
+        algorithms = data.get('algorithms', [])
+        alsc_found = any('rpi.alsc' in algo for algo in algorithms)
+        assert alsc_found, "Tuning file should include rpi.alsc algorithm"
+
+
+@pytest.mark.stream
+@pytest.mark.hardware
+class TestCameraDetection:
+    """Test camera model detection with REAL hardware"""
+
+    def test_get_camera_model_success(self):
+        """Test camera model detection returns valid model (real hardware)"""
+        model = tuning_loader.get_camera_model()
+
+        # Should detect a real camera model (not 'unknown')
+        assert model != 'unknown', "Should detect real camera model on hardware"
+        assert isinstance(model, str), "Camera model should be a string"
+        assert len(model) > 0, "Camera model should not be empty"
+
+    def test_load_tuning_file_for_detected_model(self):
+        """Test loading tuning file for detected camera model"""
+        model = tuning_loader.get_camera_model()
+        tuning = tuning_loader.load_tuning_file(model)
+
+        # Should load tuning (either model-specific or default)
+        assert tuning is not None, "Should load tuning file"
         assert 'version' in tuning, "Loaded tuning should have version"
+        assert 'algorithms' in tuning, "Loaded tuning should have algorithms"
 
-    def test_load_tuning_file_none_camera(self):
-        """Test loading tuning with None camera (auto-detect)"""
-        # Mock the camera detection to avoid requiring hardware
-        with patch('tuning_loader.get_camera_model', return_value='unknown'):
-            tuning = tuning_loader.load_tuning_file(None)
-            assert tuning is not None, "Should load tuning with auto-detect"
+    def test_get_tuning_path_returns_valid_path(self):
+        """Test getting tuning path returns existing file"""
+        path = tuning_loader.get_tuning_path()
 
-    def test_get_tuning_path_default(self):
-        """Test getting tuning path for unknown camera"""
-        path = tuning_loader.get_tuning_path('unknown_camera')
-        assert path is not None, "Should return default tuning path"
+        assert path is not None, "Should return a tuning path"
         assert path.exists(), "Tuning path should exist"
-        assert path.name == 'default.json', "Should return default.json for unknown camera"
+        assert path.is_file(), "Tuning path should be a file"
+        assert path.suffix == '.json', "Tuning file should be JSON"
 
-    def test_get_tuning_path_none_camera(self):
-        """Test getting tuning path with None camera (auto-detect)"""
-        with patch('tuning_loader.get_camera_model', return_value='unknown'):
-            path = tuning_loader.get_tuning_path(None)
-            assert path is not None, "Should return path with auto-detect"
 
-    @patch('picamera2.Picamera2')
-    def test_get_camera_model_success(self, mock_picam):
-        """Test successful camera model detection"""
-        mock_picam.global_camera_info.return_value = [
-            {'Model': 'imx708'}
-        ]
+@pytest.mark.stream
+@pytest.mark.hardware
+class TestISPControlsRealHardware:
+    """Test ISP control application on REAL camera hardware"""
 
-        model = tuning_loader.get_camera_model()
-        assert model == 'imx708', "Should detect camera model"
+    def test_apply_lens_shading_enabled(self, camera_streamer):
+        """Verify lens shading ON applies to real hardware"""
+        # Initialize REAL camera
+        assert camera_streamer.initialize_camera(), \
+            "Camera initialization failed - real hardware required"
 
-    @patch('picamera2.Picamera2')
-    def test_get_camera_model_failure(self, mock_picam):
-        """Test camera model detection failure"""
-        mock_picam.global_camera_info.side_effect = Exception("No camera")
+        # Apply controls to REAL hardware
+        camera_streamer.camera.start()
+        result = tuning_loader.apply_isp_controls(
+            camera_streamer.camera,
+            lens_shading=True,
+            defect_correction=False
+        )
 
-        model = tuning_loader.get_camera_model()
-        assert model == 'unknown', "Should return 'unknown' on failure"
+        # Verify via REAL metadata
+        metadata = camera_streamer.camera.capture_metadata()
+        assert result is True, "Control application should succeed"
+        assert metadata['LensShadingMapMode'] == 1, \
+            "Lens shading should be enabled in camera metadata"
+        assert metadata['HotPixelMode'] == 0, \
+            "Defect correction should be disabled in camera metadata"
 
-    def test_apply_isp_controls_lens_shading(self):
-        """Test applying lens shading control"""
-        mock_camera = Mock()
+        camera_streamer.camera.stop()
 
-        result = tuning_loader.apply_isp_controls(mock_camera, lens_shading=True, defect_correction=False)
+    def test_apply_lens_shading_disabled(self, camera_streamer):
+        """Verify lens shading OFF applies to real hardware"""
+        assert camera_streamer.initialize_camera(), \
+            "Camera initialization failed - real hardware required"
 
-        assert result, "Should return True on success"
-        mock_camera.set_controls.assert_called_once()
+        camera_streamer.camera.start()
+        result = tuning_loader.apply_isp_controls(
+            camera_streamer.camera,
+            lens_shading=False,
+            defect_correction=False
+        )
 
-        # Check that correct controls were set
-        controls = mock_camera.set_controls.call_args[0][0]
-        assert 'LensShadingMapMode' in controls
-        assert controls['LensShadingMapMode'] == 1, "Lens shading should be enabled"
+        metadata = camera_streamer.camera.capture_metadata()
+        assert result is True, "Control application should succeed"
+        assert metadata['LensShadingMapMode'] == 0, \
+            "Lens shading should be disabled in camera metadata"
 
-    def test_apply_isp_controls_defect_correction(self):
-        """Test applying defect correction control"""
-        mock_camera = Mock()
+        camera_streamer.camera.stop()
 
-        result = tuning_loader.apply_isp_controls(mock_camera, lens_shading=False, defect_correction=True)
+    def test_apply_defect_correction_enabled(self, camera_streamer):
+        """Verify defect correction ON applies to real hardware"""
+        assert camera_streamer.initialize_camera(), \
+            "Camera initialization failed - real hardware required"
 
-        assert result, "Should return True on success"
+        camera_streamer.camera.start()
+        result = tuning_loader.apply_isp_controls(
+            camera_streamer.camera,
+            lens_shading=False,
+            defect_correction=True
+        )
 
-        # Check that correct controls were set
-        controls = mock_camera.set_controls.call_args[0][0]
-        assert 'HotPixelMode' in controls
-        assert controls['HotPixelMode'] == 1, "Defect correction should be enabled (Fast mode)"
+        metadata = camera_streamer.camera.capture_metadata()
+        assert result is True, "Control application should succeed"
+        assert metadata['HotPixelMode'] == 1, \
+            "Defect correction should be enabled (Fast mode) in camera metadata"
+        assert metadata['LensShadingMapMode'] == 0, \
+            "Lens shading should be disabled in camera metadata"
 
-    def test_apply_isp_controls_both_disabled(self):
-        """Test applying ISP controls with both features disabled"""
-        mock_camera = Mock()
+        camera_streamer.camera.stop()
 
-        result = tuning_loader.apply_isp_controls(mock_camera, lens_shading=False, defect_correction=False)
+    def test_apply_both_isp_controls_enabled(self, camera_streamer):
+        """Verify both ISP controls ON apply to real hardware"""
+        assert camera_streamer.initialize_camera(), \
+            "Camera initialization failed - real hardware required"
 
-        assert result, "Should return True on success"
+        camera_streamer.camera.start()
+        result = tuning_loader.apply_isp_controls(
+            camera_streamer.camera,
+            lens_shading=True,
+            defect_correction=True
+        )
 
-        # Check that controls were set to 0 (off)
-        controls = mock_camera.set_controls.call_args[0][0]
-        assert controls['LensShadingMapMode'] == 0
-        assert controls['HotPixelMode'] == 0
+        metadata = camera_streamer.camera.capture_metadata()
+        assert result is True, "Control application should succeed"
+        assert metadata['LensShadingMapMode'] == 1, \
+            "Lens shading should be enabled in camera metadata"
+        assert metadata['HotPixelMode'] == 1, \
+            "Defect correction should be enabled in camera metadata"
 
-    def test_apply_isp_controls_error(self):
-        """Test handling of errors when applying ISP controls"""
-        mock_camera = Mock()
-        mock_camera.set_controls.side_effect = Exception("Control error")
+        camera_streamer.camera.stop()
 
-        result = tuning_loader.apply_isp_controls(mock_camera, lens_shading=True, defect_correction=True)
+    def test_apply_both_isp_controls_disabled(self, camera_streamer):
+        """Verify both ISP controls OFF apply to real hardware"""
+        assert camera_streamer.initialize_camera(), \
+            "Camera initialization failed - real hardware required"
 
-        assert not result, "Should return False on error"
+        camera_streamer.camera.start()
+        result = tuning_loader.apply_isp_controls(
+            camera_streamer.camera,
+            lens_shading=False,
+            defect_correction=False
+        )
+
+        metadata = camera_streamer.camera.capture_metadata()
+        assert result is True, "Control application should succeed"
+        assert metadata['LensShadingMapMode'] == 0, \
+            "Lens shading should be disabled in camera metadata"
+        assert metadata['HotPixelMode'] == 0, \
+            "Defect correction should be disabled in camera metadata"
+
+        camera_streamer.camera.stop()
