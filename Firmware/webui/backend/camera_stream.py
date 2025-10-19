@@ -202,28 +202,28 @@ class CameraStreamer:
             if self.camera is not None:
                 self.release_camera()
 
-            # Load ISP tuning file if available (Phase: ISP Tuning)
-            tuning_file = None
+            # Load ISP tuning file path if available (Phase: ISP Tuning)
+            # NOTE: Pass the path string, not the loaded dict, to avoid temp file issues on reinit
+            tuning_path = None
             if ISP_TUNING_AVAILABLE:
                 try:
                     tuning_path = get_tuning_path()
                     if tuning_path:
-                        tuning_file = Picamera2.load_tuning_file(str(tuning_path))
                         print(f"Loaded ISP tuning file: {tuning_path}")
                 except Exception as tuning_error:
                     print(f"Warning: Could not load tuning file: {tuning_error}")
 
             # Try camera 0 first, fallback to camera 1
             try:
-                if tuning_file:
-                    self.camera = Picamera2(0, tuning=tuning_file)
+                if tuning_path:
+                    self.camera = Picamera2(0, tuning=Picamera2.load_tuning_file(str(tuning_path)))
                 else:
                     self.camera = Picamera2(0)
                 print("Using camera 0")
             except Exception as e:
                 print(f"Camera 0 unavailable ({e}), trying camera 1...")
-                if tuning_file:
-                    self.camera = Picamera2(1, tuning=tuning_file)
+                if tuning_path:
+                    self.camera = Picamera2(1, tuning=Picamera2.load_tuning_file(str(tuning_path)))
                 else:
                     self.camera = Picamera2(1)
                 print("Using camera 1")
