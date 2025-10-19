@@ -441,12 +441,12 @@ def pytest_runtest_setup(item):
         # tests from initializing their own camera instances.
         # Tests will fail naturally if camera is not available.
 
-    # NEW: Release camera before integration tests (prevents cross-process conflicts)
-    if 'integration' in str(item.fspath):
+    # NEW: Release camera before tests using camera_streamer fixture
+    # This handles both unit and integration tests with module-scoped camera_streamer
+    if 'camera_streamer' in item.fixturenames:
         try:
-            # Get app fixture to access CAMERA_STREAMER
-            app = item.getfixturevalue('app')
-            camera_streamer = app.config.get('CAMERA_STREAMER')
+            # Get camera_streamer fixture (works for both unit and integration tests)
+            camera_streamer = item.getfixturevalue('camera_streamer')
 
             if camera_streamer and (camera_streamer.camera or camera_streamer.streaming):
                 print(f"\n🔄 Pre-test setup: Releasing camera for {item.name}...")
@@ -454,7 +454,7 @@ def pytest_runtest_setup(item):
                 time.sleep(2.0)  # Ensure hardware fully released (Issue #46)
                 print("   ✓ Camera released and ready")
         except Exception as e:
-            # Fixture may not be available yet - will be handled by verify_camera_state
+            # Fixture may not be available yet or camera not initialized - that's OK
             pass
 
 
