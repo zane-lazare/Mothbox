@@ -5,6 +5,8 @@ os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
 Integration tests for Focus Bracket capture workflow
 
 Tests the complete focus bracketing workflow from settings update through capture routing
+
+Note: Uses shared fixtures from Tests/conftest.py (app, client)
 """
 
 import pytest
@@ -19,19 +21,19 @@ FIRMWARE_DIR = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(FIRMWARE_DIR / "webui" / "backend"))
 sys.path.insert(0, str(FIRMWARE_DIR))
 
-from mothbox_paths import CAMERA_SETTINGS_FILE, PHOTOS_DIR
-
 
 @pytest.fixture
-def client(tmp_path, monkeypatch):
-    """Create Flask test client with temporary paths"""
+def focus_bracket_env(tmp_path, monkeypatch):
+    """Set up temporary paths and default settings for focus bracket tests"""
+    import mothbox_paths
+
     # Patch paths to use temp directory
     temp_settings = tmp_path / "camera_settings.csv"
     temp_photos = tmp_path / "photos"
     temp_photos.mkdir()
 
-    monkeypatch.setattr('mothbox_paths.CAMERA_SETTINGS_FILE', temp_settings)
-    monkeypatch.setattr('mothbox_paths.PHOTOS_DIR', temp_photos)
+    monkeypatch.setattr(mothbox_paths, 'CAMERA_SETTINGS_FILE', str(temp_settings))
+    monkeypatch.setattr(mothbox_paths, 'PHOTOS_DIR', temp_photos)
 
     # Create default settings file
     with open(temp_settings, 'w', newline='') as f:
@@ -44,24 +46,18 @@ def client(tmp_path, monkeypatch):
         writer.writerow(['ExposureTime', '10000', 'Exposure time'])
         writer.writerow(['AnalogueGain', '2.0', 'ISO gain'])
 
-    # Import and configure Flask app
-    from app import create_app
-    app = create_app()
-    app.config['TESTING'] = True
-
-    with app.test_client() as client:
-        yield client, temp_settings, temp_photos
+    yield temp_settings, temp_photos
 
 
 class TestFocusBracketCapture:
     """Test focus bracket capture workflow"""
 
-    def test_focus_bracket_settings_update(self, client):
+    def test_focus_bracket_settings_update(self, client, focus_bracket_env):
         """Test updating focus bracket settings via API"""
-        test_client, settings_file, _ = client
+        settings_file, _ = focus_bracket_env
 
         # Update focus bracket settings
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FocusBracket': '5',
             'FocusBracket_Start': '2.0',
             'FocusBracket_End': '8.0'
@@ -80,31 +76,29 @@ class TestFocusBracketCapture:
         assert settings['FocusBracket_Start'] == '2.0'
         assert settings['FocusBracket_End'] == '8.0'
 
-    def test_focus_bracket_validation_rejects_invalid(self, client):
+    def test_focus_bracket_validation_rejects_invalid(self, client, focus_bracket_env):
         """Test that invalid focus bracket settings are rejected"""
-        test_client, _, _ = client
-
         # Invalid step count (too high)
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FocusBracket': '15'
         })
         assert response.status_code == 400
 
         # Invalid start position (negative)
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FocusBracket_Start': '-1.0'
         })
         assert response.status_code == 400
 
         # Invalid end position (too high)
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FocusBracket_End': '15.0'
         })
         assert response.status_code == 400
 
-    def test_focus_bracket_mode_detection(self, client):
+    def test_focus_bracket_mode_detection(self, client, focus_bracket_env):
         """Test that _should_use_focus_bracket_mode detects settings correctly"""
-        test_client, settings_file, _ = client
+        settings_file, _ = focus_bracket_env
 
         from routes.camera import _should_use_focus_bracket_mode
 
@@ -132,9 +126,9 @@ class TestFocusBracketCapture:
         assert start == 2.0
         assert end == 8.0
 
-    def test_focus_bracket_priority_over_hdr(self, client):
+    def test_focus_bracket_priority_over_hdr(self, client, focus_bracket_env):
         """Test that focus bracketing takes priority over HDR when both enabled"""
-        test_client, settings_file, _ = client
+        settings_file, _ = focus_bracket_env
 
         from routes.camera import _should_use_focus_bracket_mode, _should_use_hdr_mode
 
@@ -158,9 +152,9 @@ class TestFocusBracketCapture:
         assert hdr_count == 3
 
     @patch('subprocess.run')
-    def test_focus_bracket_script_routing(self, mock_subprocess, client, monkeypatch):
+    def test_focus_bracket_script_routing(self, mock_subprocess, client, focus_bracket_env, monkeypatch):
         """Test that capture endpoint routes to focus bracket script"""
-        test_client, settings_file, temp_photos = client
+        settings_file, temp_photos = focus_bracket_env
 
         # Mock MOTHBOX_HOME to use test directory
         mock_mothbox_home = Path(__file__).parent.parent.parent
@@ -193,7 +187,7 @@ class TestFocusBracketCapture:
         (temp_photos / "test.jpg").touch()
 
         # Trigger capture
-        response = test_client.post('/api/camera/capture')
+        response = client.post('/api/camera/capture')
 
         assert response.status_code == 200
         data = response.get_json()
@@ -210,9 +204,9 @@ class TestFocusBracketCapture:
         called_script = str(mock_subprocess.call_args[0][0][1])
         assert 'capture_focus_bracket.py' in called_script
 
-    def test_focus_bracket_default_values(self, client):
+    def test_focus_bracket_default_values(self, client, focus_bracket_env):
         """Test default values when focus bracket settings are missing"""
-        test_client, settings_file, _ = client
+        settings_file, _ = focus_bracket_env
 
         from routes.camera import _should_use_focus_bracket_mode
 
@@ -229,9 +223,9 @@ class TestFocusBracketCapture:
         assert start == 2.0  # Default start
         assert end == 8.0    # Default end
 
-    def test_focus_bracket_edge_cases(self, client):
+    def test_focus_bracket_edge_cases(self, client, focus_bracket_env):
         """Test edge cases for focus bracket configuration"""
-        test_client, settings_file, _ = client
+        settings_file, _ = focus_bracket_env
 
         from routes.camera import _should_use_focus_bracket_mode
 
@@ -261,12 +255,12 @@ class TestFocusBracketCapture:
         assert use_fb == False
         assert steps == 1
 
-    def test_timing_settings_persistence(self, client):
+    def test_timing_settings_persistence(self, client, focus_bracket_env):
         """Test that timing settings are persisted to CSV"""
-        test_client, settings_file, _ = client
+        settings_file, _ = focus_bracket_env
 
         # Update timing settings
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FlashDelay_BeforeCapture': '100',
             'FlashDelay_AfterCapture': '50',
             'FocusBracket_SettleDelay': '750'
@@ -283,40 +277,38 @@ class TestFocusBracketCapture:
         assert settings['FlashDelay_AfterCapture'] == '50'
         assert settings['FocusBracket_SettleDelay'] == '750'
 
-    def test_timing_settings_validation(self, client):
+    def test_timing_settings_validation(self, client, focus_bracket_env):
         """Test that invalid timing settings are rejected"""
-        test_client, _, _ = client
-
         # Flash delay before - out of range
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FlashDelay_BeforeCapture': '600'  # Max is 500
         })
         assert response.status_code == 400
 
         # Flash delay after - negative
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FlashDelay_AfterCapture': '-10'
         })
         assert response.status_code == 400
 
         # Settle delay - too low
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FocusBracket_SettleDelay': '50'  # Min is 100
         })
         assert response.status_code == 400
 
         # Settle delay - too high
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FocusBracket_SettleDelay': '2500'  # Max is 2000
         })
         assert response.status_code == 400
 
-    def test_color_gains_settings_persistence(self, client):
+    def test_color_gains_settings_persistence(self, client, focus_bracket_env):
         """Test that color gains settings are persisted to CSV"""
-        test_client, settings_file, _ = client
+        settings_file, _ = focus_bracket_env
 
         # Update color gains settings
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FocusBracket_LockColorGains': '1',
             'FocusBracket_ColorGainRed': '2.5',
             'FocusBracket_ColorGainBlue': '1.8'
@@ -333,59 +325,55 @@ class TestFocusBracketCapture:
         assert settings['FocusBracket_ColorGainRed'] == '2.5'
         assert settings['FocusBracket_ColorGainBlue'] == '1.8'
 
-    def test_color_gains_lock_toggle(self, client):
+    def test_color_gains_lock_toggle(self, client, focus_bracket_env):
         """Test color gains lock on/off toggle"""
-        test_client, settings_file, _ = client
-
         # Test lock enabled
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FocusBracket_LockColorGains': '1'
         })
         assert response.status_code == 200
 
         # Test lock disabled
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FocusBracket_LockColorGains': '0'
         })
         assert response.status_code == 200
 
         # Test invalid value
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FocusBracket_LockColorGains': '2'
         })
         assert response.status_code == 400
 
-    def test_color_gains_validation(self, client):
+    def test_color_gains_validation(self, client, focus_bracket_env):
         """Test that invalid color gains are rejected"""
-        test_client, _, _ = client
-
         # Red gain too low
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FocusBracket_ColorGainRed': '0.5'
         })
         assert response.status_code == 400
 
         # Red gain too high
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FocusBracket_ColorGainRed': '5.0'
         })
         assert response.status_code == 400
 
         # Blue gain too low
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FocusBracket_ColorGainBlue': '0.8'
         })
         assert response.status_code == 400
 
         # Blue gain too high
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FocusBracket_ColorGainBlue': '4.5'
         })
         assert response.status_code == 400
 
-    def test_default_timing_and_color_values(self, client):
+    def test_default_timing_and_color_values(self, client, focus_bracket_env):
         """Test that default values are used when settings are missing"""
-        test_client, settings_file, _ = client
+        settings_file, _ = focus_bracket_env
 
         # Create settings file without timing/color settings
         with open(settings_file, 'w', newline='') as f:
@@ -396,7 +384,7 @@ class TestFocusBracketCapture:
         # Note: This test verifies the defaults are defined, but we can't easily test
         # the script execution without running it. The unit tests verify the validators.
         # Here we just verify the settings can be added
-        response = test_client.post('/api/camera/settings', json={
+        response = client.post('/api/camera/settings', json={
             'FlashDelay_BeforeCapture': '50',  # Default value
             'FlashDelay_AfterCapture': '0',    # Default value
             'FocusBracket_SettleDelay': '500', # Default value
