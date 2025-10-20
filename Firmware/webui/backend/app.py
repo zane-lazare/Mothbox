@@ -156,7 +156,7 @@ def handle_csrf_error(e):
 
 # WebSocket event handlers
 @socketio.on('connect')
-def handle_connect():
+def handle_connect(auth=None):
     """Handle client WebSocket connection with origin validation"""
     from flask import request
 

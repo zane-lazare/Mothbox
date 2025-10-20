@@ -1,6 +1,3 @@
-import os
-os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing app
-
 """
 Integration tests for extended metadata accuracy
 Validates that metadata values match actual camera state with real hardware
@@ -23,7 +20,7 @@ class TestMetadataAccuracy:
 
     def test_metadata_matches_camera_state(self, app):
         """Test that reported metadata matches actual camera state"""
-        from app import socketio
+        from flask_socketio import SocketIO
 
         # Initialize camera if needed
         camera_streamer = app.config['CAMERA_STREAMER']
@@ -32,6 +29,7 @@ class TestMetadataAccuracy:
             time.sleep(1.0)
 
         # Create socketio client
+        socketio = SocketIO(app)
         client = socketio.test_client(app, namespace='/')
 
         try:
@@ -109,13 +107,14 @@ class TestMetadataAccuracy:
 
     def test_metadata_updates_in_real_time(self, app):
         """Test that metadata updates reflect real-time camera state changes"""
-        from app import socketio
+        from flask_socketio import SocketIO
 
         camera_streamer = app.config['CAMERA_STREAMER']
         if not camera_streamer.camera:
             camera_streamer.initialize_camera()
             time.sleep(1.0)
 
+        socketio = SocketIO(app)
         client = socketio.test_client(app, namespace='/')
 
         try:
@@ -157,13 +156,14 @@ class TestMetadataAccuracy:
 
     def test_colour_gains_valid_range(self, app):
         """Test that colour gains are in valid range"""
-        from app import socketio
+        from flask_socketio import SocketIO
 
         camera_streamer = app.config['CAMERA_STREAMER']
         if not camera_streamer.camera:
             camera_streamer.initialize_camera()
             time.sleep(1.0)
 
+        socketio = SocketIO(app)
         client = socketio.test_client(app, namespace='/')
 
         try:
@@ -192,13 +192,14 @@ class TestMetadataAccuracy:
 
     def test_frame_duration_consistency(self, app):
         """Test that frame duration is consistent and reasonable"""
-        from app import socketio
+        from flask_socketio import SocketIO
 
         camera_streamer = app.config['CAMERA_STREAMER']
         if not camera_streamer.camera:
             camera_streamer.initialize_camera()
             time.sleep(1.0)
 
+        socketio = SocketIO(app)
         client = socketio.test_client(app, namespace='/')
 
         try:
@@ -235,13 +236,14 @@ class TestMetadataAccuracy:
 
     def test_lux_responds_to_exposure_changes(self, app):
         """Test that lux value responds to exposure/gain changes"""
-        from app import socketio
+        from flask_socketio import SocketIO
 
         camera_streamer = app.config['CAMERA_STREAMER']
         if not camera_streamer.camera:
             camera_streamer.initialize_camera()
             time.sleep(1.0)
 
+        socketio = SocketIO(app)
         client = socketio.test_client(app, namespace='/')
 
         try:
@@ -268,13 +270,14 @@ class TestMetadataAccuracy:
 
     def test_digital_gain_reasonable_range(self, app):
         """Test that digital gain is in reasonable range"""
-        from app import socketio
+        from flask_socketio import SocketIO
 
         camera_streamer = app.config['CAMERA_STREAMER']
         if not camera_streamer.camera:
             camera_streamer.initialize_camera()
             time.sleep(1.0)
 
+        socketio = SocketIO(app)
         client = socketio.test_client(app, namespace='/')
 
         try:
@@ -303,13 +306,14 @@ class TestMetadataAccuracy:
 
     def test_scaler_crop_updates_with_zoom(self, app):
         """Test that scaler crop updates when digital zoom is changed"""
-        from app import socketio
+        from flask_socketio import SocketIO
 
         camera_streamer = app.config['CAMERA_STREAMER']
         if not camera_streamer.camera:
             camera_streamer.initialize_camera()
             time.sleep(1.0)
 
+        socketio = SocketIO(app)
         client = socketio.test_client(app, namespace='/')
 
         try:
@@ -352,13 +356,14 @@ class TestMetadataAccuracy:
 
     def test_ae_awb_lock_states(self, app):
         """Test that AE and AWB lock states are reported correctly"""
-        from app import socketio
+        from flask_socketio import SocketIO
 
         camera_streamer = app.config['CAMERA_STREAMER']
         if not camera_streamer.camera:
             camera_streamer.initialize_camera()
             time.sleep(1.0)
 
+        socketio = SocketIO(app)
         client = socketio.test_client(app, namespace='/')
 
         try:
@@ -388,13 +393,14 @@ class TestMetadataAccuracy:
 
     def test_sensor_temperature_if_available(self, app):
         """Test sensor temperature if available (optional field)"""
-        from app import socketio
+        from flask_socketio import SocketIO
 
         camera_streamer = app.config['CAMERA_STREAMER']
         if not camera_streamer.camera:
             camera_streamer.initialize_camera()
             time.sleep(1.0)
 
+        socketio = SocketIO(app)
         client = socketio.test_client(app, namespace='/')
 
         try:
@@ -426,13 +432,14 @@ class TestMetadataAccuracy:
 
     def test_focus_fom_during_autofocus(self, app, client):
         """Test that Focus FoM changes during autofocus operation"""
-        from app import socketio
+        from flask_socketio import SocketIO
 
         camera_streamer = app.config['CAMERA_STREAMER']
         if not camera_streamer.camera:
             camera_streamer.initialize_camera()
             time.sleep(1.0)
 
+        socketio = SocketIO(app)
         socketio_client = socketio.test_client(app, namespace='/')
 
         try:
@@ -470,13 +477,14 @@ class TestMetadataAccuracy:
 
     def test_all_extended_fields_present_integration(self, app):
         """Integration test: all 15+ extended metadata fields present with real camera"""
-        from app import socketio
+        from flask_socketio import SocketIO
 
         camera_streamer = app.config['CAMERA_STREAMER']
         if not camera_streamer.camera:
             camera_streamer.initialize_camera()
             time.sleep(1.0)
 
+        socketio = SocketIO(app)
         client = socketio.test_client(app, namespace='/')
 
         try:
@@ -530,13 +538,14 @@ class TestMetadataAccuracy:
 
     def test_metadata_persistence_across_stream_restart(self, app):
         """Test that metadata extraction works correctly after stream restart"""
-        from app import socketio
+        from flask_socketio import SocketIO
 
         camera_streamer = app.config['CAMERA_STREAMER']
         if not camera_streamer.camera:
             camera_streamer.initialize_camera()
             time.sleep(1.0)
 
+        socketio = SocketIO(app)
         client = socketio.test_client(app, namespace='/')
 
         try:
