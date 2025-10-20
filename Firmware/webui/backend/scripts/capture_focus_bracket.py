@@ -56,41 +56,6 @@ color_gain_blue = 1.500129925   # Blue channel gain (when locked)
 
 computerName = "mothboxD"
 
-print("----------------- STARTING TAKEPHOTO FOCUS BRACKET -------------------")
-now = datetime.now()
-formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
-
-print(f"Current time: {formatted_time}")
-
-
-# ============================================================================
-# System Detection & GPIO Setup
-# ============================================================================
-
-if platform.system() == "Windows":
-	print(platform.uname().node)
-else:
-	computerName = os.uname()[1]
-	print(os.uname()[1])   # doesn't work on windows
-
-# Load GPIO pins from configuration
-pins = get_gpio_pins()
-Relay_Ch1 = pins['Relay_Ch1']
-Relay_Ch2 = pins['Relay_Ch2']
-Relay_Ch3 = pins['Relay_Ch3']
-
-GPIO.setwarnings(False)
-GPIO.setmode(GPIO.BCM)
-
-GPIO.setup(Relay_Ch1,GPIO.OUT)
-GPIO.setup(Relay_Ch2,GPIO.OUT)
-GPIO.setup(Relay_Ch3,GPIO.OUT)
-
-print("Setup The Relay Module is [success]")
-
-global onlyflash
-onlyflash=False
-
 
 def get_control_values(filepath):
     """Reads key-value pairs from the control file."""
@@ -193,108 +158,6 @@ def load_camera_settings():
         return None
 
 
-control_values = get_control_values(str(CONTROLS_FILE))
-onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
-if(onlyflash):
-    print("operating in always on flash mode")
-
-picam2 = Picamera2()
-
-capture_main = {"size": (9000, 6000), "format": "RGB888"}
-capture_config = picam2.create_still_configuration(main=capture_main)
-picam2.configure(capture_config)
-
-
-
-'''
-#This is for getting min and max details for certain settings, (See the picam pdf manual)
-print(picam2.camera_controls["AnalogueGain"])
-min_gain, max_gain, default_gain = picam2.camera_controls["AnalogueGain"]
-'''
-camera_settings = load_camera_settings()
-
-# Extract focus bracketing settings
-num_steps = int(camera_settings.pop("FocusBracket", num_steps))
-focus_start = float(camera_settings.pop("FocusBracket_Start", focus_start))
-focus_end = float(camera_settings.pop("FocusBracket_End", focus_end))
-
-# Extract flash timing settings (in milliseconds)
-flash_delay_before = int(camera_settings.pop("FlashDelay_BeforeCapture", flash_delay_before))
-flash_delay_after = int(camera_settings.pop("FlashDelay_AfterCapture", flash_delay_after))
-focus_settle_delay = int(camera_settings.pop("FocusBracket_SettleDelay", focus_settle_delay))
-
-# Extract color gains settings
-lock_color_gains = int(camera_settings.pop("FocusBracket_LockColorGains", lock_color_gains))
-color_gain_red = float(camera_settings.pop("FocusBracket_ColorGainRed", color_gain_red))
-color_gain_blue = float(camera_settings.pop("FocusBracket_ColorGainBlue", color_gain_blue))
-
-# Validate focus bracket settings
-if num_steps < 1:
-    num_steps = 1
-    print(f"Warning: Invalid FocusBracket value, defaulting to {num_steps}")
-
-if focus_start < 0.0 or focus_start > 10.0:
-    focus_start = 2.0
-    print(f"Warning: Invalid FocusBracket_Start, defaulting to {focus_start}")
-
-if focus_end < 0.0 or focus_end > 10.0:
-    focus_end = 8.0
-    print(f"Warning: Invalid FocusBracket_End, defaulting to {focus_end}")
-
-# Ensure start and end are different for multiple steps
-if num_steps > 1 and abs(focus_end - focus_start) < 0.1:
-    print(f"Warning: FocusBracket_Start and FocusBracket_End are too close. Adjusting...")
-    focus_end = focus_start + 2.0
-    if focus_end > 10.0:
-        focus_end = 10.0
-        focus_start = 8.0
-
-# Validate timing settings
-if flash_delay_before < 0 or flash_delay_before > 500:
-    flash_delay_before = 50
-    print(f"Warning: Invalid FlashDelay_BeforeCapture, defaulting to {flash_delay_before}ms")
-
-if flash_delay_after < 0 or flash_delay_after > 500:
-    flash_delay_after = 0
-    print(f"Warning: Invalid FlashDelay_AfterCapture, defaulting to {flash_delay_after}ms")
-
-if focus_settle_delay < 100 or focus_settle_delay > 2000:
-    focus_settle_delay = 500
-    print(f"Warning: Invalid FocusBracket_SettleDelay, defaulting to {focus_settle_delay}ms")
-
-# Validate color gains
-if lock_color_gains not in [0, 1]:
-    lock_color_gains = 1
-    print(f"Warning: Invalid FocusBracket_LockColorGains, defaulting to {lock_color_gains}")
-
-if color_gain_red < 1.0 or color_gain_red > 4.0:
-    color_gain_red = 2.259439776
-    print(f"Warning: Invalid FocusBracket_ColorGainRed, defaulting to {color_gain_red}")
-
-if color_gain_blue < 1.0 or color_gain_blue > 4.0:
-    color_gain_blue = 1.500129925
-    print(f"Warning: Invalid FocusBracket_ColorGainBlue, defaulting to {color_gain_blue}")
-
-# Log the configuration being used
-print(f"Focus bracket configuration:")
-print(f"  Steps: {num_steps}, Range: {focus_start} to {focus_end} diopters")
-print(f"  Flash delays: {flash_delay_before}ms before, {flash_delay_after}ms after")
-print(f"  Lens settle delay: {focus_settle_delay}ms")
-if lock_color_gains:
-    print(f"  Color gains locked: R={color_gain_red:.3f}, B={color_gain_blue:.3f}")
-else:
-    print(f"  Using auto white balance (AWB)")
-
-if camera_settings:
-    picam2.set_controls(camera_settings)
-
-picam2.start()
-time.sleep(.1)
-
-print("cam started");
-
-picam2.stop()
-picam2.configure(capture_config)
 
 
 def calculate_focus_positions(start, end, steps):
@@ -335,9 +198,27 @@ def calculate_focus_positions(start, end, steps):
     return positions
 
 
-def takePhoto_FocusBracket():
+def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focus_end,
+                           focus_settle_delay, flash_delay_before, flash_delay_after,
+                           lock_color_gains, color_gain_red, color_gain_blue,
+                           onlyflash, computerName):
     """
     Capture multiple photos at different focus positions (focus bracketing)
+
+    Args:
+        picam2: Initialized Picamera2 instance
+        camera_settings: Dictionary of camera settings to apply
+        num_steps: Number of focus positions to capture
+        focus_start: Starting focus position in diopters
+        focus_end: Ending focus position in diopters
+        focus_settle_delay: Delay in ms for lens to settle
+        flash_delay_before: Delay in ms before capture
+        flash_delay_after: Delay in ms after capture
+        lock_color_gains: Whether to lock color gains (0 or 1)
+        color_gain_red: Red channel gain value
+        color_gain_blue: Blue channel gain value
+        onlyflash: Whether flash is always on
+        computerName: Name of the computer for file naming
     """
     now = datetime.now()
     timestamp = now.strftime("%Y_%m_%d__%H_%M_%S")
@@ -426,10 +307,153 @@ def takePhoto_FocusBracket():
         print(f"✓ Captured focus bracket {step_num}/{num_steps} at {focus_pos:.2f} diopters\n")
 
 
-# Execute focus bracket capture
-time.sleep(.5)
-takePhoto_FocusBracket()
+def main():
+    """Main execution function - only runs when script is executed directly"""
+    global computerName
 
-picam2.stop()
+    print("----------------- STARTING TAKEPHOTO FOCUS BRACKET -------------------")
+    now = datetime.now()
+    formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
 
-quit()
+    print(f"Current time: {formatted_time}")
+
+    # ============================================================================
+    # System Detection & GPIO Setup
+    # ============================================================================
+
+    if platform.system() == "Windows":
+        print(platform.uname().node)
+    else:
+        computerName = os.uname()[1]
+        print(os.uname()[1])   # doesn't work on windows
+
+    # Load GPIO pins from configuration
+    pins = get_gpio_pins()
+    Relay_Ch1 = pins['Relay_Ch1']
+    Relay_Ch2 = pins['Relay_Ch2']
+    Relay_Ch3 = pins['Relay_Ch3']
+
+    GPIO.setwarnings(False)
+    GPIO.setmode(GPIO.BCM)
+
+    GPIO.setup(Relay_Ch1,GPIO.OUT)
+    GPIO.setup(Relay_Ch2,GPIO.OUT)
+    GPIO.setup(Relay_Ch3,GPIO.OUT)
+
+    print("Setup The Relay Module is [success]")
+
+    control_values = get_control_values(str(CONTROLS_FILE))
+    onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
+    if(onlyflash):
+        print("operating in always on flash mode")
+
+    picam2 = Picamera2()
+
+    capture_main = {"size": (9000, 6000), "format": "RGB888"}
+    capture_config = picam2.create_still_configuration(main=capture_main)
+    picam2.configure(capture_config)
+
+    '''
+    #This is for getting min and max details for certain settings, (See the picam pdf manual)
+    print(picam2.camera_controls["AnalogueGain"])
+    min_gain, max_gain, default_gain = picam2.camera_controls["AnalogueGain"]
+    '''
+    camera_settings = load_camera_settings()
+
+    # Extract focus bracketing settings (using module-level defaults)
+    _num_steps = int(camera_settings.pop("FocusBracket", num_steps))
+    _focus_start = float(camera_settings.pop("FocusBracket_Start", focus_start))
+    _focus_end = float(camera_settings.pop("FocusBracket_End", focus_end))
+
+    # Extract flash timing settings (in milliseconds)
+    _flash_delay_before = int(camera_settings.pop("FlashDelay_BeforeCapture", flash_delay_before))
+    _flash_delay_after = int(camera_settings.pop("FlashDelay_AfterCapture", flash_delay_after))
+    _focus_settle_delay = int(camera_settings.pop("FocusBracket_SettleDelay", focus_settle_delay))
+
+    # Extract color gains settings
+    _lock_color_gains = int(camera_settings.pop("FocusBracket_LockColorGains", lock_color_gains))
+    _color_gain_red = float(camera_settings.pop("FocusBracket_ColorGainRed", color_gain_red))
+    _color_gain_blue = float(camera_settings.pop("FocusBracket_ColorGainBlue", color_gain_blue))
+
+    # Validate focus bracket settings
+    if _num_steps < 1:
+        _num_steps = 1
+        print(f"Warning: Invalid FocusBracket value, defaulting to {_num_steps}")
+
+    if _focus_start < 0.0 or _focus_start > 10.0:
+        _focus_start = 2.0
+        print(f"Warning: Invalid FocusBracket_Start, defaulting to {_focus_start}")
+
+    if _focus_end < 0.0 or _focus_end > 10.0:
+        _focus_end = 8.0
+        print(f"Warning: Invalid FocusBracket_End, defaulting to {_focus_end}")
+
+    # Ensure start and end are different for multiple steps
+    if _num_steps > 1 and abs(_focus_end - _focus_start) < 0.1:
+        print(f"Warning: FocusBracket_Start and FocusBracket_End are too close. Adjusting...")
+        _focus_end = _focus_start + 2.0
+        if _focus_end > 10.0:
+            _focus_end = 10.0
+            _focus_start = 8.0
+
+    # Validate timing settings
+    if _flash_delay_before < 0 or _flash_delay_before > 500:
+        _flash_delay_before = 50
+        print(f"Warning: Invalid FlashDelay_BeforeCapture, defaulting to {_flash_delay_before}ms")
+
+    if _flash_delay_after < 0 or _flash_delay_after > 500:
+        _flash_delay_after = 0
+        print(f"Warning: Invalid FlashDelay_AfterCapture, defaulting to {_flash_delay_after}ms")
+
+    if _focus_settle_delay < 100 or _focus_settle_delay > 2000:
+        _focus_settle_delay = 500
+        print(f"Warning: Invalid FocusBracket_SettleDelay, defaulting to {_focus_settle_delay}ms")
+
+    # Validate color gains
+    if _lock_color_gains not in [0, 1]:
+        _lock_color_gains = 1
+        print(f"Warning: Invalid FocusBracket_LockColorGains, defaulting to {_lock_color_gains}")
+
+    if _color_gain_red < 1.0 or _color_gain_red > 4.0:
+        _color_gain_red = 2.259439776
+        print(f"Warning: Invalid FocusBracket_ColorGainRed, defaulting to {_color_gain_red}")
+
+    if _color_gain_blue < 1.0 or _color_gain_blue > 4.0:
+        _color_gain_blue = 1.500129925
+        print(f"Warning: Invalid FocusBracket_ColorGainBlue, defaulting to {_color_gain_blue}")
+
+    # Log the configuration being used
+    print(f"Focus bracket configuration:")
+    print(f"  Steps: {_num_steps}, Range: {_focus_start} to {_focus_end} diopters")
+    print(f"  Flash delays: {_flash_delay_before}ms before, {_flash_delay_after}ms after")
+    print(f"  Lens settle delay: {_focus_settle_delay}ms")
+    if _lock_color_gains:
+        print(f"  Color gains locked: R={_color_gain_red:.3f}, B={_color_gain_blue:.3f}")
+    else:
+        print(f"  Using auto white balance (AWB)")
+
+    if camera_settings:
+        picam2.set_controls(camera_settings)
+
+    picam2.start()
+    time.sleep(.1)
+
+    print("cam started");
+
+    picam2.stop()
+    picam2.configure(capture_config)
+
+    # Execute focus bracket capture
+    time.sleep(.5)
+    takePhoto_FocusBracket(picam2, camera_settings, _num_steps, _focus_start, _focus_end,
+                          _focus_settle_delay, _flash_delay_before, _flash_delay_after,
+                          _lock_color_gains, _color_gain_red, _color_gain_blue,
+                          onlyflash, computerName)
+
+    picam2.stop()
+
+    quit()
+
+
+if __name__ == "__main__":
+    main()
