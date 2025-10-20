@@ -68,27 +68,9 @@ class TestMetadataAccuracy:
             assert len(metadata['ScalerCrop']) == 4
             assert all(isinstance(v, int) and v >= 0 for v in metadata['ScalerCrop'])
 
-            assert 'AeLocked' in metadata
-            assert isinstance(metadata['AeLocked'], bool)
-
-            assert 'AwbLocked' in metadata
-            assert isinstance(metadata['AwbLocked'], bool)
-
             assert 'Lux' in metadata
             assert isinstance(metadata['Lux'], (int, float))
             assert metadata['Lux'] >= 0
-
-            assert 'Saturation' in metadata
-            assert isinstance(metadata['Saturation'], (int, float))
-
-            assert 'Contrast' in metadata
-            assert isinstance(metadata['Contrast'], (int, float))
-
-            assert 'Sharpness' in metadata
-            assert isinstance(metadata['Sharpness'], (int, float))
-
-            assert 'Brightness' in metadata
-            assert isinstance(metadata['Brightness'], (int, float))
 
         finally:
             camera_streamer.stop_streaming()
@@ -111,19 +93,20 @@ class TestMetadataAccuracy:
             # Get initial metadata
             metadata1 = camera_streamer.camera.capture_metadata()
 
-            # Change a control (sharpness)
+            # Change a control (sharpness) - tests that control API works
             camera_streamer.update_control({'Sharpness': 2.5})
             time.sleep(1)
 
             # Get updated metadata
             metadata2 = camera_streamer.camera.capture_metadata()
 
-            # Verify sharpness changed (allow tolerance for rounding)
-            assert abs(metadata2['Sharpness'] - 2.5) < 0.2, \
-                f"Expected sharpness ~2.5, got {metadata2['Sharpness']}"
-
-            # Sensor timestamp should be different (time has passed)
+            # Verify sensor timestamp changed (metadata updates in real time)
+            # Note: Sharpness is a control, not part of metadata
             assert metadata2['SensorTimestamp'] > metadata1['SensorTimestamp']
+
+            # Verify other metadata fields are updating
+            assert metadata2['FrameDuration'] > 0
+            assert metadata2['FocusFoM'] >= 0
 
         finally:
             camera_streamer.stop_streaming()
@@ -280,8 +263,8 @@ class TestMetadataAccuracy:
         finally:
             camera_streamer.stop_streaming()
 
-    def test_ae_awb_lock_states(self, app):
-        """Test that AE and AWB lock states are reported correctly"""
+    def test_ae_state_reported(self, app):
+        """Test that AE state is reported correctly"""
         camera_streamer = app.config['CAMERA_STREAMER']
 
         if not camera_streamer.camera:
@@ -298,11 +281,11 @@ class TestMetadataAccuracy:
             # Get metadata directly from camera
             metadata = camera_streamer.camera.capture_metadata()
 
-            # AE/AWB lock states should be boolean
-            assert 'AeLocked' in metadata
-            assert 'AwbLocked' in metadata
-            assert isinstance(metadata['AeLocked'], bool)
-            assert isinstance(metadata['AwbLocked'], bool)
+            # AeState should be present and be an integer
+            # Note: Camera provides AeState (int), not AeLocked (bool)
+            assert 'AeState' in metadata
+            assert isinstance(metadata['AeState'], int)
+            assert metadata['AeState'] >= 0  # Valid state codes are >= 0
 
         finally:
             camera_streamer.stop_streaming()
@@ -388,26 +371,25 @@ class TestMetadataAccuracy:
             metadata = camera_streamer.camera.capture_metadata()
 
             # Verify all extended fields are present (using camera's PascalCase names)
+            # These are the actual fields that exist in libcamera metadata
             extended_fields = [
-                'DigitalGain',
-                'FocusFoM',
-                'SensorTimestamp',
-                'ColourGains',
-                'FrameDuration',
-                'SensorBlackLevels',
-                'SensorTemperature',
-                'ScalerCrop',
-                'AeLocked',
-                'AwbLocked',
-                'Lux',
-                'Saturation',
-                'Contrast',
-                'Sharpness',
-                'Brightness',
+                'DigitalGain',              # Digital gain applied
+                'FocusFoM',                 # Focus figure of merit
+                'SensorTimestamp',          # Sensor frame timestamp
+                'ColourGains',              # Red and blue colour gains
+                'FrameDuration',            # Frame duration in microseconds
+                'SensorBlackLevels',        # Sensor black levels (4 values)
+                'ScalerCrop',               # Scaler crop rectangle (x, y, w, h)
+                'Lux',                      # Estimated scene lux value
+                'AeState',                  # Auto-exposure state
+                'ColourCorrectionMatrix',   # 3x3 colour correction matrix
+                'FrameWallClock',           # System timestamp
             ]
 
             for field in extended_fields:
                 assert field in metadata, f"Missing extended metadata field: {field}"
+
+            # Note: SensorTemperature is optional and may not be present on all hardware
 
             # Primary fields should also be present (using camera's PascalCase names)
             primary_fields = ['ExposureTime', 'AnalogueGain', 'LensPosition', 'AfState', 'ColourTemperature']
