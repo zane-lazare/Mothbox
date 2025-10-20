@@ -1,3 +1,6 @@
+import os
+os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing app
+
 """
 Integration tests for extended metadata accuracy
 Validates that metadata values match actual camera state with real hardware
