@@ -27,7 +27,12 @@ export default function Camera() {
     aeEnable: true,  // Auto exposure enabled by default
     exposureTime: 500,  // Manual exposure time in microseconds
     analogueGain: 8.0,  // Manual gain/ISO
-    noiseReductionMode: 0
+    noiseReductionMode: 0,
+    // Focus controls
+    afMode: 2,  // 0=Manual, 1=Auto Single, 2=Continuous (default for live preview)
+    lensPosition: 3.0,  // Diopters (0.0-10.0, middle position default)
+    afRange: 0,  // 0=Normal, 1=Macro, 2=Full
+    afSpeed: 0  // 0=Normal, 1=Fast
   })
   const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
   const [zoomCenter, setZoomCenter] = useState({ x: 0.5, y: 0.5 })  // Normalized zoom center (0.5, 0.5 = center)
@@ -102,7 +107,12 @@ export default function Camera() {
             aeMeteringMode: data.ae_metering_mode !== undefined ? data.ae_metering_mode : 0,
             aeEnable: data.ae_enable !== undefined ? data.ae_enable : true,
             exposureTime: data.exposure_time !== undefined ? data.exposure_time : 500,
-            analogueGain: data.analogue_gain !== undefined ? data.analogue_gain : 8.0
+            analogueGain: data.analogue_gain !== undefined ? data.analogue_gain : 8.0,
+            // Focus controls - load from backend or use defaults
+            afMode: data.af_mode !== undefined ? data.af_mode : 2,  // Default: Continuous AF
+            lensPosition: data.lens_position !== undefined ? data.lens_position : 3.0,
+            afRange: data.af_range !== undefined ? data.af_range : 0,  // Default: Normal range
+            afSpeed: data.af_speed !== undefined ? data.af_speed : 0  // Default: Normal speed
           })
           console.log('Loaded live controls from settings:', data)
         }
@@ -478,17 +488,25 @@ export default function Camera() {
       sharpness: 1.0,
       brightness: 0.0,
       contrast: 1.0,
-      saturation: 1.0
+      saturation: 1.0,
+      // Focus control defaults
+      afMode: 2,  // Continuous AF
+      lensPosition: 3.0,  // Middle position
+      afRange: 0,  // Normal range
+      afSpeed: 0  // Normal speed
     }
 
-    setLiveControls(defaults)
+    setLiveControls(prev => ({
+      ...prev,
+      ...defaults
+    }))
     setZoomLevel(1.0)  // Reset zoom to 1x
     setZoomCenter({ x: 0.5, y: 0.5 })  // Reset zoom center to center
 
     // Emit all resets to backend
     if (socketRef.current && previewActive) {
       Object.entries(defaults).forEach(([key, value]) => {
-        // Convert lowercase key to PascalCase (sharpness -> Sharpness)
+        // Convert camelCase key to PascalCase (sharpness -> Sharpness, afMode -> AfMode)
         const controlName = key.charAt(0).toUpperCase() + key.slice(1)
         socketRef.current.emit('update_preview_control', {
           [controlName]: value
@@ -500,7 +518,7 @@ export default function Camera() {
         center_x: 0.5,
         center_y: 0.5
       })
-      toast.success('Controls and zoom reset to defaults')
+      toast.success('Controls, focus, and zoom reset to defaults')
     }
   }
 
@@ -898,6 +916,103 @@ export default function Camera() {
                         {liveControls.aeMeteringMode === 0 && '⚪ Centre: Prioritizes center of frame'}
                         {liveControls.aeMeteringMode === 1 && '🎯 Spot: Uses small center area only'}
                         {liveControls.aeMeteringMode === 2 && '🌐 Matrix: Evaluates entire frame'}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Focus Controls Section */}
+                  <div className="pt-2 mt-2 border-t border-white/20">
+                    <label className="block text-xs font-medium text-gray-200 mb-1">
+                      🎯 Focus Mode
+                    </label>
+                    <select
+                      value={liveControls.afMode}
+                      onChange={(e) => {
+                        const newValue = parseInt(e.target.value)
+                        setLiveControls(prev => ({ ...prev, afMode: newValue }))
+                        handleControlChange('AfMode', newValue)
+                      }}
+                      className="w-full px-2 py-1.5 text-xs bg-white/10 text-white border border-white/20 rounded focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    >
+                      <option value="0" className="bg-gray-800">🔧 Manual Focus</option>
+                      <option value="1" className="bg-gray-800">🎯 Auto Single (One-shot)</option>
+                      <option value="2" className="bg-gray-800">♾️ Continuous AF</option>
+                    </select>
+                    <div className="mt-1 text-[10px] text-gray-300">
+                      {liveControls.afMode === 0 && '🔧 Manual: Full control via slider'}
+                      {liveControls.afMode === 1 && '🎯 Single: One-time focus cycle'}
+                      {liveControls.afMode === 2 && '♾️ Continuous: Auto-maintains focus'}
+                    </div>
+                  </div>
+
+                  {/* Manual Focus Slider - Only show when Manual mode */}
+                  {liveControls.afMode === 0 && (
+                    <div className="pt-2 mt-2">
+                      <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                        <span>🔍 Lens Position</span>
+                        <span className="text-orange-300 font-mono">{liveControls.lensPosition.toFixed(1)} dpt</span>
+                      </label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="10"
+                        step="0.1"
+                        value={liveControls.lensPosition}
+                        onChange={(e) => {
+                          const newValue = parseFloat(e.target.value)
+                          setLiveControls(prev => ({ ...prev, lensPosition: newValue }))
+                          handleControlChange('LensPosition', newValue)
+                        }}
+                        className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                      />
+                      <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                        <span>∞ Far (0.0)</span>
+                        <span>5.0</span>
+                        <span>Close (10.0)</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AF Range - Only show in Auto modes */}
+                  {(liveControls.afMode === 1 || liveControls.afMode === 2) && (
+                    <div className="pt-2 mt-2">
+                      <label className="block text-xs font-medium text-gray-200 mb-1">
+                        📏 AF Range
+                      </label>
+                      <select
+                        value={liveControls.afRange}
+                        onChange={(e) => handleControlChange('AfRange', parseInt(e.target.value))}
+                        className="w-full px-2 py-1.5 text-xs bg-white/10 text-white border border-white/20 rounded focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      >
+                        <option value="0" className="bg-gray-800">Normal (0.5m - ∞)</option>
+                        <option value="1" className="bg-gray-800">Macro (10cm - 50cm)</option>
+                        <option value="2" className="bg-gray-800">Full (10cm - ∞)</option>
+                      </select>
+                      <div className="mt-1 text-[10px] text-gray-300">
+                        {liveControls.afRange === 0 && '📐 Normal: General purpose (0.5m+)'}
+                        {liveControls.afRange === 1 && '🐛 Macro: Close-up insects (10-50cm)'}
+                        {liveControls.afRange === 2 && '🌍 Full: Maximum range (10cm+)'}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AF Speed - Only show in Auto modes */}
+                  {(liveControls.afMode === 1 || liveControls.afMode === 2) && (
+                    <div className="pt-2 mt-2">
+                      <label className="block text-xs font-medium text-gray-200 mb-1">
+                        ⚡ AF Speed
+                      </label>
+                      <select
+                        value={liveControls.afSpeed}
+                        onChange={(e) => handleControlChange('AfSpeed', parseInt(e.target.value))}
+                        className="w-full px-2 py-1.5 text-xs bg-white/10 text-white border border-white/20 rounded focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      >
+                        <option value="0" className="bg-gray-800">Normal (Accurate)</option>
+                        <option value="1" className="bg-gray-800">Fast (May hunt)</option>
+                      </select>
+                      <div className="mt-1 text-[10px] text-gray-300">
+                        {liveControls.afSpeed === 0 && '🎯 Normal: Accurate, slower'}
+                        {liveControls.afSpeed === 1 && '⚡ Fast: Quick but may hunt'}
                       </div>
                     </div>
                   )}
