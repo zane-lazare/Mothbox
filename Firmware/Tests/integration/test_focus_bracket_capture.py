@@ -261,6 +261,152 @@ class TestFocusBracketCapture:
         assert use_fb == False
         assert steps == 1
 
+    def test_timing_settings_persistence(self, client):
+        """Test that timing settings are persisted to CSV"""
+        test_client, settings_file, _ = client
+
+        # Update timing settings
+        response = test_client.post('/api/camera/settings', json={
+            'FlashDelay_BeforeCapture': '100',
+            'FlashDelay_AfterCapture': '50',
+            'FocusBracket_SettleDelay': '750'
+        })
+
+        assert response.status_code == 200
+
+        # Verify settings were written to CSV
+        with open(settings_file, 'r') as f:
+            reader = csv.DictReader(f)
+            settings = {row['SETTING']: row['VALUE'] for row in reader}
+
+        assert settings['FlashDelay_BeforeCapture'] == '100'
+        assert settings['FlashDelay_AfterCapture'] == '50'
+        assert settings['FocusBracket_SettleDelay'] == '750'
+
+    def test_timing_settings_validation(self, client):
+        """Test that invalid timing settings are rejected"""
+        test_client, _, _ = client
+
+        # Flash delay before - out of range
+        response = test_client.post('/api/camera/settings', json={
+            'FlashDelay_BeforeCapture': '600'  # Max is 500
+        })
+        assert response.status_code == 400
+
+        # Flash delay after - negative
+        response = test_client.post('/api/camera/settings', json={
+            'FlashDelay_AfterCapture': '-10'
+        })
+        assert response.status_code == 400
+
+        # Settle delay - too low
+        response = test_client.post('/api/camera/settings', json={
+            'FocusBracket_SettleDelay': '50'  # Min is 100
+        })
+        assert response.status_code == 400
+
+        # Settle delay - too high
+        response = test_client.post('/api/camera/settings', json={
+            'FocusBracket_SettleDelay': '2500'  # Max is 2000
+        })
+        assert response.status_code == 400
+
+    def test_color_gains_settings_persistence(self, client):
+        """Test that color gains settings are persisted to CSV"""
+        test_client, settings_file, _ = client
+
+        # Update color gains settings
+        response = test_client.post('/api/camera/settings', json={
+            'FocusBracket_LockColorGains': '1',
+            'FocusBracket_ColorGainRed': '2.5',
+            'FocusBracket_ColorGainBlue': '1.8'
+        })
+
+        assert response.status_code == 200
+
+        # Verify settings were written to CSV
+        with open(settings_file, 'r') as f:
+            reader = csv.DictReader(f)
+            settings = {row['SETTING']: row['VALUE'] for row in reader}
+
+        assert settings['FocusBracket_LockColorGains'] == '1'
+        assert settings['FocusBracket_ColorGainRed'] == '2.5'
+        assert settings['FocusBracket_ColorGainBlue'] == '1.8'
+
+    def test_color_gains_lock_toggle(self, client):
+        """Test color gains lock on/off toggle"""
+        test_client, settings_file, _ = client
+
+        # Test lock enabled
+        response = test_client.post('/api/camera/settings', json={
+            'FocusBracket_LockColorGains': '1'
+        })
+        assert response.status_code == 200
+
+        # Test lock disabled
+        response = test_client.post('/api/camera/settings', json={
+            'FocusBracket_LockColorGains': '0'
+        })
+        assert response.status_code == 200
+
+        # Test invalid value
+        response = test_client.post('/api/camera/settings', json={
+            'FocusBracket_LockColorGains': '2'
+        })
+        assert response.status_code == 400
+
+    def test_color_gains_validation(self, client):
+        """Test that invalid color gains are rejected"""
+        test_client, _, _ = client
+
+        # Red gain too low
+        response = test_client.post('/api/camera/settings', json={
+            'FocusBracket_ColorGainRed': '0.5'
+        })
+        assert response.status_code == 400
+
+        # Red gain too high
+        response = test_client.post('/api/camera/settings', json={
+            'FocusBracket_ColorGainRed': '5.0'
+        })
+        assert response.status_code == 400
+
+        # Blue gain too low
+        response = test_client.post('/api/camera/settings', json={
+            'FocusBracket_ColorGainBlue': '0.8'
+        })
+        assert response.status_code == 400
+
+        # Blue gain too high
+        response = test_client.post('/api/camera/settings', json={
+            'FocusBracket_ColorGainBlue': '4.5'
+        })
+        assert response.status_code == 400
+
+    def test_default_timing_and_color_values(self, client):
+        """Test that default values are used when settings are missing"""
+        test_client, settings_file, _ = client
+
+        # Create settings file without timing/color settings
+        with open(settings_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+            writer.writerow(['FocusBracket', '5', ''])
+
+        # Note: This test verifies the defaults are defined, but we can't easily test
+        # the script execution without running it. The unit tests verify the validators.
+        # Here we just verify the settings can be added
+        response = test_client.post('/api/camera/settings', json={
+            'FlashDelay_BeforeCapture': '50',  # Default value
+            'FlashDelay_AfterCapture': '0',    # Default value
+            'FocusBracket_SettleDelay': '500', # Default value
+            'FocusBracket_LockColorGains': '1',  # Default value
+            'FocusBracket_ColorGainRed': '2.259', # Default value
+            'FocusBracket_ColorGainBlue': '1.500' # Default value
+        })
+
+        assert response.status_code == 200
+
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

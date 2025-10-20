@@ -666,12 +666,198 @@ export default function Settings() {
                     </p>
                   </div>
 
+                  {/* Diopter Distance Guide */}
+                  <div className="p-3 bg-gray-50 border border-gray-300 rounded-lg mb-4">
+                    <p className="text-xs font-semibold text-gray-700 mb-2">📏 Diopter Distance Reference:</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                      <div><span className="font-medium">0:</span> Infinity (landscape)</div>
+                      <div><span className="font-medium">2:</span> ~50cm (background)</div>
+                      <div><span className="font-medium">5:</span> ~20cm (mid-range)</div>
+                      <div><span className="font-medium">8:</span> ~12cm (macro)</div>
+                      <div><span className="font-medium">10:</span> ~10cm (extreme macro)</div>
+                    </div>
+                  </div>
+
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-sm text-blue-800">
                       <strong>Tip:</strong> For insect photography, try Start=2.0, End=8.0 to cover macro to mid-range distances.
                       Focus bracketing takes priority over HDR when both are enabled.
                     </p>
                   </div>
+
+                  {/* Advanced Focus Bracketing Settings - Collapsible */}
+                  <details className="mt-4 border border-gray-300 rounded-lg">
+                    <summary className="cursor-pointer px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium text-gray-700">
+                      ⚙️ Advanced Settings (Timing & Color)
+                    </summary>
+
+                    <div className="p-4 space-y-4">
+                      {/* Timing Controls Section */}
+                      <div>
+                        <h5 className="text-sm font-semibold text-gray-800 mb-3">⏱️ Timing Controls</h5>
+
+                        {/* Flash Delay Before Capture */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Flash Delay (Before Capture): {parseInt(cameraForm.FlashDelay_BeforeCapture || 50)} ms
+                          </label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="500"
+                            step="10"
+                            value={cameraForm.FlashDelay_BeforeCapture || 50}
+                            onChange={(e) => setCameraForm({ ...cameraForm, FlashDelay_BeforeCapture: e.target.value })}
+                            className="w-full cursor-pointer"
+                          />
+                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>0ms (instant)</span>
+                            <span>250ms</span>
+                            <span>500ms</span>
+                          </div>
+                          <p className="mt-2 text-xs text-gray-500">
+                            Time to wait after turning flash on, before capturing. Allows flash to reach full brightness.
+                          </p>
+                        </div>
+
+                        {/* Flash Delay After Capture */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Flash Delay (After Capture): {parseInt(cameraForm.FlashDelay_AfterCapture || 0)} ms
+                          </label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="500"
+                            step="10"
+                            value={cameraForm.FlashDelay_AfterCapture || 0}
+                            onChange={(e) => setCameraForm({ ...cameraForm, FlashDelay_AfterCapture: e.target.value })}
+                            className="w-full cursor-pointer"
+                          />
+                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>0ms (instant)</span>
+                            <span>250ms</span>
+                            <span>500ms</span>
+                          </div>
+                          <p className="mt-2 text-xs text-gray-500">
+                            Optional delay after capture before turning flash off. Usually 0ms is fine.
+                          </p>
+                        </div>
+
+                        {/* Lens Settle Delay */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Lens Settle Delay: {parseInt(cameraForm.FocusBracket_SettleDelay || 500)} ms
+                          </label>
+                          <input
+                            type="range"
+                            min="100"
+                            max="2000"
+                            step="50"
+                            value={cameraForm.FocusBracket_SettleDelay || 500}
+                            onChange={(e) => setCameraForm({ ...cameraForm, FocusBracket_SettleDelay: e.target.value })}
+                            className="w-full cursor-pointer"
+                          />
+                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>100ms (fast)</span>
+                            <span>500ms</span>
+                            <span>2000ms (slow)</span>
+                          </div>
+                          <p className="mt-2 text-xs text-gray-500">
+                            Time to wait after changing focus position for lens to stabilize. Longer = sharper, but slower.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Color Consistency Section */}
+                      <div className="pt-4 border-t border-gray-200">
+                        <h5 className="text-sm font-semibold text-gray-800 mb-3">🎨 Color Consistency</h5>
+
+                        {/* Lock Color Gains Toggle */}
+                        <div className="mb-4">
+                          <label className="flex items-center space-x-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={parseInt(cameraForm.FocusBracket_LockColorGains || 1) === 1}
+                              onChange={(e) => setCameraForm({
+                                ...cameraForm,
+                                FocusBracket_LockColorGains: e.target.checked ? '1' : '0'
+                              })}
+                              className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <div>
+                              <span className="text-sm font-medium text-gray-700">Lock Color Gains</span>
+                              <p className="text-xs text-gray-500">
+                                Ensures consistent color across all focus bracket images (recommended for stacking)
+                              </p>
+                            </div>
+                          </label>
+                        </div>
+
+                        {/* Color Gain Controls (only if locked) */}
+                        {parseInt(cameraForm.FocusBracket_LockColorGains || 1) === 1 && (
+                          <>
+                            <div className="mb-4 pl-8">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Red Gain: {parseFloat(cameraForm.FocusBracket_ColorGainRed || 2.259).toFixed(3)}
+                              </label>
+                              <input
+                                type="range"
+                                min="1.0"
+                                max="4.0"
+                                step="0.01"
+                                value={cameraForm.FocusBracket_ColorGainRed || 2.259}
+                                onChange={(e) => setCameraForm({ ...cameraForm, FocusBracket_ColorGainRed: e.target.value })}
+                                className="w-full cursor-pointer"
+                              />
+                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>1.0 (cool)</span>
+                                <span>2.5</span>
+                                <span>4.0 (warm)</span>
+                              </div>
+                            </div>
+
+                            <div className="mb-4 pl-8">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Blue Gain: {parseFloat(cameraForm.FocusBracket_ColorGainBlue || 1.500).toFixed(3)}
+                              </label>
+                              <input
+                                type="range"
+                                min="1.0"
+                                max="4.0"
+                                step="0.01"
+                                value={cameraForm.FocusBracket_ColorGainBlue || 1.500}
+                                onChange={(e) => setCameraForm({ ...cameraForm, FocusBracket_ColorGainBlue: e.target.value })}
+                                className="w-full cursor-pointer"
+                              />
+                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>1.0 (warm)</span>
+                                <span>2.5</span>
+                                <span>4.0 (cool)</span>
+                              </div>
+                            </div>
+
+                            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg pl-8">
+                              <p className="text-xs text-yellow-800">
+                                <strong>Note:</strong> Locked gains ensure uniform color when combining images in focus stacking software
+                                (e.g., Helicon Focus, Zerene Stacker). Leave defaults unless you need specific white balance.
+                              </p>
+                            </div>
+                          </>
+                        )}
+
+                        {/* AWB Info when not locked */}
+                        {parseInt(cameraForm.FocusBracket_LockColorGains || 1) === 0 && (
+                          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-xs text-blue-800">
+                              When unlocked, each focus bracket image uses auto white balance (AWB).
+                              Color may vary slightly between images based on lighting conditions during capture.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </details>
                 </>
               )}
             </div>

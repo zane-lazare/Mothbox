@@ -1,30 +1,60 @@
 #!/usr/bin/python3
+"""
+Focus Bracketing Capture Script
 
-from pathlib import Path
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from mothbox_paths import CONTROLS_FILE, CAMERA_SETTINGS_FILE, PHOTOS_DIR
+Captures multiple photos at different focus positions for depth-of-field stacking.
+Useful for macro/insect photography where achieving sharp focus across the entire
+subject is challenging with a single image.
+"""
 
-import time
-from picamera2 import Picamera2, Preview
-from libcamera import controls
+# ============================================================================
+# Imports
+# ============================================================================
 
+# Standard library
+import csv
 import datetime
 from datetime import datetime
+import os
+import platform
+import sys
+import time
+from pathlib import Path
 
-computerName = "mothboxD"
+# Third-party libraries
 import cv2
-
-
-import csv
 from exif import Image as ExifImage
 from PIL import Image as PillowImage
 from PIL import ExifTags
+from picamera2 import Picamera2, Preview
+from libcamera import controls
+import RPi.GPIO as GPIO
 
-# Focus Bracketing Controls
-num_steps = 5
-focus_start = 2.0  # diopters
-focus_end = 8.0    # diopters
+# Mothbox modules - setup path first
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from mothbox_paths import CONTROLS_FILE, CAMERA_SETTINGS_FILE, PHOTOS_DIR, get_gpio_pins
+
+
+# ============================================================================
+# Default Configuration (fallback values if not in CSV)
+# ============================================================================
+
+# Focus Bracketing Controls - these are overridden by CSV settings if present
+num_steps = 5        # Number of focus positions to capture
+focus_start = 2.0    # Starting focus position in diopters (farther)
+focus_end = 8.0      # Ending focus position in diopters (closer/macro)
+
+# Flash Timing Controls - overridden by CSV settings if present
+flash_delay_before = 50    # Delay after flash on, before capture (milliseconds)
+flash_delay_after = 0      # Delay after capture, before flash off (milliseconds)
+focus_settle_delay = 500   # Delay for lens to settle after focus change (milliseconds)
+
+# Color Gains Controls - overridden by CSV settings if present
+lock_color_gains = 1             # 0=Use AWB, 1=Lock gains for consistency
+color_gain_red = 2.259439776    # Red channel gain (when locked)
+color_gain_blue = 1.500129925   # Blue channel gain (when locked)
+
+computerName = "mothboxD"
 
 print("----------------- STARTING TAKEPHOTO FOCUS BRACKET -------------------")
 now = datetime.now()
@@ -33,25 +63,17 @@ formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
 print(f"Current time: {formatted_time}")
 
 
-import os, platform
+# ============================================================================
+# System Detection & GPIO Setup
+# ============================================================================
+
 if platform.system() == "Windows":
 	print(platform.uname().node)
 else:
 	computerName = os.uname()[1]
-	print(os.uname()[1])   # doesnt work on windows
-
-
-
-#GPIO
-import RPi.GPIO as GPIO
-import time
+	print(os.uname()[1])   # doesn't work on windows
 
 # Load GPIO pins from configuration
-from pathlib import Path
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from mothbox_paths import get_gpio_pins
-
 pins = get_gpio_pins()
 Relay_Ch1 = pins['Relay_Ch1']
 Relay_Ch2 = pins['Relay_Ch2']
@@ -196,6 +218,16 @@ num_steps = int(camera_settings.pop("FocusBracket", num_steps))
 focus_start = float(camera_settings.pop("FocusBracket_Start", focus_start))
 focus_end = float(camera_settings.pop("FocusBracket_End", focus_end))
 
+# Extract flash timing settings (in milliseconds)
+flash_delay_before = int(camera_settings.pop("FlashDelay_BeforeCapture", flash_delay_before))
+flash_delay_after = int(camera_settings.pop("FlashDelay_AfterCapture", flash_delay_after))
+focus_settle_delay = int(camera_settings.pop("FocusBracket_SettleDelay", focus_settle_delay))
+
+# Extract color gains settings
+lock_color_gains = int(camera_settings.pop("FocusBracket_LockColorGains", lock_color_gains))
+color_gain_red = float(camera_settings.pop("FocusBracket_ColorGainRed", color_gain_red))
+color_gain_blue = float(camera_settings.pop("FocusBracket_ColorGainBlue", color_gain_blue))
+
 # Validate focus bracket settings
 if num_steps < 1:
     num_steps = 1
@@ -217,6 +249,42 @@ if num_steps > 1 and abs(focus_end - focus_start) < 0.1:
         focus_end = 10.0
         focus_start = 8.0
 
+# Validate timing settings
+if flash_delay_before < 0 or flash_delay_before > 500:
+    flash_delay_before = 50
+    print(f"Warning: Invalid FlashDelay_BeforeCapture, defaulting to {flash_delay_before}ms")
+
+if flash_delay_after < 0 or flash_delay_after > 500:
+    flash_delay_after = 0
+    print(f"Warning: Invalid FlashDelay_AfterCapture, defaulting to {flash_delay_after}ms")
+
+if focus_settle_delay < 100 or focus_settle_delay > 2000:
+    focus_settle_delay = 500
+    print(f"Warning: Invalid FocusBracket_SettleDelay, defaulting to {focus_settle_delay}ms")
+
+# Validate color gains
+if lock_color_gains not in [0, 1]:
+    lock_color_gains = 1
+    print(f"Warning: Invalid FocusBracket_LockColorGains, defaulting to {lock_color_gains}")
+
+if color_gain_red < 1.0 or color_gain_red > 4.0:
+    color_gain_red = 2.259439776
+    print(f"Warning: Invalid FocusBracket_ColorGainRed, defaulting to {color_gain_red}")
+
+if color_gain_blue < 1.0 or color_gain_blue > 4.0:
+    color_gain_blue = 1.500129925
+    print(f"Warning: Invalid FocusBracket_ColorGainBlue, defaulting to {color_gain_blue}")
+
+# Log the configuration being used
+print(f"Focus bracket configuration:")
+print(f"  Steps: {num_steps}, Range: {focus_start} to {focus_end} diopters")
+print(f"  Flash delays: {flash_delay_before}ms before, {flash_delay_after}ms after")
+print(f"  Lens settle delay: {focus_settle_delay}ms")
+if lock_color_gains:
+    print(f"  Color gains locked: R={color_gain_red:.3f}, B={color_gain_blue:.3f}")
+else:
+    print(f"  Using auto white balance (AWB)")
+
 if camera_settings:
     picam2.set_controls(camera_settings)
 
@@ -234,13 +302,26 @@ def calculate_focus_positions(start, end, steps):
     Calculate evenly-spaced focus positions for bracketing.
 
     Args:
-        start: Starting focus position in diopters
-        end: Ending focus position in diopters
-        steps: Number of focus positions to generate
+        start: Starting focus position in diopters (0.0-10.0)
+        end: Ending focus position in diopters (0.0-10.0)
+        steps: Number of focus positions to generate (1-10)
 
     Returns:
         List of focus positions
+
+    Raises:
+        ValueError: If start/end are out of range (0-10 diopters) or steps is invalid
     """
+    # Validate inputs
+    if not isinstance(steps, int) or steps < 1 or steps > 10:
+        raise ValueError(f"Steps must be an integer between 1 and 10, got: {steps}")
+
+    if not (0.0 <= start <= 10.0):
+        raise ValueError(f"Start position must be 0.0-10.0 diopters, got: {start}")
+
+    if not (0.0 <= end <= 10.0):
+        raise ValueError(f"End position must be 0.0-10.0 diopters, got: {end}")
+
     if steps == 1:
         # Single focus at the start position
         return [start]
@@ -267,9 +348,16 @@ def takePhoto_FocusBracket():
     else:
         print("can't set controls")
 
-    # Lock color gains for consistency
-    cgains = 2.25943877696990967, 1.500129925489425659
-    picam2.set_controls({"ColourGains": cgains})
+    # Apply color gains based on lock setting
+    if lock_color_gains:
+        # Lock color gains for consistency across focus stack
+        # This ensures uniform color when images are combined in stacking software
+        cgains = (color_gain_red, color_gain_blue)
+        picam2.set_controls({"ColourGains": cgains})
+        print(f"Color gains locked at R={color_gain_red:.3f}, B={color_gain_blue:.3f}")
+    else:
+        # Use auto white balance - each image may vary slightly based on lighting
+        print("Using auto white balance (color may vary across stack)")
 
     # Calculate focus positions
     focus_positions = calculate_focus_positions(focus_start, focus_end, num_steps)
@@ -287,22 +375,37 @@ def takePhoto_FocusBracket():
     else:
         print(f"About to take single focus photo: {timestamp}")
 
-    focus_settle_delay = 0.5  # Time for lens to settle between focus changes
-
     # Focus bracketing loop
     for i, focus_pos in enumerate(focus_positions):
+        step_num = i + 1
+        progress_pct = int((step_num / num_steps) * 100)
+
+        # Progress: Starting this focus step
+        print(f"FOCUS_BRACKET_PROGRESS: {progress_pct}% - Step {step_num}/{num_steps}: Setting focus to {focus_pos:.2f} diopters")
+
         # Set focus position (manual mode)
         picam2.set_controls({"LensPosition": focus_pos, "AfMode": 0})
-        print(f"Setting focus position: {focus_pos:.2f} diopters (step {i+1}/{num_steps})")
+        print(f"Focus position set: {focus_pos:.2f} diopters (step {step_num}/{num_steps})")
 
-        # Wait for focus to settle
-        time.sleep(focus_settle_delay)
+        # Wait for lens to settle after focus change (convert ms to seconds)
+        print(f"Waiting {focus_settle_delay}ms for lens to settle...")
+        time.sleep(focus_settle_delay / 1000.0)
 
         # Turn on flash
         flashOn()
 
+        # Wait for flash to reach full brightness (convert ms to seconds)
+        if flash_delay_before > 0:
+            print(f"Waiting {flash_delay_before}ms for flash to reach full brightness...")
+            time.sleep(flash_delay_before / 1000.0)
+
         # Capture the image
+        print(f"Capturing image at focus position {focus_pos:.2f} diopters...")
         request = picam2.capture_request(flush=True)
+
+        # Optional delay after capture before turning off flash (convert ms to seconds)
+        if flash_delay_after > 0:
+            time.sleep(flash_delay_after / 1000.0)
 
         # Turn off flash (unless in always-on mode)
         if not onlyflash:
@@ -319,7 +422,8 @@ def takePhoto_FocusBracket():
         print(f"Image saved to {filepath}")
         request.release()
 
-        print(f"✓ Captured focus bracket {i+1}/{num_steps} at {focus_pos:.2f} diopters\n")
+        print(f"FOCUS_BRACKET_PROGRESS: {progress_pct}% - ✓ Completed step {step_num}/{num_steps} at {focus_pos:.2f} diopters")
+        print(f"✓ Captured focus bracket {step_num}/{num_steps} at {focus_pos:.2f} diopters\n")
 
 
 # Execute focus bracket capture

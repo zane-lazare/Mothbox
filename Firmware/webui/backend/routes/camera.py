@@ -148,6 +148,16 @@ ALLOWED_CAMERA_SETTINGS = {
     'FocusBracket_Start': lambda v: 0.0 <= float(v) <= 10.0,  # Start focus position (diopters)
     'FocusBracket_End': lambda v: 0.0 <= float(v) <= 10.0,  # End focus position (diopters)
 
+    # Focus Bracketing - Advanced Timing Settings
+    'FlashDelay_BeforeCapture': lambda v: 0 <= int(v) <= 500,  # Delay after flash on, before capture (ms)
+    'FlashDelay_AfterCapture': lambda v: 0 <= int(v) <= 500,  # Delay after capture, before flash off (ms)
+    'FocusBracket_SettleDelay': lambda v: 100 <= int(v) <= 2000,  # Lens settle delay between focus changes (ms)
+
+    # Focus Bracketing - Color Consistency Settings
+    'FocusBracket_LockColorGains': lambda v: int(v) in [0, 1],  # 0=Use AWB, 1=Lock gains
+    'FocusBracket_ColorGainRed': lambda v: 1.0 <= float(v) <= 4.0,  # Red channel gain
+    'FocusBracket_ColorGainBlue': lambda v: 1.0 <= float(v) <= 4.0,  # Blue channel gain
+
     # Auto-calibration (Phase 2.1)
     'AutoCalibration': lambda v: int(v) in [0, 1],  # 0=Off, 1=On
     'AutoCalibrationPeriod': lambda v: 1 <= int(v) <= 10000,  # Photos between calibrations
