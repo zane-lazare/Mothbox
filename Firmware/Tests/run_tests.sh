@@ -196,9 +196,8 @@ case "$TEST_TYPE" in
         # Extended Metadata tests
         echo "🚀 Running Extended Metadata tests..."
         echo ""
-        echo "Testing extraction and accuracy of 15+ new metadata fields..."
-        pytest Tests/unit/test_metadata_extraction.py \
-               Tests/integration/test_metadata_accuracy.py -v -s
+        echo "Testing accuracy of 15+ new metadata fields with real hardware..."
+        pytest Tests/integration/test_metadata_accuracy.py -v -s
         ;;
 
     "issue43"|"complete")

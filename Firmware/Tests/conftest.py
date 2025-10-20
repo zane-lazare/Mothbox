@@ -50,6 +50,10 @@ def pytest_configure(config):
         "markers",
         "performance: performance/benchmark test (CPU-bound, not hardware-dependent)"
     )
+    config.addinivalue_line(
+        "markers",
+        "integration: mark test as integration test (multi-component interaction)"
+    )
 
 
 # ============================================================================
