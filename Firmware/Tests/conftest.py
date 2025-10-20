@@ -262,8 +262,8 @@ def temp_camera_settings(tmp_path, monkeypatch):
     temp_file = tmp_path / "camera_settings.csv"
     temp_file.touch()
 
-    # Patch the module-level constant
-    monkeypatch.setattr(mothbox_paths, 'CAMERA_SETTINGS_FILE', str(temp_file))
+    # Patch the module-level constant (use Path object, not string)
+    monkeypatch.setattr(mothbox_paths, 'CAMERA_SETTINGS_FILE', temp_file)
 
     yield temp_file
     # Cleanup happens automatically with tmp_path

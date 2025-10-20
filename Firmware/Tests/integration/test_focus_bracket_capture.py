@@ -32,7 +32,8 @@ def focus_bracket_env(tmp_path, monkeypatch):
     temp_photos = tmp_path / "photos"
     temp_photos.mkdir()
 
-    monkeypatch.setattr(mothbox_paths, 'CAMERA_SETTINGS_FILE', str(temp_settings))
+    # Patch with Path objects (not strings) - routes expect Path.exists() method
+    monkeypatch.setattr(mothbox_paths, 'CAMERA_SETTINGS_FILE', temp_settings)
     monkeypatch.setattr(mothbox_paths, 'PHOTOS_DIR', temp_photos)
 
     # Create default settings file
