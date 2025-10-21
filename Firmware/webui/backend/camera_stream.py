@@ -924,12 +924,21 @@ class CameraStreamer:
             self._af_window_coords = (window_x_pixels, window_y_pixels, window_w_pixels, window_h_pixels)
             self._af_window_active = True
 
-            # Apply AF window controls
+            # Force retrigger: Pause AF before setting new window
+            # This ensures a fresh scan on every click, regardless of contrast similarity
+            self.camera.set_controls({"AfPause": 0})  # Pause immediately
+
+            import time
+            time.sleep(0.05)  # Brief delay to ensure pause takes effect
+
+            # Apply new AF window
             self.camera.set_controls({
                 "AfMetering": 2,  # Windows mode (use specified windows)
-                "AfWindows": af_windows,
-                "AfPause": 2  # Resume continuous AF (0=Running state, ensures active scanning)
+                "AfWindows": af_windows
             })
+
+            # Resume continuous AF - triggers fresh scan
+            self.camera.set_controls({"AfPause": 2})  # Resume
 
             print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized, "
                   f"window=({window_x_pixels}, {window_y_pixels}, {window_w_pixels}, {window_h_pixels}) pixels")
