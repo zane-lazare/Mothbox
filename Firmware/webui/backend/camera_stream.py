@@ -846,9 +846,11 @@ class CameraStreamer:
         try:
             # Clear AF window if coordinates are None (reset to auto metering)
             if x is None or y is None:
+                # IMPORTANT: Don't set AfWindows to empty list - causes libcamera assertion failure!
+                # Setting AfMetering to Auto (0) is sufficient to reset to full-frame AF
+                # libcamera will automatically ignore any previously set AfWindows
                 self.camera.set_controls({
-                    "AfMetering": 0,  # Auto metering
-                    "AfWindows": []   # Empty windows = full frame
+                    "AfMetering": 0  # Auto metering - resets to full frame AF
                 })
                 print("✓ AF window cleared - using auto metering")
                 return True
