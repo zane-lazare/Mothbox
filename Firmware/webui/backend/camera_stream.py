@@ -921,6 +921,29 @@ class CameraStreamer:
             print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized, "
                   f"window=({window_x_pixels}, {window_y_pixels}, {window_w_pixels}, {window_h_pixels}) pixels")
 
+            # DIAGNOSTIC: Verify controls were actually applied
+            try:
+                import time
+                time.sleep(0.1)  # Let controls settle
+                metadata = self.camera.capture_metadata()
+
+                # Check what AF-related metadata is available
+                af_state = metadata.get('AfState', 'N/A')
+                lens_pos = metadata.get('LensPosition', 'N/A')
+
+                # Try to read back AfMetering (may not be in metadata)
+                print(f"🔍 DIAGNOSTIC: AfState={af_state}, LensPosition={lens_pos}")
+
+                # List all available metadata keys for debugging
+                af_keys = [k for k in metadata.keys() if 'Af' in k or 'Lens' in k or 'Focus' in k]
+                if af_keys:
+                    print(f"🔍 DIAGNOSTIC: AF-related metadata keys: {af_keys}")
+                else:
+                    print(f"🔍 DIAGNOSTIC: No AF-related keys in metadata. Available keys: {list(metadata.keys())[:10]}...")
+
+            except Exception as diag_error:
+                print(f"⚠️  Diagnostic read failed: {diag_error}")
+
             return True
 
         except Exception as e:
