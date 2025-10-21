@@ -192,6 +192,67 @@ def client(app):
     return app.test_client()
 
 
+@pytest.fixture(scope='module')
+def socketio_app():
+    """
+    Module-scoped Flask app with SocketIO and WebSocket handlers
+
+    Provides complete Flask+SocketIO app for WebSocket testing with:
+    - All HTTP blueprints registered
+    - SocketIO instance configured
+    - All WebSocket handlers registered (shared with production)
+    - Camera streamer available
+
+    Returns:
+        tuple: (socketio, app) for creating test clients
+
+    Usage:
+        def test_websocket(socketio_app):
+            socketio, app = socketio_app
+            client = socketio.test_client(app, namespace='/')
+            client.emit('set_af_window', {'x': 0.5, 'y': 0.5})
+            received = client.get_received()
+    """
+    from flask import Flask
+    from flask_socketio import SocketIO
+    from routes.camera import camera_bp
+    from routes.config import config_bp
+    from camera_stream import CameraStreamer
+    from websocket_handlers import register_handlers
+
+    # Create Flask app
+    app = Flask(__name__)
+    app.config['TESTING'] = True
+    app.config['WTF_CSRF_ENABLED'] = False
+
+    # Create SocketIO
+    socketio = SocketIO(app, cors_allowed_origins='*')
+
+    # Register HTTP blueprints
+    app.register_blueprint(camera_bp, url_prefix='/api/camera')
+    app.register_blueprint(config_bp, url_prefix='/api/config')
+
+    # Create camera streamer (uses real SocketIO for testing)
+    class MockSocketIO:
+        """Mock SocketIO for camera streamer initialization"""
+        def emit(self, event, data, **kwargs):
+            pass
+
+    camera_streamer = CameraStreamer(MockSocketIO())
+    app.config['CAMERA_STREAMER'] = camera_streamer
+
+    # Register WebSocket handlers (same as production!)
+    register_handlers(socketio, camera_streamer)
+
+    yield socketio, app
+
+    # Cleanup
+    try:
+        camera_streamer.cleanup()
+    except Exception as e:
+        print(f"⚠️  Warning: SocketIO app cleanup error: {e}")
+
+
 # ============================================================================
 # Test Isolation Fixtures (Issue #46 Phase 2)
 # ============================================================================

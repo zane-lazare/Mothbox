@@ -222,34 +222,187 @@ class TestAfWindowFocusPerformance:
 
 
 @pytest.mark.websocket
+@pytest.mark.hardware
 class TestAfWindowWebSocketIntegration:
     """Test AF window WebSocket event handling"""
 
-    def test_set_af_window_websocket_event(self, client):
-        """Test set_af_window WebSocket event"""
+    def test_set_af_window_websocket_success(self, socketio_app):
+        """Test set_af_window event with valid coordinates"""
         print("\n📡 Testing set_af_window WebSocket event...")
 
-        from flask_socketio import SocketIOTestClient
+        socketio, app = socketio_app
+        camera_streamer = app.config['CAMERA_STREAMER']
 
-        # This test would require WebSocket test client
-        # For now, verify endpoint exists via HTTP
-        # Full WebSocket testing requires socketio test infrastructure
+        # Initialize camera
+        camera_streamer.initialize_camera()
+        camera_streamer.start_streaming()
+        time.sleep(1)
 
-        print("   ⚠️  WebSocket event testing requires full socketio test setup")
-        print("   ✓ Skipping detailed WebSocket test (covered by unit tests)")
+        # Create test client
+        client = socketio.test_client(app, namespace='/')
+        assert client.is_connected()
 
-    def test_af_window_error_handling_camera_not_streaming(self, camera_streamer):
-        """Test AF window fails gracefully when camera not streaming"""
+        # Emit set_af_window
+        client.emit('set_af_window', {'x': 0.5, 'y': 0.5, 'window_size': 0.2})
+        time.sleep(0.2)
+
+        # Get response
+        received = client.get_received()
+        af_responses = [r for r in received if r['name'] == 'af_window_updated']
+
+        assert len(af_responses) > 0, "Should receive af_window_updated event"
+        response = af_responses[0]['args'][0]
+
+        # Verify
+        assert response['success'] is True
+        assert response['x'] == 0.5
+        assert response['y'] == 0.5
+        assert response['window_size'] == 0.2
+
+        print(f"   ✓ Received: {response['message']}")
+
+        # Cleanup
+        camera_streamer.stop_streaming()
+        client.disconnect()
+
+    def test_clear_af_window_websocket(self, socketio_app):
+        """Test clearing AF window via WebSocket"""
+        print("\n🧹 Testing clear AF window WebSocket event...")
+
+        socketio, app = socketio_app
+        camera_streamer = app.config['CAMERA_STREAMER']
+
+        # Initialize camera
+        camera_streamer.initialize_camera()
+        camera_streamer.start_streaming()
+        time.sleep(1)
+
+        # Create test client
+        client = socketio.test_client(app, namespace='/')
+        assert client.is_connected()
+
+        # Set window first
+        client.emit('set_af_window', {'x': 0.5, 'y': 0.5, 'window_size': 0.2})
+        time.sleep(0.2)
+        client.get_received()  # Clear buffer
+
+        # Clear window
+        client.emit('set_af_window', {'x': None, 'y': None})
+        time.sleep(0.2)
+
+        # Get response
+        received = client.get_received()
+        af_responses = [r for r in received if r['name'] == 'af_window_updated']
+
+        assert len(af_responses) > 0
+        response = af_responses[0]['args'][0]
+
+        # Verify
+        assert response['success'] is True
+        assert response['x'] is None
+        assert response['y'] is None
+        assert 'cleared' in response['message'].lower()
+
+        print(f"   ✓ Received: {response['message']}")
+
+        # Cleanup
+        camera_streamer.stop_streaming()
+        client.disconnect()
+
+    def test_af_window_error_not_streaming(self, socketio_app):
+        """Test error response when camera not streaming"""
         print("\n⚠️  Testing error handling when camera not streaming...")
 
-        # Don't start streaming
-        camera_streamer.initialize_camera()
+        socketio, app = socketio_app
+        camera_streamer = app.config['CAMERA_STREAMER']
+
+        # Don't start streaming - just ensure camera is released
+        if camera_streamer.streaming:
+            camera_streamer.stop_streaming()
+        if camera_streamer.camera:
+            camera_streamer.release_camera()
+
+        # Create test client
+        client = socketio.test_client(app, namespace='/')
+        assert client.is_connected()
 
         # Try to set AF window without streaming
-        success = camera_streamer.set_af_window(0.5, 0.5)
-        assert success is False
+        client.emit('set_af_window', {'x': 0.5, 'y': 0.5})
+        time.sleep(0.2)
 
-        print("   ✓ Correctly returns False when not streaming")
+        # Get response
+        received = client.get_received()
+        af_responses = [r for r in received if r['name'] == 'af_window_updated']
+
+        assert len(af_responses) > 0
+        response = af_responses[0]['args'][0]
+
+        # Verify error
+        assert response['success'] is False
+        assert 'error' in response
+
+        print(f"   ✓ Error response: {response['error']}")
+
+        # Cleanup
+        client.disconnect()
+
+    def test_af_window_invalid_parameters(self, socketio_app):
+        """Test validation of invalid parameters"""
+        print("\n⚙️  Testing invalid parameter validation...")
+
+        socketio, app = socketio_app
+        camera_streamer = app.config['CAMERA_STREAMER']
+
+        # Initialize camera
+        camera_streamer.initialize_camera()
+        camera_streamer.start_streaming()
+        time.sleep(1)
+
+        # Create test client
+        client = socketio.test_client(app, namespace='/')
+        assert client.is_connected()
+
+        # Test invalid data type (string instead of dict)
+        client.emit('set_af_window', "invalid")
+        time.sleep(0.2)
+
+        received = client.get_received()
+        af_responses = [r for r in received if r['name'] == 'af_window_updated']
+
+        if len(af_responses) > 0:
+            response = af_responses[0]['args'][0]
+            assert response['success'] is False
+            print(f"   ✓ Invalid data type rejected: {response['error']}")
+
+        # Cleanup
+        camera_streamer.stop_streaming()
+        client.disconnect()
+
+    def test_websocket_connection_lifecycle(self, socketio_app):
+        """Test WebSocket connection and disconnection"""
+        print("\n🔌 Testing WebSocket connection lifecycle...")
+
+        socketio, app = socketio_app
+        camera_streamer = app.config['CAMERA_STREAMER']
+
+        # Create test client
+        client = socketio.test_client(app, namespace='/')
+        assert client.is_connected()
+
+        # Check for connection confirmation
+        received = client.get_received()
+        connected_msgs = [r for r in received if r['name'] == 'connected']
+
+        if len(connected_msgs) > 0:
+            msg = connected_msgs[0]['args'][0]
+            assert msg['status'] == 'connected'
+            print(f"   ✓ Connected: {msg['message']}")
+
+        # Disconnect
+        client.disconnect()
+        time.sleep(0.2)
+
+        print("   ✓ Connection lifecycle complete")
 
 
 @pytest.mark.stream
