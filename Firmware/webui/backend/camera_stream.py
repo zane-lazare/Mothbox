@@ -343,8 +343,8 @@ class CameraStreamer:
             "AfMode": af_mode_to_use,
             "AfSpeed": self.af_speed,
             "AfRange": self.af_range,
-            # Use Windows mode (2) if AF window is active, otherwise Auto (0)
-            "AfMetering": 2 if self._af_window_active else 0,
+            # Use Windows mode (1) if AF window is active, otherwise Auto (0)
+            "AfMetering": 1 if self._af_window_active else 0,
 
             # Image quality controls
             "Sharpness": self.sharpness,
@@ -380,7 +380,7 @@ class CameraStreamer:
         # Re-apply AF window if active (ensures window persists after configure/reinit)
         if self._af_window_active and self._af_window_coords:
             self.camera.set_controls({
-                "AfMetering": 2,  # Windows mode
+                "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
                 "AfWindows": [self._af_window_coords]
             })
 
@@ -775,7 +775,7 @@ class CameraStreamer:
                 # Re-apply AF window if active (preserve window when other controls change)
                 if self._af_window_active and self._af_window_coords:
                     self.camera.set_controls({
-                        "AfMetering": 2,  # Windows mode
+                        "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
                         "AfWindows": [self._af_window_coords]
                     })
 
@@ -971,7 +971,7 @@ class CameraStreamer:
             # Apply AF window to constrain continuous AF to clicked region
             # Keep it simple: just set the window, don't cycle modes or pause AF
             self.camera.set_controls({
-                "AfMetering": 2,  # Windows mode - use AfWindows instead of auto metering
+                "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
                 "AfWindows": af_windows
             })
 
@@ -998,11 +998,11 @@ class CameraStreamer:
                 af_state_name = {0: 'Idle', 1: 'Scanning', 2: 'Focused', 3: 'Failed'}.get(af_state, af_state)
                 # Decode AfPauseState: 0=Running, 1=Pausing, 2=Paused
                 af_pause_name = {0: 'Running', 1: 'Pausing', 2: 'Paused'}.get(af_pause_state, af_pause_state)
-                # Decode AfMetering: 0=Auto (full-frame), 2=Windows mode
-                af_metering_name = {0: 'Auto/FullFrame', 2: 'Windows'}.get(af_metering, af_metering)
+                # Decode AfMetering: 0=Auto (full-frame), 1=Windows mode (range is 0-1, not 0-2!)
+                af_metering_name = {0: 'Auto/FullFrame', 1: 'Windows'}.get(af_metering, af_metering)
 
                 print(f"🔍 DIAGNOSTIC: AfState={af_state_name} ({af_state}), AfPauseState={af_pause_name} ({af_pause_state})")
-                print(f"🔍 DIAGNOSTIC: AfMetering={af_metering_name} ({af_metering}) ← Should be 'Windows (2)'!")
+                print(f"🔍 DIAGNOSTIC: AfMetering={af_metering_name} ({af_metering}) ← Should be 'Windows (1)'!")
                 print(f"🔍 DIAGNOSTIC: LensPosition={lens_pos}, FocusFoM={focus_fom}")
 
             except Exception as diag_error:
