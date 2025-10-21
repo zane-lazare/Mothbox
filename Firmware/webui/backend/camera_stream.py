@@ -113,7 +113,7 @@ class CameraStreamer:
 
         # AF window state tracking (click-to-focus feature)
         self._af_window_active = False  # True when AF window is set
-        self._af_window_coords = None  # Stores (x, y, w, h) in PixelArraySize coordinate space
+        self._af_window_coords = None  # Stores (x, y, w, h) in 16-bit normalized coords (0-65535)
 
         # ISP feature toggles (Phase: ISP Tuning)
         # Note: Lens shading changes require camera restart - no runtime control available
@@ -379,7 +379,7 @@ class CameraStreamer:
 
         # Re-apply AF window if active (ensures window persists after configure/reinit)
         if self._af_window_active and self._af_window_coords:
-            # AfWindows expects list of tuples in PixelArraySize coordinate space
+            # AfWindows expects list of tuples in 16-bit normalized coordinate space (0-65535)
             self.camera.set_controls({
                 "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
                 "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples
@@ -775,7 +775,7 @@ class CameraStreamer:
 
                 # Re-apply AF window if active (preserve window when other controls change)
                 if self._af_window_active and self._af_window_coords:
-                    # AfWindows expects list of tuples in PixelArraySize coordinate space
+                    # AfWindows expects list of tuples in 16-bit normalized coordinate space (0-65535)
                     self.camera.set_controls({
                         "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
                         "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples
@@ -925,8 +925,8 @@ class CameraStreamer:
                 print("✓ AF window cleared - using auto metering")
                 return True
 
-            # Get full sensor resolution (PixelArraySize) for AfWindows coordinate space
-            # AfWindows always uses full sensor resolution coordinates, regardless of sensor mode
+            # Get full sensor resolution (PixelArraySize) for coordinate normalization
+            # AfWindows uses 16-bit normalized coordinates (0-65535) based on full sensor size
             pixel_array_size = self.camera.camera_properties.get('PixelArraySize')
             if not pixel_array_size:
                 print("⚠ Cannot set AF window - PixelArraySize not available")
@@ -963,12 +963,20 @@ class CameraStreamer:
             window_x_pixels = window_x_pixels & ~1
             window_y_pixels = window_y_pixels & ~1
 
-            # Store AF window coordinates as tuple (x, y, w, h) in PixelArraySize space
-            self._af_window_coords = (window_x_pixels, window_y_pixels, window_w_pixels, window_h_pixels)
+            # Convert to 16-bit normalized coordinates (0-65535 range)
+            # libcamera AfWindows expects 16-bit normalized based on full sensor (PixelArraySize)
+            # Diagnostic shows: AfWindows supported: ((0,0,0,0), (65535,65535,65535,65535), (0,0,0,0))
+            COORD_MAX = 65535
+            window_x_norm = int((window_x_pixels / sensor_width) * COORD_MAX)
+            window_y_norm = int((window_y_pixels / sensor_height) * COORD_MAX)
+            window_w_norm = int((window_w_pixels / sensor_width) * COORD_MAX)
+            window_h_norm = int((window_h_pixels / sensor_height) * COORD_MAX)
+
+            # Store AF window coordinates as tuple (x, y, w, h) in 16-bit normalized space
+            self._af_window_coords = (window_x_norm, window_y_norm, window_w_norm, window_h_norm)
             self._af_window_active = True
 
-            # AfWindows expects list of tuples in PixelArraySize coordinate space
-            # Pass tuple directly - picamera2 handles conversion to libcamera.Rectangle internally
+            # AfWindows expects list of tuples in 16-bit normalized coordinate space
             self.camera.set_controls({
                 "AfMetering": 1,  # Windows mode (0=Auto, 1=Windows)
                 "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples
@@ -976,7 +984,8 @@ class CameraStreamer:
 
             print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized")
             print(f"  PixelArraySize: {pixel_array_size}")
-            print(f"  AF window (x, y, w, h): {self._af_window_coords}")
+            print(f"  Pixel coords: ({window_x_pixels}, {window_y_pixels}, {window_w_pixels}, {window_h_pixels})")
+            print(f"  16-bit normalized: {self._af_window_coords}")
 
             # DIAGNOSTIC: Verify controls were actually applied
             try:
