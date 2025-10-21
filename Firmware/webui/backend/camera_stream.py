@@ -940,12 +940,9 @@ class CameraStreamer:
             self._af_window_coords = (window_x_pixels, window_y_pixels, window_w_pixels, window_h_pixels)
             self._af_window_active = True
 
-            # Force continuous AF to rescan by cycling AfMode
-            # AfTrigger doesn't work with continuous AF (AfMode=2), so we cycle the mode:
-            # 1. Stop continuous AF (AfMode=0 Manual)
-            # 2. Set new AF window
-            # 3. Restart continuous AF (back to original mode)
-            # This forces a fresh scan when window changes, bypassing retrigger_ratio threshold
+            # Force continuous AF to rescan by cycling AfMode, then applying window
+            # CRITICAL: Must set AfWindows AFTER AfMode, not before
+            # Setting AfMode resets AfMetering to 0, so window must be applied after mode change
 
             import time
 
@@ -953,15 +950,15 @@ class CameraStreamer:
             self.camera.set_controls({"AfMode": 0})  # Manual mode
             time.sleep(0.05)  # Let mode change take effect
 
-            # Step 2: Set new AF window
+            # Step 2: Restart continuous AF - forces fresh scan
+            self.camera.set_controls({"AfMode": self.af_mode})  # Back to continuous (2)
+            time.sleep(0.05)  # Let mode change take effect
+
+            # Step 3: Apply AF window (MUST be after AfMode change to avoid reset)
             self.camera.set_controls({
                 "AfMetering": 2,  # Windows mode
                 "AfWindows": af_windows
             })
-
-            # Step 3: Restart continuous AF - forces fresh scan
-            self.camera.set_controls({"AfMode": self.af_mode})  # Back to continuous (2)
-            time.sleep(0.05)  # Let mode change take effect
 
             print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized, "
                   f"window=({window_x_pixels}, {window_y_pixels}, {window_w_pixels}, {window_h_pixels}) pixels")
