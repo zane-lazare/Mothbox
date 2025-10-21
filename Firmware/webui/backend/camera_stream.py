@@ -241,10 +241,6 @@ class CameraStreamer:
                     self.camera = Picamera2(1)
                 print("Using camera 1")
 
-            # Get sensor resolution for zoom calculations
-            self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
-            print(f"Sensor resolution: {self.sensor_resolution}")
-
             # Configure camera with video_config for both encoding paths:
             # - Hardware MJPEG: Requires video_config for start_recording() with encoder
             # - Software encoding: Works fine with video_config + capture_array()
@@ -254,6 +250,17 @@ class CameraStreamer:
                 encode="main"  # Required for encoder support
             )
             self.camera.configure(video_config)
+
+            # Get actual sensor mode resolution (NOT PixelArraySize which is max sensor size)
+            # AfWindows coordinates must be relative to the actual sensor mode being used
+            config = self.camera.camera_configuration()
+            if "raw" in config and "size" in config["raw"]:
+                self.sensor_resolution = config["raw"]["size"]
+                print(f"Sensor mode resolution: {self.sensor_resolution}")
+            else:
+                # Fallback: use PixelArraySize (may cause issues with AF windows)
+                self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
+                print(f"Sensor resolution (fallback to PixelArraySize): {self.sensor_resolution}")
 
             # Start camera to apply controls
             self.camera.start()
@@ -455,8 +462,13 @@ class CameraStreamer:
             # Ensure sensor resolution is captured (defensive programming for zoom feature)
             if not self.sensor_resolution and self.camera:
                 try:
-                    self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
-                    print(f"📷 Captured sensor resolution: {self.sensor_resolution}")
+                    config = self.camera.camera_configuration()
+                    if "raw" in config and "size" in config["raw"]:
+                        self.sensor_resolution = config["raw"]["size"]
+                        print(f"📷 Captured sensor mode resolution: {self.sensor_resolution}")
+                    else:
+                        self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
+                        print(f"📷 Captured sensor resolution (fallback): {self.sensor_resolution}")
                 except Exception as e:
                     print(f"⚠ Could not capture sensor resolution: {e}")
 
@@ -574,8 +586,13 @@ class CameraStreamer:
             # This handles the case where hardware MJPEG fails and falls back to software encoding
             if not self.sensor_resolution and self.camera:
                 try:
-                    self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
-                    print(f"📷 Captured sensor resolution: {self.sensor_resolution}")
+                    config = self.camera.camera_configuration()
+                    if "raw" in config and "size" in config["raw"]:
+                        self.sensor_resolution = config["raw"]["size"]
+                        print(f"📷 Captured sensor mode resolution: {self.sensor_resolution}")
+                    else:
+                        self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
+                        print(f"📷 Captured sensor resolution (fallback): {self.sensor_resolution}")
                 except Exception as e:
                     print(f"⚠ Could not capture sensor resolution: {e}")
 
