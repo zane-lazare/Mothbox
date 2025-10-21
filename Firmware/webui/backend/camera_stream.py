@@ -111,6 +111,10 @@ class CameraStreamer:
         # Autofocus override (set by autofocus button to preserve manual focus)
         self._af_mode_override = None  # None = use configured mode, 0 = force manual
 
+        # AF window state tracking (click-to-focus feature)
+        self._af_window_active = False  # True when AF window is set
+        self._af_window_coords = None  # Stores (x, y, w, h) in pixels when active
+
         # ISP feature toggles (Phase: ISP Tuning)
         # Note: Lens shading changes require camera restart - no runtime control available
         self.lens_shading_enable = True
@@ -304,7 +308,8 @@ class CameraStreamer:
             "AfMode": af_mode_to_use,
             "AfSpeed": self.af_speed,
             "AfRange": self.af_range,
-            "AfMetering": 0,  # Auto metering
+            # Use Windows mode (2) if AF window is active, otherwise Auto (0)
+            "AfMetering": 2 if self._af_window_active else 0,
 
             # Image quality controls
             "Sharpness": self.sharpness,
@@ -336,6 +341,10 @@ class CameraStreamer:
             controls_dict["AnalogueGain"] = self.analogue_gain
 
         self.camera.set_controls(controls_dict)
+
+        # Re-apply AF window if active (ensures window persists after configure/reinit)
+        if self._af_window_active and self._af_window_coords:
+            self.camera.set_controls({"AfWindows": [self._af_window_coords]})
 
         # Small delay to allow controls to settle
         time.sleep(0.05)
@@ -852,6 +861,9 @@ class CameraStreamer:
                 self.camera.set_controls({
                     "AfMetering": 0  # Auto metering - resets to full frame AF
                 })
+                # Clear stored state
+                self._af_window_active = False
+                self._af_window_coords = None
                 print("✓ AF window cleared - using auto metering")
                 return True
 
@@ -896,6 +908,10 @@ class CameraStreamer:
             # libcamera Rectangle constructor requires integers, not floats
             af_windows = [(window_x_pixels, window_y_pixels, window_w_pixels, window_h_pixels)]
 
+            # Store state for persistence across camera reinitialization
+            self._af_window_coords = (window_x_pixels, window_y_pixels, window_w_pixels, window_h_pixels)
+            self._af_window_active = True
+
             # Apply AF window controls
             self.camera.set_controls({
                 "AfMetering": 2,  # Windows mode (use specified windows)
@@ -912,6 +928,22 @@ class CameraStreamer:
             import traceback
             traceback.print_exc()
             return False
+
+    def clear_af_window(self):
+        """
+        Clear active AF window and return to full-frame autofocus
+
+        This is a convenience method that calls set_af_window(None, None)
+        to reset autofocus metering to Auto mode (full frame).
+
+        Returns:
+            bool: True if successful, False if camera not ready
+
+        Example:
+            # Clear AF window and return to normal AF
+            camera_streamer.clear_af_window()
+        """
+        return self.set_af_window(None, None)
 
     def set_manual_focus_mode(self, enabled=True):
         """
