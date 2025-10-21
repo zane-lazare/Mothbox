@@ -476,6 +476,65 @@ def handle_set_zoom(data):
             'error': str(e)
         })
 
+@socketio.on('set_af_window')
+def handle_set_af_window(data):
+    """
+    Set autofocus window to focus on a specific region (click-to-focus feature)
+
+    Args:
+        data: dict with AF window parameters:
+            - x (float): Normalized horizontal center (0-1), 0.5 = center
+            - y (float): Normalized vertical center (0-1), 0.5 = center
+            - window_size (float, optional): Window size as fraction of frame (default 0.2)
+
+    Example:
+        {'x': 0.5, 'y': 0.5}  # Focus on center
+        {'x': 0.25, 'y': 0.25, 'window_size': 0.15}  # Focus on upper-left, 15% window
+        {'x': None, 'y': None}  # Clear AF window (reset to auto metering)
+    """
+    try:
+        if not isinstance(data, dict):
+            emit('af_window_updated', {
+                'success': False,
+                'error': 'Invalid data format - expected dict'
+            })
+            return
+
+        x = data.get('x')
+        y = data.get('y')
+        window_size = data.get('window_size', 0.2)
+
+        success = camera_streamer.set_af_window(x, y, window_size)
+
+        if success:
+            # Send success response with window coordinates
+            response = {
+                'success': True,
+                'x': x,
+                'y': y,
+                'window_size': window_size
+            }
+
+            # Add message based on whether window was set or cleared
+            if x is None or y is None:
+                response['message'] = 'AF window cleared - using auto metering'
+            else:
+                response['message'] = f'AF window set at ({x:.2f}, {y:.2f})'
+
+            emit('af_window_updated', response)
+        else:
+            emit('af_window_updated', {
+                'success': False,
+                'error': 'Camera not streaming or AF window update failed'
+            })
+
+    except Exception as e:
+        print(f'Error setting AF window: {e}')
+        emit('af_window_updated', {
+            'success': False,
+            'error': str(e)
+        })
+
 # Serve React app
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')

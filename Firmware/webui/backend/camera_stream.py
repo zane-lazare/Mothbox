@@ -813,6 +813,81 @@ class CameraStreamer:
             print(f"⚠ Error setting zoom: {e}")
             return False
 
+    def set_af_window(self, x, y, window_size=0.2):
+        """
+        Set autofocus window to focus on a specific region (click-to-focus feature)
+
+        This method sets an AF window for continuous autofocus, directing focus
+        to a specific area of the frame without interrupting the stream. Works
+        with continuous AF (AfMode=2) to maintain focus on the selected region.
+
+        Args:
+            x (float): Normalized horizontal center (0-1), 0.5 = center
+            y (float): Normalized vertical center (0-1), 0.5 = center
+            window_size (float): Window size as fraction of frame (default 0.2 = 20%)
+
+        Returns:
+            bool: True if successful, False if camera not ready
+
+        Example:
+            # Focus on center of frame
+            set_af_window(0.5, 0.5)
+
+            # Focus on upper-left quadrant
+            set_af_window(0.25, 0.25)
+
+            # Clear AF window (reset to auto metering)
+            set_af_window(None, None)
+        """
+        if not self.camera or not self.streaming:
+            print("⚠ Cannot set AF window - camera not streaming")
+            return False
+
+        try:
+            # Clear AF window if coordinates are None (reset to auto metering)
+            if x is None or y is None:
+                self.camera.set_controls({
+                    "AfMetering": 0,  # Auto metering
+                    "AfWindows": []   # Empty windows = full frame
+                })
+                print("✓ AF window cleared - using auto metering")
+                return True
+
+            # Clamp coordinates to valid range
+            x = max(0.0, min(x, 1.0))
+            y = max(0.0, min(y, 1.0))
+
+            # Calculate window bounds (centered on click point)
+            half_size = window_size / 2.0
+            window_x = max(0.0, x - half_size)
+            window_y = max(0.0, y - half_size)
+            window_w = min(window_size, 1.0 - window_x)  # Clamp to frame bounds
+            window_h = min(window_size, 1.0 - window_y)
+
+            # Ensure minimum window size (at least 5% of frame)
+            if window_w < 0.05 or window_h < 0.05:
+                print(f"⚠ AF window too small ({window_w:.2f}x{window_h:.2f}), using minimum 0.05")
+                window_w = max(window_w, 0.05)
+                window_h = max(window_h, 0.05)
+
+            # Format: [(x, y, width, height)] in normalized coordinates
+            af_windows = [(window_x, window_y, window_w, window_h)]
+
+            # Apply AF window controls
+            self.camera.set_controls({
+                "AfMetering": 2,  # Windows mode (use specified windows)
+                "AfWindows": af_windows
+            })
+
+            print(f"✓ AF window set: center=({x:.2f}, {y:.2f}), "
+                  f"window=({window_x:.2f}, {window_y:.2f}, {window_w:.2f}, {window_h:.2f})")
+
+            return True
+
+        except Exception as e:
+            print(f"⚠ Error setting AF window: {e}")
+            return False
+
     def set_manual_focus_mode(self, enabled=True):
         """
         Enable or disable manual focus mode override (Phase 2.2: AF preservation)

@@ -36,6 +36,7 @@ export default function Camera() {
   })
   const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
   const [zoomCenter, setZoomCenter] = useState({ x: 0.5, y: 0.5 })  // Normalized zoom center (0.5, 0.5 = center)
+  const [afWindow, setAfWindow] = useState(null)  // AF window: {x, y, active, focusing} or null
   const [cameraSettings, setCameraSettings] = useState(null)  // HDR and other camera settings
   const socketRef = useRef(null)
   const metadataIntervalRef = useRef(null)
@@ -190,6 +191,31 @@ export default function Camera() {
       } else {
         console.error('Zoom update failed:', data.error)
         toast.error(`Failed to update zoom: ${data.error}`)
+      }
+    })
+
+    socketRef.current.on('af_window_updated', (data) => {
+      if (data.success) {
+        console.log('AF window updated successfully:', data)
+        // Update AF window state with animation trigger
+        if (data.x !== null && data.y !== null) {
+          setAfWindow({
+            x: data.x,
+            y: data.y,
+            active: true,
+            focusing: true
+          })
+          // Auto-dismiss after 3 seconds
+          setTimeout(() => {
+            setAfWindow(prev => prev ? { ...prev, focusing: false } : null)
+          }, 3000)
+        } else {
+          // Window cleared
+          setAfWindow(null)
+        }
+      } else {
+        console.error('AF window update failed:', data.error)
+        toast.error(`Failed to update AF window: ${data.error}`)
       }
     })
 
@@ -483,6 +509,32 @@ export default function Camera() {
     }
   }
 
+  const handleAfWindowClick = (e) => {
+    // Process clicks for AF window when NOT zoomed (zoom = 1.0)
+    // This allows click-to-focus without interfering with zoom repositioning
+    if (zoomLevel > 1.0 || !previewActive) return
+
+    // Get click position relative to image element
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    // Convert to normalized coordinates (0-1)
+    const normalizedX = Math.max(0, Math.min(x / rect.width, 1))
+    const normalizedY = Math.max(0, Math.min(y / rect.height, 1))
+
+    // Emit AF window update to backend
+    if (socketRef.current) {
+      socketRef.current.emit('set_af_window', {
+        x: normalizedX,
+        y: normalizedY,
+        window_size: 0.2  // 20% of frame
+      })
+      console.log(`Click-to-focus: AF window at (${normalizedX.toFixed(2)}, ${normalizedY.toFixed(2)})`)
+      toast.success(`Focusing at (${(normalizedX * 100).toFixed(0)}%, ${(normalizedY * 100).toFixed(0)}%)`)
+    }
+  }
+
   const handleResetControls = () => {
     const defaults = {
       sharpness: 1.0,
@@ -502,6 +554,7 @@ export default function Camera() {
     }))
     setZoomLevel(1.0)  // Reset zoom to 1x
     setZoomCenter({ x: 0.5, y: 0.5 })  // Reset zoom center to center
+    setAfWindow(null)  // Clear AF window
 
     // Emit all resets to backend
     if (socketRef.current && previewActive) {
@@ -518,7 +571,12 @@ export default function Camera() {
         center_x: 0.5,
         center_y: 0.5
       })
-      toast.success('Controls, focus, and zoom reset to defaults')
+      // Clear AF window
+      socketRef.current.emit('set_af_window', {
+        x: null,
+        y: null
+      })
+      toast.success('Controls, focus, zoom, and AF window reset to defaults')
     }
   }
 
@@ -558,8 +616,11 @@ export default function Camera() {
                 <img
                   src={currentFrame}
                   alt="Camera preview"
-                  className={`w-full h-auto ${zoomLevel > 1.0 ? 'cursor-crosshair' : ''}`}
-                  onClick={handlePreviewClick}
+                  className={`w-full h-auto ${zoomLevel > 1.0 ? 'cursor-crosshair' : 'cursor-pointer'}`}
+                  onClick={(e) => {
+                    handlePreviewClick(e)
+                    handleAfWindowClick(e)
+                  }}
                 />
 
                 {/* Zoom Center Indicator - Only show when zoomed */}
@@ -580,6 +641,37 @@ export default function Camera() {
                       <div className="absolute h-8 w-0.5 bg-green-400 -top-4 left-1/2 -translate-x-1/2"></div>
                       {/* Center dot */}
                       <div className="w-2 h-2 bg-green-400 rounded-full border-2 border-gray-900"></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* AF Window Indicator - Show when AF window is active */}
+                {afWindow && afWindow.active && (
+                  <div
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: `${afWindow.x * 100}%`,
+                      top: `${afWindow.y * 100}%`,
+                      transform: 'translate(-50%, -50%)',
+                      width: '20%',
+                      height: '20%'
+                    }}
+                  >
+                    {/* Animated focus box */}
+                    <div className={`relative w-full h-full ${afWindow.focusing ? 'animate-pulse' : ''}`}>
+                      {/* Focus box border */}
+                      <div className="absolute inset-0 border-2 border-yellow-400 rounded">
+                        {/* Corner indicators */}
+                        <div className="absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 border-yellow-400"></div>
+                        <div className="absolute -top-1 -right-1 w-4 h-4 border-t-4 border-r-4 border-yellow-400"></div>
+                        <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-4 border-l-4 border-yellow-400"></div>
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-4 border-r-4 border-yellow-400"></div>
+                      </div>
+                      {/* Center cross */}
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                        <div className="w-6 h-0.5 bg-yellow-400"></div>
+                        <div className="w-0.5 h-6 bg-yellow-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1068,10 +1160,45 @@ export default function Camera() {
                       </div>
                     )}
                   </div>
+
+                  {/* AF Window Indicator */}
+                  <div className="pt-2 mt-2 border-t border-white/20">
+                    <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                      <span>🎯 Click-to-Focus</span>
+                      {afWindow && afWindow.active ? (
+                        <span className="text-yellow-300 font-mono text-[10px]">
+                          Active ({(afWindow.x * 100).toFixed(0)}%, {(afWindow.y * 100).toFixed(0)}%)
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 font-mono text-[10px]">Ready</span>
+                      )}
+                    </label>
+                    <div className="text-[10px] text-gray-300 mt-1">
+                      {afWindow && afWindow.active ? (
+                        <div className="flex items-center justify-between">
+                          <span className="text-yellow-300">✓ AF window set</span>
+                          <button
+                            onClick={() => {
+                              if (socketRef.current) {
+                                socketRef.current.emit('set_af_window', { x: null, y: null })
+                                setAfWindow(null)
+                                toast.success('AF window cleared')
+                              }
+                            }}
+                            className="px-2 py-0.5 text-[10px] bg-white/20 text-white rounded hover:bg-white/30"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      ) : (
+                        <span>Click on preview to set focus region</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mt-3 p-2 bg-blue-500/20 border border-blue-400/30 rounded text-[10px] text-blue-200">
-                  <strong>💡 Tip:</strong> Changes apply instantly to preview only.
+                  <strong>💡 Tip:</strong> Changes apply instantly to preview only. Click preview to focus on specific area.
                 </div>
               </div>
             )}
