@@ -873,6 +873,25 @@ else
     echo -e "${YELLOW}  ⚠ Warning: ISP tuning file not found at $ISP_SOURCE${NC}"
 fi
 
+# Copy libcamera tuning file (autofocus retrigger configuration for OV64A40)
+echo -e "${BLUE}Setting up libcamera tuning configuration...${NC}"
+LIBCAMERA_TUNING_SOURCE="$SCRIPT_DIR/webui/libcamera_tuning/ov64a40_mothbox.json"
+LIBCAMERA_TUNING_DEST="/usr/share/libcamera/ipa/rpi/pisp/ov64a40.json"
+if [ -f "$LIBCAMERA_TUNING_SOURCE" ]; then
+    # Backup original if it exists and backup doesn't already exist
+    if [ -f "$LIBCAMERA_TUNING_DEST" ] && [ ! -f "${LIBCAMERA_TUNING_DEST}.orig" ]; then
+        sudo cp "$LIBCAMERA_TUNING_DEST" "${LIBCAMERA_TUNING_DEST}.orig"
+        echo -e "${GREEN}  ✓ Backed up original ov64a40.json${NC}"
+    fi
+
+    # Install custom tuning file
+    sudo install -o root -g root -m 644 \
+        "$LIBCAMERA_TUNING_SOURCE" "$LIBCAMERA_TUNING_DEST"
+    echo -e "${GREEN}  ✓ Installed custom OV64A40 tuning file (AF retrigger enabled)${NC}"
+else
+    echo -e "${YELLOW}  ⚠ Warning: Custom libcamera tuning file not found at $LIBCAMERA_TUNING_SOURCE${NC}"
+fi
+
 echo -e "${GREEN}✓ Configuration files set up at $CONFIG_DIR${NC}"
 
 # Create installation type marker file for reliable detection
