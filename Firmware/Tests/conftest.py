@@ -274,6 +274,43 @@ def temp_camera_settings(tmp_path, monkeypatch):
 
 
 # ============================================================================
+# AF Window Test Fixtures (Click-to-Focus Feature)
+# ============================================================================
+
+@pytest.fixture
+def af_window_test_positions():
+    """
+    Common test positions for AF window testing
+
+    Provides standard positions for comprehensive AF window testing including
+    corners, edges, and center positions.
+
+    Returns:
+        list: Tuples of (x, y, name) for testing
+
+    Usage:
+        def test_af_positions(camera_streamer, af_window_test_positions):
+            for x, y, name in af_window_test_positions:
+                camera_streamer.set_af_window(x, y)
+    """
+    return [
+        (0.5, 0.5, "center"),
+        (0.25, 0.25, "upper-left"),
+        (0.75, 0.25, "upper-right"),
+        (0.25, 0.75, "lower-left"),
+        (0.75, 0.75, "lower-right"),
+        (0.5, 0.0, "top-center"),
+        (0.5, 1.0, "bottom-center"),
+        (0.0, 0.5, "left-center"),
+        (1.0, 0.5, "right-center"),
+        (0.0, 0.0, "top-left-corner"),
+        (1.0, 0.0, "top-right-corner"),
+        (0.0, 1.0, "bottom-left-corner"),
+        (1.0, 1.0, "bottom-right-corner"),
+    ]
+
+
+# ============================================================================
 # Workflow-Specific Fixtures (Issue #46)
 # ============================================================================
 

@@ -200,6 +200,15 @@ case "$TEST_TYPE" in
         pytest Tests/integration/test_metadata_accuracy.py -v -s
         ;;
 
+    "clicktofocus"|"af-window"|"afwindow")
+        # Click-to-Focus / AF Window tests
+        echo "🚀 Running Click-to-Focus (AF Window) tests..."
+        echo ""
+        echo "Testing AF window coordinate conversion, WebSocket integration, and focus performance..."
+        pytest Tests/unit/test_af_window_validation.py \
+               Tests/integration/test_af_window_workflows.py -v -s
+        ;;
+
     "issue43"|"complete")
         # All tests for GitHub issue #43
         echo "🚀 Running COMPLETE test suite for GitHub issue #43..."
@@ -253,6 +262,9 @@ case "$TEST_TYPE" in
         echo "  focus-bracket - Same as focusbracket"
         echo "  metadata      - Extended Metadata extraction tests (15+ fields)"
         echo "  extended-metadata - Same as metadata"
+        echo "  clicktofocus  - Click-to-Focus / AF Window tests"
+        echo "  af-window     - Same as clicktofocus"
+        echo "  afwindow      - Same as clicktofocus"
         echo ""
         echo "=== Legacy Phase Commands (backward compatibility) ==="
         echo "  phase2        - Run Phase 2 complete test suite"
@@ -282,6 +294,7 @@ case "$TEST_TYPE" in
         echo "  ./run_tests.sh metering         # Test exposure metering mode (feature)"
         echo "  ./run_tests.sh isp              # Test ISP tuning features"
         echo "  ./run_tests.sh metadata         # Test extended metadata (15+ fields)"
+        echo "  ./run_tests.sh clicktofocus     # Test click-to-focus AF window"
         echo "  ./run_tests.sh quick            # Quick performance check"
         echo "  ./run_tests.sh manual           # Show manual test steps"
         exit 0
