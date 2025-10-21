@@ -227,32 +227,51 @@ class TestAfWindowWebSocketIntegration:
     """Test AF window WebSocket event handling"""
 
     @pytest.fixture(autouse=True, scope='class')
-    def ensure_camera_released(self, socketio_app):
+    def ensure_camera_released(self, request, socketio_app):
         """Ensure camera is released before and after WebSocket tests"""
         import gc
         import time
 
         socketio, app = socketio_app
-        camera_streamer = app.config['CAMERA_STREAMER']
 
-        # BEFORE: Release camera from previous tests
-        print("\n🔄 Preparing WebSocket tests - releasing camera...")
-        if camera_streamer.streaming:
-            camera_streamer.stop_streaming()
-        if camera_streamer.camera:
-            camera_streamer.release_camera()
+        # BEFORE: Release camera from ALL sources
+        print("\n🔄 Preparing WebSocket tests - releasing all camera resources...")
+
+        # Release from socketio_app's camera_streamer
+        camera_streamer_ws = app.config['CAMERA_STREAMER']
+        if camera_streamer_ws.streaming:
+            camera_streamer_ws.stop_streaming()
+        if camera_streamer_ws.camera:
+            camera_streamer_ws.release_camera()
+        print("   ✓ Released camera from socketio_app")
+
+        # CRITICAL: Also release from module-scoped camera_streamer fixture
+        # This is used by the 27 passing tests that ran before WebSocket tests
+        try:
+            camera_streamer_module = request.getfixturevalue('camera_streamer')
+            if camera_streamer_module.streaming:
+                camera_streamer_module.stop_streaming()
+                print("   ✓ Stopped streaming from module camera_streamer")
+            if camera_streamer_module.camera:
+                camera_streamer_module.release_camera()
+                print("   ✓ Released camera from module camera_streamer")
+        except Exception as e:
+            print(f"   ⚠️  Could not access camera_streamer fixture: {e}")
+
+        # Force garbage collection and wait for hardware release
         gc.collect()
+        gc.collect()  # Second pass for circular refs
         time.sleep(2.0)
-        print("   ✓ Camera released and ready for WebSocket tests")
+        print("   ✓ All camera resources released and ready for WebSocket tests")
 
         yield
 
         # AFTER: Cleanup
         print("\n🧹 WebSocket tests complete - final cleanup...")
-        if camera_streamer.streaming:
-            camera_streamer.stop_streaming()
-        if camera_streamer.camera:
-            camera_streamer.release_camera()
+        if camera_streamer_ws.streaming:
+            camera_streamer_ws.stop_streaming()
+        if camera_streamer_ws.camera:
+            camera_streamer_ws.release_camera()
         gc.collect()
         time.sleep(1.0)
         print("   ✓ Camera resources cleaned up")
