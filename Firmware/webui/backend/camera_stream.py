@@ -853,25 +853,46 @@ class CameraStreamer:
                 print("✓ AF window cleared - using auto metering")
                 return True
 
-            # Clamp coordinates to valid range
+            # Get sensor resolution for pixel coordinate conversion
+            if not self.sensor_resolution:
+                print("⚠ Cannot set AF window - sensor resolution not available")
+                return False
+
+            sensor_width, sensor_height = self.sensor_resolution
+
+            # Clamp normalized coordinates to valid range
             x = max(0.0, min(x, 1.0))
             y = max(0.0, min(y, 1.0))
 
-            # Calculate window bounds (centered on click point)
-            half_size = window_size / 2.0
-            window_x = max(0.0, x - half_size)
-            window_y = max(0.0, y - half_size)
-            window_w = min(window_size, 1.0 - window_x)  # Clamp to frame bounds
-            window_h = min(window_size, 1.0 - window_y)
+            # Calculate window dimensions in pixels
+            # AfWindows requires absolute pixel coordinates (integers), not normalized floats
+            window_w_pixels = int(sensor_width * window_size)
+            window_h_pixels = int(sensor_height * window_size)
 
             # Ensure minimum window size (at least 5% of frame)
-            if window_w < 0.05 or window_h < 0.05:
-                print(f"⚠ AF window too small ({window_w:.2f}x{window_h:.2f}), using minimum 0.05")
-                window_w = max(window_w, 0.05)
-                window_h = max(window_h, 0.05)
+            min_size_pixels = int(min(sensor_width, sensor_height) * 0.05)
+            window_w_pixels = max(window_w_pixels, min_size_pixels)
+            window_h_pixels = max(window_h_pixels, min_size_pixels)
 
-            # Format: [(x, y, width, height)] in normalized coordinates
-            af_windows = [(window_x, window_y, window_w, window_h)]
+            # Ensure even dimensions (required by some encoders)
+            window_w_pixels = window_w_pixels & ~1
+            window_h_pixels = window_h_pixels & ~1
+
+            # Calculate window position (top-left corner) centered on click point
+            window_x_pixels = int((x * sensor_width) - (window_w_pixels / 2))
+            window_y_pixels = int((y * sensor_height) - (window_h_pixels / 2))
+
+            # Clamp position to sensor bounds
+            window_x_pixels = max(0, min(window_x_pixels, sensor_width - window_w_pixels))
+            window_y_pixels = max(0, min(window_y_pixels, sensor_height - window_h_pixels))
+
+            # Ensure even offsets (required by some encoders)
+            window_x_pixels = window_x_pixels & ~1
+            window_y_pixels = window_y_pixels & ~1
+
+            # Format: [(x, y, width, height)] in absolute pixel coordinates (integers)
+            # libcamera Rectangle constructor requires integers, not floats
+            af_windows = [(window_x_pixels, window_y_pixels, window_w_pixels, window_h_pixels)]
 
             # Apply AF window controls
             self.camera.set_controls({
@@ -879,13 +900,15 @@ class CameraStreamer:
                 "AfWindows": af_windows
             })
 
-            print(f"✓ AF window set: center=({x:.2f}, {y:.2f}), "
-                  f"window=({window_x:.2f}, {window_y:.2f}, {window_w:.2f}, {window_h:.2f})")
+            print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized, "
+                  f"window=({window_x_pixels}, {window_y_pixels}, {window_w_pixels}, {window_h_pixels}) pixels")
 
             return True
 
         except Exception as e:
             print(f"⚠ Error setting AF window: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def set_manual_focus_mode(self, enabled=True):
