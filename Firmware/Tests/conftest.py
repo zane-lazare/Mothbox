@@ -213,6 +213,7 @@ def socketio_app():
             client.emit('set_af_window', {'x': 0.5, 'y': 0.5})
             received = client.get_received()
     """
+    import os
     from flask import Flask
     from flask_socketio import SocketIO
     from routes.camera import camera_bp
@@ -220,37 +221,51 @@ def socketio_app():
     from camera_stream import CameraStreamer
     from websocket_handlers import register_handlers
 
-    # Create Flask app
-    app = Flask(__name__)
-    app.config['TESTING'] = True
-    app.config['WTF_CSRF_ENABLED'] = False
+    # Set MOTHBOX_ENV to development for testing
+    # This prevents config from requiring SECRET_KEY when handlers import it
+    # Save original value for restoration
+    original_env = os.environ.get('MOTHBOX_ENV')
+    os.environ['MOTHBOX_ENV'] = 'development'
 
-    # Create SocketIO
-    socketio = SocketIO(app, cors_allowed_origins='*')
-
-    # Register HTTP blueprints
-    app.register_blueprint(camera_bp, url_prefix='/api/camera')
-    app.register_blueprint(config_bp, url_prefix='/api/config')
-
-    # Create camera streamer (uses real SocketIO for testing)
-    class MockSocketIO:
-        """Mock SocketIO for camera streamer initialization"""
-        def emit(self, event, data, **kwargs):
-            pass
-
-    camera_streamer = CameraStreamer(MockSocketIO())
-    app.config['CAMERA_STREAMER'] = camera_streamer
-
-    # Register WebSocket handlers (same as production!)
-    register_handlers(socketio, camera_streamer)
-
-    yield socketio, app
-
-    # Cleanup
     try:
-        camera_streamer.cleanup()
-    except Exception as e:
-        print(f"⚠️  Warning: SocketIO app cleanup error: {e}")
+        # Create Flask app
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.config['WTF_CSRF_ENABLED'] = False
+
+        # Create SocketIO
+        socketio = SocketIO(app, cors_allowed_origins='*')
+
+        # Register HTTP blueprints
+        app.register_blueprint(camera_bp, url_prefix='/api/camera')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
+
+        # Create camera streamer (uses real SocketIO for testing)
+        class MockSocketIO:
+            """Mock SocketIO for camera streamer initialization"""
+            def emit(self, event, data, **kwargs):
+                pass
+
+        camera_streamer = CameraStreamer(MockSocketIO())
+        app.config['CAMERA_STREAMER'] = camera_streamer
+
+        # Register WebSocket handlers (same as production!)
+        register_handlers(socketio, camera_streamer)
+
+        yield socketio, app
+
+    finally:
+        # Cleanup camera resources
+        try:
+            camera_streamer.cleanup()
+        except Exception as e:
+            print(f"⚠️  Warning: SocketIO app cleanup error: {e}")
+
+        # Restore original MOTHBOX_ENV value
+        if original_env is not None:
+            os.environ['MOTHBOX_ENV'] = original_env
+        else:
+            os.environ.pop('MOTHBOX_ENV', None)
 
 
 # ============================================================================
