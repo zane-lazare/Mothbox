@@ -381,7 +381,7 @@ class CameraStreamer:
         if self._af_window_active and self._af_window_coords:
             self.camera.set_controls({
                 "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
-                "AfWindows": list(self._af_window_coords)  # Convert tuple to flat list
+                "AfWindows": [list(self._af_window_coords)]  # List of rectangles [[x,y,w,h]]
             })
 
         # Small delay to allow controls to settle
@@ -776,7 +776,7 @@ class CameraStreamer:
                 if self._af_window_active and self._af_window_coords:
                     self.camera.set_controls({
                         "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
-                        "AfWindows": list(self._af_window_coords)  # Convert tuple to flat list
+                        "AfWindows": [list(self._af_window_coords)]  # List of rectangles [[x,y,w,h]]
                     })
 
                 print(f"Updated controls: {control_dict}")
@@ -969,11 +969,12 @@ class CameraStreamer:
             window_w_norm = int((window_w_pixels / sensor_width) * COORD_MAX)
             window_h_norm = int((window_h_pixels / sensor_height) * COORD_MAX)
 
-            # Format: Flat list [x, y, width, height] in 16-bit normalized coordinates
-            # libcamera expects array type (Span<Rectangle>) - flat list works, tuple crashes!
-            af_windows = [window_x_norm, window_y_norm, window_w_norm, window_h_norm]
+            # Format: List of rectangles [[x, y, w, h]] in 16-bit normalized coordinates
+            # libcamera expects Span<Rectangle> = array OF rectangles (list of lists)
+            # Outer list = array, inner list = single Rectangle structure
+            af_windows = [[window_x_norm, window_y_norm, window_w_norm, window_h_norm]]
 
-            # Store as tuple for internal use (convert to list when re-applying)
+            # Store as tuple for internal use (convert to nested list when re-applying)
             self._af_window_coords = (window_x_norm, window_y_norm, window_w_norm, window_h_norm)
             self._af_window_active = True
 
@@ -981,7 +982,7 @@ class CameraStreamer:
             # Keep it simple: just set the window, don't cycle modes or pause AF
             self.camera.set_controls({
                 "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
-                "AfWindows": af_windows  # Flat list [x,y,w,h]
+                "AfWindows": af_windows  # List of rectangles [[x,y,w,h]]
             })
 
             print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized")
