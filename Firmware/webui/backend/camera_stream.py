@@ -381,7 +381,7 @@ class CameraStreamer:
         if self._af_window_active and self._af_window_coords:
             self.camera.set_controls({
                 "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
-                "AfWindows": [self._af_window_coords]
+                "AfWindows": self._af_window_coords  # Bare tuple, not list
             })
 
         # Small delay to allow controls to settle
@@ -776,7 +776,7 @@ class CameraStreamer:
                 if self._af_window_active and self._af_window_coords:
                     self.camera.set_controls({
                         "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
-                        "AfWindows": [self._af_window_coords]
+                        "AfWindows": self._af_window_coords  # Bare tuple, not list
                     })
 
                 print(f"Updated controls: {control_dict}")
@@ -969,18 +969,19 @@ class CameraStreamer:
             window_w_norm = int((window_w_pixels / sensor_width) * COORD_MAX)
             window_h_norm = int((window_h_pixels / sensor_height) * COORD_MAX)
 
-            # Format: [(x, y, width, height)] in 16-bit normalized coordinates
-            af_windows = [(window_x_norm, window_y_norm, window_w_norm, window_h_norm)]
+            # Format: (x, y, width, height) as bare tuple in 16-bit normalized coordinates
+            # NOT a list - libcamera expects a single tuple, not a list of tuples
+            af_windows = (window_x_norm, window_y_norm, window_w_norm, window_h_norm)
 
             # Store NORMALIZED coordinates for persistence across camera reinitialization
-            self._af_window_coords = (window_x_norm, window_y_norm, window_w_norm, window_h_norm)
+            self._af_window_coords = af_windows
             self._af_window_active = True
 
             # Apply AF window to constrain continuous AF to clicked region
             # Keep it simple: just set the window, don't cycle modes or pause AF
             self.camera.set_controls({
                 "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
-                "AfWindows": af_windows
+                "AfWindows": af_windows  # Bare tuple, not list
             })
 
             print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized")
