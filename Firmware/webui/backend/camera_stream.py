@@ -940,23 +940,10 @@ class CameraStreamer:
             self._af_window_coords = (window_x_pixels, window_y_pixels, window_w_pixels, window_h_pixels)
             self._af_window_active = True
 
-            # Force continuous AF to rescan by cycling AfMode, then applying window
-            # CRITICAL: Must set AfWindows AFTER AfMode, not before
-            # Setting AfMode resets AfMetering to 0, so window must be applied after mode change
-
-            import time
-
-            # Step 1: Stop continuous AF
-            self.camera.set_controls({"AfMode": 0})  # Manual mode
-            time.sleep(0.05)  # Let mode change take effect
-
-            # Step 2: Restart continuous AF - forces fresh scan
-            self.camera.set_controls({"AfMode": self.af_mode})  # Back to continuous (2)
-            time.sleep(0.05)  # Let mode change take effect
-
-            # Step 3: Apply AF window (MUST be after AfMode change to avoid reset)
+            # Apply AF window to constrain continuous AF to clicked region
+            # Keep it simple: just set the window, don't cycle modes or pause AF
             self.camera.set_controls({
-                "AfMetering": 2,  # Windows mode
+                "AfMetering": 2,  # Windows mode - use AfWindows instead of auto metering
                 "AfWindows": af_windows
             })
 
@@ -975,12 +962,19 @@ class CameraStreamer:
                 lens_pos = metadata.get('LensPosition', 'N/A')
                 focus_fom = metadata.get('FocusFoM', 'N/A')
 
+                # CRITICAL: Check if AfMetering is actually being applied
+                # If AfMetering isn't in metadata, the hardware may not support window mode
+                af_metering = metadata.get('AfMetering', 'N/A')
+
                 # Decode AfState: 0=Idle, 1=Scanning, 2=Focused, 3=Failed
                 af_state_name = {0: 'Idle', 1: 'Scanning', 2: 'Focused', 3: 'Failed'}.get(af_state, af_state)
                 # Decode AfPauseState: 0=Running, 1=Pausing, 2=Paused
                 af_pause_name = {0: 'Running', 1: 'Pausing', 2: 'Paused'}.get(af_pause_state, af_pause_state)
+                # Decode AfMetering: 0=Auto (full-frame), 2=Windows mode
+                af_metering_name = {0: 'Auto/FullFrame', 2: 'Windows'}.get(af_metering, af_metering)
 
                 print(f"🔍 DIAGNOSTIC: AfState={af_state_name} ({af_state}), AfPauseState={af_pause_name} ({af_pause_state})")
+                print(f"🔍 DIAGNOSTIC: AfMetering={af_metering_name} ({af_metering}) ← Should be 'Windows (2)'!")
                 print(f"🔍 DIAGNOSTIC: LensPosition={lens_pos}, FocusFoM={focus_fom}")
 
             except Exception as diag_error:
