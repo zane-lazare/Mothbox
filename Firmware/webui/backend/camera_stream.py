@@ -353,7 +353,7 @@ class CameraStreamer:
         if self._af_window_active and self._af_window_coords:
             self.camera.set_controls({
                 "AfWindows": [self._af_window_coords],
-                "AfPause": 2  # Resume continuous AF
+                "AfPause": 0  # Resume/Running continuous AF (0=Running, not 2)
             })
 
         # Small delay to allow controls to settle
@@ -749,7 +749,7 @@ class CameraStreamer:
                     self.camera.set_controls({
                         "AfMetering": 2,  # Windows mode
                         "AfWindows": [self._af_window_coords],
-                        "AfPause": 2  # Resume continuous AF
+                        "AfPause": 0  # Resume/Running continuous AF (0=Running, not 2)
                     })
 
                 print(f"Updated controls: {control_dict}")
@@ -943,7 +943,8 @@ class CameraStreamer:
 
             # Force retrigger: Pause AF before setting new window
             # This ensures a fresh scan on every click, regardless of contrast similarity
-            self.camera.set_controls({"AfPause": 0})  # Pause immediately
+            # AfPause values: 0=Running, 1=Pausing, 2=Paused
+            self.camera.set_controls({"AfPause": 2})  # Pause (was incorrectly 0)
 
             import time
             time.sleep(0.05)  # Brief delay to ensure pause takes effect
@@ -955,7 +956,7 @@ class CameraStreamer:
             })
 
             # Resume continuous AF - triggers fresh scan
-            self.camera.set_controls({"AfPause": 2})  # Resume
+            self.camera.set_controls({"AfPause": 0})  # Resume/Running (was incorrectly 2)
 
             print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized, "
                   f"window=({window_x_pixels}, {window_y_pixels}, {window_w_pixels}, {window_h_pixels}) pixels")
