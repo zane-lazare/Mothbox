@@ -113,7 +113,7 @@ class CameraStreamer:
 
         # AF window state tracking (click-to-focus feature)
         self._af_window_active = False  # True when AF window is set
-        self._af_window_coords = None  # Stores (x, y, w, h) in pixels when active
+        self._af_window_coords = None  # Stores (x, y, w, h) in 16-bit normalized coords (0-65535)
 
         # ISP feature toggles (Phase: ISP Tuning)
         # Note: Lens shading changes require camera restart - no runtime control available
@@ -960,12 +960,20 @@ class CameraStreamer:
             window_x_pixels = window_x_pixels & ~1
             window_y_pixels = window_y_pixels & ~1
 
-            # Format: [(x, y, width, height)] in absolute pixel coordinates (integers)
-            # libcamera Rectangle constructor requires integers, not floats
-            af_windows = [(window_x_pixels, window_y_pixels, window_w_pixels, window_h_pixels)]
+            # Convert pixel coordinates to 16-bit normalized coordinates (0-65535 range)
+            # AfWindows hardware expects normalized coordinates, not pixel coordinates!
+            # Diagnostic showed: AfWindows supported: ((0,0,0,0), (65535,65535,65535,65535), (0,0,0,0))
+            COORD_MAX = 65535
+            window_x_norm = int((window_x_pixels / sensor_width) * COORD_MAX)
+            window_y_norm = int((window_y_pixels / sensor_height) * COORD_MAX)
+            window_w_norm = int((window_w_pixels / sensor_width) * COORD_MAX)
+            window_h_norm = int((window_h_pixels / sensor_height) * COORD_MAX)
 
-            # Store state for persistence across camera reinitialization
-            self._af_window_coords = (window_x_pixels, window_y_pixels, window_w_pixels, window_h_pixels)
+            # Format: [(x, y, width, height)] in 16-bit normalized coordinates
+            af_windows = [(window_x_norm, window_y_norm, window_w_norm, window_h_norm)]
+
+            # Store NORMALIZED coordinates for persistence across camera reinitialization
+            self._af_window_coords = (window_x_norm, window_y_norm, window_w_norm, window_h_norm)
             self._af_window_active = True
 
             # Apply AF window to constrain continuous AF to clicked region
@@ -975,8 +983,9 @@ class CameraStreamer:
                 "AfWindows": af_windows
             })
 
-            print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized, "
-                  f"window=({window_x_pixels}, {window_y_pixels}, {window_w_pixels}, {window_h_pixels}) pixels")
+            print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized")
+            print(f"  Pixels: ({window_x_pixels}, {window_y_pixels}, {window_w_pixels}, {window_h_pixels})")
+            print(f"  16-bit coords: ({window_x_norm}, {window_y_norm}, {window_w_norm}, {window_h_norm})")
 
             # DIAGNOSTIC: Verify controls were actually applied
             try:
