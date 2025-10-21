@@ -27,6 +27,7 @@ try:
     from picamera2 import Picamera2
     from picamera2.encoders import MJPEGEncoder
     from picamera2.outputs import FileOutput
+    from libcamera import Rectangle  # For AfWindows control
     PICAMERA_AVAILABLE = True
     HARDWARE_MJPEG_AVAILABLE = True
 except (ImportError, RuntimeError):
@@ -379,9 +380,15 @@ class CameraStreamer:
 
         # Re-apply AF window if active (ensures window persists after configure/reinit)
         if self._af_window_active and self._af_window_coords:
+            # Recreate Rectangle object from stored coordinates
+            sensor_area = Rectangle(*self.camera.camera_properties['ScalerCropMaximum'])
+            x_sensor, y_sensor, w_sensor, h_sensor = self._af_window_coords
+            af_rect = Rectangle(x_sensor, y_sensor, w_sensor, h_sensor)
+            af_rect.translate_by(sensor_area.topLeft)
+
             self.camera.set_controls({
                 "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
-                "AfWindows": [list(self._af_window_coords)]  # List of rectangles [[x,y,w,h]]
+                "AfWindows": [af_rect]  # List of Rectangle objects
             })
 
         # Small delay to allow controls to settle
@@ -774,9 +781,15 @@ class CameraStreamer:
 
                 # Re-apply AF window if active (preserve window when other controls change)
                 if self._af_window_active and self._af_window_coords:
+                    # Recreate Rectangle object from stored coordinates
+                    sensor_area = Rectangle(*self.camera.camera_properties['ScalerCropMaximum'])
+                    x_sensor, y_sensor, w_sensor, h_sensor = self._af_window_coords
+                    af_rect = Rectangle(x_sensor, y_sensor, w_sensor, h_sensor)
+                    af_rect.translate_by(sensor_area.topLeft)
+
                     self.camera.set_controls({
                         "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
-                        "AfWindows": [list(self._af_window_coords)]  # List of rectangles [[x,y,w,h]]
+                        "AfWindows": [af_rect]  # List of Rectangle objects
                     })
 
                 print(f"Updated controls: {control_dict}")
@@ -960,34 +973,37 @@ class CameraStreamer:
             window_x_pixels = window_x_pixels & ~1
             window_y_pixels = window_y_pixels & ~1
 
-            # Convert pixel coordinates to 16-bit normalized coordinates (0-65535 range)
-            # AfWindows hardware expects normalized coordinates, not pixel coordinates!
-            # Diagnostic showed: AfWindows supported: ((0,0,0,0), (65535,65535,65535,65535), (0,0,0,0))
-            COORD_MAX = 65535
-            window_x_norm = int((window_x_pixels / sensor_width) * COORD_MAX)
-            window_y_norm = int((window_y_pixels / sensor_height) * COORD_MAX)
-            window_w_norm = int((window_w_pixels / sensor_width) * COORD_MAX)
-            window_h_norm = int((window_h_pixels / sensor_height) * COORD_MAX)
+            # AfWindows requires libcamera.Rectangle objects in ScalerCropMaximum coordinate space
+            # Get the sensor area from camera properties
+            sensor_area = Rectangle(*self.camera.camera_properties['ScalerCropMaximum'])
 
-            # Format: List of rectangles [[x, y, w, h]] in 16-bit normalized coordinates
-            # libcamera expects Span<Rectangle> = array OF rectangles (list of lists)
-            # Outer list = array, inner list = single Rectangle structure
-            af_windows = [[window_x_norm, window_y_norm, window_w_norm, window_h_norm]]
+            # Convert normalized click coordinates to sensor area coordinates
+            x_sensor = int(x * sensor_area.width)
+            y_sensor = int(y * sensor_area.height)
+            w_sensor = int(window_size * sensor_area.width)
+            h_sensor = int(window_size * sensor_area.height)
 
-            # Store as tuple for internal use (convert to nested list when re-applying)
-            self._af_window_coords = (window_x_norm, window_y_norm, window_w_norm, window_h_norm)
+            # Create Rectangle object for AF window
+            af_rect = Rectangle(x_sensor, y_sensor, w_sensor, h_sensor)
+            # Translate by sensor top-left to get absolute coordinates
+            af_rect.translate_by(sensor_area.topLeft)
+
+            # AfWindows expects a list of Rectangle objects
+            af_windows = [af_rect]
+
+            # Store Rectangle for persistence (need to recreate on re-apply)
+            self._af_window_coords = (x_sensor, y_sensor, w_sensor, h_sensor)
             self._af_window_active = True
 
             # Apply AF window to constrain continuous AF to clicked region
-            # Keep it simple: just set the window, don't cycle modes or pause AF
             self.camera.set_controls({
-                "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
-                "AfWindows": af_windows  # List of rectangles [[x,y,w,h]]
+                "AfMetering": 1,  # Windows mode (0=Auto, 1=Windows)
+                "AfWindows": af_windows  # List of Rectangle objects
             })
 
             print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized")
-            print(f"  Pixels: ({window_x_pixels}, {window_y_pixels}, {window_w_pixels}, {window_h_pixels})")
-            print(f"  16-bit coords: ({window_x_norm}, {window_y_norm}, {window_w_norm}, {window_h_norm})")
+            print(f"  Sensor area coords: ({x_sensor}, {y_sensor}, {w_sensor}, {h_sensor})")
+            print(f"  Rectangle after translate: {af_rect}")
 
             # DIAGNOSTIC: Verify controls were actually applied
             try:
