@@ -344,7 +344,10 @@ class CameraStreamer:
 
         # Re-apply AF window if active (ensures window persists after configure/reinit)
         if self._af_window_active and self._af_window_coords:
-            self.camera.set_controls({"AfWindows": [self._af_window_coords]})
+            self.camera.set_controls({
+                "AfWindows": [self._af_window_coords],
+                "AfPause": 2  # Resume continuous AF
+            })
 
         # Small delay to allow controls to settle
         time.sleep(0.05)
@@ -723,6 +726,15 @@ class CameraStreamer:
         if self.camera and self.streaming:
             try:
                 self.camera.set_controls(control_dict)
+
+                # Re-apply AF window if active (preserve window when other controls change)
+                if self._af_window_active and self._af_window_coords:
+                    self.camera.set_controls({
+                        "AfMetering": 2,  # Windows mode
+                        "AfWindows": [self._af_window_coords],
+                        "AfPause": 2  # Resume continuous AF
+                    })
+
                 print(f"Updated controls: {control_dict}")
                 return True
             except Exception as e:
@@ -915,7 +927,8 @@ class CameraStreamer:
             # Apply AF window controls
             self.camera.set_controls({
                 "AfMetering": 2,  # Windows mode (use specified windows)
-                "AfWindows": af_windows
+                "AfWindows": af_windows,
+                "AfPause": 2  # Resume continuous AF (0=Running state, ensures active scanning)
             })
 
             print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized, "
@@ -929,17 +942,17 @@ class CameraStreamer:
 
                 # Check what AF-related metadata is available
                 af_state = metadata.get('AfState', 'N/A')
+                af_pause_state = metadata.get('AfPauseState', 'N/A')
                 lens_pos = metadata.get('LensPosition', 'N/A')
+                focus_fom = metadata.get('FocusFoM', 'N/A')
 
-                # Try to read back AfMetering (may not be in metadata)
-                print(f"🔍 DIAGNOSTIC: AfState={af_state}, LensPosition={lens_pos}")
+                # Decode AfState: 0=Idle, 1=Scanning, 2=Focused, 3=Failed
+                af_state_name = {0: 'Idle', 1: 'Scanning', 2: 'Focused', 3: 'Failed'}.get(af_state, af_state)
+                # Decode AfPauseState: 0=Running, 1=Pausing, 2=Paused
+                af_pause_name = {0: 'Running', 1: 'Pausing', 2: 'Paused'}.get(af_pause_state, af_pause_state)
 
-                # List all available metadata keys for debugging
-                af_keys = [k for k in metadata.keys() if 'Af' in k or 'Lens' in k or 'Focus' in k]
-                if af_keys:
-                    print(f"🔍 DIAGNOSTIC: AF-related metadata keys: {af_keys}")
-                else:
-                    print(f"🔍 DIAGNOSTIC: No AF-related keys in metadata. Available keys: {list(metadata.keys())[:10]}...")
+                print(f"🔍 DIAGNOSTIC: AfState={af_state_name} ({af_state}), AfPauseState={af_pause_name} ({af_pause_state})")
+                print(f"🔍 DIAGNOSTIC: LensPosition={lens_pos}, FocusFoM={focus_fom}")
 
             except Exception as diag_error:
                 print(f"⚠️  Diagnostic read failed: {diag_error}")
