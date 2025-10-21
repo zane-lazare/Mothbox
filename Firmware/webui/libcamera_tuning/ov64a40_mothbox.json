@@ -1156,6 +1156,7 @@
                         "step_frames": 4
                     }
                 },
+                "check_for_ir": false,
                 "conf_epsilon": 8,
                 "conf_thresh": 16,
                 "conf_clip": 512,
