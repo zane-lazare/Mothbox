@@ -226,23 +226,60 @@ class TestAfWindowFocusPerformance:
 class TestAfWindowWebSocketIntegration:
     """Test AF window WebSocket event handling"""
 
+    @pytest.fixture(autouse=True, scope='class')
+    def ensure_camera_released(self, socketio_app):
+        """Ensure camera is released before and after WebSocket tests"""
+        import gc
+        import time
+
+        socketio, app = socketio_app
+        camera_streamer = app.config['CAMERA_STREAMER']
+
+        # BEFORE: Release camera from previous tests
+        print("\n🔄 Preparing WebSocket tests - releasing camera...")
+        if camera_streamer.streaming:
+            camera_streamer.stop_streaming()
+        if camera_streamer.camera:
+            camera_streamer.release_camera()
+        gc.collect()
+        time.sleep(2.0)
+        print("   ✓ Camera released and ready for WebSocket tests")
+
+        yield
+
+        # AFTER: Cleanup
+        print("\n🧹 WebSocket tests complete - final cleanup...")
+        if camera_streamer.streaming:
+            camera_streamer.stop_streaming()
+        if camera_streamer.camera:
+            camera_streamer.release_camera()
+        gc.collect()
+        time.sleep(1.0)
+        print("   ✓ Camera resources cleaned up")
+
     def test_set_af_window_websocket_success(self, socketio_app):
         """Test set_af_window event with valid coordinates"""
         print("\n📡 Testing set_af_window WebSocket event...")
 
         socketio, app = socketio_app
-        camera_streamer = app.config['CAMERA_STREAMER']
-
-        # Initialize camera
-        camera_streamer.initialize_camera()
-        camera_streamer.start_streaming()
-        time.sleep(1)
 
         # Create test client
         client = socketio.test_client(app, namespace='/')
         assert client.is_connected()
 
-        # Emit set_af_window
+        # Start preview via WebSocket (like user clicking "Start Preview")
+        print("   Starting preview via WebSocket...")
+        client.emit('start_preview')
+        time.sleep(2)  # Allow camera to initialize
+
+        # Verify preview started
+        received = client.get_received()
+        preview_msgs = [r for r in received if r['name'] == 'preview_status']
+        assert len(preview_msgs) > 0, "Should receive preview_status event"
+        assert preview_msgs[0]['args'][0]['streaming'] is True, "Preview should be streaming"
+        print("   ✓ Preview started successfully")
+
+        # Now test set_af_window on live stream
         client.emit('set_af_window', {'x': 0.5, 'y': 0.5, 'window_size': 0.2})
         time.sleep(0.2)
 
@@ -261,8 +298,9 @@ class TestAfWindowWebSocketIntegration:
 
         print(f"   ✓ Received: {response['message']}")
 
-        # Cleanup
-        camera_streamer.stop_streaming()
+        # Cleanup - stop preview
+        client.emit('stop_preview')
+        time.sleep(0.5)
         client.disconnect()
 
     def test_clear_af_window_websocket(self, socketio_app):
@@ -270,16 +308,16 @@ class TestAfWindowWebSocketIntegration:
         print("\n🧹 Testing clear AF window WebSocket event...")
 
         socketio, app = socketio_app
-        camera_streamer = app.config['CAMERA_STREAMER']
 
-        # Initialize camera
-        camera_streamer.initialize_camera()
-        camera_streamer.start_streaming()
-        time.sleep(1)
-
-        # Create test client
+        # Create client and start preview
         client = socketio.test_client(app, namespace='/')
         assert client.is_connected()
+
+        print("   Starting preview via WebSocket...")
+        client.emit('start_preview')
+        time.sleep(2)
+        client.get_received()  # Clear buffer
+        print("   ✓ Preview started successfully")
 
         # Set window first
         client.emit('set_af_window', {'x': 0.5, 'y': 0.5, 'window_size': 0.2})
@@ -306,7 +344,8 @@ class TestAfWindowWebSocketIntegration:
         print(f"   ✓ Received: {response['message']}")
 
         # Cleanup
-        camera_streamer.stop_streaming()
+        client.emit('stop_preview')
+        time.sleep(0.5)
         client.disconnect()
 
     def test_af_window_error_not_streaming(self, socketio_app):
@@ -314,17 +353,11 @@ class TestAfWindowWebSocketIntegration:
         print("\n⚠️  Testing error handling when camera not streaming...")
 
         socketio, app = socketio_app
-        camera_streamer = app.config['CAMERA_STREAMER']
 
-        # Don't start streaming - just ensure camera is released
-        if camera_streamer.streaming:
-            camera_streamer.stop_streaming()
-        if camera_streamer.camera:
-            camera_streamer.release_camera()
-
-        # Create test client
+        # Create client but DON'T start preview
         client = socketio.test_client(app, namespace='/')
         assert client.is_connected()
+        client.get_received()  # Clear connection messages
 
         # Try to set AF window without streaming
         client.emit('set_af_window', {'x': 0.5, 'y': 0.5})
@@ -351,16 +384,16 @@ class TestAfWindowWebSocketIntegration:
         print("\n⚙️  Testing invalid parameter validation...")
 
         socketio, app = socketio_app
-        camera_streamer = app.config['CAMERA_STREAMER']
 
-        # Initialize camera
-        camera_streamer.initialize_camera()
-        camera_streamer.start_streaming()
-        time.sleep(1)
-
-        # Create test client
+        # Create client and start preview
         client = socketio.test_client(app, namespace='/')
         assert client.is_connected()
+
+        print("   Starting preview via WebSocket...")
+        client.emit('start_preview')
+        time.sleep(2)
+        client.get_received()  # Clear buffer
+        print("   ✓ Preview started successfully")
 
         # Test invalid data type (string instead of dict)
         client.emit('set_af_window', "invalid")
@@ -375,7 +408,8 @@ class TestAfWindowWebSocketIntegration:
             print(f"   ✓ Invalid data type rejected: {response['error']}")
 
         # Cleanup
-        camera_streamer.stop_streaming()
+        client.emit('stop_preview')
+        time.sleep(0.5)
         client.disconnect()
 
     def test_websocket_connection_lifecycle(self, socketio_app):
