@@ -265,6 +265,34 @@ class CameraStreamer:
             # Start camera to apply controls
             self.camera.start()
 
+            # DIAGNOSTIC: List all available camera controls to debug AF window support
+            print("\n" + "="*60)
+            print("CAMERA CONTROLS DIAGNOSTIC")
+            print("="*60)
+            try:
+                controls = self.camera.camera_controls
+                af_controls = {k: v for k, v in controls.items() if 'Af' in k or 'Focus' in k}
+                print(f"AF-related controls available: {list(af_controls.keys())}")
+
+                # Check specifically for AfWindows and AfMetering
+                if 'AfWindows' in controls:
+                    print(f"  ✓ AfWindows supported: {controls['AfWindows']}")
+                else:
+                    print("  ✗ AfWindows NOT available")
+
+                if 'AfMetering' in controls:
+                    print(f"  ✓ AfMetering supported: {controls['AfMetering']}")
+                else:
+                    print("  ✗ AfMetering NOT available")
+
+                # Get sample metadata to see what's actually reported
+                metadata = self.camera.capture_metadata()
+                af_metadata = {k: v for k, v in metadata.items() if 'Af' in k or 'Focus' in k or 'Lens' in k}
+                print(f"AF-related metadata keys: {list(af_metadata.keys())}")
+            except Exception as diag_err:
+                print(f"Diagnostic failed: {diag_err}")
+            print("="*60 + "\n")
+
             # Apply camera controls
             # CRITICAL: Must be called after configure() as configure() resets controls to defaults
             applied_controls = self._apply_camera_controls()
