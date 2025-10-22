@@ -443,16 +443,50 @@ fi
 echo -e "${GREEN}✓ Repository permissions OK${NC}"
 echo ""
 
-# Check for uncommitted changes
+# Check for uncommitted changes and untracked files
+HAS_UNCOMMITTED=false
+HAS_UNTRACKED=false
+STASH_NEEDED=false
+
 if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-    echo -e "${YELLOW}Warning: You have uncommitted changes in your working directory${NC}"
+    HAS_UNCOMMITTED=true
+fi
+
+# Check for untracked files (excluding common directories)
+if [ -n "$(git ls-files --others --exclude-standard)" ]; then
+    HAS_UNTRACKED=true
+fi
+
+if [ "$HAS_UNCOMMITTED" = "true" ] || [ "$HAS_UNTRACKED" = "true" ]; then
+    echo -e "${YELLOW}Warning: You have local changes in your working directory${NC}"
+
+    if [ "$HAS_UNCOMMITTED" = "true" ]; then
+        echo -e "${YELLOW}  • Modified files that haven't been committed${NC}"
+    fi
+    if [ "$HAS_UNTRACKED" = "true" ]; then
+        echo -e "${YELLOW}  • Untracked files${NC}"
+    fi
+
+    echo ""
+    echo "To update successfully, we need to temporarily save your changes."
+    echo "Your changes will be stashed and can be restored later if needed."
+    echo ""
+
     if [ "$AUTO_YES" = "false" ] && [ "$DRY_RUN" = "false" ]; then
-        read -p "Continue anyway? These changes may be lost. [y/N] " -n 1 -r
+        read -p "Stash local changes and continue with update? [y/N] " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             echo -e "${RED}Update cancelled${NC}"
+            echo ""
+            echo "To update manually:"
+            echo "  1. Commit your changes: git add . && git commit -m 'local changes'"
+            echo "  2. Or stash them: git stash --include-untracked"
+            echo "  3. Then run: $0"
             exit 1
         fi
+        STASH_NEEDED=true
+    elif [ "$AUTO_YES" = "true" ]; then
+        STASH_NEEDED=true
     fi
 fi
 
@@ -529,6 +563,26 @@ if [ "$NEED_GIT_PULL" = "true" ]; then
     if [ "$DRY_RUN" = "true" ]; then
         echo -e "${YELLOW}[DRY RUN] Would run: git pull origin $TARGET_BRANCH${NC}"
     else
+        # Stash local changes if needed
+        if [ "$STASH_NEEDED" = "true" ]; then
+            echo -e "${BLUE}Stashing local changes...${NC}"
+            STASH_NAME="mothbox-update-$(date +%Y%m%d-%H%M%S)"
+
+            # Stash both tracked and untracked files
+            if git stash push --include-untracked -m "$STASH_NAME" 2>&1; then
+                echo -e "${GREEN}✓ Local changes stashed as '$STASH_NAME'${NC}"
+                echo ""
+                echo "To restore your changes later, run:"
+                echo -e "${CYAN}  git stash list${NC}  (to see stashed changes)"
+                echo -e "${CYAN}  git stash pop${NC}   (to restore the most recent stash)"
+                echo ""
+            else
+                echo -e "${YELLOW}Warning: Failed to stash some changes${NC}"
+                echo "Attempting to continue with update..."
+                echo ""
+            fi
+        fi
+
         echo -e "${BLUE}Pulling updates from git...${NC}"
 
         # Try git pull with error handling
