@@ -27,6 +27,7 @@ try:
     from picamera2 import Picamera2
     from picamera2.encoders import MJPEGEncoder
     from picamera2.outputs import FileOutput
+    from libcamera import controls
     PICAMERA_AVAILABLE = True
     HARDWARE_MJPEG_AVAILABLE = True
 except (ImportError, RuntimeError):
@@ -113,7 +114,7 @@ class CameraStreamer:
 
         # AF window state tracking (click-to-focus feature)
         self._af_window_active = False  # True when AF window is set
-        self._af_window_coords = None  # Stores (x, y, w, h) in 16-bit normalized coords (0-65535)
+        self._af_window_coords = None  # Stores (x, y, w, h) in PixelArraySize pixel coordinates
 
         # ISP feature toggles (Phase: ISP Tuning)
         # Note: Lens shading changes require camera restart - no runtime control available
@@ -379,10 +380,10 @@ class CameraStreamer:
 
         # Re-apply AF window if active (ensures window persists after configure/reinit)
         if self._af_window_active and self._af_window_coords:
-            # AfWindows expects list of tuples in 16-bit normalized coordinate space (0-65535)
+            # AfWindows expects list of tuples in PixelArraySize pixel coordinate space
             self.camera.set_controls({
-                "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
-                "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples
+                "AfMetering": controls.AfMeteringEnum.Windows,  # Use enum, not integer
+                "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) pixel tuples
             })
 
         # Small delay to allow controls to settle
@@ -775,10 +776,10 @@ class CameraStreamer:
 
                 # Re-apply AF window if active (preserve window when other controls change)
                 if self._af_window_active and self._af_window_coords:
-                    # AfWindows expects list of tuples in 16-bit normalized coordinate space (0-65535)
+                    # AfWindows expects list of tuples in PixelArraySize pixel coordinate space
                     self.camera.set_controls({
-                        "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
-                        "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples
+                        "AfMetering": controls.AfMeteringEnum.Windows,  # Use enum, not integer
+                        "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) pixel tuples
                     })
 
                 print(f"Updated controls: {control_dict}")
@@ -963,29 +964,20 @@ class CameraStreamer:
             window_x_pixels = window_x_pixels & ~1
             window_y_pixels = window_y_pixels & ~1
 
-            # Convert to 16-bit normalized coordinates (0-65535 range)
-            # libcamera AfWindows expects 16-bit normalized based on full sensor (PixelArraySize)
-            # Diagnostic shows: AfWindows supported: ((0,0,0,0), (65535,65535,65535,65535), (0,0,0,0))
-            COORD_MAX = 65535
-            window_x_norm = int((window_x_pixels / sensor_width) * COORD_MAX)
-            window_y_norm = int((window_y_pixels / sensor_height) * COORD_MAX)
-            window_w_norm = int((window_w_pixels / sensor_width) * COORD_MAX)
-            window_h_norm = int((window_h_pixels / sensor_height) * COORD_MAX)
-
-            # Store AF window coordinates as tuple (x, y, w, h) in 16-bit normalized space
-            self._af_window_coords = (window_x_norm, window_y_norm, window_w_norm, window_h_norm)
+            # Store AF window coordinates as tuple (x, y, w, h) in PixelArraySize pixel space
+            # AfWindows expects pixel coordinates in full sensor resolution, not normalized
+            self._af_window_coords = (window_x_pixels, window_y_pixels, window_w_pixels, window_h_pixels)
             self._af_window_active = True
 
-            # AfWindows expects list of tuples in 16-bit normalized coordinate space
+            # AfWindows expects list of tuples in PixelArraySize pixel coordinate space
             self.camera.set_controls({
-                "AfMetering": 1,  # Windows mode (0=Auto, 1=Windows)
-                "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples
+                "AfMetering": controls.AfMeteringEnum.Windows,  # Use enum, not integer
+                "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) pixel tuples
             })
 
             print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized")
             print(f"  PixelArraySize: {pixel_array_size}")
-            print(f"  Pixel coords: ({window_x_pixels}, {window_y_pixels}, {window_w_pixels}, {window_h_pixels})")
-            print(f"  16-bit normalized: {self._af_window_coords}")
+            print(f"  AF window pixels (x, y, w, h): {self._af_window_coords}")
 
             # DIAGNOSTIC: Verify controls were actually applied
             try:
