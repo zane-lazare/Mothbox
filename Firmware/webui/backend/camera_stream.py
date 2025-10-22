@@ -113,7 +113,7 @@ class CameraStreamer:
 
         # AF window state tracking (click-to-focus feature)
         self._af_window_active = False  # True when AF window is set
-        self._af_window_coords = None  # Stores (x, y, w, h) in 16-bit normalized coords (0-65535)
+        self._af_window_coords = None  # Stores (x, y, w, h) in pixel coordinates relative to ScalerCropMaximum
 
         # ISP feature toggles (Phase: ISP Tuning)
         # Note: Lens shading changes require camera restart - no runtime control available
@@ -379,10 +379,10 @@ class CameraStreamer:
 
         # Re-apply AF window if active (ensures window persists after configure/reinit)
         if self._af_window_active and self._af_window_coords:
-            # AfWindows expects list of tuples in 16-bit normalized coordinate space (0-65535)
+            # AfWindows expects list of tuples in sensor pixel coordinates
             self.camera.set_controls({
                 "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
-                "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples
+                "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples in pixels
             })
 
         # Small delay to allow controls to settle
@@ -775,10 +775,10 @@ class CameraStreamer:
 
                 # Re-apply AF window if active (preserve window when other controls change)
                 if self._af_window_active and self._af_window_coords:
-                    # AfWindows expects list of tuples in 16-bit normalized coordinate space (0-65535)
+                    # AfWindows expects list of tuples in sensor pixel coordinates
                     self.camera.set_controls({
                         "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
-                        "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples
+                        "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples in pixels
                     })
 
                 print(f"Updated controls: {control_dict}")
@@ -925,14 +925,17 @@ class CameraStreamer:
                 print("✓ AF window cleared - using auto metering")
                 return True
 
-            # Get full sensor resolution (PixelArraySize) for coordinate normalization
-            # AfWindows uses 16-bit normalized coordinates (0-65535) based on full sensor size
-            pixel_array_size = self.camera.camera_properties.get('PixelArraySize')
-            if not pixel_array_size:
-                print("⚠ Cannot set AF window - PixelArraySize not available")
+            # Get full sensor coordinate system from ScalerCropMaximum
+            # AfWindows uses absolute pixel coordinates referenced against ScalerCropMaximum
+            # ScalerCropMaximum format: (x_offset, y_offset, width, height)
+            # For full sensor: (0, 0, 9152, 6944) on Arducam 64MP
+            scaler_crop_max = self.camera.camera_properties.get('ScalerCropMaximum')
+            if not scaler_crop_max:
+                print("⚠ Cannot set AF window - ScalerCropMaximum not available")
                 return False
 
-            sensor_width, sensor_height = pixel_array_size
+            # Extract sensor dimensions from ScalerCropMaximum
+            _, _, sensor_width, sensor_height = scaler_crop_max
 
             # Clamp normalized coordinates to valid range
             x = max(0.0, min(x, 1.0))
@@ -963,29 +966,23 @@ class CameraStreamer:
             window_x_pixels = window_x_pixels & ~1
             window_y_pixels = window_y_pixels & ~1
 
-            # Convert to 16-bit normalized coordinates (0-65535 range)
-            # libcamera AfWindows expects 16-bit normalized based on full sensor (PixelArraySize)
-            # Diagnostic shows: AfWindows supported: ((0,0,0,0), (65535,65535,65535,65535), (0,0,0,0))
-            COORD_MAX = 65535
-            window_x_norm = int((window_x_pixels / sensor_width) * COORD_MAX)
-            window_y_norm = int((window_y_pixels / sensor_height) * COORD_MAX)
-            window_w_norm = int((window_w_pixels / sensor_width) * COORD_MAX)
-            window_h_norm = int((window_h_pixels / sensor_height) * COORD_MAX)
-
-            # Store AF window coordinates as tuple (x, y, w, h) in 16-bit normalized space
-            self._af_window_coords = (window_x_norm, window_y_norm, window_w_norm, window_h_norm)
+            # Use absolute pixel coordinates as per libcamera specification
+            # AfWindows expects (x, y, width, height) in sensor pixel coordinates
+            # referenced against ScalerCropMaximum (NOT normalized 0-65535!)
+            # For Arducam 64MP: center 20% window would be ~(3660, 2777, 1830, 1388) in pixels
+            self._af_window_coords = (window_x_pixels, window_y_pixels, window_w_pixels, window_h_pixels)
             self._af_window_active = True
 
-            # AfWindows expects list of tuples in 16-bit normalized coordinate space
+            # AfWindows expects list of tuples in sensor pixel coordinates
             self.camera.set_controls({
                 "AfMetering": 1,  # Windows mode (0=Auto, 1=Windows)
-                "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples
+                "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples in pixels
             })
 
-            print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized")
-            print(f"  PixelArraySize: {pixel_array_size}")
-            print(f"  Pixel coords: ({window_x_pixels}, {window_y_pixels}, {window_w_pixels}, {window_h_pixels})")
-            print(f"  16-bit normalized: {self._af_window_coords}")
+            print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized → pixels {self._af_window_coords}")
+            print(f"  ScalerCropMaximum: {scaler_crop_max}")
+            print(f"  AF Window (pixel coords): ({window_x_pixels}, {window_y_pixels}, {window_w_pixels}, {window_h_pixels})")
+            print(f"  Window covers: ({window_x_pixels}, {window_y_pixels}) to ({window_x_pixels + window_w_pixels}, {window_y_pixels + window_h_pixels})")
 
             # DIAGNOSTIC: Verify controls were actually applied
             try:

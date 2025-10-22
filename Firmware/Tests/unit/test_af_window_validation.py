@@ -27,10 +27,15 @@ class TestAfWindowCoordinateConversion:
         mock_socketio = Mock()
         streamer = CameraStreamer(mock_socketio)
 
-        # Mock sensor resolution (4056x3040 - OV64A40 sensor)
-        streamer.sensor_resolution = (4056, 3040)
+        # Mock sensor resolution (9152x6944 - Arducam 64MP OV64A40 sensor)
+        streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
+
+        # Mock ScalerCropMaximum property (required for pixel coordinate reference)
+        streamer.camera.camera_properties = {
+            'ScalerCropMaximum': (0, 0, 9152, 6944)
+        }
 
         # Mock set_controls to capture the call
         controls_set = {}
@@ -44,31 +49,35 @@ class TestAfWindowCoordinateConversion:
         assert success is True
         assert 'AfWindows' in controls_set
         assert 'AfMetering' in controls_set
-        assert controls_set['AfMetering'] == 2
+        assert controls_set['AfMetering'] == 1  # Windows mode (not 2!)
 
         # Verify window format: [(x, y, width, height)]
         windows = controls_set['AfWindows']
         assert len(windows) == 1
         x, y, w, h = windows[0]
 
-        # Verify all coordinates are integers
+        # Verify all coordinates are integers (pixel coordinates)
         assert isinstance(x, int), f"x should be int, got {type(x)}"
         assert isinstance(y, int), f"y should be int, got {type(y)}"
         assert isinstance(w, int), f"w should be int, got {type(w)}"
         assert isinstance(h, int), f"h should be int, got {type(h)}"
 
-        # Verify dimensions: 20% of sensor
-        expected_w = int(4056 * 0.2)  # 811 → 810 (even)
-        expected_h = int(3040 * 0.2)  # 608 (even)
+        # Verify dimensions: 20% of sensor (in pixels, NOT normalized!)
+        expected_w = int(9152 * 0.2)  # 1830 (even)
+        expected_h = int(6944 * 0.2)  # 1388 (even)
         assert w == expected_w & ~1  # Ensure even
         assert h == expected_h & ~1
 
-        # Verify centered position
-        # x should be: (0.5 * 4056) - (w / 2) = 2028 - 405 = 1623 → 1622 (even)
-        expected_x = int((0.5 * 4056) - (w / 2)) & ~1
-        expected_y = int((0.5 * 3040) - (h / 2)) & ~1
+        # Verify centered position (in pixels)
+        # x should be: (0.5 * 9152) - (w / 2) = 4576 - 915 = 3661 → 3660 (even)
+        expected_x = int((0.5 * 9152) - (w / 2)) & ~1
+        expected_y = int((0.5 * 6944) - (h / 2)) & ~1
         assert x == expected_x
         assert y == expected_y
+
+        # Verify coordinates are in pixel range, not normalized 0-65535 range
+        assert x < 9152, f"x={x} should be in pixel range, not normalized"
+        assert y < 6944, f"y={y} should be in pixel range, not normalized"
 
         print(f"\n✓ Center position (0.5, 0.5) → pixels ({x}, {y}, {w}, {h})")
 
@@ -78,9 +87,14 @@ class TestAfWindowCoordinateConversion:
 
         mock_socketio = Mock()
         streamer = CameraStreamer(mock_socketio)
-        streamer.sensor_resolution = (4056, 3040)
+        streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
+
+        # Mock ScalerCropMaximum property
+        streamer.camera.camera_properties = {
+            'ScalerCropMaximum': (0, 0, 9152, 6944)
+        }
 
         controls_set = {}
         streamer.camera.set_controls = lambda c: controls_set.update(c)
@@ -92,17 +106,21 @@ class TestAfWindowCoordinateConversion:
         windows = controls_set['AfWindows']
         x, y, w, h = windows[0]
 
-        # Verify window is within sensor bounds
+        # Verify window is within sensor bounds (pixel coordinates)
         assert x >= 0
         assert y >= 0
-        assert x + w <= 4056
-        assert y + h <= 3040
+        assert x + w <= 9152
+        assert y + h <= 6944
 
         # Verify dimensions are even
         assert w % 2 == 0
         assert h % 2 == 0
         assert x % 2 == 0
         assert y % 2 == 0
+
+        # Verify coordinates are in pixel range, not normalized
+        assert x < 9152, f"x={x} should be in pixel range"
+        assert y < 6944, f"y={y} should be in pixel range"
 
         print(f"\n✓ Corner position (0.25, 0.25) → pixels ({x}, {y}, {w}, {h})")
 
@@ -112,9 +130,14 @@ class TestAfWindowCoordinateConversion:
 
         mock_socketio = Mock()
         streamer = CameraStreamer(mock_socketio)
-        streamer.sensor_resolution = (4056, 3040)
+        streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
+
+        # Mock ScalerCropMaximum property
+        streamer.camera.camera_properties = {
+            'ScalerCropMaximum': (0, 0, 9152, 6944)
+        }
 
         window_sizes = [0.1, 0.2, 0.3, 0.4, 0.5]
         results = []
@@ -126,9 +149,9 @@ class TestAfWindowCoordinateConversion:
             streamer.set_af_window(0.5, 0.5, window_size=size)
             x, y, w, h = controls_set['AfWindows'][0]
 
-            # Verify size scales correctly
-            expected_w = int(4056 * size) & ~1
-            expected_h = int(3040 * size) & ~1
+            # Verify size scales correctly (in pixels)
+            expected_w = int(9152 * size) & ~1
+            expected_h = int(6944 * size) & ~1
 
             assert abs(w - expected_w) <= 2, f"Width {w} != expected {expected_w}"
             assert abs(h - expected_h) <= 2, f"Height {h} != expected {expected_h}"
@@ -149,9 +172,14 @@ class TestAfWindowParameterValidation:
 
         mock_socketio = Mock()
         streamer = CameraStreamer(mock_socketio)
-        streamer.sensor_resolution = (4056, 3040)
+        streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
+
+        # Mock ScalerCropMaximum property
+        streamer.camera.camera_properties = {
+            'ScalerCropMaximum': (0, 0, 9152, 6944)
+        }
 
         controls_set = {}
         streamer.camera.set_controls = lambda c: controls_set.update(c)
@@ -162,9 +190,8 @@ class TestAfWindowParameterValidation:
         assert success is True
         assert controls_set['AfMetering'] == 0  # Auto metering
         # Should NOT set AfWindows when clearing (avoid assertion failure)
-        # If AfWindows is set, it should be empty or not present
-        if 'AfWindows' in controls_set:
-            assert controls_set['AfWindows'] == []
+        # AfWindows should not be present in controls_set when clearing
+        assert 'AfWindows' not in controls_set, "AfWindows should not be set when clearing"
 
         print(f"\n✓ None coordinates clear AF window")
 
@@ -174,9 +201,14 @@ class TestAfWindowParameterValidation:
 
         mock_socketio = Mock()
         streamer = CameraStreamer(mock_socketio)
-        streamer.sensor_resolution = (4056, 3040)
+        streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
+
+        # Mock ScalerCropMaximum property
+        streamer.camera.camera_properties = {
+            'ScalerCropMaximum': (0, 0, 9152, 6944)
+        }
 
         controls_set = {}
         streamer.camera.set_controls = lambda c: controls_set.update(c)
@@ -188,10 +220,10 @@ class TestAfWindowParameterValidation:
         x, y, w, h = windows[0]
 
         # Verify window is within sensor bounds (clamped)
-        assert 0 <= x < 4056
-        assert 0 <= y < 3040
-        assert x + w <= 4056
-        assert y + h <= 3040
+        assert 0 <= x < 9152
+        assert 0 <= y < 6944
+        assert x + w <= 9152
+        assert y + h <= 6944
 
         print(f"\n✓ Out-of-range coordinates (1.5, -0.5) clamped to valid bounds")
 
@@ -201,7 +233,7 @@ class TestAfWindowParameterValidation:
 
         mock_socketio = Mock()
         streamer = CameraStreamer(mock_socketio)
-        streamer.sensor_resolution = (4056, 3040)
+        streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = False  # Not streaming
 
@@ -211,19 +243,22 @@ class TestAfWindowParameterValidation:
         print(f"\n✓ Returns False when camera not streaming")
 
     def test_sensor_resolution_not_available(self):
-        """Test setting AF window when sensor resolution not available"""
+        """Test setting AF window when ScalerCropMaximum not available"""
         from camera_stream import CameraStreamer
 
         mock_socketio = Mock()
         streamer = CameraStreamer(mock_socketio)
-        streamer.sensor_resolution = None  # Not set
+        streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
+
+        # Mock camera_properties without ScalerCropMaximum
+        streamer.camera.camera_properties = {}
 
         success = streamer.set_af_window(0.5, 0.5)
 
         assert success is False
-        print(f"\n✓ Returns False when sensor resolution not available")
+        print(f"\n✓ Returns False when ScalerCropMaximum not available")
 
     def test_minimum_window_size_enforced(self):
         """Test minimum window size (5% of frame) is enforced"""
@@ -231,9 +266,14 @@ class TestAfWindowParameterValidation:
 
         mock_socketio = Mock()
         streamer = CameraStreamer(mock_socketio)
-        streamer.sensor_resolution = (4056, 3040)
+        streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
+
+        # Mock ScalerCropMaximum property
+        streamer.camera.camera_properties = {
+            'ScalerCropMaximum': (0, 0, 9152, 6944)
+        }
 
         controls_set = {}
         streamer.camera.set_controls = lambda c: controls_set.update(c)
@@ -245,7 +285,7 @@ class TestAfWindowParameterValidation:
         x, y, w, h = windows[0]
 
         # Verify minimum size is enforced (5% of smaller dimension)
-        min_size = int(min(4056, 3040) * 0.05)
+        min_size = int(min(9152, 6944) * 0.05)
         assert w >= min_size
         assert h >= min_size
 
@@ -261,9 +301,14 @@ class TestAfWindowEdgeCases:
 
         mock_socketio = Mock()
         streamer = CameraStreamer(mock_socketio)
-        streamer.sensor_resolution = (4056, 3040)
+        streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
+
+        # Mock ScalerCropMaximum property
+        streamer.camera.camera_properties = {
+            'ScalerCropMaximum': (0, 0, 9152, 6944)
+        }
 
         corners = [
             (0.0, 0.0, "top-left"),
@@ -283,11 +328,11 @@ class TestAfWindowEdgeCases:
             windows = controls_set['AfWindows']
             x, y, w, h = windows[0]
 
-            # Verify within bounds
+            # Verify within bounds (pixel coordinates)
             assert x >= 0
             assert y >= 0
-            assert x + w <= 4056
-            assert y + h <= 3040
+            assert x + w <= 9152
+            assert y + h <= 6944
 
             print(f"   {name:15s} ({norm_x}, {norm_y}) → ({x:4d}, {y:4d}, {w:4d}, {h:4d})")
 
@@ -297,9 +342,14 @@ class TestAfWindowEdgeCases:
 
         mock_socketio = Mock()
         streamer = CameraStreamer(mock_socketio)
-        streamer.sensor_resolution = (4056, 3040)
+        streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
+
+        # Mock ScalerCropMaximum property
+        streamer.camera.camera_properties = {
+            'ScalerCropMaximum': (0, 0, 9152, 6944)
+        }
 
         edges = [
             (0.5, 0.0, "top-center"),
@@ -319,11 +369,11 @@ class TestAfWindowEdgeCases:
             windows = controls_set['AfWindows']
             x, y, w, h = windows[0]
 
-            # Verify within bounds
+            # Verify within bounds (pixel coordinates)
             assert x >= 0
             assert y >= 0
-            assert x + w <= 4056
-            assert y + h <= 3040
+            assert x + w <= 9152
+            assert y + h <= 6944
 
             print(f"   {name:15s} ({norm_x}, {norm_y}) → ({x:4d}, {y:4d}, {w:4d}, {h:4d})")
 
@@ -333,9 +383,14 @@ class TestAfWindowEdgeCases:
 
         mock_socketio = Mock()
         streamer = CameraStreamer(mock_socketio)
-        streamer.sensor_resolution = (4056, 3040)
+        streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
+
+        # Mock ScalerCropMaximum property
+        streamer.camera.camera_properties = {
+            'ScalerCropMaximum': (0, 0, 9152, 6944)
+        }
 
         controls_set = {}
         streamer.camera.set_controls = lambda c: controls_set.update(c)
@@ -346,11 +401,11 @@ class TestAfWindowEdgeCases:
         windows = controls_set['AfWindows']
         x, y, w, h = windows[0]
 
-        # Verify clamped to bounds
+        # Verify clamped to bounds (pixel coordinates)
         assert x >= 0
         assert y >= 0
-        assert x + w <= 4056
-        assert y + h <= 3040
+        assert x + w <= 9152
+        assert y + h <= 6944
 
         print(f"\n✓ Large window (50%) at corner clamped: ({x}, {y}, {w}, {h})")
 
@@ -360,9 +415,14 @@ class TestAfWindowEdgeCases:
 
         mock_socketio = Mock()
         streamer = CameraStreamer(mock_socketio)
-        streamer.sensor_resolution = (4056, 3040)
+        streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
+
+        # Mock ScalerCropMaximum property
+        streamer.camera.camera_properties = {
+            'ScalerCropMaximum': (0, 0, 9152, 6944)
+        }
 
         controls_history = []
 
@@ -386,9 +446,14 @@ class TestAfWindowEdgeCases:
 
         mock_socketio = Mock()
         streamer = CameraStreamer(mock_socketio)
-        streamer.sensor_resolution = (4056, 3040)
+        streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
+
+        # Mock ScalerCropMaximum property
+        streamer.camera.camera_properties = {
+            'ScalerCropMaximum': (0, 0, 9152, 6944)
+        }
 
         # Test many random positions and sizes
         import random
@@ -408,7 +473,7 @@ class TestAfWindowEdgeCases:
             windows = controls_set['AfWindows']
             x, y, w, h = windows[0]
 
-            # Verify all dimensions are even
+            # Verify all dimensions are even (pixel coordinates)
             assert x % 2 == 0, f"x={x} not even"
             assert y % 2 == 0, f"y={y} not even"
             assert w % 2 == 0, f"w={w} not even"
