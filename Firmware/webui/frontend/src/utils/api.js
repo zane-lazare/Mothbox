@@ -107,3 +107,10 @@ export const getCronJobs = () => api.get('/scheduler/jobs')
 export const addCronJob = (job) => api.post('/scheduler/job', job)
 export const deleteCronJob = (command) => api.delete('/scheduler/job', { data: { command } })
 export const getSchedulerStatus = () => api.get('/scheduler/status')
+
+// Preset APIs
+export const getPresets = () => api.get('/presets')
+export const getPreset = (name) => api.get(`/presets/${name}`)
+export const createPreset = (data) => api.post('/presets', data)
+export const applyPreset = (name, applyTo) => api.post(`/presets/${name}/apply`, { apply_to: applyTo })
+export const deletePreset = (name) => api.delete(`/presets/${name}`)
