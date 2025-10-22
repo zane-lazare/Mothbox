@@ -84,7 +84,6 @@ export default function Camera() {
         socketRef.current.emit('update_preview_control', {
           [controlName]: value
         })
-        console.log(`Emitting control update: ${controlName}=${value}`)
       }
     }, 150) // 150ms debounce - balances responsiveness vs network usage
   }
@@ -101,7 +100,6 @@ export default function Camera() {
           center_x: centerX,
           center_y: centerY
         })
-        console.log(`Emitting zoom update: ${zoomLevel}x at (${centerX.toFixed(2)}, ${centerY.toFixed(2)})`)
       }
     }, 150) // 150ms debounce - balances responsiveness vs network usage
   }
@@ -189,16 +187,6 @@ export default function Camera() {
     })
 
     socketRef.current.on('metadata_update', (data) => {
-      // Debug: Log metadata to see what values we're getting
-      if (data && !data.error) {
-        console.log('Metadata:', {
-          exposure: data.exposure_time,
-          gain: data.analogue_gain,
-          focus: data.lens_position,
-          colorTemp: data.colour_temperature,
-          afState: data.af_state
-        })
-      }
       setMetadata(data)
     })
 
@@ -208,18 +196,14 @@ export default function Camera() {
     })
 
     socketRef.current.on('control_updated', (data) => {
-      if (data.success) {
-        console.log('Control updated successfully:', data.control)
-      } else {
+      if (!data.success) {
         console.error('Control update failed:', data.error)
         toast.error(`Failed to update control: ${data.error}`)
       }
     })
 
     socketRef.current.on('zoom_updated', (data) => {
-      if (data.success) {
-        console.log('Zoom updated successfully:', data.zoom_level)
-      } else {
+      if (!data.success) {
         console.error('Zoom update failed:', data.error)
         toast.error(`Failed to update zoom: ${data.error}`)
       }
@@ -227,7 +211,6 @@ export default function Camera() {
 
     socketRef.current.on('af_window_updated', (data) => {
       if (data.success) {
-        console.log('AF window updated successfully:', data)
         // Update AF window state with animation trigger
         if (data.x !== null && data.y !== null) {
           setAfWindow({
@@ -536,7 +519,6 @@ export default function Camera() {
         center_x: normalizedX,
         center_y: normalizedY
       })
-      console.log(`Click-to-zoom: ${zoomLevel}x at (${normalizedX.toFixed(2)}, ${normalizedY.toFixed(2)})`)
     }
   }
 
@@ -561,7 +543,6 @@ export default function Camera() {
         y: normalizedY,
         window_size: 0.2  // 20% of frame
       })
-      console.log(`Click-to-focus: AF window at (${normalizedX.toFixed(2)}, ${normalizedY.toFixed(2)})`)
       toast.success(`Focusing at (${(normalizedX * 100).toFixed(0)}%, ${(normalizedY * 100).toFixed(0)}%)`)
     }
   }
