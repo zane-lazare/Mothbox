@@ -929,13 +929,15 @@ class CameraStreamer:
             # AfWindows uses absolute pixel coordinates referenced against ScalerCropMaximum
             # ScalerCropMaximum format: (x_offset, y_offset, width, height)
             # For full sensor: (0, 0, 9152, 6944) on Arducam 64MP
+            # For sensor modes: (offset_x, offset_y, active_width, active_height)
             scaler_crop_max = self.camera.camera_properties.get('ScalerCropMaximum')
             if not scaler_crop_max:
                 print("⚠ Cannot set AF window - ScalerCropMaximum not available")
                 return False
 
-            # Extract sensor dimensions from ScalerCropMaximum
-            _, _, sensor_width, sensor_height = scaler_crop_max
+            # Extract sensor dimensions AND offset from ScalerCropMaximum
+            # The offset defines where the active area starts in full sensor coordinates
+            x_offset, y_offset, sensor_width, sensor_height = scaler_crop_max
 
             # Clamp normalized coordinates to valid range
             x = max(0.0, min(x, 1.0))
@@ -954,17 +956,24 @@ class CameraStreamer:
             window_w_pixels = window_w_pixels & ~1
             window_h_pixels = window_h_pixels & ~1
 
-            # Calculate window position (top-left corner) centered on click point
-            window_x_pixels = int((x * sensor_width) - (window_w_pixels / 2))
-            window_y_pixels = int((y * sensor_height) - (window_h_pixels / 2))
+            # Calculate window position relative to active area (top-left corner centered on click point)
+            window_x_rel = int((x * sensor_width) - (window_w_pixels / 2))
+            window_y_rel = int((y * sensor_height) - (window_h_pixels / 2))
 
-            # Clamp position to sensor bounds
-            window_x_pixels = max(0, min(window_x_pixels, sensor_width - window_w_pixels))
-            window_y_pixels = max(0, min(window_y_pixels, sensor_height - window_h_pixels))
+            # Clamp position to active area bounds
+            window_x_rel = max(0, min(window_x_rel, sensor_width - window_w_pixels))
+            window_y_rel = max(0, min(window_y_rel, sensor_height - window_h_pixels))
 
             # Ensure even offsets (required by some encoders)
-            window_x_pixels = window_x_pixels & ~1
-            window_y_pixels = window_y_pixels & ~1
+            window_x_rel = window_x_rel & ~1
+            window_y_rel = window_y_rel & ~1
+
+            # Add ScalerCropMaximum offset to convert to full sensor coordinates
+            # The offset defines where the active area starts in the full sensor space
+            # Example: ScalerCropMaximum=(784, 1312, 7712, 4352) means active area
+            # starts at (784, 1312) in full sensor coordinates
+            window_x_pixels = x_offset + window_x_rel
+            window_y_pixels = y_offset + window_y_rel
 
             # Use absolute pixel coordinates as per libcamera specification
             # AfWindows expects (x, y, width, height) in sensor pixel coordinates
@@ -973,21 +982,42 @@ class CameraStreamer:
             self._af_window_coords = (window_x_pixels, window_y_pixels, window_w_pixels, window_h_pixels)
             self._af_window_active = True
 
-            # AfWindows expects list of tuples in sensor pixel coordinates
-            self.camera.set_controls({
-                "AfMetering": 1,  # Windows mode (0=Auto, 1=Windows)
-                "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples in pixels
-            })
+            print(f"✓ AF window calculated: center=({x:.2f}, {y:.2f}) normalized")
+            print(f"  ScalerCropMaximum: {scaler_crop_max} (offset={x_offset},{y_offset}, size={sensor_width}x{sensor_height})")
+            print(f"  Position in active area: ({window_x_rel}, {window_y_rel})")
+            print(f"  Position in full sensor: ({window_x_pixels}, {window_y_pixels}) [with offset added]")
+            print(f"  Window size: {window_w_pixels}x{window_h_pixels}")
+            print(f"  Full window coordinates: {self._af_window_coords}")
 
-            print(f"✓ AF window set: center=({x:.2f}, {y:.2f}) normalized → pixels {self._af_window_coords}")
-            print(f"  ScalerCropMaximum: {scaler_crop_max}")
-            print(f"  AF Window (pixel coords): ({window_x_pixels}, {window_y_pixels}, {window_w_pixels}, {window_h_pixels})")
-            print(f"  Window covers: ({window_x_pixels}, {window_y_pixels}) to ({window_x_pixels + window_w_pixels}, {window_y_pixels + window_h_pixels})")
+            # Apply controls in separate steps to verify each one
+            # Step 1: Set AfMetering to Windows mode
+            try:
+                print(f"  → Setting AfMetering to Windows mode (1)...")
+                self.camera.set_controls({"AfMetering": 1})
+                time.sleep(0.05)  # Let control settle
+                print(f"  ✓ AfMetering set successfully")
+            except Exception as e:
+                print(f"  ❌ ERROR setting AfMetering: {e}")
+                import traceback
+                traceback.print_exc()
+                return False
+
+            # Step 2: Set AfWindows with calculated coordinates
+            try:
+                print(f"  → Setting AfWindows: {self._af_window_coords}...")
+                self.camera.set_controls({"AfWindows": [self._af_window_coords]})
+                print(f"  ✓ AfWindows set successfully")
+            except Exception as e:
+                print(f"  ❌ ERROR setting AfWindows: {e}")
+                import traceback
+                traceback.print_exc()
+                return False
+
+            print(f"✓ AF window controls applied successfully")
 
             # DIAGNOSTIC: Verify controls were actually applied
             try:
-                import time
-                time.sleep(0.1)  # Let controls settle
+                time.sleep(0.15)  # Let controls fully settle
                 metadata = self.camera.capture_metadata()
 
                 # Check what AF-related metadata is available
@@ -998,21 +1028,37 @@ class CameraStreamer:
 
                 # CRITICAL: Check if AfMetering is actually being applied
                 # If AfMetering isn't in metadata, the hardware may not support window mode
+                # OR it might be a write-only control (driver limitation)
                 af_metering = metadata.get('AfMetering', 'N/A')
 
                 # Decode AfState: 0=Idle, 1=Scanning, 2=Focused, 3=Failed
                 af_state_name = {0: 'Idle', 1: 'Scanning', 2: 'Focused', 3: 'Failed'}.get(af_state, af_state)
                 # Decode AfPauseState: 0=Running, 1=Pausing, 2=Paused
                 af_pause_name = {0: 'Running', 1: 'Pausing', 2: 'Paused'}.get(af_pause_state, af_pause_state)
-                # Decode AfMetering: 0=Auto (full-frame), 1=Windows mode (range is 0-1, not 0-2!)
+                # Decode AfMetering: 0=Auto (full-frame), 1=Windows mode
                 af_metering_name = {0: 'Auto/FullFrame', 1: 'Windows'}.get(af_metering, af_metering)
 
                 print(f"🔍 DIAGNOSTIC: AfState={af_state_name} ({af_state}), AfPauseState={af_pause_name} ({af_pause_state})")
                 print(f"🔍 DIAGNOSTIC: AfMetering={af_metering_name} ({af_metering}) ← Should be 'Windows (1)'!")
                 print(f"🔍 DIAGNOSTIC: LensPosition={lens_pos}, FocusFoM={focus_fom}")
 
+                if af_metering == 'N/A':
+                    print(f"⚠️  AfMetering not in metadata - may be write-only control")
+                    print(f"ℹ️  To check for driver errors: dmesg | grep -i 'libcamera\\|pisp\\|af'")
+                elif af_metering != 1:
+                    print(f"❌ WARNING: AfMetering is {af_metering}, not 1 (Windows mode)!")
+                    print(f"   This means windowed AF is NOT active - camera is using full-frame AF")
+                    print(f"ℹ️  Possible causes:")
+                    print(f"   - Driver/hardware limitation in this sensor mode")
+                    print(f"   - Window coordinates rejected (check dmesg)")
+                    print(f"   - AfMetering being overridden by another control")
+                else:
+                    print(f"✓ AfMetering = Windows mode - windowed AF should be active!")
+
             except Exception as diag_error:
                 print(f"⚠️  Diagnostic read failed: {diag_error}")
+                import traceback
+                traceback.print_exc()
 
             return True
 
