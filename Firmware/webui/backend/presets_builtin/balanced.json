@@ -1,0 +1,45 @@
+{
+  "name": "balanced",
+  "display_name": "⚖️ Balanced (General Purpose)",
+  "description": "Balanced settings for general-purpose photography. Moderate exposure, ISO, and processing for versatile use across different conditions.",
+  "version": "1.0",
+  "created_at": "2025-10-23T10:00:00Z",
+  "author": "system",
+  "category": "built-in",
+  "settings": {
+    "camera": {
+      "ExposureTime": 10000,
+      "AnalogueGain": 4.0,
+      "AeEnable": "True",
+      "ExposureValue": 0.6,
+      "AfMode": 2,
+      "AfRange": 0,
+      "AfSpeed": 0,
+      "Sharpness": 1.5,
+      "Brightness": 0.0,
+      "Contrast": 1.0,
+      "Saturation": 1.0,
+      "AwbEnable": "True",
+      "AwbMode": 0,
+      "NoiseReductionMode": 1,
+      "HDR": 1,
+      "FocusBracket": 1,
+      "ImageFileType": 0,
+      "VerticalFlip": 0
+    },
+    "preview": {
+      "sharpness": 1.0,
+      "brightness": 0.0,
+      "contrast": 1.0,
+      "saturation": 1.0,
+      "af_mode": 2,
+      "af_range": 0,
+      "af_speed": 0,
+      "ae_enable": true,
+      "ae_metering_mode": 0,
+      "noise_reduction_mode": 1,
+      "awb_enable": true,
+      "awb_mode": 0
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "name": "high_speed",
+  "display_name": "⚡ High Speed",
+  "description": "Optimized for fast-moving subjects and action shots. Uses very fast shutter speed, continuous autofocus, and fast AF speed to freeze motion.",
+  "version": "1.0",
+  "created_at": "2025-10-23T10:00:00Z",
+  "author": "system",
+  "category": "built-in",
+  "settings": {
+    "camera": {
+      "ExposureTime": 2000,
+      "AnalogueGain": 3.0,
+      "AeEnable": "False",
+      "ExposureValue": 0.0,
+      "AfMode": 2,
+      "AfRange": 2,
+      "AfSpeed": 1,
+      "Sharpness": 1.8,
+      "Brightness": 0.0,
+      "Contrast": 1.1,
+      "Saturation": 1.0,
+      "AwbEnable": "True",
+      "AwbMode": 0,
+      "NoiseReductionMode": 0,
+      "HDR": 1,
+      "FocusBracket": 1,
+      "ImageFileType": 0,
+      "VerticalFlip": 0
+    },
+    "preview": {
+      "sharpness": 1.5,
+      "brightness": 0.0,
+      "contrast": 1.0,
+      "saturation": 1.0,
+      "af_mode": 2,
+      "af_range": 2,
+      "af_speed": 1,
+      "ae_enable": true,
+      "ae_metering_mode": 0,
+      "noise_reduction_mode": 0,
+      "awb_enable": true,
+      "awb_mode": 0
+    }
+  }
+}
