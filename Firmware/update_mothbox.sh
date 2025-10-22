@@ -63,6 +63,7 @@ FORCE_UPDATE="false"
 VERIFY_ONLY="false"
 SKIP_FILE_COPY="false"
 FORCE_FRONTEND_REBUILD="false"
+FIX_PERMISSIONS="false"
 
 # Installation location variables (will be detected)
 MOTHBOX_HOME=""
@@ -106,6 +107,10 @@ while [[ $# -gt 0 ]]; do
             FORCE_FRONTEND_REBUILD="true"
             shift
             ;;
+        --fix-permissions)
+            FIX_PERMISSIONS="true"
+            shift
+            ;;
         --help|-h)
             echo "Mothbox Update Script"
             echo ""
@@ -120,6 +125,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --verify          Check installation status without updating"
             echo "  --skip-copy       Skip copying files to installation (for testing)"
             echo "  --rebuild         Force clean rebuild of frontend (clears Vite cache)"
+            echo "  --fix-permissions Fix repository ownership issues before updating"
             echo "  --help, -h        Show this help message"
             exit 0
             ;;
@@ -297,6 +303,74 @@ verify_installation() {
     fi
 }
 
+# Check if git repository has permission issues
+check_repo_permissions() {
+    local repo_path="$1"
+    local current_user="${2:-$USER}"
+
+    # Check if repo has files owned by other users (especially root)
+    if [ -d "$repo_path/.git" ]; then
+        local root_owned=$(find "$repo_path" -user root 2>/dev/null | wc -l)
+        local write_test_dir="$repo_path/.git"
+
+        # Try to create a test file to verify write permissions
+        if ! touch "$write_test_dir/.permission_test" 2>/dev/null; then
+            echo -e "${RED}Error: Cannot write to git repository${NC}"
+            echo -e "${YELLOW}Repository path: $repo_path${NC}"
+            echo ""
+            echo "This usually happens when the repository has files owned by root"
+            echo "from previous sudo operations."
+            echo ""
+            echo "To fix, run:"
+            echo -e "${CYAN}  sudo chown -R $current_user:$current_user $(realpath $repo_path)${NC}"
+            echo ""
+            return 1
+        else
+            rm -f "$write_test_dir/.permission_test" 2>/dev/null
+        fi
+
+        if [ "$root_owned" -gt 0 ]; then
+            echo -e "${YELLOW}Warning: Found $root_owned files owned by root in repository${NC}"
+            echo "This may cause issues with git operations"
+            echo ""
+            echo "To fix ownership, run:"
+            echo -e "${CYAN}  sudo chown -R $current_user:$current_user $(realpath $repo_path)${NC}"
+            echo ""
+
+            if [ "$AUTO_YES" = "false" ]; then
+                read -p "Continue anyway? [y/N] " -n 1 -r
+                echo
+                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                    return 1
+                fi
+            fi
+        fi
+    fi
+
+    return 0
+}
+
+# Fix repository permissions
+fix_repo_permissions() {
+    local repo_path="$1"
+    local target_user="${2:-$USER}"
+
+    echo -e "${BLUE}Fixing repository permissions...${NC}"
+    echo -e "${CYAN}Repository:${NC} $repo_path"
+    echo -e "${CYAN}Target owner:${NC} $target_user"
+    echo ""
+
+    sudo chown -R "$target_user:$target_user" "$repo_path"
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Repository permissions fixed${NC}"
+        return 0
+    else
+        echo -e "${RED}✗ Failed to fix permissions${NC}"
+        return 1
+    fi
+}
+
 echo -e "${BLUE}================================================================================${NC}"
 echo -e "${BLUE}Mothbox Update${NC}"
 echo -e "${BLUE}================================================================================${NC}"
@@ -349,6 +423,25 @@ if ! git -C "$MOTHBOX_ROOT" rev-parse --git-dir > /dev/null 2>&1; then
 fi
 
 cd "$MOTHBOX_ROOT"
+
+# Handle --fix-permissions mode
+if [ "$FIX_PERMISSIONS" = "true" ]; then
+    fix_repo_permissions "$MOTHBOX_ROOT" "$MOTHBOX_USER"
+    exit $?
+fi
+
+# Check repository permissions before git operations
+echo -e "${BLUE}Checking repository permissions...${NC}"
+if ! check_repo_permissions "$MOTHBOX_ROOT" "$MOTHBOX_USER"; then
+    echo -e "${RED}Repository permission check failed${NC}"
+    echo ""
+    echo "You can fix this by running:"
+    echo -e "${CYAN}  $0 --fix-permissions${NC}"
+    echo ""
+    exit 1
+fi
+echo -e "${GREEN}✓ Repository permissions OK${NC}"
+echo ""
 
 # Check for uncommitted changes
 if ! git diff-index --quiet HEAD -- 2>/dev/null; then
@@ -437,7 +530,35 @@ if [ "$NEED_GIT_PULL" = "true" ]; then
         echo -e "${YELLOW}[DRY RUN] Would run: git pull origin $TARGET_BRANCH${NC}"
     else
         echo -e "${BLUE}Pulling updates from git...${NC}"
-        git pull origin "$TARGET_BRANCH"
+
+        # Try git pull with error handling
+        if ! git pull origin "$TARGET_BRANCH" 2>&1 | tee /tmp/mothbox_git_pull.log; then
+            # Git pull failed - check if it's a permission issue
+            if grep -q "Permission denied" /tmp/mothbox_git_pull.log || grep -q "unable to create file" /tmp/mothbox_git_pull.log; then
+                echo -e "${RED}✗ Git pull failed due to permission issues${NC}"
+                echo ""
+                echo "This usually happens when files in the repository are owned by root"
+                echo "or another user, preventing git from creating/updating files."
+                echo ""
+                echo "To fix this, run:"
+                echo -e "${CYAN}  $0 --fix-permissions${NC}"
+                echo ""
+                echo "Or manually:"
+                echo -e "${CYAN}  sudo chown -R $MOTHBOX_USER:$MOTHBOX_USER $(realpath $MOTHBOX_ROOT)${NC}"
+                echo -e "${CYAN}  $0${NC}"
+                echo ""
+                rm -f /tmp/mothbox_git_pull.log
+                exit 1
+            else
+                # Other git error
+                echo -e "${RED}✗ Git pull failed${NC}"
+                echo "Check the error message above for details"
+                rm -f /tmp/mothbox_git_pull.log
+                exit 1
+            fi
+        fi
+
+        rm -f /tmp/mothbox_git_pull.log
         echo -e "${GREEN}✓ Git updates pulled${NC}"
 
         # Update COMPARE_COMMIT to new HEAD after pull
