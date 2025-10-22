@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getControls, updateControls, getCameraSettings, updateCameraSettings, getSystemInfo, getDiagnosticInfo, getWebUISettings, updateWebUISettings } from '../utils/api'
+import { getControls, updateControls, getCameraSettings, updateCameraSettings, getSystemInfo, getDiagnosticInfo, getWebUISettings, updateWebUISettings, getPresets, getPreset, applyPreset, deletePreset, createPreset } from '../utils/api'
 import { useState, useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
@@ -74,9 +74,56 @@ export default function Settings() {
     },
   })
 
+  // Preset management
+  const { data: presetsData, isLoading: presetsLoading } = useQuery({
+    queryKey: ['presets'],
+    queryFn: () => getPresets().then(res => res.data),
+  })
+
+  const applyPresetMutation = useMutation({
+    mutationFn: ({ name, applyTo }) => applyPreset(name, applyTo),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries(['camera-settings'])
+      queryClient.invalidateQueries(['webui-settings'])
+      toast.success(response.data.message || 'Preset applied successfully!')
+    },
+    onError: (error) => {
+      const message = error.response?.data?.error || 'Failed to apply preset'
+      toast.error(`Error: ${message}`)
+    },
+  })
+
+  const deletePresetMutation = useMutation({
+    mutationFn: (name) => deletePreset(name),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['presets'])
+      setSelectedPreset('')
+      toast.success('Preset deleted successfully!')
+    },
+    onError: (error) => {
+      const message = error.response?.data?.error || 'Failed to delete preset'
+      toast.error(`Error: ${message}`)
+    },
+  })
+
+  const createPresetMutation = useMutation({
+    mutationFn: (data) => createPreset(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['presets'])
+      toast.success('Preset saved successfully!')
+      setShowSaveModal(false)
+    },
+    onError: (error) => {
+      const message = error.response?.data?.error || 'Failed to save preset'
+      toast.error(`Error: ${message}`)
+    },
+  })
+
   const [controlsForm, setControlsForm] = useState({})
   const [cameraForm, setCameraForm] = useState({})
   const [webuiForm, setWebuiForm] = useState({})
+  const [selectedPreset, setSelectedPreset] = useState('')
+  const [showSaveModal, setShowSaveModal] = useState(false)
 
   // Initialize forms when data loads - use useEffect to avoid re-render loop
   useEffect(() => {
@@ -126,6 +173,34 @@ export default function Settings() {
   const handleWebuiSubmit = (e) => {
     e.preventDefault()
     updateWebuiMutation.mutate(webuiForm)
+  }
+
+  // Preset management handlers
+  const builtInPresets = presetsData?.presets?.filter(p => p.category === 'built-in') || []
+  const userPresets = presetsData?.presets?.filter(p => p.category === 'user') || []
+  const selectedPresetData = presetsData?.presets?.find(p => p.name === selectedPreset)
+
+  const handleApplyPreset = (applyTo) => {
+    if (!selectedPreset) {
+      toast.error('Please select a preset first')
+      return
+    }
+    applyPresetMutation.mutate({ name: selectedPreset, applyTo })
+  }
+
+  const handleDeletePreset = () => {
+    if (!selectedPreset) return
+    if (selectedPresetData?.category === 'built-in') {
+      toast.error('Cannot delete built-in presets')
+      return
+    }
+    if (confirm(`Delete preset "${selectedPresetData?.display_name}"?`)) {
+      deletePresetMutation.mutate(selectedPreset)
+    }
+  }
+
+  const handleSavePreset = () => {
+    setShowSaveModal(true)
   }
 
   // Resolution presets
@@ -361,6 +436,114 @@ export default function Settings() {
           <p className="text-sm text-gray-600 mb-6">
             These settings control full-resolution photo captures (not preview). Changes take effect on next photo.
           </p>
+
+          {/* Preset Management Section */}
+          <div className="mb-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
+            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <span className="mr-2">🎨</span>
+              Settings Presets
+            </h4>
+
+            <div className="space-y-4">
+              {/* Preset Selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Quick Presets
+                </label>
+                <select
+                  value={selectedPreset}
+                  onChange={(e) => setSelectedPreset(e.target.value)}
+                  disabled={presetsLoading}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Custom Settings (No Preset)</option>
+                  {builtInPresets.length > 0 && (
+                    <optgroup label="Built-in Presets">
+                      {builtInPresets.map(p => (
+                        <option key={p.name} value={p.name}>
+                          {p.display_name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {userPresets.length > 0 && (
+                    <optgroup label="My Presets">
+                      {userPresets.map(p => (
+                        <option key={p.name} value={p.name}>
+                          📌 {p.display_name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+                {selectedPresetData && (
+                  <p className="mt-2 text-sm text-gray-600 italic">
+                    {selectedPresetData.description}
+                  </p>
+                )}
+              </div>
+
+              {/* Apply To Buttons */}
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('capture')}
+                  disabled={!selectedPreset || applyPresetMutation.isPending}
+                  className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                >
+                  📸 Capture
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('preview')}
+                  disabled={!selectedPreset || applyPresetMutation.isPending}
+                  className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                >
+                  👁️ Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('both')}
+                  disabled={!selectedPreset || applyPresetMutation.isPending}
+                  className="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                >
+                  🔄 Both
+                </button>
+              </div>
+
+              {/* Save Current as Preset */}
+              <div className="border-t border-blue-200 pt-4">
+                <button
+                  type="button"
+                  onClick={handleSavePreset}
+                  className="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium transition-colors"
+                >
+                  💾 Save Current Settings as Preset
+                </button>
+              </div>
+
+              {/* Delete Button (for user presets) */}
+              {selectedPreset && selectedPresetData?.category === 'user' && (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDeletePreset}
+                    disabled={deletePresetMutation.isPending}
+                    className="flex-1 bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 disabled:bg-gray-300 text-sm font-medium transition-colors"
+                  >
+                    🗑️ Delete Preset
+                  </button>
+                </div>
+              )}
+
+              {/* Preset Count Info */}
+              {presetsData?.counts && (
+                <p className="text-xs text-gray-500 text-center mt-2">
+                  {presetsData.counts.built_in} built-in, {presetsData.counts.user} custom ({presetsData.counts.total} total)
+                </p>
+              )}
+            </div>
+          </div>
 
           <form onSubmit={handleCameraSubmit} className="space-y-6">
 
