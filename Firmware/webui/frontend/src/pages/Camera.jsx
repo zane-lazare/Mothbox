@@ -611,19 +611,22 @@ export default function Camera() {
     }
   }
 
-  const handleApplyPreset = async () => {
-    if (!selectedPreset) {
-      toast.error('Please select a preset first')
-      return
+  const handleApplyPreset = async (presetName) => {
+    if (!presetName) {
+      return  // Silently ignore empty selection
     }
 
     try {
       await applyPresetMutation.mutateAsync({
-        name: selectedPreset,
+        name: presetName,
         applyTo: 'preview'
       })
 
-      toast.success(`Applied "${selectedPreset}" preset to stream`)
+      // Find the display name for the toast message
+      const preset = presetsData?.presets?.find(p => p.name === presetName)
+      const displayName = preset?.display_name || presetName
+
+      toast.success(`Applied "${displayName}" to stream`)
 
       // Reload webui settings to update live controls
       const API_URL = import.meta.env.VITE_API_URL || '/api'
@@ -648,6 +651,8 @@ export default function Camera() {
       console.error('Apply preset failed:', error)
       const message = error.response?.data?.error || 'Failed to apply preset'
       toast.error(`Apply failed: ${message}`)
+      // Reset selection on error
+      setSelectedPreset('')
     }
   }
 
@@ -909,29 +914,25 @@ export default function Camera() {
                 {/* Quick Presets Selector */}
                 <div className="mb-3 pb-3 border-b border-white/20">
                   <label className="block text-xs font-medium text-gray-200 mb-2">
-                    📋 Quick Presets
+                    📋 Quick Presets {applyPresetMutation.isPending && <span className="text-blue-300">(applying...)</span>}
                   </label>
-                  <div className="flex gap-2">
-                    <select
-                      value={selectedPreset}
-                      onChange={(e) => setSelectedPreset(e.target.value)}
-                      className="flex-1 px-2 py-1 text-xs bg-white/10 text-white rounded border border-white/20 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select preset...</option>
-                      {presetsData?.presets?.map((preset) => (
-                        <option key={preset.name} value={preset.name}>
-                          {preset.display_name}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={handleApplyPreset}
-                      disabled={!selectedPreset || applyPresetMutation.isPending}
-                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed whitespace-nowrap"
-                    >
-                      {applyPresetMutation.isPending ? 'Applying...' : 'Apply to Stream'}
-                    </button>
-                  </div>
+                  <select
+                    value={selectedPreset}
+                    onChange={(e) => {
+                      const newValue = e.target.value
+                      setSelectedPreset(newValue)
+                      handleApplyPreset(newValue)
+                    }}
+                    disabled={applyPresetMutation.isPending}
+                    className="w-full px-2 py-1 text-xs bg-white/10 text-white rounded border border-white/20 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="">Select preset...</option>
+                    {presetsData?.presets?.map((preset) => (
+                      <option key={preset.name} value={preset.name}>
+                        {preset.display_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="space-y-3">
