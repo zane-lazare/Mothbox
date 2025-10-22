@@ -637,15 +637,11 @@ export default function Camera() {
     }
   }
 
-  const handleSavePreset = async (presetName, description) => {
+  const handleSavePreset = async (presetData) => {
     try {
-      await createPresetMutation.mutateAsync({
-        name: presetName,
-        description,
-        from_current: true  // Save current stream settings
-      })
+      await createPresetMutation.mutateAsync(presetData)
 
-      toast.success(`Preset "${presetName}" saved successfully`)
+      toast.success(`Preset "${presetData.name}" saved successfully`)
       setShowSaveModal(false)
     } catch (error) {
       console.error('Save preset failed:', error)
