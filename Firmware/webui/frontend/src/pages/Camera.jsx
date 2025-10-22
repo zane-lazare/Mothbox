@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCapture, freezeSettings, getPresets, applyPreset } from '../utils/api'
+import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCapture, freezeSettings, getPresets, applyPreset, createPreset } from '../utils/api'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
+import SavePresetModal from '../components/SavePresetModal'
 
 export default function Camera() {
   const [capturing, setCapturing] = useState(false)
@@ -47,6 +48,7 @@ export default function Camera() {
   // Preset management
   const queryClient = useQueryClient()
   const [selectedPreset, setSelectedPreset] = useState('')
+  const [showSaveModal, setShowSaveModal] = useState(false)
 
   // Fetch available presets
   const { data: presetsData } = useQuery({
@@ -61,6 +63,14 @@ export default function Camera() {
     onSuccess: () => {
       queryClient.invalidateQueries(['webuiSettings'])
       queryClient.invalidateQueries(['cameraSettings'])
+    }
+  })
+
+  // Create preset mutation
+  const createPresetMutation = useMutation({
+    mutationFn: createPreset,
+    onSuccess: () => {
+      queryClient.invalidateQueries(['presets'])
     }
   })
 
@@ -641,6 +651,24 @@ export default function Camera() {
     }
   }
 
+  const handleSavePreset = async (presetName, description) => {
+    try {
+      await createPresetMutation.mutateAsync({
+        name: presetName,
+        description,
+        from_current: true  // Save current stream settings
+      })
+
+      toast.success(`Preset "${presetName}" saved successfully`)
+      setShowSaveModal(false)
+    } catch (error) {
+      console.error('Save preset failed:', error)
+      const message = error.response?.data?.error || 'Failed to save preset'
+      toast.error(`Save failed: ${message}`)
+      throw error  // Re-throw so modal can handle it
+    }
+  }
+
   return (
     <div className="space-y-2">
       <h2 className="text-2xl font-bold text-gray-900">Camera Control</h2>
@@ -862,12 +890,20 @@ export default function Camera() {
               <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white shadow-lg w-72 max-h-[calc(100vh-200px)] overflow-y-auto">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-sm font-semibold text-gray-200">🎨 Live Controls</h3>
-                  <button
-                    onClick={handleResetControls}
-                    className="px-2 py-1 text-xs bg-white/20 text-white rounded hover:bg-white/30"
-                  >
-                    Reset
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowSaveModal(true)}
+                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                      💾 Save
+                    </button>
+                    <button
+                      onClick={handleResetControls}
+                      className="px-2 py-1 text-xs bg-white/20 text-white rounded hover:bg-white/30"
+                    >
+                      Reset
+                    </button>
+                  </div>
                 </div>
 
                 {/* Quick Presets Selector */}
@@ -1486,6 +1522,14 @@ export default function Camera() {
           </div>
         </div>
       </div>
+
+      {/* Save Preset Modal */}
+      <SavePresetModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        onSave={handleSavePreset}
+        isSaving={createPresetMutation.isPending}
+      />
     </div>
   )
 }
