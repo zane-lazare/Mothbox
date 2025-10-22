@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCapture, freezeSettings } from '../utils/api'
+import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCapture, freezeSettings, getPresets, applyPreset } from '../utils/api'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
 
@@ -42,6 +43,26 @@ export default function Camera() {
   const metadataIntervalRef = useRef(null)
   const debounceTimerRef = useRef(null)  // Task 5: Debounce timer for control updates
   const zoomDebounceTimerRef = useRef(null)  // Debounce timer for zoom updates
+
+  // Preset management
+  const queryClient = useQueryClient()
+  const [selectedPreset, setSelectedPreset] = useState('')
+
+  // Fetch available presets
+  const { data: presetsData } = useQuery({
+    queryKey: ['presets'],
+    queryFn: getPresets,
+    staleTime: 30000 // 30 seconds
+  })
+
+  // Apply preset mutation
+  const applyPresetMutation = useMutation({
+    mutationFn: ({ name, applyTo }) => applyPreset(name, applyTo),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['webuiSettings'])
+      queryClient.invalidateQueries(['cameraSettings'])
+    }
+  })
 
   // Debounced function to emit control updates to backend (Task 5)
   const debouncedEmitControl = (controlName, value) => {
@@ -580,6 +601,46 @@ export default function Camera() {
     }
   }
 
+  const handleApplyPreset = async () => {
+    if (!selectedPreset) {
+      toast.error('Please select a preset first')
+      return
+    }
+
+    try {
+      await applyPresetMutation.mutateAsync({
+        name: selectedPreset,
+        applyTo: 'preview'
+      })
+
+      toast.success(`Applied "${selectedPreset}" preset to stream`)
+
+      // Reload webui settings to update live controls
+      const API_URL = import.meta.env.VITE_API_URL || '/api'
+      const response = await fetch(`${API_URL}/config/webui`)
+      if (response.ok) {
+        const data = await response.json()
+        // Update live controls with new preset values
+        setLiveControls(prev => ({
+          ...prev,
+          sharpness: data.sharpness ?? prev.sharpness,
+          brightness: data.brightness ?? prev.brightness,
+          contrast: data.contrast ?? prev.contrast,
+          saturation: data.saturation ?? prev.saturation,
+          noiseReductionMode: data.noise_reduction_mode ?? prev.noiseReductionMode,
+          aeMeteringMode: data.ae_metering_mode ?? prev.aeMeteringMode,
+          afMode: data.af_mode ?? prev.afMode,
+          afRange: data.af_range ?? prev.afRange,
+          afSpeed: data.af_speed ?? prev.afSpeed
+        }))
+      }
+    } catch (error) {
+      console.error('Apply preset failed:', error)
+      const message = error.response?.data?.error || 'Failed to apply preset'
+      toast.error(`Apply failed: ${message}`)
+    }
+  }
+
   return (
     <div className="space-y-2">
       <h2 className="text-2xl font-bold text-gray-900">Camera Control</h2>
@@ -807,6 +868,34 @@ export default function Camera() {
                   >
                     Reset
                   </button>
+                </div>
+
+                {/* Quick Presets Selector */}
+                <div className="mb-3 pb-3 border-b border-white/20">
+                  <label className="block text-xs font-medium text-gray-200 mb-2">
+                    📋 Quick Presets
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedPreset}
+                      onChange={(e) => setSelectedPreset(e.target.value)}
+                      className="flex-1 px-2 py-1 text-xs bg-white/10 text-white rounded border border-white/20 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select preset...</option>
+                      {presetsData?.presets?.map((preset) => (
+                        <option key={preset.name} value={preset.name}>
+                          {preset.display_name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleApplyPreset}
+                      disabled={!selectedPreset || applyPresetMutation.isPending}
+                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {applyPresetMutation.isPending ? 'Applying...' : 'Apply to Stream'}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-3">
