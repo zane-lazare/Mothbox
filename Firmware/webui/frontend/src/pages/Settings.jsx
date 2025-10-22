@@ -3,6 +3,7 @@ import { getControls, updateControls, getCameraSettings, updateCameraSettings, g
 import { useState, useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
+import SavePresetModal from '../components/SavePresetModal'
 
 export default function Settings() {
   const queryClient = useQueryClient()
@@ -1773,6 +1774,14 @@ export default function Settings() {
           </form>
         </div>
       )}
+
+      {/* Save Preset Modal */}
+      <SavePresetModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        onSave={(data) => createPresetMutation.mutateAsync(data)}
+        isSaving={createPresetMutation.isPending}
+      />
     </div>
   )
 }
