@@ -21,7 +21,7 @@ presets_bp = Blueprint('presets', __name__)
 preset_manager = PresetManager(BUILTIN_PRESET_DIR, USER_PRESET_DIR)
 
 
-@presets_bp.route('/presets', methods=['GET'])
+@presets_bp.route('/', methods=['GET'])
 def list_presets():
     """
     List all available presets (built-in + user)
@@ -51,7 +51,7 @@ def list_presets():
         return jsonify({'error': str(e)}), 500
 
 
-@presets_bp.route('/presets/<name>', methods=['GET'])
+@presets_bp.route('/<name>', methods=['GET'])
 def get_preset(name):
     """
     Get specific preset details by name
@@ -73,7 +73,7 @@ def get_preset(name):
         return jsonify({'error': str(e)}), 500
 
 
-@presets_bp.route('/presets', methods=['POST'])
+@presets_bp.route('/', methods=['POST'])
 def create_preset():
     """
     Create new user preset from request data
@@ -149,7 +149,7 @@ def create_preset():
         return jsonify({'error': str(e)}), 500
 
 
-@presets_bp.route('/presets/<name>/apply', methods=['POST'])
+@presets_bp.route('/<name>/apply', methods=['POST'])
 def apply_preset(name):
     """
     Apply preset to camera/preview/both settings
@@ -268,7 +268,7 @@ def apply_preset(name):
         return jsonify({'error': str(e)}), 500
 
 
-@presets_bp.route('/presets/<name>', methods=['DELETE'])
+@presets_bp.route('/<name>', methods=['DELETE'])
 def delete_preset(name):
     """
     Delete user preset (built-in presets are protected)
