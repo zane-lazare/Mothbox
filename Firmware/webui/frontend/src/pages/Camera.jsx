@@ -53,7 +53,7 @@ export default function Camera() {
   // Fetch available presets
   const { data: presetsData } = useQuery({
     queryKey: ['presets'],
-    queryFn: getPresets,
+    queryFn: () => getPresets().then(res => res.data),
     staleTime: 30000 // 30 seconds
   })
 
