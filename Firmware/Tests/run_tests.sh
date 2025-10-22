@@ -209,6 +209,15 @@ case "$TEST_TYPE" in
                Tests/integration/test_af_window_workflows.py -v -s
         ;;
 
+    "presets"|"preset")
+        # Settings Presets tests
+        echo "🚀 Running Settings Presets tests..."
+        echo ""
+        echo "Testing preset management, built-in presets, and complete preset workflows..."
+        pytest Tests/unit/test_presets.py \
+               Tests/integration/test_preset_workflows.py -v -s
+        ;;
+
     "issue43"|"complete")
         # All tests for GitHub issue #43
         echo "🚀 Running COMPLETE test suite for GitHub issue #43..."
