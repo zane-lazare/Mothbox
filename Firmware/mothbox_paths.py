@@ -91,6 +91,11 @@ WEBUI_SETTINGS_FILE = CONFIG_DIR / "webui_settings.txt"
 ISP_TUNING_DIR = CONFIG_DIR / "isp_tuning"
 ISP_DEFAULT_TUNING_FILE = ISP_TUNING_DIR / "camera_isp_tuning.json"
 
+# Preset configuration
+PRESET_DIR = CONFIG_DIR / "presets"
+BUILTIN_PRESET_DIR = PRESET_DIR / "built-in"
+USER_PRESET_DIR = PRESET_DIR / "user"
+
 # Helper function to parse controls.txt
 def get_control_values(filename: Union[Path, str]) -> Dict[str, str]:
     """

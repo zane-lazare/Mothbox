@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import mothbox_import  # Sets up sys.path for mothbox
 
-from mothbox_paths import CAMERA_SETTINGS_FILE, WEBUI_SETTINGS_FILE, get_control_values
+from mothbox_paths import CAMERA_SETTINGS_FILE, WEBUI_SETTINGS_FILE, get_control_values, BUILTIN_PRESET_DIR, USER_PRESET_DIR
 from preset_manager import PresetManager
 
 # Import validation from existing routes
@@ -18,9 +18,6 @@ from routes.camera import ALLOWED_CAMERA_SETTINGS
 presets_bp = Blueprint('presets', __name__)
 
 # Initialize preset manager
-BUILTIN_PRESET_DIR = Path(__file__).parent.parent / 'presets_builtin'
-USER_PRESET_DIR = Path('/etc/mothbox/presets/user')
-
 preset_manager = PresetManager(BUILTIN_PRESET_DIR, USER_PRESET_DIR)
 
 
