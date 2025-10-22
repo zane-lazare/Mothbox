@@ -21,7 +21,7 @@ presets_bp = Blueprint('presets', __name__)
 preset_manager = PresetManager(BUILTIN_PRESET_DIR, USER_PRESET_DIR)
 
 
-@presets_bp.route('/', methods=['GET'])
+@presets_bp.route('', methods=['GET'], strict_slashes=False)
 def list_presets():
     """
     List all available presets (built-in + user)
@@ -73,7 +73,7 @@ def get_preset(name):
         return jsonify({'error': str(e)}), 500
 
 
-@presets_bp.route('/', methods=['POST'])
+@presets_bp.route('', methods=['POST'], strict_slashes=False)
 def create_preset():
     """
     Create new user preset from request data
