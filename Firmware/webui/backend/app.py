@@ -111,6 +111,7 @@ from routes.gallery import gallery_bp
 from routes.config import config_bp
 from routes.gpio import gpio_bp
 from routes.scheduler import scheduler_bp
+from routes.presets import presets_bp
 
 # Make camera_streamer accessible to routes via app config
 app.config['CAMERA_STREAMER'] = camera_streamer
@@ -122,6 +123,7 @@ app.register_blueprint(gallery_bp, url_prefix='/api/gallery')
 app.register_blueprint(config_bp, url_prefix='/api/config')
 app.register_blueprint(gpio_bp, url_prefix='/api/gpio')
 app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
+app.register_blueprint(presets_bp, url_prefix='/api/presets')
 
 # Register WebSocket handlers
 from websocket_handlers import register_handlers
