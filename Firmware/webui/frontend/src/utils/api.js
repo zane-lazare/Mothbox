@@ -114,3 +114,7 @@ export const getPreset = (name) => api.get(`/presets/${name}`)
 export const createPreset = (data) => api.post('/presets', data)
 export const applyPreset = (name, applyTo) => api.post(`/presets/${name}/apply`, { apply_to: applyTo })
 export const deletePreset = (name) => api.delete(`/presets/${name}`)
+
+// User Preferences APIs
+export const getPreferences = () => api.get('/preferences')
+export const setPreference = (key, value) => api.post('/preferences', { key, value })
