@@ -86,6 +86,7 @@ SCHEDULE_SETTINGS_FILE = CONFIG_DIR / "schedule_settings.csv"
 CONTROLS_FILE = CONFIG_DIR / "controls.txt"
 WORDLIST_FILE = CONFIG_DIR / "wordlist.csv"
 WEBUI_SETTINGS_FILE = CONFIG_DIR / "webui_settings.txt"
+USER_PREFERENCES_FILE = CONFIG_DIR / "user_preferences.json"
 
 # ISP tuning configuration
 ISP_TUNING_DIR = CONFIG_DIR / "isp_tuning"

@@ -59,7 +59,8 @@ class PresetManager:
                             'description': data.get('description', ''),
                             'category': 'built-in',
                             'version': data.get('version', '1.0'),
-                            'author': data.get('author', 'system')
+                            'author': data.get('author', 'system'),
+                            'workflow': data.get('workflow', 'both')  # photo, video, or both
                         })
                 except (json.JSONDecodeError, IOError) as e:
                     print(f"Warning: Could not load built-in preset {preset_file}: {e}")
@@ -77,7 +78,8 @@ class PresetManager:
                             'category': 'user',
                             'version': data.get('version', '1.0'),
                             'author': data.get('author', 'user'),
-                            'created_at': data.get('created_at', '')
+                            'created_at': data.get('created_at', ''),
+                            'workflow': data.get('workflow', 'both')  # photo, video, or both
                         })
                 except (json.JSONDecodeError, IOError) as e:
                     print(f"Warning: Could not load user preset {preset_file}: {e}")
@@ -114,7 +116,7 @@ class PresetManager:
 
         return None
 
-    def save_preset(self, name: str, settings: Dict, description: str = '', category: str = 'user') -> Tuple[bool, str]:
+    def save_preset(self, name: str, settings: Dict, description: str = '', category: str = 'user', workflow: str = 'both') -> Tuple[bool, str]:
         """
         Save preset to user directory
 
@@ -123,6 +125,7 @@ class PresetManager:
             settings: Dict with 'camera' and/or 'preview' settings
             description: Human-readable description
             category: Should always be 'user' (built-in are read-only)
+            workflow: 'photo', 'video', or 'both' - which workflow this preset is for
 
         Returns:
             Tuple of (success: bool, message: str)
@@ -134,6 +137,10 @@ class PresetManager:
         # Built-in presets cannot be overwritten
         if category == 'built-in':
             return False, "Cannot modify built-in presets"
+
+        # Validate workflow
+        if workflow not in ['photo', 'video', 'both']:
+            return False, "Workflow must be 'photo', 'video', or 'both'"
 
         # Validate settings structure
         valid, error_msg = self.validate_preset(settings)
@@ -149,6 +156,7 @@ class PresetManager:
             'created_at': datetime.utcnow().isoformat() + 'Z',
             'author': 'user',
             'category': 'user',
+            'workflow': workflow,
             'settings': settings
         }
 

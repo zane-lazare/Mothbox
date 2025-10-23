@@ -26,6 +26,9 @@ def list_presets():
     """
     List all available presets (built-in + user)
 
+    Query params:
+        workflow: Filter by workflow type ('photo', 'video', or 'both')
+
     Returns:
         JSON array of preset metadata:
         [
@@ -34,13 +37,20 @@ def list_presets():
                 "display_name": "☀️ Daylight Photography",
                 "description": "...",
                 "category": "built-in",
-                "version": "1.0"
+                "version": "1.0",
+                "workflow": "both"
             },
             ...
         ]
     """
     try:
         presets = preset_manager.list_presets()
+
+        # Filter by workflow if specified
+        workflow_filter = request.args.get('workflow')
+        if workflow_filter:
+            presets = [p for p in presets if p.get('workflow') == workflow_filter or p.get('workflow') == 'both']
+
         counts = preset_manager.get_preset_count()
 
         return jsonify({
@@ -82,6 +92,7 @@ def create_preset():
         {
             "name": "my_preset",
             "description": "My custom preset",
+            "workflow": "photo",  // 'photo', 'video', or 'both'
             "from_current": true,  // If true, read current settings
             "settings": {  // Optional if from_current=true
                 "camera": {...},
@@ -103,6 +114,7 @@ def create_preset():
             return jsonify({'error': 'Preset name is required'}), 400
 
         description = data.get('description', '').strip()
+        workflow = data.get('workflow', 'both')
         from_current = data.get('from_current', False)
 
         # Get settings
@@ -135,7 +147,7 @@ def create_preset():
                 return jsonify({'error': 'Settings are required when from_current=false'}), 400
 
         # Save preset
-        success, message = preset_manager.save_preset(name, settings, description)
+        success, message = preset_manager.save_preset(name, settings, description, workflow=workflow)
 
         if success:
             return jsonify({'success': True, 'message': message, 'name': name})
