@@ -148,6 +148,7 @@ def app():
     from flask import Flask
     from routes.camera import camera_bp
     from routes.config import config_bp
+    from routes.presets import presets_bp
     from camera_stream import CameraStreamer
 
     # Create Flask app
@@ -158,6 +159,7 @@ def app():
     # Register blueprints with /api prefix to match production
     app.register_blueprint(camera_bp, url_prefix='/api/camera')
     app.register_blueprint(config_bp, url_prefix='/api/config')
+    app.register_blueprint(presets_bp, url_prefix='/api')
 
     # Create camera_streamer and register in app config
     # This is critical - many endpoints expect this
