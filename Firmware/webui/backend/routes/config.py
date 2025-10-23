@@ -259,6 +259,12 @@ def get_webui_settings():
             'ae_enable': True,           # True=Auto, False=Manual
             'exposure_time': 500,        # Microseconds (100-200000)
             'analogue_gain': 8.0,        # ISO gain (1.0-16.0)
+
+            # Focus peaking controls (preview-only overlay)
+            'focus_peaking_enabled': False,
+            'focus_peaking_intensity': 100,     # 50-200 range
+            'focus_peaking_color': 'green',     # green, red, yellow, cyan, magenta
+            'focus_peaking_algorithm': 'laplacian',  # laplacian, sobel, canny
         }
 
         # Load from file if it exists
@@ -267,10 +273,10 @@ def get_webui_settings():
             # Load settings from file, converting to appropriate types
             for key in defaults:
                 if key in settings:
-                    if key == 'stream_mode':
-                        # stream_mode is a string, don't convert
+                    if key in ['stream_mode', 'focus_peaking_color', 'focus_peaking_algorithm']:
+                        # String values - don't convert
                         defaults[key] = settings[key]
-                    elif key in ['awb_enable', 'ae_enable']:
+                    elif key in ['awb_enable', 'ae_enable', 'focus_peaking_enabled']:
                         # Boolean values
                         defaults[key] = settings[key].lower() == 'true'
                     elif key in ['sharpness', 'brightness', 'contrast', 'saturation',
@@ -280,8 +286,8 @@ def get_webui_settings():
                             defaults[key] = float(settings[key])
                         except ValueError:
                             pass  # Keep default if conversion fails
-                    elif key in ['noise_reduction_mode', 'ae_metering_mode', 'exposure_time']:
-                        # Integer values (noise_reduction_mode: 0-2, ae_metering_mode: 0-2, exposure_time: microseconds)
+                    elif key in ['noise_reduction_mode', 'ae_metering_mode', 'exposure_time', 'focus_peaking_intensity']:
+                        # Integer values (noise_reduction_mode: 0-2, ae_metering_mode: 0-2, exposure_time: microseconds, focus_peaking_intensity: 50-200)
                         try:
                             defaults[key] = int(settings[key])
                         except ValueError:
