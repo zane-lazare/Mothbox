@@ -370,10 +370,10 @@ export default function Settings() {
 
       {/* System Info Tab */}
       {activeTab === 'system' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="settings-grid-2col">
           {/* Installation Information Card */}
-          <div className="bg-white rounded-lg shadow p-3">
-            <h3 className="text-base font-semibold mb-2">Installation Information</h3>
+          <div className="settings-card-lg">
+            <h3 className="settings-section-title">Installation Information</h3>
             <div className="space-y-2">
               <div>
                 <p className="text-sm text-gray-500">Installation Type</p>
@@ -399,8 +399,8 @@ export default function Settings() {
           </div>
 
           {/* GPIO Pin Configuration Card */}
-          <div className="bg-white rounded-lg shadow p-3">
-            <h3 className="text-base font-semibold mb-2">GPIO Pin Configuration</h3>
+          <div className="settings-card-lg">
+            <h3 className="settings-section-title">GPIO Pin Configuration</h3>
             <p className="text-xs text-gray-600 mb-2">
               Source: <span className="font-medium">{systemInfo?.gpio_source || 'Loading...'}</span>
             </p>
@@ -419,7 +419,7 @@ export default function Settings() {
               </div>
             </div>
             {systemInfo?.gpio_source === 'defaults' && (
-              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
+              <div className="mt-2 settings-info-box bg-yellow-50 border-yellow-200">
                 <p className="text-xs text-yellow-800">
                   ⚠️ Using default GPIO pins. To customize, add Relay_Ch1, Relay_Ch2, and Relay_Ch3 to controls.txt
                 </p>
@@ -431,13 +431,13 @@ export default function Settings() {
 
       {/* Diagnostic Tab */}
       {activeTab === 'diagnostic' && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Diagnostic Information</h3>
+        <div className="settings-card-lg">
+          <h3 className="settings-section-title">Diagnostic Information</h3>
 
-          <div className="space-y-6">
+          <div className="space-y-3">
             <div>
-              <h4 className="font-medium mb-2">File Paths</h4>
-              <div className="space-y-2 text-sm font-mono">
+              <h4 className="settings-card-title">File Paths</h4>
+              <div className="space-y-1 text-xs font-mono">
                 {diagnosticInfo?.paths && Object.entries(diagnosticInfo.paths).map(([key, value]) => (
                   <div key={key} className="flex items-start">
                     <span className="text-gray-500 w-48">{key}:</span>
@@ -450,17 +450,17 @@ export default function Settings() {
             </div>
 
             <div>
-              <h4 className="font-medium mb-2">Controls File Content</h4>
-              <div className="space-y-2 text-sm">
+              <h4 className="settings-card-title">Controls File Content</h4>
+              <div className="space-y-1 text-xs">
                 <p>Raw lines: {diagnosticInfo?.controls_content?.raw_lines || 0}</p>
                 <p>Parsed keys: {diagnosticInfo?.controls_content?.parsed_keys?.length || 0}</p>
                 <p>Has GPIO pins: {diagnosticInfo?.controls_content?.has_gpio_pins ? '✓ Yes' : '✗ No'}</p>
-                <div className="mt-2">
-                  <p className="font-medium">Sample values:</p>
-                  <div className="font-mono text-xs bg-gray-50 p-2 rounded mt-1">
+                <div className="mt-1">
+                  <p className="settings-label">Sample values:</p>
+                  <div className="settings-info-box bg-gray-50">
                     {diagnosticInfo?.controls_content?.sample_values &&
                       Object.entries(diagnosticInfo.controls_content.sample_values).map(([key, value]) => (
-                        <div key={key}>{key}: {value}</div>
+                        <div key={key} className="font-mono settings-help-text">{key}: {value}</div>
                       ))
                     }
                   </div>
@@ -469,13 +469,13 @@ export default function Settings() {
             </div>
 
             <div>
-              <h4 className="font-medium mb-2">Hardware Modules</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <h4 className="settings-card-title">Hardware Modules</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {diagnosticInfo?.hardware_config && Object.entries(diagnosticInfo.hardware_config).map(([key, value]) => (
                   key.endsWith('_enabled') && (
-                    <div key={key} className="p-2 border rounded">
-                      <p className="text-xs text-gray-500">{key.replace('_enabled', '')}</p>
-                      <p className={`font-semibold ${value ? 'text-green-600' : 'text-gray-400'}`}>
+                    <div key={key} className="settings-info-box border">
+                      <p className="settings-help-text text-gray-500">{key.replace('_enabled', '')}</p>
+                      <p className={`font-semibold text-xs ${value ? 'text-green-600' : 'text-gray-400'}`}>
                         {value ? 'Enabled' : 'Disabled'}
                       </p>
                     </div>
@@ -489,26 +489,26 @@ export default function Settings() {
 
       {/* Controls Tab */}
       {activeTab === 'controls' && (
-        <div className="bg-white rounded-lg shadow p-3">
-          <h3 className="text-base font-semibold mb-2">Hardware Configuration</h3>
+        <div className="settings-card-lg">
+          <h3 className="settings-section-title">Hardware Configuration</h3>
           <form onSubmit={handleControlsSubmit} className="space-y-2">
             {Object.entries(controlsForm).map(([key, value]) => (
-              <div key={key}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              <div key={key} className="settings-form-group">
+                <label className="settings-label">
                   {key}
                 </label>
                 <input
                   type="text"
                   value={value}
                   onChange={(e) => setControlsForm({ ...controlsForm, [key]: e.target.value })}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="settings-input"
                 />
               </div>
             ))}
             <button
               type="submit"
               disabled={updateControlsMutation.isPending}
-              className="bg-blue-600 text-white px-4 py-2 text-sm rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="settings-button"
             >
               {updateControlsMutation.isPending ? (
                 <>
@@ -534,27 +534,27 @@ export default function Settings() {
           </div>
 
           {/* Photo Preset Management Section */}
-          <div className="bg-white rounded-lg shadow p-3">
+          <div className="settings-card-lg">
             <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
-            <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center">
+            <h4 className="settings-card-title flex items-center">
               <span className="mr-1">📸</span>
               Photo Capture Presets
             </h4>
-            <p className="text-[10px] text-gray-600 mb-2">
+            <p className="settings-help-text mb-2">
               Select a preset to auto-populate capture settings below. Review, tweak, then Save to apply.
             </p>
 
             <div className="space-y-2">
               {/* Photo Preset Selector */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+              <div className="settings-form-group">
+                <label className="settings-label">
                   Photo Preset
                 </label>
                 <select
                   value={selectedPhotoPreset}
                   onChange={(e) => setSelectedPhotoPreset(e.target.value)}
                   disabled={presetsLoading}
-                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="settings-select"
                 >
                   <option value="">Custom Settings (No Preset)</option>
                   {photoPresets.map(p => (
@@ -564,7 +564,7 @@ export default function Settings() {
                   ))}
                 </select>
                 {selectedPhotoPresetData && (
-                  <p className="mt-1 text-[10px] text-gray-600 italic">
+                  <p className="settings-help-text italic">
                     {selectedPhotoPresetData.description}
                   </p>
                 )}
@@ -576,14 +576,14 @@ export default function Settings() {
                   type="button"
                   onClick={handleSetDefaultPhotoPreset}
                   disabled={!selectedPhotoPreset || setPreferenceMutation.isPending}
-                  className="bg-yellow-500 text-white px-2 py-1 text-xs rounded hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  className="settings-button-sm bg-yellow-500 text-white hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
                   ⭐ Default
                 </button>
                 <button
                   type="button"
                   onClick={handleSavePhotoPreset}
-                  className="bg-indigo-600 text-white px-2 py-1 text-xs rounded hover:bg-indigo-700"
+                  className="settings-button-sm bg-indigo-600 text-white hover:bg-indigo-700"
                 >
                   💾 Save
                 </button>
@@ -595,7 +595,7 @@ export default function Settings() {
                   type="button"
                   onClick={handleDeletePhotoPreset}
                   disabled={deletePresetMutation.isPending}
-                  className="w-full bg-red-600 text-white px-2 py-1 text-xs rounded hover:bg-red-700 disabled:bg-gray-300"
+                  className="w-full settings-button-sm bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300"
                 >
                   🗑️ Delete
                 </button>
@@ -606,12 +606,12 @@ export default function Settings() {
 
           <form onSubmit={handleCameraSubmit} className="space-y-2">
             {/* Grid container for settings cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div className="settings-grid">
               {/* Auto-Calibration Card */}
-              <div className="bg-white rounded-lg shadow p-2">
+              <div className="settings-card">
                 <div className="p-2 bg-green-50 border border-green-200 rounded">
-              <h4 className="text-sm font-semibold text-gray-800 mb-1">🔧 Auto-Calibration</h4>
-              <p className="text-[10px] text-gray-600 mb-2">
+              <h4 className="settings-card-title">🔧 Auto-Calibration</h4>
+              <p className="settings-help-text mb-2">
                 Auto optimize exposure, gain, focus
               </p>
 
@@ -623,9 +623,9 @@ export default function Settings() {
                       type="checkbox"
                       checked={cameraForm.AutoCalibration === '1' || cameraForm.AutoCalibration === 1}
                       onChange={(e) => setCameraForm({...cameraForm, AutoCalibration: e.target.checked ? '1' : '0'})}
-                      className="w-3 h-3 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                      className="settings-checkbox text-green-600"
                     />
-                    <span className="ml-1 text-xs font-medium text-gray-700">
+                    <span className="ml-1 settings-label mb-0">
                       Enable Auto-Calibration
                     </span>
                   </label>
@@ -634,7 +634,7 @@ export default function Settings() {
                 {/* Auto-Calibration Period */}
                 {(cameraForm.AutoCalibration === '1' || cameraForm.AutoCalibration === 1) && (
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                    <label className="settings-label">
                       Frequency: Every {cameraForm.AutoCalibrationPeriod || 600} photos
                     </label>
                     <input
@@ -645,12 +645,12 @@ export default function Settings() {
                       onChange={(e) => setCameraForm({ ...cameraForm, AutoCalibrationPeriod: e.target.value })}
                       className="w-full cursor-pointer"
                     />
-                    <div className="flex justify-between text-[10px] text-gray-500">
+                    <div className="flex justify-between settings-help-text">
                       <span>1</span>
                       <span>100</span>
                       <span>1000</span>
                     </div>
-                    <p className="text-[10px] text-gray-600">
+                    <p className="settings-help-text">
                       More frequent = better adaptation
                     </p>
                   </div>
@@ -660,23 +660,23 @@ export default function Settings() {
               </div>
 
               {/* Exposure Card */}
-              <div className="bg-white rounded-lg shadow p-2">
-                <h4 className="text-sm font-semibold text-gray-800 mb-2">📷 Exposure</h4>
+              <div className="settings-card">
+                <h4 className="settings-card-title">📷 Exposure</h4>
 
               {/* AeEnable Toggle */}
-              <div className="mb-2">
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+              <div className="settings-form-group">
+                <label className="settings-label">
                   Exposure Mode
                 </label>
                 <select
                   value={cameraForm.AeEnable !== undefined ? cameraForm.AeEnable : 'True'}
                   onChange={(e) => setCameraForm({ ...cameraForm, AeEnable: e.target.value })}
-                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="settings-select"
                 >
                   <option value="True">✨ Auto</option>
                   <option value="False">🔧 Manual</option>
                 </select>
-                <p className="mt-1 text-[10px] text-gray-500">
+                <p className="settings-help-text">
                   {cameraForm.AeEnable === 'False' || cameraForm.AeEnable === false
                     ? 'Manual mode: You control exposure time and gain directly'
                     : 'Auto mode: Camera automatically adjusts exposure based on scene brightness'}
@@ -687,8 +687,8 @@ export default function Settings() {
               {(cameraForm.AeEnable === 'False' || cameraForm.AeEnable === false) && (
                 <>
                   {/* Exposure Time */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <div className="settings-form-group">
+                    <label className="settings-label">
                       Exposure Time: {cameraForm.ExposureTime || 0} µs
                     </label>
                     <input
@@ -715,19 +715,19 @@ export default function Settings() {
                       }}
                       className="w-full cursor-pointer"
                     />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <div className="flex justify-between settings-help-text">
                       <span>100µs</span>
                       <span>3ms</span>
                       <span>200ms</span>
                     </div>
-                    <p className="mt-2 text-xs text-gray-500">
+                    <p className="settings-help-text">
                       Logarithmic scale: each step ≈ doubles exposure time (one photographic stop)
                     </p>
                   </div>
 
                   {/* Analogue Gain */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <div className="settings-form-group">
+                    <label className="settings-label">
                       ISO (Analogue Gain): {parseFloat(cameraForm.AnalogueGain || 1).toFixed(1)}x
                     </label>
                     <input
@@ -739,12 +739,12 @@ export default function Settings() {
                       onChange={(e) => setCameraForm({ ...cameraForm, AnalogueGain: e.target.value })}
                       className="w-full cursor-pointer"
                     />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <div className="flex justify-between settings-help-text">
                       <span>1x (Clean)</span>
                       <span>8x</span>
                       <span>16x (Noisy)</span>
                     </div>
-                    <p className="mt-2 text-xs text-gray-500">
+                    <p className="settings-help-text">
                       Higher ISO = brighter but more noise
                     </p>
                   </div>
@@ -753,8 +753,8 @@ export default function Settings() {
 
               {/* Auto Mode Controls - Show only when AeEnable is True */}
               {(cameraForm.AeEnable === 'True' || cameraForm.AeEnable === true || cameraForm.AeEnable === undefined) && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="settings-form-group">
+                  <label className="settings-label">
                     Exposure Compensation: {parseFloat(cameraForm.ExposureValue || 0).toFixed(1)} EV
                   </label>
                   <input
@@ -766,12 +766,12 @@ export default function Settings() {
                     onChange={(e) => setCameraForm({ ...cameraForm, ExposureValue: e.target.value })}
                     className="w-full cursor-pointer"
                   />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <div className="flex justify-between settings-help-text">
                     <span>-8 EV (Much darker)</span>
                     <span>0 EV</span>
                     <span>+8 EV (Much brighter)</span>
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">
+                  <p className="settings-help-text">
                     Adjust auto-exposure bias (positive = brighter, negative = darker)
                   </p>
                 </div>
@@ -780,39 +780,39 @@ export default function Settings() {
             </div>
 
             {/* HDR/Bracketing and Focus Bracketing - full width row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="settings-grid-2col">
               {/* HDR/Bracketing Card */}
-              <div className="bg-white rounded-lg shadow p-2">
-                <h4 className="text-sm font-semibold text-gray-800 mb-2">🌄 HDR Bracketing</h4>
-              <p className="text-[10px] text-gray-600 mb-2">
+              <div className="settings-card">
+                <h4 className="settings-card-title">🌄 HDR Bracketing</h4>
+              <p className="settings-help-text mb-2">
                 Multiple exposures for detail
               </p>
 
               {/* HDR Count */}
-              <div className="mb-2">
-                <label htmlFor="hdr_count" className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="settings-form-group">
+                <label htmlFor="hdr_count" className="settings-label">
                   Number of Exposures
                 </label>
                 <select
                   id="hdr_count"
                   value={cameraForm.HDR || '1'}
                   onChange={(e) => setCameraForm({...cameraForm, HDR: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="settings-select"
                 >
                   <option value="1">Single Exposure (No HDR)</option>
                   <option value="3">3 Exposures (Standard HDR)</option>
                   <option value="5">5 Exposures (Extended HDR)</option>
                   <option value="7">7 Exposures (Maximum HDR)</option>
                 </select>
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="settings-help-text">
                   More exposures = better dynamic range, but slower capture
                 </p>
               </div>
 
               {/* HDR Bracket Step (only if HDR enabled) */}
               {(parseInt(cameraForm.HDR) > 1) && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="settings-form-group">
+                  <label className="settings-label">
                     Bracket Step: {cameraForm.HDR_width || 7000} µs
                   </label>
                   <input
@@ -824,12 +824,12 @@ export default function Settings() {
                     onChange={(e) => setCameraForm({ ...cameraForm, HDR_width: e.target.value })}
                     className="w-full cursor-pointer"
                   />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <div className="flex justify-between settings-help-text">
                     <span>1ms (Small steps)</span>
                     <span>25ms</span>
                     <span>50ms (Large steps)</span>
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">
+                  <p className="settings-help-text">
                     Distance between exposure times in the bracket
                   </p>
                 </div>
@@ -837,22 +837,22 @@ export default function Settings() {
               </div>
 
               {/* Focus Bracketing Card */}
-              <div className="bg-white rounded-lg shadow p-2">
-                <h4 className="text-sm font-semibold text-gray-800 mb-2">🎯 Focus Bracketing</h4>
-              <p className="text-[10px] text-gray-600 mb-2">
+              <div className="settings-card">
+                <h4 className="settings-card-title">🎯 Focus Bracketing</h4>
+              <p className="settings-help-text mb-2">
                 Multiple photos at different focus positions
               </p>
 
               {/* Focus Bracket Steps */}
-              <div className="mb-4">
-                <label htmlFor="focus_bracket_steps" className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="settings-form-group">
+                <label htmlFor="focus_bracket_steps" className="settings-label">
                   Number of Focus Steps
                 </label>
                 <select
                   id="focus_bracket_steps"
                   value={cameraForm.FocusBracket || '1'}
                   onChange={(e) => setCameraForm({...cameraForm, FocusBracket: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="settings-select"
                 >
                   <option value="1">Single Focus (No Bracketing)</option>
                   <option value="3">3 Steps</option>
@@ -860,7 +860,7 @@ export default function Settings() {
                   <option value="7">7 Steps</option>
                   <option value="10">10 Steps (Maximum)</option>
                 </select>
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="settings-help-text">
                   More steps = greater depth coverage, but slower capture
                 </p>
               </div>
@@ -868,8 +868,8 @@ export default function Settings() {
               {/* Focus Range (only if Focus Bracketing enabled) */}
               {(parseInt(cameraForm.FocusBracket) > 1) && (
                 <>
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <div className="settings-form-group">
+                    <label className="settings-label">
                       Focus Start Position: {parseFloat(cameraForm.FocusBracket_Start || 2.0).toFixed(1)} diopters
                     </label>
                     <input
@@ -881,18 +881,18 @@ export default function Settings() {
                       onChange={(e) => setCameraForm({ ...cameraForm, FocusBracket_Start: e.target.value })}
                       className="w-full cursor-pointer"
                     />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <div className="flex justify-between settings-help-text">
                       <span>0 (Far)</span>
                       <span>5</span>
                       <span>10 (Near)</span>
                     </div>
-                    <p className="mt-2 text-xs text-gray-500">
+                    <p className="settings-help-text">
                       Starting focus distance (lower = farther)
                     </p>
                   </div>
 
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <div className="settings-form-group">
+                    <label className="settings-label">
                       Focus End Position: {parseFloat(cameraForm.FocusBracket_End || 8.0).toFixed(1)} diopters
                     </label>
                     <input
@@ -904,20 +904,20 @@ export default function Settings() {
                       onChange={(e) => setCameraForm({ ...cameraForm, FocusBracket_End: e.target.value })}
                       className="w-full cursor-pointer"
                     />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <div className="flex justify-between settings-help-text">
                       <span>0 (Far)</span>
                       <span>5</span>
                       <span>10 (Near)</span>
                     </div>
-                    <p className="mt-2 text-xs text-gray-500">
+                    <p className="settings-help-text">
                       Ending focus distance (higher = closer)
                     </p>
                   </div>
 
                   {/* Diopter Distance Guide */}
-                  <div className="p-3 bg-gray-50 border border-gray-300 rounded-lg mb-4">
-                    <p className="text-xs font-semibold text-gray-700 mb-2">📏 Diopter Distance Reference:</p>
-                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                  <div className="settings-info-box bg-gray-50 border-gray-300">
+                    <p className="settings-help-text-xs font-semibold text-gray-700 mb-1">📏 Diopter Distance Reference:</p>
+                    <div className="grid grid-cols-2 gap-1 settings-help-text text-gray-600">
                       <div><span className="font-medium">0:</span> Infinity (landscape)</div>
                       <div><span className="font-medium">2:</span> ~50cm (background)</div>
                       <div><span className="font-medium">5:</span> ~20cm (mid-range)</div>
@@ -926,8 +926,8 @@ export default function Settings() {
                     </div>
                   </div>
 
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm text-blue-800">
+                  <div className="settings-info-box bg-blue-50 border-blue-200">
+                    <p className="settings-help-text-xs text-blue-800">
                       <strong>Tip:</strong> For insect photography, try Start=2.0, End=8.0 to cover macro to mid-range distances.
                       Focus bracketing takes priority over HDR when both are enabled.
                     </p>
@@ -945,8 +945,8 @@ export default function Settings() {
                         <h5 className="text-sm font-semibold text-gray-800 mb-3">⏱️ Timing Controls</h5>
 
                         {/* Flash Delay Before Capture */}
-                        <div className="mb-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <div className="settings-form-group">
+                          <label className="settings-label">
                             Flash Delay (Before Capture): {parseInt(cameraForm.FlashDelay_BeforeCapture || 50)} ms
                           </label>
                           <input
@@ -958,19 +958,19 @@ export default function Settings() {
                             onChange={(e) => setCameraForm({ ...cameraForm, FlashDelay_BeforeCapture: e.target.value })}
                             className="w-full cursor-pointer"
                           />
-                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <div className="flex justify-between settings-help-text">
                             <span>0ms (instant)</span>
                             <span>250ms</span>
                             <span>500ms</span>
                           </div>
-                          <p className="mt-2 text-xs text-gray-500">
+                          <p className="settings-help-text">
                             Time to wait after turning flash on, before capturing. Allows flash to reach full brightness.
                           </p>
                         </div>
 
                         {/* Flash Delay After Capture */}
-                        <div className="mb-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <div className="settings-form-group">
+                          <label className="settings-label">
                             Flash Delay (After Capture): {parseInt(cameraForm.FlashDelay_AfterCapture || 0)} ms
                           </label>
                           <input
@@ -982,19 +982,19 @@ export default function Settings() {
                             onChange={(e) => setCameraForm({ ...cameraForm, FlashDelay_AfterCapture: e.target.value })}
                             className="w-full cursor-pointer"
                           />
-                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <div className="flex justify-between settings-help-text">
                             <span>0ms (instant)</span>
                             <span>250ms</span>
                             <span>500ms</span>
                           </div>
-                          <p className="mt-2 text-xs text-gray-500">
+                          <p className="settings-help-text">
                             Optional delay after capture before turning flash off. Usually 0ms is fine.
                           </p>
                         </div>
 
                         {/* Lens Settle Delay */}
-                        <div className="mb-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <div className="settings-form-group">
+                          <label className="settings-label">
                             Lens Settle Delay: {parseInt(cameraForm.FocusBracket_SettleDelay || 500)} ms
                           </label>
                           <input
@@ -1006,12 +1006,12 @@ export default function Settings() {
                             onChange={(e) => setCameraForm({ ...cameraForm, FocusBracket_SettleDelay: e.target.value })}
                             className="w-full cursor-pointer"
                           />
-                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <div className="flex justify-between settings-help-text">
                             <span>100ms (fast)</span>
                             <span>500ms</span>
                             <span>2000ms (slow)</span>
                           </div>
-                          <p className="mt-2 text-xs text-gray-500">
+                          <p className="settings-help-text">
                             Time to wait after changing focus position for lens to stabilize. Longer = sharper, but slower.
                           </p>
                         </div>
@@ -1022,7 +1022,7 @@ export default function Settings() {
                         <h5 className="text-sm font-semibold text-gray-800 mb-3">🎨 Color Consistency</h5>
 
                         {/* Lock Color Gains Toggle */}
-                        <div className="mb-4">
+                        <div className="settings-form-group">
                           <label className="flex items-center space-x-3 cursor-pointer">
                             <input
                               type="checkbox"
@@ -1031,11 +1031,11 @@ export default function Settings() {
                                 ...cameraForm,
                                 FocusBracket_LockColorGains: e.target.checked ? '1' : '0'
                               })}
-                              className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              className="settings-checkbox"
                             />
                             <div>
-                              <span className="text-sm font-medium text-gray-700">Lock Color Gains</span>
-                              <p className="text-xs text-gray-500">
+                              <span className="settings-label mb-0">Lock Color Gains</span>
+                              <p className="settings-help-text">
                                 Ensures consistent color across all focus bracket images (recommended for stacking)
                               </p>
                             </div>
@@ -1045,8 +1045,8 @@ export default function Settings() {
                         {/* Color Gain Controls (only if locked) */}
                         {parseInt(cameraForm.FocusBracket_LockColorGains || 1) === 1 && (
                           <>
-                            <div className="mb-4 pl-8">
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <div className="settings-form-group pl-8">
+                              <label className="settings-label">
                                 Red Gain: {parseFloat(cameraForm.FocusBracket_ColorGainRed || 2.259).toFixed(3)}
                               </label>
                               <input
@@ -1058,15 +1058,15 @@ export default function Settings() {
                                 onChange={(e) => setCameraForm({ ...cameraForm, FocusBracket_ColorGainRed: e.target.value })}
                                 className="w-full cursor-pointer"
                               />
-                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                              <div className="flex justify-between settings-help-text">
                                 <span>1.0 (cool)</span>
                                 <span>2.5</span>
                                 <span>4.0 (warm)</span>
                               </div>
                             </div>
 
-                            <div className="mb-4 pl-8">
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <div className="settings-form-group pl-8">
+                              <label className="settings-label">
                                 Blue Gain: {parseFloat(cameraForm.FocusBracket_ColorGainBlue || 1.500).toFixed(3)}
                               </label>
                               <input
@@ -1078,15 +1078,15 @@ export default function Settings() {
                                 onChange={(e) => setCameraForm({ ...cameraForm, FocusBracket_ColorGainBlue: e.target.value })}
                                 className="w-full cursor-pointer"
                               />
-                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                              <div className="flex justify-between settings-help-text">
                                 <span>1.0 (warm)</span>
                                 <span>2.5</span>
                                 <span>4.0 (cool)</span>
                               </div>
                             </div>
 
-                            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg pl-8">
-                              <p className="text-xs text-yellow-800">
+                            <div className="settings-info-box bg-yellow-50 border-yellow-200 pl-8">
+                              <p className="settings-help-text text-yellow-800">
                                 <strong>Note:</strong> Locked gains ensure uniform color when combining images in focus stacking software
                                 (e.g., Helicon Focus, Zerene Stacker). Leave defaults unless you need specific white balance.
                               </p>
@@ -1112,21 +1112,21 @@ export default function Settings() {
             </div>
 
             {/* Third row of grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div className="settings-grid">
               {/* Focus Controls Card */}
-              <div className="bg-white rounded-lg shadow p-2">
-                <h4 className="text-sm font-semibold text-gray-800 mb-2">🎯 Focus</h4>
+              <div className="settings-card">
+                <h4 className="settings-card-title">🎯 Focus</h4>
 
               {/* Focus Mode */}
-              <div className="mb-4">
-                <label htmlFor="af_mode_capture" className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="settings-form-group">
+                <label htmlFor="af_mode_capture" className="settings-label">
                   Focus Mode
                 </label>
                 <select
                   id="af_mode_capture"
                   value={cameraForm.AfMode || '0'}
                   onChange={(e) => setCameraForm({...cameraForm, AfMode: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="settings-select"
                 >
                   <option value="0">Manual Focus</option>
                   <option value="1">Auto Focus (Single)</option>
@@ -1136,8 +1136,8 @@ export default function Settings() {
 
               {/* Lens Position (if manual) */}
               {cameraForm.AfMode === '0' && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="settings-form-group">
+                  <label className="settings-label">
                     Focus Position: {parseFloat(cameraForm.LensPosition || 0.5).toFixed(2)} diopters
                   </label>
                   <input
@@ -1149,27 +1149,27 @@ export default function Settings() {
                     onChange={(e) => setCameraForm({ ...cameraForm, LensPosition: e.target.value })}
                     className="w-full cursor-pointer"
                   />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <div className="flex justify-between settings-help-text">
                     <span>0 (Far)</span>
                     <span>5</span>
                     <span>10 (Near)</span>
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">
+                  <p className="settings-help-text">
                     Higher values = closer focus distance. Use auto-calibrate to find optimal value.
                   </p>
                 </div>
               )}
 
               {/* Focus Range */}
-              <div className="mb-4">
-                <label htmlFor="af_range_capture" className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="settings-form-group">
+                <label htmlFor="af_range_capture" className="settings-label">
                   Focus Range
                 </label>
                 <select
                   id="af_range_capture"
                   value={cameraForm.AfRange || '1'}
                   onChange={(e) => setCameraForm({...cameraForm, AfRange: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="settings-select"
                 >
                   <option value="0">Normal (0.5m - infinity)</option>
                   <option value="1">Macro (10cm - 50cm) - For insects</option>
@@ -1178,15 +1178,15 @@ export default function Settings() {
               </div>
 
               {/* Focus Speed */}
-              <div className="mb-4">
-                <label htmlFor="af_speed_capture" className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="settings-form-group">
+                <label htmlFor="af_speed_capture" className="settings-label">
                   Focus Speed
                 </label>
                 <select
                   id="af_speed_capture"
                   value={cameraForm.AfSpeed || '1'}
                   onChange={(e) => setCameraForm({...cameraForm, AfSpeed: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="settings-select"
                 >
                   <option value="0">Normal (Accurate)</option>
                   <option value="1">Fast</option>
@@ -1195,43 +1195,43 @@ export default function Settings() {
               </div>
 
               {/* Image Format Card */}
-              <div className="bg-white rounded-lg shadow p-2">
-                <h4 className="text-sm font-semibold text-gray-800 mb-2">🖼️ Format</h4>
+              <div className="settings-card">
+                <h4 className="settings-card-title">🖼️ Format</h4>
 
               {/* File Type */}
-              <div className="mb-4">
-                <label htmlFor="image_file_type" className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="settings-form-group">
+                <label htmlFor="image_file_type" className="settings-label">
                   File Format
                 </label>
                 <select
                   id="image_file_type"
                   value={cameraForm.ImageFileType || '0'}
                   onChange={(e) => setCameraForm({...cameraForm, ImageFileType: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="settings-select"
                 >
                   <option value="0">JPEG (Fast, compressed) - Recommended</option>
                   <option value="1">PNG (Slow, lossless)</option>
                   <option value="2">BMP (Huge files, very fast)</option>
                 </select>
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="settings-help-text">
                   JPEG is best for most uses. PNG preserves all detail but creates much larger files.
                 </p>
               </div>
 
               {/* Vertical Flip */}
-              <div className="mb-4">
+              <div className="settings-form-group">
                 <label className="flex items-center">
                   <input
                     type="checkbox"
                     checked={cameraForm.VerticalFlip === '1' || cameraForm.VerticalFlip === 1}
                     onChange={(e) => setCameraForm({...cameraForm, VerticalFlip: e.target.checked ? '1' : '0'})}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    className="settings-checkbox"
                   />
-                  <span className="ml-2 text-sm font-medium text-gray-700">
+                  <span className="ml-2 settings-label mb-0">
                     Flip Image Vertically
                   </span>
                 </label>
-                <p className="mt-2 ml-6 text-xs text-gray-500">
+                <p className="settings-help-text ml-6">
                   Enable if camera is mounted upside-down
                 </p>
               </div>
@@ -1239,9 +1239,9 @@ export default function Settings() {
             </div>
 
             {/* Advanced/Other Settings - full width */}
-            <div className="bg-white rounded-lg shadow p-2">
+            <div className="settings-card">
               <details>
-              <summary className="cursor-pointer text-sm font-semibold text-gray-800 mb-2">
+              <summary className="cursor-pointer settings-card-title">
                 ⚙️ Advanced (Click to expand)
               </summary>
               <div className="mt-2 space-y-2">
@@ -1267,8 +1267,8 @@ export default function Settings() {
             </div>
 
             {/* Info Box and Submit Button - full width */}
-            <div className="bg-white rounded-lg shadow p-2 space-y-2">
-              <div className="p-2 bg-yellow-50 border border-yellow-200 rounded">
+            <div className="settings-card space-y-2">
+              <div className="settings-info-box bg-yellow-50 border-yellow-200">
               <p className="text-xs text-yellow-800">
                 <strong>Note:</strong> Full-resolution captures only. Use Auto-Calibration or Camera page to test.
               </p>
@@ -1277,7 +1277,7 @@ export default function Settings() {
               <button
                 type="submit"
                 disabled={updateCameraMutation.isPending}
-                className="w-full bg-blue-600 text-white px-4 py-2 text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="w-full settings-button"
               >
                 {updateCameraMutation.isPending ? (
                   <>
@@ -1341,27 +1341,27 @@ export default function Settings() {
           </div>
 
           {/* Video Preset Management Section */}
-          <div className="bg-white rounded-lg shadow p-3">
+          <div className="settings-card-lg">
             <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
-            <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center">
+            <h4 className="settings-card-title flex items-center">
               <span className="mr-2">🎥</span>
               Video Stream Presets
             </h4>
-            <p className="text-xs text-gray-600 mb-4">
+            <p className="settings-help-text mb-2">
               Select a preset to auto-populate stream settings below. Review, tweak, then Save to apply.
             </p>
 
-            <div className="space-y-4">
+            <div className="space-y-2">
               {/* Video Preset Selector */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="settings-form-group">
+                <label className="settings-label">
                   Video Preset
                 </label>
                 <select
                   value={selectedVideoPreset}
                   onChange={(e) => setSelectedVideoPreset(e.target.value)}
                   disabled={presetsLoading}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="settings-select"
                 >
                   <option value="">Custom Settings (No Preset)</option>
                   {videoPresets.map(p => (
@@ -1371,28 +1371,28 @@ export default function Settings() {
                   ))}
                 </select>
                 {selectedVideoPresetData && (
-                  <p className="mt-2 text-sm text-gray-600 italic">
+                  <p className="settings-help-text italic">
                     {selectedVideoPresetData.description}
                   </p>
                 )}
               </div>
 
               {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-1">
                 <button
                   type="button"
                   onClick={handleSetDefaultVideoPreset}
                   disabled={!selectedVideoPreset || setPreferenceMutation.isPending}
-                  className="bg-yellow-500 text-white px-3 py-2 rounded-lg hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                  className="settings-button-sm bg-yellow-500 text-white hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
-                  ⭐ Set as Default
+                  ⭐ Default
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveVideoPreset}
-                  className="bg-emerald-600 text-white px-3 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium transition-colors"
+                  className="settings-button-sm bg-emerald-600 text-white hover:bg-emerald-700"
                 >
-                  💾 Save Current
+                  💾 Save
                 </button>
               </div>
 
@@ -1402,9 +1402,9 @@ export default function Settings() {
                   type="button"
                   onClick={handleDeleteVideoPreset}
                   disabled={deletePresetMutation.isPending}
-                  className="w-full bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 disabled:bg-gray-300 text-sm font-medium transition-colors"
+                  className="w-full settings-button-sm bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300"
                 >
-                  🗑️ Delete Preset
+                  🗑️ Delete
                 </button>
               )}
             </div>
@@ -1413,14 +1413,14 @@ export default function Settings() {
 
           <form onSubmit={handleWebuiSubmit} className="space-y-2">
             {/* Grid container for settings cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div className="settings-grid">
               {/* Resolution & Performance Card */}
-              <div className="bg-white rounded-lg shadow p-2">
-                <h4 className="text-sm font-semibold text-gray-800 mb-2">📐 Resolution</h4>
+              <div className="settings-card">
+                <h4 className="settings-card-title">📐 Resolution</h4>
 
                 {/* Resolution Preset Selector */}
-                <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="settings-form-group">
+              <label className="settings-label">
                 Resolution Preset
               </label>
               <select
@@ -1435,7 +1435,7 @@ export default function Settings() {
                     })
                   }
                 }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="settings-select"
               >
                 {resolutionPresets.map((preset) => (
                   <option key={preset.label} value={`${preset.width}x${preset.height}`}>
@@ -1443,14 +1443,14 @@ export default function Settings() {
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="settings-help-text">
                 Current: {webuiForm.stream_width} x {webuiForm.stream_height}
               </p>
             </div>
 
             {/* Frame Rate Slider */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="settings-form-group">
+              <label className="settings-label">
                 Frame Rate: {webuiForm.frame_rate} FPS
               </label>
               <input
@@ -1461,19 +1461,19 @@ export default function Settings() {
                 onChange={(e) => setWebuiForm({ ...webuiForm, frame_rate: parseInt(e.target.value) })}
                 className="w-full cursor-pointer"
               />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <div className="flex justify-between settings-help-text">
                 <span>1 FPS (Slow)</span>
                 <span>15 FPS</span>
                 <span>30 FPS (Fast)</span>
               </div>
-              <p className="mt-2 text-xs text-gray-500">
+              <p className="settings-help-text">
                 Lower frame rates reduce CPU and network usage
               </p>
             </div>
 
             {/* JPEG Quality Slider */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="settings-form-group">
+              <label className="settings-label">
                 JPEG Quality: {webuiForm.jpeg_quality}%
               </label>
               <input
@@ -1484,25 +1484,25 @@ export default function Settings() {
                 onChange={(e) => setWebuiForm({ ...webuiForm, jpeg_quality: parseInt(e.target.value) })}
                 className="w-full cursor-pointer"
               />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <div className="flex justify-between settings-help-text">
                 <span>50% (Lower quality, faster)</span>
                 <span>75%</span>
                 <span>100% (Best quality)</span>
               </div>
-              <p className="mt-2 text-xs text-gray-500">
+              <p className="settings-help-text">
                 Higher quality produces sharper images but uses more bandwidth
               </p>
                 </div>
               </div>
 
               {/* Image Quality Card - spans 2 columns */}
-              <div className="bg-white rounded-lg shadow p-2 lg:col-span-2">
-                <h4 className="text-sm font-semibold text-gray-800 mb-2">📸 Image Quality</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="settings-card lg:col-span-2">
+                <h4 className="settings-card-title">📸 Image Quality</h4>
+                <div className="settings-grid-2col">
 
                 {/* Sharpness Slider */}
-                <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="settings-form-group">
+                <label className="settings-label">
                   Sharpness: {webuiForm.sharpness !== undefined ? webuiForm.sharpness.toFixed(1) : '1.0'}
                 </label>
                 <input
@@ -1514,19 +1514,19 @@ export default function Settings() {
                   onChange={(e) => setWebuiForm({ ...webuiForm, sharpness: parseFloat(e.target.value) })}
                   className="w-full cursor-pointer"
                 />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <div className="flex justify-between settings-help-text">
                   <span>0.0 (Soft)</span>
                   <span>1.0 (Default)</span>
                   <span>4.0 (Sharp)</span>
                 </div>
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="settings-help-text">
                   Increase for more detail, decrease for softer images. 1.0 is the normal setting.
                 </p>
               </div>
 
               {/* Brightness Slider */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="settings-form-group">
+                <label className="settings-label">
                   Brightness: {webuiForm.brightness !== undefined ? webuiForm.brightness.toFixed(2) : '0.00'}
                 </label>
                 <input
@@ -1538,19 +1538,19 @@ export default function Settings() {
                   onChange={(e) => setWebuiForm({ ...webuiForm, brightness: parseFloat(e.target.value) })}
                   className="w-full cursor-pointer"
                 />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <div className="flex justify-between settings-help-text">
                   <span>-1.0 (Darker)</span>
                   <span>0.0 (Default)</span>
                   <span>+1.0 (Brighter)</span>
                 </div>
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="settings-help-text">
                   Adjust overall image brightness
                 </p>
               </div>
 
               {/* Contrast Slider */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="settings-form-group">
+                <label className="settings-label">
                   Contrast: {webuiForm.contrast !== undefined ? webuiForm.contrast.toFixed(1) : '1.0'}
                 </label>
                 <input
@@ -1562,19 +1562,19 @@ export default function Settings() {
                   onChange={(e) => setWebuiForm({ ...webuiForm, contrast: parseFloat(e.target.value) })}
                   className="w-full cursor-pointer"
                 />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <div className="flex justify-between settings-help-text">
                   <span>0.0 (Flat)</span>
                   <span>1.0 (Default)</span>
                   <span>4.0 (High)</span>
                 </div>
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="settings-help-text">
                   Adjust difference between light and dark areas. 0.0 = no contrast, 1.0 = normal.
                 </p>
               </div>
 
               {/* Saturation Slider */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="settings-form-group">
+                <label className="settings-label">
                   Saturation: {webuiForm.saturation !== undefined ? webuiForm.saturation.toFixed(1) : '1.0'}
                 </label>
                 <input
@@ -1586,32 +1586,32 @@ export default function Settings() {
                   onChange={(e) => setWebuiForm({ ...webuiForm, saturation: parseFloat(e.target.value) })}
                   className="w-full cursor-pointer"
                 />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <div className="flex justify-between settings-help-text">
                   <span>0.0 (Grayscale)</span>
                   <span>1.0 (Default)</span>
                   <span>4.0 (Vivid)</span>
                 </div>
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="settings-help-text">
                   Adjust color intensity. 0.0 = grayscale, 1.0 = normal saturation.
                 </p>
               </div>
 
               {/* Noise Reduction Mode Dropdown */}
-              <div>
-                <label htmlFor="noise_reduction_mode" className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="settings-form-group">
+                <label htmlFor="noise_reduction_mode" className="settings-label">
                   Noise Reduction Mode
                 </label>
                 <select
                   id="noise_reduction_mode"
                   value={webuiForm.noise_reduction_mode !== undefined ? webuiForm.noise_reduction_mode : 0}
                   onChange={(e) => setWebuiForm({...webuiForm, noise_reduction_mode: parseInt(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="settings-select"
                 >
                   <option value="0">Off (Fastest)</option>
                   <option value="1">Fast (Balanced)</option>
                   <option value="2">High Quality (Best for night photography)</option>
                 </select>
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="settings-help-text">
                   Critical for night insect photography. Higher quality reduces noise but may be slower.
                 </p>
               </div>
@@ -1620,89 +1620,89 @@ export default function Settings() {
             </div>
 
             {/* Second row of grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div className="settings-grid">
               {/* Focus Settings Card */}
-              <div className="bg-white rounded-lg shadow p-2">
-                <h4 className="text-sm font-semibold text-gray-800 mb-2">🎯 Focus</h4>
+              <div className="settings-card">
+                <h4 className="settings-card-title">🎯 Focus</h4>
 
               {/* Focus Mode Dropdown */}
-              <div className="mb-6">
-                <label htmlFor="af_mode" className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="settings-form-group">
+                <label htmlFor="af_mode" className="settings-label">
                   Focus Mode
                 </label>
                 <select
                   id="af_mode"
                   value={webuiForm.af_mode !== undefined ? webuiForm.af_mode : 2}
                   onChange={(e) => setWebuiForm({...webuiForm, af_mode: parseInt(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="settings-select"
                 >
                   <option value="0">Manual Focus</option>
                   <option value="1">Auto Focus (Single)</option>
                   <option value="2">Auto Focus (Continuous) - Recommended</option>
                 </select>
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="settings-help-text">
                   Continuous AF keeps subjects in focus automatically
                 </p>
               </div>
 
               {/* Focus Speed Dropdown */}
-              <div className="mb-6">
-                <label htmlFor="af_speed" className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="settings-form-group">
+                <label htmlFor="af_speed" className="settings-label">
                   Focus Speed
                 </label>
                 <select
                   id="af_speed"
                   value={webuiForm.af_speed !== undefined ? webuiForm.af_speed : 0}
                   onChange={(e) => setWebuiForm({...webuiForm, af_speed: parseInt(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="settings-select"
                 >
                   <option value="0">Normal (Accurate)</option>
                   <option value="1">Fast (May hunt)</option>
                 </select>
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="settings-help-text">
                   Normal is more accurate, Fast may cause focus hunting
                 </p>
               </div>
 
               {/* Focus Range Dropdown */}
-              <div className="mb-6">
-                <label htmlFor="af_range" className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="settings-form-group">
+                <label htmlFor="af_range" className="settings-label">
                   Focus Range
                 </label>
                 <select
                   id="af_range"
                   value={webuiForm.af_range !== undefined ? webuiForm.af_range : 0}
                   onChange={(e) => setWebuiForm({...webuiForm, af_range: parseInt(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="settings-select"
                 >
                   <option value="0">Normal (0.5m - infinity)</option>
                   <option value="1">Macro (10cm - 50cm)</option>
                   <option value="2">Full (10cm - infinity)</option>
                 </select>
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="settings-help-text">
                   Macro mode for close-up insect photography
                 </p>
               </div>
               </div>
 
               {/* Exposure Card */}
-              <div className="bg-white rounded-lg shadow p-2">
-                <h4 className="text-sm font-semibold text-gray-800 mb-2">📊 Exposure</h4>
+              <div className="settings-card">
+                <h4 className="settings-card-title">📊 Exposure</h4>
 
               {/* AeEnable Toggle for Stream */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="settings-form-group">
+                <label className="settings-label">
                   Preview Exposure Mode
                 </label>
                 <select
                   value={webuiForm.ae_enable !== undefined ? webuiForm.ae_enable : true}
                   onChange={(e) => setWebuiForm({ ...webuiForm, ae_enable: e.target.value === 'true' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="settings-select"
                 >
                   <option value="true">✨ Auto Exposure</option>
                   <option value="false">🔧 Manual Exposure</option>
                 </select>
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="settings-help-text">
                   {!webuiForm.ae_enable || webuiForm.ae_enable === true
                     ? 'Auto mode: Preview stream uses automatic exposure adjustment'
                     : 'Manual mode: Preview uses fixed exposure settings from Camera settings'}
@@ -1711,21 +1711,21 @@ export default function Settings() {
 
               {/* AeMeteringMode Dropdown - Show only in Auto mode */}
               {(!webuiForm.ae_enable || webuiForm.ae_enable === true) && (
-                <div className="mb-6">
-                  <label htmlFor="ae_metering_mode" className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="settings-form-group">
+                  <label htmlFor="ae_metering_mode" className="settings-label">
                     Metering Mode
                   </label>
                   <select
                     id="ae_metering_mode"
                     value={webuiForm.ae_metering_mode !== undefined ? webuiForm.ae_metering_mode : 0}
                     onChange={(e) => setWebuiForm({...webuiForm, ae_metering_mode: parseInt(e.target.value)})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="settings-select"
                   >
                     <option value="0">Centre-Weighted</option>
                     <option value="1">Spot</option>
                     <option value="2">Matrix/Average</option>
                   </select>
-                  <p className="mt-2 text-xs text-gray-500">
+                  <p className="settings-help-text">
                     Controls which part of the frame is used for exposure calculation.
                     Centre-Weighted prioritizes the center, Spot uses a small center area only, Matrix evaluates the entire frame.
                   </p>
@@ -1735,40 +1735,40 @@ export default function Settings() {
             </div>
 
             {/* Third row of grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="settings-grid-2col">
               {/* White Balance Card */}
-              <div className="bg-white rounded-lg shadow p-2">
-                <h4 className="text-sm font-semibold text-gray-800 mb-2">🌡️ White Balance</h4>
+              <div className="settings-card">
+                <h4 className="settings-card-title">🌡️ White Balance</h4>
 
               {/* AWB Enable Checkbox */}
-              <div className="mb-6">
+              <div className="settings-form-group">
                 <label className="flex items-center">
                   <input
                     type="checkbox"
                     checked={webuiForm.awb_enable !== undefined ? webuiForm.awb_enable : true}
                     onChange={(e) => setWebuiForm({...webuiForm, awb_enable: e.target.checked})}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    className="settings-checkbox"
                   />
-                  <span className="ml-2 text-sm font-medium text-gray-700">
+                  <span className="ml-2 settings-label mb-0">
                     Auto White Balance
                   </span>
                 </label>
-                <p className="mt-2 ml-6 text-xs text-gray-500">
+                <p className="settings-help-text ml-6">
                   Let camera automatically adjust color temperature
                 </p>
               </div>
 
               {/* AWB Mode Dropdown (only if AWB disabled) */}
               {webuiForm.awb_enable === false && (
-                <div className="mb-6">
-                  <label htmlFor="awb_mode" className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="settings-form-group">
+                  <label htmlFor="awb_mode" className="settings-label">
                     White Balance Preset
                   </label>
                   <select
                     id="awb_mode"
                     value={webuiForm.awb_mode !== undefined ? webuiForm.awb_mode : 0}
                     onChange={(e) => setWebuiForm({...webuiForm, awb_mode: parseInt(e.target.value)})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="settings-select"
                   >
                     <option value="0">Auto</option>
                     <option value="1">Incandescent (2800K)</option>
@@ -1779,7 +1779,7 @@ export default function Settings() {
                     <option value="6">Cloudy (6500K)</option>
                     <option value="7">Custom</option>
                   </select>
-                  <p className="mt-2 text-xs text-gray-500">
+                  <p className="settings-help-text">
                     Manual white balance for specific lighting conditions
                   </p>
                 </div>
@@ -1787,78 +1787,78 @@ export default function Settings() {
               </div>
 
               {/* ISP Features Card - spans full width */}
-              <div className="bg-white rounded-lg shadow p-2 md:col-span-2">
-                <h4 className="text-sm font-semibold text-gray-800 mb-2">🔬 ISP Features</h4>
-              <p className="text-sm text-gray-600 mb-4">
+              <div className="settings-card md:col-span-2">
+                <h4 className="settings-card-title">🔬 ISP Features</h4>
+              <p className="settings-help-text-xs mb-2">
                 Image Signal Processor corrections for improved image quality
               </p>
 
               {/* Lens Shading Correction (Always enabled via tuning file) */}
-              <div className="mb-6">
+              <div className="settings-form-group">
                 <label className="flex items-center opacity-75">
                   <input
                     type="checkbox"
                     checked={true}
                     disabled={true}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded cursor-not-allowed"
+                    className="settings-checkbox cursor-not-allowed"
                   />
-                  <span className="ml-2 text-sm font-medium text-gray-700">
+                  <span className="ml-2 settings-label mb-0">
                     Lens Shading Correction
                   </span>
                   <span className="ml-2 px-2 py-0.5 text-xs font-medium text-green-600 bg-green-100 rounded">
                     Always On
                   </span>
                 </label>
-                <p className="mt-2 ml-6 text-xs text-gray-500">
+                <p className="settings-help-text ml-6">
                   Corrects vignetting (darker corners). Enabled automatically via camera tuning file - runtime control not available on this camera model.
                 </p>
               </div>
 
               {/* Defect Pixel Correction (Always enabled via tuning file) */}
-              <div className="mb-6">
+              <div className="settings-form-group">
                 <label className="flex items-center opacity-75">
                   <input
                     type="checkbox"
                     checked={true}
                     disabled={true}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded cursor-not-allowed"
+                    className="settings-checkbox cursor-not-allowed"
                   />
-                  <span className="ml-2 text-sm font-medium text-gray-700">
+                  <span className="ml-2 settings-label mb-0">
                     Defect Pixel Correction
                   </span>
                   <span className="ml-2 px-2 py-0.5 text-xs font-medium text-green-600 bg-green-100 rounded">
                     Always On
                   </span>
                 </label>
-                <p className="mt-2 ml-6 text-xs text-gray-500">
+                <p className="settings-help-text ml-6">
                   Fixes stuck or dead pixels. Enabled automatically via camera tuning file - runtime control not available on this camera model.
                 </p>
               </div>
 
               {/* Custom Tuning File (Disabled by default) */}
-              <div className="mb-6">
+              <div className="settings-form-group">
                 <label className="flex items-center">
                   <input
                     type="checkbox"
                     checked={webuiForm.use_custom_tuning || false}
                     onChange={(e) => setWebuiForm({...webuiForm, use_custom_tuning: e.target.checked})}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    className="settings-checkbox"
                   />
-                  <span className="ml-2 text-sm font-medium text-gray-700">
+                  <span className="ml-2 settings-label mb-0">
                     Use Custom Tuning File
                   </span>
                   <span className="ml-2 px-2 py-0.5 text-xs font-medium text-orange-600 bg-orange-100 rounded">
                     Advanced
                   </span>
                 </label>
-                <p className="mt-2 ml-6 text-xs text-gray-500">
+                <p className="settings-help-text ml-6">
                   Load custom ISP tuning from /etc/mothbox/isp_tuning/camera_isp_tuning.json.
                   Only enable if you have a camera-specific tuning file.
                   Disabled by default - libcamera's built-in tuning works well for most cameras.
                 </p>
                 {webuiForm.use_custom_tuning && (
-                  <div className="mt-2 ml-6 p-2 bg-yellow-50 border border-yellow-200 rounded">
-                    <p className="text-xs text-yellow-800">
+                  <div className="settings-info-box bg-yellow-50 border-yellow-200 ml-6 mt-1">
+                    <p className="settings-help-text text-yellow-800">
                       ⚠️ Warning: Custom tuning files must match your camera model.
                       Incompatible tuning files may cause camera initialization to fail.
                     </p>
@@ -1867,22 +1867,22 @@ export default function Settings() {
               </div>
 
               {/* Chromatic Aberration Correction (Disabled - requires Pi 5 and calibration) */}
-              <div className="mb-6">
+              <div className="settings-form-group">
                 <label className="flex items-center opacity-50 cursor-not-allowed">
                   <input
                     type="checkbox"
                     checked={false}
                     disabled={true}
-                    className="w-4 h-4 text-gray-400 border-gray-300 rounded cursor-not-allowed"
+                    className="settings-checkbox cursor-not-allowed"
                   />
-                  <span className="ml-2 text-sm font-medium text-gray-500">
+                  <span className="ml-2 settings-label mb-0 text-gray-500">
                     Chromatic Aberration Correction
                   </span>
                   <span className="ml-2 px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-200 rounded">
                     Pi 5 Only
                   </span>
                 </label>
-                <p className="mt-2 ml-6 text-xs text-gray-500">
+                <p className="settings-help-text ml-6">
                   Fixes color fringing at edges. Requires Raspberry Pi 5 hardware and camera calibration with tuning file configuration.
                   Not available for runtime toggling - must be configured in tuning file before camera initialization.
                 </p>
@@ -1891,13 +1891,13 @@ export default function Settings() {
             </div>
 
             {/* Focus Peaking Card - full width */}
-            <div className="bg-white rounded-lg shadow p-2">
-              <h4 className="text-sm font-semibold text-gray-800 mb-2">🔍 Focus Peaking</h4>
-              <p className="text-xs text-gray-600 mb-4">
+            <div className="settings-card">
+              <h4 className="settings-card-title">🔍 Focus Peaking</h4>
+              <p className="settings-help-text-xs mb-2">
                 Preview-only overlay to highlight in-focus areas. Helps with manual focus adjustment for macro photography.
               </p>
 
-              <div className="space-y-4">
+              <div className="space-y-2">
                 {/* Enable Toggle */}
                 <div className="flex items-center">
                   <input
@@ -1905,18 +1905,18 @@ export default function Settings() {
                     id="focus_peaking_enabled"
                     checked={webuiForm.focus_peaking_enabled || false}
                     onChange={(e) => setWebuiForm({...webuiForm, focus_peaking_enabled: e.target.checked})}
-                    className="w-4 h-4 rounded accent-green-500"
+                    className="settings-checkbox"
                   />
-                  <label htmlFor="focus_peaking_enabled" className="ml-2 text-sm font-medium text-gray-700">
+                  <label htmlFor="focus_peaking_enabled" className="ml-2 settings-label mb-0">
                     Enable Focus Peaking Overlay
                   </label>
                 </div>
 
                 {webuiForm.focus_peaking_enabled && (
-                  <div className="ml-6 space-y-4">
+                  <div className="ml-6 space-y-2">
                     {/* Intensity */}
-                    <div>
-                      <label htmlFor="focus_peaking_intensity" className="block text-sm font-medium text-gray-700 mb-2">
+                    <div className="settings-form-group">
+                      <label htmlFor="focus_peaking_intensity" className="settings-label">
                         Intensity: {webuiForm.focus_peaking_intensity || 100}
                       </label>
                       <input
@@ -1929,7 +1929,7 @@ export default function Settings() {
                         onChange={(e) => setWebuiForm({...webuiForm, focus_peaking_intensity: parseInt(e.target.value)})}
                         className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
                       />
-                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <div className="flex justify-between settings-help-text">
                         <span>50 (Low)</span>
                         <span>125</span>
                         <span>200 (High)</span>
@@ -1937,15 +1937,15 @@ export default function Settings() {
                     </div>
 
                     {/* Color */}
-                    <div>
-                      <label htmlFor="focus_peaking_color" className="block text-sm font-medium text-gray-700 mb-2">
+                    <div className="settings-form-group">
+                      <label htmlFor="focus_peaking_color" className="settings-label">
                         Overlay Color
                       </label>
                       <select
                         id="focus_peaking_color"
                         value={webuiForm.focus_peaking_color || 'green'}
                         onChange={(e) => setWebuiForm({...webuiForm, focus_peaking_color: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="settings-select"
                       >
                         <option value="green">🟢 Green</option>
                         <option value="red">🔴 Red</option>
@@ -1956,21 +1956,21 @@ export default function Settings() {
                     </div>
 
                     {/* Algorithm */}
-                    <div>
-                      <label htmlFor="focus_peaking_algorithm" className="block text-sm font-medium text-gray-700 mb-2">
+                    <div className="settings-form-group">
+                      <label htmlFor="focus_peaking_algorithm" className="settings-label">
                         Edge Detection Algorithm
                       </label>
                       <select
                         id="focus_peaking_algorithm"
                         value={webuiForm.focus_peaking_algorithm || 'laplacian'}
                         onChange={(e) => setWebuiForm({...webuiForm, focus_peaking_algorithm: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="settings-select"
                       >
                         <option value="laplacian">⚡ Laplacian (Fast)</option>
                         <option value="sobel">⚙️ Sobel (Balanced)</option>
                         <option value="canny">🎯 Canny (Accurate)</option>
                       </select>
-                      <p className="mt-2 text-xs text-gray-500">
+                      <p className="settings-help-text">
                         Laplacian is fastest for general use. Sobel offers better directional accuracy. Canny is most accurate but slower.
                       </p>
                     </div>
@@ -1980,29 +1980,29 @@ export default function Settings() {
             </div>
 
             {/* Encoding & Submit Card - full width */}
-            <div className="bg-white rounded-lg shadow p-2 space-y-2">
+            <div className="settings-card space-y-2">
               <div>
-                <h4 className="text-sm font-semibold text-gray-800 mb-2">⚙️ Encoding</h4>
-              <label htmlFor="stream_mode" className="block text-sm font-medium text-gray-700 mb-2">
+                <h4 className="settings-card-title">⚙️ Encoding</h4>
+              <label htmlFor="stream_mode" className="settings-label">
                 Encoding Mode
               </label>
               <select
                 id="stream_mode"
                 value={webuiForm.stream_mode || 'simplejpeg'}
                 onChange={(e) => setWebuiForm({...webuiForm, stream_mode: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="settings-select"
               >
                 <option value="simplejpeg">Fast Software (simplejpeg) - Recommended</option>
                 <option value="mjpeg_hardware">Hardware MJPEG (Experimental)</option>
               </select>
-              <p className="mt-2 text-xs text-gray-500">
+              <p className="settings-help-text">
                 simplejpeg provides 5-7x faster encoding than PIL. Hardware MJPEG is experimental and may offer lower latency.
               </p>
               </div>
 
               {/* Info Box */}
-              <div className="p-2 bg-blue-50 border border-blue-200 rounded">
-              <p className="text-xs text-blue-800">
+              <div className="settings-info-box bg-blue-50 border-blue-200">
+              <p className="settings-help-text text-blue-800">
                 <strong>Note:</strong> Changes apply to new stream sessions. Restart stream to apply.
               </p>
               </div>
@@ -2010,7 +2010,7 @@ export default function Settings() {
               <button
                 type="submit"
                 disabled={updateWebuiMutation.isPending}
-                className="w-full bg-blue-600 text-white px-4 py-2 text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="w-full settings-button"
               >
                 {updateWebuiMutation.isPending ? (
                   <>
