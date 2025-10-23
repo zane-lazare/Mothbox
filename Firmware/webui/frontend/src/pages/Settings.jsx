@@ -309,7 +309,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6 px-4">
       <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
 
       {/* Tabs */}
@@ -370,10 +370,11 @@ export default function Settings() {
 
       {/* System Info Tab */}
       {activeTab === 'system' && (
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Installation Information Card */}
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold mb-4">Installation Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-4">
               <div>
                 <p className="text-sm text-gray-500">Installation Type</p>
                 <p className="font-medium capitalize">{systemInfo?.installation_type || 'Loading...'}</p>
@@ -384,36 +385,37 @@ export default function Settings() {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Mothbox Home</p>
-                <p className="font-mono text-xs">{systemInfo?.mothbox_home || 'Loading...'}</p>
+                <p className="font-mono text-xs break-all">{systemInfo?.mothbox_home || 'Loading...'}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Config Directory</p>
-                <p className="font-mono text-xs">{systemInfo?.config_dir || 'Loading...'}</p>
+                <p className="font-mono text-xs break-all">{systemInfo?.config_dir || 'Loading...'}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Firmware Directory</p>
-                <p className="font-mono text-xs">{systemInfo?.firmware_dir || 'Loading...'}</p>
+                <p className="font-mono text-xs break-all">{systemInfo?.firmware_dir || 'Loading...'}</p>
               </div>
             </div>
           </div>
 
+          {/* GPIO Pin Configuration Card */}
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold mb-4">GPIO Pin Configuration</h3>
             <p className="text-sm text-gray-600 mb-4">
               Source: <span className="font-medium">{systemInfo?.gpio_source || 'Loading...'}</span>
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Relay Ch1 (Attract Light)</p>
-                <p className="font-mono text-lg">{systemInfo?.gpio_pins?.Relay_Ch1 || '?'}</p>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                <span className="text-sm text-gray-600">Relay Ch1 (Attract Light)</span>
+                <span className="font-mono text-lg font-semibold">{systemInfo?.gpio_pins?.Relay_Ch1 || '?'}</span>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Relay Ch2 (Flash)</p>
-                <p className="font-mono text-lg">{systemInfo?.gpio_pins?.Relay_Ch2 || '?'}</p>
+              <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                <span className="text-sm text-gray-600">Relay Ch2 (Flash)</span>
+                <span className="font-mono text-lg font-semibold">{systemInfo?.gpio_pins?.Relay_Ch2 || '?'}</span>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Relay Ch3 (UV Light)</p>
-                <p className="font-mono text-lg">{systemInfo?.gpio_pins?.Relay_Ch3 || '?'}</p>
+              <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                <span className="text-sm text-gray-600">Relay Ch3 (UV Light)</span>
+                <span className="font-mono text-lg font-semibold">{systemInfo?.gpio_pins?.Relay_Ch3 || '?'}</span>
               </div>
             </div>
             {systemInfo?.gpio_source === 'defaults' && (
@@ -523,14 +525,17 @@ export default function Settings() {
 
       {/* Camera Settings Tab */}
       {activeTab === 'camera' && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Full-Resolution Capture Configuration</h3>
-          <p className="text-sm text-gray-600 mb-6">
-            These settings control full-resolution photo captures (not preview). Changes take effect on next photo.
-          </p>
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-blue-100 to-indigo-100 rounded-lg shadow-sm p-4 border border-blue-200">
+            <h3 className="text-lg font-semibold text-gray-900">Full-Resolution Capture Configuration</h3>
+            <p className="text-sm text-gray-700 mt-1">
+              These settings control full-resolution photo captures (not preview). Changes take effect on next photo.
+            </p>
+          </div>
 
           {/* Photo Preset Management Section */}
-          <div className="mb-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
             <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
               <span className="mr-2">📸</span>
               Photo Capture Presets
@@ -596,12 +601,15 @@ export default function Settings() {
                 </button>
               )}
             </div>
+            </div>
           </div>
 
           <form onSubmit={handleCameraSubmit} className="space-y-6">
-
-            {/* Auto-Calibration Section (Phase 2.1 - Prominent at top) */}
-            <div className="p-4 bg-green-50 border-2 border-green-200 rounded-lg">
+            {/* Grid container for settings cards */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Auto-Calibration Card */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="p-4 bg-green-50 border-2 border-green-200 rounded-lg">
               <h4 className="text-md font-semibold text-gray-800 mb-3">🔧 Auto-Calibration</h4>
               <p className="text-sm text-gray-600 mb-4">
                 Automatically optimize exposure, gain, and focus periodically
@@ -648,11 +656,12 @@ export default function Settings() {
                   </div>
                 )}
               </div>
-            </div>
+                </div>
+              </div>
 
-            {/* Exposure Section (Phase 2.1) */}
-            <div className="pt-4">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">📷 Exposure Settings</h4>
+              {/* Exposure Card */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h4 className="text-md font-semibold text-gray-800 mb-4">📷 Exposure Settings</h4>
 
               {/* AeEnable Toggle */}
               <div className="mb-6">
@@ -767,11 +776,14 @@ export default function Settings() {
                   </p>
                 </div>
               )}
+              </div>
             </div>
 
-            {/* HDR/Bracketing Section (Phase 2.1) */}
-            <div className="pt-4 mt-4 border-t border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">🌄 HDR / Exposure Bracketing</h4>
+            {/* Close first row of grid, start second row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* HDR/Bracketing Card */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h4 className="text-md font-semibold text-gray-800 mb-4">🌄 HDR / Exposure Bracketing</h4>
               <p className="text-sm text-gray-600 mb-4">
                 Capture multiple exposures to preserve detail in highlights and shadows
               </p>
@@ -822,11 +834,11 @@ export default function Settings() {
                   </p>
                 </div>
               )}
-            </div>
+              </div>
 
-            {/* Focus Bracketing Section */}
-            <div className="pt-4 mt-4 border-t border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">🎯 Focus Bracketing</h4>
+              {/* Focus Bracketing Card - spans full width due to complexity */}
+              <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
+                <h4 className="text-md font-semibold text-gray-800 mb-4">🎯 Focus Bracketing</h4>
               <p className="text-sm text-gray-600 mb-4">
                 Capture multiple photos at different focus positions for depth-of-field stacking
               </p>
@@ -1096,11 +1108,14 @@ export default function Settings() {
                   </details>
                 </>
               )}
+              </div>
             </div>
 
-            {/* Focus Section (Phase 2.1) */}
-            <div className="pt-4 mt-4 border-t border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">🎯 Focus Controls</h4>
+            {/* Third row of grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Focus Controls Card */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h4 className="text-md font-semibold text-gray-800 mb-4">🎯 Focus Controls</h4>
 
               {/* Focus Mode */}
               <div className="mb-4">
@@ -1177,11 +1192,11 @@ export default function Settings() {
                   <option value="1">Fast</option>
                 </select>
               </div>
-            </div>
+              </div>
 
-            {/* Image Format Section (Phase 2.1) */}
-            <div className="pt-4 mt-4 border-t border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">🖼️ Image Format</h4>
+              {/* Image Format Card */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h4 className="text-md font-semibold text-gray-800 mb-4">🖼️ Image Format</h4>
 
               {/* File Type */}
               <div className="mb-4">
@@ -1220,10 +1235,12 @@ export default function Settings() {
                   Enable if camera is mounted upside-down
                 </p>
               </div>
+              </div>
             </div>
 
-            {/* Advanced/Other Settings (collapsed by default) */}
-            <details className="pt-4 mt-4 border-t border-gray-200">
+            {/* Advanced/Other Settings - full width */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <details>
               <summary className="cursor-pointer text-md font-semibold text-gray-800 mb-4">
                 ⚙️ Advanced Settings (Click to expand)
               </summary>
@@ -1246,37 +1263,40 @@ export default function Settings() {
                     </div>
                   ))}
               </div>
-            </details>
+              </details>
+            </div>
 
-            {/* Info Box */}
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            {/* Info Box and Submit Button - full width */}
+            <div className="bg-white rounded-lg shadow p-6 space-y-4">
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-yellow-800">
                 <strong>Note:</strong> These settings affect full-resolution captures only (not preview).
                 Use Auto-Calibration to automatically optimize settings, or use the Camera page to manually test focus and exposure.
               </p>
-            </div>
+              </div>
 
-            <button
-              type="submit"
-              disabled={updateCameraMutation.isPending}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              {updateCameraMutation.isPending ? (
-                <>
-                  <span className="inline-block animate-spin mr-2">⏳</span>
-                  Saving...
-                </>
-              ) : (
-                'Save Camera Settings'
-              )}
-            </button>
+              <button
+                type="submit"
+                disabled={updateCameraMutation.isPending}
+                className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium transition-colors"
+              >
+                {updateCameraMutation.isPending ? (
+                  <>
+                    <span className="inline-block animate-spin mr-2">⏳</span>
+                    Saving...
+                  </>
+                ) : (
+                  'Save Camera Settings'
+                )}
+              </button>
+            </div>
           </form>
         </div>
       )}
 
       {/* Stream Settings Tab */}
       {activeTab === 'stream' && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="space-y-6">
           <style>{`
             /* Slider track styling for better visibility */
             input[type="range"]::-webkit-slider-runnable-track {
@@ -1313,13 +1333,17 @@ export default function Settings() {
               box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             }
           `}</style>
-          <h3 className="text-lg font-semibold mb-4">Camera Stream Configuration</h3>
-          <p className="text-sm text-gray-600 mb-6">
-            Configure the live camera stream quality and performance. Changes apply to new stream sessions.
-          </p>
+
+          <div className="bg-gradient-to-r from-green-100 to-emerald-100 rounded-lg shadow-sm p-4 border border-green-200">
+            <h3 className="text-lg font-semibold text-gray-900">Camera Stream Configuration</h3>
+            <p className="text-sm text-gray-700 mt-1">
+              Configure the live camera stream quality and performance. Changes apply to new stream sessions.
+            </p>
+          </div>
 
           {/* Video Preset Management Section */}
-          <div className="mb-6 p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
             <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
               <span className="mr-2">🎥</span>
               Video Stream Presets
@@ -1385,11 +1409,18 @@ export default function Settings() {
                 </button>
               )}
             </div>
+            </div>
           </div>
 
           <form onSubmit={handleWebuiSubmit} className="space-y-6">
-            {/* Resolution Preset Selector */}
-            <div>
+            {/* Grid container for settings cards */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Resolution & Performance Card */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h4 className="text-md font-semibold text-gray-800 mb-4">📐 Resolution & Performance</h4>
+
+                {/* Resolution Preset Selector */}
+                <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Resolution Preset
               </label>
@@ -1462,14 +1493,16 @@ export default function Settings() {
               <p className="mt-2 text-xs text-gray-500">
                 Higher quality produces sharper images but uses more bandwidth
               </p>
-            </div>
+                </div>
+              </div>
 
-            {/* Image Quality Controls (Phase 2.1) */}
-            <div className="pt-6 mt-6 border-t border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">📸 Image Quality</h4>
+              {/* Image Quality Card - spans full width due to many controls */}
+              <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
+                <h4 className="text-md font-semibold text-gray-800 mb-4">📸 Image Quality</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-              {/* Sharpness Slider */}
-              <div className="mb-6">
+                {/* Sharpness Slider */}
+                <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Sharpness: {webuiForm.sharpness !== undefined ? webuiForm.sharpness.toFixed(1) : '1.0'}
                 </label>
@@ -1493,7 +1526,7 @@ export default function Settings() {
               </div>
 
               {/* Brightness Slider */}
-              <div className="mb-6">
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Brightness: {webuiForm.brightness !== undefined ? webuiForm.brightness.toFixed(2) : '0.00'}
                 </label>
@@ -1517,7 +1550,7 @@ export default function Settings() {
               </div>
 
               {/* Contrast Slider */}
-              <div className="mb-6">
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Contrast: {webuiForm.contrast !== undefined ? webuiForm.contrast.toFixed(1) : '1.0'}
                 </label>
@@ -1541,7 +1574,7 @@ export default function Settings() {
               </div>
 
               {/* Saturation Slider */}
-              <div className="mb-6">
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Saturation: {webuiForm.saturation !== undefined ? webuiForm.saturation.toFixed(1) : '1.0'}
                 </label>
@@ -1565,7 +1598,7 @@ export default function Settings() {
               </div>
 
               {/* Noise Reduction Mode Dropdown */}
-              <div className="mb-6">
+              <div>
                 <label htmlFor="noise_reduction_mode" className="block text-sm font-medium text-gray-700 mb-2">
                   Noise Reduction Mode
                 </label>
@@ -1583,11 +1616,15 @@ export default function Settings() {
                   Critical for night insect photography. Higher quality reduces noise but may be slower.
                 </p>
               </div>
+                </div>
+              </div>
             </div>
 
-            {/* Focus Controls (Phase 2.1) */}
-            <div className="pt-6 mt-6 border-t border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">🎯 Focus Settings</h4>
+            {/* Second row of grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Focus Settings Card */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h4 className="text-md font-semibold text-gray-800 mb-4">🎯 Focus Settings</h4>
 
               {/* Focus Mode Dropdown */}
               <div className="mb-6">
@@ -1647,11 +1684,11 @@ export default function Settings() {
                   Macro mode for close-up insect photography
                 </p>
               </div>
-            </div>
+              </div>
 
-            {/* Exposure Controls (Preview Stream) */}
-            <div className="pt-6 mt-6 border-t border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">📊 Exposure (Preview Stream)</h4>
+              {/* Exposure Card */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h4 className="text-md font-semibold text-gray-800 mb-4">📊 Exposure (Preview Stream)</h4>
 
               {/* AeEnable Toggle for Stream */}
               <div className="mb-6">
@@ -1695,11 +1732,14 @@ export default function Settings() {
                   </p>
                 </div>
               )}
+              </div>
             </div>
 
-            {/* White Balance Controls (Phase 2.1) */}
-            <div className="pt-6 mt-6 border-t border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">🌡️ White Balance</h4>
+            {/* Fourth row of grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* White Balance Card */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h4 className="text-md font-semibold text-gray-800 mb-4">🌡️ White Balance</h4>
 
               {/* AWB Enable Checkbox */}
               <div className="mb-6">
@@ -1745,11 +1785,11 @@ export default function Settings() {
                   </p>
                 </div>
               )}
-            </div>
+              </div>
 
-            {/* ISP Features (Phase: ISP Tuning) */}
-            <div className="pt-6 mt-6 border-t border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">🔬 ISP Features</h4>
+              {/* ISP Features Card - spans full width */}
+              <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
+                <h4 className="text-md font-semibold text-gray-800 mb-4">🔬 ISP Features</h4>
               <p className="text-sm text-gray-600 mb-4">
                 Image Signal Processor corrections for improved image quality
               </p>
@@ -1848,10 +1888,11 @@ export default function Settings() {
                   Not available for runtime toggling - must be configured in tuning file before camera initialization.
                 </p>
               </div>
+              </div>
             </div>
 
-            {/* Focus Peaking Controls */}
-            <div className="pt-6 mt-6 border-t border-gray-200">
+            {/* Focus Peaking Card - full width */}
+            <div className="bg-white rounded-lg shadow p-6">
               <h4 className="text-md font-semibold text-gray-800 mb-4">🔍 Focus Peaking</h4>
               <p className="text-xs text-gray-600 mb-4">
                 Preview-only overlay to highlight in-focus areas. Helps with manual focus adjustment for macro photography.
@@ -1939,9 +1980,10 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* Stream Mode Selection */}
-            <div className="pt-6 mt-6 border-t border-gray-200">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">⚙️ Encoding</h4>
+            {/* Encoding & Submit Card - full width */}
+            <div className="bg-white rounded-lg shadow p-6 space-y-6">
+              <div>
+                <h4 className="text-md font-semibold text-gray-800 mb-4">⚙️ Encoding</h4>
               <label htmlFor="stream_mode" className="block text-sm font-medium text-gray-700 mb-2">
                 Encoding Mode
               </label>
@@ -1957,30 +1999,31 @@ export default function Settings() {
               <p className="mt-2 text-xs text-gray-500">
                 simplejpeg provides 5-7x faster encoding than PIL. Hardware MJPEG is experimental and may offer lower latency.
               </p>
-            </div>
+              </div>
 
-            {/* Info Box */}
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              {/* Info Box */}
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
                 <strong>Note:</strong> Changes will take effect when you start a new stream session.
                 If the stream is currently running, stop it and start it again to apply the new settings.
               </p>
-            </div>
+              </div>
 
-            <button
-              type="submit"
-              disabled={updateWebuiMutation.isPending}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              {updateWebuiMutation.isPending ? (
-                <>
-                  <span className="inline-block animate-spin mr-2">⏳</span>
-                  Saving...
-                </>
-              ) : (
-                'Save Stream Settings'
-              )}
-            </button>
+              <button
+                type="submit"
+                disabled={updateWebuiMutation.isPending}
+                className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium transition-colors"
+              >
+                {updateWebuiMutation.isPending ? (
+                  <>
+                    <span className="inline-block animate-spin mr-2">⏳</span>
+                    Saving...
+                  </>
+                ) : (
+                  'Save Stream Settings'
+                )}
+              </button>
+            </div>
           </form>
         </div>
       )}
