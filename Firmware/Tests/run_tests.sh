@@ -218,6 +218,15 @@ case "$TEST_TYPE" in
                Tests/integration/test_preset_workflows.py -v -s
         ;;
 
+    "focuspeaking"|"focus-peaking"|"peaking")
+        # Focus Peaking tests
+        echo "🚀 Running Focus Peaking tests..."
+        echo ""
+        echo "Testing edge detection algorithms, validation, real-time controls, and performance..."
+        pytest Tests/unit/test_focus_peaking_validation.py \
+               Tests/integration/test_focus_peaking_workflows.py -v -s
+        ;;
+
     "issue43"|"complete")
         # All tests for GitHub issue #43
         echo "🚀 Running COMPLETE test suite for GitHub issue #43..."
@@ -274,6 +283,11 @@ case "$TEST_TYPE" in
         echo "  clicktofocus  - Click-to-Focus / AF Window tests"
         echo "  af-window     - Same as clicktofocus"
         echo "  afwindow      - Same as clicktofocus"
+        echo "  focuspeaking  - Focus Peaking overlay tests (3 algorithms)"
+        echo "  focus-peaking - Same as focuspeaking"
+        echo "  peaking       - Same as focuspeaking"
+        echo "  presets       - Settings Presets tests"
+        echo "  preset        - Same as presets"
         echo ""
         echo "=== Legacy Phase Commands (backward compatibility) ==="
         echo "  phase2        - Run Phase 2 complete test suite"
@@ -304,6 +318,8 @@ case "$TEST_TYPE" in
         echo "  ./run_tests.sh isp              # Test ISP tuning features"
         echo "  ./run_tests.sh metadata         # Test extended metadata (15+ fields)"
         echo "  ./run_tests.sh clicktofocus     # Test click-to-focus AF window"
+        echo "  ./run_tests.sh focuspeaking     # Test focus peaking overlay (3 algorithms)"
+        echo "  ./run_tests.sh presets          # Test settings presets"
         echo "  ./run_tests.sh quick            # Quick performance check"
         echo "  ./run_tests.sh manual           # Show manual test steps"
         exit 0

@@ -1850,6 +1850,95 @@ export default function Settings() {
               </div>
             </div>
 
+            {/* Focus Peaking Controls */}
+            <div className="pt-6 mt-6 border-t border-gray-200">
+              <h4 className="text-md font-semibold text-gray-800 mb-4">🔍 Focus Peaking</h4>
+              <p className="text-xs text-gray-600 mb-4">
+                Preview-only overlay to highlight in-focus areas. Helps with manual focus adjustment for macro photography.
+              </p>
+
+              <div className="space-y-4">
+                {/* Enable Toggle */}
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="focus_peaking_enabled"
+                    checked={webuiForm.focus_peaking_enabled || false}
+                    onChange={(e) => setWebuiForm({...webuiForm, focus_peaking_enabled: e.target.checked})}
+                    className="w-4 h-4 rounded accent-green-500"
+                  />
+                  <label htmlFor="focus_peaking_enabled" className="ml-2 text-sm font-medium text-gray-700">
+                    Enable Focus Peaking Overlay
+                  </label>
+                </div>
+
+                {webuiForm.focus_peaking_enabled && (
+                  <div className="ml-6 space-y-4">
+                    {/* Intensity */}
+                    <div>
+                      <label htmlFor="focus_peaking_intensity" className="block text-sm font-medium text-gray-700 mb-2">
+                        Intensity: {webuiForm.focus_peaking_intensity || 100}
+                      </label>
+                      <input
+                        type="range"
+                        id="focus_peaking_intensity"
+                        min="50"
+                        max="200"
+                        step="10"
+                        value={webuiForm.focus_peaking_intensity || 100}
+                        onChange={(e) => setWebuiForm({...webuiForm, focus_peaking_intensity: parseInt(e.target.value)})}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>50 (Low)</span>
+                        <span>125</span>
+                        <span>200 (High)</span>
+                      </div>
+                    </div>
+
+                    {/* Color */}
+                    <div>
+                      <label htmlFor="focus_peaking_color" className="block text-sm font-medium text-gray-700 mb-2">
+                        Overlay Color
+                      </label>
+                      <select
+                        id="focus_peaking_color"
+                        value={webuiForm.focus_peaking_color || 'green'}
+                        onChange={(e) => setWebuiForm({...webuiForm, focus_peaking_color: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="green">🟢 Green</option>
+                        <option value="red">🔴 Red</option>
+                        <option value="yellow">🟡 Yellow</option>
+                        <option value="cyan">🔵 Cyan</option>
+                        <option value="magenta">🟣 Magenta</option>
+                      </select>
+                    </div>
+
+                    {/* Algorithm */}
+                    <div>
+                      <label htmlFor="focus_peaking_algorithm" className="block text-sm font-medium text-gray-700 mb-2">
+                        Edge Detection Algorithm
+                      </label>
+                      <select
+                        id="focus_peaking_algorithm"
+                        value={webuiForm.focus_peaking_algorithm || 'laplacian'}
+                        onChange={(e) => setWebuiForm({...webuiForm, focus_peaking_algorithm: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="laplacian">⚡ Laplacian (Fast)</option>
+                        <option value="sobel">⚙️ Sobel (Balanced)</option>
+                        <option value="canny">🎯 Canny (Accurate)</option>
+                      </select>
+                      <p className="mt-2 text-xs text-gray-500">
+                        Laplacian is fastest for general use. Sobel offers better directional accuracy. Canny is most accurate but slower.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Stream Mode Selection */}
             <div className="pt-6 mt-6 border-t border-gray-200">
               <h4 className="text-md font-semibold text-gray-800 mb-4">⚙️ Encoding</h4>

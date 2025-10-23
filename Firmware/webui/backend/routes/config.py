@@ -396,6 +396,24 @@ def update_webui_settings():
         if isinstance(defect_correction_enable, str):
             defect_correction_enable = defect_correction_enable.lower() == 'true'
 
+        # Validate and convert types - Focus peaking controls (preview-only overlay)
+        focus_peaking_enabled = new_settings.get('focus_peaking_enabled', existing.get('focus_peaking_enabled', False))
+        if isinstance(focus_peaking_enabled, str):
+            focus_peaking_enabled = focus_peaking_enabled.lower() == 'true'
+
+        try:
+            focus_peaking_intensity = int(new_settings.get('focus_peaking_intensity', existing.get('focus_peaking_intensity', 100)))
+        except (ValueError, TypeError) as e:
+            return jsonify({'error': f'Invalid focus_peaking_intensity type: {e}'}), 400
+
+        focus_peaking_color = new_settings.get('focus_peaking_color', existing.get('focus_peaking_color', 'green'))
+        if not isinstance(focus_peaking_color, str):
+            return jsonify({'error': 'focus_peaking_color must be a string'}), 400
+
+        focus_peaking_algorithm = new_settings.get('focus_peaking_algorithm', existing.get('focus_peaking_algorithm', 'laplacian'))
+        if not isinstance(focus_peaking_algorithm, str):
+            return jsonify({'error': 'focus_peaking_algorithm must be a string'}), 400
+
         # Validate ranges - Stream/encoding
         if not (320 <= stream_width <= 1920):
             return jsonify({'error': 'Width must be between 320 and 1920'}), 400
@@ -460,6 +478,16 @@ def update_webui_settings():
         if not isinstance(defect_correction_enable, bool):
             return jsonify({'error': 'defect_correction_enable must be a boolean'}), 400
 
+        # Validate - Focus peaking controls
+        if not isinstance(focus_peaking_enabled, bool):
+            return jsonify({'error': 'focus_peaking_enabled must be a boolean'}), 400
+        if not (50 <= focus_peaking_intensity <= 200):
+            return jsonify({'error': 'focus_peaking_intensity must be between 50 and 200'}), 400
+        if focus_peaking_color not in ['green', 'red', 'yellow', 'cyan', 'magenta']:
+            return jsonify({'error': 'focus_peaking_color must be green, red, yellow, cyan, or magenta'}), 400
+        if focus_peaking_algorithm not in ['laplacian', 'sobel', 'canny']:
+            return jsonify({'error': 'focus_peaking_algorithm must be laplacian, sobel, or canny'}), 400
+
         # Create backup before modification
         backup_path = _create_backup(WEBUI_SETTINGS_FILE)
 
@@ -504,6 +532,12 @@ def update_webui_settings():
             f.write(f"use_custom_tuning={'true' if use_custom_tuning else 'false'}\n")
             f.write(f"lens_shading_enable={'true' if lens_shading_enable else 'false'}\n")
             f.write(f"defect_correction_enable={'true' if defect_correction_enable else 'false'}\n")
+
+            # Focus peaking controls (preview-only overlay)
+            f.write(f"focus_peaking_enabled={'true' if focus_peaking_enabled else 'false'}\n")
+            f.write(f"focus_peaking_intensity={focus_peaking_intensity}\n")
+            f.write(f"focus_peaking_color={focus_peaking_color}\n")
+            f.write(f"focus_peaking_algorithm={focus_peaking_algorithm}\n")
 
         return jsonify({'success': True})
     except Exception as e:

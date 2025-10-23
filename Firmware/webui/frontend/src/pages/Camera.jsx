@@ -34,7 +34,12 @@ export default function Camera() {
     afMode: 2,  // 0=Manual, 1=Auto Single, 2=Continuous (default for live preview)
     lensPosition: 3.0,  // Diopters (0.0-10.0, middle position default)
     afRange: 0,  // 0=Normal, 1=Macro, 2=Full
-    afSpeed: 0  // 0=Normal, 1=Fast
+    afSpeed: 0,  // 0=Normal, 1=Fast
+    // Focus peaking controls (preview-only overlay)
+    focusPeakingEnabled: false,
+    focusPeakingIntensity: 100,  // 50-200 range
+    focusPeakingColor: 'green',  // green, red, yellow, cyan, magenta
+    focusPeakingAlgorithm: 'laplacian'  // laplacian, sobel, canny
   })
   const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
   const [zoomCenter, setZoomCenter] = useState({ x: 0.5, y: 0.5 })  // Normalized zoom center (0.5, 0.5 = center)
@@ -1362,6 +1367,91 @@ export default function Camera() {
                         <span>Click on preview to set focus region</span>
                       )}
                     </div>
+                  </div>
+
+                  {/* Focus Peaking Controls */}
+                  <div className="pt-2 mt-2 border-t border-white/20">
+                    <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                      <span>🔍 Focus Peaking</span>
+                      <input
+                        type="checkbox"
+                        checked={liveControls.focusPeakingEnabled}
+                        onChange={(e) => {
+                          const enabled = e.target.checked
+                          setLiveControls(prev => ({ ...prev, focusPeakingEnabled: enabled }))
+                          debouncedEmitControl('FocusPeakingEnabled', enabled)
+                        }}
+                        className="w-4 h-4 rounded accent-green-500"
+                      />
+                    </label>
+
+                    {liveControls.focusPeakingEnabled && (
+                      <div className="mt-2 space-y-2">
+                        {/* Intensity Slider */}
+                        <div>
+                          <label className="flex justify-between items-center text-[10px] text-gray-300 mb-1">
+                            <span>Intensity</span>
+                            <span className="text-green-300 font-mono">{liveControls.focusPeakingIntensity}</span>
+                          </label>
+                          <input
+                            type="range"
+                            min="50"
+                            max="200"
+                            step="10"
+                            value={liveControls.focusPeakingIntensity}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value)
+                              setLiveControls(prev => ({ ...prev, focusPeakingIntensity: value }))
+                              debouncedEmitControl('FocusPeakingIntensity', value)
+                            }}
+                            className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-green-500"
+                          />
+                          <div className="flex justify-between text-[9px] text-gray-400 mt-0.5">
+                            <span>50</span>
+                            <span>125</span>
+                            <span>200</span>
+                          </div>
+                        </div>
+
+                        {/* Color Dropdown */}
+                        <div>
+                          <label className="text-[10px] text-gray-300 mb-1 block">Color</label>
+                          <select
+                            value={liveControls.focusPeakingColor}
+                            onChange={(e) => {
+                              const color = e.target.value
+                              setLiveControls(prev => ({ ...prev, focusPeakingColor: color }))
+                              debouncedEmitControl('FocusPeakingColor', color)
+                            }}
+                            className="w-full px-2 py-1 text-[10px] bg-white/10 text-white rounded border border-white/20"
+                          >
+                            <option value="green">🟢 Green</option>
+                            <option value="red">🔴 Red</option>
+                            <option value="yellow">🟡 Yellow</option>
+                            <option value="cyan">🔵 Cyan</option>
+                            <option value="magenta">🟣 Magenta</option>
+                          </select>
+                        </div>
+
+                        {/* Algorithm Dropdown */}
+                        <div>
+                          <label className="text-[10px] text-gray-300 mb-1 block">Algorithm</label>
+                          <select
+                            value={liveControls.focusPeakingAlgorithm}
+                            onChange={(e) => {
+                              const algorithm = e.target.value
+                              setLiveControls(prev => ({ ...prev, focusPeakingAlgorithm: algorithm }))
+                              debouncedEmitControl('FocusPeakingAlgorithm', algorithm)
+                            }}
+                            className="w-full px-2 py-1 text-[10px] bg-white/10 text-white rounded border border-white/20"
+                          >
+                            <option value="laplacian">⚡ Laplacian (Fast)</option>
+                            <option value="sobel">⚙️ Sobel (Balanced)</option>
+                            <option value="canny">🎯 Canny (Accurate)</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

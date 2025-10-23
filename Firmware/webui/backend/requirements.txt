@@ -8,4 +8,5 @@ picamera2
 # RPi.GPIO - DO NOT install via pip! Use system package python3-rpi-lgpio instead
 #            pip-installed RPi.GPIO conflicts with rpi-lgpio on Pi 5
 Pillow
+opencv-python
 python-crontab

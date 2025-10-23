@@ -242,13 +242,34 @@ class PresetManager:
             # Type checks for preview settings
             preview = settings['preview']
             if preview:  # Only validate if not empty
-                numeric_fields = ['sharpness', 'brightness', 'contrast', 'saturation']
+                numeric_fields = ['sharpness', 'brightness', 'contrast', 'saturation', 'focus_peaking_intensity']
                 for field in numeric_fields:
                     if field in preview:
                         try:
                             float(preview[field])
                         except (ValueError, TypeError):
                             return False, f"Preview setting '{field}' must be numeric"
+
+                # Validate focus peaking boolean
+                if 'focus_peaking_enabled' in preview:
+                    if not isinstance(preview['focus_peaking_enabled'], bool):
+                        if isinstance(preview['focus_peaking_enabled'], str):
+                            if preview['focus_peaking_enabled'].lower() not in ['true', 'false']:
+                                return False, "Preview setting 'focus_peaking_enabled' must be boolean or 'true'/'false' string"
+                        else:
+                            return False, "Preview setting 'focus_peaking_enabled' must be boolean"
+
+                # Validate focus peaking color
+                if 'focus_peaking_color' in preview:
+                    valid_colors = ['green', 'red', 'yellow', 'cyan', 'magenta']
+                    if preview['focus_peaking_color'] not in valid_colors:
+                        return False, f"Preview setting 'focus_peaking_color' must be one of {valid_colors}"
+
+                # Validate focus peaking algorithm
+                if 'focus_peaking_algorithm' in preview:
+                    valid_algorithms = ['laplacian', 'sobel', 'canny']
+                    if preview['focus_peaking_algorithm'] not in valid_algorithms:
+                        return False, f"Preview setting 'focus_peaking_algorithm' must be one of {valid_algorithms}"
 
         return True, "Preset validation successful"
 

@@ -43,6 +43,16 @@ except ImportError:
     SIMPLEJPEG_AVAILABLE = False
     print("⚠ simplejpeg not available - using PIL (slower)")
 
+# Try to import OpenCV for focus peaking overlay
+try:
+    import cv2
+    import numpy as np
+    CV2_AVAILABLE = True
+    print("✓ OpenCV available for focus peaking")
+except ImportError:
+    CV2_AVAILABLE = False
+    print("⚠ OpenCV not available - focus peaking disabled")
+
 # Default camera stream configuration constants
 DEFAULT_STREAM_WIDTH = 1024
 DEFAULT_STREAM_HEIGHT = 768
@@ -121,6 +131,12 @@ class CameraStreamer:
         self.defect_correction_enable = True
         self.use_custom_tuning = False  # Load custom tuning file (disabled by default)
 
+        # Focus peaking controls (preview-only overlay)
+        self.focus_peaking_enabled = False
+        self.focus_peaking_intensity = 100  # 50-200 range
+        self.focus_peaking_color = 'green'  # green, red, yellow, cyan, magenta
+        self.focus_peaking_algorithm = 'laplacian'  # laplacian, sobel, canny
+
         try:
             if mothbox_paths.WEBUI_SETTINGS_FILE.exists():
                 settings = get_control_values(mothbox_paths.WEBUI_SETTINGS_FILE)
@@ -189,6 +205,16 @@ class CameraStreamer:
                 if 'use_custom_tuning' in settings:
                     self.use_custom_tuning = settings['use_custom_tuning'].lower() == 'true'
 
+                # Focus peaking settings
+                if 'focus_peaking_enabled' in settings:
+                    self.focus_peaking_enabled = settings['focus_peaking_enabled'].lower() == 'true'
+                if 'focus_peaking_intensity' in settings:
+                    self.focus_peaking_intensity = int(settings['focus_peaking_intensity'])
+                if 'focus_peaking_color' in settings:
+                    self.focus_peaking_color = settings['focus_peaking_color']
+                if 'focus_peaking_algorithm' in settings:
+                    self.focus_peaking_algorithm = settings['focus_peaking_algorithm']
+
                 print(f"Stream settings loaded: {self.stream_width}x{self.stream_height}, "
                       f"FPS: {1/self.frame_delay:.1f}, Quality: {self.jpeg_quality}, Mode: {self.stream_mode}")
                 print(f"  Image quality: Sharp={self.sharpness}, Bright={self.brightness}, "
@@ -196,6 +222,7 @@ class CameraStreamer:
                 print(f"  Focus: Mode={self.af_mode}, Speed={self.af_speed}, Range={self.af_range}")
                 print(f"  White balance: AWB={self.awb_enable}, Mode={self.awb_mode}, ColourGains={self.colour_gains}")
                 print(f"  ISP: LensShading={self.lens_shading_enable}, DefectCorrection={self.defect_correction_enable}, CustomTuning={self.use_custom_tuning}")
+                print(f"  Focus peaking: Enabled={self.focus_peaking_enabled}, Intensity={self.focus_peaking_intensity}, Color={self.focus_peaking_color}, Algorithm={self.focus_peaking_algorithm}")
         except Exception as e:
             print(f"Error loading stream settings, using defaults: {e}")
 
@@ -633,6 +660,28 @@ class CameraStreamer:
                     # Capture frame
                     frame = self.camera.capture_array()
 
+                    # Apply focus peaking overlay if enabled (preview only)
+                    if self.focus_peaking_enabled and CV2_AVAILABLE:
+                        # Route to selected algorithm
+                        if self.focus_peaking_algorithm == 'sobel':
+                            frame = self._apply_focus_peaking_sobel(
+                                frame,
+                                threshold=self.focus_peaking_intensity,
+                                color=self.focus_peaking_color
+                            )
+                        elif self.focus_peaking_algorithm == 'canny':
+                            frame = self._apply_focus_peaking_canny(
+                                frame,
+                                threshold=self.focus_peaking_intensity,
+                                color=self.focus_peaking_color
+                            )
+                        else:  # Default to laplacian
+                            frame = self._apply_focus_peaking_laplacian(
+                                frame,
+                                threshold=self.focus_peaking_intensity,
+                                color=self.focus_peaking_color
+                            )
+
                     # Encode as JPEG using fastest available method
                     if SIMPLEJPEG_AVAILABLE:
                         # Fast path: simplejpeg (5-7x faster than PIL)
@@ -765,13 +814,36 @@ class CameraStreamer:
         Args:
             control_dict: Dictionary of control names and values
                           e.g., {"Sharpness": 2.0, "Brightness": 0.1}
+                          Also supports focus peaking controls:
+                          {"FocusPeakingEnabled": True, "FocusPeakingIntensity": 150}
 
         Returns:
             bool: True if successful, False if camera not ready
         """
-        if self.camera and self.streaming:
+        # Handle focus peaking controls separately (these are stream settings, not camera controls)
+        focus_peaking_controls = {}
+        camera_controls = {}
+
+        for key, value in control_dict.items():
+            if key == 'FocusPeakingEnabled':
+                self.focus_peaking_enabled = value if isinstance(value, bool) else str(value).lower() == 'true'
+                focus_peaking_controls[key] = value
+            elif key == 'FocusPeakingIntensity':
+                self.focus_peaking_intensity = int(value)
+                focus_peaking_controls[key] = value
+            elif key == 'FocusPeakingColor':
+                self.focus_peaking_color = str(value)
+                focus_peaking_controls[key] = value
+            elif key == 'FocusPeakingAlgorithm':
+                self.focus_peaking_algorithm = str(value)
+                focus_peaking_controls[key] = value
+            else:
+                camera_controls[key] = value
+
+        # Apply camera controls if any
+        if camera_controls and self.camera and self.streaming:
             try:
-                self.camera.set_controls(control_dict)
+                self.camera.set_controls(camera_controls)
 
                 # Re-apply AF window if active (preserve window when other controls change)
                 if self._af_window_active and self._af_window_coords:
@@ -781,12 +853,169 @@ class CameraStreamer:
                         "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples in pixels
                     })
 
-                print(f"Updated controls: {control_dict}")
-                return True
+                print(f"Updated camera controls: {camera_controls}")
             except Exception as e:
-                print(f"Error updating controls: {e}")
+                print(f"Error updating camera controls: {e}")
                 return False
-        return False
+
+        # Log focus peaking control updates
+        if focus_peaking_controls:
+            print(f"Updated focus peaking controls: {focus_peaking_controls}")
+
+        return True
+
+    def _apply_focus_peaking_laplacian(self, frame, threshold=100, color='green'):
+        """
+        Apply focus peaking overlay using Laplacian edge detection
+
+        Laplacian is the fastest method - detects edges using second derivative.
+        Best for: General use, fast performance
+
+        Args:
+            frame: BGR888 numpy array (height, width, 3)
+            threshold: Edge detection sensitivity (50-200, higher = more sensitive)
+            color: Overlay color ('green', 'red', 'yellow', 'cyan', 'magenta')
+
+        Returns:
+            Modified BGR888 frame with focus peaking overlay
+        """
+        if not CV2_AVAILABLE:
+            return frame
+
+        # Color mapping (BGR format for OpenCV)
+        color_map = {
+            'green': (0, 255, 0),
+            'red': (0, 0, 255),
+            'yellow': (0, 255, 255),
+            'cyan': (255, 255, 0),
+            'magenta': (255, 0, 255)
+        }
+        overlay_color = color_map.get(color, (0, 255, 0))  # Default to green
+
+        # Convert to grayscale
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # Apply Laplacian edge detection (ksize=3 for speed)
+        laplacian = cv2.Laplacian(gray, cv2.CV_64F, ksize=3)
+        laplacian = np.abs(laplacian)
+
+        # Threshold for sharp edges
+        edge_mask = (laplacian > threshold).astype(np.uint8) * 255
+
+        # Morphological closing to connect nearby edges (3x3 ellipse kernel)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        edge_mask = cv2.morphologyEx(edge_mask, cv2.MORPH_CLOSE, kernel)
+
+        # Create colored overlay
+        overlay = np.zeros_like(frame)
+        overlay[edge_mask > 0] = overlay_color
+
+        # Blend with original (60% overlay visibility)
+        result = cv2.addWeighted(frame, 1.0, overlay, 0.6, 0)
+
+        return result
+
+    def _apply_focus_peaking_sobel(self, frame, threshold=100, color='green'):
+        """
+        Apply focus peaking overlay using Sobel edge detection
+
+        Sobel detects directional edges (horizontal and vertical separately).
+        Best for: Better directional accuracy, moderate performance
+
+        Args:
+            frame: BGR888 numpy array (height, width, 3)
+            threshold: Edge detection sensitivity (50-200, higher = more sensitive)
+            color: Overlay color ('green', 'red', 'yellow', 'cyan', 'magenta')
+
+        Returns:
+            Modified BGR888 frame with focus peaking overlay
+        """
+        if not CV2_AVAILABLE:
+            return frame
+
+        # Color mapping (BGR format for OpenCV)
+        color_map = {
+            'green': (0, 255, 0),
+            'red': (0, 0, 255),
+            'yellow': (0, 255, 255),
+            'cyan': (255, 255, 0),
+            'magenta': (255, 0, 255)
+        }
+        overlay_color = color_map.get(color, (0, 255, 0))  # Default to green
+
+        # Convert to grayscale
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # Apply Sobel edge detection in both directions
+        sobel_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+        sobel_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
+
+        # Combine gradients (magnitude)
+        sobel_mag = np.sqrt(sobel_x**2 + sobel_y**2)
+
+        # Threshold for sharp edges
+        edge_mask = (sobel_mag > threshold).astype(np.uint8) * 255
+
+        # Morphological closing to connect nearby edges (3x3 ellipse kernel)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        edge_mask = cv2.morphologyEx(edge_mask, cv2.MORPH_CLOSE, kernel)
+
+        # Create colored overlay
+        overlay = np.zeros_like(frame)
+        overlay[edge_mask > 0] = overlay_color
+
+        # Blend with original (60% overlay visibility)
+        result = cv2.addWeighted(frame, 1.0, overlay, 0.6, 0)
+
+        return result
+
+    def _apply_focus_peaking_canny(self, frame, threshold=100, color='green'):
+        """
+        Apply focus peaking overlay using Canny edge detection
+
+        Canny is the most accurate - multi-stage algorithm with hysteresis thresholding.
+        Best for: Maximum accuracy, slower performance
+
+        Args:
+            frame: BGR888 numpy array (height, width, 3)
+            threshold: Edge detection sensitivity (50-200, higher = more sensitive)
+            color: Overlay color ('green', 'red', 'yellow', 'cyan', 'magenta')
+
+        Returns:
+            Modified BGR888 frame with focus peaking overlay
+        """
+        if not CV2_AVAILABLE:
+            return frame
+
+        # Color mapping (BGR format for OpenCV)
+        color_map = {
+            'green': (0, 255, 0),
+            'red': (0, 0, 255),
+            'yellow': (0, 255, 255),
+            'cyan': (255, 255, 0),
+            'magenta': (255, 0, 255)
+        }
+        overlay_color = color_map.get(color, (0, 255, 0))  # Default to green
+
+        # Convert to grayscale
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # Apply Canny edge detection
+        # Use threshold as lower bound, upper bound = threshold * 2 (standard practice)
+        edge_mask = cv2.Canny(gray, threshold, threshold * 2)
+
+        # Morphological closing to connect nearby edges (3x3 ellipse kernel)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        edge_mask = cv2.morphologyEx(edge_mask, cv2.MORPH_CLOSE, kernel)
+
+        # Create colored overlay
+        overlay = np.zeros_like(frame)
+        overlay[edge_mask > 0] = overlay_color
+
+        # Blend with original (60% overlay visibility)
+        result = cv2.addWeighted(frame, 1.0, overlay, 0.6, 0)
+
+        return result
 
     def calculate_scaler_crop(self):
         """

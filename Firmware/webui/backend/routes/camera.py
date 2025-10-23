@@ -165,6 +165,12 @@ ALLOWED_CAMERA_SETTINGS = {
     # Image format
     'ImageFileType': lambda v: int(v) in [0, 1, 2],  # 0=JPEG, 1=PNG, 2=BMP
     'VerticalFlip': lambda v: int(v) in [0, 1],  # 0=No flip, 1=Flip
+
+    # Focus peaking (preview-only overlay)
+    'FocusPeakingEnabled': lambda v: str(v).lower() in ['true', 'false'],
+    'FocusPeakingIntensity': lambda v: 50 <= int(v) <= 200,
+    'FocusPeakingColor': lambda v: str(v).lower() in ['green', 'red', 'yellow', 'cyan', 'magenta'],
+    'FocusPeakingAlgorithm': lambda v: str(v).lower() in ['laplacian', 'sobel', 'canny'],
 }
 
 camera_bp = Blueprint('camera', __name__)
