@@ -882,12 +882,12 @@ class CameraStreamer:
         if not CV2_AVAILABLE:
             return frame
 
-        # Color mapping (BGR format for OpenCV)
+        # Color mapping (RGB format - picamera2 BGR888 is actually RGB)
         color_map = {
             'green': (0, 255, 0),
-            'red': (0, 0, 255),
-            'yellow': (0, 255, 255),
-            'cyan': (255, 255, 0),
+            'red': (255, 0, 0),       # RGB not BGR
+            'yellow': (255, 255, 0),  # RGB not BGR
+            'cyan': (0, 255, 255),    # RGB not BGR
             'magenta': (255, 0, 255)
         }
         overlay_color = color_map.get(color, (0, 255, 0))  # Default to green
@@ -899,8 +899,9 @@ class CameraStreamer:
         laplacian = cv2.Laplacian(gray, cv2.CV_64F, ksize=3)
         laplacian = np.abs(laplacian)
 
-        # Threshold for sharp edges
-        edge_mask = (laplacian > threshold).astype(np.uint8) * 255
+        # Threshold for sharp edges (inverted: high intensity = more edges)
+        inverted_threshold = 250 - threshold  # 200→50, 100→150, 50→200
+        edge_mask = (laplacian > inverted_threshold).astype(np.uint8) * 255
 
         # Morphological closing to connect nearby edges (3x3 ellipse kernel)
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
@@ -933,12 +934,12 @@ class CameraStreamer:
         if not CV2_AVAILABLE:
             return frame
 
-        # Color mapping (BGR format for OpenCV)
+        # Color mapping (RGB format - picamera2 BGR888 is actually RGB)
         color_map = {
             'green': (0, 255, 0),
-            'red': (0, 0, 255),
-            'yellow': (0, 255, 255),
-            'cyan': (255, 255, 0),
+            'red': (255, 0, 0),       # RGB not BGR
+            'yellow': (255, 255, 0),  # RGB not BGR
+            'cyan': (0, 255, 255),    # RGB not BGR
             'magenta': (255, 0, 255)
         }
         overlay_color = color_map.get(color, (0, 255, 0))  # Default to green
@@ -953,8 +954,9 @@ class CameraStreamer:
         # Combine gradients (magnitude)
         sobel_mag = np.sqrt(sobel_x**2 + sobel_y**2)
 
-        # Threshold for sharp edges
-        edge_mask = (sobel_mag > threshold).astype(np.uint8) * 255
+        # Threshold for sharp edges (inverted: high intensity = more edges)
+        inverted_threshold = 250 - threshold  # 200→50, 100→150, 50→200
+        edge_mask = (sobel_mag > inverted_threshold).astype(np.uint8) * 255
 
         # Morphological closing to connect nearby edges (3x3 ellipse kernel)
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
@@ -987,12 +989,12 @@ class CameraStreamer:
         if not CV2_AVAILABLE:
             return frame
 
-        # Color mapping (BGR format for OpenCV)
+        # Color mapping (RGB format - picamera2 BGR888 is actually RGB)
         color_map = {
             'green': (0, 255, 0),
-            'red': (0, 0, 255),
-            'yellow': (0, 255, 255),
-            'cyan': (255, 255, 0),
+            'red': (255, 0, 0),       # RGB not BGR
+            'yellow': (255, 255, 0),  # RGB not BGR
+            'cyan': (0, 255, 255),    # RGB not BGR
             'magenta': (255, 0, 255)
         }
         overlay_color = color_map.get(color, (0, 255, 0))  # Default to green
@@ -1000,9 +1002,10 @@ class CameraStreamer:
         # Convert to grayscale
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # Apply Canny edge detection
+        # Apply Canny edge detection (inverted: high intensity = more edges)
         # Use threshold as lower bound, upper bound = threshold * 2 (standard practice)
-        edge_mask = cv2.Canny(gray, threshold, threshold * 2)
+        inverted_threshold = 250 - threshold  # 200→50, 100→150, 50→200
+        edge_mask = cv2.Canny(gray, inverted_threshold, inverted_threshold * 2)
 
         # Morphological closing to connect nearby edges (3x3 ellipse kernel)
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
