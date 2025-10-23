@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getControls, updateControls, getCameraSettings, updateCameraSettings, getSystemInfo, getDiagnosticInfo, getWebUISettings, updateWebUISettings, getPresets, getPreset, applyPreset, deletePreset, createPreset } from '../utils/api'
+import { getControls, updateControls, getCameraSettings, updateCameraSettings, getSystemInfo, getDiagnosticInfo, getWebUISettings, updateWebUISettings, getPresets, getPreset, applyPreset, deletePreset, createPreset, getPreferences, setPreference } from '../utils/api'
 import { useState, useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
@@ -81,6 +81,12 @@ export default function Settings() {
     queryFn: () => getPresets().then(res => res.data),
   })
 
+  // User preferences (for default presets)
+  const { data: preferences } = useQuery({
+    queryKey: ['preferences'],
+    queryFn: () => getPreferences().then(res => res.data),
+  })
+
   const applyPresetMutation = useMutation({
     mutationFn: ({ name, applyTo }) => applyPreset(name, applyTo),
     onSuccess: (response) => {
@@ -98,7 +104,8 @@ export default function Settings() {
     mutationFn: (name) => deletePreset(name),
     onSuccess: () => {
       queryClient.invalidateQueries(['presets'])
-      setSelectedPreset('')
+      setSelectedPhotoPreset('')
+      setSelectedVideoPreset('')
       toast.success('Preset deleted successfully!')
     },
     onError: (error) => {
@@ -120,11 +127,25 @@ export default function Settings() {
     },
   })
 
+  const setPreferenceMutation = useMutation({
+    mutationFn: ({ key, value }) => setPreference(key, value),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['preferences'])
+      toast.success('Default preset updated!')
+    },
+    onError: (error) => {
+      const message = error.response?.data?.error || 'Failed to update preference'
+      toast.error(`Error: ${message}`)
+    },
+  })
+
   const [controlsForm, setControlsForm] = useState({})
   const [cameraForm, setCameraForm] = useState({})
   const [webuiForm, setWebuiForm] = useState({})
-  const [selectedPreset, setSelectedPreset] = useState('')
+  const [selectedPhotoPreset, setSelectedPhotoPreset] = useState('')
+  const [selectedVideoPreset, setSelectedVideoPreset] = useState('')
   const [showSaveModal, setShowSaveModal] = useState(false)
+  const [saveModalWorkflow, setSaveModalWorkflow] = useState('both') // Context for save modal
 
   // Initialize forms when data loads - use useEffect to avoid re-render loop
   useEffect(() => {
@@ -177,30 +198,100 @@ export default function Settings() {
   }
 
   // Preset management handlers
-  const builtInPresets = presetsData?.presets?.filter(p => p.category === 'built-in') || []
-  const userPresets = presetsData?.presets?.filter(p => p.category === 'user') || []
-  const selectedPresetData = presetsData?.presets?.find(p => p.name === selectedPreset)
+  // Filter presets by workflow
+  const photoPresets = presetsData?.presets?.filter(p => p.workflow === 'photo' || p.workflow === 'both') || []
+  const videoPresets = presetsData?.presets?.filter(p => p.workflow === 'video' || p.workflow === 'both') || []
 
-  const handleApplyPreset = (applyTo) => {
-    if (!selectedPreset) {
-      toast.error('Please select a preset first')
+  const selectedPhotoPresetData = presetsData?.presets?.find(p => p.name === selectedPhotoPreset)
+  const selectedVideoPresetData = presetsData?.presets?.find(p => p.name === selectedVideoPreset)
+
+  // Load default presets from preferences on mount
+  useEffect(() => {
+    if (preferences?.default_capture_preset && !selectedPhotoPreset) {
+      setSelectedPhotoPreset(preferences.default_capture_preset)
+    }
+    if (preferences?.default_preview_preset && !selectedVideoPreset) {
+      setSelectedVideoPreset(preferences.default_preview_preset)
+    }
+  }, [preferences])
+
+  // Auto-populate camera form when photo preset selected
+  useEffect(() => {
+    if (selectedPhotoPreset && presetsData) {
+      const preset = presetsData.presets.find(p => p.name === selectedPhotoPreset)
+      if (preset?.settings?.camera) {
+        setCameraForm(prev => ({
+          ...prev,
+          ...preset.settings.camera
+        }))
+      }
+    }
+  }, [selectedPhotoPreset, presetsData])
+
+  // Auto-populate webui form when video preset selected
+  useEffect(() => {
+    if (selectedVideoPreset && presetsData) {
+      const preset = presetsData.presets.find(p => p.name === selectedVideoPreset)
+      if (preset?.settings?.preview) {
+        setWebuiForm(prev => ({
+          ...prev,
+          ...preset.settings.preview
+        }))
+      }
+    }
+  }, [selectedVideoPreset, presetsData])
+
+  const handleSetDefaultPhotoPreset = () => {
+    if (!selectedPhotoPreset) {
+      toast.error('Please select a photo preset first')
       return
     }
-    applyPresetMutation.mutate({ name: selectedPreset, applyTo })
+    setPreferenceMutation.mutate({
+      key: 'default_capture_preset',
+      value: selectedPhotoPreset
+    })
   }
 
-  const handleDeletePreset = () => {
-    if (!selectedPreset) return
-    if (selectedPresetData?.category === 'built-in') {
+  const handleSetDefaultVideoPreset = () => {
+    if (!selectedVideoPreset) {
+      toast.error('Please select a video preset first')
+      return
+    }
+    setPreferenceMutation.mutate({
+      key: 'default_preview_preset',
+      value: selectedVideoPreset
+    })
+  }
+
+  const handleDeletePhotoPreset = () => {
+    if (!selectedPhotoPreset) return
+    if (selectedPhotoPresetData?.category === 'built-in') {
       toast.error('Cannot delete built-in presets')
       return
     }
-    if (confirm(`Delete preset "${selectedPresetData?.display_name}"?`)) {
-      deletePresetMutation.mutate(selectedPreset)
+    if (confirm(`Delete preset "${selectedPhotoPresetData?.display_name}"?`)) {
+      deletePresetMutation.mutate(selectedPhotoPreset)
     }
   }
 
-  const handleSavePreset = () => {
+  const handleDeleteVideoPreset = () => {
+    if (!selectedVideoPreset) return
+    if (selectedVideoPresetData?.category === 'built-in') {
+      toast.error('Cannot delete built-in presets')
+      return
+    }
+    if (confirm(`Delete preset "${selectedVideoPresetData?.display_name}"?`)) {
+      deletePresetMutation.mutate(selectedVideoPreset)
+    }
+  }
+
+  const handleSavePhotoPreset = () => {
+    setSaveModalWorkflow('photo')
+    setShowSaveModal(true)
+  }
+
+  const handleSaveVideoPreset = () => {
+    setSaveModalWorkflow('video')
     setShowSaveModal(true)
   }
 
