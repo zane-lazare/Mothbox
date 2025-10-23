@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 
-export default function SavePresetModal({ isOpen, onClose, onSave, isSaving }) {
+export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, defaultWorkflow = 'both' }) {
   const [presetName, setPresetName] = useState('')
   const [description, setDescription] = useState('')
+  const [workflow, setWorkflow] = useState(defaultWorkflow)
   const [nameError, setNameError] = useState('')
 
   if (!isOpen) return null
@@ -40,6 +41,7 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving }) {
     const presetData = {
       name: presetName,
       description: description.trim(),
+      workflow: workflow,
       from_current: true
     }
 
@@ -48,6 +50,7 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving }) {
       // Reset form on success
       setPresetName('')
       setDescription('')
+      setWorkflow(defaultWorkflow)
       setNameError('')
     } catch (error) {
       // Error is handled by the mutation in parent component
@@ -58,6 +61,7 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving }) {
   const handleClose = () => {
     setPresetName('')
     setDescription('')
+    setWorkflow(defaultWorkflow)
     setNameError('')
     onClose()
   }
@@ -134,6 +138,60 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving }) {
               />
               <p className="mt-1 text-xs text-gray-500">
                 {description.length}/200 characters
+              </p>
+            </div>
+
+            {/* Workflow Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Workflow Type <span className="text-red-500">*</span>
+              </label>
+              <div className="space-y-2">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="workflow"
+                    value="photo"
+                    checked={workflow === 'photo'}
+                    onChange={(e) => setWorkflow(e.target.value)}
+                    disabled={isSaving}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">
+                    📸 <strong>Photo</strong> (Capture only)
+                  </span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="workflow"
+                    value="video"
+                    checked={workflow === 'video'}
+                    onChange={(e) => setWorkflow(e.target.value)}
+                    disabled={isSaving}
+                    className="w-4 h-4 text-green-600 focus:ring-green-500 disabled:opacity-50"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">
+                    🎥 <strong>Video</strong> (Stream only)
+                  </span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="workflow"
+                    value="both"
+                    checked={workflow === 'both'}
+                    onChange={(e) => setWorkflow(e.target.value)}
+                    disabled={isSaving}
+                    className="w-4 h-4 text-purple-600 focus:ring-purple-500 disabled:opacity-50"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">
+                    🔄 <strong>Both</strong> (Photo & Video)
+                  </span>
+                </label>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                Choose which workflow this preset is designed for
               </p>
             </div>
           </div>

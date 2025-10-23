@@ -529,110 +529,71 @@ export default function Settings() {
             These settings control full-resolution photo captures (not preview). Changes take effect on next photo.
           </p>
 
-          {/* Preset Management Section */}
+          {/* Photo Preset Management Section */}
           <div className="mb-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
             <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <span className="mr-2">🎨</span>
-              Settings Presets
+              <span className="mr-2">📸</span>
+              Photo Capture Presets
             </h4>
+            <p className="text-xs text-gray-600 mb-4">
+              Select a preset to auto-populate capture settings below. Review, tweak, then Save to apply.
+            </p>
 
             <div className="space-y-4">
-              {/* Preset Selector */}
+              {/* Photo Preset Selector */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Quick Presets
+                  Photo Preset
                 </label>
                 <select
-                  value={selectedPreset}
-                  onChange={(e) => setSelectedPreset(e.target.value)}
+                  value={selectedPhotoPreset}
+                  onChange={(e) => setSelectedPhotoPreset(e.target.value)}
                   disabled={presetsLoading}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">Custom Settings (No Preset)</option>
-                  {builtInPresets.length > 0 && (
-                    <optgroup label="Built-in Presets">
-                      {builtInPresets.map(p => (
-                        <option key={p.name} value={p.name}>
-                          {p.display_name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {userPresets.length > 0 && (
-                    <optgroup label="My Presets">
-                      {userPresets.map(p => (
-                        <option key={p.name} value={p.name}>
-                          📌 {p.display_name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
+                  {photoPresets.map(p => (
+                    <option key={p.name} value={p.name}>
+                      {p.display_name}
+                    </option>
+                  ))}
                 </select>
-                {selectedPresetData && (
+                {selectedPhotoPresetData && (
                   <p className="mt-2 text-sm text-gray-600 italic">
-                    {selectedPresetData.description}
+                    {selectedPhotoPresetData.description}
                   </p>
                 )}
               </div>
 
-              {/* Apply To Buttons */}
-              <div className="grid grid-cols-3 gap-2">
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => handleApplyPreset('capture')}
-                  disabled={!selectedPreset || applyPresetMutation.isPending}
-                  className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                  onClick={handleSetDefaultPhotoPreset}
+                  disabled={!selectedPhotoPreset || setPreferenceMutation.isPending}
+                  className="bg-yellow-500 text-white px-3 py-2 rounded-lg hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium transition-colors"
                 >
-                  📸 Capture
+                  ⭐ Set as Default
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleApplyPreset('preview')}
-                  disabled={!selectedPreset || applyPresetMutation.isPending}
-                  className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                  onClick={handleSavePhotoPreset}
+                  className="bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium transition-colors"
                 >
-                  👁️ Preview
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset('both')}
-                  disabled={!selectedPreset || applyPresetMutation.isPending}
-                  className="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium transition-colors"
-                >
-                  🔄 Both
-                </button>
-              </div>
-
-              {/* Save Current as Preset */}
-              <div className="border-t border-blue-200 pt-4">
-                <button
-                  type="button"
-                  onClick={handleSavePreset}
-                  className="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium transition-colors"
-                >
-                  💾 Save Current Settings as Preset
+                  💾 Save Current
                 </button>
               </div>
 
               {/* Delete Button (for user presets) */}
-              {selectedPreset && selectedPresetData?.category === 'user' && (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleDeletePreset}
-                    disabled={deletePresetMutation.isPending}
-                    className="flex-1 bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 disabled:bg-gray-300 text-sm font-medium transition-colors"
-                  >
-                    🗑️ Delete Preset
-                  </button>
-                </div>
-              )}
-
-              {/* Preset Count Info */}
-              {presetsData?.counts && (
-                <p className="text-xs text-gray-500 text-center mt-2">
-                  {presetsData.counts.built_in} built-in, {presetsData.counts.user} custom ({presetsData.counts.total} total)
-                </p>
+              {selectedPhotoPreset && selectedPhotoPresetData?.category === 'user' && (
+                <button
+                  type="button"
+                  onClick={handleDeletePhotoPreset}
+                  disabled={deletePresetMutation.isPending}
+                  className="w-full bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 disabled:bg-gray-300 text-sm font-medium transition-colors"
+                >
+                  🗑️ Delete Preset
+                </button>
               )}
             </div>
           </div>
@@ -1357,6 +1318,75 @@ export default function Settings() {
             Configure the live camera stream quality and performance. Changes apply to new stream sessions.
           </p>
 
+          {/* Video Preset Management Section */}
+          <div className="mb-6 p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
+            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <span className="mr-2">🎥</span>
+              Video Stream Presets
+            </h4>
+            <p className="text-xs text-gray-600 mb-4">
+              Select a preset to auto-populate stream settings below. Review, tweak, then Save to apply.
+            </p>
+
+            <div className="space-y-4">
+              {/* Video Preset Selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Video Preset
+                </label>
+                <select
+                  value={selectedVideoPreset}
+                  onChange={(e) => setSelectedVideoPreset(e.target.value)}
+                  disabled={presetsLoading}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="">Custom Settings (No Preset)</option>
+                  {videoPresets.map(p => (
+                    <option key={p.name} value={p.name}>
+                      {p.display_name}
+                    </option>
+                  ))}
+                </select>
+                {selectedVideoPresetData && (
+                  <p className="mt-2 text-sm text-gray-600 italic">
+                    {selectedVideoPresetData.description}
+                  </p>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleSetDefaultVideoPreset}
+                  disabled={!selectedVideoPreset || setPreferenceMutation.isPending}
+                  className="bg-yellow-500 text-white px-3 py-2 rounded-lg hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                >
+                  ⭐ Set as Default
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveVideoPreset}
+                  className="bg-emerald-600 text-white px-3 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium transition-colors"
+                >
+                  💾 Save Current
+                </button>
+              </div>
+
+              {/* Delete Button (for user presets) */}
+              {selectedVideoPreset && selectedVideoPresetData?.category === 'user' && (
+                <button
+                  type="button"
+                  onClick={handleDeleteVideoPreset}
+                  disabled={deletePresetMutation.isPending}
+                  className="w-full bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 disabled:bg-gray-300 text-sm font-medium transition-colors"
+                >
+                  🗑️ Delete Preset
+                </button>
+              )}
+            </div>
+          </div>
+
           <form onSubmit={handleWebuiSubmit} className="space-y-6">
             {/* Resolution Preset Selector */}
             <div>
@@ -1872,6 +1902,7 @@ export default function Settings() {
         onClose={() => setShowSaveModal(false)}
         onSave={(data) => createPresetMutation.mutateAsync(data)}
         isSaving={createPresetMutation.isPending}
+        defaultWorkflow={saveModalWorkflow}
       />
     </div>
   )
