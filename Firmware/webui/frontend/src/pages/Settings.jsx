@@ -309,15 +309,15 @@ export default function Settings() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 px-4">
-      <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
+    <div className="max-w-7xl mx-auto space-y-3 px-4 py-2">
+      <h2 className="text-xl font-bold text-gray-900">Settings</h2>
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
+        <nav className="-mb-px flex space-x-6">
           <button
             onClick={() => setActiveTab('system')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'system'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -327,7 +327,7 @@ export default function Settings() {
           </button>
           <button
             onClick={() => setActiveTab('controls')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'controls'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -337,7 +337,7 @@ export default function Settings() {
           </button>
           <button
             onClick={() => setActiveTab('camera')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'camera'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -347,7 +347,7 @@ export default function Settings() {
           </button>
           <button
             onClick={() => setActiveTab('diagnostic')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'diagnostic'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -357,7 +357,7 @@ export default function Settings() {
           </button>
           <button
             onClick={() => setActiveTab('stream')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'stream'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -370,11 +370,11 @@ export default function Settings() {
 
       {/* System Info Tab */}
       {activeTab === 'system' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {/* Installation Information Card */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold mb-4">Installation Information</h3>
-            <div className="space-y-4">
+          <div className="bg-white rounded-lg shadow p-3">
+            <h3 className="text-base font-semibold mb-2">Installation Information</h3>
+            <div className="space-y-2">
               <div>
                 <p className="text-sm text-gray-500">Installation Type</p>
                 <p className="font-medium capitalize">{systemInfo?.installation_type || 'Loading...'}</p>
@@ -399,12 +399,12 @@ export default function Settings() {
           </div>
 
           {/* GPIO Pin Configuration Card */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold mb-4">GPIO Pin Configuration</h3>
-            <p className="text-sm text-gray-600 mb-4">
+          <div className="bg-white rounded-lg shadow p-3">
+            <h3 className="text-base font-semibold mb-2">GPIO Pin Configuration</h3>
+            <p className="text-xs text-gray-600 mb-2">
               Source: <span className="font-medium">{systemInfo?.gpio_source || 'Loading...'}</span>
             </p>
-            <div className="space-y-3">
+            <div className="space-y-2">
               <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                 <span className="text-sm text-gray-600">Relay Ch1 (Attract Light)</span>
                 <span className="font-mono text-lg font-semibold">{systemInfo?.gpio_pins?.Relay_Ch1 || '?'}</span>
@@ -419,8 +419,8 @@ export default function Settings() {
               </div>
             </div>
             {systemInfo?.gpio_source === 'defaults' && (
-              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
-                <p className="text-sm text-yellow-800">
+              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                <p className="text-xs text-yellow-800">
                   ⚠️ Using default GPIO pins. To customize, add Relay_Ch1, Relay_Ch2, and Relay_Ch3 to controls.txt
                 </p>
               </div>
@@ -489,9 +489,9 @@ export default function Settings() {
 
       {/* Controls Tab */}
       {activeTab === 'controls' && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Hardware Configuration</h3>
-          <form onSubmit={handleControlsSubmit} className="space-y-4">
+        <div className="bg-white rounded-lg shadow p-3">
+          <h3 className="text-base font-semibold mb-2">Hardware Configuration</h3>
+          <form onSubmit={handleControlsSubmit} className="space-y-2">
             {Object.entries(controlsForm).map(([key, value]) => (
               <div key={key}>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -501,14 +501,14 @@ export default function Settings() {
                   type="text"
                   value={value}
                   onChange={(e) => setControlsForm({ ...controlsForm, [key]: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             ))}
             <button
               type="submit"
               disabled={updateControlsMutation.isPending}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="bg-blue-600 text-white px-4 py-2 text-sm rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               {updateControlsMutation.isPending ? (
                 <>
@@ -525,36 +525,36 @@ export default function Settings() {
 
       {/* Camera Settings Tab */}
       {activeTab === 'camera' && (
-        <div className="space-y-6">
-          <div className="bg-gradient-to-r from-blue-100 to-indigo-100 rounded-lg shadow-sm p-4 border border-blue-200">
-            <h3 className="text-lg font-semibold text-gray-900">Full-Resolution Capture Configuration</h3>
-            <p className="text-sm text-gray-700 mt-1">
+        <div className="space-y-2">
+          <div className="bg-gradient-to-r from-blue-100 to-indigo-100 rounded-lg shadow-sm p-2 border border-blue-200">
+            <h3 className="text-base font-semibold text-gray-900">Full-Resolution Capture Configuration</h3>
+            <p className="text-xs text-gray-700">
               These settings control full-resolution photo captures (not preview). Changes take effect on next photo.
             </p>
           </div>
 
           {/* Photo Preset Management Section */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
-            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <span className="mr-2">📸</span>
+          <div className="bg-white rounded-lg shadow p-3">
+            <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
+            <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center">
+              <span className="mr-1">📸</span>
               Photo Capture Presets
             </h4>
-            <p className="text-xs text-gray-600 mb-4">
+            <p className="text-[10px] text-gray-600 mb-2">
               Select a preset to auto-populate capture settings below. Review, tweak, then Save to apply.
             </p>
 
-            <div className="space-y-4">
+            <div className="space-y-2">
               {/* Photo Preset Selector */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   Photo Preset
                 </label>
                 <select
                   value={selectedPhotoPreset}
                   onChange={(e) => setSelectedPhotoPreset(e.target.value)}
                   disabled={presetsLoading}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">Custom Settings (No Preset)</option>
                   {photoPresets.map(p => (
@@ -564,28 +564,28 @@ export default function Settings() {
                   ))}
                 </select>
                 {selectedPhotoPresetData && (
-                  <p className="mt-2 text-sm text-gray-600 italic">
+                  <p className="mt-1 text-[10px] text-gray-600 italic">
                     {selectedPhotoPresetData.description}
                   </p>
                 )}
               </div>
 
               {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-1">
                 <button
                   type="button"
                   onClick={handleSetDefaultPhotoPreset}
                   disabled={!selectedPhotoPreset || setPreferenceMutation.isPending}
-                  className="bg-yellow-500 text-white px-3 py-2 rounded-lg hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                  className="bg-yellow-500 text-white px-2 py-1 text-xs rounded hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
-                  ⭐ Set as Default
+                  ⭐ Default
                 </button>
                 <button
                   type="button"
                   onClick={handleSavePhotoPreset}
-                  className="bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium transition-colors"
+                  className="bg-indigo-600 text-white px-2 py-1 text-xs rounded hover:bg-indigo-700"
                 >
-                  💾 Save Current
+                  💾 Save
                 </button>
               </div>
 
@@ -595,27 +595,27 @@ export default function Settings() {
                   type="button"
                   onClick={handleDeletePhotoPreset}
                   disabled={deletePresetMutation.isPending}
-                  className="w-full bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 disabled:bg-gray-300 text-sm font-medium transition-colors"
+                  className="w-full bg-red-600 text-white px-2 py-1 text-xs rounded hover:bg-red-700 disabled:bg-gray-300"
                 >
-                  🗑️ Delete Preset
+                  🗑️ Delete
                 </button>
               )}
             </div>
             </div>
           </div>
 
-          <form onSubmit={handleCameraSubmit} className="space-y-6">
+          <form onSubmit={handleCameraSubmit} className="space-y-2">
             {/* Grid container for settings cards */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
               {/* Auto-Calibration Card */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="p-4 bg-green-50 border-2 border-green-200 rounded-lg">
-              <h4 className="text-md font-semibold text-gray-800 mb-3">🔧 Auto-Calibration</h4>
-              <p className="text-sm text-gray-600 mb-4">
-                Automatically optimize exposure, gain, and focus periodically
+              <div className="bg-white rounded-lg shadow p-2">
+                <div className="p-2 bg-green-50 border border-green-200 rounded">
+              <h4 className="text-sm font-semibold text-gray-800 mb-1">🔧 Auto-Calibration</h4>
+              <p className="text-[10px] text-gray-600 mb-2">
+                Auto optimize exposure, gain, focus
               </p>
 
-              <div className="space-y-4">
+              <div className="space-y-2">
                 {/* Auto-Calibration Enable */}
                 <div>
                   <label className="flex items-center">
@@ -623,9 +623,9 @@ export default function Settings() {
                       type="checkbox"
                       checked={cameraForm.AutoCalibration === '1' || cameraForm.AutoCalibration === 1}
                       onChange={(e) => setCameraForm({...cameraForm, AutoCalibration: e.target.checked ? '1' : '0'})}
-                      className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                      className="w-3 h-3 text-green-600 border-gray-300 rounded focus:ring-green-500"
                     />
-                    <span className="ml-2 text-sm font-medium text-gray-700">
+                    <span className="ml-1 text-xs font-medium text-gray-700">
                       Enable Auto-Calibration
                     </span>
                   </label>
@@ -634,8 +634,8 @@ export default function Settings() {
                 {/* Auto-Calibration Period */}
                 {(cameraForm.AutoCalibration === '1' || cameraForm.AutoCalibration === 1) && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Calibration Frequency: Every {cameraForm.AutoCalibrationPeriod || 600} photos
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Frequency: Every {cameraForm.AutoCalibrationPeriod || 600} photos
                     </label>
                     <input
                       type="range"
@@ -645,13 +645,13 @@ export default function Settings() {
                       onChange={(e) => setCameraForm({ ...cameraForm, AutoCalibrationPeriod: e.target.value })}
                       className="w-full cursor-pointer"
                     />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>Every photo</span>
-                      <span>Every 100</span>
-                      <span>Every 1000</span>
+                    <div className="flex justify-between text-[10px] text-gray-500">
+                      <span>1</span>
+                      <span>100</span>
+                      <span>1000</span>
                     </div>
-                    <p className="mt-2 text-xs text-gray-600">
-                      More frequent = better adaptation to changing conditions, but more time spent calibrating
+                    <p className="text-[10px] text-gray-600">
+                      More frequent = better adaptation
                     </p>
                   </div>
                 )}
@@ -660,23 +660,23 @@ export default function Settings() {
               </div>
 
               {/* Exposure Card */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h4 className="text-md font-semibold text-gray-800 mb-4">📷 Exposure Settings</h4>
+              <div className="bg-white rounded-lg shadow p-2">
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">📷 Exposure</h4>
 
               {/* AeEnable Toggle */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="mb-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   Exposure Mode
                 </label>
                 <select
                   value={cameraForm.AeEnable !== undefined ? cameraForm.AeEnable : 'True'}
                   onChange={(e) => setCameraForm({ ...cameraForm, AeEnable: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="True">✨ Auto Exposure</option>
-                  <option value="False">🔧 Manual Exposure</option>
+                  <option value="True">✨ Auto</option>
+                  <option value="False">🔧 Manual</option>
                 </select>
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="mt-1 text-[10px] text-gray-500">
                   {cameraForm.AeEnable === 'False' || cameraForm.AeEnable === false
                     ? 'Manual mode: You control exposure time and gain directly'
                     : 'Auto mode: Camera automatically adjusts exposure based on scene brightness'}
@@ -779,17 +779,17 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* Close first row of grid, start second row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* HDR/Bracketing and Focus Bracketing - full width row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {/* HDR/Bracketing Card */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h4 className="text-md font-semibold text-gray-800 mb-4">🌄 HDR / Exposure Bracketing</h4>
-              <p className="text-sm text-gray-600 mb-4">
-                Capture multiple exposures to preserve detail in highlights and shadows
+              <div className="bg-white rounded-lg shadow p-2">
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">🌄 HDR Bracketing</h4>
+              <p className="text-[10px] text-gray-600 mb-2">
+                Multiple exposures for detail
               </p>
 
               {/* HDR Count */}
-              <div className="mb-4">
+              <div className="mb-2">
                 <label htmlFor="hdr_count" className="block text-sm font-medium text-gray-700 mb-2">
                   Number of Exposures
                 </label>
@@ -836,11 +836,11 @@ export default function Settings() {
               )}
               </div>
 
-              {/* Focus Bracketing Card - spans full width due to complexity */}
-              <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
-                <h4 className="text-md font-semibold text-gray-800 mb-4">🎯 Focus Bracketing</h4>
-              <p className="text-sm text-gray-600 mb-4">
-                Capture multiple photos at different focus positions for depth-of-field stacking
+              {/* Focus Bracketing Card */}
+              <div className="bg-white rounded-lg shadow p-2">
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">🎯 Focus Bracketing</h4>
+              <p className="text-[10px] text-gray-600 mb-2">
+                Multiple photos at different focus positions
               </p>
 
               {/* Focus Bracket Steps */}
@@ -1112,10 +1112,10 @@ export default function Settings() {
             </div>
 
             {/* Third row of grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
               {/* Focus Controls Card */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h4 className="text-md font-semibold text-gray-800 mb-4">🎯 Focus Controls</h4>
+              <div className="bg-white rounded-lg shadow p-2">
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">🎯 Focus</h4>
 
               {/* Focus Mode */}
               <div className="mb-4">
@@ -1195,8 +1195,8 @@ export default function Settings() {
               </div>
 
               {/* Image Format Card */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h4 className="text-md font-semibold text-gray-800 mb-4">🖼️ Image Format</h4>
+              <div className="bg-white rounded-lg shadow p-2">
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">🖼️ Format</h4>
 
               {/* File Type */}
               <div className="mb-4">
@@ -1239,12 +1239,12 @@ export default function Settings() {
             </div>
 
             {/* Advanced/Other Settings - full width */}
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-lg shadow p-2">
               <details>
-              <summary className="cursor-pointer text-md font-semibold text-gray-800 mb-4">
-                ⚙️ Advanced Settings (Click to expand)
+              <summary className="cursor-pointer text-sm font-semibold text-gray-800 mb-2">
+                ⚙️ Advanced (Click to expand)
               </summary>
-              <div className="mt-4 space-y-4">
+              <div className="mt-2 space-y-2">
                 {Object.entries(cameraForm)
                   .filter(([key]) => !['AutoCalibration', 'AutoCalibrationPeriod', 'ExposureTime', 'AnalogueGain',
                     'ExposureValue', 'HDR', 'HDR_width', 'FocusBracket', 'FocusBracket_Start', 'FocusBracket_End',
@@ -1267,18 +1267,17 @@ export default function Settings() {
             </div>
 
             {/* Info Box and Submit Button - full width */}
-            <div className="bg-white rounded-lg shadow p-6 space-y-4">
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-yellow-800">
-                <strong>Note:</strong> These settings affect full-resolution captures only (not preview).
-                Use Auto-Calibration to automatically optimize settings, or use the Camera page to manually test focus and exposure.
+            <div className="bg-white rounded-lg shadow p-2 space-y-2">
+              <div className="p-2 bg-yellow-50 border border-yellow-200 rounded">
+              <p className="text-xs text-yellow-800">
+                <strong>Note:</strong> Full-resolution captures only. Use Auto-Calibration or Camera page to test.
               </p>
               </div>
 
               <button
                 type="submit"
                 disabled={updateCameraMutation.isPending}
-                className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium transition-colors"
+                className="w-full bg-blue-600 text-white px-4 py-2 text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 {updateCameraMutation.isPending ? (
                   <>
@@ -1296,7 +1295,7 @@ export default function Settings() {
 
       {/* Stream Settings Tab */}
       {activeTab === 'stream' && (
-        <div className="space-y-6">
+        <div className="space-y-2">
           <style>{`
             /* Slider track styling for better visibility */
             input[type="range"]::-webkit-slider-runnable-track {
@@ -1334,17 +1333,17 @@ export default function Settings() {
             }
           `}</style>
 
-          <div className="bg-gradient-to-r from-green-100 to-emerald-100 rounded-lg shadow-sm p-4 border border-green-200">
-            <h3 className="text-lg font-semibold text-gray-900">Camera Stream Configuration</h3>
-            <p className="text-sm text-gray-700 mt-1">
-              Configure the live camera stream quality and performance. Changes apply to new stream sessions.
+          <div className="bg-gradient-to-r from-green-100 to-emerald-100 rounded-lg shadow-sm p-2 border border-green-200">
+            <h3 className="text-base font-semibold text-gray-900">Camera Stream Configuration</h3>
+            <p className="text-xs text-gray-700">
+              Live camera stream quality and performance. Changes apply to new stream sessions.
             </p>
           </div>
 
           {/* Video Preset Management Section */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
-            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+          <div className="bg-white rounded-lg shadow p-3">
+            <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
+            <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center">
               <span className="mr-2">🎥</span>
               Video Stream Presets
             </h4>
@@ -1412,12 +1411,12 @@ export default function Settings() {
             </div>
           </div>
 
-          <form onSubmit={handleWebuiSubmit} className="space-y-6">
+          <form onSubmit={handleWebuiSubmit} className="space-y-2">
             {/* Grid container for settings cards */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
               {/* Resolution & Performance Card */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h4 className="text-md font-semibold text-gray-800 mb-4">📐 Resolution & Performance</h4>
+              <div className="bg-white rounded-lg shadow p-2">
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">📐 Resolution</h4>
 
                 {/* Resolution Preset Selector */}
                 <div>
@@ -1496,10 +1495,10 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Image Quality Card - spans full width due to many controls */}
-              <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
-                <h4 className="text-md font-semibold text-gray-800 mb-4">📸 Image Quality</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Image Quality Card - spans 2 columns */}
+              <div className="bg-white rounded-lg shadow p-2 lg:col-span-2">
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">📸 Image Quality</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
 
                 {/* Sharpness Slider */}
                 <div>
@@ -1621,10 +1620,10 @@ export default function Settings() {
             </div>
 
             {/* Second row of grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
               {/* Focus Settings Card */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h4 className="text-md font-semibold text-gray-800 mb-4">🎯 Focus Settings</h4>
+              <div className="bg-white rounded-lg shadow p-2">
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">🎯 Focus</h4>
 
               {/* Focus Mode Dropdown */}
               <div className="mb-6">
@@ -1687,8 +1686,8 @@ export default function Settings() {
               </div>
 
               {/* Exposure Card */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h4 className="text-md font-semibold text-gray-800 mb-4">📊 Exposure (Preview Stream)</h4>
+              <div className="bg-white rounded-lg shadow p-2">
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">📊 Exposure</h4>
 
               {/* AeEnable Toggle for Stream */}
               <div className="mb-6">
@@ -1735,11 +1734,11 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* Fourth row of grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Third row of grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {/* White Balance Card */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h4 className="text-md font-semibold text-gray-800 mb-4">🌡️ White Balance</h4>
+              <div className="bg-white rounded-lg shadow p-2">
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">🌡️ White Balance</h4>
 
               {/* AWB Enable Checkbox */}
               <div className="mb-6">
@@ -1788,8 +1787,8 @@ export default function Settings() {
               </div>
 
               {/* ISP Features Card - spans full width */}
-              <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
-                <h4 className="text-md font-semibold text-gray-800 mb-4">🔬 ISP Features</h4>
+              <div className="bg-white rounded-lg shadow p-2 md:col-span-2">
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">🔬 ISP Features</h4>
               <p className="text-sm text-gray-600 mb-4">
                 Image Signal Processor corrections for improved image quality
               </p>
@@ -1892,8 +1891,8 @@ export default function Settings() {
             </div>
 
             {/* Focus Peaking Card - full width */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h4 className="text-md font-semibold text-gray-800 mb-4">🔍 Focus Peaking</h4>
+            <div className="bg-white rounded-lg shadow p-2">
+              <h4 className="text-sm font-semibold text-gray-800 mb-2">🔍 Focus Peaking</h4>
               <p className="text-xs text-gray-600 mb-4">
                 Preview-only overlay to highlight in-focus areas. Helps with manual focus adjustment for macro photography.
               </p>
@@ -1981,9 +1980,9 @@ export default function Settings() {
             </div>
 
             {/* Encoding & Submit Card - full width */}
-            <div className="bg-white rounded-lg shadow p-6 space-y-6">
+            <div className="bg-white rounded-lg shadow p-2 space-y-2">
               <div>
-                <h4 className="text-md font-semibold text-gray-800 mb-4">⚙️ Encoding</h4>
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">⚙️ Encoding</h4>
               <label htmlFor="stream_mode" className="block text-sm font-medium text-gray-700 mb-2">
                 Encoding Mode
               </label>
@@ -2002,17 +2001,16 @@ export default function Settings() {
               </div>
 
               {/* Info Box */}
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Note:</strong> Changes will take effect when you start a new stream session.
-                If the stream is currently running, stop it and start it again to apply the new settings.
+              <div className="p-2 bg-blue-50 border border-blue-200 rounded">
+              <p className="text-xs text-blue-800">
+                <strong>Note:</strong> Changes apply to new stream sessions. Restart stream to apply.
               </p>
               </div>
 
               <button
                 type="submit"
                 disabled={updateWebuiMutation.isPending}
-                className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium transition-colors"
+                className="w-full bg-blue-600 text-white px-4 py-2 text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 {updateWebuiMutation.isPending ? (
                   <>
