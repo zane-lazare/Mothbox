@@ -29,18 +29,30 @@
       "VerticalFlip": 0
     },
     "preview": {
+      "stream_width": 1024,
+      "stream_height": 768,
+      "frame_rate": 10,
+      "jpeg_quality": 85,
+      "stream_mode": "simplejpeg",
       "sharpness": 1.0,
       "brightness": 0.0,
       "contrast": 1.0,
       "saturation": 1.0,
-      "af_mode": 2,
-      "af_range": 0,
-      "af_speed": 0,
-      "ae_enable": true,
-      "ae_metering_mode": 0,
       "noise_reduction_mode": 1,
+      "af_mode": 2,
+      "af_speed": 0,
+      "af_range": 0,
       "awb_enable": true,
-      "awb_mode": 0
+      "awb_mode": 0,
+      "colour_gains_red": 2.259,
+      "colour_gains_blue": 1.500,
+      "ae_metering_mode": 0,
+      "ae_enable": true,
+      "exposure_time": 500,
+      "analogue_gain": 8.0,
+      "use_custom_tuning": false,
+      "lens_shading_enable": true,
+      "defect_correction_enable": true
     }
   }
 }

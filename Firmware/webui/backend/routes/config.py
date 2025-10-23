@@ -383,6 +383,19 @@ def update_webui_settings():
         except (ValueError, TypeError) as e:
             return jsonify({'error': f'Invalid exposure settings type: {e}'}), 400
 
+        # Validate and convert types - ISP tuning controls
+        use_custom_tuning = new_settings.get('use_custom_tuning', existing.get('use_custom_tuning', False))
+        if isinstance(use_custom_tuning, str):
+            use_custom_tuning = use_custom_tuning.lower() == 'true'
+
+        lens_shading_enable = new_settings.get('lens_shading_enable', existing.get('lens_shading_enable', True))
+        if isinstance(lens_shading_enable, str):
+            lens_shading_enable = lens_shading_enable.lower() == 'true'
+
+        defect_correction_enable = new_settings.get('defect_correction_enable', existing.get('defect_correction_enable', True))
+        if isinstance(defect_correction_enable, str):
+            defect_correction_enable = defect_correction_enable.lower() == 'true'
+
         # Validate ranges - Stream/encoding
         if not (320 <= stream_width <= 1920):
             return jsonify({'error': 'Width must be between 320 and 1920'}), 400
@@ -439,6 +452,14 @@ def update_webui_settings():
         if not (1.0 <= analogue_gain <= 16.0):
             return jsonify({'error': 'analogue_gain must be between 1.0 and 16.0'}), 400
 
+        # Validate - ISP tuning controls
+        if not isinstance(use_custom_tuning, bool):
+            return jsonify({'error': 'use_custom_tuning must be a boolean'}), 400
+        if not isinstance(lens_shading_enable, bool):
+            return jsonify({'error': 'lens_shading_enable must be a boolean'}), 400
+        if not isinstance(defect_correction_enable, bool):
+            return jsonify({'error': 'defect_correction_enable must be a boolean'}), 400
+
         # Create backup before modification
         backup_path = _create_backup(WEBUI_SETTINGS_FILE)
 
@@ -478,6 +499,11 @@ def update_webui_settings():
             f.write(f"ae_enable={'true' if ae_enable else 'false'}\n")
             f.write(f"exposure_time={exposure_time}\n")
             f.write(f"analogue_gain={analogue_gain}\n")
+
+            # ISP tuning controls
+            f.write(f"use_custom_tuning={'true' if use_custom_tuning else 'false'}\n")
+            f.write(f"lens_shading_enable={'true' if lens_shading_enable else 'false'}\n")
+            f.write(f"defect_correction_enable={'true' if defect_correction_enable else 'false'}\n")
 
         return jsonify({'success': True})
     except Exception as e:
