@@ -171,6 +171,7 @@ ALLOWED_CAMERA_SETTINGS = {
     'FocusPeakingIntensity': lambda v: 50 <= int(v) <= 200,
     'FocusPeakingColor': lambda v: str(v).lower() in ['green', 'red', 'yellow', 'cyan', 'magenta'],
     'FocusPeakingAlgorithm': lambda v: str(v).lower() in ['laplacian', 'sobel', 'canny'],
+    'FocusPeakingOverlayFps': lambda v: 1 <= int(v) <= 30,
 }
 
 camera_bp = Blueprint('camera', __name__)

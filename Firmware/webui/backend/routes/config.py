@@ -265,6 +265,7 @@ def get_webui_settings():
             'focus_peaking_intensity': 100,     # 50-200 range
             'focus_peaking_color': 'green',     # green, red, yellow, cyan, magenta
             'focus_peaking_algorithm': 'laplacian',  # laplacian, sobel, canny
+            'focus_peaking_overlay_fps': 10,    # 1-30 fps for overlay update rate in hybrid mode
         }
 
         # Load from file if it exists
@@ -286,8 +287,8 @@ def get_webui_settings():
                             defaults[key] = float(settings[key])
                         except ValueError:
                             pass  # Keep default if conversion fails
-                    elif key in ['noise_reduction_mode', 'ae_metering_mode', 'exposure_time', 'focus_peaking_intensity']:
-                        # Integer values (noise_reduction_mode: 0-2, ae_metering_mode: 0-2, exposure_time: microseconds, focus_peaking_intensity: 50-200)
+                    elif key in ['noise_reduction_mode', 'ae_metering_mode', 'exposure_time', 'focus_peaking_intensity', 'focus_peaking_overlay_fps']:
+                        # Integer values (noise_reduction_mode: 0-2, ae_metering_mode: 0-2, exposure_time: microseconds, focus_peaking_intensity: 50-200, focus_peaking_overlay_fps: 1-30)
                         try:
                             defaults[key] = int(settings[key])
                         except ValueError:
@@ -420,6 +421,12 @@ def update_webui_settings():
         if not isinstance(focus_peaking_algorithm, str):
             return jsonify({'error': 'focus_peaking_algorithm must be a string'}), 400
 
+        # Parse focus peaking overlay FPS
+        try:
+            focus_peaking_overlay_fps = int(new_settings.get('focus_peaking_overlay_fps', existing.get('focus_peaking_overlay_fps', 10)))
+        except (ValueError, TypeError) as e:
+            return jsonify({'error': f'Invalid focus_peaking_overlay_fps type: {e}'}), 400
+
         # Validate ranges - Stream/encoding
         if not (320 <= stream_width <= 1920):
             return jsonify({'error': 'Width must be between 320 and 1920'}), 400
@@ -493,6 +500,8 @@ def update_webui_settings():
             return jsonify({'error': 'focus_peaking_color must be green, red, yellow, cyan, or magenta'}), 400
         if focus_peaking_algorithm not in ['laplacian', 'sobel', 'canny']:
             return jsonify({'error': 'focus_peaking_algorithm must be laplacian, sobel, or canny'}), 400
+        if not (1 <= focus_peaking_overlay_fps <= 30):
+            return jsonify({'error': 'focus_peaking_overlay_fps must be between 1 and 30'}), 400
 
         # Create backup before modification
         backup_path = _create_backup(WEBUI_SETTINGS_FILE)
@@ -544,6 +553,7 @@ def update_webui_settings():
             f.write(f"focus_peaking_intensity={focus_peaking_intensity}\n")
             f.write(f"focus_peaking_color={focus_peaking_color}\n")
             f.write(f"focus_peaking_algorithm={focus_peaking_algorithm}\n")
+            f.write(f"focus_peaking_overlay_fps={focus_peaking_overlay_fps}\n")
 
         return jsonify({'success': True})
     except Exception as e:
