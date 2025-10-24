@@ -101,7 +101,7 @@ export default function Settings() {
     onSuccess: () => {
       isDirtyRef.current.camera = false
       queryClient.invalidateQueries(['camera-settings'])
-      toast.success('Camera settings updated successfully!')
+      // No toast - only used by handleUpdatePhotoPreset which shows its own toast
     },
     onError: (error) => {
       const message = error.response?.data?.error || 'Failed to update camera settings'
@@ -118,7 +118,7 @@ export default function Settings() {
       if (socketRef.current) {
         socketRef.current.emit('reload_stream_settings')
       }
-      toast.success('Stream settings updated successfully! Changes will apply to new stream sessions.')
+      // No toast - only used by handleUpdateVideoPreset which shows its own toast
     },
     onError: (error) => {
       const message = error.response?.data?.error || 'Failed to update stream settings'
@@ -170,7 +170,9 @@ export default function Settings() {
     mutationFn: (data) => createPreset(data),
     onSuccess: () => {
       queryClient.invalidateQueries(['presets'])
-      toast.success('Preset saved successfully!')
+      // No toast here - used by both Update and Save As
+      // Update handlers show "Updated [preset]" toast
+      // Save As shows toast via SavePresetModal's onSave callback
       setShowSaveModal(false)
     },
     onError: (error) => {
@@ -453,6 +455,17 @@ export default function Settings() {
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to update preset'
       toast.error(`Update failed: ${message}`)
+    }
+  }
+
+  // Handle Save As (new preset creation from modal)
+  const handleSavePreset = async (presetData) => {
+    try {
+      await createPresetMutation.mutateAsync(presetData)
+      toast.success(`Preset "${presetData.name}" saved successfully`)
+    } catch (error) {
+      // Error is already handled by mutation's onError, but let's ensure modal closes
+      throw error
     }
   }
 
@@ -2323,7 +2336,7 @@ export default function Settings() {
       <SavePresetModal
         isOpen={showSaveModal}
         onClose={() => setShowSaveModal(false)}
-        onSave={(data) => createPresetMutation.mutateAsync(data)}
+        onSave={handleSavePreset}
         isSaving={createPresetMutation.isPending}
         defaultWorkflow={saveModalWorkflow}
       />

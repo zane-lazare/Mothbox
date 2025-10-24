@@ -57,6 +57,10 @@ export default function Camera() {
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [saveModalWorkflow, setSaveModalWorkflow] = useState('both')
 
+  // Track whether presets have been initialized (to prevent toast spam on mount)
+  const photoPresetInitialized = useRef(false)
+  const videoPresetInitialized = useRef(false)
+
   // Fetch available presets
   const { data: presetsData } = useQuery({
     queryKey: ['presets'],
@@ -91,15 +95,36 @@ export default function Camera() {
   const photoPresets = presetsData?.presets?.filter(p => p.workflow === 'photo' || p.workflow === 'both') || []
   const videoPresets = presetsData?.presets?.filter(p => p.workflow === 'video' || p.workflow === 'both') || []
 
-  // Load default presets from preferences on mount
+  // Load default presets from preferences on mount, with "Balanced" fallback
   useEffect(() => {
-    if (preferences?.default_capture_preset && !selectedPhotoPreset) {
-      setSelectedPhotoPreset(preferences.default_capture_preset)
+    if (presetsData?.presets && preferences !== undefined && !photoPresetInitialized.current && !videoPresetInitialized.current) {
+      // Initialize photo preset
+      if (!selectedPhotoPreset) {
+        const defaultPreset = preferences?.default_capture_preset || 'Balanced'
+        const presetExists = presetsData.presets.some(p =>
+          p.name === defaultPreset && (p.workflow === 'photo' || p.workflow === 'both')
+        )
+        if (presetExists) {
+          setSelectedPhotoPreset(defaultPreset)
+          initializePhotoPreset(defaultPreset)
+          photoPresetInitialized.current = true
+        }
+      }
+
+      // Initialize video preset
+      if (!selectedVideoPreset) {
+        const defaultPreset = preferences?.default_preview_preset || 'Balanced'
+        const presetExists = presetsData.presets.some(p =>
+          p.name === defaultPreset && (p.workflow === 'video' || p.workflow === 'both')
+        )
+        if (presetExists) {
+          setSelectedVideoPreset(defaultPreset)
+          initializeVideoPreset(defaultPreset)
+          videoPresetInitialized.current = true
+        }
+      }
     }
-    if (preferences?.default_preview_preset && !selectedVideoPreset) {
-      setSelectedVideoPreset(preferences.default_preview_preset)
-    }
-  }, [preferences])
+  }, [presetsData, preferences])
 
   // Debounced function to emit control updates to backend (Task 5)
   const debouncedEmitControl = (controlName, value) => {
@@ -689,6 +714,19 @@ export default function Camera() {
     }
   }
 
+  // Silent initialization for photo preset (no toast)
+  const initializePhotoPreset = async (presetName) => {
+    try {
+      await applyPresetMutation.mutateAsync({
+        name: presetName,
+        applyTo: 'capture'
+      })
+      console.log(`Initialized photo preset: ${presetName}`)
+    } catch (error) {
+      console.error('Failed to initialize photo preset:', error)
+    }
+  }
+
   const handleApplyPhotoPreset = async (presetName) => {
     if (!presetName) {
       return  // Silently ignore empty selection
@@ -702,12 +740,47 @@ export default function Camera() {
 
       const preset = presetsData?.presets?.find(p => p.name === presetName)
       const displayName = preset?.display_name || presetName
-      toast.success(`Applied "${displayName}" to capture settings`)
+      // Only show toast after initialization
+      if (photoPresetInitialized.current) {
+        toast.success(`Applied "${displayName}" to capture settings`)
+      }
     } catch (error) {
       console.error('Apply photo preset failed:', error)
       const message = error.response?.data?.error || 'Failed to apply preset'
       toast.error(`Apply failed: ${message}`)
       setSelectedPhotoPreset('')
+    }
+  }
+
+  // Silent initialization for video preset (no toast)
+  const initializeVideoPreset = async (presetName) => {
+    try {
+      await applyPresetMutation.mutateAsync({
+        name: presetName,
+        applyTo: 'preview'
+      })
+
+      // Reload webui settings to update live controls
+      const API_URL = import.meta.env.VITE_API_URL || '/api'
+      const response = await fetch(`${API_URL}/config/webui`)
+      if (response.ok) {
+        const data = await response.json()
+        setLiveControls(prev => ({
+          ...prev,
+          sharpness: data.sharpness ?? prev.sharpness,
+          brightness: data.brightness ?? prev.brightness,
+          contrast: data.contrast ?? prev.contrast,
+          saturation: data.saturation ?? prev.saturation,
+          noiseReductionMode: data.noise_reduction_mode ?? prev.noiseReductionMode,
+          aeMeteringMode: data.ae_metering_mode ?? prev.aeMeteringMode,
+          afMode: data.af_mode ?? prev.afMode,
+          afRange: data.af_range ?? prev.afRange,
+          afSpeed: data.af_speed ?? prev.afSpeed
+        }))
+      }
+      console.log(`Initialized video preset: ${presetName}`)
+    } catch (error) {
+      console.error('Failed to initialize video preset:', error)
     }
   }
 
@@ -724,7 +797,10 @@ export default function Camera() {
 
       const preset = presetsData?.presets?.find(p => p.name === presetName)
       const displayName = preset?.display_name || presetName
-      toast.success(`Applied "${displayName}" to stream`)
+      // Only show toast after initialization
+      if (videoPresetInitialized.current) {
+        toast.success(`Applied "${displayName}" to stream`)
+      }
 
       // Reload webui settings to update live controls
       const API_URL = import.meta.env.VITE_API_URL || '/api'
@@ -753,10 +829,58 @@ export default function Camera() {
     }
   }
 
+  const handleUpdateVideoPreset = async () => {
+    if (!selectedVideoPreset) return
+
+    // Check if this is a built-in preset
+    const preset = presetsData?.presets?.find(p => p.name === selectedVideoPreset)
+    if (preset?.category === 'built-in') {
+      toast.error('Cannot modify built-in presets. Use "Save As" to create a copy.')
+      return
+    }
+
+    try {
+      // Get current live controls from state
+      const presetData = {
+        name: selectedVideoPreset,
+        description: preset?.description || '',
+        workflow: 'video',
+        settings: {
+          preview: {
+            sharpness: liveControls.sharpness,
+            brightness: liveControls.brightness,
+            contrast: liveControls.contrast,
+            saturation: liveControls.saturation,
+            noise_reduction_mode: liveControls.noiseReductionMode,
+            ae_metering_mode: liveControls.aeMeteringMode,
+            af_mode: liveControls.afMode,
+            af_range: liveControls.afRange,
+            af_speed: liveControls.afSpeed
+          }
+        }
+      }
+
+      // Update preset file
+      await createPresetMutation.mutateAsync(presetData)
+
+      // Apply to backend config
+      await fetch(import.meta.env.VITE_API_URL || '/api' + '/config/webui', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(presetData.settings.preview)
+      })
+
+      const displayName = preset?.display_name || selectedVideoPreset
+      toast.success(`Updated "${displayName}" preset`)
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to update preset'
+      toast.error(`Update failed: ${message}`)
+    }
+  }
+
   const handleSavePreset = async (presetData) => {
     try {
       await createPresetMutation.mutateAsync(presetData)
-
       toast.success(`Preset "${presetData.name}" saved successfully`)
       setShowSaveModal(false)
     } catch (error) {
@@ -989,11 +1113,24 @@ export default function Camera() {
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-sm font-semibold text-gray-200">🎨 Live Controls</h3>
                   <div className="flex gap-2">
+                    {/* Show Update button only for user presets */}
+                    {selectedVideoPreset && presetsData?.presets?.find(p => p.name === selectedVideoPreset)?.category === 'user' && (
+                      <button
+                        onClick={handleUpdateVideoPreset}
+                        disabled={createPresetMutation.isPending}
+                        className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                      >
+                        ✏️ Update
+                      </button>
+                    )}
                     <button
-                      onClick={() => setShowSaveModal(true)}
+                      onClick={() => {
+                        setSaveModalWorkflow('video')
+                        setShowSaveModal(true)
+                      }}
                       className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                     >
-                      💾 Save
+                      💾 Save As
                     </button>
                     <button
                       onClick={handleResetControls}
@@ -1019,7 +1156,6 @@ export default function Camera() {
                     disabled={applyPresetMutation.isPending}
                     className="w-full px-2 py-1 text-xs bg-white/10 text-white rounded border border-white/20 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <option value="">Custom settings...</option>
                     {photoPresets.map((preset) => (
                       <option key={preset.name} value={preset.name}>
                         {preset.display_name}
@@ -1043,7 +1179,6 @@ export default function Camera() {
                     disabled={applyPresetMutation.isPending}
                     className="w-full px-2 py-1 text-xs bg-white/10 text-white rounded border border-white/20 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <option value="">Custom settings...</option>
                     {videoPresets.map((preset) => (
                       <option key={preset.name} value={preset.name}>
                         {preset.display_name}
