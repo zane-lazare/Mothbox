@@ -143,7 +143,8 @@ export default function Settings() {
     onSuccess: (response) => {
       queryClient.invalidateQueries(['camera-settings'])
       queryClient.invalidateQueries(['webui-settings'])
-      toast.success(response.data.message || 'Preset applied successfully!')
+      // No toast here - let individual handlers control when to show toasts
+      // This allows silent initialization vs. user-action feedback
     },
     onError: (error) => {
       const message = error.response?.data?.error || 'Failed to apply preset'
