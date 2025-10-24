@@ -1735,7 +1735,7 @@ export default function Settings() {
             </div>
 
             {/* Third row of grid */}
-            <div className="settings-grid-2col">
+            <div className="settings-grid">
               {/* White Balance Card */}
               <div className="settings-card">
                 <h4 className="settings-card-title">🌡️ White Balance</h4>
@@ -1786,8 +1786,8 @@ export default function Settings() {
               )}
               </div>
 
-              {/* ISP Features Card - spans full width */}
-              <div className="settings-card md:col-span-2">
+              {/* ISP Features Card */}
+              <div className="settings-card">
                 <h4 className="settings-card-title">🔬 ISP Features</h4>
               <p className="settings-help-text-xs mb-2">
                 Image Signal Processor corrections for improved image quality
@@ -1890,7 +1890,7 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* Focus Peaking Card - full width */}
+            {/* Focus Peaking Card */}
             <div className="settings-card">
               <h4 className="settings-card-title">🔍 Focus Peaking</h4>
               <p className="settings-help-text-xs mb-2">
@@ -1979,7 +1979,7 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* Encoding & Submit Card - full width */}
+            {/* Encoding & Submit Card */}
             <div className="settings-card space-y-2">
               <div>
                 <h4 className="settings-card-title">⚙️ Encoding</h4>
