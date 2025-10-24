@@ -1436,63 +1436,58 @@ export default function Settings() {
             }
           `}</style>
 
-          {/* Video Preset Management - Compact Inline */}
-          <div className="settings-card">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              {/* Preset Selector */}
-              <div className="flex-1">
-                <label className="settings-label">
-                  🎥 Video Preset
-                </label>
-                <select
-                  value={selectedVideoPreset}
-                  onChange={(e) => setSelectedVideoPreset(e.target.value)}
-                  disabled={presetsLoading}
-                  className="settings-select"
-                >
-                  <option value="">Custom Settings (No Preset)</option>
-                  {videoPresets.map(p => (
-                    <option key={p.name} value={p.name}>
-                      {p.display_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-1 sm:pt-5">
-                <button
-                  type="button"
-                  onClick={handleSetDefaultVideoPreset}
-                  disabled={!selectedVideoPreset || setPreferenceMutation.isPending}
-                  className="settings-button-sm bg-yellow-500 text-white hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                  ⭐ Default
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveVideoPreset}
-                  className="settings-button-sm bg-emerald-600 text-white hover:bg-emerald-700"
-                >
-                  💾 Save
-                </button>
-                {selectedVideoPreset && selectedVideoPresetData?.category === 'user' && (
-                  <button
-                    type="button"
-                    onClick={handleDeleteVideoPreset}
-                    disabled={deletePresetMutation.isPending}
-                    className="settings-button-sm bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300"
-                  >
-                    🗑️
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
           <form onSubmit={handleWebuiSubmit} className="space-y-2">
             {/* Grid container for settings cards */}
             <div className="settings-grid">
+              {/* Video Preset Card */}
+              <div className="settings-card">
+                <h4 className="settings-card-title">🎥 Video Preset</h4>
+                <div className="space-y-2">
+                  <select
+                    value={selectedVideoPreset}
+                    onChange={(e) => setSelectedVideoPreset(e.target.value)}
+                    disabled={presetsLoading}
+                    className="settings-select"
+                  >
+                    <option value="">Custom Settings</option>
+                    {videoPresets.map(p => (
+                      <option key={p.name} value={p.name}>
+                        {p.display_name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={handleSetDefaultVideoPreset}
+                      disabled={!selectedVideoPreset || setPreferenceMutation.isPending}
+                      className="settings-button-sm bg-yellow-500 text-white hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex-1"
+                    >
+                      ⭐ Default
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveVideoPreset}
+                      className="settings-button-sm bg-emerald-600 text-white hover:bg-emerald-700 flex-1"
+                    >
+                      💾 Save
+                    </button>
+                    {selectedVideoPreset && selectedVideoPresetData?.category === 'user' && (
+                      <button
+                        type="button"
+                        onClick={handleDeleteVideoPreset}
+                        disabled={deletePresetMutation.isPending}
+                        className="settings-button-sm bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300"
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Resolution & Performance Card */}
               <CollapsibleCard
                 id="streamResolution"
