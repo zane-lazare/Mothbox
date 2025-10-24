@@ -206,18 +206,7 @@ export default function Camera() {
     })
 
     socketRef.current.on('camera_frame', (data) => {
-      // When focus peaking is enabled, only display focus-peaked frames
-      // to avoid flickering between overlaid and non-overlaid frames
-      if (liveControls.focusPeakingEnabled) {
-        // Only update with overlaid frames when focus peaking is active
-        if (data.focus_peaked) {
-          setCurrentFrame(data.image)
-        }
-        // Ignore non-peaked hardware frames when peaking is enabled
-      } else {
-        // Show all frames when focus peaking is disabled
-        setCurrentFrame(data.image)
-      }
+      setCurrentFrame(data.image)
     })
 
     socketRef.current.on('preview_status', (data) => {
