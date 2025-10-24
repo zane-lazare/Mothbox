@@ -274,34 +274,70 @@ export default function Settings() {
   const selectedPhotoPresetData = presetsData?.presets?.find(p => p.name === selectedPhotoPreset)
   const selectedVideoPresetData = presetsData?.presets?.find(p => p.name === selectedVideoPreset)
 
+  // Track if presets have been initialized to prevent re-initialization
+  const photoPresetInitialized = useRef(false)
+  const videoPresetInitialized = useRef(false)
+
+  // Silent preset initialization (no toasts) for page load
+  const initializePhotoPreset = async (presetName) => {
+    try {
+      await applyPresetMutation.mutateAsync({
+        name: presetName,
+        applyTo: 'capture'
+      })
+      await queryClient.invalidateQueries(['camera-settings'])
+      // No toast - silent initialization
+      console.log(`Initialized photo preset: ${presetName}`)
+    } catch (error) {
+      console.error('Failed to initialize photo preset:', error)
+    }
+  }
+
+  const initializeVideoPreset = async (presetName) => {
+    try {
+      await applyPresetMutation.mutateAsync({
+        name: presetName,
+        applyTo: 'preview'
+      })
+      await queryClient.invalidateQueries(['webui-settings'])
+      // No toast - silent initialization
+      console.log(`Initialized video preset: ${presetName}`)
+    } catch (error) {
+      console.error('Failed to initialize video preset:', error)
+    }
+  }
+
   // Initialize with default presets on mount - always have a preset selected
+  // Wait for BOTH presetsData and preferences to be loaded to avoid multiple initializations
   useEffect(() => {
-    if (presetsData?.presets && !selectedPhotoPreset) {
+    if (presetsData?.presets && preferences && !selectedPhotoPreset && !photoPresetInitialized.current) {
       // Use user's default preference, or "balanced" as fallback, or first available
       const defaultPreset = preferences?.default_capture_preset ||
                            presetsData.presets.find(p => (p.workflow === 'photo' || p.workflow === 'both') && p.name === 'balanced')?.name ||
                            presetsData.presets.find(p => p.workflow === 'photo' || p.workflow === 'both')?.name
       if (defaultPreset) {
         setSelectedPhotoPreset(defaultPreset)
-        // Auto-apply on initialization
-        handlePhotoPresetChange({ target: { value: defaultPreset } })
+        // Silent initialization - no toast
+        initializePhotoPreset(defaultPreset)
+        photoPresetInitialized.current = true
       }
     }
-  }, [presetsData, preferences?.default_capture_preset])
+  }, [presetsData, preferences]) // Wait for BOTH to be ready
 
   useEffect(() => {
-    if (presetsData?.presets && !selectedVideoPreset) {
+    if (presetsData?.presets && preferences && !selectedVideoPreset && !videoPresetInitialized.current) {
       // Use user's default preference, or "balanced" as fallback, or first available
       const defaultPreset = preferences?.default_preview_preset ||
                            presetsData.presets.find(p => (p.workflow === 'video' || p.workflow === 'both') && p.name === 'balanced')?.name ||
                            presetsData.presets.find(p => p.workflow === 'video' || p.workflow === 'both')?.name
       if (defaultPreset) {
         setSelectedVideoPreset(defaultPreset)
-        // Auto-apply on initialization
-        handleVideoPresetChange({ target: { value: defaultPreset } })
+        // Silent initialization - no toast
+        initializeVideoPreset(defaultPreset)
+        videoPresetInitialized.current = true
       }
     }
-  }, [presetsData, preferences?.default_preview_preset])
+  }, [presetsData, preferences]) // Wait for BOTH to be ready
 
   // Auto-apply preset handlers - apply immediately when preset selected
   const handlePhotoPresetChange = async (e) => {

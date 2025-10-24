@@ -261,7 +261,7 @@ export default function Camera() {
     })
 
     socketRef.current.on('settings_reloaded', async (data) => {
-      console.log('Settings reloaded from Settings page, refreshing live controls:', data)
+      console.log('Settings reloaded, refreshing live controls:', data)
       try {
         const API_URL = import.meta.env.VITE_API_URL || '/api'
         const response = await fetch(`${API_URL}/config/webui`)
@@ -280,7 +280,7 @@ export default function Camera() {
             afRange: data.af_range ?? prev.afRange,
             afSpeed: data.af_speed ?? prev.afSpeed
           }))
-          toast.success('Live controls updated from Settings page')
+          // No toast - this event fires on preview start too, not just cross-page updates
         }
       } catch (error) {
         console.error('Failed to refresh settings after settings_reloaded event:', error)
