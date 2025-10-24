@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSystemStatus, getPowerStatus, capturePhoto, getPhotos, syncGPS } from '../utils/api'
 import { useState } from 'react'
+import toast from 'react-hot-toast'
 
 export default function Dashboard() {
   const [capturing, setCapturing] = useState(false)
@@ -45,9 +46,10 @@ export default function Dashboard() {
       await syncGPS()
       // Refetch system status to get updated GPS data
       queryClient.invalidateQueries(['system-status'])
+      toast.success('GPS synced successfully!')
     } catch (error) {
       console.error('Failed to sync GPS:', error)
-      alert(`GPS sync failed: ${error.response?.data?.message || error.message}`)
+      toast.error(`GPS sync failed: ${error.response?.data?.message || error.message}`)
     } finally {
       setSyncing(false)
     }

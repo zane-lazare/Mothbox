@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 import sys
 import time
+import fcntl
 
 # Setup path to import mothbox_paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -179,7 +180,7 @@ def sync_gps():
         if not gps_script.exists():
             return jsonify({
                 'error': 'GPS script not found',
-                'message': f'GPS.py not found at {gps_script}'
+                'message': 'GPS script not found in firmware directory'
             }), 500
 
         # Run GPS.py with timeout (GPS timeout + 20 seconds overhead)
@@ -228,15 +229,14 @@ def sync_gps():
 
 def _update_controls_file(config_updates):
     """
-    Update GPS settings in controls.txt
+    Update GPS settings in controls.txt with file locking to prevent race conditions
 
     Args:
         config_updates: Dictionary with configuration updates
-    """
-    # Read current controls.txt
-    with open(CONTROLS_FILE, 'r') as f:
-        lines = f.readlines()
 
+    Raises:
+        IOError: If file locking fails or file operations fail
+    """
     # Prepare updates mapping
     updates = {}
     if 'gps_enabled' in config_updates:
@@ -248,27 +248,42 @@ def _update_controls_file(config_updates):
     if 'gps_timeout' in config_updates:
         updates['gps_timeout'] = str(config_updates['gps_timeout'])
 
-    # Update lines
-    updated_lines = []
-    updated_keys = set()
+    # Open file for read/write and acquire exclusive lock
+    with open(CONTROLS_FILE, 'r+') as f:
+        try:
+            # Acquire exclusive lock (blocks until lock is available)
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
 
-    for line in lines:
-        stripped = line.strip()
-        if stripped and '=' in stripped and not stripped.startswith('#'):
-            key = stripped.split('=', 1)[0]
-            if key in updates:
-                updated_lines.append(f"{key}={updates[key]}\n")
-                updated_keys.add(key)
-            else:
-                updated_lines.append(line)
-        else:
-            updated_lines.append(line)
+            # Read current contents
+            lines = f.readlines()
 
-    # Add any new keys that weren't in the file
-    for key, value in updates.items():
-        if key not in updated_keys:
-            updated_lines.append(f"{key}={value}\n")
+            # Update lines
+            updated_lines = []
+            updated_keys = set()
 
-    # Write back to file
-    with open(CONTROLS_FILE, 'w') as f:
-        f.writelines(updated_lines)
+            for line in lines:
+                stripped = line.strip()
+                if stripped and '=' in stripped and not stripped.startswith('#'):
+                    key = stripped.split('=', 1)[0]
+                    if key in updates:
+                        updated_lines.append(f"{key}={updates[key]}\n")
+                        updated_keys.add(key)
+                    else:
+                        updated_lines.append(line)
+                else:
+                    updated_lines.append(line)
+
+            # Add any new keys that weren't in the file
+            for key, value in updates.items():
+                if key not in updated_keys:
+                    updated_lines.append(f"{key}={value}\n")
+
+            # Write back to file
+            f.seek(0)
+            f.truncate()
+            f.writelines(updated_lines)
+            f.flush()
+
+        finally:
+            # Release lock (automatically released when file closes, but explicit is better)
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
