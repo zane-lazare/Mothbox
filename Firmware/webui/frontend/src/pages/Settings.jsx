@@ -45,7 +45,6 @@ export default function Settings() {
     cameraFormat: false,
     cameraAdvanced: true,
     // Stream Settings - common expanded, advanced collapsed
-    streamPreset: false,
     streamResolution: false,
     streamImageQuality: false,
     streamFocus: false,
@@ -1437,31 +1436,13 @@ export default function Settings() {
             }
           `}</style>
 
-          <div className="bg-gradient-to-r from-green-100 to-emerald-100 rounded-lg shadow-sm p-2 border border-green-200">
-            <h3 className="text-base font-semibold text-gray-900">Camera Stream Configuration</h3>
-            <p className="text-xs text-gray-700">
-              Live camera stream quality and performance. Changes apply to new stream sessions.
-            </p>
-          </div>
-
-          {/* Video Preset Management Section */}
-          <CollapsibleCard
-            id="streamPreset"
-            title="🎥 Video Stream Presets"
-            isCollapsed={collapsedCards.streamPreset}
-            onToggle={toggleCard}
-            className="settings-card-lg"
-          >
-            <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
-            <p className="settings-help-text mb-2">
-              Select a preset to auto-populate stream settings below. Review, tweak, then Save to apply.
-            </p>
-
-            <div className="space-y-2">
-              {/* Video Preset Selector */}
-              <div className="settings-form-group">
+          {/* Video Preset Management - Compact Inline */}
+          <div className="settings-card">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              {/* Preset Selector */}
+              <div className="flex-1">
                 <label className="settings-label">
-                  Video Preset
+                  🎥 Video Preset
                 </label>
                 <select
                   value={selectedVideoPreset}
@@ -1476,15 +1457,10 @@ export default function Settings() {
                     </option>
                   ))}
                 </select>
-                {selectedVideoPresetData && (
-                  <p className="settings-help-text italic">
-                    {selectedVideoPresetData.description}
-                  </p>
-                )}
               </div>
 
               {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-1">
+              <div className="flex gap-1 sm:pt-5">
                 <button
                   type="button"
                   onClick={handleSetDefaultVideoPreset}
@@ -1500,22 +1476,19 @@ export default function Settings() {
                 >
                   💾 Save
                 </button>
+                {selectedVideoPreset && selectedVideoPresetData?.category === 'user' && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteVideoPreset}
+                    disabled={deletePresetMutation.isPending}
+                    className="settings-button-sm bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300"
+                  >
+                    🗑️
+                  </button>
+                )}
               </div>
-
-              {/* Delete Button (for user presets) */}
-              {selectedVideoPreset && selectedVideoPresetData?.category === 'user' && (
-                <button
-                  type="button"
-                  onClick={handleDeleteVideoPreset}
-                  disabled={deletePresetMutation.isPending}
-                  className="w-full settings-button-sm bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300"
-                >
-                  🗑️ Delete
-                </button>
-              )}
             </div>
-            </div>
-          </CollapsibleCard>
+          </div>
 
           <form onSubmit={handleWebuiSubmit} className="space-y-2">
             {/* Grid container for settings cards */}
