@@ -84,6 +84,7 @@ class CameraStreamer:
         self.frame_delay = DEFAULT_FRAME_DELAY
         self.jpeg_quality = DEFAULT_JPEG_QUALITY
         self.stream_mode = 'simplejpeg'  # Default: fast software encoding
+        self.sensor_mode = 'auto'  # auto, 4:3, 16:9, full - controls field of view
 
         # Image quality controls (Phase 2.1)
         self.sharpness = 1.0
@@ -153,6 +154,8 @@ class CameraStreamer:
                     self.jpeg_quality = int(settings['jpeg_quality'])
                 if 'stream_mode' in settings:
                     self.stream_mode = settings['stream_mode']
+                if 'sensor_mode' in settings:
+                    self.sensor_mode = settings['sensor_mode']
 
                 # Image quality settings (Phase 2.1)
                 if 'sharpness' in settings:
@@ -216,7 +219,7 @@ class CameraStreamer:
                     self.focus_peaking_algorithm = settings['focus_peaking_algorithm']
 
                 print(f"Stream settings loaded: {self.stream_width}x{self.stream_height}, "
-                      f"FPS: {1/self.frame_delay:.1f}, Quality: {self.jpeg_quality}, Mode: {self.stream_mode}")
+                      f"FPS: {1/self.frame_delay:.1f}, Quality: {self.jpeg_quality}, Mode: {self.stream_mode}, Sensor: {self.sensor_mode}")
                 print(f"  Image quality: Sharp={self.sharpness}, Bright={self.brightness}, "
                       f"Contrast={self.contrast}, Sat={self.saturation}")
                 print(f"  Focus: Mode={self.af_mode}, Speed={self.af_speed}, Range={self.af_range}")
@@ -272,10 +275,41 @@ class CameraStreamer:
             # - Hardware MJPEG: Requires video_config for start_recording() with encoder
             # - Software encoding: Works fine with video_config + capture_array()
             # Using video_config universally eliminates need to reconfigure between modes.
-            video_config = self.camera.create_video_configuration(
-                main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
-                encode="main"  # Required for encoder support
-            )
+
+            # Apply sensor mode based on user preference (controls field of view)
+            if self.sensor_mode == '4:3':
+                # Force 4:3 aspect ratio sensor mode for wider field of view
+                # Useful when output is 16:9 (1920x1080) but user wants wider vertical coverage
+                print(f"📷 Sensor mode: Forcing 4:3 aspect (2304x1728) for wider field of view")
+                video_config = self.camera.create_video_configuration(
+                    main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
+                    raw={"size": (2304, 1728)},  # 4:3 aspect sensor crop
+                    encode="main"
+                )
+            elif self.sensor_mode == 'full':
+                # Use full sensor resolution for maximum field of view
+                # Most downscaling, highest quality, most processing
+                if hasattr(self, 'sensor_resolution') and self.sensor_resolution:
+                    print(f"📷 Sensor mode: Using full sensor resolution {self.sensor_resolution} for maximum field of view")
+                    video_config = self.camera.create_video_configuration(
+                        main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
+                        raw={"size": self.sensor_resolution},
+                        encode="main"
+                    )
+                else:
+                    print("⚠ Full sensor mode requested but sensor_resolution unknown, using auto")
+                    video_config = self.camera.create_video_configuration(
+                        main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
+                        encode="main"
+                    )
+            else:  # 'auto' or '16:9' or unknown
+                # Let libcamera choose sensor mode based on output resolution
+                # For 1920x1080 output, this typically selects 1920x1080 sensor mode (16:9)
+                print(f"📷 Sensor mode: Auto (libcamera will select based on output resolution)")
+                video_config = self.camera.create_video_configuration(
+                    main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
+                    encode="main"  # Required for encoder support
+                )
             self.camera.configure(video_config)
 
             # Get actual sensor mode resolution (NOT PixelArraySize which is max sensor size)

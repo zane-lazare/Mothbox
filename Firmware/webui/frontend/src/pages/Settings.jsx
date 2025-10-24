@@ -2114,6 +2114,29 @@ export default function Settings() {
               </p>
               </div>
 
+              {/* Sensor Mode / Field of View */}
+              <div>
+              <label htmlFor="sensor_mode" className="settings-label">
+                Sensor Mode (Field of View)
+              </label>
+              <select
+                id="sensor_mode"
+                value={webuiForm.sensor_mode || 'auto'}
+                onChange={(e) => setWebuiForm({...webuiForm, sensor_mode: e.target.value})}
+                className="settings-select"
+              >
+                <option value="auto">Auto (Default)</option>
+                <option value="4:3">4:3 Wide (Wider FOV)</option>
+                <option value="16:9">16:9 Standard</option>
+                <option value="full">Full Sensor (Maximum FOV)</option>
+              </select>
+              <p className="settings-help-text">
+                Controls the camera sensor crop mode and field of view.
+                Use <strong>4:3 Wide</strong> for maximum vertical coverage at 1920x1080 output resolution.
+                <strong>Auto</strong> mode may crop to 16:9 when using 1920x1080 resolution.
+              </p>
+              </div>
+
               {/* Info Box */}
               <div className="settings-info-box bg-blue-50 border-blue-200">
               <p className="settings-help-text text-blue-800">

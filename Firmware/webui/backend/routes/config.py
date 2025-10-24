@@ -230,6 +230,7 @@ def get_webui_settings():
             'frame_rate': 10,
             'jpeg_quality': 85,  # Optimized default: faster encoding, good quality
             'stream_mode': 'simplejpeg',  # Fast software encoding (5-7x faster than PIL)
+            'sensor_mode': 'auto',  # auto, 4:3, 16:9, full - controls field of view
 
             # Image quality controls (Phase 2.1)
             'sharpness': 1.0,
@@ -273,7 +274,7 @@ def get_webui_settings():
             # Load settings from file, converting to appropriate types
             for key in defaults:
                 if key in settings:
-                    if key in ['stream_mode', 'focus_peaking_color', 'focus_peaking_algorithm']:
+                    if key in ['stream_mode', 'focus_peaking_color', 'focus_peaking_algorithm', 'sensor_mode']:
                         # String values - don't convert
                         defaults[key] = settings[key]
                     elif key in ['awb_enable', 'ae_enable', 'focus_peaking_enabled']:
@@ -325,6 +326,10 @@ def update_webui_settings():
             return jsonify({'error': f'Invalid stream setting type: {e}'}), 400
 
         stream_mode = new_settings.get('stream_mode', existing.get('stream_mode', 'simplejpeg'))
+        sensor_mode = new_settings.get('sensor_mode', existing.get('sensor_mode', 'auto'))
+
+        if not isinstance(sensor_mode, str):
+            return jsonify({'error': 'sensor_mode must be a string'}), 400
 
         # Validate and convert types - Image quality controls (Phase 2.1)
         try:
@@ -431,6 +436,8 @@ def update_webui_settings():
             return jsonify({'error': 'JPEG quality must be between 50 and 100'}), 400
         if stream_mode not in ['simplejpeg', 'mjpeg_hardware']:
             return jsonify({'error': 'stream_mode must be simplejpeg or mjpeg_hardware'}), 400
+        if sensor_mode not in ['auto', '4:3', '16:9', 'full']:
+            return jsonify({'error': 'sensor_mode must be auto, 4:3, 16:9, or full'}), 400
 
         # Validate ranges - Image quality (Phase 2.1)
         if not (0.0 <= sharpness <= 16.0):
@@ -505,6 +512,7 @@ def update_webui_settings():
             f.write(f"frame_rate={frame_rate}\n")
             f.write(f"jpeg_quality={jpeg_quality}\n")
             f.write(f"stream_mode={stream_mode}\n")
+            f.write(f"sensor_mode={sensor_mode}\n")
 
             # Image quality controls
             f.write(f"sharpness={sharpness}\n")
