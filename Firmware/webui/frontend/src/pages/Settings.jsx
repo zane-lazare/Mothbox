@@ -1437,55 +1437,54 @@ export default function Settings() {
 
           <form onSubmit={handleWebuiSubmit} className="space-y-2">
             {/* Grid container for settings cards */}
-            <div className="settings-grid">
-              {/* Video Preset Card */}
-              <div className="settings-card">
-                <h4 className="settings-card-title">🎥 Video Preset</h4>
-                <div className="space-y-2">
-                  <select
-                    value={selectedVideoPreset}
-                    onChange={(e) => setSelectedVideoPreset(e.target.value)}
-                    disabled={presetsLoading}
-                    className="settings-select"
+            {/* Video Preset Section - Full Width Inline */}
+            <div className="settings-card">
+              <div className="flex items-center gap-4">
+                <h4 className="settings-card-title mb-0 whitespace-nowrap">🎥 Video Preset</h4>
+                <select
+                  value={selectedVideoPreset}
+                  onChange={(e) => setSelectedVideoPreset(e.target.value)}
+                  disabled={presetsLoading}
+                  className="settings-select flex-1"
+                >
+                  <option value="">Custom Settings</option>
+                  {videoPresets.map(p => (
+                    <option key={p.name} value={p.name}>
+                      {p.display_name}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSetDefaultVideoPreset}
+                    disabled={!selectedVideoPreset || setPreferenceMutation.isPending}
+                    className="settings-button-sm bg-yellow-500 text-white hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    <option value="">Custom Settings</option>
-                    {videoPresets.map(p => (
-                      <option key={p.name} value={p.name}>
-                        {p.display_name}
-                      </option>
-                    ))}
-                  </select>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-1">
+                    ⭐ Default
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveVideoPreset}
+                    className="settings-button-sm bg-emerald-600 text-white hover:bg-emerald-700"
+                  >
+                    💾 Save
+                  </button>
+                  {selectedVideoPreset && selectedVideoPresetData?.category === 'user' && (
                     <button
                       type="button"
-                      onClick={handleSetDefaultVideoPreset}
-                      disabled={!selectedVideoPreset || setPreferenceMutation.isPending}
-                      className="settings-button-sm bg-yellow-500 text-white hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex-1"
+                      onClick={handleDeleteVideoPreset}
+                      disabled={deletePresetMutation.isPending}
+                      className="settings-button-sm bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300"
                     >
-                      ⭐ Default
+                      🗑️
                     </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveVideoPreset}
-                      className="settings-button-sm bg-emerald-600 text-white hover:bg-emerald-700 flex-1"
-                    >
-                      💾 Save
-                    </button>
-                    {selectedVideoPreset && selectedVideoPresetData?.category === 'user' && (
-                      <button
-                        type="button"
-                        onClick={handleDeleteVideoPreset}
-                        disabled={deletePresetMutation.isPending}
-                        className="settings-button-sm bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300"
-                      >
-                        🗑️
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
+            </div>
+
+            <div className="settings-grid">
 
               {/* Resolution & Encoding Card */}
               <CollapsibleCard
