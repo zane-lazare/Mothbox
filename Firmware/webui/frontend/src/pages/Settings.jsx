@@ -264,15 +264,7 @@ export default function Settings() {
     updateControlsMutation.mutate(controlsForm)
   }
 
-  const handleCameraSubmit = (e) => {
-    e.preventDefault()
-    updateCameraMutation.mutate(cameraForm)
-  }
-
-  const handleWebuiSubmit = (e) => {
-    e.preventDefault()
-    updateWebuiMutation.mutate(webuiForm)
-  }
+  // Note: handleCameraSubmit and handleWebuiSubmit removed - settings are now saved via preset Update button
 
   // Preset management handlers
   // Filter presets by workflow
@@ -282,62 +274,138 @@ export default function Settings() {
   const selectedPhotoPresetData = presetsData?.presets?.find(p => p.name === selectedPhotoPreset)
   const selectedVideoPresetData = presetsData?.presets?.find(p => p.name === selectedVideoPreset)
 
-  // Load default presets from preferences on mount
+  // Initialize with default presets on mount - always have a preset selected
   useEffect(() => {
-    if (preferences?.default_capture_preset && !selectedPhotoPreset) {
-      setSelectedPhotoPreset(preferences.default_capture_preset)
+    if (presetsData?.presets && !selectedPhotoPreset) {
+      // Use user's default preference, or "balanced" as fallback, or first available
+      const defaultPreset = preferences?.default_capture_preset ||
+                           presetsData.presets.find(p => (p.workflow === 'photo' || p.workflow === 'both') && p.name === 'balanced')?.name ||
+                           presetsData.presets.find(p => p.workflow === 'photo' || p.workflow === 'both')?.name
+      if (defaultPreset) {
+        setSelectedPhotoPreset(defaultPreset)
+        // Auto-apply on initialization
+        handlePhotoPresetChange({ target: { value: defaultPreset } })
+      }
     }
-    if (preferences?.default_preview_preset && !selectedVideoPreset) {
-      setSelectedVideoPreset(preferences.default_preview_preset)
-    }
-  }, [preferences])
+  }, [presetsData, preferences?.default_capture_preset])
 
-  // Manual apply handlers for presets (removed auto-populate)
-  const handleApplyPhotoPreset = async () => {
-    if (!selectedPhotoPreset) {
-      toast.error('Please select a photo preset first')
-      return
+  useEffect(() => {
+    if (presetsData?.presets && !selectedVideoPreset) {
+      // Use user's default preference, or "balanced" as fallback, or first available
+      const defaultPreset = preferences?.default_preview_preset ||
+                           presetsData.presets.find(p => (p.workflow === 'video' || p.workflow === 'both') && p.name === 'balanced')?.name ||
+                           presetsData.presets.find(p => p.workflow === 'video' || p.workflow === 'both')?.name
+      if (defaultPreset) {
+        setSelectedVideoPreset(defaultPreset)
+        // Auto-apply on initialization
+        handleVideoPresetChange({ target: { value: defaultPreset } })
+      }
     }
+  }, [presetsData, preferences?.default_preview_preset])
 
+  // Auto-apply preset handlers - apply immediately when preset selected
+  const handlePhotoPresetChange = async (e) => {
+    const presetName = e.target.value
+    setSelectedPhotoPreset(presetName)
+
+    // Immediately apply to backend
     try {
       await applyPresetMutation.mutateAsync({
-        name: selectedPhotoPreset,
+        name: presetName,
         applyTo: 'capture'
       })
-
-      // Invalidate queries to trigger refetch and form sync
+      // Query invalidation triggers form update
       await queryClient.invalidateQueries(['camera-settings'])
 
-      const preset = presetsData?.presets?.find(p => p.name === selectedPhotoPreset)
-      const displayName = preset?.display_name || selectedPhotoPreset
-      toast.success(`Applied "${displayName}" to camera settings`)
+      const preset = presetsData?.presets?.find(p => p.name === presetName)
+      const displayName = preset?.display_name || presetName
+      toast.success(`Applied "${displayName}" preset`)
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to apply preset'
       toast.error(`Apply failed: ${message}`)
     }
   }
 
-  const handleApplyVideoPreset = async () => {
-    if (!selectedVideoPreset) {
-      toast.error('Please select a video preset first')
+  const handleVideoPresetChange = async (e) => {
+    const presetName = e.target.value
+    setSelectedVideoPreset(presetName)
+
+    // Immediately apply to backend
+    try {
+      await applyPresetMutation.mutateAsync({
+        name: presetName,
+        applyTo: 'preview'
+      })
+      // Query invalidation triggers form update
+      await queryClient.invalidateQueries(['webui-settings'])
+
+      const preset = presetsData?.presets?.find(p => p.name === presetName)
+      const displayName = preset?.display_name || presetName
+      toast.success(`Applied "${displayName}" preset`)
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to apply preset'
+      toast.error(`Apply failed: ${message}`)
+    }
+  }
+
+  // Update preset handlers - update preset file + apply to backend
+  const handleUpdatePhotoPreset = async () => {
+    if (!selectedPhotoPreset) return
+    if (selectedPhotoPresetData?.category === 'built-in') {
+      toast.error('Cannot modify built-in presets. Use "Save As" to create a copy.')
       return
     }
 
     try {
-      await applyPresetMutation.mutateAsync({
-        name: selectedVideoPreset,
-        applyTo: 'preview'
-      })
+      // Create preset update payload with current form values
+      const presetData = {
+        name: selectedPhotoPreset,
+        description: selectedPhotoPresetData?.description || '',
+        workflow: 'photo',
+        settings: {
+          camera: cameraForm
+        }
+      }
 
-      // Invalidate queries to trigger refetch and form sync
-      await queryClient.invalidateQueries(['webui-settings'])
+      // Update preset file (via POST to /presets endpoint - creates/overwrites)
+      await createPresetMutation.mutateAsync(presetData)
 
-      const preset = presetsData?.presets?.find(p => p.name === selectedVideoPreset)
-      const displayName = preset?.display_name || selectedVideoPreset
-      toast.success(`Applied "${displayName}" to stream settings`)
+      // Apply to backend config
+      await updateCameraMutation.mutateAsync(cameraForm)
+
+      const displayName = selectedPhotoPresetData?.display_name || selectedPhotoPreset
+      toast.success(`Updated "${displayName}" preset`)
     } catch (error) {
-      const message = error.response?.data?.error || 'Failed to apply preset'
-      toast.error(`Apply failed: ${message}`)
+      const message = error.response?.data?.error || 'Failed to update preset'
+      toast.error(`Update failed: ${message}`)
+    }
+  }
+
+  const handleUpdateVideoPreset = async () => {
+    if (!selectedVideoPreset) return
+    if (selectedVideoPresetData?.category === 'built-in') {
+      toast.error('Cannot modify built-in presets. Use "Save As" to create a copy.')
+      return
+    }
+
+    try {
+      const presetData = {
+        name: selectedVideoPreset,
+        description: selectedVideoPresetData?.description || '',
+        workflow: 'video',
+        settings: {
+          preview: webuiForm
+        }
+      }
+
+      await createPresetMutation.mutateAsync(presetData)
+      await updateWebuiMutation.mutateAsync(webuiForm)
+
+      const displayName = selectedVideoPresetData?.display_name || selectedVideoPreset
+      toast.success(`Updated "${displayName}" preset`)
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to update preset'
+      toast.error(`Update failed: ${message}`)
     }
   }
 
@@ -664,7 +732,7 @@ export default function Settings() {
           >
             <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
             <p className="settings-help-text mb-2">
-              Select a preset and click Apply to load capture settings. Review, tweak, then Save Camera Settings.
+              Select a preset to load and apply capture settings. Edit values, then click Update to save changes.
             </p>
 
             <div className="space-y-2">
@@ -675,11 +743,10 @@ export default function Settings() {
                 </label>
                 <select
                   value={selectedPhotoPreset}
-                  onChange={(e) => setSelectedPhotoPreset(e.target.value)}
-                  disabled={presetsLoading}
+                  onChange={handlePhotoPresetChange}
+                  disabled={presetsLoading || applyPresetMutation.isPending}
                   className="settings-select"
                 >
-                  <option value="">Custom Settings (No Preset)</option>
                   {photoPresets.map(p => (
                     <option key={p.name} value={p.name}>
                       {p.display_name}
@@ -695,14 +762,16 @@ export default function Settings() {
 
               {/* Action Buttons */}
               <div className="grid grid-cols-3 gap-1">
-                <button
-                  type="button"
-                  onClick={handleApplyPhotoPreset}
-                  disabled={!selectedPhotoPreset || applyPresetMutation.isPending}
-                  className="settings-button-sm bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                  ✓ Apply
-                </button>
+                {selectedPhotoPresetData?.category === 'user' && (
+                  <button
+                    type="button"
+                    onClick={handleUpdatePhotoPreset}
+                    disabled={updateCameraMutation.isPending || createPresetMutation.isPending}
+                    className="settings-button-sm bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    ✓ Update
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleSetDefaultPhotoPreset}
@@ -714,9 +783,10 @@ export default function Settings() {
                 <button
                   type="button"
                   onClick={handleSavePhotoPreset}
-                  className="settings-button-sm bg-indigo-600 text-white hover:bg-indigo-700"
+                  disabled={createPresetMutation.isPending}
+                  className="settings-button-sm bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
-                  💾 Save
+                  💾 Save As
                 </button>
               </div>
 
@@ -735,7 +805,7 @@ export default function Settings() {
             </div>
           </CollapsibleCard>
 
-          <form onSubmit={handleCameraSubmit} className="space-y-2">
+          <div className="space-y-2">
             {/* Grid container for settings cards */}
             <div className="settings-grid">
               {/* Auto-Calibration Card */}
@@ -1435,23 +1505,8 @@ export default function Settings() {
                 <strong>Note:</strong> Full-resolution captures only. Use Auto-Calibration or Camera page to test.
               </p>
               </div>
-
-              <button
-                type="submit"
-                disabled={updateCameraMutation.isPending}
-                className="w-full settings-button"
-              >
-                {updateCameraMutation.isPending ? (
-                  <>
-                    <span className="inline-block animate-spin mr-2">⏳</span>
-                    Saving...
-                  </>
-                ) : (
-                  'Save Camera Settings'
-                )}
-              </button>
             </div>
-          </form>
+          </div>
         </div>
       )}
 
@@ -1495,7 +1550,7 @@ export default function Settings() {
             }
           `}</style>
 
-          <form onSubmit={handleWebuiSubmit} className="space-y-2">
+          <div className="space-y-2">
             {/* Grid container for settings cards */}
             {/* Video Preset Section - Full Width Inline */}
             <div className="settings-card">
@@ -1503,26 +1558,32 @@ export default function Settings() {
                 <h4 className="settings-card-title mb-0 whitespace-nowrap">🎥 Video Preset</h4>
                 <select
                   value={selectedVideoPreset}
-                  onChange={(e) => setSelectedVideoPreset(e.target.value)}
-                  disabled={presetsLoading}
+                  onChange={handleVideoPresetChange}
+                  disabled={presetsLoading || applyPresetMutation.isPending}
                   className="settings-select flex-1"
                 >
-                  <option value="">Custom Settings</option>
                   {videoPresets.map(p => (
                     <option key={p.name} value={p.name}>
                       {p.display_name}
                     </option>
                   ))}
                 </select>
+                {selectedVideoPresetData && (
+                  <p className="text-xs text-gray-600 italic ml-2">
+                    {selectedVideoPresetData.description}
+                  </p>
+                )}
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleApplyVideoPreset}
-                    disabled={!selectedVideoPreset || applyPresetMutation.isPending}
-                    className="settings-button-sm bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                  >
-                    ✓ Apply
-                  </button>
+                  {selectedVideoPresetData?.category === 'user' && (
+                    <button
+                      type="button"
+                      onClick={handleUpdateVideoPreset}
+                      disabled={updateWebuiMutation.isPending || createPresetMutation.isPending}
+                      className="settings-button-sm bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    >
+                      ✓ Update
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handleSetDefaultVideoPreset}
@@ -1534,9 +1595,10 @@ export default function Settings() {
                   <button
                     type="button"
                     onClick={handleSaveVideoPreset}
-                    className="settings-button-sm bg-emerald-600 text-white hover:bg-emerald-700"
+                    disabled={createPresetMutation.isPending}
+                    className="settings-button-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    💾 Save
+                    💾 Save As
                   </button>
                   {selectedVideoPreset && selectedVideoPresetData?.category === 'user' && (
                     <button
@@ -1689,21 +1751,6 @@ export default function Settings() {
                 </p>
               </div>
 
-              {/* Save Button */}
-              <button
-                type="submit"
-                disabled={updateWebuiMutation.isPending}
-                className="w-full settings-button"
-              >
-                {updateWebuiMutation.isPending ? (
-                  <>
-                    <span className="inline-block animate-spin mr-2">⏳</span>
-                    Saving...
-                  </>
-                ) : (
-                  'Save Stream Settings'
-                )}
-              </button>
             </div>
 
             {/* Second row of grid */}
@@ -2221,7 +2268,7 @@ export default function Settings() {
                 )}
               </div>
             </CollapsibleCard>
-          </form>
+          </div>
         </div>
       )}
 

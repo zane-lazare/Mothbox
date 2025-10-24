@@ -351,7 +351,7 @@ export default function Camera() {
       socketRef.current.emit('stop_preview')
       setCurrentFrame(null)
     } else {
-      // Fetch latest settings before starting preview to ensure sliders match stream
+      // Fetch latest settings and reload backend before starting preview
       try {
         const API_URL = import.meta.env.VITE_API_URL || '/api'
         const response = await fetch(`${API_URL}/config/webui`)
@@ -374,6 +374,21 @@ export default function Camera() {
             afSpeed: data.af_speed ?? prev.afSpeed
           }))
           console.log('Refreshed live controls from backend before preview start')
+
+          // Tell backend to reload settings from file before starting stream
+          // This ensures backend CameraStreamer uses fresh settings, not cached values
+          await new Promise((resolve) => {
+            const handleReloaded = () => {
+              socketRef.current.off('settings_reloaded', handleReloaded)
+              resolve()
+            }
+            socketRef.current.once('settings_reloaded', handleReloaded)
+            socketRef.current.emit('reload_stream_settings')
+            // Timeout fallback in case event doesn't fire
+            setTimeout(resolve, 300)
+          })
+
+          console.log('Backend settings reloaded, starting preview')
         }
       } catch (error) {
         console.error('Failed to refresh settings before preview start:', error)
