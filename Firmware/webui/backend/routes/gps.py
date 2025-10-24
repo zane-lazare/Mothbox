@@ -244,6 +244,12 @@ def sync_gps():
 
         print(f"📡 Running GPS sync: {gps_script} (timeout: {timeout}s)")
 
+        # Note: subprocess.run() blocks the Flask worker thread during GPS sync.
+        # This is acceptable because:
+        # 1. GPS sync is infrequent (user-triggered or scheduled)
+        # 2. Rate limiting (5 req/min) prevents worker starvation
+        # 3. Other WebUI endpoints remain responsive (separate requests use different workers)
+        # For high-frequency operations, consider using Celery or background tasks.
         result = subprocess.run(
             ['python3', str(gps_script)],
             capture_output=True,
@@ -296,6 +302,22 @@ def _update_controls_file(config_updates):
 
     Raises:
         IOError: If file locking fails or file operations fail
+
+    Note on GPS.py race condition:
+        This function uses fcntl file locking to prevent race conditions when the WebUI
+        reads/writes controls.txt. However, the existing GPS.py script (in 5.x/GPS.py)
+        does not use file locking when it writes GPS coordinates to controls.txt.
+
+        Since POSIX file locks are advisory (not mandatory), GPS.py can still overwrite
+        WebUI changes during the small window between GPS sync operations. In practice,
+        this risk is LOW because:
+        - GPS sync operations are slow (10-80 seconds)
+        - Configuration updates are fast (< 1 second)
+        - GPS sync is rate-limited (5 requests/minute)
+        - GPS status cache reduces file I/O
+
+        This WebUI implementation protects WebUI operations from corruption. A full fix
+        would require adding file locking to GPS.py itself (see Issue #53 follow-up).
     """
     # Prepare updates mapping
     updates = {}
