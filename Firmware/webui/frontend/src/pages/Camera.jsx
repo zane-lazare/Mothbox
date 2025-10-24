@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCapture, freezeSettings, getPresets, applyPreset, createPreset, getPreferences, setPreference } from '../utils/api'
+import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCapture, freezeSettings, getPresets, applyPreset, createPreset, getPreferences, setPreference, updateWebUISettings } from '../utils/api'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
@@ -88,6 +88,18 @@ export default function Camera() {
     mutationFn: createPreset,
     onSuccess: () => {
       queryClient.invalidateQueries(['presets'])
+    }
+  })
+
+  // Update webui settings mutation
+  const updateWebuiMutation = useMutation({
+    mutationFn: updateWebUISettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries(['webui-settings'])
+    },
+    onError: (error) => {
+      const message = error.response?.data?.error || 'Failed to update stream settings'
+      toast.error(`Error: ${message}`)
     }
   })
 
@@ -863,12 +875,8 @@ export default function Camera() {
       // Update preset file
       await createPresetMutation.mutateAsync(presetData)
 
-      // Apply to backend config
-      await fetch(import.meta.env.VITE_API_URL || '/api' + '/config/webui', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(presetData.settings.preview)
-      })
+      // Apply to backend config (uses API utility with CSRF token handling)
+      await updateWebuiMutation.mutateAsync(presetData.settings.preview)
 
       const displayName = preset?.display_name || selectedVideoPreset
       toast.success(`Updated "${displayName}" preset`)
