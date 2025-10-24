@@ -128,14 +128,15 @@ case "$TEST_TYPE" in
         ;;
 
     "focus"|"exposure")
-        # Focus & Exposure Controls tests
+        # Focus & Exposure Controls tests (Issue #45: split calibration)
         echo "🚀 Running Focus & Exposure Controls tests..."
         echo ""
-        echo "Testing autofocus, calibration, exposure, and metering workflows..."
+        echo "Testing autofocus, photo calibration, stream calibration, and metering workflows..."
         pytest Tests/unit/test_focus_control_validation.py \
                Tests/unit/test_metering_validation.py \
                Tests/integration/test_autofocus_workflows.py \
-               Tests/integration/test_calibration_workflows.py \
+               Tests/integration/test_photo_calibration.py \
+               Tests/integration/test_stream_calibration.py \
                Tests/integration/test_camera_controls.py \
                Tests/integration/test_metering_exposure.py -v -s
         ;;
@@ -227,8 +228,24 @@ case "$TEST_TYPE" in
                Tests/integration/test_focus_peaking_workflows.py -v -s
         ;;
 
+    "photo-calibration"|"photocalibration")
+        # Photo Calibration tests (Issue #45)
+        echo "🚀 Running Photo Calibration tests (Issue #45)..."
+        echo ""
+        echo "Testing TakePhoto.py subprocess calibration workflow..."
+        pytest Tests/integration/test_photo_calibration.py -v -s
+        ;;
+
+    "stream-calibration"|"streamcalibration")
+        # Stream Calibration tests (Issue #45)
+        echo "🚀 Running Stream Calibration tests (Issue #45)..."
+        echo ""
+        echo "Testing CameraStreamer live calibration workflow..."
+        pytest Tests/integration/test_stream_calibration.py -v -s
+        ;;
+
     "issue43"|"complete")
-        # All tests for GitHub issue #43
+        # All tests for GitHub issue #43 (updated for Issue #45)
         echo "🚀 Running COMPLETE test suite for GitHub issue #43..."
         echo ""
         echo "=== Performance & Streaming ==="
@@ -237,8 +254,8 @@ case "$TEST_TYPE" in
         echo "=== Image Quality Controls ==="
         pytest Tests/unit/test_image_quality_validation.py Tests/integration/test_quality_settings_persistence.py -v -s
         echo ""
-        echo "=== Focus & Exposure Controls ==="
-        pytest Tests/unit/test_focus_control_validation.py Tests/integration/test_autofocus_workflows.py Tests/integration/test_calibration_workflows.py -v -s
+        echo "=== Focus & Exposure Controls (Issue #45: split calibration) ==="
+        pytest Tests/unit/test_focus_control_validation.py Tests/integration/test_autofocus_workflows.py Tests/integration/test_photo_calibration.py Tests/integration/test_stream_calibration.py -v -s
         echo ""
         echo "=== Interactive Features & Workflows ==="
         pytest Tests/unit/test_websocket_handlers.py Tests/integration/test_websocket_integration.py Tests/integration/test_test_capture_workflows.py Tests/integration/test_end_to_end_workflows.py -v -s
@@ -288,6 +305,10 @@ case "$TEST_TYPE" in
         echo "  peaking       - Same as focuspeaking"
         echo "  presets       - Settings Presets tests"
         echo "  preset        - Same as presets"
+        echo "  photo-calibration - Photo Calibration tests (Issue #45 - subprocess)"
+        echo "  photocalibration  - Same as photo-calibration"
+        echo "  stream-calibration - Stream Calibration tests (Issue #45 - CameraStreamer)"
+        echo "  streamcalibration  - Same as stream-calibration"
         echo ""
         echo "=== Legacy Phase Commands (backward compatibility) ==="
         echo "  phase2        - Run Phase 2 complete test suite"
@@ -320,6 +341,8 @@ case "$TEST_TYPE" in
         echo "  ./run_tests.sh clicktofocus     # Test click-to-focus AF window"
         echo "  ./run_tests.sh focuspeaking     # Test focus peaking overlay (3 algorithms)"
         echo "  ./run_tests.sh presets          # Test settings presets"
+        echo "  ./run_tests.sh photo-calibration # Test photo calibration (Issue #45)"
+        echo "  ./run_tests.sh stream-calibration # Test stream calibration (Issue #45)"
         echo "  ./run_tests.sh quick            # Quick performance check"
         echo "  ./run_tests.sh manual           # Show manual test steps"
         exit 0
