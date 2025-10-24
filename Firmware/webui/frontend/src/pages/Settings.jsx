@@ -52,7 +52,6 @@ export default function Settings() {
     streamWhiteBalance: true,
     streamISP: true,
     streamFocusPeaking: true,
-    streamEncoding: true,
   })
 
   const toggleCard = (id) => {
@@ -1488,10 +1487,10 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Resolution & Performance Card */}
+              {/* Resolution & Encoding Card */}
               <CollapsibleCard
                 id="streamResolution"
-                title="📐 Resolution"
+                title="📐 Resolution & Encoding"
                 isCollapsed={collapsedCards.streamResolution}
                 onToggle={toggleCard}
                 className="settings-card"
@@ -1571,9 +1570,77 @@ export default function Settings() {
               <p className="settings-help-text">
                 Higher quality produces sharper images but uses more bandwidth
               </p>
-                </div>
+            </div>
+
+            {/* Encoding Mode */}
+            <div className="settings-form-group">
+              <label htmlFor="stream_mode" className="settings-label">
+                Encoding Mode
+              </label>
+              <select
+                id="stream_mode"
+                value={webuiForm.stream_mode || 'simplejpeg'}
+                onChange={(e) => setWebuiForm({...webuiForm, stream_mode: e.target.value})}
+                className="settings-select"
+              >
+                <option value="simplejpeg">Fast Software (simplejpeg) - Recommended</option>
+                <option value="mjpeg_hardware">Hardware MJPEG (Experimental)</option>
+              </select>
+              <p className="settings-help-text">
+                simplejpeg provides 5-7x faster encoding than PIL. Hardware MJPEG is experimental and may offer lower latency.
+              </p>
+            </div>
+
+            {/* Sensor Mode / Field of View */}
+            <div className="settings-form-group">
+              <label htmlFor="sensor_mode" className="settings-label">
+                Sensor Mode (Field of View)
+              </label>
+              <select
+                id="sensor_mode"
+                value={webuiForm.sensor_mode || 'auto'}
+                onChange={(e) => setWebuiForm({...webuiForm, sensor_mode: e.target.value})}
+                className="settings-select"
+              >
+                <option value="auto">Auto (Default)</option>
+                <option value="4:3">4:3 Wide (Wider FOV)</option>
+                <option value="16:9">16:9 Standard</option>
+                <option value="full">Full Sensor (Maximum FOV)</option>
+              </select>
+              <p className="settings-help-text">
+                Controls the camera sensor crop mode and field of view.
+                Use <strong>4:3 Wide</strong> for maximum vertical coverage at 1920x1080 output resolution.
+                <strong>Auto</strong> mode may crop to 16:9 when using 1920x1080 resolution.
+              </p>
+            </div>
               </CollapsibleCard>
 
+              {/* Info Box */}
+              <div className="settings-info-box bg-blue-50 border-blue-200">
+                <p className="settings-help-text text-blue-800">
+                  <strong>Note:</strong> Changes apply to new stream sessions. Restart stream to apply.
+                </p>
+              </div>
+
+              {/* Save Button */}
+              <button
+                type="submit"
+                disabled={updateWebuiMutation.isPending}
+                className="w-full settings-button"
+              >
+                {updateWebuiMutation.isPending ? (
+                  <>
+                    <span className="inline-block animate-spin mr-2">⏳</span>
+                    Saving...
+                  </>
+                ) : (
+                  'Save Stream Settings'
+                )}
+              </button>
+            </div>
+
+            {/* Second row of grid */}
+            <div className="settings-grid">
               {/* Image Quality Card - spans 2 columns */}
               <CollapsibleCard
                 id="streamImageQuality"
@@ -2086,78 +2153,6 @@ export default function Settings() {
                   </div>
                 )}
               </div>
-            </CollapsibleCard>
-
-            {/* Encoding & Submit Card */}
-            <CollapsibleCard
-              id="streamEncoding"
-              title="⚙️ Encoding"
-              isCollapsed={collapsedCards.streamEncoding}
-              onToggle={toggleCard}
-              className="settings-card space-y-2"
-            >
-              <div>
-              <label htmlFor="stream_mode" className="settings-label">
-                Encoding Mode
-              </label>
-              <select
-                id="stream_mode"
-                value={webuiForm.stream_mode || 'simplejpeg'}
-                onChange={(e) => setWebuiForm({...webuiForm, stream_mode: e.target.value})}
-                className="settings-select"
-              >
-                <option value="simplejpeg">Fast Software (simplejpeg) - Recommended</option>
-                <option value="mjpeg_hardware">Hardware MJPEG (Experimental)</option>
-              </select>
-              <p className="settings-help-text">
-                simplejpeg provides 5-7x faster encoding than PIL. Hardware MJPEG is experimental and may offer lower latency.
-              </p>
-              </div>
-
-              {/* Sensor Mode / Field of View */}
-              <div>
-              <label htmlFor="sensor_mode" className="settings-label">
-                Sensor Mode (Field of View)
-              </label>
-              <select
-                id="sensor_mode"
-                value={webuiForm.sensor_mode || 'auto'}
-                onChange={(e) => setWebuiForm({...webuiForm, sensor_mode: e.target.value})}
-                className="settings-select"
-              >
-                <option value="auto">Auto (Default)</option>
-                <option value="4:3">4:3 Wide (Wider FOV)</option>
-                <option value="16:9">16:9 Standard</option>
-                <option value="full">Full Sensor (Maximum FOV)</option>
-              </select>
-              <p className="settings-help-text">
-                Controls the camera sensor crop mode and field of view.
-                Use <strong>4:3 Wide</strong> for maximum vertical coverage at 1920x1080 output resolution.
-                <strong>Auto</strong> mode may crop to 16:9 when using 1920x1080 resolution.
-              </p>
-              </div>
-
-              {/* Info Box */}
-              <div className="settings-info-box bg-blue-50 border-blue-200">
-              <p className="settings-help-text text-blue-800">
-                <strong>Note:</strong> Changes apply to new stream sessions. Restart stream to apply.
-              </p>
-              </div>
-
-              <button
-                type="submit"
-                disabled={updateWebuiMutation.isPending}
-                className="w-full settings-button"
-              >
-                {updateWebuiMutation.isPending ? (
-                  <>
-                    <span className="inline-block animate-spin mr-2">⏳</span>
-                    Saving...
-                  </>
-                ) : (
-                  'Save Stream Settings'
-                )}
-              </button>
             </CollapsibleCard>
           </form>
         </div>
