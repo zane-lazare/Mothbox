@@ -36,6 +36,7 @@ export default function Settings() {
     diagnosticControls: true,
     diagnosticHardware: true,
     // Camera Settings - common expanded, advanced collapsed
+    cameraPreset: false,
     cameraAutoCalibration: false,
     cameraExposure: false,
     cameraHDR: true,
@@ -604,12 +605,14 @@ export default function Settings() {
           </div>
 
           {/* Photo Preset Management Section */}
-          <div className="settings-card-lg">
+          <CollapsibleCard
+            id="cameraPreset"
+            title="📸 Photo Capture Presets"
+            isCollapsed={collapsedCards.cameraPreset}
+            onToggle={toggleCard}
+            className="settings-card-lg"
+          >
             <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
-            <h4 className="settings-card-title flex items-center">
-              <span className="mr-1">📸</span>
-              Photo Capture Presets
-            </h4>
             <p className="settings-help-text mb-2">
               Select a preset to auto-populate capture settings below. Review, tweak, then Save to apply.
             </p>
@@ -672,15 +675,20 @@ export default function Settings() {
               )}
             </div>
             </div>
-          </div>
+          </CollapsibleCard>
 
           <form onSubmit={handleCameraSubmit} className="space-y-2">
             {/* Grid container for settings cards */}
             <div className="settings-grid">
               {/* Auto-Calibration Card */}
-              <div className="settings-card">
+              <CollapsibleCard
+                id="cameraAutoCalibration"
+                title="🔧 Auto-Calibration"
+                isCollapsed={collapsedCards.cameraAutoCalibration}
+                onToggle={toggleCard}
+                className="settings-card"
+              >
                 <div className="p-2 bg-green-50 border border-green-200 rounded">
-              <h4 className="settings-card-title">🔧 Auto-Calibration</h4>
               <p className="settings-help-text mb-2">
                 Auto optimize exposure, gain, focus
               </p>
@@ -727,11 +735,16 @@ export default function Settings() {
                 )}
               </div>
                 </div>
-              </div>
+              </CollapsibleCard>
 
               {/* Exposure Card */}
-              <div className="settings-card">
-                <h4 className="settings-card-title">📷 Exposure</h4>
+              <CollapsibleCard
+                id="cameraExposure"
+                title="📷 Exposure"
+                isCollapsed={collapsedCards.cameraExposure}
+                onToggle={toggleCard}
+                className="settings-card"
+              >
 
               {/* AeEnable Toggle */}
               <div className="settings-form-group">
@@ -846,14 +859,19 @@ export default function Settings() {
                   </p>
                 </div>
               )}
-              </div>
+              </CollapsibleCard>
             </div>
 
             {/* HDR/Bracketing and Focus Bracketing - full width row */}
             <div className="settings-grid-2col">
               {/* HDR/Bracketing Card */}
-              <div className="settings-card">
-                <h4 className="settings-card-title">🌄 HDR Bracketing</h4>
+              <CollapsibleCard
+                id="cameraHDR"
+                title="🌄 HDR Bracketing"
+                isCollapsed={collapsedCards.cameraHDR}
+                onToggle={toggleCard}
+                className="settings-card"
+              >
               <p className="settings-help-text mb-2">
                 Multiple exposures for detail
               </p>
@@ -904,11 +922,16 @@ export default function Settings() {
                   </p>
                 </div>
               )}
-              </div>
+              </CollapsibleCard>
 
               {/* Focus Bracketing Card */}
-              <div className="settings-card">
-                <h4 className="settings-card-title">🎯 Focus Bracketing</h4>
+              <CollapsibleCard
+                id="cameraFocusBracket"
+                title="🎯 Focus Bracketing"
+                isCollapsed={collapsedCards.cameraFocusBracket}
+                onToggle={toggleCard}
+                className="settings-card"
+              >
               <p className="settings-help-text mb-2">
                 Multiple photos at different focus positions
               </p>
@@ -1178,14 +1201,19 @@ export default function Settings() {
                   </details>
                 </>
               )}
-              </div>
+              </CollapsibleCard>
             </div>
 
             {/* Third row of grid */}
             <div className="settings-grid">
               {/* Focus Controls Card */}
-              <div className="settings-card">
-                <h4 className="settings-card-title">🎯 Focus</h4>
+              <CollapsibleCard
+                id="cameraFocus"
+                title="🎯 Focus"
+                isCollapsed={collapsedCards.cameraFocus}
+                onToggle={toggleCard}
+                className="settings-card"
+              >
 
               {/* Focus Mode */}
               <div className="settings-form-group">
@@ -1262,11 +1290,16 @@ export default function Settings() {
                   <option value="1">Fast</option>
                 </select>
               </div>
-              </div>
+              </CollapsibleCard>
 
               {/* Image Format Card */}
-              <div className="settings-card">
-                <h4 className="settings-card-title">🖼️ Format</h4>
+              <CollapsibleCard
+                id="cameraFormat"
+                title="🖼️ Format"
+                isCollapsed={collapsedCards.cameraFormat}
+                onToggle={toggleCard}
+                className="settings-card"
+              >
 
               {/* File Type */}
               <div className="settings-form-group">
@@ -1305,15 +1338,17 @@ export default function Settings() {
                   Enable if camera is mounted upside-down
                 </p>
               </div>
-              </div>
+              </CollapsibleCard>
             </div>
 
             {/* Advanced/Other Settings - full width */}
-            <div className="settings-card">
-              <details>
-              <summary className="cursor-pointer settings-card-title">
-                ⚙️ Advanced (Click to expand)
-              </summary>
+            <CollapsibleCard
+              id="cameraAdvanced"
+              title="⚙️ Advanced"
+              isCollapsed={collapsedCards.cameraAdvanced}
+              onToggle={toggleCard}
+              className="settings-card"
+            >
               <div className="mt-2 space-y-2">
                 {Object.entries(cameraForm)
                   .filter(([key]) => !['AutoCalibration', 'AutoCalibrationPeriod', 'ExposureTime', 'AnalogueGain',
@@ -1333,8 +1368,7 @@ export default function Settings() {
                     </div>
                   ))}
               </div>
-              </details>
-            </div>
+            </CollapsibleCard>
 
             {/* Info Box and Submit Button - full width */}
             <div className="settings-card space-y-2">
@@ -1411,12 +1445,14 @@ export default function Settings() {
           </div>
 
           {/* Video Preset Management Section */}
-          <div className="settings-card-lg">
+          <CollapsibleCard
+            id="streamPreset"
+            title="🎥 Video Stream Presets"
+            isCollapsed={collapsedCards.streamPreset}
+            onToggle={toggleCard}
+            className="settings-card-lg"
+          >
             <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
-            <h4 className="settings-card-title flex items-center">
-              <span className="mr-2">🎥</span>
-              Video Stream Presets
-            </h4>
             <p className="settings-help-text mb-2">
               Select a preset to auto-populate stream settings below. Review, tweak, then Save to apply.
             </p>
@@ -1479,14 +1515,19 @@ export default function Settings() {
               )}
             </div>
             </div>
-          </div>
+          </CollapsibleCard>
 
           <form onSubmit={handleWebuiSubmit} className="space-y-2">
             {/* Grid container for settings cards */}
             <div className="settings-grid">
               {/* Resolution & Performance Card */}
-              <div className="settings-card">
-                <h4 className="settings-card-title">📐 Resolution</h4>
+              <CollapsibleCard
+                id="streamResolution"
+                title="📐 Resolution"
+                isCollapsed={collapsedCards.streamResolution}
+                onToggle={toggleCard}
+                className="settings-card"
+              >
 
                 {/* Resolution Preset Selector */}
                 <div className="settings-form-group">
@@ -1563,11 +1604,16 @@ export default function Settings() {
                 Higher quality produces sharper images but uses more bandwidth
               </p>
                 </div>
-              </div>
+              </CollapsibleCard>
 
               {/* Image Quality Card - spans 2 columns */}
-              <div className="settings-card lg:col-span-2">
-                <h4 className="settings-card-title">📸 Image Quality</h4>
+              <CollapsibleCard
+                id="streamImageQuality"
+                title="📸 Image Quality"
+                isCollapsed={collapsedCards.streamImageQuality}
+                onToggle={toggleCard}
+                className="settings-card lg:col-span-2"
+              >
                 <div className="settings-grid-2col">
 
                 {/* Sharpness Slider */}
@@ -1686,14 +1732,19 @@ export default function Settings() {
                 </p>
               </div>
                 </div>
-              </div>
+              </CollapsibleCard>
             </div>
 
             {/* Second row of grid */}
             <div className="settings-grid">
               {/* Focus Settings Card */}
-              <div className="settings-card">
-                <h4 className="settings-card-title">🎯 Focus</h4>
+              <CollapsibleCard
+                id="streamFocus"
+                title="🎯 Focus"
+                isCollapsed={collapsedCards.streamFocus}
+                onToggle={toggleCard}
+                className="settings-card"
+              >
 
               {/* Focus Mode Dropdown */}
               <div className="settings-form-group">
@@ -1753,11 +1804,16 @@ export default function Settings() {
                   Macro mode for close-up insect photography
                 </p>
               </div>
-              </div>
+              </CollapsibleCard>
 
               {/* Exposure Card */}
-              <div className="settings-card">
-                <h4 className="settings-card-title">📊 Exposure</h4>
+              <CollapsibleCard
+                id="streamExposure"
+                title="📊 Exposure"
+                isCollapsed={collapsedCards.streamExposure}
+                onToggle={toggleCard}
+                className="settings-card"
+              >
 
               {/* AeEnable Toggle for Stream */}
               <div className="settings-form-group">
@@ -1801,14 +1857,19 @@ export default function Settings() {
                   </p>
                 </div>
               )}
-              </div>
+              </CollapsibleCard>
             </div>
 
             {/* Third row of grid */}
             <div className="settings-grid">
               {/* White Balance Card */}
-              <div className="settings-card">
-                <h4 className="settings-card-title">🌡️ White Balance</h4>
+              <CollapsibleCard
+                id="streamWhiteBalance"
+                title="🌡️ White Balance"
+                isCollapsed={collapsedCards.streamWhiteBalance}
+                onToggle={toggleCard}
+                className="settings-card"
+              >
 
               {/* AWB Enable Checkbox */}
               <div className="settings-form-group">
@@ -1854,11 +1915,16 @@ export default function Settings() {
                   </p>
                 </div>
               )}
-              </div>
+              </CollapsibleCard>
 
               {/* ISP Features Card */}
-              <div className="settings-card">
-                <h4 className="settings-card-title">🔬 ISP Features</h4>
+              <CollapsibleCard
+                id="streamISP"
+                title="🔬 ISP Features"
+                isCollapsed={collapsedCards.streamISP}
+                onToggle={toggleCard}
+                className="settings-card"
+              >
               <p className="settings-help-text-xs mb-2">
                 Image Signal Processor corrections for improved image quality
               </p>
@@ -1957,12 +2023,17 @@ export default function Settings() {
                   Not available for runtime toggling - must be configured in tuning file before camera initialization.
                 </p>
               </div>
-              </div>
+              </CollapsibleCard>
             </div>
 
             {/* Focus Peaking Card */}
-            <div className="settings-card">
-              <h4 className="settings-card-title">🔍 Focus Peaking</h4>
+            <CollapsibleCard
+              id="streamFocusPeaking"
+              title="🔍 Focus Peaking"
+              isCollapsed={collapsedCards.streamFocusPeaking}
+              onToggle={toggleCard}
+              className="settings-card"
+            >
               <p className="settings-help-text-xs mb-2">
                 Preview-only overlay to highlight in-focus areas. Helps with manual focus adjustment for macro photography.
               </p>
@@ -2047,12 +2118,17 @@ export default function Settings() {
                   </div>
                 )}
               </div>
-            </div>
+            </CollapsibleCard>
 
             {/* Encoding & Submit Card */}
-            <div className="settings-card space-y-2">
+            <CollapsibleCard
+              id="streamEncoding"
+              title="⚙️ Encoding"
+              isCollapsed={collapsedCards.streamEncoding}
+              onToggle={toggleCard}
+              className="settings-card space-y-2"
+            >
               <div>
-                <h4 className="settings-card-title">⚙️ Encoding</h4>
               <label htmlFor="stream_mode" className="settings-label">
                 Encoding Mode
               </label>
@@ -2091,7 +2167,7 @@ export default function Settings() {
                   'Save Stream Settings'
                 )}
               </button>
-            </div>
+            </CollapsibleCard>
           </form>
         </div>
       )}
