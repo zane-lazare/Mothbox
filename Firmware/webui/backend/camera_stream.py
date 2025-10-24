@@ -274,9 +274,11 @@ class CameraStreamer:
             # Configure camera with video_config for both encoding paths:
             # - Hardware MJPEG: Requires video_config for start_recording() with encoder
             # - Software encoding: Works fine with video_config + capture_array()
+            # - Focus peaking: Needs lores stream for capture_array() during recording
             # Using video_config universally eliminates need to reconfigure between modes.
             video_config = self.camera.create_video_configuration(
                 main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
+                lores={"size": (self.stream_width, self.stream_height), "format": self.stream_format},  # Match main for focus peaking
                 encode="main"  # Required for encoder support
             )
             self.camera.configure(video_config)
@@ -523,7 +525,10 @@ class CameraStreamer:
         # If focus peaking is enabled, use hybrid mode with overlay thread
         if self.focus_peaking_enabled and CV2_AVAILABLE:
             print("🎯 Focus peaking enabled - using hybrid hardware encoding with overlay")
+            print(f"   DEBUG: focus_peaking_enabled={self.focus_peaking_enabled}, CV2_AVAILABLE={CV2_AVAILABLE}")
             return self._stream_hardware_mjpeg_with_overlay()
+        else:
+            print(f"📹 Using pure hardware MJPEG mode (focus_peaking_enabled={self.focus_peaking_enabled}, CV2={CV2_AVAILABLE})")
 
         try:
             # Ensure sensor resolution is captured (defensive programming for zoom feature)
@@ -790,7 +795,8 @@ class CameraStreamer:
                 try:
                     # Capture raw frame while hardware encoder is running
                     # Picamera2 supports capture_array() during recording
-                    frame = self.camera.capture_array()
+                    # Use "lores" stream which is configured to match main resolution
+                    frame = self.camera.capture_array("lores")
 
                     # Apply focus peaking overlay based on selected algorithm
                     if self.focus_peaking_algorithm == 'sobel':
@@ -878,8 +884,8 @@ class CameraStreamer:
 
             while self.streaming and not self.stop_event.is_set():
                 try:
-                    # Capture frame
-                    frame = self.camera.capture_array()
+                    # Capture frame from lores stream (configured to match main resolution)
+                    frame = self.camera.capture_array("lores")
 
                     # Apply focus peaking overlay if enabled (preview only)
                     if self.focus_peaking_enabled and CV2_AVAILABLE:
