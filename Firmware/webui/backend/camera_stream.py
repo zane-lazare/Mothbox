@@ -271,6 +271,39 @@ class CameraStreamer:
                     self.camera = Picamera2(1)
                 print("Using camera 1")
 
+            # Query available sensor modes for diagnostics and optimal selection
+            print("\n📷 Available sensor modes:")
+            sensor_modes = self.camera.sensor_modes
+            max_resolution_mode = None
+            max_pixels = 0
+            best_4_3_mode = None
+            best_4_3_pixels = 0
+
+            for idx, mode in enumerate(sensor_modes):
+                width = mode['size'][0]
+                height = mode['size'][1]
+                pixels = width * height
+                aspect = width / height
+
+                print(f"   [{idx}] {width}×{height} ({pixels/1e6:.1f}MP, {aspect:.2f}:1 aspect)")
+
+                # Find maximum resolution mode (for "full" mode)
+                if pixels > max_pixels:
+                    max_pixels = pixels
+                    max_resolution_mode = mode
+
+                # Find best 4:3 mode (aspect ratio between 1.30 and 1.35)
+                if 1.30 <= aspect <= 1.35:  # 4:3 is 1.333...
+                    if pixels > best_4_3_pixels and pixels < max_pixels * 0.5:  # Not the full sensor
+                        best_4_3_pixels = pixels
+                        best_4_3_mode = mode
+
+            if max_resolution_mode:
+                print(f"   → Maximum resolution: {max_resolution_mode['size'][0]}×{max_resolution_mode['size'][1]} ({max_pixels/1e6:.1f}MP)")
+            if best_4_3_mode:
+                print(f"   → Best 4:3 intermediate: {best_4_3_mode['size'][0]}×{best_4_3_mode['size'][1]} ({best_4_3_pixels/1e6:.1f}MP)")
+            print()
+
             # Configure camera with video_config for both encoding paths:
             # - Hardware MJPEG: Requires video_config for start_recording() with encoder
             # - Software encoding: Works fine with video_config + capture_array()
@@ -278,26 +311,37 @@ class CameraStreamer:
 
             # Apply sensor mode based on user preference (controls field of view)
             if self.sensor_mode == '4:3':
-                # Force 4:3 aspect ratio sensor mode for wider field of view
+                # Use best available 4:3 sensor mode for wider field of view
                 # Useful when output is 16:9 (1920x1080) but user wants wider vertical coverage
-                print(f"📷 Sensor mode: Forcing 4:3 aspect (2304x1728) for wider field of view")
-                video_config = self.camera.create_video_configuration(
-                    main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
-                    raw={"size": (2304, 1728)},  # 4:3 aspect sensor crop
-                    encode="main"
-                )
-            elif self.sensor_mode == 'full':
-                # Use full sensor resolution for maximum field of view
-                # Most downscaling, highest quality, most processing
-                if hasattr(self, 'sensor_resolution') and self.sensor_resolution:
-                    print(f"📷 Sensor mode: Using full sensor resolution {self.sensor_resolution} for maximum field of view")
+                if best_4_3_mode:
+                    raw_size = best_4_3_mode['size']
+                    print(f"📷 Sensor mode: Using 4:3 aspect {raw_size[0]}×{raw_size[1]} ({best_4_3_pixels/1e6:.1f}MP) for wider field of view")
                     video_config = self.camera.create_video_configuration(
                         main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
-                        raw={"size": self.sensor_resolution},
+                        raw={"size": raw_size},
                         encode="main"
                     )
                 else:
-                    print("⚠ Full sensor mode requested but sensor_resolution unknown, using auto")
+                    # Fallback to hardcoded 4:3 if no suitable mode found
+                    print(f"📷 Sensor mode: Using fallback 4:3 aspect (2304x1728) for wider field of view")
+                    video_config = self.camera.create_video_configuration(
+                        main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
+                        raw={"size": (2304, 1728)},
+                        encode="main"
+                    )
+            elif self.sensor_mode == 'full':
+                # Use maximum sensor resolution for widest possible field of view
+                # Most downscaling, highest quality, most processing
+                if max_resolution_mode:
+                    raw_size = max_resolution_mode['size']
+                    print(f"📷 Sensor mode: Using FULL sensor {raw_size[0]}×{raw_size[1]} ({max_pixels/1e6:.1f}MP) for maximum field of view")
+                    video_config = self.camera.create_video_configuration(
+                        main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
+                        raw={"size": raw_size},
+                        encode="main"
+                    )
+                else:
+                    print("⚠ Full sensor mode requested but no sensor modes found, using auto")
                     video_config = self.camera.create_video_configuration(
                         main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
                         encode="main"
@@ -317,11 +361,15 @@ class CameraStreamer:
             config = self.camera.camera_configuration()
             if "raw" in config and "size" in config["raw"]:
                 self.sensor_resolution = config["raw"]["size"]
-                print(f"Sensor mode resolution: {self.sensor_resolution}")
+                pixels = self.sensor_resolution[0] * self.sensor_resolution[1]
+                aspect = self.sensor_resolution[0] / self.sensor_resolution[1]
+                print(f"✓ Selected sensor mode: {self.sensor_resolution[0]}×{self.sensor_resolution[1]} ({pixels/1e6:.1f}MP, {aspect:.2f}:1 aspect)")
+                print(f"  Output resolution: {self.stream_width}×{self.stream_height}")
+                print(f"  ISP downscale factor: {pixels / (self.stream_width * self.stream_height):.1f}x")
             else:
                 # Fallback: use PixelArraySize (may cause issues with AF windows)
                 self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
-                print(f"Sensor resolution (fallback to PixelArraySize): {self.sensor_resolution}")
+                print(f"⚠ Sensor resolution (fallback to PixelArraySize): {self.sensor_resolution}")
 
             # Start camera to apply controls
             self.camera.start()
