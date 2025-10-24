@@ -5,10 +5,59 @@ import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
 import SavePresetModal from '../components/SavePresetModal'
 
+// Collapsible Card Component
+const CollapsibleCard = ({ id, title, isCollapsed, onToggle, children, className = "settings-card" }) => (
+  <div className={className}>
+    <div
+      className="flex justify-between items-center cursor-pointer select-none"
+      onClick={() => onToggle(id)}
+    >
+      <h4 className="settings-card-title mb-0">{title}</h4>
+      <span className="text-gray-500 text-sm">
+        {isCollapsed ? '▶' : '▼'}
+      </span>
+    </div>
+    {!isCollapsed && <div className="mt-2">{children}</div>}
+  </div>
+)
+
 export default function Settings() {
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState('system')
   const socketRef = useRef(null)
+
+  // Collapsed cards state - smart defaults (common expanded, advanced collapsed)
+  const [collapsedCards, setCollapsedCards] = useState({
+    // System Info - start collapsed (read-only info)
+    systemInstallation: true,
+    systemGPIO: true,
+    // Diagnostic - start collapsed
+    diagnosticPaths: true,
+    diagnosticControls: true,
+    diagnosticHardware: true,
+    // Camera Settings - common expanded, advanced collapsed
+    cameraAutoCalibration: false,
+    cameraExposure: false,
+    cameraHDR: true,
+    cameraFocusBracket: true,
+    cameraFocus: false,
+    cameraFormat: false,
+    cameraAdvanced: true,
+    // Stream Settings - common expanded, advanced collapsed
+    streamPreset: false,
+    streamResolution: false,
+    streamImageQuality: false,
+    streamFocus: false,
+    streamExposure: false,
+    streamWhiteBalance: true,
+    streamISP: true,
+    streamFocusPeaking: true,
+    streamEncoding: true,
+  })
+
+  const toggleCard = (id) => {
+    setCollapsedCards(prev => ({ ...prev, [id]: !prev[id] }))
+  }
 
   const { data: controls, isLoading: controlsLoading } = useQuery({
     queryKey: ['controls'],
@@ -372,8 +421,13 @@ export default function Settings() {
       {activeTab === 'system' && (
         <div className="settings-grid-2col">
           {/* Installation Information Card */}
-          <div className="settings-card-lg">
-            <h3 className="settings-section-title">Installation Information</h3>
+          <CollapsibleCard
+            id="systemInstallation"
+            title="📋 Installation Information"
+            isCollapsed={collapsedCards.systemInstallation}
+            onToggle={toggleCard}
+            className="settings-card-lg"
+          >
             <div className="space-y-2">
               <div>
                 <p className="text-sm text-gray-500">Installation Type</p>
@@ -396,11 +450,16 @@ export default function Settings() {
                 <p className="font-mono text-xs break-all">{systemInfo?.firmware_dir || 'Loading...'}</p>
               </div>
             </div>
-          </div>
+          </CollapsibleCard>
 
           {/* GPIO Pin Configuration Card */}
-          <div className="settings-card-lg">
-            <h3 className="settings-section-title">GPIO Pin Configuration</h3>
+          <CollapsibleCard
+            id="systemGPIO"
+            title="🔌 GPIO Pin Configuration"
+            isCollapsed={collapsedCards.systemGPIO}
+            onToggle={toggleCard}
+            className="settings-card-lg"
+          >
             <p className="text-xs text-gray-600 mb-2">
               Source: <span className="font-medium">{systemInfo?.gpio_source || 'Loading...'}</span>
             </p>
@@ -425,65 +484,76 @@ export default function Settings() {
                 </p>
               </div>
             )}
-          </div>
+          </CollapsibleCard>
         </div>
       )}
 
       {/* Diagnostic Tab */}
       {activeTab === 'diagnostic' && (
-        <div className="settings-card-lg">
-          <h3 className="settings-section-title">Diagnostic Information</h3>
-
-          <div className="space-y-3">
-            <div>
-              <h4 className="settings-card-title">File Paths</h4>
-              <div className="space-y-1 text-xs font-mono">
-                {diagnosticInfo?.paths && Object.entries(diagnosticInfo.paths).map(([key, value]) => (
-                  <div key={key} className="flex items-start">
-                    <span className="text-gray-500 w-48">{key}:</span>
-                    <span className={typeof value === 'boolean' ? (value ? 'text-green-600' : 'text-red-600') : ''}>
-                      {String(value)}
-                    </span>
-                  </div>
-                ))}
-              </div>
+        <div className="space-y-2">
+          <CollapsibleCard
+            id="diagnosticPaths"
+            title="📁 File Paths"
+            isCollapsed={collapsedCards.diagnosticPaths}
+            onToggle={toggleCard}
+            className="settings-card-lg"
+          >
+            <div className="space-y-1 text-xs font-mono">
+              {diagnosticInfo?.paths && Object.entries(diagnosticInfo.paths).map(([key, value]) => (
+                <div key={key} className="flex items-start">
+                  <span className="text-gray-500 w-48">{key}:</span>
+                  <span className={typeof value === 'boolean' ? (value ? 'text-green-600' : 'text-red-600') : ''}>
+                    {String(value)}
+                  </span>
+                </div>
+              ))}
             </div>
+          </CollapsibleCard>
 
-            <div>
-              <h4 className="settings-card-title">Controls File Content</h4>
-              <div className="space-y-1 text-xs">
-                <p>Raw lines: {diagnosticInfo?.controls_content?.raw_lines || 0}</p>
-                <p>Parsed keys: {diagnosticInfo?.controls_content?.parsed_keys?.length || 0}</p>
-                <p>Has GPIO pins: {diagnosticInfo?.controls_content?.has_gpio_pins ? '✓ Yes' : '✗ No'}</p>
-                <div className="mt-1">
-                  <p className="settings-label">Sample values:</p>
-                  <div className="settings-info-box bg-gray-50">
-                    {diagnosticInfo?.controls_content?.sample_values &&
-                      Object.entries(diagnosticInfo.controls_content.sample_values).map(([key, value]) => (
-                        <div key={key} className="font-mono settings-help-text">{key}: {value}</div>
-                      ))
-                    }
-                  </div>
+          <CollapsibleCard
+            id="diagnosticControls"
+            title="📄 Controls File Content"
+            isCollapsed={collapsedCards.diagnosticControls}
+            onToggle={toggleCard}
+            className="settings-card-lg"
+          >
+            <div className="space-y-1 text-xs">
+              <p>Raw lines: {diagnosticInfo?.controls_content?.raw_lines || 0}</p>
+              <p>Parsed keys: {diagnosticInfo?.controls_content?.parsed_keys?.length || 0}</p>
+              <p>Has GPIO pins: {diagnosticInfo?.controls_content?.has_gpio_pins ? '✓ Yes' : '✗ No'}</p>
+              <div className="mt-1">
+                <p className="settings-label">Sample values:</p>
+                <div className="settings-info-box bg-gray-50">
+                  {diagnosticInfo?.controls_content?.sample_values &&
+                    Object.entries(diagnosticInfo.controls_content.sample_values).map(([key, value]) => (
+                      <div key={key} className="font-mono settings-help-text">{key}: {value}</div>
+                    ))
+                  }
                 </div>
               </div>
             </div>
+          </CollapsibleCard>
 
-            <div>
-              <h4 className="settings-card-title">Hardware Modules</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {diagnosticInfo?.hardware_config && Object.entries(diagnosticInfo.hardware_config).map(([key, value]) => (
-                  key.endsWith('_enabled') && (
-                    <div key={key} className="settings-info-box border">
-                      <p className="settings-help-text text-gray-500">{key.replace('_enabled', '')}</p>
-                      <p className={`font-semibold text-xs ${value ? 'text-green-600' : 'text-gray-400'}`}>
-                        {value ? 'Enabled' : 'Disabled'}
-                      </p>
-                    </div>
-                  )
-                ))}
-              </div>
+          <CollapsibleCard
+            id="diagnosticHardware"
+            title="🔧 Hardware Modules"
+            isCollapsed={collapsedCards.diagnosticHardware}
+            onToggle={toggleCard}
+            className="settings-card-lg"
+          >
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {diagnosticInfo?.hardware_config && Object.entries(diagnosticInfo.hardware_config).map(([key, value]) => (
+                key.endsWith('_enabled') && (
+                  <div key={key} className="settings-info-box border">
+                    <p className="settings-help-text text-gray-500">{key.replace('_enabled', '')}</p>
+                    <p className={`font-semibold text-xs ${value ? 'text-green-600' : 'text-gray-400'}`}>
+                      {value ? 'Enabled' : 'Disabled'}
+                    </p>
+                  </div>
+                )
+              ))}
             </div>
-          </div>
+          </CollapsibleCard>
         </div>
       )}
 
