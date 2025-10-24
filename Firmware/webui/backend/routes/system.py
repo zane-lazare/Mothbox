@@ -107,6 +107,14 @@ def get_system_status():
         # Hardware config
         hw_config = get_hardware_config()
 
+        # GPS data from controls.txt
+        control_values = get_control_values(CONTROLS_FILE)
+        gps_latitude = control_values.get('lat', 'n/a')
+        gps_longitude = control_values.get('lon', 'n/a')
+        gps_time = control_values.get('gpstime', '0')
+        gps_utc_offset = control_values.get('UTCoff', '0')
+        gps_has_fix = gps_latitude != 'n/a' and gps_longitude != 'n/a'
+
         return jsonify({
             'cpu_temp': cpu_temp,
             'disk': {
@@ -119,6 +127,14 @@ def get_system_status():
                 'ina260_enabled': hw_config.get('ina260_enabled', False),
                 'gps_enabled': hw_config.get('gps_enabled', False),
                 'epaper_enabled': hw_config.get('epaper_enabled', False)
+            },
+            'gps': {
+                'enabled': hw_config.get('gps_enabled', False),
+                'latitude': gps_latitude,
+                'longitude': gps_longitude,
+                'last_sync': int(gps_time) if gps_time.isdigit() else 0,
+                'utc_offset': int(gps_utc_offset) if gps_utc_offset.lstrip('-').isdigit() else 0,
+                'has_fix': gps_has_fix
             }
         })
     except Exception as e:

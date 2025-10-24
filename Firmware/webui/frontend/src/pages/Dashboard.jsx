@@ -1,9 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
-import { getSystemStatus, getPowerStatus, capturePhoto, getPhotos } from '../utils/api'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getSystemStatus, getPowerStatus, capturePhoto, getPhotos, syncGPS } from '../utils/api'
 import { useState } from 'react'
 
 export default function Dashboard() {
   const [capturing, setCapturing] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const queryClient = useQueryClient()
 
   const { data: status, isLoading: statusLoading } = useQuery({
     queryKey: ['system-status'],
@@ -35,6 +37,25 @@ export default function Dashboard() {
     } finally {
       setCapturing(false)
     }
+  }
+
+  const handleSyncGPS = async () => {
+    setSyncing(true)
+    try {
+      await syncGPS()
+      // Refetch system status to get updated GPS data
+      queryClient.invalidateQueries(['system-status'])
+    } catch (error) {
+      console.error('Failed to sync GPS:', error)
+      alert(`GPS sync failed: ${error.response?.data?.message || error.message}`)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp || timestamp === 0) return 'Never'
+    return new Date(timestamp * 1000).toLocaleString()
   }
 
   if (statusLoading) {
@@ -100,12 +121,6 @@ export default function Dashboard() {
             </p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">GPS</p>
-            <p className={`font-semibold ${status?.hardware?.gps_enabled ? 'text-green-600' : 'text-gray-400'}`}>
-              {status?.hardware?.gps_enabled ? 'Enabled' : 'Disabled'}
-            </p>
-          </div>
-          <div>
             <p className="text-sm text-gray-500">E-Paper</p>
             <p className={`font-semibold ${status?.hardware?.epaper_enabled ? 'text-green-600' : 'text-gray-400'}`}>
               {status?.hardware?.epaper_enabled ? 'Enabled' : 'Disabled'}
@@ -121,6 +136,60 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* GPS Status Card */}
+      {status?.gps?.enabled && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">GPS Status</h3>
+            <button
+              onClick={handleSyncGPS}
+              disabled={syncing}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 text-sm"
+            >
+              {syncing ? 'Syncing...' : 'Sync Now'}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div className="flex items-center mb-2">
+                <div className={`w-3 h-3 rounded-full mr-2 ${
+                  status?.gps?.has_fix ? 'bg-green-500' : 'bg-red-500'
+                }`}></div>
+                <p className="text-sm font-medium text-gray-700">
+                  {status?.gps?.has_fix ? 'GPS Fix Acquired' : 'No GPS Fix'}
+                </p>
+              </div>
+
+              {status?.gps?.has_fix ? (
+                <div className="space-y-1">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Latitude:</span> {status.gps.latitude}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Longitude:</span> {status.gps.longitude}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">UTC Offset:</span> {status.gps.utc_offset}h
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  Click "Sync Now" to acquire GPS position
+                </p>
+              )}
+            </div>
+
+            <div>
+              <p className="text-sm text-gray-500 mb-1">Last Sync</p>
+              <p className="text-sm font-medium text-gray-900">
+                {formatTimestamp(status?.gps?.last_sync)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Latest Photo */}
       {latestPhoto && (
