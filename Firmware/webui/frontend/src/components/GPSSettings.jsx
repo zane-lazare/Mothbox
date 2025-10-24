@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getGPSConfig, updateGPSConfig, getGPSStatus, syncGPS } from '../utils/api'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 
 // Collapsible Card Component (from Settings.jsx)
@@ -28,10 +28,14 @@ export default function GPSSettings() {
   const { data: gpsConfig, isLoading: configLoading } = useQuery({
     queryKey: ['gps-config'],
     queryFn: () => getGPSConfig().then(res => res.data),
-    onSuccess: (data) => {
-      setLocalConfig(data)
-    }
   })
+
+  // Sync local config with query data (replaces deprecated onSuccess)
+  useEffect(() => {
+    if (gpsConfig) {
+      setLocalConfig(gpsConfig)
+    }
+  }, [gpsConfig])
 
   const { data: gpsStatus } = useQuery({
     queryKey: ['gps-status'],
@@ -215,7 +219,7 @@ export default function GPSSettings() {
                   <span>60s (Long)</span>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  How long to wait for GPS fix before timing out
+                  How long to wait for GPS fix before timing out (actual timeout may be up to 20 seconds longer for processing overhead)
                 </p>
               </div>
             </div>

@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import time
 import fcntl
+import threading
 
 # Setup path to import mothbox_paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -20,11 +21,85 @@ from mothbox_paths import (
 
 gps_bp = Blueprint('gps', __name__)
 
+# GPS status cache to avoid excessive file I/O (similar to photo count cache in system.py)
+# Cache is valid for 2 seconds to balance freshness with performance
+_gps_status_cache = {
+    'data': None,
+    'timestamp': 0,
+    'lock': threading.Lock()
+}
+GPS_STATUS_CACHE_TTL = 2  # seconds
+
+
+def _get_cached_gps_status():
+    """
+    Get GPS status with caching to avoid excessive file I/O.
+
+    Returns cached status if less than GPS_STATUS_CACHE_TTL seconds old,
+    otherwise performs fresh read and updates cache.
+
+    Returns:
+        dict: GPS status dictionary
+    """
+    current_time = time.time()
+
+    with _gps_status_cache['lock']:
+        # Check if cache is still valid
+        if (_gps_status_cache['data'] is not None and
+            current_time - _gps_status_cache['timestamp'] < GPS_STATUS_CACHE_TTL):
+            return _gps_status_cache['data']
+
+        # Cache expired or empty, perform read
+        try:
+            # Get hardware config
+            hw_config = get_hardware_config()
+
+            # Get current GPS data from controls.txt
+            control_values = get_control_values(CONTROLS_FILE)
+
+            latitude = control_values.get('lat', 'n/a')
+            longitude = control_values.get('lon', 'n/a')
+            gpstime = control_values.get('gpstime', '0')
+            utc_offset = control_values.get('UTCoff', '0')
+
+            # Validate and parse gpstime (must be non-negative Unix timestamp)
+            gpstime_val = int(gpstime) if gpstime.isdigit() else 0
+            if gpstime_val < 0:
+                gpstime_val = 0
+
+            # Validate and parse UTC offset (must be between -12 and +14 hours)
+            utc_offset_val = int(utc_offset) if utc_offset.lstrip('-').isdigit() else 0
+            if utc_offset_val < -12 or utc_offset_val > 14:
+                utc_offset_val = 0
+
+            # Determine if we have a valid GPS fix
+            has_fix = latitude != 'n/a' and longitude != 'n/a'
+
+            status_dict = {
+                'enabled': hw_config['gps_enabled'],
+                'latitude': latitude,
+                'longitude': longitude,
+                'gpstime': gpstime_val,
+                'utc_offset': utc_offset_val,
+                'has_fix': has_fix
+            }
+
+            # Update cache
+            _gps_status_cache['data'] = status_dict
+            _gps_status_cache['timestamp'] = current_time
+
+            return status_dict
+        except Exception as e:
+            # On error, return cached value if available, otherwise minimal status
+            if _gps_status_cache['data'] is not None:
+                return _gps_status_cache['data']
+            raise
+
 
 @gps_bp.route('/status', methods=['GET'])
 def get_gps_status():
     """
-    Get current GPS status and coordinates from controls.txt
+    Get current GPS status and coordinates from controls.txt (with caching)
 
     Returns:
         JSON with GPS status:
@@ -36,28 +111,9 @@ def get_gps_status():
         - has_fix: Boolean indicating if valid GPS fix exists
     """
     try:
-        # Get hardware config
-        hw_config = get_hardware_config()
-
-        # Get current GPS data from controls.txt
-        control_values = get_control_values(CONTROLS_FILE)
-
-        latitude = control_values.get('lat', 'n/a')
-        longitude = control_values.get('lon', 'n/a')
-        gpstime = control_values.get('gpstime', '0')
-        utc_offset = control_values.get('UTCoff', '0')
-
-        # Determine if we have a valid GPS fix
-        has_fix = latitude != 'n/a' and longitude != 'n/a'
-
-        return jsonify({
-            'enabled': hw_config['gps_enabled'],
-            'latitude': latitude,
-            'longitude': longitude,
-            'gpstime': int(gpstime) if gpstime.isdigit() else 0,
-            'utc_offset': int(utc_offset) if utc_offset.lstrip('-').isdigit() else 0,
-            'has_fix': has_fix
-        })
+        # Use cached status to reduce file I/O
+        status = _get_cached_gps_status()
+        return jsonify(status)
     except Exception as e:
         return jsonify({
             'error': 'Failed to get GPS status',
@@ -204,6 +260,10 @@ def sync_gps():
 
         # Determine success based on whether we got a fix
         success = latitude != 'n/a' and longitude != 'n/a'
+
+        # Invalidate GPS status cache to force fresh read on next request
+        with _gps_status_cache['lock']:
+            _gps_status_cache['timestamp'] = 0
 
         return jsonify({
             'success': success,
