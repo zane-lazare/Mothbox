@@ -260,6 +260,33 @@ export default function Camera() {
       }
     })
 
+    socketRef.current.on('settings_reloaded', async (data) => {
+      console.log('Settings reloaded from Settings page, refreshing live controls:', data)
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || '/api'
+        const response = await fetch(`${API_URL}/config/webui`)
+        if (response.ok) {
+          const data = await response.json()
+          setLiveControls(prev => ({
+            ...prev,
+            sharpness: data.sharpness ?? prev.sharpness,
+            brightness: data.brightness ?? prev.brightness,
+            contrast: data.contrast ?? prev.contrast,
+            saturation: data.saturation ?? prev.saturation,
+            noiseReductionMode: data.noise_reduction_mode ?? prev.noiseReductionMode,
+            aeMeteringMode: data.ae_metering_mode ?? prev.aeMeteringMode,
+            aeEnable: data.ae_enable ?? prev.aeEnable,
+            afMode: data.af_mode ?? prev.afMode,
+            afRange: data.af_range ?? prev.afRange,
+            afSpeed: data.af_speed ?? prev.afSpeed
+          }))
+          toast.success('Live controls updated from Settings page')
+        }
+      } catch (error) {
+        console.error('Failed to refresh settings after settings_reloaded event:', error)
+      }
+    })
+
     return () => {
       if (socketRef.current) {
         socketRef.current.emit('stop_preview')
@@ -317,13 +344,41 @@ export default function Camera() {
     }
   }
 
-  const togglePreview = () => {
+  const togglePreview = async () => {
     if (!socketRef.current) return
 
     if (previewActive) {
       socketRef.current.emit('stop_preview')
       setCurrentFrame(null)
     } else {
+      // Fetch latest settings before starting preview to ensure sliders match stream
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || '/api'
+        const response = await fetch(`${API_URL}/config/webui`)
+        if (response.ok) {
+          const data = await response.json()
+          setLiveControls(prev => ({
+            ...prev,
+            sharpness: data.sharpness ?? prev.sharpness,
+            brightness: data.brightness ?? prev.brightness,
+            contrast: data.contrast ?? prev.contrast,
+            saturation: data.saturation ?? prev.saturation,
+            noiseReductionMode: data.noise_reduction_mode ?? prev.noiseReductionMode,
+            aeMeteringMode: data.ae_metering_mode ?? prev.aeMeteringMode,
+            aeEnable: data.ae_enable ?? prev.aeEnable,
+            exposureTime: data.exposure_time ?? prev.exposureTime,
+            analogueGain: data.analogue_gain ?? prev.analogueGain,
+            afMode: data.af_mode ?? prev.afMode,
+            lensPosition: data.lens_position ?? prev.lensPosition,
+            afRange: data.af_range ?? prev.afRange,
+            afSpeed: data.af_speed ?? prev.afSpeed
+          }))
+          console.log('Refreshed live controls from backend before preview start')
+        }
+      } catch (error) {
+        console.error('Failed to refresh settings before preview start:', error)
+      }
+
       socketRef.current.emit('start_preview')
     }
   }

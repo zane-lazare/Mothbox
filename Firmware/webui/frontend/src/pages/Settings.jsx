@@ -86,6 +86,7 @@ export default function Settings() {
   const updateControlsMutation = useMutation({
     mutationFn: updateControls,
     onSuccess: () => {
+      isDirtyRef.current.controls = false
       queryClient.invalidateQueries(['controls'])
       toast.success('Hardware controls updated successfully!')
     },
@@ -98,6 +99,7 @@ export default function Settings() {
   const updateCameraMutation = useMutation({
     mutationFn: updateCameraSettings,
     onSuccess: () => {
+      isDirtyRef.current.camera = false
       queryClient.invalidateQueries(['camera-settings'])
       toast.success('Camera settings updated successfully!')
     },
@@ -110,6 +112,7 @@ export default function Settings() {
   const updateWebuiMutation = useMutation({
     mutationFn: updateWebUISettings,
     onSuccess: () => {
+      isDirtyRef.current.webui = false
       queryClient.invalidateQueries(['webui-settings'])
       // Notify backend to reload settings via WebSocket
       if (socketRef.current) {
@@ -195,24 +198,32 @@ export default function Settings() {
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [saveModalWorkflow, setSaveModalWorkflow] = useState('both') // Context for save modal
 
+  // Track dirty state for each form to prevent overwriting user edits
+  const isDirtyRef = useRef({
+    controls: false,
+    camera: false,
+    webui: false
+  })
+
   // Initialize forms when data loads - use useEffect to avoid re-render loop
+  // Smart sync: only update form from backend when form is clean (not dirty)
   useEffect(() => {
-    if (controls && Object.keys(controlsForm).length === 0) {
+    if (controls && !isDirtyRef.current.controls) {
       setControlsForm(controls)
     }
-  }, [controls, controlsForm])
+  }, [controls])
 
   useEffect(() => {
-    if (cameraSettings && Object.keys(cameraForm).length === 0) {
+    if (cameraSettings && !isDirtyRef.current.camera) {
       setCameraForm(cameraSettings)
     }
-  }, [cameraSettings, cameraForm])
+  }, [cameraSettings])
 
   useEffect(() => {
-    if (webuiSettings && Object.keys(webuiForm).length === 0) {
+    if (webuiSettings && !isDirtyRef.current.webui) {
       setWebuiForm(webuiSettings)
     }
-  }, [webuiSettings, webuiForm])
+  }, [webuiSettings])
 
   // Setup WebSocket connection for stream settings reload
   useEffect(() => {
@@ -221,6 +232,8 @@ export default function Settings() {
 
     socketRef.current.on('settings_reloaded', (data) => {
       console.log('Stream settings reloaded:', data)
+      // Trigger refetch of webui settings - form will auto-sync if clean
+      queryClient.invalidateQueries(['webui-settings'])
     })
 
     return () => {
@@ -229,6 +242,22 @@ export default function Settings() {
       }
     }
   }, [])
+
+  // Wrapper functions to mark forms as dirty when updated
+  const updateControlsForm = (updates) => {
+    isDirtyRef.current.controls = true
+    setControlsForm(prev => ({ ...prev, ...updates }))
+  }
+
+  const updateCameraForm = (updates) => {
+    isDirtyRef.current.camera = true
+    setCameraForm(prev => ({ ...prev, ...updates }))
+  }
+
+  const updateWebuiForm = (updates) => {
+    isDirtyRef.current.webui = true
+    setWebuiForm(prev => ({ ...prev, ...updates }))
+  }
 
   const handleControlsSubmit = (e) => {
     e.preventDefault()
@@ -263,31 +292,54 @@ export default function Settings() {
     }
   }, [preferences])
 
-  // Auto-populate camera form when photo preset selected
-  useEffect(() => {
-    if (selectedPhotoPreset && presetsData) {
-      const preset = presetsData.presets.find(p => p.name === selectedPhotoPreset)
-      if (preset?.settings?.camera) {
-        setCameraForm(prev => ({
-          ...prev,
-          ...preset.settings.camera
-        }))
-      }
+  // Manual apply handlers for presets (removed auto-populate)
+  const handleApplyPhotoPreset = async () => {
+    if (!selectedPhotoPreset) {
+      toast.error('Please select a photo preset first')
+      return
     }
-  }, [selectedPhotoPreset, presetsData])
 
-  // Auto-populate webui form when video preset selected
-  useEffect(() => {
-    if (selectedVideoPreset && presetsData) {
-      const preset = presetsData.presets.find(p => p.name === selectedVideoPreset)
-      if (preset?.settings?.preview) {
-        setWebuiForm(prev => ({
-          ...prev,
-          ...preset.settings.preview
-        }))
-      }
+    try {
+      await applyPresetMutation.mutateAsync({
+        name: selectedPhotoPreset,
+        applyTo: 'capture'
+      })
+
+      // Invalidate queries to trigger refetch and form sync
+      await queryClient.invalidateQueries(['camera-settings'])
+
+      const preset = presetsData?.presets?.find(p => p.name === selectedPhotoPreset)
+      const displayName = preset?.display_name || selectedPhotoPreset
+      toast.success(`Applied "${displayName}" to camera settings`)
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to apply preset'
+      toast.error(`Apply failed: ${message}`)
     }
-  }, [selectedVideoPreset, presetsData])
+  }
+
+  const handleApplyVideoPreset = async () => {
+    if (!selectedVideoPreset) {
+      toast.error('Please select a video preset first')
+      return
+    }
+
+    try {
+      await applyPresetMutation.mutateAsync({
+        name: selectedVideoPreset,
+        applyTo: 'preview'
+      })
+
+      // Invalidate queries to trigger refetch and form sync
+      await queryClient.invalidateQueries(['webui-settings'])
+
+      const preset = presetsData?.presets?.find(p => p.name === selectedVideoPreset)
+      const displayName = preset?.display_name || selectedVideoPreset
+      toast.success(`Applied "${displayName}" to stream settings`)
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to apply preset'
+      toast.error(`Apply failed: ${message}`)
+    }
+  }
 
   const handleSetDefaultPhotoPreset = () => {
     if (!selectedPhotoPreset) {
@@ -569,7 +621,7 @@ export default function Settings() {
                 <input
                   type="text"
                   value={value}
-                  onChange={(e) => setControlsForm({ ...controlsForm, [key]: e.target.value })}
+                  onChange={(e) => updateControlsForm({ [key]: e.target.value })}
                   className="settings-input"
                 />
               </div>
@@ -612,7 +664,7 @@ export default function Settings() {
           >
             <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
             <p className="settings-help-text mb-2">
-              Select a preset to auto-populate capture settings below. Review, tweak, then Save to apply.
+              Select a preset and click Apply to load capture settings. Review, tweak, then Save Camera Settings.
             </p>
 
             <div className="space-y-2">
@@ -642,7 +694,15 @@ export default function Settings() {
               </div>
 
               {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-1">
+              <div className="grid grid-cols-3 gap-1">
+                <button
+                  type="button"
+                  onClick={handleApplyPhotoPreset}
+                  disabled={!selectedPhotoPreset || applyPresetMutation.isPending}
+                  className="settings-button-sm bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  ✓ Apply
+                </button>
                 <button
                   type="button"
                   onClick={handleSetDefaultPhotoPreset}
@@ -698,7 +758,7 @@ export default function Settings() {
                     <input
                       type="checkbox"
                       checked={cameraForm.AutoCalibration === '1' || cameraForm.AutoCalibration === 1}
-                      onChange={(e) => setCameraForm({...cameraForm, AutoCalibration: e.target.checked ? '1' : '0'})}
+                      onChange={(e) => updateCameraForm({ AutoCalibration: e.target.checked ? '1' : '0'})}
                       className="settings-checkbox text-green-600"
                     />
                     <span className="ml-1 settings-label mb-0">
@@ -882,7 +942,7 @@ export default function Settings() {
                 <select
                   id="hdr_count"
                   value={cameraForm.HDR || '1'}
-                  onChange={(e) => setCameraForm({...cameraForm, HDR: e.target.value})}
+                  onChange={(e) => updateCameraForm({ HDR: e.target.value})}
                   className="settings-select"
                 >
                   <option value="1">Single Exposure (No HDR)</option>
@@ -942,7 +1002,7 @@ export default function Settings() {
                 <select
                   id="focus_bracket_steps"
                   value={cameraForm.FocusBracket || '1'}
-                  onChange={(e) => setCameraForm({...cameraForm, FocusBracket: e.target.value})}
+                  onChange={(e) => updateCameraForm({ FocusBracket: e.target.value})}
                   className="settings-select"
                 >
                   <option value="1">Single Focus (No Bracketing)</option>
@@ -1221,7 +1281,7 @@ export default function Settings() {
                 <select
                   id="af_mode_capture"
                   value={cameraForm.AfMode || '0'}
-                  onChange={(e) => setCameraForm({...cameraForm, AfMode: e.target.value})}
+                  onChange={(e) => updateCameraForm({ AfMode: e.target.value})}
                   className="settings-select"
                 >
                   <option value="0">Manual Focus</option>
@@ -1264,7 +1324,7 @@ export default function Settings() {
                 <select
                   id="af_range_capture"
                   value={cameraForm.AfRange || '1'}
-                  onChange={(e) => setCameraForm({...cameraForm, AfRange: e.target.value})}
+                  onChange={(e) => updateCameraForm({ AfRange: e.target.value})}
                   className="settings-select"
                 >
                   <option value="0">Normal (0.5m - infinity)</option>
@@ -1281,7 +1341,7 @@ export default function Settings() {
                 <select
                   id="af_speed_capture"
                   value={cameraForm.AfSpeed || '1'}
-                  onChange={(e) => setCameraForm({...cameraForm, AfSpeed: e.target.value})}
+                  onChange={(e) => updateCameraForm({ AfSpeed: e.target.value})}
                   className="settings-select"
                 >
                   <option value="0">Normal (Accurate)</option>
@@ -1307,7 +1367,7 @@ export default function Settings() {
                 <select
                   id="image_file_type"
                   value={cameraForm.ImageFileType || '0'}
-                  onChange={(e) => setCameraForm({...cameraForm, ImageFileType: e.target.value})}
+                  onChange={(e) => updateCameraForm({ ImageFileType: e.target.value})}
                   className="settings-select"
                 >
                   <option value="0">JPEG (Fast, compressed) - Recommended</option>
@@ -1325,7 +1385,7 @@ export default function Settings() {
                   <input
                     type="checkbox"
                     checked={cameraForm.VerticalFlip === '1' || cameraForm.VerticalFlip === 1}
-                    onChange={(e) => setCameraForm({...cameraForm, VerticalFlip: e.target.checked ? '1' : '0'})}
+                    onChange={(e) => updateCameraForm({ VerticalFlip: e.target.checked ? '1' : '0'})}
                     className="settings-checkbox"
                   />
                   <span className="ml-2 settings-label mb-0">
@@ -1457,6 +1517,14 @@ export default function Settings() {
                 <div className="flex gap-2">
                   <button
                     type="button"
+                    onClick={handleApplyVideoPreset}
+                    disabled={!selectedVideoPreset || applyPresetMutation.isPending}
+                    className="settings-button-sm bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    ✓ Apply
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleSetDefaultVideoPreset}
                     disabled={!selectedVideoPreset || setPreferenceMutation.isPending}
                     className="settings-button-sm bg-yellow-500 text-white hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
@@ -1579,7 +1647,7 @@ export default function Settings() {
               <select
                 id="stream_mode"
                 value={webuiForm.stream_mode || 'simplejpeg'}
-                onChange={(e) => setWebuiForm({...webuiForm, stream_mode: e.target.value})}
+                onChange={(e) => updateWebuiForm({ stream_mode: e.target.value})}
                 className="settings-select"
               >
                 <option value="simplejpeg">Fast Software (simplejpeg) - Recommended</option>
@@ -1598,7 +1666,7 @@ export default function Settings() {
               <select
                 id="sensor_mode"
                 value={webuiForm.sensor_mode || 'auto'}
-                onChange={(e) => setWebuiForm({...webuiForm, sensor_mode: e.target.value})}
+                onChange={(e) => updateWebuiForm({ sensor_mode: e.target.value})}
                 className="settings-select"
               >
                 <option value="auto">Auto (Default)</option>
@@ -1754,7 +1822,7 @@ export default function Settings() {
                 <select
                   id="noise_reduction_mode"
                   value={webuiForm.noise_reduction_mode !== undefined ? webuiForm.noise_reduction_mode : 0}
-                  onChange={(e) => setWebuiForm({...webuiForm, noise_reduction_mode: parseInt(e.target.value)})}
+                  onChange={(e) => updateWebuiForm({ noise_reduction_mode: parseInt(e.target.value)})}
                   className="settings-select"
                 >
                   <option value="0">Off (Fastest)</option>
@@ -1788,7 +1856,7 @@ export default function Settings() {
                 <select
                   id="af_mode"
                   value={webuiForm.af_mode !== undefined ? webuiForm.af_mode : 2}
-                  onChange={(e) => setWebuiForm({...webuiForm, af_mode: parseInt(e.target.value)})}
+                  onChange={(e) => updateWebuiForm({ af_mode: parseInt(e.target.value)})}
                   className="settings-select"
                 >
                   <option value="0">Manual Focus</option>
@@ -1808,7 +1876,7 @@ export default function Settings() {
                 <select
                   id="af_speed"
                   value={webuiForm.af_speed !== undefined ? webuiForm.af_speed : 0}
-                  onChange={(e) => setWebuiForm({...webuiForm, af_speed: parseInt(e.target.value)})}
+                  onChange={(e) => updateWebuiForm({ af_speed: parseInt(e.target.value)})}
                   className="settings-select"
                 >
                   <option value="0">Normal (Accurate)</option>
@@ -1827,7 +1895,7 @@ export default function Settings() {
                 <select
                   id="af_range"
                   value={webuiForm.af_range !== undefined ? webuiForm.af_range : 0}
-                  onChange={(e) => setWebuiForm({...webuiForm, af_range: parseInt(e.target.value)})}
+                  onChange={(e) => updateWebuiForm({ af_range: parseInt(e.target.value)})}
                   className="settings-select"
                 >
                   <option value="0">Normal (0.5m - infinity)</option>
@@ -1878,7 +1946,7 @@ export default function Settings() {
                   <select
                     id="ae_metering_mode"
                     value={webuiForm.ae_metering_mode !== undefined ? webuiForm.ae_metering_mode : 0}
-                    onChange={(e) => setWebuiForm({...webuiForm, ae_metering_mode: parseInt(e.target.value)})}
+                    onChange={(e) => updateWebuiForm({ ae_metering_mode: parseInt(e.target.value)})}
                     className="settings-select"
                   >
                     <option value="0">Centre-Weighted</option>
@@ -1911,7 +1979,7 @@ export default function Settings() {
                   <input
                     type="checkbox"
                     checked={webuiForm.awb_enable !== undefined ? webuiForm.awb_enable : true}
-                    onChange={(e) => setWebuiForm({...webuiForm, awb_enable: e.target.checked})}
+                    onChange={(e) => updateWebuiForm({ awb_enable: e.target.checked})}
                     className="settings-checkbox"
                   />
                   <span className="ml-2 settings-label mb-0">
@@ -1932,7 +2000,7 @@ export default function Settings() {
                   <select
                     id="awb_mode"
                     value={webuiForm.awb_mode !== undefined ? webuiForm.awb_mode : 0}
-                    onChange={(e) => setWebuiForm({...webuiForm, awb_mode: parseInt(e.target.value)})}
+                    onChange={(e) => updateWebuiForm({ awb_mode: parseInt(e.target.value)})}
                     className="settings-select"
                   >
                     <option value="0">Auto</option>
@@ -2011,7 +2079,7 @@ export default function Settings() {
                   <input
                     type="checkbox"
                     checked={webuiForm.use_custom_tuning || false}
-                    onChange={(e) => setWebuiForm({...webuiForm, use_custom_tuning: e.target.checked})}
+                    onChange={(e) => updateWebuiForm({ use_custom_tuning: e.target.checked})}
                     className="settings-checkbox"
                   />
                   <span className="ml-2 settings-label mb-0">
@@ -2079,7 +2147,7 @@ export default function Settings() {
                     type="checkbox"
                     id="focus_peaking_enabled"
                     checked={webuiForm.focus_peaking_enabled || false}
-                    onChange={(e) => setWebuiForm({...webuiForm, focus_peaking_enabled: e.target.checked})}
+                    onChange={(e) => updateWebuiForm({ focus_peaking_enabled: e.target.checked})}
                     className="settings-checkbox"
                   />
                   <label htmlFor="focus_peaking_enabled" className="ml-2 settings-label mb-0">
@@ -2101,7 +2169,7 @@ export default function Settings() {
                         max="200"
                         step="10"
                         value={webuiForm.focus_peaking_intensity || 100}
-                        onChange={(e) => setWebuiForm({...webuiForm, focus_peaking_intensity: parseInt(e.target.value)})}
+                        onChange={(e) => updateWebuiForm({ focus_peaking_intensity: parseInt(e.target.value)})}
                         className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
                       />
                       <div className="flex justify-between settings-help-text">
@@ -2119,7 +2187,7 @@ export default function Settings() {
                       <select
                         id="focus_peaking_color"
                         value={webuiForm.focus_peaking_color || 'green'}
-                        onChange={(e) => setWebuiForm({...webuiForm, focus_peaking_color: e.target.value})}
+                        onChange={(e) => updateWebuiForm({ focus_peaking_color: e.target.value})}
                         className="settings-select"
                       >
                         <option value="green">🟢 Green</option>
@@ -2138,7 +2206,7 @@ export default function Settings() {
                       <select
                         id="focus_peaking_algorithm"
                         value={webuiForm.focus_peaking_algorithm || 'laplacian'}
-                        onChange={(e) => setWebuiForm({...webuiForm, focus_peaking_algorithm: e.target.value})}
+                        onChange={(e) => updateWebuiForm({ focus_peaking_algorithm: e.target.value})}
                         className="settings-select"
                       >
                         <option value="laplacian">⚡ Laplacian (Fast)</option>
