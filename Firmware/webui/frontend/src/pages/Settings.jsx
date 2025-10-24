@@ -356,7 +356,12 @@ export default function Settings() {
 
       const preset = presetsData?.presets?.find(p => p.name === presetName)
       const displayName = preset?.display_name || presetName
-      toast.success(`Applied "${displayName}" preset`)
+
+      // Only show toast if not during initial page load
+      // photoPresetInitialized is false during first initialization, true after
+      if (photoPresetInitialized.current) {
+        toast.success(`Applied "${displayName}" preset`)
+      }
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to apply preset'
       toast.error(`Apply failed: ${message}`)
@@ -378,7 +383,12 @@ export default function Settings() {
 
       const preset = presetsData?.presets?.find(p => p.name === presetName)
       const displayName = preset?.display_name || presetName
-      toast.success(`Applied "${displayName}" preset`)
+
+      // Only show toast if not during initial page load
+      // videoPresetInitialized is false during first initialization, true after
+      if (videoPresetInitialized.current) {
+        toast.success(`Applied "${displayName}" preset`)
+      }
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to apply preset'
       toast.error(`Apply failed: ${message}`)
