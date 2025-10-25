@@ -24,7 +24,6 @@ const CollapsibleCard = ({ id, title, isCollapsed, onToggle, children, className
 export default function GPSSettings() {
   const queryClient = useQueryClient()
   const [isCollapsed, setIsCollapsed] = useState(false)
-  const [timeoutsCollapsed, setTimeoutsCollapsed] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [localConfig, setLocalConfig] = useState(null)
   const [validationErrors, setValidationErrors] = useState({})
@@ -44,44 +43,21 @@ export default function GPSSettings() {
   const { data: gpsStatus } = useQuery({
     queryKey: ['gps-status'],
     queryFn: () => getGPSStatus().then(res => res.data),
-    // Pause polling during sync to avoid spam, otherwise poll every 15s
-    refetchInterval: (data) => syncing ? false : 15000,
+    refetchInterval: 5000, // Refresh every 5 seconds
   })
 
   const updateConfigMutation = useMutation({
     mutationFn: updateGPSConfig,
-    onSuccess: (response) => {
+    onSuccess: () => {
       queryClient.invalidateQueries(['gps-config'])
       queryClient.invalidateQueries(['gps-status'])
-
-      if (response.data.gpsd_restarted) {
-        toast.success('GPS configuration updated and service restarted!', { duration: 4000 })
-      } else {
-        toast.success('GPS configuration updated successfully!')
-      }
+      toast.success('GPS configuration updated successfully!')
     },
     onError: (error) => {
-      const message = error.response?.data?.message || error.response?.data?.error || 'Failed to update GPS config'
-      toast.error(`Error: ${message}`, { duration: 6000 })
+      const message = error.response?.data?.message || 'Failed to update GPS config'
+      toast.error(`Error: ${message}`)
     },
   })
-
-  // Helper to get GPS state description
-  const getGPSStateInfo = (gpstime) => {
-    if (gpstime === 0) {
-      return { state: 'almanac_expired', time: '5-20 min', description: 'First sync (almanac download)' }
-    }
-    const hoursSince = (Date.now() / 1000 - gpstime) / 3600
-    if (hoursSince < 4) {
-      return { state: 'hot_start', time: '~15s', description: 'Hot start (recent data)' }
-    } else if (hoursSince < 144) {
-      return { state: 'warm_start', time: '~60s', description: 'Warm start (ephemeris refresh)' }
-    } else if (hoursSince < 672) {
-      return { state: 'cold_start', time: '~90s', description: 'Cold start (ephemeris download)' }
-    } else {
-      return { state: 'almanac_expired', time: '5-20 min', description: 'Almanac expired (full download)' }
-    }
-  }
 
   const handleSyncGPS = async () => {
     if (!gpsConfig?.enabled) {
@@ -90,58 +66,26 @@ export default function GPSSettings() {
     }
 
     setSyncing(true)
+    const timeout = gpsConfig?.timeout || 10
+    const estimatedTime = timeout + 20 // Add processing overhead
 
-    // Get expected GPS state based on last sync
-    const stateInfo = getGPSStateInfo(gpsStatus?.gpstime || 0)
-
-    // Use actual configured timeout values based on GPS state
-    const timeoutMap = {
-      'hot_start': localConfig?.timeout_hot || 15,
-      'warm_start': localConfig?.timeout_warm || 60,
-      'cold_start': localConfig?.timeout_cold || 90,
-      'almanac_expired': localConfig?.timeout_almanac || 1200
-    }
-    const expectedSeconds = timeoutMap[stateInfo.state] || 60
-
-    // Show initial progress toast
-    let toastId = toast.loading(
-      `🛰️ Acquiring GPS fix... (0s elapsed)\n` +
-      `Expected: ${stateInfo.description}\n` +
-      `Est. time: ${stateInfo.time}`,
+    // Show progress toast with estimated time
+    const toastId = toast.loading(
+      `🛰️ Acquiring GPS fix...\nEstimated time: ${estimatedTime}s\n` +
+      `Timeout: ${timeout}s + ~20s processing`,
       { duration: Infinity }
     )
 
-    // Recreate toast every 20 seconds to reset React Hot Toast's internal duration timer
-    // (React Hot Toast auto-dismisses after ~60s even with duration:Infinity)
-    const startTime = Date.now()
-    const progressInterval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTime) / 1000)
-      const remaining = Math.max(0, expectedSeconds - elapsed)
-
-      // Dismiss old toast and create new one to reset duration timer
-      toast.dismiss(toastId)
-      toastId = toast.loading(
-        `🛰️ Acquiring GPS fix... (${elapsed}s elapsed)\n` +
-        `Expected: ${stateInfo.description}\n` +
-        `Est. remaining: ~${remaining}s`,
-        { duration: Infinity }
-      )
-    }, 20000)  // Every 20 seconds (provides safety margin against 60s auto-dismiss)
-
     try {
       const result = await syncGPS()
-      clearInterval(progressInterval)
       toast.dismiss(toastId)
 
       if (result.data.success) {
-        const stateLabel = result.data.gps_state?.replace('_', ' ') || 'sync'
         toast.success(
-          `✅ GPS synced successfully! (${stateLabel})\n` +
+          `✅ GPS synced successfully!\n` +
           `📍 Location: ${result.data.latitude}, ${result.data.longitude}\n` +
-          `🕐 Time: ${result.data.gpstime || 'synced'}\n` +
-          `🛰️ Satellites: ${result.data.satellites_used || '?'} used\n` +
-          `📊 Timeout used: ${result.data.timeout_used}s`,
-          { duration: 6000 }
+          `🕐 GPS Time: ${result.data.gpstime || 'synced'}`,
+          { duration: 5000 }
         )
       } else {
         toast.error(
@@ -158,7 +102,6 @@ export default function GPSSettings() {
       queryClient.invalidateQueries(['gps-status'])
       queryClient.invalidateQueries(['system-status'])
     } catch (error) {
-      clearInterval(progressInterval)
       toast.dismiss(toastId)
       const message = error.response?.data?.message || error.message
       const isTimeout = message.includes('timeout') || error.response?.status === 408
@@ -229,29 +172,11 @@ export default function GPSSettings() {
       return
     }
 
-    // Check if device or baudrate changed (requires gpsd restart)
-    const deviceChanged = localConfig.device !== gpsConfig.device
-    const baudrateChanged = localConfig.baudrate !== gpsConfig.baudrate
-
-    if (deviceChanged || baudrateChanged) {
-      // Show warning that gpsd will restart
-      const confirmed = window.confirm(
-        'Changing device or baud rate will restart the GPS service.\n' +
-        'Any GPS sync in progress will be interrupted.\n\n' +
-        'Continue?'
-      )
-      if (!confirmed) return
-    }
-
     updateConfigMutation.mutate({
       gps_enabled: localConfig.enabled,
       gps_device: localConfig.device,
       gps_baudrate: localConfig.baudrate,
-      gps_timeout: localConfig.timeout,
-      gps_timeout_hot: localConfig.timeout_hot,
-      gps_timeout_warm: localConfig.timeout_warm,
-      gps_timeout_cold: localConfig.timeout_cold,
-      gps_timeout_almanac: localConfig.timeout_almanac
+      gps_timeout: localConfig.timeout
     })
   }
 
@@ -291,71 +216,44 @@ export default function GPSSettings() {
             {gpsStatus && (
               <div className="p-3 bg-blue-50 border border-blue-200 rounded">
                 <h5 className="font-medium text-blue-900 mb-2">Current GPS Status</h5>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  {/* Left Column: Fix Status and Location */}
-                  <div className="space-y-1">
-                    <div className="flex items-center">
-                      <div className={`w-2 h-2 rounded-full mr-2 ${
-                        gpsStatus.has_fix ? 'bg-green-500' : 'bg-red-500'
-                      }`}></div>
-                      <span className="text-blue-800 font-medium">
-                        {gpsStatus.has_fix ? (
-                          gpsStatus.fix_mode === 3 ? '3D Fix' : gpsStatus.fix_mode === 2 ? '2D Fix' : 'GPS Fix'
-                        ) : 'No GPS Fix'}
-                      </span>
-                    </div>
-                    {gpsStatus.has_fix && (
-                      <>
-                        <p className="text-blue-700 text-xs">
-                          <span className="font-medium">Lat:</span> {gpsStatus.latitude}
-                        </p>
-                        <p className="text-blue-700 text-xs">
-                          <span className="font-medium">Lon:</span> {gpsStatus.longitude}
-                        </p>
-                        <p className="text-blue-700 text-xs">
-                          <span className="font-medium">UTC Offset:</span> {gpsStatus.utc_offset}h
-                        </p>
-                      </>
-                    )}
-                    <p className="text-blue-700 text-xs">
-                      <span className="font-medium">Last Sync:</span> {formatTimestamp(gpsStatus.gpstime)}
-                    </p>
+                <div className="space-y-1 text-sm">
+                  <div className="flex items-center">
+                    <div className={`w-2 h-2 rounded-full mr-2 ${
+                      gpsStatus.has_fix ? 'bg-green-500' : 'bg-red-500'
+                    }`}></div>
+                    <span className="text-blue-800">
+                      {gpsStatus.has_fix ? 'GPS Fix Acquired' : 'No GPS Fix'}
+                    </span>
                   </div>
+                  {gpsStatus.has_fix && (
+                    <>
+                      <p className="text-blue-700">
+                        <span className="font-medium">Latitude:</span> {gpsStatus.latitude}
+                      </p>
+                      <p className="text-blue-700">
+                        <span className="font-medium">Longitude:</span> {gpsStatus.longitude}
+                      </p>
+                      <p className="text-blue-700">
+                        <span className="font-medium">UTC Offset:</span> {gpsStatus.utc_offset}h
+                      </p>
+                    </>
+                  )}
+                  <p className="text-blue-700">
+                    <span className="font-medium">Last Sync:</span> {formatTimestamp(gpsStatus.gpstime)}
+                  </p>
 
-                  {/* Right Column: Quality Metrics */}
-                  <div className="space-y-1">
-                    <p className="text-blue-800 font-medium text-xs mb-1">Signal Quality:</p>
-                    <p className="text-blue-700 text-xs">
-                      <span className="font-medium">🛰️ Satellites:</span>{' '}
-                      {gpsStatus.satellites_used || 0}/{gpsStatus.satellites_visible || 0}
-                    </p>
-                    <p className="text-blue-700 text-xs">
-                      <span className="font-medium">HDOP:</span>{' '}
-                      <span className={
-                        gpsStatus.hdop < 2 ? 'text-green-700 font-medium' :
-                        gpsStatus.hdop < 5 ? 'text-yellow-700' :
-                        'text-red-700'
-                      }>
-                        {gpsStatus.hdop?.toFixed(2) || 'N/A'}
-                      </span>
-                      {gpsStatus.hdop < 2 && ' (Excellent)'}
-                      {gpsStatus.hdop >= 2 && gpsStatus.hdop < 5 && ' (Good)'}
-                      {gpsStatus.hdop >= 5 && gpsStatus.hdop < 10 && ' (Fair)'}
-                      {gpsStatus.hdop >= 10 && ' (Poor)'}
-                    </p>
-                    <p className="text-blue-700 text-xs">
-                      <span className="font-medium">PDOP:</span> {gpsStatus.pdop?.toFixed(2) || 'N/A'}
-                    </p>
-                    {(() => {
-                      const stateInfo = getGPSStateInfo(gpsStatus.gpstime || 0)
-                      return (
-                        <p className="text-blue-700 text-xs">
-                          <span className="font-medium">Next sync:</span>{' '}
-                          {stateInfo.time} ({stateInfo.state.replace('_', ' ')})
-                        </p>
-                      )
-                    })()}
-                  </div>
+                  {/* Last Known Position */}
+                  {gpsStatus.has_last_known_position && !gpsStatus.has_fix && (
+                    <div className="mt-2 pt-2 border-t border-blue-300">
+                      <p className="text-blue-700 font-medium mb-1">Last Known Position:</p>
+                      <p className="text-blue-700 text-xs">
+                        📍 {gpsStatus.last_known_lat}, {gpsStatus.last_known_lon}
+                      </p>
+                      <p className="text-blue-700 text-xs">
+                        <span className="font-medium">Acquired:</span> {formatTimestamp(gpsStatus.last_position_time)}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -432,122 +330,35 @@ export default function GPSSettings() {
                 )}
               </div>
 
-              {/* Advanced Timeout Configuration */}
-              <div className="border border-gray-300 rounded-md p-3">
-                <div
-                  className="flex justify-between items-center cursor-pointer select-none"
-                  onClick={() => setTimeoutsCollapsed(!timeoutsCollapsed)}
-                >
-                  <h5 className="text-sm font-medium text-gray-700">⚙️ Advanced Timeout Configuration</h5>
-                  <span className="text-gray-500 text-sm">
-                    {timeoutsCollapsed ? '▶' : '▼'}
-                  </span>
+              {/* Timeout */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Sync Timeout: {localConfig?.timeout || 10} seconds
+                  {!validationErrors.timeout && (
+                    <span className="ml-2 text-green-600 text-xs">✓</span>
+                  )}
+                </label>
+                <input
+                  type="range"
+                  min="5"
+                  max="60"
+                  step="5"
+                  value={localConfig?.timeout || 10}
+                  onChange={(e) => handleTimeoutChange(parseInt(e.target.value))}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>5s (Fast)</span>
+                  <span>60s (Long)</span>
                 </div>
-
-                {!timeoutsCollapsed && (
-                  <div className="mt-3 space-y-3">
-                    <p className="text-xs text-gray-600">
-                      Adaptive timeouts automatically adjust based on GPS state. Customize for your environment:
-                    </p>
-
-                    {/* Hot Start Timeout */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        🟢 Hot Start (&lt;4 hours): {localConfig?.timeout_hot || 15}s
-                      </label>
-                      <input
-                        type="range"
-                        min="5"
-                        max="60"
-                        step="5"
-                        value={localConfig?.timeout_hot || 15}
-                        onChange={(e) => setLocalConfig({...localConfig, timeout_hot: parseInt(e.target.value)})}
-                        className="w-full"
-                      />
-                      <div className="flex justify-between text-xs text-gray-500">
-                        <span>5s</span>
-                        <span>60s</span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">GPS has recent data, ~1s TTFF</p>
-                    </div>
-
-                    {/* Warm Start Timeout */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        🟡 Warm Start (4h-6d): {localConfig?.timeout_warm || 60}s
-                      </label>
-                      <input
-                        type="range"
-                        min="30"
-                        max="180"
-                        step="10"
-                        value={localConfig?.timeout_warm || 60}
-                        onChange={(e) => setLocalConfig({...localConfig, timeout_warm: parseInt(e.target.value)})}
-                        className="w-full"
-                      />
-                      <div className="flex justify-between text-xs text-gray-500">
-                        <span>30s</span>
-                        <span>180s</span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">Needs fresh ephemeris, ~26s TTFF</p>
-                    </div>
-
-                    {/* Cold Start Timeout */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        🟠 Cold Start (6-28d): {localConfig?.timeout_cold || 90}s
-                      </label>
-                      <input
-                        type="range"
-                        min="60"
-                        max="300"
-                        step="10"
-                        value={localConfig?.timeout_cold || 90}
-                        onChange={(e) => setLocalConfig({...localConfig, timeout_cold: parseInt(e.target.value)})}
-                        className="w-full"
-                      />
-                      <div className="flex justify-between text-xs text-gray-500">
-                        <span>60s</span>
-                        <span>300s</span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">Downloads ephemeris, 26-57s TTFF</p>
-                    </div>
-
-                    {/* Almanac Expired Timeout */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        🔴 Almanac Expired (&gt;28d): {Math.floor((localConfig?.timeout_almanac || 1200) / 60)}m
-                      </label>
-                      <input
-                        type="range"
-                        min="300"
-                        max="1800"
-                        step="60"
-                        value={localConfig?.timeout_almanac || 1200}
-                        onChange={(e) => setLocalConfig({...localConfig, timeout_almanac: parseInt(e.target.value)})}
-                        className="w-full"
-                      />
-                      <div className="flex justify-between text-xs text-gray-500">
-                        <span>5min</span>
-                        <span>30min</span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">Full almanac download, 12-20min worst case</p>
-                    </div>
-
-                    {/* Reset to Defaults Button */}
-                    <button
-                      onClick={() => setLocalConfig({
-                        ...localConfig,
-                        timeout_hot: 15,
-                        timeout_warm: 60,
-                        timeout_cold: 90,
-                        timeout_almanac: 1200
-                      })}
-                      className="w-full px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                    >
-                      Reset to Defaults
-                    </button>
-                  </div>
+                {validationErrors.timeout ? (
+                  <p className="text-xs text-red-600 mt-1">
+                    ⚠️ {validationErrors.timeout}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">
+                    How long to wait for GPS fix before timing out (actual timeout may be up to 20 seconds longer for processing overhead)
+                  </p>
                 )}
               </div>
             </div>
@@ -580,20 +391,6 @@ export default function GPSSettings() {
                 <li>Enable UART in /boot/config.txt: <code className="bg-blue-100 px-1">enable_uart=1</code></li>
                 <li>Install gpsd: <code className="bg-blue-100 px-1">sudo apt install gpsd gpsd-clients</code></li>
               </ul>
-            </div>
-
-            {/* Cold Start Information */}
-            <div className="settings-info-box bg-yellow-50 border-yellow-200">
-              <p className="text-xs text-yellow-800 font-medium mb-1">⏱️ GPS Sync Times (Time To First Fix):</p>
-              <ul className="text-xs text-yellow-700 space-y-0.5 ml-4 list-disc">
-                <li><strong>Hot Start (&lt;4 hours):</strong> ~15 seconds - GPS has recent satellite data</li>
-                <li><strong>Warm Start (4 hours - 6 days):</strong> ~60 seconds - Needs fresh ephemeris</li>
-                <li><strong>Cold Start (6-28 days):</strong> ~90 seconds - Must download ephemeris</li>
-                <li><strong>Almanac Expired (&gt;28 days):</strong> 5-20 minutes - Full almanac download required</li>
-              </ul>
-              <p className="text-xs text-yellow-700 mt-2">
-                💡 <strong>Tip:</strong> First sync after long power-off can take several minutes. Ensure clear sky view and be patient!
-              </p>
             </div>
           </>
         )}
