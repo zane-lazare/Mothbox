@@ -234,6 +234,48 @@ set_last_update_commit() {
     sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$tracker_file"
 }
 
+# Verify file sync status between repo and installation
+verify_file_sync() {
+    # Use rsync dry-run with checksums to detect file drift
+    # Returns 0 if sync needed, 1 if already in sync
+
+    local files_differ=false
+    local sync_check_file="/tmp/mothbox_sync_check_$$"
+
+    # Check each sync target
+    for source_dest in \
+        "$MOTHBOX_ROOT/Firmware/${FIRMWARE_VERSION}.x/:$MOTHBOX_HOME/" \
+        "$MOTHBOX_ROOT/Firmware/mothbox_paths.py:$MOTHBOX_HOME/mothbox_paths.py" \
+        "$MOTHBOX_ROOT/Firmware/webui/:$MOTHBOX_HOME/webui/"
+    do
+        local source="${source_dest%%:*}"
+        local dest="${source_dest##*:}"
+
+        # Skip if source doesn't exist
+        [ ! -e "$source" ] && continue
+
+        # Run rsync dry-run with checksums to detect differences
+        rsync --dry-run --checksum --itemize-changes --archive \
+              --exclude='__pycache__' --exclude='*.pyc' \
+              --exclude='node_modules' --exclude='.DS_Store' \
+              "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
+    done
+
+    # Check if any files differ
+    if [ -s "$sync_check_file" ]; then
+        files_differ=true
+        echo -e "${YELLOW}Files out of sync detected:${NC}" >&2
+        head -20 "$sync_check_file" | sed 's/^/  /' >&2
+        local total=$(wc -l < "$sync_check_file")
+        [ "$total" -gt 20 ] && echo "  ... and $(($total - 20)) more files" >&2
+    fi
+
+    rm -f "$sync_check_file"
+
+    # Return 0 if sync needed, 1 if in sync
+    [ "$files_differ" = true ] && return 0 || return 1
+}
+
 # Verify build and dependency status
 verify_installation() {
     local issues=0
@@ -621,8 +663,28 @@ if [ "$NEED_GIT_PULL" = "true" ]; then
     fi
 fi
 
+# For production installs, always check file sync status
+FILES_NEED_SYNC=false
+if [ "$INSTALL_TYPE" = "production" ]; then
+    echo -e "${BLUE}Checking file sync status...${NC}"
+    if verify_file_sync; then
+        FILES_NEED_SYNC=true
+        echo -e "${YELLOW}⚠ Files need synchronization${NC}"
+    else
+        echo -e "${GREEN}✓ Files in sync${NC}"
+    fi
+    echo ""
+fi
+
 # Check if processing is needed (now comparing against pulled code)
-if [ "$BASE_COMMIT" = "$COMPARE_COMMIT" ] && [ "$FORCE_UPDATE" = "false" ] && [ "$FORCE_FRONTEND_REBUILD" = "false" ]; then
+GIT_HAS_CHANGES=false
+if [ "$BASE_COMMIT" != "$COMPARE_COMMIT" ]; then
+    GIT_HAS_CHANGES=true
+fi
+
+# Early exit if nothing to do
+if [ "$GIT_HAS_CHANGES" = "false" ] && [ "$FILES_NEED_SYNC" = "false" ] && \
+   [ "$FORCE_UPDATE" = "false" ] && [ "$FORCE_FRONTEND_REBUILD" = "false" ]; then
     echo -e "${GREEN}✓ No updates to process!${NC}"
     echo ""
 
@@ -632,44 +694,62 @@ if [ "$BASE_COMMIT" = "$COMPARE_COMMIT" ] && [ "$FORCE_UPDATE" = "false" ] && [ 
     exit 0
 fi
 
+# If production and files need sync but no git changes, do sync-only
+if [ "$INSTALL_TYPE" = "production" ] && [ "$FILES_NEED_SYNC" = "true" ] && [ "$GIT_HAS_CHANGES" = "false" ]; then
+    echo -e "${BLUE}Syncing files (no git changes, but files out of sync)...${NC}"
+    echo ""
+    # Will proceed to file sync section below, then exit early
+fi
+
 # If only rebuild requested (no git changes), skip to rebuild section
-if [ "$BASE_COMMIT" = "$COMPARE_COMMIT" ] && [ "$FORCE_FRONTEND_REBUILD" = "true" ]; then
+if [ "$GIT_HAS_CHANGES" = "false" ] && [ "$FORCE_FRONTEND_REBUILD" = "true" ]; then
     echo -e "${YELLOW}No git changes, but --rebuild requested${NC}"
     echo ""
 fi
 
-echo ""
-
 # Show what will be updated (changes between base and current)
-echo -e "${BLUE}Changes to process:${NC}"
-git --no-pager diff --name-status "$BASE_COMMIT..$COMPARE_COMMIT" | head -20
-echo ""
-
-TOTAL_CHANGES=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | wc -l)
-if [ "$TOTAL_CHANGES" -gt 20 ]; then
-    echo -e "${CYAN}... and $(($TOTAL_CHANGES - 20)) more files${NC}"
+if [ "$GIT_HAS_CHANGES" = "true" ]; then
+    echo ""
+    echo -e "${BLUE}Changes to process:${NC}"
+    git --no-pager diff --name-status "$BASE_COMMIT..$COMPARE_COMMIT" | head -20
     echo ""
 fi
 
-# Categorize changes
-FIRMWARE_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/.*\.py$' | wc -l)
-WEBUI_BACKEND_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/backend/' | wc -l)
-WEBUI_FRONTEND_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/frontend/' | wc -l)
-# Also rebuild frontend if backend config or dependencies changed (may affect CSRF, CORS, API behavior)
-BACKEND_CONFIG_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/backend/(config\.py|requirements\.txt)$' | wc -l)
-INSTALLER_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/install.*\.sh$|^Firmware/installation-utils/' | wc -l)
-SERVICE_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '\.service\.template$' | wc -l)
-CONFIG_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E 'controls\.txt$|camera_settings\.csv$|schedule_settings\.csv$|wordlist\.csv$' | wc -l)
+# Categorize changes (only if git has changes)
+FIRMWARE_CHANGED=0
+WEBUI_BACKEND_CHANGED=0
+WEBUI_FRONTEND_CHANGED=0
+BACKEND_CONFIG_CHANGED=0
+INSTALLER_CHANGED=0
+SERVICE_CHANGED=0
+CONFIG_CHANGED=0
 
-echo -e "${CYAN}Components affected:${NC}"
-[ "$FIRMWARE_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Firmware Python scripts ($FIRMWARE_CHANGED files)"
-[ "$WEBUI_BACKEND_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Web UI backend ($WEBUI_BACKEND_CHANGED files)"
-[ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Web UI frontend ($WEBUI_FRONTEND_CHANGED files)"
-[ "$BACKEND_CONFIG_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Backend config/dependencies ($BACKEND_CONFIG_CHANGED files) - requires frontend rebuild"
-[ "$SERVICE_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Systemd service files ($SERVICE_CHANGED files)"
-[ "$INSTALLER_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Installer scripts ($INSTALLER_CHANGED files)"
-[ "$CONFIG_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Configuration files ($CONFIG_CHANGED files)"
-echo ""
+if [ "$GIT_HAS_CHANGES" = "true" ]; then
+    TOTAL_CHANGES=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | wc -l)
+    if [ "$TOTAL_CHANGES" -gt 20 ]; then
+        echo -e "${CYAN}... and $(($TOTAL_CHANGES - 20)) more files${NC}"
+        echo ""
+    fi
+
+    FIRMWARE_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/.*\.py$' | wc -l)
+    WEBUI_BACKEND_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/backend/' | wc -l)
+    WEBUI_FRONTEND_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/frontend/' | wc -l)
+    # Also rebuild frontend if backend config or dependencies changed (may affect CSRF, CORS, API behavior)
+    BACKEND_CONFIG_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/backend/(config\.py|requirements\.txt)$' | wc -l)
+    INSTALLER_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/install.*\.sh$|^Firmware/installation-utils/' | wc -l)
+    SERVICE_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '\.service\.template$' | wc -l)
+    CONFIG_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E 'controls\.txt$|camera_settings\.csv$|schedule_settings\.csv$|wordlist\.csv$' | wc -l)
+
+    echo -e "${CYAN}Components affected:${NC}"
+    [ "$FIRMWARE_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Firmware Python scripts ($FIRMWARE_CHANGED files)"
+    [ "$WEBUI_BACKEND_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Web UI backend ($WEBUI_BACKEND_CHANGED files)"
+    [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Web UI frontend ($WEBUI_FRONTEND_CHANGED files)"
+    [ "$BACKEND_CONFIG_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Backend config/dependencies ($BACKEND_CONFIG_CHANGED files) - requires frontend rebuild"
+    [ "$SERVICE_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Systemd service files ($SERVICE_CHANGED files)"
+    [ "$INSTALLER_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Installer scripts ($INSTALLER_CHANGED files)"
+    [ "$CONFIG_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Configuration files ($CONFIG_CHANGED files)"
+    echo ""
+fi
 
 # Confirm update
 if [ "$AUTO_YES" = "false" ] && [ "$DRY_RUN" = "false" ]; then
@@ -752,6 +832,15 @@ elif [ "$INSTALL_TYPE" = "legacy" ]; then
     # For legacy installs, git repo IS the installation - no copying needed
     echo -e "${CYAN}Legacy install detected - files already in place${NC}"
     echo ""
+fi
+
+# If we only needed file sync (no git changes), exit here
+if [ "$GIT_HAS_CHANGES" = "false" ] && [ "$FILES_NEED_SYNC" = "true" ]; then
+    echo -e "${GREEN}✓ File sync complete, no other updates needed${NC}"
+    echo ""
+    verify_installation
+    set_last_update_commit "$COMPARE_COMMIT"
+    exit 0
 fi
 
 # Update components based on what changed
