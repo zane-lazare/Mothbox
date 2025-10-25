@@ -760,7 +760,7 @@ UPDATES_PERFORMED=0
 # Update firmware Python scripts permissions
 if [ "$FIRMWARE_CHANGED" -gt 0 ]; then
     echo -e "${BLUE}Updating firmware script permissions...${NC}"
-    find "$MOTHBOX_HOME" -name "*.py" -exec chmod +x {} \;
+    find "$MOTHBOX_HOME" -name "*.py" -exec chmod +x {} +
     echo -e "${GREEN}✓ Firmware permissions updated${NC}"
     UPDATES_PERFORMED=$((UPDATES_PERFORMED + 1))
     echo ""

@@ -761,15 +761,15 @@ fi
 # Regular files: 644 (rw-r--r--)
 # Scripts (.py, .sh): 755 (rwxr-xr-x)
 echo "Setting file permissions..."
-find "$MOTHBOX_HOME" -type d -exec sudo chmod 755 {} \;
-find "$MOTHBOX_HOME" -type f -exec sudo chmod 644 {} \;
-find "$MOTHBOX_HOME" -type f \( -name "*.py" -o -name "*.sh" \) -exec sudo chmod 755 {} \;
+find "$MOTHBOX_HOME" -type d -exec sudo chmod 755 {} +
+find "$MOTHBOX_HOME" -type f -exec sudo chmod 644 {} +
+find "$MOTHBOX_HOME" -type f \( -name "*.py" -o -name "*.sh" \) -exec sudo chmod 755 {} +
 
-find "$CONFIG_DIR" -type d -exec sudo chmod 755 {} \;
-find "$CONFIG_DIR" -type f -exec sudo chmod 644 {} \;
+find "$CONFIG_DIR" -type d -exec sudo chmod 755 {} +
+find "$CONFIG_DIR" -type f -exec sudo chmod 644 {} +
 
-find "$DATA_DIR" -type d -exec sudo chmod 755 {} \;
-find "$DATA_DIR" -type f -exec sudo chmod 644 {} \;
+find "$DATA_DIR" -type d -exec sudo chmod 755 {} +
+find "$DATA_DIR" -type f -exec sudo chmod 644 {} +
 
 echo -e "${GREEN}✓ Directories created and permissions set${NC}"
 
@@ -1049,7 +1049,7 @@ echo ""
 
 # Set execute permissions on Python scripts
 echo -e "${BLUE}Setting script permissions...${NC}"
-find "$MOTHBOX_HOME" -name "*.py" -exec sudo chmod +x {} \;
+find "$MOTHBOX_HOME" -name "*.py" -exec sudo chmod +x {} +
 echo -e "${GREEN}✓ Script permissions set${NC}"
 
 # Optional: Install Web UI
