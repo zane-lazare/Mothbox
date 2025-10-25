@@ -59,6 +59,23 @@ export default function GPSSettings() {
     },
   })
 
+  // Helper to get GPS state description
+  const getGPSStateInfo = (gpstime) => {
+    if (gpstime === 0) {
+      return { state: 'almanac_expired', time: '5-20 min', description: 'First sync (almanac download)' }
+    }
+    const hoursSince = (Date.now() / 1000 - gpstime) / 3600
+    if (hoursSince < 4) {
+      return { state: 'hot_start', time: '~15s', description: 'Hot start (recent data)' }
+    } else if (hoursSince < 144) {
+      return { state: 'warm_start', time: '~60s', description: 'Warm start (ephemeris refresh)' }
+    } else if (hoursSince < 672) {
+      return { state: 'cold_start', time: '~90s', description: 'Cold start (ephemeris download)' }
+    } else {
+      return { state: 'almanac_expired', time: '5-20 min', description: 'Almanac expired (full download)' }
+    }
+  }
+
   const handleSyncGPS = async () => {
     if (!gpsConfig?.enabled) {
       toast.error('GPS is disabled. Enable it first.')
@@ -66,13 +83,15 @@ export default function GPSSettings() {
     }
 
     setSyncing(true)
-    const timeout = gpsConfig?.timeout || 10
-    const estimatedTime = timeout + 20 // Add processing overhead
 
-    // Show progress toast with estimated time
+    // Get expected GPS state based on last sync
+    const stateInfo = getGPSStateInfo(gpsStatus?.gpstime || 0)
+
+    // Show progress toast with estimated time based on GPS state
     const toastId = toast.loading(
-      `🛰️ Acquiring GPS fix...\nEstimated time: ${estimatedTime}s\n` +
-      `Timeout: ${timeout}s + ~20s processing`,
+      `🛰️ Acquiring GPS fix...\n` +
+      `Expected: ${stateInfo.description}\n` +
+      `Estimated time: ${stateInfo.time}`,
       { duration: Infinity }
     )
 
@@ -81,11 +100,14 @@ export default function GPSSettings() {
       toast.dismiss(toastId)
 
       if (result.data.success) {
+        const stateLabel = result.data.gps_state?.replace('_', ' ') || 'sync'
         toast.success(
-          `✅ GPS synced successfully!\n` +
+          `✅ GPS synced successfully! (${stateLabel})\n` +
           `📍 Location: ${result.data.latitude}, ${result.data.longitude}\n` +
-          `🕐 GPS Time: ${result.data.gpstime || 'synced'}`,
-          { duration: 5000 }
+          `🕐 Time: ${result.data.gpstime || 'synced'}\n` +
+          `🛰️ Satellites: ${result.data.satellites_used || '?'} used\n` +
+          `📊 Timeout used: ${result.data.timeout_used}s`,
+          { duration: 6000 }
         )
       } else {
         toast.error(
@@ -216,31 +238,71 @@ export default function GPSSettings() {
             {gpsStatus && (
               <div className="p-3 bg-blue-50 border border-blue-200 rounded">
                 <h5 className="font-medium text-blue-900 mb-2">Current GPS Status</h5>
-                <div className="space-y-1 text-sm">
-                  <div className="flex items-center">
-                    <div className={`w-2 h-2 rounded-full mr-2 ${
-                      gpsStatus.has_fix ? 'bg-green-500' : 'bg-red-500'
-                    }`}></div>
-                    <span className="text-blue-800">
-                      {gpsStatus.has_fix ? 'GPS Fix Acquired' : 'No GPS Fix'}
-                    </span>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  {/* Left Column: Fix Status and Location */}
+                  <div className="space-y-1">
+                    <div className="flex items-center">
+                      <div className={`w-2 h-2 rounded-full mr-2 ${
+                        gpsStatus.has_fix ? 'bg-green-500' : 'bg-red-500'
+                      }`}></div>
+                      <span className="text-blue-800 font-medium">
+                        {gpsStatus.has_fix ? (
+                          gpsStatus.fix_mode === 3 ? '3D Fix' : gpsStatus.fix_mode === 2 ? '2D Fix' : 'GPS Fix'
+                        ) : 'No GPS Fix'}
+                      </span>
+                    </div>
+                    {gpsStatus.has_fix && (
+                      <>
+                        <p className="text-blue-700 text-xs">
+                          <span className="font-medium">Lat:</span> {gpsStatus.latitude}
+                        </p>
+                        <p className="text-blue-700 text-xs">
+                          <span className="font-medium">Lon:</span> {gpsStatus.longitude}
+                        </p>
+                        <p className="text-blue-700 text-xs">
+                          <span className="font-medium">UTC Offset:</span> {gpsStatus.utc_offset}h
+                        </p>
+                      </>
+                    )}
+                    <p className="text-blue-700 text-xs">
+                      <span className="font-medium">Last Sync:</span> {formatTimestamp(gpsStatus.gpstime)}
+                    </p>
                   </div>
-                  {gpsStatus.has_fix && (
-                    <>
-                      <p className="text-blue-700">
-                        <span className="font-medium">Latitude:</span> {gpsStatus.latitude}
-                      </p>
-                      <p className="text-blue-700">
-                        <span className="font-medium">Longitude:</span> {gpsStatus.longitude}
-                      </p>
-                      <p className="text-blue-700">
-                        <span className="font-medium">UTC Offset:</span> {gpsStatus.utc_offset}h
-                      </p>
-                    </>
-                  )}
-                  <p className="text-blue-700">
-                    <span className="font-medium">Last Sync:</span> {formatTimestamp(gpsStatus.gpstime)}
-                  </p>
+
+                  {/* Right Column: Quality Metrics */}
+                  <div className="space-y-1">
+                    <p className="text-blue-800 font-medium text-xs mb-1">Signal Quality:</p>
+                    <p className="text-blue-700 text-xs">
+                      <span className="font-medium">🛰️ Satellites:</span>{' '}
+                      {gpsStatus.satellites_used || 0}/{gpsStatus.satellites_visible || 0}
+                    </p>
+                    <p className="text-blue-700 text-xs">
+                      <span className="font-medium">HDOP:</span>{' '}
+                      <span className={
+                        gpsStatus.hdop < 2 ? 'text-green-700 font-medium' :
+                        gpsStatus.hdop < 5 ? 'text-yellow-700' :
+                        'text-red-700'
+                      }>
+                        {gpsStatus.hdop?.toFixed(2) || 'N/A'}
+                      </span>
+                      {gpsStatus.hdop < 2 && ' (Excellent)'}
+                      {gpsStatus.hdop >= 2 && gpsStatus.hdop < 5 && ' (Good)'}
+                      {gpsStatus.hdop >= 5 && gpsStatus.hdop < 10 && ' (Fair)'}
+                      {gpsStatus.hdop >= 10 && ' (Poor)'}
+                    </p>
+                    <p className="text-blue-700 text-xs">
+                      <span className="font-medium">PDOP:</span> {gpsStatus.pdop?.toFixed(2) || 'N/A'}
+                    </p>
+                    {(() => {
+                      const stateInfo = getGPSStateInfo(gpsStatus.gpstime || 0)
+                      return (
+                        <p className="text-blue-700 text-xs">
+                          <span className="font-medium">Next sync:</span>{' '}
+                          {stateInfo.time} ({stateInfo.state.replace('_', ' ')})
+                        </p>
+                      )
+                    })()}
+                  </div>
                 </div>
               </div>
             )}
@@ -378,6 +440,20 @@ export default function GPSSettings() {
                 <li>Enable UART in /boot/config.txt: <code className="bg-blue-100 px-1">enable_uart=1</code></li>
                 <li>Install gpsd: <code className="bg-blue-100 px-1">sudo apt install gpsd gpsd-clients</code></li>
               </ul>
+            </div>
+
+            {/* Cold Start Information */}
+            <div className="settings-info-box bg-yellow-50 border-yellow-200">
+              <p className="text-xs text-yellow-800 font-medium mb-1">⏱️ GPS Sync Times (Time To First Fix):</p>
+              <ul className="text-xs text-yellow-700 space-y-0.5 ml-4 list-disc">
+                <li><strong>Hot Start (&lt;4 hours):</strong> ~15 seconds - GPS has recent satellite data</li>
+                <li><strong>Warm Start (4 hours - 6 days):</strong> ~60 seconds - Needs fresh ephemeris</li>
+                <li><strong>Cold Start (6-28 days):</strong> ~90 seconds - Must download ephemeris</li>
+                <li><strong>Almanac Expired (&gt;28 days):</strong> 5-20 minutes - Full almanac download required</li>
+              </ul>
+              <p className="text-xs text-yellow-700 mt-2">
+                💡 <strong>Tip:</strong> First sync after long power-off can take several minutes. Ensure clear sky view and be patient!
+              </p>
             </div>
           </>
         )}
