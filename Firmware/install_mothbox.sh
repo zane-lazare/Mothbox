@@ -192,7 +192,9 @@ if [ "$INTERACTIVE_MODE" = "true" ]; then
             # Remove trailing slashes for consistency
             CUSTOM_PATH="${CUSTOM_PATH%/}"
             # Check for dangerous characters
-            if [[ "$CUSTOM_PATH" =~ [[:space:]\;\$\`\(\)\|\&\<\>] ]]; then
+            # Use variable for regex to avoid bash interpreting special chars
+            INVALID_PATH_CHARS='[[:space:];$`()|&<>]'
+            if [[ "$CUSTOM_PATH" =~ $INVALID_PATH_CHARS ]]; then
                 echo -e "${RED}Error: Custom path contains invalid characters${NC}"
                 exit 1
             fi
@@ -246,7 +248,9 @@ if [ "$INTERACTIVE_MODE" = "false" ]; then
             # Remove trailing slashes for consistency
             CUSTOM_PATH="${CUSTOM_PATH%/}"
             # Check for dangerous characters
-            if [[ "$CUSTOM_PATH" =~ [[:space:]\;\$\`\(\)\|\&\<\>] ]]; then
+            # Use variable for regex to avoid bash interpreting special chars
+            INVALID_PATH_CHARS='[[:space:];$`()|&<>]'
+            if [[ "$CUSTOM_PATH" =~ $INVALID_PATH_CHARS ]]; then
                 echo -e "${RED}Error: Custom path contains invalid characters${NC}"
                 exit 1
             fi

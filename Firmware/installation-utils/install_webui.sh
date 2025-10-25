@@ -235,11 +235,13 @@ if [ ! -f "$SERVICE_TEMPLATE" ]; then
     echo -e "${YELLOW}Warning: mothbox-webui.service.template not found, skipping service installation${NC}"
 else
     # Validate systemd template variables to prevent injection
-    if [[ "$MOTHBOX_HOME" =~ [;$\`\(\)\|\&<>\n] ]]; then
+    # Use variable for regex to avoid bash interpreting special chars
+    INVALID_CHARS_PATTERN='[;$`()|&<>\n]'
+    if [[ "$MOTHBOX_HOME" =~ $INVALID_CHARS_PATTERN ]]; then
         echo -e "${RED}Error: MOTHBOX_HOME contains invalid characters${NC}"
         exit 1
     fi
-    if [[ "$MOTHBOX_USER" =~ [;$\`\(\)\|\&<>\n] ]]; then
+    if [[ "$MOTHBOX_USER" =~ $INVALID_CHARS_PATTERN ]]; then
         echo -e "${RED}Error: MOTHBOX_USER contains invalid characters${NC}"
         exit 1
     fi
