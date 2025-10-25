@@ -4,14 +4,14 @@ WebSocket Event Handlers for Mothbox Web UI
 Provides WebSocket event handlers for real-time camera control and monitoring.
 Handlers are registered with Flask-SocketIO and handle events like:
 - Connection management (connect, disconnect)
-- Camera streaming (start_preview, stop_preview)
-- Live controls (update_preview_control, set_zoom, set_af_window)
+- Live view streaming (start_liveview, stop_liveview)
+- Live controls (update_liveview_control, set_zoom, set_af_window)
 - Metadata polling (get_metadata)
 
 This module is imported by both app.py (production) and conftest.py (testing).
 
 Architecture:
-    The register_handlers() function takes a SocketIO instance and CameraStreamer
+    The register_handlers() function takes a SocketIO instance and LiveViewStreamer
     instance and registers all event handlers. This allows both production and test
     code to use the exact same handlers, eliminating duplication and ensuring tests
     accurately reflect production behavior.
@@ -19,11 +19,11 @@ Architecture:
 Usage:
     # In app.py (production)
     from websocket_handlers import register_handlers
-    register_handlers(socketio, camera_streamer)
+    register_handlers(socketio, liveview_streamer)
 
     # In conftest.py (testing)
     from websocket_handlers import register_handlers
-    register_handlers(socketio, camera_streamer)
+    register_handlers(socketio, liveview_streamer)
 """
 
 from flask_socketio import emit
@@ -35,27 +35,27 @@ def register_handlers(socketio, camera_streamer):
 
     Args:
         socketio: Flask-SocketIO instance
-        camera_streamer: CameraStreamer instance for camera operations
+        camera_streamer: LiveViewStreamer instance for live view operations
 
     Registers the following event handlers:
         - connect: Handle client WebSocket connection with origin validation
         - disconnect: Handle client WebSocket disconnection
-        - start_preview: Start camera preview streaming
-        - stop_preview: Stop camera preview streaming
-        - reload_stream_settings: Reload camera stream settings from config file
+        - start_liveview: Start live view streaming
+        - stop_liveview: Stop live view streaming
+        - reload_stream_settings: Reload live view stream settings from config file
         - get_metadata: Get current camera metadata
-        - update_preview_control: Update a single camera control without restarting stream
+        - update_liveview_control: Update a single camera control without restarting stream
         - set_zoom: Set digital zoom level and optionally reposition zoom center
         - set_af_window: Set autofocus window to focus on a specific region
 
     Usage:
         # In app.py
         from websocket_handlers import register_handlers
-        register_handlers(socketio, camera_streamer)
+        register_handlers(socketio, liveview_streamer)
 
         # In conftest.py
         from websocket_handlers import register_handlers
-        register_handlers(socketio, camera_streamer)
+        register_handlers(socketio, liveview_streamer)
     """
 
     @socketio.on('connect')
@@ -102,36 +102,50 @@ def register_handlers(socketio, camera_streamer):
     @socketio.on('disconnect')
     def handle_disconnect():
         """Handle client WebSocket disconnection"""
-        print('Client disconnected - stopping camera preview if active')
+        print('Client disconnected - stopping live view if active')
         camera_streamer.stop_streaming()
 
-    @socketio.on('start_preview')
-    def handle_start_preview():
-        """Start camera preview streaming"""
-        print('Received start_preview request')
+    # New event names
+    @socketio.on('start_liveview')
+    def handle_start_liveview():
+        """Start live view streaming"""
+        print('Received start_liveview request')
         try:
             success = camera_streamer.start_streaming()
             if success:
-                print('Camera preview started successfully')
-                emit('preview_status', {'streaming': True, 'message': 'Preview started'})
+                print('Live view started successfully')
+                emit('liveview_status', {'streaming': True, 'message': 'Live view started'})
             else:
-                print('Failed to start camera preview')
-                emit('preview_status', {'streaming': False, 'error': 'Failed to initialize camera'})
+                print('Failed to start live view')
+                emit('liveview_status', {'streaming': False, 'error': 'Failed to initialize camera'})
         except Exception as e:
-            print(f'Error starting preview: {e}')
-            emit('preview_status', {'streaming': False, 'error': str(e)})
+            print(f'Error starting live view: {e}')
+            emit('liveview_status', {'streaming': False, 'error': str(e)})
 
-    @socketio.on('stop_preview')
-    def handle_stop_preview():
-        """Stop camera preview streaming"""
-        print('Received stop_preview request')
+    @socketio.on('stop_liveview')
+    def handle_stop_liveview():
+        """Stop live view streaming"""
+        print('Received stop_liveview request')
         try:
             camera_streamer.stop_streaming()
-            print('Camera preview stopped')
-            emit('preview_status', {'streaming': False, 'message': 'Preview stopped'})
+            print('Live view stopped')
+            emit('liveview_status', {'streaming': False, 'message': 'Live view stopped'})
         except Exception as e:
-            print(f'Error stopping preview: {e}')
-            emit('preview_status', {'streaming': False, 'error': str(e)})
+            print(f'Error stopping live view: {e}')
+            emit('liveview_status', {'streaming': False, 'error': str(e)})
+
+    # Deprecated event names (backward compatibility - will be removed in future release)
+    @socketio.on('start_preview')
+    def handle_start_preview_deprecated():
+        """[DEPRECATED] Use start_liveview instead"""
+        print('⚠️  DEPRECATED: start_preview event - use start_liveview instead')
+        handle_start_liveview()
+
+    @socketio.on('stop_preview')
+    def handle_stop_preview_deprecated():
+        """[DEPRECATED] Use stop_liveview instead"""
+        print('⚠️  DEPRECATED: stop_preview event - use stop_liveview instead')
+        handle_stop_liveview()
 
     @socketio.on('reload_stream_settings')
     def handle_reload_stream_settings():
@@ -296,8 +310,8 @@ def register_handlers(socketio, camera_streamer):
                 'brightness': 0
             })
 
-    @socketio.on('update_preview_control')
-    def handle_update_preview_control(data):
+    @socketio.on('update_liveview_control')
+    def handle_update_liveview_control(data):
         """
         Update a single camera control without restarting stream (Phase 2.2)
 
@@ -332,6 +346,13 @@ def register_handlers(socketio, camera_streamer):
                 'success': False,
                 'error': str(e)
             })
+
+    # Deprecated event name (backward compatibility)
+    @socketio.on('update_preview_control')
+    def handle_update_preview_control_deprecated(data):
+        """[DEPRECATED] Use update_liveview_control instead"""
+        print('⚠️  DEPRECATED: update_preview_control event - use update_liveview_control instead')
+        handle_update_liveview_control(data)
 
     @socketio.on('set_zoom')
     def handle_set_zoom(data):

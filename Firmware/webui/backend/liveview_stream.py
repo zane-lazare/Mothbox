@@ -1,5 +1,5 @@
 """
-Camera streaming module for WebSocket live preview
+Live view streaming module for WebSocket camera feed
 """
 import io
 import time
@@ -65,8 +65,8 @@ DEFAULT_JPEG_QUALITY = 85  # Balanced quality - faster encoding, smaller files
 CAMERA_OPERATION_LOCK = Lock()
 
 
-class CameraStreamer:
-    """Handles live camera streaming via WebSocket"""
+class LiveViewStreamer:
+    """Handles live view camera streaming via WebSocket"""
 
     def __init__(self, socketio):
         self.socketio = socketio

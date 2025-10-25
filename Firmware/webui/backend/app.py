@@ -82,9 +82,9 @@ socketio = SocketIO(
     ping_interval=25
 )
 
-# Initialize camera streamer
-from camera_stream import CameraStreamer
-camera_streamer = CameraStreamer(socketio)
+# Initialize live view streamer
+from liveview_stream import LiveViewStreamer
+camera_streamer = LiveViewStreamer(socketio)
 
 # Register cleanup handlers to ensure camera resources are released
 # Uses both atexit and signal handlers for defense in depth
