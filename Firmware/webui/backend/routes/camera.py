@@ -721,44 +721,53 @@ def calibrate_photo():
         - af_duration_seconds: float - calibration duration
         - timestamp: float - calibration timestamp
     """
+    import subprocess
+    import time
+    import csv
+    import traceback
+    from flask import current_app
+    from mothbox_paths import CAMERA_SETTINGS_FILE, CONTROLS_FILE, get_firmware_version
+
+    print("📸 Photo calibration requested via API")
+
+    # Read current settings for "before" snapshot
+    before_settings = {}
     try:
-        import subprocess
-        import time
-        import csv
-        from flask import current_app
-        from mothbox_paths import CAMERA_SETTINGS_FILE, CONTROLS_FILE
+        with open(CAMERA_SETTINGS_FILE, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                before_settings[row['SETTING']] = row['VALUE']
+    except Exception as e:
+        print(f"⚠️  Warning: Could not read current settings: {e}")
 
-        print("Photo calibration requested via API")
+    before_snapshot = {
+        'ExposureTime': before_settings.get('ExposureTime', 'unknown'),
+        'AnalogueGain': before_settings.get('AnalogueGain', 'unknown'),
+        'LensPosition': before_settings.get('LensPosition', 'unknown')
+    }
 
-        # Read current settings for "before" snapshot
-        before_settings = {}
-        try:
-            with open(CAMERA_SETTINGS_FILE, 'r') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    before_settings[row['SETTING']] = row['VALUE']
-        except Exception as e:
-            print(f"Warning: Could not read current settings: {e}")
+    # Get camera streamer
+    camera_streamer = current_app.config.get('CAMERA_STREAMER')
+    if not camera_streamer:
+        return jsonify({
+            'success': False,
+            'error': 'Camera streamer not initialized'
+        }), 500
 
-        before_snapshot = {
-            'ExposureTime': before_settings.get('ExposureTime', 'unknown'),
-            'AnalogueGain': before_settings.get('AnalogueGain', 'unknown'),
-            'LensPosition': before_settings.get('LensPosition', 'unknown')
-        }
+    # Track state for cleanup
+    was_streaming = False
+    operation_lock_acquired = False
+    subprocess_result = None
+    start_time = time.time()
 
-        # Release camera from CameraStreamer
-        camera_streamer = current_app.config.get('CAMERA_STREAMER')
-        if not camera_streamer:
-            return jsonify({
-                'success': False,
-                'error': 'Camera streamer not initialized'
-            }), 500
-
+    try:
+        # Acquire operation lock
         with camera_streamer.acquire_for_operation():
+            operation_lock_acquired = True
+
             # Release camera hardware completely
-            was_streaming = False
             if camera_streamer.camera:
-                print("Releasing camera for photo calibration subprocess...")
+                print("🔓 Releasing camera for photo calibration subprocess...")
                 was_streaming = camera_streamer.streaming
                 camera_streamer.release_camera()
                 time.sleep(2.0)  # Ensure hardware fully released
@@ -766,30 +775,61 @@ def calibrate_photo():
             # Run calibration via subprocess
             calibration_script = Path(__file__).parent.parent / 'scripts' / 'run_photo_calibration.py'
 
-            print(f"Running photo calibration subprocess: {calibration_script}")
-            start_time = time.time()
+            print(f"🚀 Running photo calibration subprocess: {calibration_script}")
 
-            result = subprocess.run(
-                ['python3', str(calibration_script)],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+            try:
+                subprocess_result = subprocess.run(
+                    ['python3', str(calibration_script)],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+            finally:
+                # Always restart stream if it was active, even if subprocess fails/times out
+                duration = time.time() - start_time
+                if was_streaming and camera_streamer:
+                    print("🔄 Restarting camera stream after photo calibration...")
+                    try:
+                        camera_streamer.start_streaming()
+                        print("✅ Stream restarted successfully")
+                    except Exception as restart_error:
+                        print(f"❌ Warning: Failed to restart stream: {restart_error}")
+                        traceback.print_exc()
 
-            duration = time.time() - start_time
-
-            # Restart streaming if it was active
-            if was_streaming and camera_streamer:
-                print("Restarting camera stream after photo calibration...")
-                camera_streamer.start_streaming()
-
-        # Check result
-        if result.returncode != 0:
+        # Check subprocess result
+        if subprocess_result is None:
+            # Should not happen, but handle defensive case
             return jsonify({
                 'success': False,
-                'error': 'Calibration subprocess failed',
-                'stderr': result.stderr,
-                'stdout': result.stdout
+                'error': 'Calibration subprocess did not complete'
+            }), 500
+
+        if subprocess_result.returncode != 0:
+            # Log detailed error server-side
+            print(f"❌ Calibration subprocess failed with code {subprocess_result.returncode}")
+            print(f"stderr: {subprocess_result.stderr}")
+            print(f"stdout: {subprocess_result.stdout}")
+
+            # Determine error type from stderr
+            error_msg = 'Calibration subprocess failed'
+            stderr_lower = subprocess_result.stderr.lower()
+
+            if 'filenotfounderror' in subprocess_result.stderr:
+                firmware_version = get_firmware_version()
+                error_msg = f'TakePhoto.py not found for firmware {firmware_version}.x'
+            elif 'importerror' in subprocess_result.stderr or 'modulenotfounderror' in subprocess_result.stderr:
+                error_msg = 'TakePhoto.py import failed - missing dependencies'
+            elif 'busy' in stderr_lower or 'resource' in stderr_lower:
+                error_msg = 'Camera hardware busy'
+            elif 'permission' in stderr_lower or 'denied' in stderr_lower:
+                error_msg = 'Permission denied accessing camera'
+
+            # Return sanitized error with last 500 chars of stderr for debugging
+            return jsonify({
+                'success': False,
+                'error': error_msg,
+                'details': subprocess_result.stderr[-500:] if subprocess_result.stderr else None,
+                'returncode': subprocess_result.returncode
             }), 500
 
         # Read updated settings for "after" snapshot
@@ -800,7 +840,7 @@ def calibrate_photo():
                 for row in reader:
                     after_settings[row['SETTING']] = row['VALUE']
         except Exception as e:
-            print(f"Warning: Could not read updated settings: {e}")
+            print(f"⚠️  Warning: Could not read updated settings: {e}")
 
         after_snapshot = {
             'ExposureTime': after_settings.get('ExposureTime', 'unknown'),
@@ -808,9 +848,9 @@ def calibrate_photo():
             'LensPosition': after_settings.get('LensPosition', 'unknown')
         }
 
-        print(f"Photo calibration completed in {duration:.2f}s")
-        print(f"  Before: Exp={before_snapshot['ExposureTime']}, Gain={before_snapshot['AnalogueGain']}, Lens={before_snapshot['LensPosition']}")
-        print(f"  After: Exp={after_snapshot['ExposureTime']}, Gain={after_snapshot['AnalogueGain']}, Lens={after_snapshot['LensPosition']}")
+        print(f"✅ Photo calibration completed in {duration:.2f}s")
+        print(f"   Before: Exp={before_snapshot['ExposureTime']}, Gain={before_snapshot['AnalogueGain']}, Lens={before_snapshot['LensPosition']}")
+        print(f"   After:  Exp={after_snapshot['ExposureTime']}, Gain={after_snapshot['AnalogueGain']}, Lens={after_snapshot['LensPosition']}")
 
         return jsonify({
             'success': True,
@@ -823,12 +863,26 @@ def calibrate_photo():
         })
 
     except subprocess.TimeoutExpired:
+        print(f"⏱️  Calibration subprocess timeout (>30s)")
+        # Stream should already be restarted by finally block above
         return jsonify({
             'success': False,
             'error': 'Calibration timeout (>30s)'
         }), 500
+
     except Exception as e:
-        import traceback
+        # Log full error for debugging
+        print(f"❌ Calibration error: {e}")
+        traceback.print_exc()
+
+        # Ensure stream is restarted even on unexpected errors
+        if was_streaming and camera_streamer and not operation_lock_acquired:
+            try:
+                print("🔄 Emergency stream restart after error...")
+                camera_streamer.start_streaming()
+            except Exception as restart_error:
+                print(f"❌ Failed emergency restart: {restart_error}")
+
         return jsonify({
             'success': False,
             'error': str(e),

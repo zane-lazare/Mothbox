@@ -6,10 +6,11 @@ Called by webUI /calibrate-photo endpoint via subprocess.
 Ensures TakePhoto.py owns camera exclusively without conflicts.
 
 This script:
-1. Imports TakePhoto.py's run_calibration() function
-2. Runs calibration (autofocus + exposure with flash)
-3. Updates camera_settings.csv and LastCalibration timestamp
-4. Exits cleanly for parent process to restart stream
+1. Detects firmware version (4.x or 5.x) from controls.txt
+2. Imports TakePhoto.py's run_calibration() function from correct firmware directory
+3. Runs calibration (autofocus + exposure with flash)
+4. Updates camera_settings.csv and LastCalibration timestamp
+5. Exits cleanly for parent process to restart stream
 
 Exit codes:
     0: Calibration successful
@@ -20,8 +21,22 @@ Related: Issue #45 - Camera Calibration Architecture
 import sys
 from pathlib import Path
 
-# Add TakePhoto.py directory to Python path
-TAKEPHOTO_DIR = Path(__file__).parent.parent.parent.parent / '5.x'
+# Add mothbox root to Python path to import mothbox_paths
+MOTHBOX_ROOT = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(MOTHBOX_ROOT))
+
+# Import firmware-aware path helpers
+from mothbox_paths import get_firmware_version, get_takephoto_script
+
+# Detect firmware version and get TakePhoto.py directory
+firmware_version = get_firmware_version()
+TAKEPHOTO_SCRIPT = get_takephoto_script()
+TAKEPHOTO_DIR = TAKEPHOTO_SCRIPT.parent
+
+print(f"Detected firmware version: {firmware_version}.x")
+print(f"TakePhoto.py path: {TAKEPHOTO_SCRIPT}")
+
+# Add TakePhoto.py directory to Python path for imports
 sys.path.insert(0, str(TAKEPHOTO_DIR))
 
 if __name__ == '__main__':
@@ -43,6 +58,22 @@ if __name__ == '__main__':
 
         print("Photo calibration completed successfully")
         sys.exit(0)
+
+    except FileNotFoundError as e:
+        # TakePhoto.py not found for detected firmware version
+        print(f"ERROR: {e}", file=sys.stderr)
+        print(f"Firmware version detected: {firmware_version}.x", file=sys.stderr)
+        print(f"Expected TakePhoto.py at: {TAKEPHOTO_SCRIPT}", file=sys.stderr)
+        sys.exit(1)
+
+    except ImportError as e:
+        # Failed to import TakePhoto.py or its dependencies
+        print(f"ERROR: Failed to import TakePhoto.py: {e}", file=sys.stderr)
+        print(f"Firmware directory: {TAKEPHOTO_DIR}", file=sys.stderr)
+        print("Ensure TakePhoto.py exists and has valid Python syntax", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
 
     except SystemExit as e:
         # TakePhoto.py calls restart_script() which does sys.exit()
