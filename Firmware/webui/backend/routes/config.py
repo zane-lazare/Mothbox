@@ -568,7 +568,7 @@ def update_webui_settings():
 @config_bp.route('/copy-settings', methods=['POST'])
 def copy_settings():
     """
-    Copy compatible settings between preview and capture systems (Phase 2.2)
+    Copy compatible settings between live view and capture systems (Phase 2.2)
 
     Request JSON:
         - direction: "preview_to_capture" or "capture_to_preview"
@@ -608,7 +608,7 @@ def copy_settings():
         skipped = []
 
         if direction == 'preview_to_capture':
-            # Read preview settings
+            # Read live view settings
             from mothbox_paths import get_control_values
             if not LIVEVIEW_SETTINGS_FILE.exists():
                 return jsonify({
@@ -638,10 +638,10 @@ def copy_settings():
             for preview_key, capture_key, converter in compatible_mappings:
                 if preview_key in preview_settings:
                     try:
-                        # Convert preview value to capture format
+                        # Convert live view value to capture format
                         preview_value = preview_settings[preview_key]
 
-                        # Type conversion for preview settings
+                        # Type conversion for live view settings
                         if preview_key in ['sharpness', 'brightness', 'contrast', 'saturation']:
                             preview_value = float(preview_value)
                         elif preview_key in ['af_mode', 'af_speed', 'af_range', 'awb_mode']:
@@ -674,7 +674,7 @@ def copy_settings():
                     except Exception as e:
                         skipped.append(f"{preview_key} (error: {str(e)})")
                 else:
-                    skipped.append(f"{preview_key} (not set in preview)")
+                    skipped.append(f"{preview_key} (not set in live view)")
 
             # Write updated capture settings back in row format
             with open(CAMERA_SETTINGS_FILE, 'w', newline='') as f:
@@ -697,7 +697,7 @@ def copy_settings():
                     setting_value = row['VALUE'].strip()
                     capture_settings_dict[setting_name] = setting_value
 
-            # Read current preview settings
+            # Read current live view settings
             from mothbox_paths import get_control_values
             preview_settings = {}
             if LIVEVIEW_SETTINGS_FILE.exists():
@@ -713,7 +713,7 @@ def copy_settings():
                     try:
                         capture_value = capture_settings_dict[capture_key]
 
-                        # Convert to preview type
+                        # Convert to live view type
                         if preview_key in ['sharpness', 'brightness', 'contrast', 'saturation']:
                             preview_value = float(capture_value)
                         elif preview_key in ['af_mode', 'af_speed', 'af_range', 'awb_mode']:
@@ -751,7 +751,7 @@ def copy_settings():
                 else:
                     skipped.append(f"{capture_key} (not set in capture)")
 
-            # Write updated preview settings
+            # Write updated live view settings
             with open(LIVEVIEW_SETTINGS_FILE, 'w') as f:
                 for key, value in preview_settings.items():
                     if isinstance(value, bool):
@@ -759,7 +759,7 @@ def copy_settings():
                     else:
                         f.write(f"{key}={value}\n")
 
-            print(f"Copied {len(copied)} settings to preview: {copied}")
+            print(f"Copied settings to live view: {copied}")
 
         return jsonify({
             'success': True,

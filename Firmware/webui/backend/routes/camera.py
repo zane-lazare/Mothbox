@@ -710,7 +710,7 @@ def auto_calibrate():
     Runs autofocus and auto-exposure, then updates settings.
 
     Request JSON (optional):
-        - apply_to: "preview", "capture", or "both" (default: "capture")
+        - apply_to: "liveview", "capture", or "both" (default: "capture")
 
     Returns:
         JSON with:
@@ -738,7 +738,7 @@ def auto_calibrate():
         # Parse request parameters (support both old and new format)
         request_data = request.json or {}
 
-        # New format: apply_to = 'preview' | 'capture' | 'both'
+        # New format: apply_to = 'liveview' | 'capture' | 'both'
         apply_to = request_data.get('apply_to')
 
         # Old format: update_capture=True, update_preview=True (backward compatibility)
@@ -749,14 +749,14 @@ def auto_calibrate():
             if update_capture and update_preview:
                 apply_to = 'both'
             elif update_preview:
-                apply_to = 'preview'
+                apply_to = 'liveview'
             else:
                 apply_to = 'capture'
 
-        if apply_to not in ['preview', 'capture', 'both']:
+        if apply_to not in ['liveview', 'capture', 'both']:
             return jsonify({
                 'success': False,
-                'error': "apply_to must be 'preview', 'capture', or 'both'"
+                'error': "apply_to must be 'liveview', 'capture', or 'both'"
             }), 400
 
         print(f"Auto-calibration requested via API (apply_to={apply_to})")
@@ -903,8 +903,8 @@ def auto_calibrate():
 
                     print("✓ Updated camera_settings.csv")
 
-                if apply_to in ['preview', 'both']:
-                    # Update webui_settings.txt (just focus, not exposure for preview)
+                if apply_to in ['liveview', 'both']:
+                    # Update liveview_settings.txt (just focus, not exposure for live view)
                     print("Updating webui_settings.txt...")
                     from mothbox_paths import get_control_values
 
@@ -912,9 +912,9 @@ def auto_calibrate():
                     if LIVEVIEW_SETTINGS_FILE.exists():
                         webui_settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
 
-                    # Update focus settings (exposure controlled by camera in preview)
+                    # Update focus settings (exposure controlled by camera in live view)
                     webui_settings['af_mode'] = '0'  # Manual mode
-                    # Note: We don't update exposure/gain for preview as it's handled by camera auto-exposure
+                    # Note: We don't update exposure/gain for live view as it's handled by camera auto-exposure
 
                     # Write back
                     with open(LIVEVIEW_SETTINGS_FILE, 'w') as f:

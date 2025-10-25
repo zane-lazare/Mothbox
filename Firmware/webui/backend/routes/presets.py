@@ -96,7 +96,7 @@ def create_preset():
             "from_current": true,  // If true, read current settings
             "settings": {  // Optional if from_current=true
                 "camera": {...},
-                "preview": {...}
+                "liveview": {...}
             }
         }
 
@@ -119,9 +119,9 @@ def create_preset():
 
         # Get settings
         if from_current:
-            # Read current camera and preview settings
+            # Read current camera and live view settings
             camera_settings = {}
-            preview_settings = {}
+            liveview_settings = {}
 
             # Read camera_settings.csv
             if CAMERA_SETTINGS_FILE.exists():
@@ -134,11 +134,11 @@ def create_preset():
 
             # Read liveview_settings.txt
             if LIVEVIEW_SETTINGS_FILE.exists():
-                preview_settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
+                liveview_settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
 
             settings = {
                 'camera': camera_settings,
-                'preview': preview_settings
+                'liveview': liveview_settings
             }
         else:
             settings = data.get('settings', {})
@@ -164,7 +164,7 @@ def create_preset():
 @presets_bp.route('/<name>/apply', methods=['POST'])
 def apply_preset(name):
     """
-    Apply preset to camera/preview/both settings
+    Apply preset to camera/liveview/both settings
 
     Request JSON:
         {
@@ -178,8 +178,8 @@ def apply_preset(name):
         data = request.json or {}
         apply_to = data.get('apply_to', 'capture')
 
-        if apply_to not in ['capture', 'preview', 'both']:
-            return jsonify({'error': 'apply_to must be "capture", "preview", or "both"'}), 400
+        if apply_to not in ["capture", "liveview", "both"]:
+            return jsonify({'error': 'apply_to must be "capture", "liveview", or "both"'}), 400
 
         # Load preset
         preset_data = preset_manager.get_preset(name)
@@ -193,7 +193,7 @@ def apply_preset(name):
             return jsonify({'error': 'Preset has no settings'}), 400
 
         camera_settings = settings.get('camera', {})
-        preview_settings = settings.get('preview', {})
+        liveview_settings = settings.get('liveview', {})
 
         applied = []
 
@@ -242,21 +242,21 @@ def apply_preset(name):
             applied.append('capture')
 
         # Apply to live view settings (liveview_settings.txt)
-        if apply_to in ['preview', 'both'] and preview_settings:
+        if apply_to in ['liveview', 'both'] and liveview_settings:
             # Read current liveview_settings.txt
-            current_preview = {}
+            current_liveview = {}
             if LIVEVIEW_SETTINGS_FILE.exists():
-                current_preview = get_control_values(LIVEVIEW_SETTINGS_FILE)
+                current_liveview = get_control_values(LIVEVIEW_SETTINGS_FILE)
 
             # Update with preset values
-            current_preview.update(preview_settings)
+            current_liveview.update(liveview_settings)
 
             # Write back to liveview_settings.txt
             with open(LIVEVIEW_SETTINGS_FILE, 'w') as f:
-                for key, value in current_preview.items():
+                for key, value in current_liveview.items():
                     f.write(f"{key}={value}\n")
 
-            applied.append('preview')
+            applied.append('liveview')
 
         # Build response message
         if not applied:
