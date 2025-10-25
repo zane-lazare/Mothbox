@@ -934,6 +934,22 @@ update_controls_atomic() {
     ) 200>"$lockfile"
 }
 
+# Helper function to update or add a config line in controls.txt
+# Usage: update_or_add_config "key" "value" "$CONTROLS_FILE"
+update_or_add_config() {
+    local key="$1"
+    local value="$2"
+    local file="$3"
+
+    if grep -q "^${key}=" "$file" 2>/dev/null; then
+        # Update existing line
+        sudo sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+    else
+        # Add new line
+        echo "${key}=${value}" | sudo tee -a "$file" > /dev/null
+    fi
+}
+
 # Write GPIO configuration to controls.txt
 echo -e "${BLUE}Configuring GPIO pins...${NC}"
 
@@ -998,58 +1014,34 @@ fi
 
 # Write hardware module configuration
 echo -e "${BLUE}Configuring hardware modules...${NC}"
-if ! grep -q "^relay_enabled=" "$CONTROLS_FILE" 2>/dev/null; then
-    update_controls_atomic sh -c "
-        echo 'relay_enabled=$RELAY_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'ina260_enabled=$INA260_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'ina260_address=$INA260_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'epaper_enabled=$EPAPER_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'epaper_rst_pin=$EPAPER_RST' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'epaper_dc_pin=$EPAPER_DC' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'epaper_cs_pin=$EPAPER_CS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'epaper_busy_pin=$EPAPER_BUSY' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'epaper_pwr_pin=$EPAPER_PWR' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'gps_enabled=$GPS_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'gps_device=$GPS_DEVICE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'gps_baudrate=$GPS_BAUDRATE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'gps_timeout=$GPS_TIMEOUT' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'light_sensor_enabled=$LIGHT_SENSOR_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'light_sensor_type=$LIGHT_SENSOR_TYPE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'light_sensor_address=$LIGHT_SENSOR_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'pca9536_enabled=$PCA9536_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'pca9536_address=$PCA9536_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'mux_enabled=$MUX_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'mux_type=$MUX_TYPE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'mux_address=$MUX_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-    "
-    echo -e "${GREEN}✓ Hardware module configuration written to controls.txt${NC}"
-else
-    # Update existing hardware configuration with file locking
-    update_controls_atomic sh -c "
-        sudo sed -i 's/^relay_enabled=.*/relay_enabled=$RELAY_ENABLED/' '$CONTROLS_FILE'
-        sudo sed -i 's/^ina260_enabled=.*/ina260_enabled=$INA260_ENABLED/' '$CONTROLS_FILE'
-        sudo sed -i 's/^ina260_address=.*/ina260_address=$INA260_ADDRESS/' '$CONTROLS_FILE'
-        sudo sed -i 's/^epaper_enabled=.*/epaper_enabled=$EPAPER_ENABLED/' '$CONTROLS_FILE'
-        sudo sed -i 's/^epaper_rst_pin=.*/epaper_rst_pin=$EPAPER_RST/' '$CONTROLS_FILE'
-        sudo sed -i 's/^epaper_dc_pin=.*/epaper_dc_pin=$EPAPER_DC/' '$CONTROLS_FILE'
-        sudo sed -i 's/^epaper_cs_pin=.*/epaper_cs_pin=$EPAPER_CS/' '$CONTROLS_FILE'
-        sudo sed -i 's/^epaper_busy_pin=.*/epaper_busy_pin=$EPAPER_BUSY/' '$CONTROLS_FILE'
-        sudo sed -i 's/^epaper_pwr_pin=.*/epaper_pwr_pin=$EPAPER_PWR/' '$CONTROLS_FILE'
-        sudo sed -i 's/^gps_enabled=.*/gps_enabled=$GPS_ENABLED/' '$CONTROLS_FILE'
-        sudo sed -i 's|^gps_device=.*|gps_device=$GPS_DEVICE|' '$CONTROLS_FILE'
-        sudo sed -i 's/^gps_baudrate=.*/gps_baudrate=$GPS_BAUDRATE/' '$CONTROLS_FILE'
-        sudo sed -i 's/^gps_timeout=.*/gps_timeout=$GPS_TIMEOUT/' '$CONTROLS_FILE'
-        sudo sed -i 's/^light_sensor_enabled=.*/light_sensor_enabled=$LIGHT_SENSOR_ENABLED/' '$CONTROLS_FILE'
-        sudo sed -i 's/^light_sensor_type=.*/light_sensor_type=$LIGHT_SENSOR_TYPE/' '$CONTROLS_FILE'
-        sudo sed -i 's/^light_sensor_address=.*/light_sensor_address=$LIGHT_SENSOR_ADDRESS/' '$CONTROLS_FILE'
-        sudo sed -i 's/^pca9536_enabled=.*/pca9536_enabled=$PCA9536_ENABLED/' '$CONTROLS_FILE'
-        sudo sed -i 's/^pca9536_address=.*/pca9536_address=$PCA9536_ADDRESS/' '$CONTROLS_FILE'
-        sudo sed -i 's/^mux_enabled=.*/mux_enabled=$MUX_ENABLED/' '$CONTROLS_FILE'
-        sudo sed -i 's/^mux_type=.*/mux_type=$MUX_TYPE/' '$CONTROLS_FILE'
-        sudo sed -i 's/^mux_address=.*/mux_address=$MUX_ADDRESS/' '$CONTROLS_FILE'
-    "
-    echo -e "${GREEN}✓ Hardware module configuration updated in controls.txt${NC}"
-fi
+
+# Use update_or_add_config to handle both new installations and updates
+# This ensures GPS config is added even to existing installations
+update_controls_atomic sh -c "
+    update_or_add_config 'relay_enabled' '$RELAY_ENABLED' '$CONTROLS_FILE'
+    update_or_add_config 'ina260_enabled' '$INA260_ENABLED' '$CONTROLS_FILE'
+    update_or_add_config 'ina260_address' '$INA260_ADDRESS' '$CONTROLS_FILE'
+    update_or_add_config 'epaper_enabled' '$EPAPER_ENABLED' '$CONTROLS_FILE'
+    update_or_add_config 'epaper_rst_pin' '$EPAPER_RST' '$CONTROLS_FILE'
+    update_or_add_config 'epaper_dc_pin' '$EPAPER_DC' '$CONTROLS_FILE'
+    update_or_add_config 'epaper_cs_pin' '$EPAPER_CS' '$CONTROLS_FILE'
+    update_or_add_config 'epaper_busy_pin' '$EPAPER_BUSY' '$CONTROLS_FILE'
+    update_or_add_config 'epaper_pwr_pin' '$EPAPER_PWR' '$CONTROLS_FILE'
+    update_or_add_config 'gps_enabled' '$GPS_ENABLED' '$CONTROLS_FILE'
+    update_or_add_config 'gps_device' '$GPS_DEVICE' '$CONTROLS_FILE'
+    update_or_add_config 'gps_baudrate' '$GPS_BAUDRATE' '$CONTROLS_FILE'
+    update_or_add_config 'gps_timeout' '$GPS_TIMEOUT' '$CONTROLS_FILE'
+    update_or_add_config 'light_sensor_enabled' '$LIGHT_SENSOR_ENABLED' '$CONTROLS_FILE'
+    update_or_add_config 'light_sensor_type' '$LIGHT_SENSOR_TYPE' '$CONTROLS_FILE'
+    update_or_add_config 'light_sensor_address' '$LIGHT_SENSOR_ADDRESS' '$CONTROLS_FILE'
+    update_or_add_config 'pca9536_enabled' '$PCA9536_ENABLED' '$CONTROLS_FILE'
+    update_or_add_config 'pca9536_address' '$PCA9536_ADDRESS' '$CONTROLS_FILE'
+    update_or_add_config 'mux_enabled' '$MUX_ENABLED' '$CONTROLS_FILE'
+    update_or_add_config 'mux_type' '$MUX_TYPE' '$CONTROLS_FILE'
+    update_or_add_config 'mux_address' '$MUX_ADDRESS' '$CONTROLS_FILE'
+"
+
+echo -e "${GREEN}✓ Hardware module configuration written/updated in controls.txt${NC}"
 echo ""
 
 # Set execute permissions on Python scripts
