@@ -95,26 +95,29 @@ export default function GPSSettings() {
       : parseInt(stateInfo.time.replace(/[^0-9]/g, '')) || 60
 
     // Show initial progress toast
-    const toastId = toast.loading(
+    let toastId = toast.loading(
       `🛰️ Acquiring GPS fix... (0s elapsed)\n` +
       `Expected: ${stateInfo.description}\n` +
       `Est. time: ${stateInfo.time}`,
       { duration: Infinity }
     )
 
-    // Update toast every 10 seconds with elapsed time
+    // Recreate toast every 30 seconds to reset React Hot Toast's internal duration timer
+    // (React Hot Toast auto-dismisses after ~60s even with duration:Infinity)
     const startTime = Date.now()
     const progressInterval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTime) / 1000)
       const remaining = Math.max(0, expectedSeconds - elapsed)
 
-      toast.loading(
+      // Dismiss old toast and create new one to reset duration timer
+      toast.dismiss(toastId)
+      toastId = toast.loading(
         `🛰️ Acquiring GPS fix... (${elapsed}s elapsed)\n` +
         `Expected: ${stateInfo.description}\n` +
         `Est. remaining: ~${remaining}s`,
-        { id: toastId }  // Update existing toast instead of creating new one
+        { duration: Infinity }
       )
-    }, 10000)
+    }, 30000)  // Every 30 seconds (well under React Hot Toast's ~60s limit)
 
     try {
       const result = await syncGPS()
