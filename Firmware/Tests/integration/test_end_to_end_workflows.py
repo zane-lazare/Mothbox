@@ -56,7 +56,7 @@ class TestWorkflow1_AdjustPreviewTestCaptureCopyVerify:
 
         # Step 2: Take test capture to see results
         print("\n📸 Step 2: Take test capture...")
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code != 200:
             print("   ⚠ Camera busy, skipping workflow")
@@ -104,7 +104,7 @@ class TestWorkflow1_AdjustPreviewTestCaptureCopyVerify:
         client.post('/api/config/webui', json={'sharpness': 1.8})
 
         # First test capture
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
         if response.status_code != 200:
             print("⚠ Camera busy, skipping")
             return
@@ -116,7 +116,7 @@ class TestWorkflow1_AdjustPreviewTestCaptureCopyVerify:
         client.post('/api/config/webui', json={'sharpness': 2.2})
 
         # Second test capture
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
         if response.status_code == 200:
             print("   ✓ Test capture 2 complete")
 
@@ -186,7 +186,7 @@ class TestWorkflow2_AutofocusCalibrateVerify:
 
         # Step 3: Take test capture to verify
         print("\n📸 Step 3: Test capture to verify...")
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -350,7 +350,7 @@ class TestWorkflow4_FullOptimization:
 
         # Step 4: Test capture
         print("\n📸 Step 4: Test capture...")
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code != 200:
             print("   ⚠ Test capture failed")
@@ -417,7 +417,7 @@ class TestMultiStepErrorRecovery:
 
             # Should still be able to use existing settings
             print("\n📸 Continue with existing settings...")
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
 
             if response.status_code == 200:
                 print("   ✓ Recovered: Test capture successful")
@@ -435,7 +435,7 @@ class TestMultiStepErrorRecovery:
         client.post('/api/config/webui', json={'sharpness': 2.5})
 
         # Attempt test capture
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code != 200:
             print("   ⚠ Test capture failed (expected)")
@@ -459,7 +459,7 @@ class TestMultiStepErrorRecovery:
         operations = [
             ('Autofocus', lambda: client.post('/api/camera/autofocus')),
             ('Calibration', lambda: client.post('/api/camera/calibrate', json={'apply_to': 'preview'})),
-            ('Test capture', lambda: client.post('/api/camera/test-capture')),
+            ('Test capture', lambda: client.post('/api/camera/test-capture-liveview')),
             ('Copy settings', lambda: client.post('/api/config/copy-settings', json={'direction': 'preview_to_capture'}))
         ]
 
@@ -588,7 +588,7 @@ class TestNewUserOnboarding:
 
         # Step 3: Test preview
         print("\n📸 Step 3: First test capture...")
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()

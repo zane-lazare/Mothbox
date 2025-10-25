@@ -107,7 +107,7 @@ class TestCameraPageIntegration:
         print("\n📸 Testing test capture button integration...")
 
         # Simulate user clicking "Test Capture" button
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         assert response.status_code in [200, 500]
 
@@ -232,7 +232,7 @@ class TestEndToEndWorkflow:
 
         # Step 2: User clicks "Test Capture" to see results
         print("   Step 2: Test capture...")
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -366,8 +366,8 @@ class TestFrontendErrorStates:
         print("\n⚠️  Testing concurrent operation error...")
 
         # Try test capture twice rapidly
-        response1 = client.post('/api/camera/test-capture')
-        response2 = client.post('/api/camera/test-capture')
+        response1 = client.post('/api/camera/test-capture-liveview')
+        response2 = client.post('/api/camera/test-capture-liveview')
 
         # At least one should complete or both should error appropriately
         statuses = [response1.status_code, response2.status_code]
@@ -517,14 +517,14 @@ class TestFrontendButtonStates:
         print("\n🔘 Testing button state after error...")
 
         # Trigger operation that may error
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         # Regardless of success/failure, should return proper status
         assert response.status_code in [200, 500, 503]
 
         # Should be able to try again
         time.sleep(0.5)
-        response2 = client.post('/api/camera/test-capture')
+        response2 = client.post('/api/camera/test-capture-liveview')
 
         assert response2.status_code in [200, 500, 503]
 
@@ -593,7 +593,7 @@ class TestMultiTabWorkflow:
         assert response.status_code == 200
 
         # Step 2: Navigate to Camera page and take test capture
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -610,7 +610,7 @@ class TestMultiTabWorkflow:
         print("\n🔄 Testing Camera → Settings workflow...")
 
         # Step 1: Take test capture on Camera page
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code != 200:
             print("   ⚠ Camera unavailable")

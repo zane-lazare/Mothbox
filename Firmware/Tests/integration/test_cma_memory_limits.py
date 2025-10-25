@@ -42,7 +42,7 @@ class TestCMAMemoryLimits:
 
         # Capture 4K test photo
         start = time.time()
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
         elapsed = time.time() - start
 
         print(f"\n   Capture completed in {elapsed:.2f}s")
@@ -88,7 +88,7 @@ class TestCMAMemoryLimits:
             except Exception:
                 pass
 
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
 
             if response.status_code == 200:
                 data = response.get_json()
@@ -211,7 +211,7 @@ class TestCMAMemoryLimits:
 
         # Step 3: Test capture
         print("\n   Step 3: Test capture...")
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()

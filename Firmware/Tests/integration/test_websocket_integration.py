@@ -275,7 +275,7 @@ class TestControlUpdatesDuringStreaming:
                 return
 
             # Update sharpness
-            client.emit('update_preview_control', {'Sharpness': 2.5})
+            client.emit('update_liveview_control', {'Sharpness': 2.5})
             time.sleep(0.2)
 
             # Check response
@@ -316,7 +316,7 @@ class TestControlUpdatesDuringStreaming:
             ]
 
             for control in controls:
-                client.emit('update_preview_control', control)
+                client.emit('update_liveview_control', control)
                 time.sleep(0.1)
 
             # Give time for processing
@@ -552,7 +552,7 @@ class TestWebSocketErrorPropagation:
             camera_streamer = app.config['CAMERA_STREAMER']
             camera_streamer.stop_streaming()
 
-            client.emit('update_preview_control', {'Sharpness': 2.0})
+            client.emit('update_liveview_control', {'Sharpness': 2.0})
             time.sleep(0.2)
 
             received = client.get_received()
@@ -599,7 +599,7 @@ class TestConcurrentOperations:
 
             def update_controls():
                 for value in [1.5, 2.0, 2.5]:
-                    client.emit('update_preview_control', {'Sharpness': value})
+                    client.emit('update_liveview_control', {'Sharpness': value})
                     time.sleep(0.3)
 
             # Run concurrently

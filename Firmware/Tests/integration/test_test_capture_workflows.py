@@ -19,7 +19,7 @@ import json
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
-from mothbox_paths import PHOTOS_DIR, WEBUI_SETTINGS_FILE, CAMERA_SETTINGS_FILE
+from mothbox_paths import PHOTOS_DIR, LIVEVIEW_SETTINGS_FILE, CAMERA_SETTINGS_FILE
 
 
 @pytest.mark.photo
@@ -37,7 +37,7 @@ class TestTestCaptureWithVariousSettings:
         assert response.status_code == 200
 
         # Take test capture
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -60,7 +60,7 @@ class TestTestCaptureWithVariousSettings:
         assert response.status_code == 200
 
         # Take test capture
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -85,7 +85,7 @@ class TestTestCaptureWithVariousSettings:
         assert response.status_code == 200
 
         # Take test capture
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -115,7 +115,7 @@ class TestTestCaptureWithVariousSettings:
         assert response.status_code == 200
 
         # Take test capture
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -142,7 +142,7 @@ class TestTestCaptureWithVariousSettings:
         assert response.status_code == 200
 
         # Take test capture
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -163,7 +163,7 @@ class TestTestCaptureDirectoryManagement:
     def test_test_captures_directory_exists(self, client):
         """Test test_captures directory is created"""
         # Take test capture
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             # Verify directory exists
@@ -185,7 +185,7 @@ class TestTestCaptureDirectoryManagement:
         # Take 3 test captures
         successful_captures = 0
         for i in range(3):
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
             if response.status_code == 200:
                 successful_captures += 1
                 time.sleep(0.5)  # Brief delay between captures
@@ -201,7 +201,7 @@ class TestTestCaptureDirectoryManagement:
 
     def test_capture_filename_format(self, client):
         """Test test capture filenames follow expected format"""
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -223,7 +223,7 @@ class TestFullResolutionValidation:
 
     def test_capture_resolution_64mp(self, client):
         """Test test capture is 64MP full resolution"""
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -245,7 +245,7 @@ class TestFullResolutionValidation:
 
     def test_capture_file_size(self, client):
         """Test test capture file size is reasonable for 64MP"""
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -267,7 +267,7 @@ class TestMetadataAccuracy:
 
     def test_metadata_exposure_time(self, client):
         """Test exposure time metadata is accurate"""
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -282,7 +282,7 @@ class TestMetadataAccuracy:
 
     def test_metadata_gain(self, client):
         """Test analogue gain metadata is accurate"""
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -297,7 +297,7 @@ class TestMetadataAccuracy:
 
     def test_metadata_lens_position(self, client):
         """Test lens position metadata is accurate"""
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -312,7 +312,7 @@ class TestMetadataAccuracy:
 
     def test_metadata_colour_temperature(self, client):
         """Test colour temperature metadata is accurate"""
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -327,7 +327,7 @@ class TestMetadataAccuracy:
 
     def test_metadata_completeness(self, client):
         """Test all required metadata fields present"""
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -364,7 +364,7 @@ class TestStreamReleaseAndRestart:
         assert camera_streamer.streaming == True
 
         # Take test capture (should release stream)
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             # Stream should be restarted after capture
@@ -390,7 +390,7 @@ class TestStreamReleaseAndRestart:
         was_streaming = camera_streamer.streaming
 
         # Take test capture
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             # Give time for restart
@@ -420,7 +420,7 @@ class TestProductionIsolation:
             original_content = None
 
         # Take test capture
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             time.sleep(0.2)
@@ -449,7 +449,7 @@ class TestProductionIsolation:
         assert response.status_code == 200
 
         # Take test capture
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             data = response.get_json()
@@ -471,7 +471,7 @@ class TestConcurrentTestCaptures:
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         def capture():
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
             return response.status_code
 
         # Try 2 concurrent captures
@@ -489,7 +489,7 @@ class TestConcurrentTestCaptures:
         successful = 0
 
         for i in range(3):
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
             if response.status_code == 200:
                 successful += 1
             time.sleep(0.5)  # Brief delay
@@ -512,7 +512,7 @@ class TestCameraUnavailable:
 
         try:
             # Try test capture while streaming
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
 
             # Should either:
             # 1. Succeed by releasing/re-acquiring camera
@@ -532,7 +532,7 @@ class TestCameraUnavailable:
         responses = []
 
         for _ in range(5):
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
             responses.append(response.status_code)
             time.sleep(0.1)
 
@@ -550,7 +550,7 @@ class TestTestCaptureCleanup:
     def test_temp_files_removed(self, client):
         """Test no temporary files left after capture"""
         # Take test capture
-        response = client.post('/api/camera/test-capture')
+        response = client.post('/api/camera/test-capture-liveview')
 
         if response.status_code == 200:
             # Check for temp files in test_captures directory
@@ -569,7 +569,7 @@ class TestTestCaptureCleanup:
         """Test cleanup occurs even after capture error"""
         # Attempt capture multiple times (may cause errors)
         for _ in range(3):
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
             time.sleep(0.2)
 
         # Check no hung resources

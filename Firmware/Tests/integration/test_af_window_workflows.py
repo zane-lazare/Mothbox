@@ -288,12 +288,12 @@ class TestAfWindowWebSocketIntegration:
 
         # Start preview via WebSocket (like user clicking "Start Preview")
         print("   Starting preview via WebSocket...")
-        client.emit('start_preview')
+        client.emit('start_liveview')
         time.sleep(2)  # Allow camera to initialize
 
         # Verify preview started
         received = client.get_received()
-        preview_msgs = [r for r in received if r['name'] == 'preview_status']
+        preview_msgs = [r for r in received if r['name'] == 'liveview_status']
         assert len(preview_msgs) > 0, "Should receive preview_status event"
         assert preview_msgs[0]['args'][0]['streaming'] is True, "Preview should be streaming"
         print("   ✓ Preview started successfully")
@@ -318,7 +318,7 @@ class TestAfWindowWebSocketIntegration:
         print(f"   ✓ Received: {response['message']}")
 
         # Cleanup - stop preview
-        client.emit('stop_preview')
+        client.emit('stop_liveview')
         time.sleep(0.5)
         client.disconnect()
 
@@ -333,7 +333,7 @@ class TestAfWindowWebSocketIntegration:
         assert client.is_connected()
 
         print("   Starting preview via WebSocket...")
-        client.emit('start_preview')
+        client.emit('start_liveview')
         time.sleep(2)
         client.get_received()  # Clear buffer
         print("   ✓ Preview started successfully")
@@ -363,7 +363,7 @@ class TestAfWindowWebSocketIntegration:
         print(f"   ✓ Received: {response['message']}")
 
         # Cleanup
-        client.emit('stop_preview')
+        client.emit('stop_liveview')
         time.sleep(0.5)
         client.disconnect()
 
@@ -409,7 +409,7 @@ class TestAfWindowWebSocketIntegration:
         assert client.is_connected()
 
         print("   Starting preview via WebSocket...")
-        client.emit('start_preview')
+        client.emit('start_liveview')
         time.sleep(2)
         client.get_received()  # Clear buffer
         print("   ✓ Preview started successfully")
@@ -427,7 +427,7 @@ class TestAfWindowWebSocketIntegration:
             print(f"   ✓ Invalid data type rejected: {response['error']}")
 
         # Cleanup
-        client.emit('stop_preview')
+        client.emit('stop_liveview')
         time.sleep(0.5)
         client.disconnect()
 

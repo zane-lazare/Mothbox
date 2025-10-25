@@ -46,7 +46,7 @@ class TestNoiseReductionSettingsUpdate:
             print("\n✓ WebSocket connected")
 
             # Send update for noise reduction mode
-            sio.emit('update_preview_control', {
+            sio.emit('update_liveview_control', {
                 'NoiseReductionMode': 2
             })
 

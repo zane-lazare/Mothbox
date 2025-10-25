@@ -192,7 +192,7 @@ class TestCameraStateTheory:
         start_time = time.time()
 
         try:
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
             elapsed = time.time() - start_time
 
             print(f"   Status: {response.status_code}")
@@ -272,7 +272,7 @@ class TestCameraStateTheory:
         start_time = time.time()
 
         try:
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
             elapsed = time.time() - start_time
 
             print(f"   Status: {response.status_code} (took {elapsed:.3f}s)")
