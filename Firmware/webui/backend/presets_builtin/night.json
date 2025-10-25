@@ -29,7 +29,7 @@
       "ImageFileType": 0,
       "VerticalFlip": 0
     },
-    "preview": {
+    "liveview": {
       "stream_width": 1024,
       "stream_height": 768,
       "frame_rate": 10,
