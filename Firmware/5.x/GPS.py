@@ -130,6 +130,9 @@ def update_gps_values(filepath, lat=None, lon=None, gpstime=None, utc_offset=Non
 
 print("startingGPS")
 got_gps_fix = False
+UTCtime = None
+latitude = None
+longitude = None
 
 try:
     while time.time() - start_time < timeout:
