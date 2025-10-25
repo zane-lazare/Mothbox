@@ -70,7 +70,7 @@ if _installation_type == "production":
     # FHS-compliant paths
     CONFIG_DIR = Path("/etc/mothbox")
     DATA_DIR = Path("/var/lib/mothbox")
-    FIRMWARE_DIR = MOTHBOX_HOME / "firmware"
+    FIRMWARE_DIR = MOTHBOX_HOME
 else:
     # Legacy or custom: everything under MOTHBOX_HOME
     CONFIG_DIR = MOTHBOX_HOME
