@@ -91,7 +91,7 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, def
               Save Current Settings as Preset
             </h3>
             <p className="mt-1 text-sm text-gray-600">
-              Create a reusable preset from your current camera and preview settings
+              Create a reusable preset from your current camera and live view settings
             </p>
           </div>
 
@@ -165,14 +165,14 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, def
                   <input
                     type="radio"
                     name="workflow"
-                    value="video"
-                    checked={workflow === 'video'}
-                    onChange={(e) => setWorkflow(e.target.value)}
+                    value="liveview"
+                    checked={workflow === 'liveview' || workflow === 'video'}
+                    onChange={(e) => setWorkflow('liveview')}
                     disabled={isSaving}
                     className="w-4 h-4 text-green-600 focus:ring-green-500 disabled:opacity-50"
                   />
                   <span className="ml-2 text-sm text-gray-700">
-                    🎥 <strong>Video</strong> (Stream only)
+                    🎥 <strong>Live View</strong> (Stream only)
                   </span>
                 </label>
                 <label className="flex items-center">
@@ -186,7 +186,7 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, def
                     className="w-4 h-4 text-purple-600 focus:ring-purple-500 disabled:opacity-50"
                   />
                   <span className="ml-2 text-sm text-gray-700">
-                    🔄 <strong>Both</strong> (Photo & Video)
+                    🔄 <strong>Both</strong> (Photo & Live View)
                   </span>
                 </label>
               </div>
@@ -226,7 +226,7 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, def
           {/* Info */}
           <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-xs text-blue-800">
-              <span className="font-semibold">ℹ️ Note:</span> This will capture all current camera and preview settings.
+              <span className="font-semibold">ℹ️ Note:</span> This will capture all current camera and live view settings.
               You can apply this preset later to quickly switch between configurations.
             </p>
           </div>
