@@ -14,7 +14,7 @@ from mothbox_paths import (
     CAMERA_SETTINGS_FILE,
     SCHEDULE_SETTINGS_FILE,
     CONTROLS_FILE,
-    WEBUI_SETTINGS_FILE,
+    LIVEVIEW_SETTINGS_FILE,
     get_control_values
 )
 
@@ -269,8 +269,8 @@ def get_webui_settings():
         }
 
         # Load from file if it exists
-        if WEBUI_SETTINGS_FILE.exists():
-            settings = get_control_values(WEBUI_SETTINGS_FILE)
+        if LIVEVIEW_SETTINGS_FILE.exists():
+            settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
             # Load settings from file, converting to appropriate types
             for key in defaults:
                 if key in settings:
@@ -313,8 +313,8 @@ def update_webui_settings():
 
         # Load existing settings to merge with updates (preserves unmodified values)
         existing = {}
-        if WEBUI_SETTINGS_FILE.exists():
-            existing = get_control_values(WEBUI_SETTINGS_FILE)
+        if LIVEVIEW_SETTINGS_FILE.exists():
+            existing = get_control_values(LIVEVIEW_SETTINGS_FILE)
 
         # Validate and convert types - Stream/encoding settings
         try:
@@ -502,10 +502,10 @@ def update_webui_settings():
             return jsonify({'error': 'focus_peaking_algorithm must be laplacian, sobel, or canny'}), 400
 
         # Create backup before modification
-        backup_path = _create_backup(WEBUI_SETTINGS_FILE)
+        backup_path = _create_backup(LIVEVIEW_SETTINGS_FILE)
 
         # Write settings to file (Phase 2.1: expanded settings)
-        with open(WEBUI_SETTINGS_FILE, 'w') as f:
+        with open(LIVEVIEW_SETTINGS_FILE, 'w') as f:
             # Stream/encoding settings
             f.write(f"stream_width={stream_width}\n")
             f.write(f"stream_height={stream_height}\n")
@@ -558,7 +558,7 @@ def update_webui_settings():
         # Restore backup if write failed
         if backup_path and backup_path.exists():
             try:
-                shutil.copy2(backup_path, WEBUI_SETTINGS_FILE)
+                shutil.copy2(backup_path, LIVEVIEW_SETTINGS_FILE)
                 print(f"Restored backup from {backup_path} after error")
             except Exception as restore_error:
                 print(f"Failed to restore backup: {restore_error}")
@@ -610,13 +610,13 @@ def copy_settings():
         if direction == 'preview_to_capture':
             # Read preview settings
             from mothbox_paths import get_control_values
-            if not WEBUI_SETTINGS_FILE.exists():
+            if not LIVEVIEW_SETTINGS_FILE.exists():
                 return jsonify({
                     'success': False,
                     'error': 'webui_settings.txt not found'
                 }), 404
 
-            preview_settings = get_control_values(WEBUI_SETTINGS_FILE)
+            preview_settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
 
             # Read current capture settings (row-based CSV format)
             # Format: SETTING,VALUE,DETAILS
@@ -700,8 +700,8 @@ def copy_settings():
             # Read current preview settings
             from mothbox_paths import get_control_values
             preview_settings = {}
-            if WEBUI_SETTINGS_FILE.exists():
-                preview_settings = get_control_values(WEBUI_SETTINGS_FILE)
+            if LIVEVIEW_SETTINGS_FILE.exists():
+                preview_settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
             else:
                 # Start with defaults from get_webui_settings
                 response = get_webui_settings()
@@ -752,7 +752,7 @@ def copy_settings():
                     skipped.append(f"{capture_key} (not set in capture)")
 
             # Write updated preview settings
-            with open(WEBUI_SETTINGS_FILE, 'w') as f:
+            with open(LIVEVIEW_SETTINGS_FILE, 'w') as f:
                 for key, value in preview_settings.items():
                     if isinstance(value, bool):
                         f.write(f"{key}={'true' if value else 'false'}\n")

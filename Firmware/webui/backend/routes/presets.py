@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import mothbox_import  # Sets up sys.path for mothbox
 
-from mothbox_paths import CAMERA_SETTINGS_FILE, WEBUI_SETTINGS_FILE, get_control_values, BUILTIN_PRESET_DIR, USER_PRESET_DIR
+from mothbox_paths import CAMERA_SETTINGS_FILE, LIVEVIEW_SETTINGS_FILE, get_control_values, BUILTIN_PRESET_DIR, USER_PRESET_DIR
 from preset_manager import PresetManager
 
 # Import validation from existing routes
@@ -132,9 +132,9 @@ def create_preset():
                         value = row['VALUE']
                         camera_settings[setting] = value
 
-            # Read webui_settings.txt
-            if WEBUI_SETTINGS_FILE.exists():
-                preview_settings = get_control_values(WEBUI_SETTINGS_FILE)
+            # Read liveview_settings.txt
+            if LIVEVIEW_SETTINGS_FILE.exists():
+                preview_settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
 
             settings = {
                 'camera': camera_settings,
@@ -241,18 +241,18 @@ def apply_preset(name):
 
             applied.append('capture')
 
-        # Apply to preview settings (webui_settings.txt)
+        # Apply to live view settings (liveview_settings.txt)
         if apply_to in ['preview', 'both'] and preview_settings:
-            # Read current webui_settings.txt
+            # Read current liveview_settings.txt
             current_preview = {}
-            if WEBUI_SETTINGS_FILE.exists():
-                current_preview = get_control_values(WEBUI_SETTINGS_FILE)
+            if LIVEVIEW_SETTINGS_FILE.exists():
+                current_preview = get_control_values(LIVEVIEW_SETTINGS_FILE)
 
             # Update with preset values
             current_preview.update(preview_settings)
 
-            # Write back to webui_settings.txt
-            with open(WEBUI_SETTINGS_FILE, 'w') as f:
+            # Write back to liveview_settings.txt
+            with open(LIVEVIEW_SETTINGS_FILE, 'w') as f:
                 for key, value in current_preview.items():
                     f.write(f"{key}={value}\n")
 

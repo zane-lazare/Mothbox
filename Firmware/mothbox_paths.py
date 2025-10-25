@@ -81,11 +81,12 @@ else:
 PHOTOS_DIR = DATA_DIR / "photos"
 
 # Configuration files
-CAMERA_SETTINGS_FILE = CONFIG_DIR / "camera_settings.csv"
+CAMERA_SETTINGS_FILE = CONFIG_DIR / "camera_settings.csv"  # Photo capture settings
 SCHEDULE_SETTINGS_FILE = CONFIG_DIR / "schedule_settings.csv"
 CONTROLS_FILE = CONFIG_DIR / "controls.txt"
 WORDLIST_FILE = CONFIG_DIR / "wordlist.csv"
-WEBUI_SETTINGS_FILE = CONFIG_DIR / "webui_settings.txt"
+LIVEVIEW_SETTINGS_FILE = CONFIG_DIR / "liveview_settings.txt"  # Live view stream settings
+WEBUI_SETTINGS_FILE = LIVEVIEW_SETTINGS_FILE  # Deprecated: Use LIVEVIEW_SETTINGS_FILE
 USER_PREFERENCES_FILE = CONFIG_DIR / "user_preferences.json"
 
 # ISP tuning configuration

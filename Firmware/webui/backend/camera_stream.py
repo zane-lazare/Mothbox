@@ -139,8 +139,8 @@ class CameraStreamer:
         self.focus_peaking_algorithm = 'laplacian'  # laplacian, sobel, canny
 
         try:
-            if mothbox_paths.WEBUI_SETTINGS_FILE.exists():
-                settings = get_control_values(mothbox_paths.WEBUI_SETTINGS_FILE)
+            if mothbox_paths.LIVEVIEW_SETTINGS_FILE.exists():
+                settings = get_control_values(mothbox_paths.LIVEVIEW_SETTINGS_FILE)
 
                 # Load and validate settings
                 if 'stream_width' in settings:

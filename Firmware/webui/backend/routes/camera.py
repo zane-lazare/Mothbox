@@ -9,7 +9,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import mothbox_import  # Sets up sys.path for mothbox
 
-from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CAMERA_SETTINGS_FILE, CONTROLS_FILE, WEBUI_SETTINGS_FILE
+from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CAMERA_SETTINGS_FILE, CONTROLS_FILE, LIVEVIEW_SETTINGS_FILE
 
 
 # ============================================================================
@@ -733,7 +733,7 @@ def auto_calibrate():
         import time
         import csv
         from flask import current_app
-        from mothbox_paths import CAMERA_SETTINGS_FILE, CONTROLS_FILE, WEBUI_SETTINGS_FILE
+        from mothbox_paths import CAMERA_SETTINGS_FILE, CONTROLS_FILE, LIVEVIEW_SETTINGS_FILE
 
         # Parse request parameters (support both old and new format)
         request_data = request.json or {}
@@ -909,15 +909,15 @@ def auto_calibrate():
                     from mothbox_paths import get_control_values
 
                     webui_settings = {}
-                    if WEBUI_SETTINGS_FILE.exists():
-                        webui_settings = get_control_values(WEBUI_SETTINGS_FILE)
+                    if LIVEVIEW_SETTINGS_FILE.exists():
+                        webui_settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
 
                     # Update focus settings (exposure controlled by camera in preview)
                     webui_settings['af_mode'] = '0'  # Manual mode
                     # Note: We don't update exposure/gain for preview as it's handled by camera auto-exposure
 
                     # Write back
-                    with open(WEBUI_SETTINGS_FILE, 'w') as f:
+                    with open(LIVEVIEW_SETTINGS_FILE, 'w') as f:
                         for key, value in webui_settings.items():
                             f.write(f"{key}={value}\n")
 
@@ -1166,7 +1166,7 @@ def test_capture():
                 'error': 'picamera2 not available'
             }), 500
 
-        from mothbox_paths import WEBUI_SETTINGS_FILE, PHOTOS_DIR, get_control_values
+        from mothbox_paths import LIVEVIEW_SETTINGS_FILE, PHOTOS_DIR, get_control_values
         from datetime import datetime
         from flask import current_app
         import time
@@ -1175,8 +1175,8 @@ def test_capture():
 
         # Load preview settings
         preview_settings = {}
-        if WEBUI_SETTINGS_FILE.exists():
-            preview_settings = get_control_values(WEBUI_SETTINGS_FILE)
+        if LIVEVIEW_SETTINGS_FILE.exists():
+            preview_settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
 
         # Acquire operation lock to prevent concurrent camera access
         camera_streamer = current_app.config.get('CAMERA_STREAMER')
