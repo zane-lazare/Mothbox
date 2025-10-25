@@ -13,6 +13,16 @@ from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CAMERA_SETTINGS_FILE, CONTRO
 
 
 # ============================================================================
+# Configuration Constants
+# ============================================================================
+
+# Photo calibration configuration
+CAMERA_RELEASE_WAIT_SECONDS = 2.0  # Time to wait after releasing camera hardware for libcamera cleanup
+CALIBRATION_TIMEOUT_SECONDS = 30   # Maximum time for calibration subprocess to complete
+ERROR_DETAILS_MAX_LENGTH = 500     # Maximum stderr characters to return to client (prevents overly verbose errors)
+
+
+# ============================================================================
 # Helper Functions (Issue #46)
 # ============================================================================
 
@@ -770,7 +780,7 @@ def calibrate_photo():
                 print("🔓 Releasing camera for photo calibration subprocess...")
                 was_streaming = camera_streamer.streaming
                 camera_streamer.release_camera()
-                time.sleep(2.0)  # Ensure hardware fully released
+                time.sleep(CAMERA_RELEASE_WAIT_SECONDS)  # Ensure hardware fully released
 
             # Run calibration via subprocess
             calibration_script = Path(__file__).parent.parent / 'scripts' / 'run_photo_calibration.py'
@@ -782,7 +792,7 @@ def calibrate_photo():
                     ['python3', str(calibration_script)],
                     capture_output=True,
                     text=True,
-                    timeout=30
+                    timeout=CALIBRATION_TIMEOUT_SECONDS
                 )
             finally:
                 # Always restart stream if it was active, even if subprocess fails/times out
@@ -824,11 +834,11 @@ def calibrate_photo():
             elif 'permission' in stderr_lower or 'denied' in stderr_lower:
                 error_msg = 'Permission denied accessing camera'
 
-            # Return sanitized error with last 500 chars of stderr for debugging
+            # Return sanitized error with last N chars of stderr for debugging
             return jsonify({
                 'success': False,
                 'error': error_msg,
-                'details': subprocess_result.stderr[-500:] if subprocess_result.stderr else None,
+                'details': subprocess_result.stderr[-ERROR_DETAILS_MAX_LENGTH:] if subprocess_result.stderr else None,
                 'returncode': subprocess_result.returncode
             }), 500
 
@@ -890,9 +900,24 @@ def calibrate_photo():
         }), 500
 
 
-# Old /calibrate endpoint removed - replaced by /calibrate-photo (Issue #45)
-# The old hybrid approach (creating Picamera2 in Flask process) caused
-# "Device or resource busy" errors. New endpoint uses subprocess pattern.
+"""
+Migration Note (Issue #45):
+
+The /calibrate endpoint was removed and replaced by /calibrate-photo.
+
+The old hybrid approach created Picamera2 instances in the Flask process,
+causing "Device or resource busy" errors due to resource conflicts with
+CameraStreamer. The new endpoint uses a subprocess pattern that ensures
+TakePhoto.py owns the camera hardware exclusively, eliminating conflicts.
+
+Technical details:
+- Old approach: Picamera2 created in-process → resource conflict with CameraStreamer
+- New approach: Subprocess calls TakePhoto.py → clean isolation, no conflicts
+- Benefits: Deterministic behavior, reuses proven calibration code, proper separation
+
+See: https://github.com/zane-lazare/Mothbox/issues/45
+See: https://github.com/zane-lazare/Mothbox/pull/55
+"""
 
 
 @camera_bp.route('/freeze-settings', methods=['POST'])
