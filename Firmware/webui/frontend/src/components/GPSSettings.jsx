@@ -50,14 +50,19 @@ export default function GPSSettings() {
 
   const updateConfigMutation = useMutation({
     mutationFn: updateGPSConfig,
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries(['gps-config'])
       queryClient.invalidateQueries(['gps-status'])
-      toast.success('GPS configuration updated successfully!')
+
+      if (response.data.gpsd_restarted) {
+        toast.success('GPS configuration updated and service restarted!', { duration: 4000 })
+      } else {
+        toast.success('GPS configuration updated successfully!')
+      }
     },
     onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to update GPS config'
-      toast.error(`Error: ${message}`)
+      const message = error.response?.data?.message || error.response?.data?.error || 'Failed to update GPS config'
+      toast.error(`Error: ${message}`, { duration: 6000 })
     },
   })
 
@@ -89,10 +94,14 @@ export default function GPSSettings() {
     // Get expected GPS state based on last sync
     const stateInfo = getGPSStateInfo(gpsStatus?.gpstime || 0)
 
-    // Parse expected timeout from stateInfo.time (e.g., "~60s" or "5-20 min")
-    const expectedSeconds = stateInfo.time.includes('min')
-      ? 300  // Use 5 minutes for almanac expired
-      : parseInt(stateInfo.time.replace(/[^0-9]/g, '')) || 60
+    // Use actual configured timeout values based on GPS state
+    const timeoutMap = {
+      'hot_start': localConfig?.timeout_hot || 15,
+      'warm_start': localConfig?.timeout_warm || 60,
+      'cold_start': localConfig?.timeout_cold || 90,
+      'almanac_expired': localConfig?.timeout_almanac || 1200
+    }
+    const expectedSeconds = timeoutMap[stateInfo.state] || 60
 
     // Show initial progress toast
     let toastId = toast.loading(
@@ -102,7 +111,7 @@ export default function GPSSettings() {
       { duration: Infinity }
     )
 
-    // Recreate toast every 30 seconds to reset React Hot Toast's internal duration timer
+    // Recreate toast every 20 seconds to reset React Hot Toast's internal duration timer
     // (React Hot Toast auto-dismisses after ~60s even with duration:Infinity)
     const startTime = Date.now()
     const progressInterval = setInterval(() => {
@@ -117,7 +126,7 @@ export default function GPSSettings() {
         `Est. remaining: ~${remaining}s`,
         { duration: Infinity }
       )
-    }, 30000)  // Every 30 seconds (well under React Hot Toast's ~60s limit)
+    }, 20000)  // Every 20 seconds (provides safety margin against 60s auto-dismiss)
 
     try {
       const result = await syncGPS()
@@ -218,6 +227,20 @@ export default function GPSSettings() {
     if (!isFormValid()) {
       toast.error('Please fix validation errors before saving')
       return
+    }
+
+    // Check if device or baudrate changed (requires gpsd restart)
+    const deviceChanged = localConfig.device !== gpsConfig.device
+    const baudrateChanged = localConfig.baudrate !== gpsConfig.baudrate
+
+    if (deviceChanged || baudrateChanged) {
+      // Show warning that gpsd will restart
+      const confirmed = window.confirm(
+        'Changing device or baud rate will restart the GPS service.\n' +
+        'Any GPS sync in progress will be interrupted.\n\n' +
+        'Continue?'
+      )
+      if (!confirmed) return
     }
 
     updateConfigMutation.mutate({

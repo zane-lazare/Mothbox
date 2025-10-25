@@ -72,14 +72,52 @@ if [ "$GPS_DEVICE" = "/dev/ttyAMA0" ] || [ "$GPS_DEVICE" = "/dev/serial0" ]; the
         echo -e "${GREEN}  ✓ UART already enabled${NC}"
     fi
 
-    # Disable Bluetooth to free up UART0 (on Pi 3/4/5)
-    if ! grep -q "^dtoverlay=disable-bt" "$CONFIG_FILE" 2>/dev/null; then
-        echo "  Disabling Bluetooth (frees UART0 for GPS)..."
-        echo "dtoverlay=disable-bt" | sudo tee -a "$CONFIG_FILE" > /dev/null
-        echo -e "${GREEN}  ✓ Bluetooth disabled${NC}"
-        echo -e "${YELLOW}  Note: Bluetooth will not be available after reboot${NC}"
+    # Detect Raspberry Pi model for Pi 5-specific overlays
+    PI_MODEL=$(cat /proc/device-tree/model 2>/dev/null || echo "Unknown")
+    if [[ "$PI_MODEL" == *"Raspberry Pi 5"* ]]; then
+        IS_PI5=true
+        echo -e "${BLUE}  Detected: Raspberry Pi 5${NC}"
     else
-        echo -e "${GREEN}  ✓ Bluetooth already disabled${NC}"
+        IS_PI5=false
+    fi
+
+    # Disable Bluetooth to free up UART0 (on Pi 3/4/5)
+    if [ "$IS_PI5" = true ]; then
+        # Pi 5 uses disable-bt-pi5 overlay
+        if ! grep -q "^dtoverlay=disable-bt" "$CONFIG_FILE" 2>/dev/null; then
+            echo "  Disabling Bluetooth (frees UART0 for GPS)..."
+            echo "dtoverlay=disable-bt-pi5" | sudo tee -a "$CONFIG_FILE" > /dev/null
+            echo -e "${GREEN}  ✓ Bluetooth disabled (Pi 5)${NC}"
+            echo -e "${YELLOW}  Note: Bluetooth will not be available after reboot${NC}"
+        else
+            # Update existing disable-bt to disable-bt-pi5
+            if grep -q "^dtoverlay=disable-bt$" "$CONFIG_FILE" 2>/dev/null; then
+                echo "  Updating Bluetooth overlay for Pi 5..."
+                sudo sed -i 's/^dtoverlay=disable-bt$/dtoverlay=disable-bt-pi5/' "$CONFIG_FILE"
+                echo -e "${GREEN}  ✓ Bluetooth overlay updated for Pi 5${NC}"
+            else
+                echo -e "${GREEN}  ✓ Bluetooth already disabled${NC}"
+            fi
+        fi
+
+        # Pi 5 requires uart0-pi5 overlay
+        if ! grep -q "^dtoverlay=uart0-pi5" "$CONFIG_FILE" 2>/dev/null; then
+            echo "  Enabling UART0 overlay for Pi 5..."
+            echo "dtoverlay=uart0-pi5" | sudo tee -a "$CONFIG_FILE" > /dev/null
+            echo -e "${GREEN}  ✓ UART0 overlay enabled (Pi 5)${NC}"
+        else
+            echo -e "${GREEN}  ✓ UART0 overlay already enabled${NC}"
+        fi
+    else
+        # Pi 3/4 uses standard disable-bt overlay
+        if ! grep -q "^dtoverlay=disable-bt" "$CONFIG_FILE" 2>/dev/null; then
+            echo "  Disabling Bluetooth (frees UART0 for GPS)..."
+            echo "dtoverlay=disable-bt" | sudo tee -a "$CONFIG_FILE" > /dev/null
+            echo -e "${GREEN}  ✓ Bluetooth disabled${NC}"
+            echo -e "${YELLOW}  Note: Bluetooth will not be available after reboot${NC}"
+        else
+            echo -e "${GREEN}  ✓ Bluetooth already disabled${NC}"
+        fi
     fi
 
     # Configure cmdline.txt (remove serial console)
@@ -130,8 +168,8 @@ DEVICES="$GPS_DEVICE"
 
 # gpsd options
 # -n: Don't wait for client to connect
-# -b: Read-only mode (don't send config to GPS)
-GPSD_OPTIONS="-n -b"
+# -s: Set GPS speed/baudrate (configures the GPS module)
+GPSD_OPTIONS="-n -s ${GPS_BAUDRATE}"
 
 # Listen on all interfaces (for Web UI access)
 GPSD_SOCKET="/var/run/gpsd.sock"

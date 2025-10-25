@@ -85,6 +85,12 @@ def update_gps_values(filepath, lat=None, lon=None, gpstime=None, utc_offset=Non
     updates = {}
     if lat is not None:
         updates['lat'] = str(lat)
+        # Also update last known position if lat/lon are valid (not "n/a")
+        if lat != "n/a" and lon is not None and lon != "n/a":
+            updates['last_known_lat'] = str(lat)
+            updates['last_known_lon'] = str(lon)
+            if gpstime is not None:
+                updates['last_position_time'] = str(gpstime)
     if lon is not None:
         updates['lon'] = str(lon)
     if gpstime is not None:
@@ -238,6 +244,18 @@ try:
                                 usat=satellites_used,
                                 hdop=hdop,
                                 pdop=pdop)
+        else:
+            # GPS has time fix but no position fix
+            print("No position fix - time only")
+            update_gps_values(str(CONTROLS_FILE),
+                            lat="n/a",
+                            lon="n/a",
+                            gpstime=epoch_time,
+                            fix_mode=fix_mode,
+                            nsat=satellites_visible,
+                            usat=satellites_used,
+                            hdop=hdop,
+                            pdop=pdop)
 
     else:
         print("No UTC time received before timeout")
