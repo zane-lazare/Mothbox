@@ -1140,19 +1140,162 @@ def freeze_settings():
         }), 500
 
 
-@camera_bp.route('/test-capture', methods=['POST'])
-def test_capture():
+def _execute_test_capture(settings_dict, settings_source):
     """
-    Capture a test photo using current preview settings (Phase 4.5)
+    Helper function to execute a test capture with given settings
 
-    Allows testing camera settings without modifying camera_settings.csv.
-    Uses webui_settings.txt controls for full-resolution capture.
+    Args:
+        settings_dict: Dict of camera control values to apply
+        settings_source: String describing source ('live view' or 'photo capture')
+
+    Returns:
+        tuple: (success_dict, status_code) or raises exception
+    """
+    from picamera2 import Picamera2
+    from mothbox_paths import PHOTOS_DIR
+    from datetime import datetime
+    from flask import current_app
+    import time
+    import gc
+
+    # Acquire operation lock to prevent concurrent camera access
+    camera_streamer = current_app.config.get('CAMERA_STREAMER')
+    if not camera_streamer:
+        return jsonify({
+            'success': False,
+            'error': 'Camera streamer not initialized'
+        }), 500
+
+    with camera_streamer.acquire_for_operation():
+        # Release camera hardware if initialized (prevents resource conflict)
+        was_streaming = False
+        if camera_streamer.camera:
+            print("Releasing camera hardware before test capture...")
+            was_streaming = camera_streamer.streaming
+            camera_streamer.release_camera()
+            time.sleep(0.5)  # Let camera fully release
+
+        # Initialize camera for test capture
+        picam2 = None
+        try:
+            # Try camera 0 first with retry logic, fallback to camera 1
+            try:
+                picam2 = acquire_camera_with_retry(0)
+            except Exception:
+                picam2 = acquire_camera_with_retry(1)
+
+            # Configure for high-resolution test capture
+            # Use 4K instead of 64MP to fit within Pi 5's 64MB CMA constraint (~24MB vs ~180MB)
+            # Production 64MP captures still work via /api/camera/capture → TakePhoto.py (standalone process)
+            # 4K provides excellent quality for previewing settings in WebUI
+            # Disable raw/lores buffers to reduce CMA usage (matches TakePhoto.py pattern)
+            capture_config = picam2.create_still_configuration(
+                main={"size": (3840, 2160), "format": "BGR888"},  # 4K UHD (8.3MP), BGR888 = true RGB order
+                raw=None,
+                lores=None
+            )
+            picam2.configure(capture_config)
+
+            # Start camera
+            picam2.start()
+
+            # Apply controls
+            controls = {}
+            for key, value in settings_dict.items():
+                controls[key] = value
+
+            picam2.set_controls(controls)
+            print(f"Applied {settings_source} settings to test capture: {controls}")
+
+            # Wait for settings to stabilize
+            time.sleep(0.5)
+
+            # Create test_captures directory
+            test_dir = PHOTOS_DIR / "test_captures"
+            test_dir.mkdir(parents=True, exist_ok=True)
+
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"test_capture_{timestamp}.jpg"
+            filepath = test_dir / filename
+
+            # Capture photo
+            print(f"Capturing test photo to: {filepath}")
+            picam2.capture_file(str(filepath))
+
+            # Get metadata for reference
+            md = picam2.capture_metadata()
+
+            # Stop camera
+            picam2.stop()
+            picam2.close()
+
+            # Force garbage collection to free CMA buffers immediately
+            # Critical for tests doing multiple captures in sequence
+            gc.collect()
+            gc.collect()
+
+            # Return relative path from PHOTOS_DIR
+            relative_path = str(filepath.relative_to(PHOTOS_DIR))
+
+            return jsonify({
+                'success': True,
+                'test_photo_path': relative_path,
+                'settings_used': controls,
+                'settings_source': settings_source,
+                'metadata': {
+                    'exposure_time': md.get('ExposureTime', 0),
+                    'analogue_gain': round(md.get('AnalogueGain', 0.0), 2),
+                    'lens_position': round(md.get('LensPosition', 0.0), 2),
+                    'colour_temperature': md.get('ColourTemperature', 0)
+                },
+                'timestamp': time.time(),
+                'message': f'Test capture saved to {relative_path}'
+            })
+
+        except Exception as camera_error:
+            # Ensure camera is closed on error
+            if picam2:
+                try:
+                    picam2.stop()
+                    picam2.close()
+                except Exception:
+                    pass
+
+            # Restart stream if it was active
+            if was_streaming and camera_streamer:
+                print("Restarting camera stream after test capture error...")
+                try:
+                    camera_streamer.start_streaming()
+                except Exception as restart_error:
+                    print(f"Warning: Failed to restart stream: {restart_error}")
+
+            raise camera_error
+
+        finally:
+            # Always restart stream if it was active
+            if was_streaming and camera_streamer:
+                print("Restarting camera stream after test capture...")
+                try:
+                    camera_streamer.start_streaming()
+                except Exception as restart_error:
+                    print(f"Warning: Failed to restart stream: {restart_error}")
+
+
+@camera_bp.route('/test-capture-liveview', methods=['POST'])
+def test_capture_liveview():
+    """
+    Capture a test photo using current live view settings
+
+    Allows testing live view stream settings at full resolution without
+    modifying camera_settings.csv. Uses liveview_settings.txt controls.
 
     Returns:
         JSON with:
         - success: bool
         - test_photo_path: str (relative path from PHOTOS_DIR)
         - settings_used: dict (controls that were applied)
+        - settings_source: str ('live view')
         - metadata: dict (exposure, gain, lens position, color temp)
         - timestamp: float
     """
@@ -1166,159 +1309,126 @@ def test_capture():
                 'error': 'picamera2 not available'
             }), 500
 
-        from mothbox_paths import LIVEVIEW_SETTINGS_FILE, PHOTOS_DIR, get_control_values
-        from datetime import datetime
-        from flask import current_app
-        import time
+        from mothbox_paths import LIVEVIEW_SETTINGS_FILE, get_control_values
 
-        print("Test capture requested via API")
+        print("Test capture (live view settings) requested via API")
 
-        # Load preview settings
-        preview_settings = {}
+        # Load live view settings
+        liveview_settings = {}
         if LIVEVIEW_SETTINGS_FILE.exists():
-            preview_settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
+            liveview_settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
 
-        # Acquire operation lock to prevent concurrent camera access
-        camera_streamer = current_app.config.get('CAMERA_STREAMER')
-        if not camera_streamer:
-            return jsonify({
-                'success': False,
-                'error': 'Camera streamer not initialized'
-            }), 500
+        # Build controls dict from live view settings
+        controls = {
+            'Sharpness': float(liveview_settings.get('sharpness', 1.0)),
+            'Brightness': float(liveview_settings.get('brightness', 0.0)),
+            'Contrast': float(liveview_settings.get('contrast', 1.0)),
+            'Saturation': float(liveview_settings.get('saturation', 1.0)),
+            'AfMode': int(liveview_settings.get('af_mode', 2)),
+            'AfSpeed': int(liveview_settings.get('af_speed', 0)),
+            'AfRange': int(liveview_settings.get('af_range', 0)),
+            'AwbEnable': liveview_settings.get('awb_enable', 'true').lower() == 'true',
+        }
 
-        with camera_streamer.acquire_for_operation():
-            # Release camera hardware if initialized (prevents resource conflict)
-            was_streaming = False
-            if camera_streamer.camera:
-                print("Releasing camera hardware before test capture...")
-                was_streaming = camera_streamer.streaming
-                camera_streamer.release_camera()
-                time.sleep(0.5)  # Let camera fully release
+        # Only set AwbMode if AWB is disabled
+        if not controls['AwbEnable']:
+            controls['AwbMode'] = int(liveview_settings.get('awb_mode', 0))
 
-            # Initialize camera for test capture
-            picam2 = None
-            try:
-                # Try camera 0 first with retry logic, fallback to camera 1
-                try:
-                    picam2 = acquire_camera_with_retry(0)
-                except Exception:
-                    picam2 = acquire_camera_with_retry(1)
-
-                # Configure for high-resolution test capture
-                # Use 4K instead of 64MP to fit within Pi 5's 64MB CMA constraint (~24MB vs ~180MB)
-                # Production 64MP captures still work via /api/camera/capture → TakePhoto.py (standalone process)
-                # 4K provides excellent quality for previewing settings in WebUI
-                # Disable raw/lores buffers to reduce CMA usage (matches TakePhoto.py pattern)
-                capture_config = picam2.create_still_configuration(
-                    main={"size": (3840, 2160), "format": "BGR888"},  # 4K UHD (8.3MP), BGR888 = true RGB order
-                    raw=None,
-                    lores=None
-                )
-                picam2.configure(capture_config)
-
-                # Start camera
-                picam2.start()
-
-                # Apply preview controls to full-res capture
-                controls = {
-                    'Sharpness': float(preview_settings.get('sharpness', 1.0)),
-                    'Brightness': float(preview_settings.get('brightness', 0.0)),
-                    'Contrast': float(preview_settings.get('contrast', 1.0)),
-                    'Saturation': float(preview_settings.get('saturation', 1.0)),
-                    'AfMode': int(preview_settings.get('af_mode', 2)),
-                    'AfSpeed': int(preview_settings.get('af_speed', 0)),
-                    'AfRange': int(preview_settings.get('af_range', 0)),
-                    'AwbEnable': preview_settings.get('awb_enable', 'true').lower() == 'true',
-                }
-
-                # Only set AwbMode if AWB is disabled
-                if not controls['AwbEnable']:
-                    controls['AwbMode'] = int(preview_settings.get('awb_mode', 0))
-
-                picam2.set_controls(controls)
-                print(f"Applied preview controls to test capture: {controls}")
-
-                # Wait for settings to stabilize
-                time.sleep(0.5)
-
-                # Create test_captures directory
-                test_dir = PHOTOS_DIR / "test_captures"
-                test_dir.mkdir(parents=True, exist_ok=True)
-
-                # Generate filename with timestamp
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"test_capture_{timestamp}.jpg"
-                filepath = test_dir / filename
-
-                # Capture photo
-                print(f"Capturing test photo to: {filepath}")
-                picam2.capture_file(str(filepath))
-
-                # Get metadata for reference
-                md = picam2.capture_metadata()
-
-                # Stop camera
-                picam2.stop()
-                picam2.close()
-
-                # Force garbage collection to free CMA buffers immediately
-                # Critical for tests doing multiple captures in sequence
-                import gc
-                gc.collect()
-                gc.collect()
-
-                # Return relative path from PHOTOS_DIR
-                relative_path = str(filepath.relative_to(PHOTOS_DIR))
-
-                return jsonify({
-                    'success': True,
-                    'test_photo_path': relative_path,
-                    'settings_used': controls,
-                    'metadata': {
-                        'exposure_time': md.get('ExposureTime', 0),
-                        'analogue_gain': round(md.get('AnalogueGain', 0.0), 2),
-                        'lens_position': round(md.get('LensPosition', 0.0), 2),
-                        'colour_temperature': md.get('ColourTemperature', 0)
-                    },
-                    'timestamp': time.time(),
-                    'message': f'Test capture saved to {relative_path}'
-                })
-
-            except Exception as camera_error:
-                # Ensure camera is closed on error
-                if picam2:
-                    try:
-                        picam2.stop()
-                        picam2.close()
-                    except Exception:
-                        pass
-
-                # Restart stream if it was active
-                if was_streaming and camera_streamer:
-                    print("Restarting camera stream after test capture error...")
-                    try:
-                        camera_streamer.start_streaming()
-                    except Exception as restart_error:
-                        print(f"Warning: Failed to restart stream: {restart_error}")
-
-                raise camera_error
-
-            finally:
-                # Always restart stream if it was active
-                if was_streaming and camera_streamer:
-                    print("Restarting camera stream after test capture...")
-                    try:
-                        camera_streamer.start_streaming()
-                    except Exception as restart_error:
-                        print(f"Warning: Failed to restart stream: {restart_error}")
+        return _execute_test_capture(controls, 'live view')
 
     except Exception as e:
         import traceback
         error_msg = str(e)
-        print(f"Test capture error: {error_msg}")
+        print(f"Test capture (live view) error: {error_msg}")
         print(traceback.format_exc())
         return jsonify({
             'success': False,
             'error': error_msg,
             'traceback': traceback.format_exc()
         }), 500
+
+
+@camera_bp.route('/test-capture-photo', methods=['POST'])
+def test_capture_photo():
+    """
+    Capture a test photo using current photo capture settings
+
+    Allows testing photo capture settings at full resolution without
+    actually triggering a production capture. Uses camera_settings.csv controls.
+
+    Returns:
+        JSON with:
+        - success: bool
+        - test_photo_path: str (relative path from PHOTOS_DIR)
+        - settings_used: dict (controls that were applied)
+        - settings_source: str ('photo capture')
+        - metadata: dict (exposure, gain, lens position, color temp)
+        - timestamp: float
+    """
+    try:
+        # Import here to avoid issues if picamera2 not available
+        try:
+            from picamera2 import Picamera2
+        except ImportError:
+            return jsonify({
+                'success': False,
+                'error': 'picamera2 not available'
+            }), 500
+
+        from mothbox_paths import CAMERA_SETTINGS_FILE
+        import csv
+
+        print("Test capture (photo settings) requested via API")
+
+        # Load photo capture settings from CSV
+        photo_settings = {}
+        if CAMERA_SETTINGS_FILE.exists():
+            with open(CAMERA_SETTINGS_FILE, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    photo_settings = row
+                    break  # Only need first row
+
+        # Build controls dict from photo capture settings
+        controls = {}
+
+        # Map CSV fields to Picamera2 controls
+        if 'Sharpness' in photo_settings:
+            controls['Sharpness'] = float(photo_settings['Sharpness'])
+        if 'Brightness' in photo_settings:
+            controls['Brightness'] = float(photo_settings['Brightness'])
+        if 'Contrast' in photo_settings:
+            controls['Contrast'] = float(photo_settings['Contrast'])
+        if 'Saturation' in photo_settings:
+            controls['Saturation'] = float(photo_settings['Saturation'])
+        if 'AfMode' in photo_settings:
+            controls['AfMode'] = int(photo_settings['AfMode'])
+        if 'AfSpeed' in photo_settings:
+            controls['AfSpeed'] = int(photo_settings['AfSpeed'])
+        if 'AfRange' in photo_settings:
+            controls['AfRange'] = int(photo_settings['AfRange'])
+        if 'ExposureTime' in photo_settings:
+            controls['ExposureTime'] = int(photo_settings['ExposureTime'])
+        if 'AnalogueGain' in photo_settings:
+            controls['AnalogueGain'] = float(photo_settings['AnalogueGain'])
+        if 'AeEnable' in photo_settings:
+            controls['AeEnable'] = photo_settings['AeEnable'].lower() == 'true'
+        if 'AwbEnable' in photo_settings:
+            controls['AwbEnable'] = photo_settings['AwbEnable'].lower() == 'true'
+        if 'AwbMode' in photo_settings and not controls.get('AwbEnable', True):
+            controls['AwbMode'] = int(photo_settings['AwbMode'])
+
+        return _execute_test_capture(controls, 'photo capture')
+
+    except Exception as e:
+        import traceback
+        error_msg = str(e)
+        print(f"Test capture (photo) error: {error_msg}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': error_msg,
+            'traceback': traceback.format_exc()
+        }), 500
+
+
