@@ -31,6 +31,46 @@ _gps_status_cache = {
 GPS_STATUS_CACHE_TTL = 2  # seconds
 
 
+def calculate_adaptive_timeout(gpstime, configured_timeout):
+    """
+    Determine appropriate GPS timeout based on last sync time.
+
+    GPS modules have different Time To First Fix (TTFF) depending on how long
+    since last sync:
+    - Hot start (< 4 hours): ~1 second TTFF
+    - Warm start (4 hours - 6 days): ~26 seconds TTFF
+    - Cold start (6-28 days): 26-57 seconds TTFF
+    - Almanac expired (> 28 days): 12-20 minutes worst case
+
+    Args:
+        gpstime: Unix timestamp of last successful GPS sync (0 if never synced)
+        configured_timeout: User-configured timeout from settings
+
+    Returns:
+        tuple: (timeout_seconds, gps_state_string)
+        where gps_state is one of: "hot_start", "warm_start", "cold_start", "almanac_expired"
+    """
+    if gpstime == 0:
+        # Never synced - assume almanac expired
+        return (max(300, configured_timeout), "almanac_expired")
+
+    hours_since_sync = (time.time() - gpstime) / 3600
+
+    if hours_since_sync < 4:
+        # Hot start: GPS has valid ephemeris, almanac, and recent position
+        return (max(15, configured_timeout), "hot_start")
+    elif hours_since_sync < 144:  # 6 days
+        # Warm start: Has almanac but needs fresh ephemeris
+        return (max(60, configured_timeout), "warm_start")
+    elif hours_since_sync < 672:  # 28 days
+        # Cold start: Needs to download ephemeris
+        return (max(90, configured_timeout), "cold_start")
+    else:
+        # Almanac expired: Needs to download full almanac (12-20 minutes worst case)
+        # Use 5 minutes as reasonable compromise
+        return (max(300, configured_timeout), "almanac_expired")
+
+
 def _get_cached_gps_status():
     """
     Get GPS status with caching to avoid excessive file I/O.
@@ -62,6 +102,13 @@ def _get_cached_gps_status():
             gpstime = control_values.get('gpstime', '0')
             utc_offset = control_values.get('UTCoff', '0')
 
+            # GPS quality metrics
+            fix_mode = control_values.get('gps_fix_mode', '0')
+            satellites_visible = control_values.get('gps_satellites_visible', '0')
+            satellites_used = control_values.get('gps_satellites_used', '0')
+            hdop = control_values.get('gps_hdop', '99.99')
+            pdop = control_values.get('gps_pdop', '99.99')
+
             # Validate and parse gpstime (must be non-negative Unix timestamp)
             gpstime_val = int(gpstime) if gpstime.isdigit() else 0
             if gpstime_val < 0:
@@ -81,7 +128,12 @@ def _get_cached_gps_status():
                 'longitude': longitude,
                 'gpstime': gpstime_val,
                 'utc_offset': utc_offset_val,
-                'has_fix': has_fix
+                'has_fix': has_fix,
+                'fix_mode': int(fix_mode) if fix_mode.isdigit() else 0,
+                'satellites_visible': int(satellites_visible) if satellites_visible.isdigit() else 0,
+                'satellites_used': int(satellites_used) if satellites_used.isdigit() else 0,
+                'hdop': float(hdop) if hdop.replace('.', '', 1).isdigit() else 99.99,
+                'pdop': float(pdop) if pdop.replace('.', '', 1).isdigit() else 99.99
             }
 
             # Update cache
@@ -244,10 +296,15 @@ def sync_gps():
                 'message': 'GPS script not found in firmware directory'
             }), 500
 
-        # Run GPS.py with timeout (GPS timeout + 20 seconds overhead)
-        print("🔍 Calculating timeout...")
-        timeout = hw_config['gps_timeout'] + 20
-        print(f"🔍 Timeout: {timeout}s")
+        # Calculate adaptive timeout based on last GPS sync time
+        print("🔍 Calculating adaptive timeout...")
+        control_values = get_control_values(CONTROLS_FILE)
+        last_gpstime = int(control_values.get('gpstime', '0')) if control_values.get('gpstime', '0').isdigit() else 0
+        gps_timeout, gps_state = calculate_adaptive_timeout(last_gpstime, hw_config['gps_timeout'])
+
+        # Add 20 seconds overhead for subprocess execution
+        timeout = gps_timeout + 20
+        print(f"🔍 GPS state: {gps_state}, timeout: {gps_timeout}s (+ 20s overhead = {timeout}s total)")
 
         print(f"📡 Running GPS sync: {gps_script} (timeout: {timeout}s)")
 
@@ -288,6 +345,8 @@ def sync_gps():
             'longitude': longitude,
             'gpstime': int(gpstime) if gpstime.isdigit() else 0,
             'utc_offset': int(utc_offset) if utc_offset.lstrip('-').isdigit() else 0,
+            'gps_state': gps_state,
+            'timeout_used': gps_timeout,
             'output': result.stdout,
             'returncode': result.returncode
         })

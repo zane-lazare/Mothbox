@@ -61,7 +61,8 @@ print("gpsmon terminated")
 control_values = get_control_values(str(CONTROLS_FILE))
 
 
-def update_gps_values(filepath, lat=None, lon=None, gpstime=None, utc_offset=None):
+def update_gps_values(filepath, lat=None, lon=None, gpstime=None, utc_offset=None,
+                     fix_mode=None, nsat=None, usat=None, hdop=None, pdop=None):
     """
     Atomically update GPS values in controls.txt with file locking.
 
@@ -74,6 +75,11 @@ def update_gps_values(filepath, lat=None, lon=None, gpstime=None, utc_offset=Non
         lon: Longitude value (or None to skip)
         gpstime: Unix timestamp (or None to skip)
         utc_offset: UTC offset in hours (or None to skip)
+        fix_mode: GPS fix mode - 0=no fix, 2=2D, 3=3D (or None to skip)
+        nsat: Number of satellites visible (or None to skip)
+        usat: Number of satellites used in fix (or None to skip)
+        hdop: Horizontal dilution of precision (or None to skip)
+        pdop: Position dilution of precision (or None to skip)
     """
     # Prepare updates mapping (only include values that were provided)
     updates = {}
@@ -85,6 +91,16 @@ def update_gps_values(filepath, lat=None, lon=None, gpstime=None, utc_offset=Non
         updates['gpstime'] = str(gpstime)
     if utc_offset is not None:
         updates['UTCoff'] = str(utc_offset)
+    if fix_mode is not None:
+        updates['gps_fix_mode'] = str(fix_mode)
+    if nsat is not None:
+        updates['gps_satellites_visible'] = str(nsat)
+    if usat is not None:
+        updates['gps_satellites_used'] = str(usat)
+    if hdop is not None:
+        updates['gps_hdop'] = f"{hdop:.2f}"
+    if pdop is not None:
+        updates['gps_pdop'] = f"{pdop:.2f}"
 
     # Open file for read/write and acquire exclusive lock
     with open(filepath, 'r+') as f:
@@ -134,24 +150,40 @@ UTCtime = None
 latitude = None
 longitude = None
 
+# GPS quality metrics
+fix_mode = 0  # 0=no fix, 2=2D, 3=3D
+satellites_visible = 0
+satellites_used = 0
+hdop = 99.99  # Horizontal dilution of precision (lower is better)
+pdop = 99.99  # Position dilution of precision (lower is better)
+
 try:
     while time.time() - start_time < timeout:
         # Check if there's data from gpsd (timeout = 1 second)
         if select.select([gpsd.sock], [], [], 1)[0]:
             report = gpsd.next()
+
+            # TPV report: Time-Position-Velocity
             if report['class'] == 'TPV':
                 got_gps_fix = True
                 latitude = getattr(report, 'lat', None)
                 longitude = getattr(report, 'lon', None)
                 UTCtime = getattr(report, 'time', '')
-                print(latitude, "\t",
-                      longitude, "\t",
-                      UTCtime, "\t",
-                      getattr(report, 'alt', 'nan'), "\t\t",
-                      getattr(report, 'epv', 'nan'), "\t",
-                      getattr(report, 'ept', 'nan'), "\t",
-                      getattr(report, 'speed', 'nan'), "\t",
-                      getattr(report, 'climb', 'nan'), "\t")
+                fix_mode = getattr(report, 'mode', 0)
+                print(f"TPV: {latitude}\t{longitude}\t{UTCtime}\t"
+                      f"alt={getattr(report, 'alt', 'nan')}\t"
+                      f"mode={fix_mode}\t"
+                      f"epv={getattr(report, 'epv', 'nan')}\t"
+                      f"ept={getattr(report, 'ept', 'nan')}")
+
+            # SKY report: Satellite visibility and dilution of precision
+            elif report['class'] == 'SKY':
+                satellites_visible = len(getattr(report, 'satellites', []))
+                satellites_used = getattr(report, 'uSat', 0)
+                hdop = getattr(report, 'hdop', 99.99)
+                pdop = getattr(report, 'pdop', 99.99)
+                print(f"SKY: nSat={satellites_visible}, uSat={satellites_used}, "
+                      f"HDOP={hdop:.2f}, PDOP={pdop:.2f}")
         else:
             print("Waiting for GPS data...")
         time.sleep(1)
@@ -189,14 +221,34 @@ try:
                                 lat=latitude,
                                 lon=longitude,
                                 gpstime=epoch_time,
-                                utc_offset=utc_offset_hours)
+                                utc_offset=utc_offset_hours,
+                                fix_mode=fix_mode,
+                                nsat=satellites_visible,
+                                usat=satellites_used,
+                                hdop=hdop,
+                                pdop=pdop)
             else:
                 print("Could not determine timezone from coordinates.")
-                update_gps_values(str(CONTROLS_FILE), lat="n/a", lon="n/a", gpstime=epoch_time)
+                update_gps_values(str(CONTROLS_FILE),
+                                lat="n/a",
+                                lon="n/a",
+                                gpstime=epoch_time,
+                                fix_mode=fix_mode,
+                                nsat=satellites_visible,
+                                usat=satellites_used,
+                                hdop=hdop,
+                                pdop=pdop)
 
     else:
         print("No UTC time received before timeout")
-        update_gps_values(str(CONTROLS_FILE), lat="n/a", lon="n/a")
+        update_gps_values(str(CONTROLS_FILE),
+                        lat="n/a",
+                        lon="n/a",
+                        fix_mode=fix_mode,
+                        nsat=satellites_visible,
+                        usat=satellites_used,
+                        hdop=hdop,
+                        pdop=pdop)
 
 
 

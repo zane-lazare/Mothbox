@@ -257,7 +257,7 @@ def get_hardware_config() -> Dict[str, Any]:
             'gps_enabled': config.get('gps_enabled', 'false').lower() == 'true',
             'gps_device': config.get('gps_device', '/dev/ttyAMA0'),
             'gps_baudrate': int(config.get('gps_baudrate', '9600')),
-            'gps_timeout': int(config.get('gps_timeout', '10')),
+            'gps_timeout': int(config.get('gps_timeout', '60')),
 
             # Light sensor (optional)
             'light_sensor_enabled': config.get('light_sensor_enabled', 'false').lower() == 'true',
@@ -297,7 +297,7 @@ def get_hardware_config() -> Dict[str, Any]:
             'gps_enabled': False,
             'gps_device': '/dev/ttyAMA0',
             'gps_baudrate': 9600,
-            'gps_timeout': 10,
+            'gps_timeout': 60,
             'light_sensor_enabled': False,
             'light_sensor_type': 'LTR303',
             'light_sensor_address': 0x29,
