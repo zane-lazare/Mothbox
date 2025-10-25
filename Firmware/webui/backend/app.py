@@ -144,6 +144,10 @@ limiter.limit("10 per minute")(app.view_functions['camera.capture_photo'])
 limiter.limit("30 per minute")(app.view_functions['gpio.control_gpio'])
 limiter.limit("10 per minute")(app.view_functions['gpio.trigger_flash'])
 limiter.limit("5 per minute")(app.view_functions['gps.sync_gps'])
+
+# Exempt read-only endpoints that use caching from rate limiting
+limiter.exempt(app.view_functions['gps.get_gps_status'])
+
 print("✓ Rate limiting applied to camera, GPIO, and GPS endpoints")
 
 # CSRF token endpoint
