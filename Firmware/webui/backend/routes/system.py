@@ -27,6 +27,7 @@ from mothbox_paths import (
 )
 
 from config import get_config
+from routes.gps import _get_cached_gps_status
 
 system_bp = Blueprint('system', __name__)
 
@@ -107,6 +108,9 @@ def get_system_status():
         # Hardware config
         hw_config = get_hardware_config()
 
+        # GPS data from cached status (reduces duplicate file I/O)
+        gps_status = _get_cached_gps_status()
+
         return jsonify({
             'cpu_temp': cpu_temp,
             'disk': {
@@ -119,6 +123,14 @@ def get_system_status():
                 'ina260_enabled': hw_config.get('ina260_enabled', False),
                 'gps_enabled': hw_config.get('gps_enabled', False),
                 'epaper_enabled': hw_config.get('epaper_enabled', False)
+            },
+            'gps': {
+                'enabled': gps_status['enabled'],
+                'latitude': gps_status['latitude'],
+                'longitude': gps_status['longitude'],
+                'last_sync': gps_status['gpstime'],
+                'utc_offset': gps_status['utc_offset'],
+                'has_fix': gps_status['has_fix']
             }
         })
     except Exception as e:

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
 import SavePresetModal from '../components/SavePresetModal'
+import GPSSettings from '../components/GPSSettings'
 
 // Collapsible Card Component
 const CollapsibleCard = ({ id, title, isCollapsed, onToggle, children, className = "settings-card" }) => (
@@ -664,6 +665,9 @@ export default function Settings() {
               </div>
             )}
           </CollapsibleCard>
+
+          {/* GPS Configuration Card */}
+          <GPSSettings />
         </div>
       )}
 

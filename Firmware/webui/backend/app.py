@@ -113,6 +113,7 @@ from routes.gpio import gpio_bp
 from routes.scheduler import scheduler_bp
 from routes.presets import presets_bp
 from routes.preferences import preferences_bp
+from routes.gps import gps_bp
 
 # Make camera_streamer accessible to routes via app config
 app.config['CAMERA_STREAMER'] = camera_streamer
@@ -126,6 +127,7 @@ app.register_blueprint(gpio_bp, url_prefix='/api/gpio')
 app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
 app.register_blueprint(presets_bp, url_prefix='/api/presets')
 app.register_blueprint(preferences_bp, url_prefix='/api/preferences')
+app.register_blueprint(gps_bp, url_prefix='/api/gps')
 
 # Register WebSocket handlers
 from websocket_handlers import register_handlers
@@ -136,11 +138,13 @@ print("✓ Registered WebSocket event handlers")
 # Camera: 10 requests per minute for capture operations (prevents rapid captures)
 # GPIO: 30 requests per minute for control operations (one per 2 seconds)
 # GPIO: 10 requests per minute for flash operations (prevents rapid relay cycling)
+# GPS: 5 requests per minute for sync operations (GPS takes time to acquire fix)
 # Use app.view_functions with blueprint-prefixed endpoint names
 limiter.limit("10 per minute")(app.view_functions['camera.capture_photo'])
 limiter.limit("30 per minute")(app.view_functions['gpio.control_gpio'])
 limiter.limit("10 per minute")(app.view_functions['gpio.trigger_flash'])
-print("✓ Rate limiting applied to camera and GPIO endpoints")
+limiter.limit("5 per minute")(app.view_functions['gps.sync_gps'])
+print("✓ Rate limiting applied to camera, GPIO, and GPS endpoints")
 
 # CSRF token endpoint
 @app.route('/api/csrf-token', methods=['GET'])

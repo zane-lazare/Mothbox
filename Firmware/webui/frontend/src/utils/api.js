@@ -118,3 +118,9 @@ export const deletePreset = (name) => api.delete(`/presets/${name}`)
 // User Preferences APIs
 export const getPreferences = () => api.get('/preferences')
 export const setPreference = (key, value) => api.post('/preferences', { key, value })
+
+// GPS APIs
+export const getGPSStatus = () => api.get('/gps/status')
+export const syncGPS = () => api.post('/gps/sync')
+export const getGPSConfig = () => api.get('/gps/config')
+export const updateGPSConfig = (config) => api.put('/gps/config', config)

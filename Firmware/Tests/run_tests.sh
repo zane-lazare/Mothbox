@@ -244,6 +244,45 @@ case "$TEST_TYPE" in
         pytest Tests/integration/test_stream_calibration.py -v -s
         ;;
 
+    "gps"|"gps-integration")
+        # GPS Integration tests (Issue #53)
+        echo "🚀 Running GPS Integration tests (Issue #53)..."
+        echo ""
+        echo "Testing GPS WebUI integration, API endpoints, and hardware sync..."
+        pytest Tests/integration/test_gps_integration.py -v -s
+        ;;
+
+    "gps-frontend")
+        # GPS Frontend tests (Vitest)
+        echo "🚀 Running GPS Frontend tests (Vitest)..."
+        echo ""
+        if [ ! -d "webui/frontend/node_modules" ]; then
+            echo "   Installing frontend dependencies..."
+            cd webui/frontend && npm install && cd ../..
+        fi
+        echo "Testing GPS React components and utilities..."
+        cd webui/frontend
+        npm test -- --run GPSSettings Dashboard helpers gpsValidation
+        cd ../..
+        ;;
+
+    "gps-all")
+        # All GPS tests (backend + frontend)
+        echo "🚀 Running ALL GPS tests (backend + frontend)..."
+        echo ""
+        echo "=== Backend Integration Tests (pytest) ==="
+        pytest Tests/integration/test_gps_integration.py -v -s
+        echo ""
+        echo "=== Frontend Component Tests (vitest) ==="
+        if [ ! -d "webui/frontend/node_modules" ]; then
+            echo "   Installing frontend dependencies..."
+            cd webui/frontend && npm install && cd ../..
+        fi
+        cd webui/frontend
+        npm test -- --run GPSSettings Dashboard helpers gpsValidation
+        cd ../..
+        ;;
+
     "issue43"|"complete")
         # All tests for GitHub issue #43 (updated for Issue #45)
         echo "🚀 Running COMPLETE test suite for GitHub issue #43..."
@@ -309,6 +348,10 @@ case "$TEST_TYPE" in
         echo "  photocalibration  - Same as photo-calibration"
         echo "  stream-calibration - Stream Calibration tests (Issue #45 - CameraStreamer)"
         echo "  streamcalibration  - Same as stream-calibration"
+        echo "  gps           - GPS Integration tests (Issue #53 - backend API + hardware)"
+        echo "  gps-integration - Same as gps"
+        echo "  gps-frontend  - GPS Frontend tests (Vitest - React components)"
+        echo "  gps-all       - All GPS tests (backend pytest + frontend vitest)"
         echo ""
         echo "=== Legacy Phase Commands (backward compatibility) ==="
         echo "  phase2        - Run Phase 2 complete test suite"
