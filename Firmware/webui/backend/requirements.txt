@@ -10,3 +10,4 @@ picamera2
 Pillow
 opencv-python
 python-crontab
+timezonefinder==6.5.4

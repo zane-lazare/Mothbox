@@ -231,7 +231,7 @@ def sync_gps():
             }), 400
 
         # Get path to GPS.py script
-        gps_script = get_script_path('5.x/GPS.py')
+        gps_script = get_script_path('GPS.py')
 
         if not gps_script.exists():
             return jsonify({
