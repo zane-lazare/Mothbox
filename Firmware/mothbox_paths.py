@@ -257,7 +257,13 @@ def get_hardware_config() -> Dict[str, Any]:
             'gps_enabled': config.get('gps_enabled', 'false').lower() == 'true',
             'gps_device': config.get('gps_device', '/dev/ttyAMA0'),
             'gps_baudrate': int(config.get('gps_baudrate', '9600')),
-            'gps_timeout': int(config.get('gps_timeout', '60')),
+            'gps_timeout': int(config.get('gps_timeout', '60')),  # Legacy/fallback timeout
+
+            # GPS adaptive timeout ranges for different start conditions
+            'gps_timeout_hot': int(config.get('gps_timeout_hot', '15')),          # Hot start (<4 hours)
+            'gps_timeout_warm': int(config.get('gps_timeout_warm', '60')),        # Warm start (4h-6d)
+            'gps_timeout_cold': int(config.get('gps_timeout_cold', '90')),        # Cold start (6-28d)
+            'gps_timeout_almanac': int(config.get('gps_timeout_almanac', '1200')), # Almanac expired (>28d)
 
             # Light sensor (optional)
             'light_sensor_enabled': config.get('light_sensor_enabled', 'false').lower() == 'true',
@@ -298,6 +304,10 @@ def get_hardware_config() -> Dict[str, Any]:
             'gps_device': '/dev/ttyAMA0',
             'gps_baudrate': 9600,
             'gps_timeout': 60,
+            'gps_timeout_hot': 15,
+            'gps_timeout_warm': 60,
+            'gps_timeout_cold': 90,
+            'gps_timeout_almanac': 1200,
             'light_sensor_enabled': False,
             'light_sensor_type': 'LTR303',
             'light_sensor_address': 0x29,

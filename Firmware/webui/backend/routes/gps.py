@@ -31,7 +31,7 @@ _gps_status_cache = {
 GPS_STATUS_CACHE_TTL = 2  # seconds
 
 
-def calculate_adaptive_timeout(gpstime, configured_timeout):
+def calculate_adaptive_timeout(gpstime, hw_config):
     """
     Determine appropriate GPS timeout based on last sync time.
 
@@ -44,7 +44,7 @@ def calculate_adaptive_timeout(gpstime, configured_timeout):
 
     Args:
         gpstime: Unix timestamp of last successful GPS sync (0 if never synced)
-        configured_timeout: User-configured timeout from settings
+        hw_config: Hardware configuration dict containing timeout settings
 
     Returns:
         tuple: (timeout_seconds, gps_state_string)
@@ -52,23 +52,22 @@ def calculate_adaptive_timeout(gpstime, configured_timeout):
     """
     if gpstime == 0:
         # Never synced - assume almanac expired
-        return (max(300, configured_timeout), "almanac_expired")
+        return (hw_config['gps_timeout_almanac'], "almanac_expired")
 
     hours_since_sync = (time.time() - gpstime) / 3600
 
     if hours_since_sync < 4:
         # Hot start: GPS has valid ephemeris, almanac, and recent position
-        return (max(15, configured_timeout), "hot_start")
+        return (hw_config['gps_timeout_hot'], "hot_start")
     elif hours_since_sync < 144:  # 6 days
         # Warm start: Has almanac but needs fresh ephemeris
-        return (max(60, configured_timeout), "warm_start")
+        return (hw_config['gps_timeout_warm'], "warm_start")
     elif hours_since_sync < 672:  # 28 days
         # Cold start: Needs to download ephemeris
-        return (max(90, configured_timeout), "cold_start")
+        return (hw_config['gps_timeout_cold'], "cold_start")
     else:
         # Almanac expired: Needs to download full almanac (12-20 minutes worst case)
-        # Use 5 minutes as reasonable compromise
-        return (max(300, configured_timeout), "almanac_expired")
+        return (hw_config['gps_timeout_almanac'], "almanac_expired")
 
 
 def _get_cached_gps_status():
@@ -183,7 +182,11 @@ def get_gps_config():
         - enabled: Whether GPS is enabled
         - device: GPS device path (e.g., /dev/ttyAMA0)
         - baudrate: GPS serial baudrate
-        - timeout: GPS sync timeout in seconds
+        - timeout: GPS sync timeout in seconds (legacy/fallback)
+        - timeout_hot: Hot start timeout (< 4 hours)
+        - timeout_warm: Warm start timeout (4h - 6 days)
+        - timeout_cold: Cold start timeout (6 - 28 days)
+        - timeout_almanac: Almanac expired timeout (> 28 days)
     """
     try:
         hw_config = get_hardware_config()
@@ -192,7 +195,11 @@ def get_gps_config():
             'enabled': hw_config['gps_enabled'],
             'device': hw_config['gps_device'],
             'baudrate': hw_config['gps_baudrate'],
-            'timeout': hw_config['gps_timeout']
+            'timeout': hw_config['gps_timeout'],
+            'timeout_hot': hw_config['gps_timeout_hot'],
+            'timeout_warm': hw_config['gps_timeout_warm'],
+            'timeout_cold': hw_config['gps_timeout_cold'],
+            'timeout_almanac': hw_config['gps_timeout_almanac']
         })
     except Exception as e:
         return jsonify({
@@ -210,7 +217,11 @@ def update_gps_config():
         - gps_enabled: Boolean
         - gps_device: String (device path)
         - gps_baudrate: Integer (4800, 9600, 19200, 38400, etc.)
-        - gps_timeout: Integer (5-60 seconds)
+        - gps_timeout: Integer (5-60 seconds, legacy/fallback)
+        - gps_timeout_hot: Integer (5-60 seconds)
+        - gps_timeout_warm: Integer (30-180 seconds)
+        - gps_timeout_cold: Integer (60-300 seconds)
+        - gps_timeout_almanac: Integer (300-1800 seconds)
 
     Returns:
         JSON with success status
@@ -235,6 +246,26 @@ def update_gps_config():
             timeout = data['gps_timeout']
             if not isinstance(timeout, int) or timeout < 5 or timeout > 60:
                 return jsonify({'error': 'gps_timeout must be an integer between 5 and 60'}), 400
+
+        if 'gps_timeout_hot' in data:
+            timeout = data['gps_timeout_hot']
+            if not isinstance(timeout, int) or timeout < 5 or timeout > 60:
+                return jsonify({'error': 'gps_timeout_hot must be an integer between 5 and 60'}), 400
+
+        if 'gps_timeout_warm' in data:
+            timeout = data['gps_timeout_warm']
+            if not isinstance(timeout, int) or timeout < 30 or timeout > 180:
+                return jsonify({'error': 'gps_timeout_warm must be an integer between 30 and 180'}), 400
+
+        if 'gps_timeout_cold' in data:
+            timeout = data['gps_timeout_cold']
+            if not isinstance(timeout, int) or timeout < 60 or timeout > 300:
+                return jsonify({'error': 'gps_timeout_cold must be an integer between 60 and 300'}), 400
+
+        if 'gps_timeout_almanac' in data:
+            timeout = data['gps_timeout_almanac']
+            if not isinstance(timeout, int) or timeout < 300 or timeout > 1800:
+                return jsonify({'error': 'gps_timeout_almanac must be an integer between 300 and 1800 (5-30 minutes)'}), 400
 
         if 'gps_device' in data:
             device = data['gps_device']
@@ -273,12 +304,9 @@ def sync_gps():
         - gpstime: Unix timestamp of sync
         - output: Script output for debugging
     """
-    print("🔍 GPS sync endpoint called")
     try:
         # Check if GPS is enabled
-        print("🔍 Getting hardware config...")
         hw_config = get_hardware_config()
-        print(f"🔍 GPS enabled: {hw_config.get('gps_enabled')}")
         if not hw_config['gps_enabled']:
             return jsonify({
                 'error': 'GPS is disabled',
@@ -286,9 +314,7 @@ def sync_gps():
             }), 400
 
         # Get path to GPS.py script
-        print("🔍 Getting GPS script path...")
         gps_script = get_script_path('GPS.py')
-        print(f"🔍 GPS script path: {gps_script}")
 
         if not gps_script.exists():
             return jsonify({
@@ -297,16 +323,14 @@ def sync_gps():
             }), 500
 
         # Calculate adaptive timeout based on last GPS sync time
-        print("🔍 Calculating adaptive timeout...")
         control_values = get_control_values(CONTROLS_FILE)
         last_gpstime = int(control_values.get('gpstime', '0')) if control_values.get('gpstime', '0').isdigit() else 0
-        gps_timeout, gps_state = calculate_adaptive_timeout(last_gpstime, hw_config['gps_timeout'])
+        gps_timeout, gps_state = calculate_adaptive_timeout(last_gpstime, hw_config)
 
         # Add 20 seconds overhead for subprocess execution
         timeout = gps_timeout + 20
-        print(f"🔍 GPS state: {gps_state}, timeout: {gps_timeout}s (+ 20s overhead = {timeout}s total)")
 
-        print(f"📡 Running GPS sync: {gps_script} (timeout: {timeout}s)")
+        print(f"📡 Running GPS sync: {gps_script} (timeout: {timeout}s, state: {gps_state})")
 
         # Note: subprocess.run() blocks the Flask worker thread during GPS sync.
         # This is acceptable because:
@@ -314,19 +338,15 @@ def sync_gps():
         # 2. Rate limiting (5 req/min) prevents worker starvation
         # 3. Other WebUI endpoints remain responsive (separate requests use different workers)
         # For high-frequency operations, consider using Celery or background tasks.
-        print("🔍 Starting subprocess...")
         result = subprocess.run(
             ['python3', str(gps_script)],
             capture_output=True,
             text=True,
             timeout=timeout
         )
-        print(f"🔍 Subprocess completed with returncode: {result.returncode}")
 
         # Read updated values from controls.txt
-        print("🔍 Reading control values...")
         control_values = get_control_values(CONTROLS_FILE)
-        print(f"🔍 Control values: {control_values}")
         latitude = control_values.get('lat', 'n/a')
         longitude = control_values.get('lon', 'n/a')
         gpstime = control_values.get('gpstime', '0')
@@ -399,6 +419,14 @@ def _update_controls_file(config_updates):
         updates['gps_baudrate'] = str(config_updates['gps_baudrate'])
     if 'gps_timeout' in config_updates:
         updates['gps_timeout'] = str(config_updates['gps_timeout'])
+    if 'gps_timeout_hot' in config_updates:
+        updates['gps_timeout_hot'] = str(config_updates['gps_timeout_hot'])
+    if 'gps_timeout_warm' in config_updates:
+        updates['gps_timeout_warm'] = str(config_updates['gps_timeout_warm'])
+    if 'gps_timeout_cold' in config_updates:
+        updates['gps_timeout_cold'] = str(config_updates['gps_timeout_cold'])
+    if 'gps_timeout_almanac' in config_updates:
+        updates['gps_timeout_almanac'] = str(config_updates['gps_timeout_almanac'])
 
     # Open file for read/write and acquire exclusive lock
     with open(CONTROLS_FILE, 'r+') as f:
