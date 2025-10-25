@@ -43,7 +43,8 @@ export default function GPSSettings() {
   const { data: gpsStatus } = useQuery({
     queryKey: ['gps-status'],
     queryFn: () => getGPSStatus().then(res => res.data),
-    refetchInterval: 5000, // Refresh every 5 seconds
+    // Pause polling during sync to avoid spam, otherwise poll every 15s
+    refetchInterval: (data) => syncing ? false : 15000,
   })
 
   const updateConfigMutation = useMutation({
@@ -87,16 +88,36 @@ export default function GPSSettings() {
     // Get expected GPS state based on last sync
     const stateInfo = getGPSStateInfo(gpsStatus?.gpstime || 0)
 
-    // Show progress toast with estimated time based on GPS state
+    // Parse expected timeout from stateInfo.time (e.g., "~60s" or "5-20 min")
+    const expectedSeconds = stateInfo.time.includes('min')
+      ? 300  // Use 5 minutes for almanac expired
+      : parseInt(stateInfo.time.replace(/[^0-9]/g, '')) || 60
+
+    // Show initial progress toast
     const toastId = toast.loading(
-      `🛰️ Acquiring GPS fix...\n` +
+      `🛰️ Acquiring GPS fix... (0s elapsed)\n` +
       `Expected: ${stateInfo.description}\n` +
-      `Estimated time: ${stateInfo.time}`,
+      `Est. time: ${stateInfo.time}`,
       { duration: Infinity }
     )
 
+    // Update toast every 10 seconds with elapsed time
+    const startTime = Date.now()
+    const progressInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000)
+      const remaining = Math.max(0, expectedSeconds - elapsed)
+
+      toast.loading(
+        `🛰️ Acquiring GPS fix... (${elapsed}s elapsed)\n` +
+        `Expected: ${stateInfo.description}\n` +
+        `Est. remaining: ~${remaining}s`,
+        { id: toastId }  // Update existing toast instead of creating new one
+      )
+    }, 10000)
+
     try {
       const result = await syncGPS()
+      clearInterval(progressInterval)
       toast.dismiss(toastId)
 
       if (result.data.success) {
@@ -124,6 +145,7 @@ export default function GPSSettings() {
       queryClient.invalidateQueries(['gps-status'])
       queryClient.invalidateQueries(['system-status'])
     } catch (error) {
+      clearInterval(progressInterval)
       toast.dismiss(toastId)
       const message = error.response?.data?.message || error.message
       const isTimeout = message.includes('timeout') || error.response?.status === 408
