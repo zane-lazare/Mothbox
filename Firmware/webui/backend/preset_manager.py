@@ -60,7 +60,7 @@ class PresetManager:
                             'category': 'built-in',
                             'version': data.get('version', '1.0'),
                             'author': data.get('author', 'system'),
-                            'workflow': data.get('workflow', 'both')  # photo, video, or both
+                            'workflow': data.get('workflow', 'both')  # photo, liveview, or both
                         })
                 except (json.JSONDecodeError, IOError) as e:
                     print(f"Warning: Could not load built-in preset {preset_file}: {e}")
@@ -79,7 +79,7 @@ class PresetManager:
                             'version': data.get('version', '1.0'),
                             'author': data.get('author', 'user'),
                             'created_at': data.get('created_at', ''),
-                            'workflow': data.get('workflow', 'both')  # photo, video, or both
+                            'workflow': data.get('workflow', 'both')  # photo, liveview, or both
                         })
                 except (json.JSONDecodeError, IOError) as e:
                     print(f"Warning: Could not load user preset {preset_file}: {e}")
@@ -125,7 +125,7 @@ class PresetManager:
             settings: Dict with 'camera' and/or 'preview' settings
             description: Human-readable description
             category: Should always be 'user' (built-in are read-only)
-            workflow: 'photo', 'video', or 'both' - which workflow this preset is for
+            workflow: 'photo', 'liveview', or 'both' - which workflow this preset is for
 
         Returns:
             Tuple of (success: bool, message: str)
@@ -138,9 +138,12 @@ class PresetManager:
         if category == 'built-in':
             return False, "Cannot modify built-in presets"
 
-        # Validate workflow
-        if workflow not in ['photo', 'video', 'both']:
-            return False, "Workflow must be 'photo', 'video', or 'both'"
+        # Validate workflow (support 'video' for backward compatibility, normalize to 'liveview')
+        if workflow == 'video':
+            workflow = 'liveview'  # Normalize deprecated 'video' to 'liveview'
+
+        if workflow not in ['photo', 'liveview', 'both']:
+            return False, "Workflow must be 'photo', 'liveview', or 'both'"
 
         # Validate settings structure
         valid, error_msg = self.validate_preset(settings)

@@ -27,7 +27,7 @@ def list_presets():
     List all available presets (built-in + user)
 
     Query params:
-        workflow: Filter by workflow type ('photo', 'video', or 'both')
+        workflow: Filter by workflow type ('photo', 'liveview', or 'both')
 
     Returns:
         JSON array of preset metadata:
@@ -92,7 +92,7 @@ def create_preset():
         {
             "name": "my_preset",
             "description": "My custom preset",
-            "workflow": "photo",  // 'photo', 'video', or 'both'
+            "workflow": "photo",  // 'photo', 'liveview', or 'both'
             "from_current": true,  // If true, read current settings
             "settings": {  // Optional if from_current=true
                 "camera": {...},
