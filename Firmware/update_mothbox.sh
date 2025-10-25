@@ -834,6 +834,16 @@ if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] || [ "$BACKEND_CONFIG_CHANGED" -gt 0 ] ||
         rm -rf dist
         rm -rf node_modules/.vite
 
+        # Always ensure npm binaries are executable before build (in case permissions were lost)
+        if [ -d "node_modules/.bin" ]; then
+            find node_modules/.bin -type l 2>/dev/null | while read -r link; do
+                target=$(readlink -f "$link")
+                if [ -f "$target" ] && [ ! -x "$target" ]; then
+                    chmod +x "$target" 2>/dev/null || true
+                fi
+            done
+        fi
+
         echo "Building production frontend..."
         sudo -u "$MOTHBOX_USER" npm run build
         echo -e "${GREEN}✓ Web UI frontend rebuilt${NC}"
