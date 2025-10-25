@@ -287,6 +287,10 @@ def sync_gps():
             'message': f'GPS sync did not complete within {timeout} seconds'
         }), 408
     except Exception as e:
+        # Log full traceback for debugging
+        import traceback
+        print(f"❌ GPS sync failed with exception:")
+        print(traceback.format_exc())
         return jsonify({
             'error': 'GPS sync failed',
             'message': str(e)
