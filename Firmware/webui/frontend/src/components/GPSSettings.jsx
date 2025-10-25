@@ -24,6 +24,7 @@ const CollapsibleCard = ({ id, title, isCollapsed, onToggle, children, className
 export default function GPSSettings() {
   const queryClient = useQueryClient()
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [timeoutsCollapsed, setTimeoutsCollapsed] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [localConfig, setLocalConfig] = useState(null)
   const [validationErrors, setValidationErrors] = useState({})
@@ -220,7 +221,11 @@ export default function GPSSettings() {
       gps_enabled: localConfig.enabled,
       gps_device: localConfig.device,
       gps_baudrate: localConfig.baudrate,
-      gps_timeout: localConfig.timeout
+      gps_timeout: localConfig.timeout,
+      gps_timeout_hot: localConfig.timeout_hot,
+      gps_timeout_warm: localConfig.timeout_warm,
+      gps_timeout_cold: localConfig.timeout_cold,
+      gps_timeout_almanac: localConfig.timeout_almanac
     })
   }
 
@@ -401,35 +406,122 @@ export default function GPSSettings() {
                 )}
               </div>
 
-              {/* Timeout */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Sync Timeout: {localConfig?.timeout || 10} seconds
-                  {!validationErrors.timeout && (
-                    <span className="ml-2 text-green-600 text-xs">✓</span>
-                  )}
-                </label>
-                <input
-                  type="range"
-                  min="5"
-                  max="60"
-                  step="5"
-                  value={localConfig?.timeout || 10}
-                  onChange={(e) => handleTimeoutChange(parseInt(e.target.value))}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>5s (Fast)</span>
-                  <span>60s (Long)</span>
+              {/* Advanced Timeout Configuration */}
+              <div className="border border-gray-300 rounded-md p-3">
+                <div
+                  className="flex justify-between items-center cursor-pointer select-none"
+                  onClick={() => setTimeoutsCollapsed(!timeoutsCollapsed)}
+                >
+                  <h5 className="text-sm font-medium text-gray-700">⚙️ Advanced Timeout Configuration</h5>
+                  <span className="text-gray-500 text-sm">
+                    {timeoutsCollapsed ? '▶' : '▼'}
+                  </span>
                 </div>
-                {validationErrors.timeout ? (
-                  <p className="text-xs text-red-600 mt-1">
-                    ⚠️ {validationErrors.timeout}
-                  </p>
-                ) : (
-                  <p className="text-xs text-gray-500 mt-1">
-                    How long to wait for GPS fix before timing out (actual timeout may be up to 20 seconds longer for processing overhead)
-                  </p>
+
+                {!timeoutsCollapsed && (
+                  <div className="mt-3 space-y-3">
+                    <p className="text-xs text-gray-600">
+                      Adaptive timeouts automatically adjust based on GPS state. Customize for your environment:
+                    </p>
+
+                    {/* Hot Start Timeout */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        🟢 Hot Start (&lt;4 hours): {localConfig?.timeout_hot || 15}s
+                      </label>
+                      <input
+                        type="range"
+                        min="5"
+                        max="60"
+                        step="5"
+                        value={localConfig?.timeout_hot || 15}
+                        onChange={(e) => setLocalConfig({...localConfig, timeout_hot: parseInt(e.target.value)})}
+                        className="w-full"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>5s</span>
+                        <span>60s</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">GPS has recent data, ~1s TTFF</p>
+                    </div>
+
+                    {/* Warm Start Timeout */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        🟡 Warm Start (4h-6d): {localConfig?.timeout_warm || 60}s
+                      </label>
+                      <input
+                        type="range"
+                        min="30"
+                        max="180"
+                        step="10"
+                        value={localConfig?.timeout_warm || 60}
+                        onChange={(e) => setLocalConfig({...localConfig, timeout_warm: parseInt(e.target.value)})}
+                        className="w-full"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>30s</span>
+                        <span>180s</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Needs fresh ephemeris, ~26s TTFF</p>
+                    </div>
+
+                    {/* Cold Start Timeout */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        🟠 Cold Start (6-28d): {localConfig?.timeout_cold || 90}s
+                      </label>
+                      <input
+                        type="range"
+                        min="60"
+                        max="300"
+                        step="10"
+                        value={localConfig?.timeout_cold || 90}
+                        onChange={(e) => setLocalConfig({...localConfig, timeout_cold: parseInt(e.target.value)})}
+                        className="w-full"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>60s</span>
+                        <span>300s</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Downloads ephemeris, 26-57s TTFF</p>
+                    </div>
+
+                    {/* Almanac Expired Timeout */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        🔴 Almanac Expired (&gt;28d): {Math.floor((localConfig?.timeout_almanac || 1200) / 60)}m
+                      </label>
+                      <input
+                        type="range"
+                        min="300"
+                        max="1800"
+                        step="60"
+                        value={localConfig?.timeout_almanac || 1200}
+                        onChange={(e) => setLocalConfig({...localConfig, timeout_almanac: parseInt(e.target.value)})}
+                        className="w-full"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>5min</span>
+                        <span>30min</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Full almanac download, 12-20min worst case</p>
+                    </div>
+
+                    {/* Reset to Defaults Button */}
+                    <button
+                      onClick={() => setLocalConfig({
+                        ...localConfig,
+                        timeout_hot: 15,
+                        timeout_warm: 60,
+                        timeout_cold: 90,
+                        timeout_almanac: 1200
+                      })}
+                      className="w-full px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                    >
+                      Reset to Defaults
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
