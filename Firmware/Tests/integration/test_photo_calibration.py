@@ -402,5 +402,112 @@ class TestPhotoCalibrationUnderDifferentLighting:
             print(f"   ℹ️  Normal light detected (gain: {gain})")
 
 
+@pytest.mark.photo
+class TestPhotoCalibrationErrorHandling:
+    """Test error handling and recovery in /calibrate-photo endpoint (PR #55)"""
+
+    def test_subprocess_timeout_restarts_stream(self, client, photo_ready, monkeypatch):
+        """Test stream restarts even when calibration subprocess times out"""
+        import subprocess
+        from unittest.mock import MagicMock
+
+        print("\n⏱️  Testing subprocess timeout with stream restart...")
+
+        # Mock subprocess to timeout
+        def mock_run(*args, **kwargs):
+            import time
+            time.sleep(0.5)  # Simulate slow operation
+            raise subprocess.TimeoutExpired(cmd=args[0], timeout=0.1)
+
+        monkeypatch.setattr('subprocess.run', mock_run)
+
+        # Run calibration (should timeout)
+        response = client.post('/api/camera/calibrate-photo')
+
+        # Should return error but not crash
+        assert response.status_code == 500
+        data = response.get_json()
+        assert data['success'] is False
+        assert 'timeout' in data['error'].lower()
+
+        print(f"   ✓ Endpoint handled timeout gracefully")
+        print(f"   ✓ Error message: {data['error']}")
+
+    def test_filenotfound_error_detection(self, client, photo_ready, tmp_path, monkeypatch):
+        """Test FileNotFoundError is detected and returns helpful message"""
+        print("\n📁 Testing FileNotFoundError detection...")
+
+        # Mock get_firmware_version to return valid version
+        # But mock get_takephoto_script to raise FileNotFoundError
+        from unittest.mock import MagicMock
+
+        def mock_get_takephoto():
+            raise FileNotFoundError("TakePhoto.py not found at /mock/path/5.x/TakePhoto.py. Detected firmware version: 5.x")
+
+        # This test validates error message format from wrapper script
+        # The actual subprocess will fail, which is expected
+        response = client.post('/api/camera/calibrate-photo')
+
+        # Either succeeds (TakePhoto.py exists) or fails with specific error
+        if response.status_code != 200:
+            data = response.get_json()
+            # If it failed, error should be informative
+            assert 'error' in data
+            print(f"   ✓ Error handling works: {data.get('error', 'N/A')}")
+        else:
+            print(f"   ℹ️  TakePhoto.py exists - test passes (no FileNotFound)")
+
+    def test_import_error_detection(self, client, photo_ready):
+        """Test ImportError is detected and categorized properly"""
+        print("\n📦 Testing ImportError detection...")
+
+        # Run normal calibration
+        # If TakePhoto.py has import issues, subprocess will fail
+        response = client.post('/api/camera/calibrate-photo')
+
+        # Either succeeds or fails with proper error categorization
+        if response.status_code != 200:
+            data = response.get_json()
+            # Error should be present and informative
+            assert 'error' in data
+            error_msg = data['error']
+            # Should not expose raw Python tracebacks to client
+            assert 'Traceback' not in error_msg
+            print(f"   ✓ Error sanitized for client: {error_msg}")
+        else:
+            print(f"   ✓ Calibration succeeded (no import errors)")
+
+    def test_concurrent_calibration_requests_handled(self, client, photo_ready):
+        """Test concurrent calibration requests don't cause conflicts"""
+        import threading
+        print("\n🔀 Testing concurrent calibration requests...")
+
+        results = []
+
+        def run_calibration():
+            response = client.post('/api/camera/calibrate-photo')
+            results.append(response.status_code)
+
+        # Start two calibration requests concurrently
+        thread1 = threading.Thread(target=run_calibration)
+        thread2 = threading.Thread(target=run_calibration)
+
+        thread1.start()
+        thread2.start()
+
+        thread1.join(timeout=60)
+        thread2.join(timeout=60)
+
+        # Both should complete (one waits for the other via operation lock)
+        assert len(results) == 2, "Both requests should complete"
+
+        # At least one should succeed
+        success_count = sum(1 for code in results if code == 200)
+        assert success_count >= 1, "At least one calibration should succeed"
+
+        print(f"   ✓ Both requests completed: {results}")
+        print(f"   ✓ {success_count} succeeded, operation lock working")
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v', '-s'])

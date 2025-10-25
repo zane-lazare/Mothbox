@@ -134,11 +134,25 @@ case "$TEST_TYPE" in
         echo "Testing autofocus, photo calibration, stream calibration, and metering workflows..."
         pytest Tests/unit/test_focus_control_validation.py \
                Tests/unit/test_metering_validation.py \
+               Tests/unit/test_firmware_detection.py \
+               Tests/unit/test_photo_calibration_wrapper.py \
                Tests/integration/test_autofocus_workflows.py \
                Tests/integration/test_photo_calibration.py \
                Tests/integration/test_stream_calibration.py \
+               Tests/integration/test_firmware_compatibility.py \
                Tests/integration/test_camera_controls.py \
                Tests/integration/test_metering_exposure.py -v -s
+        ;;
+
+    "calibration"|"photo-calibration")
+        # Photo Calibration tests (Issue #45 + PR #55)
+        echo "🚀 Running Photo Calibration tests..."
+        echo ""
+        echo "Testing firmware detection, wrapper script, error handling, and compatibility..."
+        pytest Tests/unit/test_firmware_detection.py \
+               Tests/unit/test_photo_calibration_wrapper.py \
+               Tests/integration/test_photo_calibration.py \
+               Tests/integration/test_firmware_compatibility.py -v -s
         ;;
 
     "workflows"|"interactive")
