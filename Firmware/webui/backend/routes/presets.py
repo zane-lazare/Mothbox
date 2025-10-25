@@ -168,7 +168,7 @@ def apply_preset(name):
 
     Request JSON:
         {
-            "apply_to": "capture" | "preview" | "both"
+            "apply_to": "capture" | "liveview" | "both"
         }
 
     Returns:

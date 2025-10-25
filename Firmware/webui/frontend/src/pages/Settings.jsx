@@ -301,7 +301,7 @@ export default function Settings() {
     try {
       await applyPresetMutation.mutateAsync({
         name: presetName,
-        applyTo: 'preview'
+        applyTo: 'liveview'
       })
       await queryClient.invalidateQueries(['webui-settings'])
       // No toast - silent initialization
@@ -379,7 +379,7 @@ export default function Settings() {
     try {
       await applyPresetMutation.mutateAsync({
         name: presetName,
-        applyTo: 'preview'
+        applyTo: 'liveview'
       })
       // Query invalidation triggers form update
       await queryClient.invalidateQueries(['webui-settings'])

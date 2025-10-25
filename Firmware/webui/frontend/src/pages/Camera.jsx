@@ -769,7 +769,7 @@ export default function Camera() {
     try {
       await applyPresetMutation.mutateAsync({
         name: presetName,
-        applyTo: 'preview'
+        applyTo: 'liveview'
       })
 
       // Reload webui settings to update live controls
@@ -804,7 +804,7 @@ export default function Camera() {
     try {
       await applyPresetMutation.mutateAsync({
         name: presetName,
-        applyTo: 'preview'
+        applyTo: 'liveview'
       })
 
       const preset = presetsData?.presets?.find(p => p.name === presetName)
