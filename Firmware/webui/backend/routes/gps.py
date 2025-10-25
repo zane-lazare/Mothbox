@@ -221,9 +221,12 @@ def sync_gps():
         - gpstime: Unix timestamp of sync
         - output: Script output for debugging
     """
+    print("🔍 GPS sync endpoint called")
     try:
         # Check if GPS is enabled
+        print("🔍 Getting hardware config...")
         hw_config = get_hardware_config()
+        print(f"🔍 GPS enabled: {hw_config.get('gps_enabled')}")
         if not hw_config['gps_enabled']:
             return jsonify({
                 'error': 'GPS is disabled',
