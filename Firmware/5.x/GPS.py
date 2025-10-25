@@ -3,13 +3,14 @@
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import CONTROLS_FILE, get_hardware_config
+from mothbox_paths import CONTROLS_FILE, get_hardware_config, get_control_values
 
 from gps import *
 import time
 from datetime import datetime
 import os
 import select
+import fcntl
 from timezonefinder import TimezoneFinder
 from zoneinfo import ZoneInfo
 
@@ -56,59 +57,76 @@ except subprocess.TimeoutExpired:
 print("gpsmon terminated")
 '''
 
-
-
-def get_control_values(filepath):
-    """Reads key-value pairs from the control file."""
-    control_values = {}
-    with open(filepath, "r") as file:
-        for line in file:
-            key, value = line.strip().split("=")
-            control_values[key] = value
-    return control_values
-
+# Use get_control_values from mothbox_paths (proper error handling built-in)
 control_values = get_control_values(str(CONTROLS_FILE))
 
-def set_GPStime(filepath, gpstime):
-    with open(filepath, "r") as file:
-        lines = file.readlines()
 
-    with open(filepath, "w") as file:
-        for line in lines:
-            print(line)
-            if line.startswith("gpstime"):
-                file.write("gpstime=" + str(gpstime) + "\n")  # Replace with False
-                #print("set gpstime " + str(gpstime))
-            else:
-                file.write(line)  # Keep other lines unchanged
-                
-def set_UTCoff(filepath, UTC):
-    with open(filepath, "r") as file:
-        lines = file.readlines()
+def update_gps_values(filepath, lat=None, lon=None, gpstime=None, utc_offset=None):
+    """
+    Atomically update GPS values in controls.txt with file locking.
 
-    with open(filepath, "w") as file:
-        for line in lines:
-            print(line)
-            if line.startswith("UTCoff"):
-                file.write("UTCoff=" + str(UTC) + "\n")  # Replace with False
-                #print("set UTCoff" + str(UTC))    
-            else:
-                file.write(line)  # Keep other lines unchanged
-def set_GPS(filepath, lat,lon):
-    with open(filepath, "r") as file:
-        lines = file.readlines()
+    This prevents race conditions with WebUI by using fcntl exclusive locks.
+    All GPS values are updated in a single locked write operation.
 
-    with open(filepath, "w") as file:
-        for line in lines:
-            print(line)
-            if line.startswith("lat"):
-                file.write("lat=" + str(lat) + "\n")  # Replace with False
-                #print("set lat" + str(lat))
-            elif line.startswith("lon"):
-                file.write("lon=" + str(lon) + "\n")  # Replace with False
-                #print("set lon" + str(lon)) 
-            else:
-                file.write(line)  # Keep other lines unchanged
+    Args:
+        filepath: Path to controls.txt
+        lat: Latitude value (or None to skip)
+        lon: Longitude value (or None to skip)
+        gpstime: Unix timestamp (or None to skip)
+        utc_offset: UTC offset in hours (or None to skip)
+    """
+    # Prepare updates mapping (only include values that were provided)
+    updates = {}
+    if lat is not None:
+        updates['lat'] = str(lat)
+    if lon is not None:
+        updates['lon'] = str(lon)
+    if gpstime is not None:
+        updates['gpstime'] = str(gpstime)
+    if utc_offset is not None:
+        updates['UTCoff'] = str(utc_offset)
+
+    # Open file for read/write and acquire exclusive lock
+    with open(filepath, 'r+') as f:
+        try:
+            # Acquire exclusive lock (blocks until lock is available)
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+
+            # Read current contents
+            lines = f.readlines()
+
+            # Update lines
+            updated_lines = []
+            updated_keys = set()
+
+            for line in lines:
+                stripped = line.strip()
+                if stripped and '=' in stripped and not stripped.startswith('#'):
+                    key = stripped.split('=', 1)[0]
+                    if key in updates:
+                        updated_lines.append(f"{key}={updates[key]}\n")
+                        updated_keys.add(key)
+                        print(f"Updated {key}={updates[key]}")
+                    else:
+                        updated_lines.append(line)
+                else:
+                    updated_lines.append(line)
+
+            # Add any new keys that weren't in the file
+            for key, value in updates.items():
+                if key not in updated_keys:
+                    updated_lines.append(f"{key}={value}\n")
+                    print(f"Added {key}={value}")
+
+            # Write back to file
+            f.seek(0)
+            f.truncate()
+            f.writelines(updated_lines)
+            f.flush()
+
+        finally:
+            # Release lock (automatically released when file closes, but explicit is better)
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 print("startingGPS")
 got_gps_fix = False
@@ -149,7 +167,6 @@ try:
         print("sync HW clock with system clock")
         os.system("sudo hwclock -w")
         print("System UTC time set.")
-        set_GPStime(str(CONTROLS_FILE), epoch_time)
 
         # Use offline timezone lookup
         if latitude is not None and longitude is not None:
@@ -157,21 +174,26 @@ try:
             if timezone:
                 print("Setting system timezone to:", timezone)
                 os.system(f"sudo timedatectl set-timezone {timezone}")
-                
+
                 # Now calculate the UTC offset
                 from zoneinfo import ZoneInfo
                 local_time = datetime.now(ZoneInfo(timezone))
                 utc_offset_hours = int(local_time.utcoffset().total_seconds() // 3600)
                 print("UTC Offset (hours):", utc_offset_hours)
-                set_GPS(str(CONTROLS_FILE), latitude, longitude)
-                set_UTCoff(str(CONTROLS_FILE),utc_offset_hours)
+
+                # Atomically update all GPS values in one locked operation
+                update_gps_values(str(CONTROLS_FILE),
+                                lat=latitude,
+                                lon=longitude,
+                                gpstime=epoch_time,
+                                utc_offset=utc_offset_hours)
             else:
                 print("Could not determine timezone from coordinates.")
-                set_GPS(str(CONTROLS_FILE), "n/a", "n/a")
+                update_gps_values(str(CONTROLS_FILE), lat="n/a", lon="n/a", gpstime=epoch_time)
 
     else:
         print("No UTC time received before timeout")
-        set_GPS(str(CONTROLS_FILE), "n/a", "n/a")
+        update_gps_values(str(CONTROLS_FILE), lat="n/a", lon="n/a")
 
 
 
