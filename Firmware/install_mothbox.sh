@@ -950,6 +950,9 @@ update_or_add_config() {
     fi
 }
 
+# Export function so it's available in subshells (needed for update_controls_atomic)
+export -f update_or_add_config
+
 # Write GPIO configuration to controls.txt
 echo -e "${BLUE}Configuring GPIO pins...${NC}"
 
