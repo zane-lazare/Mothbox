@@ -999,7 +999,7 @@ echo -e "${GREEN}✓ Configuration values validated${NC}"
 
 # Append GPIO configuration if not already present
 if ! grep -q "^Relay_Ch1=" "$CONTROLS_FILE" 2>/dev/null; then
-    update_controls_atomic sh -c "
+    update_controls_atomic bash -c "
         echo 'Relay_Ch1=$RELAY_CH1' | sudo tee -a '$CONTROLS_FILE' > /dev/null
         echo 'Relay_Ch2=$RELAY_CH2' | sudo tee -a '$CONTROLS_FILE' > /dev/null
         echo 'Relay_Ch3=$RELAY_CH3' | sudo tee -a '$CONTROLS_FILE' > /dev/null
@@ -1007,7 +1007,7 @@ if ! grep -q "^Relay_Ch1=" "$CONTROLS_FILE" 2>/dev/null; then
     echo -e "${GREEN}✓ GPIO configuration written to controls.txt${NC}"
 else
     # Update existing GPIO configuration with file locking
-    update_controls_atomic sh -c "
+    update_controls_atomic bash -c "
         sudo sed -i 's/^Relay_Ch1=.*/Relay_Ch1=$RELAY_CH1/' '$CONTROLS_FILE'
         sudo sed -i 's/^Relay_Ch2=.*/Relay_Ch2=$RELAY_CH2/' '$CONTROLS_FILE'
         sudo sed -i 's/^Relay_Ch3=.*/Relay_Ch3=$RELAY_CH3/' '$CONTROLS_FILE'
@@ -1020,7 +1020,7 @@ echo -e "${BLUE}Configuring hardware modules...${NC}"
 
 # Use update_or_add_config to handle both new installations and updates
 # This ensures GPS config is added even to existing installations
-update_controls_atomic sh -c "
+update_controls_atomic bash -c "
     update_or_add_config 'relay_enabled' '$RELAY_ENABLED' '$CONTROLS_FILE'
     update_or_add_config 'ina260_enabled' '$INA260_ENABLED' '$CONTROLS_FILE'
     update_or_add_config 'ina260_address' '$INA260_ADDRESS' '$CONTROLS_FILE'
