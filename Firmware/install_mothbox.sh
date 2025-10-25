@@ -192,7 +192,7 @@ if [ "$INTERACTIVE_MODE" = "true" ]; then
             # Remove trailing slashes for consistency
             CUSTOM_PATH="${CUSTOM_PATH%/}"
             # Check for dangerous characters
-            if [[ "$CUSTOM_PATH" =~ [[:space:]\;\$\`\(\)\|&\<\>] ]]; then
+            if [[ "$CUSTOM_PATH" =~ [[:space:]\;\$\`\(\)\|\&\<\>] ]]; then
                 echo -e "${RED}Error: Custom path contains invalid characters${NC}"
                 exit 1
             fi
@@ -246,7 +246,7 @@ if [ "$INTERACTIVE_MODE" = "false" ]; then
             # Remove trailing slashes for consistency
             CUSTOM_PATH="${CUSTOM_PATH%/}"
             # Check for dangerous characters
-            if [[ "$CUSTOM_PATH" =~ [[:space:]\;\$\`\(\)\|&\<\>] ]]; then
+            if [[ "$CUSTOM_PATH" =~ [[:space:]\;\$\`\(\)\|\&\<\>] ]]; then
                 echo -e "${RED}Error: Custom path contains invalid characters${NC}"
                 exit 1
             fi
