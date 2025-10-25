@@ -43,14 +43,58 @@ export default function Dashboard() {
 
   const handleSyncGPS = async () => {
     setSyncing(true)
+
+    // Show progress toast
+    const toastId = toast.loading(
+      '🛰️ Acquiring GPS fix...\nThis may take 10-30 seconds',
+      { duration: Infinity }
+    )
+
     try {
-      await syncGPS()
+      const result = await syncGPS()
+      toast.dismiss(toastId)
+
+      if (result.data.success) {
+        toast.success(
+          `✅ GPS synced!\n📍 ${result.data.latitude}, ${result.data.longitude}`,
+          { duration: 4000 }
+        )
+      } else {
+        toast.error(
+          '⚠️ No GPS fix acquired\n\n' +
+          'Tips:\n' +
+          '• Move to location with clear sky view\n' +
+          '• Allow 1-2 minutes for GPS cold start\n' +
+          '• Increase timeout in GPS Settings',
+          { duration: 6000 }
+        )
+      }
+
       // Refetch system status to get updated GPS data
       queryClient.invalidateQueries(['system-status'])
-      toast.success('GPS synced successfully!')
+      queryClient.invalidateQueries(['gps-status'])
     } catch (error) {
+      toast.dismiss(toastId)
       console.error('Failed to sync GPS:', error)
-      toast.error(`GPS sync failed: ${error.response?.data?.message || error.message}`)
+      const message = error.response?.data?.message || error.message
+      const isTimeout = message.includes('timeout') || error.response?.status === 408
+
+      if (isTimeout) {
+        toast.error(
+          '⏱️ GPS sync timeout\n\n' +
+          'Troubleshooting:\n' +
+          '• Increase timeout in GPS Settings\n' +
+          '• Check GPS hardware connections\n' +
+          '• Ensure clear sky view',
+          { duration: 7000 }
+        )
+      } else {
+        toast.error(
+          `❌ GPS sync failed: ${message}\n\n` +
+          'Check GPS Settings for configuration',
+          { duration: 5000 }
+        )
+      }
     } finally {
       setSyncing(false)
     }

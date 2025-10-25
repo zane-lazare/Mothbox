@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getGPSConfig, updateGPSConfig, getGPSStatus, syncGPS } from '../utils/api'
 import { formatTimestamp } from '../utils/helpers'
+import { validateDevicePath, validateBaudrate, validateTimeout } from '../utils/gpsValidation'
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 
@@ -25,6 +26,7 @@ export default function GPSSettings() {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [localConfig, setLocalConfig] = useState(null)
+  const [validationErrors, setValidationErrors] = useState({})
 
   const { data: gpsConfig, isLoading: configLoading } = useQuery({
     queryKey: ['gps-config'],
@@ -64,24 +66,112 @@ export default function GPSSettings() {
     }
 
     setSyncing(true)
+    const timeout = gpsConfig?.timeout || 10
+    const estimatedTime = timeout + 20 // Add processing overhead
+
+    // Show progress toast with estimated time
+    const toastId = toast.loading(
+      `🛰️ Acquiring GPS fix...\nEstimated time: ${estimatedTime}s\n` +
+      `Timeout: ${timeout}s + ~20s processing`,
+      { duration: Infinity }
+    )
+
     try {
       const result = await syncGPS()
+      toast.dismiss(toastId)
+
       if (result.data.success) {
-        toast.success(`GPS synced! Location: ${result.data.latitude}, ${result.data.longitude}`)
+        toast.success(
+          `✅ GPS synced successfully!\n` +
+          `📍 Location: ${result.data.latitude}, ${result.data.longitude}\n` +
+          `🕐 GPS Time: ${result.data.gpstime || 'synced'}`,
+          { duration: 5000 }
+        )
       } else {
-        toast.error('GPS sync failed: No fix acquired')
+        toast.error(
+          `⚠️ GPS sync timeout: No fix acquired\n\n` +
+          `Troubleshooting:\n` +
+          `• Ensure GPS module is connected to GPIO pins\n` +
+          `• Move to location with clear sky view\n` +
+          `• Check antenna connection\n` +
+          `• Allow 1-2 minutes for cold start\n` +
+          `• Verify device path in configuration`,
+          { duration: 8000 }
+        )
       }
       queryClient.invalidateQueries(['gps-status'])
       queryClient.invalidateQueries(['system-status'])
     } catch (error) {
+      toast.dismiss(toastId)
       const message = error.response?.data?.message || error.message
-      toast.error(`GPS sync failed: ${message}`)
+      const isTimeout = message.includes('timeout') || error.response?.status === 408
+
+      if (isTimeout) {
+        toast.error(
+          `⏱️ GPS sync timeout (${timeout}s)\n\n` +
+          `Troubleshooting:\n` +
+          `• Increase timeout in settings (currently ${timeout}s)\n` +
+          `• Move to location with clear sky view\n` +
+          `• Check GPS module LED for activity\n` +
+          `• Verify hardware connections\n` +
+          `• Cold start can take 30-60s`,
+          { duration: 10000 }
+        )
+      } else {
+        toast.error(
+          `❌ GPS sync failed: ${message}\n\n` +
+          `Check:\n` +
+          `• GPS device path (${gpsConfig?.device})\n` +
+          `• Hardware connections\n` +
+          `• System logs for details`,
+          { duration: 8000 }
+        )
+      }
     } finally {
       setSyncing(false)
     }
   }
 
+  // Validate config changes in real-time
+  const handleDeviceChange = (newDevice) => {
+    setLocalConfig({...localConfig, device: newDevice})
+    const validation = validateDevicePath(newDevice)
+    setValidationErrors(prev => ({
+      ...prev,
+      device: validation.valid ? null : validation.error
+    }))
+  }
+
+  const handleBaudrateChange = (newBaudrate) => {
+    setLocalConfig({...localConfig, baudrate: newBaudrate})
+    const validation = validateBaudrate(newBaudrate)
+    setValidationErrors(prev => ({
+      ...prev,
+      baudrate: validation.valid ? null : validation.error
+    }))
+  }
+
+  const handleTimeoutChange = (newTimeout) => {
+    setLocalConfig({...localConfig, timeout: newTimeout})
+    const validation = validateTimeout(newTimeout)
+    setValidationErrors(prev => ({
+      ...prev,
+      timeout: validation.valid ? null : validation.error
+    }))
+  }
+
+  // Check if form is valid
+  const isFormValid = () => {
+    if (!localConfig) return false
+    return !validationErrors.device && !validationErrors.baudrate && !validationErrors.timeout
+  }
+
   const handleSaveConfig = () => {
+    if (!isFormValid()) {
+      toast.error('Please fix validation errors before saving')
+      return
+    }
+
     updateConfigMutation.mutate({
       gps_enabled: localConfig.enabled,
       gps_device: localConfig.device,
@@ -161,28 +251,53 @@ export default function GPSSettings() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   GPS Device Path
+                  {validationErrors.device && (
+                    <span className="ml-2 text-red-600 text-xs">✗</span>
+                  )}
+                  {!validationErrors.device && localConfig?.device && (
+                    <span className="ml-2 text-green-600 text-xs">✓</span>
+                  )}
                 </label>
                 <input
                   type="text"
                   value={localConfig?.device || ''}
-                  onChange={(e) => setLocalConfig({...localConfig, device: e.target.value})}
+                  onChange={(e) => handleDeviceChange(e.target.value)}
                   placeholder="/dev/ttyAMA0"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                    validationErrors.device
+                      ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                      : localConfig?.device
+                      ? 'border-green-300 focus:ring-green-500 bg-green-50'
+                      : 'border-gray-300 focus:ring-blue-500'
+                  }`}
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  UART device path (typically /dev/ttyAMA0 for Pi GPIO UART)
-                </p>
+                {validationErrors.device ? (
+                  <p className="text-xs text-red-600 mt-1">
+                    ⚠️ {validationErrors.device}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">
+                    UART device path (typically /dev/ttyAMA0 for Pi GPIO UART)
+                  </p>
+                )}
               </div>
 
               {/* Baud Rate */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Baud Rate
+                  {!validationErrors.baudrate && (
+                    <span className="ml-2 text-green-600 text-xs">✓</span>
+                  )}
                 </label>
                 <select
                   value={localConfig?.baudrate || 9600}
-                  onChange={(e) => setLocalConfig({...localConfig, baudrate: parseInt(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => handleBaudrateChange(parseInt(e.target.value))}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                    validationErrors.baudrate
+                      ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                      : 'border-green-300 focus:ring-green-500 bg-green-50'
+                  }`}
                 >
                   <option value="4800">4800</option>
                   <option value="9600">9600 (Default)</option>
@@ -191,15 +306,24 @@ export default function GPSSettings() {
                   <option value="57600">57600</option>
                   <option value="115200">115200</option>
                 </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  Serial communication speed (9600 is default for NEO-M8N)
-                </p>
+                {validationErrors.baudrate ? (
+                  <p className="text-xs text-red-600 mt-1">
+                    ⚠️ {validationErrors.baudrate}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Serial communication speed (9600 is default for NEO-M8N)
+                  </p>
+                )}
               </div>
 
               {/* Timeout */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Sync Timeout: {localConfig?.timeout || 10} seconds
+                  {!validationErrors.timeout && (
+                    <span className="ml-2 text-green-600 text-xs">✓</span>
+                  )}
                 </label>
                 <input
                   type="range"
@@ -207,16 +331,22 @@ export default function GPSSettings() {
                   max="60"
                   step="5"
                   value={localConfig?.timeout || 10}
-                  onChange={(e) => setLocalConfig({...localConfig, timeout: parseInt(e.target.value)})}
+                  onChange={(e) => handleTimeoutChange(parseInt(e.target.value))}
                   className="w-full"
                 />
                 <div className="flex justify-between text-xs text-gray-500">
                   <span>5s (Fast)</span>
                   <span>60s (Long)</span>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  How long to wait for GPS fix before timing out (actual timeout may be up to 20 seconds longer for processing overhead)
-                </p>
+                {validationErrors.timeout ? (
+                  <p className="text-xs text-red-600 mt-1">
+                    ⚠️ {validationErrors.timeout}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">
+                    How long to wait for GPS fix before timing out (actual timeout may be up to 20 seconds longer for processing overhead)
+                  </p>
+                )}
               </div>
             </div>
 
@@ -225,14 +355,15 @@ export default function GPSSettings() {
               <button
                 onClick={handleSyncGPS}
                 disabled={syncing}
-                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 {syncing ? 'Syncing...' : '🛰️ Sync GPS Now'}
               </button>
               <button
                 onClick={handleSaveConfig}
-                disabled={updateConfigMutation.isLoading}
-                className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400"
+                disabled={updateConfigMutation.isLoading || !isFormValid()}
+                className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                title={!isFormValid() ? 'Please fix validation errors' : ''}
               >
                 {updateConfigMutation.isLoading ? 'Saving...' : '💾 Save Configuration'}
               </button>
