@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSystemStatus, getPowerStatus, capturePhoto, getPhotos, syncGPS } from '../utils/api'
+import { formatTimestamp } from '../utils/helpers'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 
@@ -53,11 +54,6 @@ export default function Dashboard() {
     } finally {
       setSyncing(false)
     }
-  }
-
-  const formatTimestamp = (timestamp) => {
-    if (!timestamp || timestamp === 0) return 'Never'
-    return new Date(timestamp * 1000).toLocaleString()
   }
 
   if (statusLoading) {

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getGPSConfig, updateGPSConfig, getGPSStatus, syncGPS } from '../utils/api'
+import { formatTimestamp } from '../utils/helpers'
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 
@@ -87,11 +88,6 @@ export default function GPSSettings() {
       gps_baudrate: localConfig.baudrate,
       gps_timeout: localConfig.timeout
     })
-  }
-
-  const formatTimestamp = (timestamp) => {
-    if (!timestamp || timestamp === 0) return 'Never'
-    return new Date(timestamp * 1000).toLocaleString()
   }
 
   if (configLoading) {
