@@ -164,6 +164,16 @@ if [ ! -d "$WEBUI_FRONTEND_DIR/node_modules" ]; then
     exit 1
 fi
 
+# Fix execute permissions on npm binaries (npm doesn't always set +x)
+echo "Setting execute permissions on npm binaries..."
+find "$WEBUI_FRONTEND_DIR/node_modules/.bin" -type l 2>/dev/null | while read -r link; do
+    target=$(readlink -f "$link")
+    if [ -f "$target" ]; then
+        chmod +x "$target" 2>/dev/null || true
+    fi
+done
+echo -e "${GREEN}✓ npm binary permissions set${NC}"
+
 echo "Building production frontend..."
 if sudo -u $MOTHBOX_USER npm run build; then
     echo -e "${GREEN}✓ Frontend built successfully${NC}"

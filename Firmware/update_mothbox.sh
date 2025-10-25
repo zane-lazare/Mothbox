@@ -807,12 +807,26 @@ if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] || [ "$BACKEND_CONFIG_CHANGED" -gt 0 ] ||
 
         # Check if we need to install/reinstall npm dependencies
         # Install if: node_modules missing OR package.json/package-lock.json changed
+        NPM_INSTALLED=false
         if [ ! -d "node_modules" ]; then
             echo "Installing npm dependencies (node_modules not found)..."
             sudo -u "$MOTHBOX_USER" npm install
+            NPM_INSTALLED=true
         elif git -C "$MOTHBOX_ROOT" diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" 2>/dev/null | grep -q "webui/frontend/package"; then
             echo "Reinstalling npm dependencies (package files changed)..."
             sudo -u "$MOTHBOX_USER" npm install
+            NPM_INSTALLED=true
+        fi
+
+        # Fix execute permissions on npm binaries after install
+        if [ "$NPM_INSTALLED" = true ]; then
+            echo "Setting execute permissions on npm binaries..."
+            find node_modules/.bin -type l 2>/dev/null | while read -r link; do
+                target=$(readlink -f "$link")
+                if [ -f "$target" ]; then
+                    chmod +x "$target" 2>/dev/null || true
+                fi
+            done
         fi
 
         # Clean build to avoid Vite caching issues with incremental builds
@@ -841,6 +855,16 @@ if [ "$INSTALL_TYPE" = "production" ] && [ -d "$MOTHBOX_HOME/webui/frontend" ]; 
         echo "This enables frontend rebuilds for development/testing"
         cd "$MOTHBOX_HOME/webui/frontend"
         sudo -u "$MOTHBOX_USER" npm install
+
+        # Fix execute permissions on npm binaries
+        echo "Setting execute permissions on npm binaries..."
+        find node_modules/.bin -type l 2>/dev/null | while read -r link; do
+            target=$(readlink -f "$link")
+            if [ -f "$target" ]; then
+                chmod +x "$target" 2>/dev/null || true
+            fi
+        done
+
         echo -e "${GREEN}✓ npm dependencies installed${NC}"
         cd "$MOTHBOX_ROOT"
         echo ""
