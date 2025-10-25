@@ -527,15 +527,24 @@ else
     echo ""
 
     # GPS Module Configuration
-    echo -e "${YELLOW}GPS Module${NC}"
+    echo -e "${YELLOW}GPS Module (NEO-M8N or compatible)${NC}"
+    echo "  Hardware connection:"
+    echo "    - GPIO 14 (TX) → GPS RX"
+    echo "    - GPIO 15 (RX) → GPS TX"
+    echo "    - 3.3V → GPS VCC"
+    echo "    - GND → GPS GND"
+    echo ""
+    echo -e "${YELLOW}  ⚠ Note: UART mode disables Bluetooth on Pi 3/4/5${NC}"
+    echo "  (Bluetooth conflicts with UART0 on these models)"
+    echo ""
     read -p "Configure GPS module? (Y/n): " CONFIGURE_GPS
     CONFIGURE_GPS=${CONFIGURE_GPS:-Y}
 
     if [[ "$CONFIGURE_GPS" =~ ^[Yy]$ ]]; then
         GPS_ENABLED="true"
         echo "  GPS device options:"
-        echo "    1) /dev/ttyAMA0 (UART - GPIO pins 14/15)"
-        echo "    2) /dev/ttyUSB0 (USB GPS module)"
+        echo "    1) /dev/ttyAMA0 (UART - GPIO pins 14/15, disables Bluetooth)"
+        echo "    2) /dev/ttyUSB0 (USB GPS module, Bluetooth unaffected)"
         echo "    3) Custom device path"
         read -p "  Select GPS device [1]: " GPS_DEVICE_CHOICE
         GPS_DEVICE_CHOICE=${GPS_DEVICE_CHOICE:-1}
@@ -726,6 +735,13 @@ echo ""
 # Configure camera
 "$SCRIPT_DIR/installation-utils/configure_camera.sh"
 echo ""
+
+# Configure GPS hardware (if enabled)
+if [ "$GPS_ENABLED" = "true" ]; then
+    export GPS_DEVICE
+    export GPS_BAUDRATE
+    "$SCRIPT_DIR/installation-utils/configure_gps.sh"
+fi
 
 echo -e "${BLUE}Creating directories...${NC}"
 
@@ -1152,6 +1168,51 @@ else
     echo -e "${YELLOW}  ⚠ Firmware version may not match installation${NC}"
 fi
 
+# Check GPS configuration (if enabled)
+if [ "$GPS_ENABLED" = "true" ]; then
+    echo -e "${BLUE}Checking GPS configuration...${NC}"
+
+    # Check gpsd is installed
+    if command -v gpsd &> /dev/null; then
+        echo -e "${GREEN}  ✓ gpsd installed${NC}"
+    else
+        echo -e "${RED}  ✗ gpsd not installed!${NC}"
+        VALIDATION_ERRORS=$((VALIDATION_ERRORS+1))
+    fi
+
+    # Check UART is enabled (for /dev/ttyAMA0)
+    if [ "$GPS_DEVICE" = "/dev/ttyAMA0" ] || [ "$GPS_DEVICE" = "/dev/serial0" ]; then
+        if grep -q "^enable_uart=1" /boot/firmware/config.txt 2>/dev/null || \
+           grep -q "^enable_uart=1" /boot/config.txt 2>/dev/null; then
+            echo -e "${GREEN}  ✓ UART enabled in boot config${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ UART not enabled in boot config${NC}"
+        fi
+
+        # Check Bluetooth is disabled
+        if grep -q "^dtoverlay=disable-bt" /boot/firmware/config.txt 2>/dev/null || \
+           grep -q "^dtoverlay=disable-bt" /boot/config.txt 2>/dev/null; then
+            echo -e "${GREEN}  ✓ Bluetooth disabled (UART freed)${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ Bluetooth not disabled${NC}"
+        fi
+    fi
+
+    # Check GPS device exists (may not exist until reboot)
+    if [ -e "$GPS_DEVICE" ]; then
+        echo -e "${GREEN}  ✓ GPS device $GPS_DEVICE exists${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ GPS device $GPS_DEVICE not found (reboot required if using UART)${NC}"
+    fi
+
+    # Check gpsd configuration
+    if [ -f "/etc/default/gpsd" ] && grep -q "DEVICES=\"$GPS_DEVICE\"" /etc/default/gpsd; then
+        echo -e "${GREEN}  ✓ gpsd configured for $GPS_DEVICE${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ gpsd configuration may be incomplete${NC}"
+    fi
+fi
+
 echo ""
 if [ $VALIDATION_ERRORS -gt 0 ]; then
     echo -e "${RED}Installation completed with $VALIDATION_ERRORS validation errors!${NC}"
@@ -1178,7 +1239,15 @@ echo ""
 echo -e "${BLUE}Hardware Modules:${NC}"
 echo "  INA260 Power Sensor:  $INA260_ENABLED (address: $INA260_ADDRESS)"
 echo "  E-Paper Display:      $EPAPER_ENABLED"
-echo "  GPS Module:           $GPS_ENABLED (device: $GPS_DEVICE)"
+if [ "$GPS_ENABLED" = "true" ]; then
+    echo "  GPS Module:           $GPS_ENABLED (device: $GPS_DEVICE @ ${GPS_BAUDRATE} baud)"
+    if [ "$GPS_DEVICE" = "/dev/ttyAMA0" ] || [ "$GPS_DEVICE" = "/dev/serial0" ]; then
+        echo "                        GPIO 14 (TX), GPIO 15 (RX)"
+        echo "                        Bluetooth disabled (UART conflict)"
+    fi
+else
+    echo "  GPS Module:           $GPS_ENABLED"
+fi
 if [ "$LIGHT_SENSOR_ENABLED" = "true" ]; then
     echo "  Light Sensor:         $LIGHT_SENSOR_ENABLED ($LIGHT_SENSOR_TYPE at $LIGHT_SENSOR_ADDRESS)"
 fi
@@ -1189,11 +1258,39 @@ if [ "$MUX_ENABLED" = "true" ]; then
     echo "  Multiplexer:          $MUX_ENABLED ($MUX_TYPE mode)"
 fi
 echo ""
+
+# GPS-specific next steps (if enabled and using UART)
+if [ "$GPS_ENABLED" = "true" ]; then
+    if [ "$GPS_DEVICE" = "/dev/ttyAMA0" ] || [ "$GPS_DEVICE" = "/dev/serial0" ]; then
+        echo -e "${YELLOW}⚠ GPS UART Configuration Applied - REBOOT REQUIRED${NC}"
+        echo ""
+        echo -e "${BLUE}After reboot, test GPS hardware:${NC}"
+        echo "  1. cat $GPS_DEVICE                  # Should show NMEA sentences"
+        echo "  2. gpspipe -r                        # Shows raw GPS data via gpsd"
+        echo "  3. cgps                              # Interactive GPS status viewer"
+        echo "  4. python3 $MOTHBOX_HOME/${FIRMWARE_VERSION}.x/GPS.py  # Run GPS sync script"
+        echo "  5. View GPS status in Web UI:       http://<pi-ip>:5000/settings"
+        echo ""
+        echo -e "${BLUE}GPS Troubleshooting:${NC}"
+        echo "  • No NMEA data: Check wiring (TX↔RX, 3.3V, GND)"
+        echo "  • No fix: Move to location with clear sky view (outdoor)"
+        echo "  • Cold start: First fix may take 30-60 seconds"
+        echo ""
+    fi
+fi
+
 echo -e "${YELLOW}Next Steps:${NC}"
 echo "1. Review and edit configuration files in: $CONFIG_DIR"
-echo "2. Update your crontab to point to: $MOTHBOX_HOME"
-echo "3. Test the installation by running: python3 $MOTHBOX_HOME/mothbox_paths.py"
-echo "4. Test photo capture: python3 $MOTHBOX_HOME/${FIRMWARE_VERSION}.x/TakePhoto.py"
+if [ "$GPS_ENABLED" = "true" ] && [[ "$GPS_DEVICE" =~ ^/dev/ttyAMA0|/dev/serial0$ ]]; then
+    echo "2. REBOOT to apply UART configuration: sudo reboot"
+    echo "3. Update your crontab to point to: $MOTHBOX_HOME"
+    echo "4. Test the installation by running: python3 $MOTHBOX_HOME/mothbox_paths.py"
+    echo "5. Test photo capture: python3 $MOTHBOX_HOME/${FIRMWARE_VERSION}.x/TakePhoto.py"
+else
+    echo "2. Update your crontab to point to: $MOTHBOX_HOME"
+    echo "3. Test the installation by running: python3 $MOTHBOX_HOME/mothbox_paths.py"
+    echo "4. Test photo capture: python3 $MOTHBOX_HOME/${FIRMWARE_VERSION}.x/TakePhoto.py"
+fi
 echo ""
 
 if [ "$INSTALL_TYPE" = "custom" ]; then
