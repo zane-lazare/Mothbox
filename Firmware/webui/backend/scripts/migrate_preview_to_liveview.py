@@ -76,7 +76,7 @@ def migrate_config_file(dry_run=False):
 
 
 def migrate_preset_workflows(dry_run=False):
-    """Update user preset files: workflow 'video' → 'liveview'"""
+    """Update user preset files: workflow 'video' → 'liveview' and settings.preview → settings.liveview"""
     print(f"\n🎨 User Preset Migration:")
     print(f"   Directory: {USER_PRESET_DIR}")
 
@@ -101,35 +101,43 @@ def migrate_preset_workflows(dry_run=False):
             with open(preset_file, 'r') as f:
                 preset_data = json.load(f)
 
-            # Check if needs migration
-            workflow = preset_data.get('workflow', '')
+            needs_migration = False
+            changes = []
 
+            # Check workflow field migration
+            workflow = preset_data.get('workflow', '')
             if workflow == 'video':
+                needs_migration = True
+                changes.append("workflow 'video' → 'liveview'")
+                if not dry_run:
+                    preset_data['workflow'] = 'liveview'
+
+            # Check settings.preview → settings.liveview migration
+            settings = preset_data.get('settings', {})
+            if 'preview' in settings:
+                needs_migration = True
+                changes.append("settings.preview → settings.liveview")
+                if not dry_run:
+                    preset_data['settings']['liveview'] = preset_data['settings'].pop('preview')
+
+            if needs_migration:
                 if dry_run:
-                    print(f"   [DRY RUN] Would update {preset_file.name}: workflow 'video' → 'liveview'")
+                    print(f"   [DRY RUN] Would update {preset_file.name}: {', '.join(changes)}")
                     migrated_count += 1
                 else:
                     # Create backup
                     backup_path = preset_file.parent / f"{preset_file.stem}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
                     shutil.copy2(preset_file, backup_path)
 
-                    # Update workflow
-                    preset_data['workflow'] = 'liveview'
-
                     # Write updated preset
                     with open(preset_file, 'w') as f:
                         json.dump(preset_data, f, indent=2)
 
-                    print(f"   ✓ Updated {preset_file.name}: workflow 'video' → 'liveview'")
+                    print(f"   ✓ Updated {preset_file.name}: {', '.join(changes)}")
                     print(f"      Backup: {backup_path.name}")
                     migrated_count += 1
-
-            elif workflow == 'liveview':
-                print(f"   ✓ Already migrated: {preset_file.name}")
-                skipped_count += 1
-
             else:
-                # workflow is 'photo' or 'both' - no migration needed
+                # Already migrated or no migration needed
                 skipped_count += 1
 
         except Exception as e:
