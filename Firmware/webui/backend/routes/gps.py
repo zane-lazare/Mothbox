@@ -303,21 +303,17 @@ def _update_controls_file(config_updates):
     Raises:
         IOError: If file locking fails or file operations fail
 
-    Note on GPS.py race condition:
-        This function uses fcntl file locking to prevent race conditions when the WebUI
-        reads/writes controls.txt. However, the existing GPS.py script (in 5.x/GPS.py)
-        does not use file locking when it writes GPS coordinates to controls.txt.
+    Note on file locking:
+        This function uses fcntl file locking to prevent race conditions when accessing
+        controls.txt. The GPS.py script (in 5.x/GPS.py) also uses fcntl file locking
+        for its write operations, ensuring both WebUI and GPS.py coordinate access to
+        the shared configuration file.
 
-        Since POSIX file locks are advisory (not mandatory), GPS.py can still overwrite
-        WebUI changes during the small window between GPS sync operations. In practice,
-        this risk is LOW because:
-        - GPS sync operations are slow (10-80 seconds)
-        - Configuration updates are fast (< 1 second)
+        Since POSIX file locks are advisory, both implementations must use locks for
+        this protection to work. Race conditions are prevented by:
+        - Both WebUI and GPS.py using fcntl.flock(LOCK_EX) for writes
         - GPS sync is rate-limited (5 requests/minute)
         - GPS status cache reduces file I/O
-
-        This WebUI implementation protects WebUI operations from corruption. A full fix
-        would require adding file locking to GPS.py itself (see Issue #53 follow-up).
     """
     # Prepare updates mapping
     updates = {}
