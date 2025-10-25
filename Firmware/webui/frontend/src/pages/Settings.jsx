@@ -44,7 +44,7 @@ export default function Settings() {
     cameraFocus: false,
     cameraFormat: false,
     cameraAdvanced: true,
-    // Stream Settings - common expanded, advanced collapsed
+    // Live View Settings - common expanded, advanced collapsed
     streamResolution: false,
     streamImageQuality: false,
     streamFocus: false,
@@ -157,7 +157,7 @@ export default function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries(['presets'])
       setSelectedPhotoPreset('')
-      setSelectedVideoPreset('')
+      setSelectedLiveViewPreset('')
       toast.success('Preset deleted successfully!')
     },
     onError: (error) => {
@@ -197,7 +197,7 @@ export default function Settings() {
   const [cameraForm, setCameraForm] = useState({})
   const [webuiForm, setWebuiForm] = useState({})
   const [selectedPhotoPreset, setSelectedPhotoPreset] = useState('')
-  const [selectedVideoPreset, setSelectedVideoPreset] = useState('')
+  const [selectedLiveViewPreset, setSelectedLiveViewPreset] = useState('')
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [saveModalWorkflow, setSaveModalWorkflow] = useState('both') // Context for save modal
 
@@ -272,14 +272,14 @@ export default function Settings() {
   // Preset management handlers
   // Filter presets by workflow
   const photoPresets = presetsData?.presets?.filter(p => p.workflow === 'photo' || p.workflow === 'both') || []
-  const videoPresets = presetsData?.presets?.filter(p => p.workflow === 'video' || p.workflow === 'both') || []
+  const liveViewPresets = presetsData?.presets?.filter(p => p.workflow === 'liveview' || p.workflow === 'video' || p.workflow === 'both') || []
 
   const selectedPhotoPresetData = presetsData?.presets?.find(p => p.name === selectedPhotoPreset)
-  const selectedVideoPresetData = presetsData?.presets?.find(p => p.name === selectedVideoPreset)
+  const selectedLiveViewPresetData = presetsData?.presets?.find(p => p.name === selectedLiveViewPreset)
 
   // Track if presets have been initialized to prevent re-initialization
   const photoPresetInitialized = useRef(false)
-  const videoPresetInitialized = useRef(false)
+  const liveViewPresetInitialized = useRef(false)
 
   // Silent preset initialization (no toasts) for page load
   const initializePhotoPreset = async (presetName) => {
@@ -304,9 +304,9 @@ export default function Settings() {
       })
       await queryClient.invalidateQueries(['webui-settings'])
       // No toast - silent initialization
-      console.log(`Initialized video preset: ${presetName}`)
+      console.log(`Initialized live view preset: ${presetName}`)
     } catch (error) {
-      console.error('Failed to initialize video preset:', error)
+      console.error('Failed to initialize live view preset:', error)
     }
   }
 
@@ -328,16 +328,16 @@ export default function Settings() {
   }, [presetsData, preferences]) // Wait for BOTH to be ready
 
   useEffect(() => {
-    if (presetsData?.presets && preferences && !selectedVideoPreset && !videoPresetInitialized.current) {
+    if (presetsData?.presets && preferences && !selectedLiveViewPreset && !liveViewPresetInitialized.current) {
       // Use user's default preference, or "balanced" as fallback, or first available
-      const defaultPreset = preferences?.default_preview_preset ||
+      const defaultPreset = preferences?.default_liveview_preset || preferences?.default_preview_preset ||
                            presetsData.presets.find(p => (p.workflow === 'video' || p.workflow === 'both') && p.name === 'balanced')?.name ||
                            presetsData.presets.find(p => p.workflow === 'video' || p.workflow === 'both')?.name
       if (defaultPreset) {
-        setSelectedVideoPreset(defaultPreset)
+        setSelectedLiveViewPreset(defaultPreset)
         // Silent initialization - no toast
         initializeVideoPreset(defaultPreset)
-        videoPresetInitialized.current = true
+        liveViewPresetInitialized.current = true
       }
     }
   }, [presetsData, preferences]) // Wait for BOTH to be ready
@@ -372,7 +372,7 @@ export default function Settings() {
 
   const handleVideoPresetChange = async (e) => {
     const presetName = e.target.value
-    setSelectedVideoPreset(presetName)
+    setSelectedLiveViewPreset(presetName)
 
     // Immediately apply to backend
     try {
@@ -387,8 +387,8 @@ export default function Settings() {
       const displayName = preset?.display_name || presetName
 
       // Only show toast if not during initial page load
-      // videoPresetInitialized is false during first initialization, true after
-      if (videoPresetInitialized.current) {
+      // liveViewPresetInitialized is false during first initialization, true after
+      if (liveViewPresetInitialized.current) {
         toast.success(`Applied "${displayName}" preset`)
       }
     } catch (error) {
@@ -431,17 +431,17 @@ export default function Settings() {
   }
 
   const handleUpdateVideoPreset = async () => {
-    if (!selectedVideoPreset) return
-    if (selectedVideoPresetData?.category === 'built-in') {
+    if (!selectedLiveViewPreset) return
+    if (selectedLiveViewPresetData?.category === 'built-in') {
       toast.error('Cannot modify built-in presets. Use "Save As" to create a copy.')
       return
     }
 
     try {
       const presetData = {
-        name: selectedVideoPreset,
-        description: selectedVideoPresetData?.description || '',
-        workflow: 'video',
+        name: selectedLiveViewPreset,
+        description: selectedLiveViewPresetData?.description || '',
+        workflow: 'liveview',
         settings: {
           preview: webuiForm
         }
@@ -450,7 +450,7 @@ export default function Settings() {
       await createPresetMutation.mutateAsync(presetData)
       await updateWebuiMutation.mutateAsync(webuiForm)
 
-      const displayName = selectedVideoPresetData?.display_name || selectedVideoPreset
+      const displayName = selectedLiveViewPresetData?.display_name || selectedLiveViewPreset
       toast.success(`Updated "${displayName}" preset`)
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to update preset'
@@ -481,13 +481,13 @@ export default function Settings() {
   }
 
   const handleSetDefaultVideoPreset = () => {
-    if (!selectedVideoPreset) {
-      toast.error('Please select a video preset first')
+    if (!selectedLiveViewPreset) {
+      toast.error('Please select a live view preset first')
       return
     }
     setPreferenceMutation.mutate({
-      key: 'default_preview_preset',
-      value: selectedVideoPreset
+      key: 'default_liveview_preset',
+      value: selectedLiveViewPreset
     })
   }
 
@@ -503,13 +503,13 @@ export default function Settings() {
   }
 
   const handleDeleteVideoPreset = () => {
-    if (!selectedVideoPreset) return
-    if (selectedVideoPresetData?.category === 'built-in') {
+    if (!selectedLiveViewPreset) return
+    if (selectedLiveViewPresetData?.category === 'built-in') {
       toast.error('Cannot delete built-in presets')
       return
     }
-    if (confirm(`Delete preset "${selectedVideoPresetData?.display_name}"?`)) {
-      deletePresetMutation.mutate(selectedVideoPreset)
+    if (confirm(`Delete preset "${selectedLiveViewPresetData?.display_name}"?`)) {
+      deletePresetMutation.mutate(selectedLiveViewPreset)
     }
   }
 
@@ -519,7 +519,7 @@ export default function Settings() {
   }
 
   const handleSaveVideoPreset = () => {
-    setSaveModalWorkflow('video')
+    setSaveModalWorkflow('liveview')
     setShowSaveModal(true)
   }
 
@@ -591,7 +591,7 @@ export default function Settings() {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            Stream Settings
+            Live View Settings
           </button>
         </nav>
       </div>
@@ -778,7 +778,7 @@ export default function Settings() {
           <div className="bg-gradient-to-r from-blue-100 to-indigo-100 rounded-lg shadow-sm p-2 border border-blue-200">
             <h3 className="text-base font-semibold text-gray-900">Full-Resolution Capture Configuration</h3>
             <p className="text-xs text-gray-700">
-              These settings control full-resolution photo captures (not preview). Changes take effect on next photo.
+              These settings control full-resolution photo captures (not live view). Changes take effect on next photo.
             </p>
           </div>
 
@@ -1570,7 +1570,7 @@ export default function Settings() {
         </div>
       )}
 
-      {/* Stream Settings Tab */}
+      {/* Live View Settings Tab */}
       {activeTab === 'stream' && (
         <div className="space-y-2">
           <style>{`
@@ -1612,29 +1612,29 @@ export default function Settings() {
 
           <div className="space-y-2">
             {/* Grid container for settings cards */}
-            {/* Video Preset Section - Full Width Inline */}
+            {/* Live View Preset Section - Full Width Inline */}
             <div className="settings-card">
               <div className="flex items-center gap-4">
-                <h4 className="settings-card-title mb-0 whitespace-nowrap">🎥 Video Preset</h4>
+                <h4 className="settings-card-title mb-0 whitespace-nowrap">🎥 Live View Preset</h4>
                 <select
-                  value={selectedVideoPreset}
+                  value={selectedLiveViewPreset}
                   onChange={handleVideoPresetChange}
                   disabled={presetsLoading || applyPresetMutation.isPending}
                   className="settings-select flex-1"
                 >
-                  {videoPresets.map(p => (
+                  {liveViewPresets.map(p => (
                     <option key={p.name} value={p.name}>
                       {p.display_name}
                     </option>
                   ))}
                 </select>
-                {selectedVideoPresetData && (
+                {selectedLiveViewPresetData && (
                   <p className="text-xs text-gray-600 italic ml-2">
-                    {selectedVideoPresetData.description}
+                    {selectedLiveViewPresetData.description}
                   </p>
                 )}
                 <div className="flex gap-2">
-                  {selectedVideoPresetData?.category === 'user' && (
+                  {selectedLiveViewPresetData?.category === 'user' && (
                     <button
                       type="button"
                       onClick={handleUpdateVideoPreset}
@@ -1647,7 +1647,7 @@ export default function Settings() {
                   <button
                     type="button"
                     onClick={handleSetDefaultVideoPreset}
-                    disabled={!selectedVideoPreset || setPreferenceMutation.isPending}
+                    disabled={!selectedLiveViewPreset || setPreferenceMutation.isPending}
                     className="settings-button-sm bg-yellow-500 text-white hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
                     ⭐ Default
@@ -1660,7 +1660,7 @@ export default function Settings() {
                   >
                     💾 Save As
                   </button>
-                  {selectedVideoPreset && selectedVideoPresetData?.category === 'user' && (
+                  {selectedLiveViewPreset && selectedLiveViewPresetData?.category === 'user' && (
                     <button
                       type="button"
                       onClick={handleDeleteVideoPreset}
@@ -2027,7 +2027,7 @@ export default function Settings() {
               {/* AeEnable Toggle for Stream */}
               <div className="settings-form-group">
                 <label className="settings-label">
-                  Preview Exposure Mode
+                  Live View Exposure Mode
                 </label>
                 <select
                   value={webuiForm.ae_enable !== undefined ? webuiForm.ae_enable : true}
@@ -2039,8 +2039,8 @@ export default function Settings() {
                 </select>
                 <p className="settings-help-text">
                   {!webuiForm.ae_enable || webuiForm.ae_enable === true
-                    ? 'Auto mode: Preview stream uses automatic exposure adjustment'
-                    : 'Manual mode: Preview uses fixed exposure settings from Camera settings'}
+                    ? 'Auto mode: Live view stream uses automatic exposure adjustment'
+                    : 'Manual mode: Live view uses fixed exposure settings from Camera settings'}
                 </p>
               </div>
 
@@ -2244,7 +2244,7 @@ export default function Settings() {
               className="settings-card"
             >
               <p className="settings-help-text-xs mb-2">
-                Preview-only overlay to highlight in-focus areas. Helps with manual focus adjustment for macro photography.
+                Live view-only overlay to highlight in-focus areas. Helps with manual focus adjustment for macro photography.
               </p>
 
               <div className="space-y-2">
