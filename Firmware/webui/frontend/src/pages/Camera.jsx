@@ -8,7 +8,7 @@ import SavePresetModal from '../components/SavePresetModal'
 export default function Camera() {
   const [capturing, setCapturing] = useState(false)
   const [lastCapture, setLastCapture] = useState(null)
-  const [previewActive, setPreviewActive] = useState(false)
+  const [liveViewActive, setLiveViewActive] = useState(false)
   const [currentFrame, setCurrentFrame] = useState(null)
   const [connected, setConnected] = useState(false)
   const [metadata, setMetadata] = useState(null)
@@ -31,11 +31,11 @@ export default function Camera() {
     analogueGain: 8.0,  // Manual gain/ISO
     noiseReductionMode: 0,
     // Focus controls
-    afMode: 2,  // 0=Manual, 1=Auto Single, 2=Continuous (default for live preview)
+    afMode: 2,  // 0=Manual, 1=Auto Single, 2=Continuous (default for live view)
     lensPosition: 3.0,  // Diopters (0.0-10.0, middle position default)
     afRange: 0,  // 0=Normal, 1=Macro, 2=Full
     afSpeed: 0,  // 0=Normal, 1=Fast
-    // Focus peaking controls (preview-only overlay)
+    // Focus peaking controls (live view-only overlay)
     focusPeakingEnabled: false,
     focusPeakingIntensity: 100,  // 50-200 range
     focusPeakingColor: 'green',  // green, red, yellow, cyan, magenta
@@ -53,13 +53,13 @@ export default function Camera() {
   // Preset management
   const queryClient = useQueryClient()
   const [selectedPhotoPreset, setSelectedPhotoPreset] = useState('')
-  const [selectedVideoPreset, setSelectedVideoPreset] = useState('')
+  const [selectedLiveViewPreset, setSelectedLiveViewPreset] = useState('')
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [saveModalWorkflow, setSaveModalWorkflow] = useState('both')
 
   // Track whether presets have been initialized (to prevent toast spam on mount)
   const photoPresetInitialized = useRef(false)
-  const videoPresetInitialized = useRef(false)
+  const liveViewPresetInitialized = useRef(false)
 
   // Fetch available presets
   const { data: presetsData } = useQuery({
@@ -105,11 +105,11 @@ export default function Camera() {
 
   // Filter presets by workflow
   const photoPresets = presetsData?.presets?.filter(p => p.workflow === 'photo' || p.workflow === 'both') || []
-  const videoPresets = presetsData?.presets?.filter(p => p.workflow === 'video' || p.workflow === 'both') || []
+  const liveViewPresets = presetsData?.presets?.filter(p => p.workflow === 'liveview' || p.workflow === 'video' || p.workflow === 'both') || []
 
   // Load default presets from preferences on mount, with "Balanced" fallback
   useEffect(() => {
-    if (presetsData?.presets && preferences !== undefined && !photoPresetInitialized.current && !videoPresetInitialized.current) {
+    if (presetsData?.presets && preferences !== undefined && !photoPresetInitialized.current && !liveViewPresetInitialized.current) {
       // Initialize photo preset
       if (!selectedPhotoPreset) {
         const defaultPreset = preferences?.default_capture_preset || 'Balanced'
@@ -124,15 +124,15 @@ export default function Camera() {
       }
 
       // Initialize video preset
-      if (!selectedVideoPreset) {
-        const defaultPreset = preferences?.default_preview_preset || 'Balanced'
+      if (!selectedLiveViewPreset) {
+        const defaultPreset = preferences?.default_liveview_preset || preferences?.default_preview_preset || 'Balanced'
         const presetExists = presetsData.presets.some(p =>
           p.name === defaultPreset && (p.workflow === 'video' || p.workflow === 'both')
         )
         if (presetExists) {
-          setSelectedVideoPreset(defaultPreset)
-          initializeVideoPreset(defaultPreset)
-          videoPresetInitialized.current = true
+          setSelectedLiveViewPreset(defaultPreset)
+          initializeLiveViewPreset(defaultPreset)
+          liveViewPresetInitialized.current = true
         }
       }
     }
@@ -144,8 +144,8 @@ export default function Camera() {
       clearTimeout(debounceTimerRef.current)
     }
     debounceTimerRef.current = setTimeout(() => {
-      if (socketRef.current && previewActive) {
-        socketRef.current.emit('update_preview_control', {
+      if (socketRef.current && liveViewActive) {
+        socketRef.current.emit('update_liveview_control', {
           [controlName]: value
         })
       }
@@ -158,7 +158,7 @@ export default function Camera() {
       clearTimeout(zoomDebounceTimerRef.current)
     }
     zoomDebounceTimerRef.current = setTimeout(() => {
-      if (socketRef.current && previewActive) {
+      if (socketRef.current && liveViewActive) {
         socketRef.current.emit('set_zoom', {
           zoom_level: zoomLevel,
           center_x: centerX,
@@ -239,15 +239,15 @@ export default function Camera() {
     socketRef.current.on('disconnect', () => {
       console.log('WebSocket disconnected')
       setConnected(false)
-      setPreviewActive(false)
+      setLiveViewActive(false)
     })
 
     socketRef.current.on('camera_frame', (data) => {
       setCurrentFrame(data.image)
     })
 
-    socketRef.current.on('preview_status', (data) => {
-      setPreviewActive(data.streaming)
+    socketRef.current.on('liveview_status', (data) => {
+      setLiveViewActive(data.streaming)
     })
 
     socketRef.current.on('metadata_update', (data) => {
@@ -326,7 +326,7 @@ export default function Camera() {
 
     return () => {
       if (socketRef.current) {
-        socketRef.current.emit('stop_preview')
+        socketRef.current.emit('stop_liveview')
         socketRef.current.disconnect()
       }
       if (metadataIntervalRef.current) {
@@ -337,7 +337,7 @@ export default function Camera() {
 
   // Poll metadata when preview is active (Phase 2.2)
   useEffect(() => {
-    if (previewActive && socketRef.current) {
+    if (liveViewActive && socketRef.current) {
       // Request metadata every 500ms
       metadataIntervalRef.current = setInterval(() => {
         socketRef.current.emit('get_metadata')
@@ -355,7 +355,7 @@ export default function Camera() {
         clearInterval(metadataIntervalRef.current)
       }
     }
-  }, [previewActive])
+  }, [liveViewActive])
 
   const handleCapture = async () => {
     setCapturing(true)
@@ -381,11 +381,11 @@ export default function Camera() {
     }
   }
 
-  const togglePreview = async () => {
+  const toggleLiveView = async () => {
     if (!socketRef.current) return
 
-    if (previewActive) {
-      socketRef.current.emit('stop_preview')
+    if (liveViewActive) {
+      socketRef.current.emit('stop_liveview')
       setCurrentFrame(null)
     } else {
       // Fetch latest settings and reload backend before starting preview
@@ -431,7 +431,7 @@ export default function Camera() {
         console.error('Failed to refresh settings before preview start:', error)
       }
 
-      socketRef.current.emit('start_preview')
+      socketRef.current.emit('start_liveview')
     }
   }
 
@@ -522,7 +522,7 @@ export default function Camera() {
     }
   }
 
-  const handleCopyPreviewToCapture = async () => {
+  const handleCopyLiveViewToCapture = async () => {
     setCopyingSettings(true)
     setActionResult(null)
     try {
@@ -549,7 +549,7 @@ export default function Camera() {
     }
   }
 
-  const handleCopyCaptureToPreview = async () => {
+  const handleCopyCaptureToLiveView = async () => {
     setCopyingSettings(true)
     setActionResult(null)
     try {
@@ -630,9 +630,9 @@ export default function Camera() {
     debouncedEmitZoom(value, zoomCenter.x, zoomCenter.y)
   }
 
-  const handlePreviewClick = (e) => {
+  const handleLiveViewClick = (e) => {
     // Only process clicks when zoomed (zoom > 1.0)
-    if (zoomLevel <= 1.0 || !previewActive) return
+    if (zoomLevel <= 1.0 || !liveViewActive) return
 
     // Get click position relative to image element
     const rect = e.currentTarget.getBoundingClientRect()
@@ -659,7 +659,7 @@ export default function Camera() {
   const handleAfWindowClick = (e) => {
     // Process clicks for AF window when NOT zoomed (zoom = 1.0)
     // This allows click-to-focus without interfering with zoom repositioning
-    if (zoomLevel > 1.0 || !previewActive) return
+    if (zoomLevel > 1.0 || !liveViewActive) return
 
     // Get click position relative to image element
     const rect = e.currentTarget.getBoundingClientRect()
@@ -703,11 +703,11 @@ export default function Camera() {
     setAfWindow(null)  // Clear AF window
 
     // Emit all resets to backend
-    if (socketRef.current && previewActive) {
+    if (socketRef.current && liveViewActive) {
       Object.entries(defaults).forEach(([key, value]) => {
         // Convert camelCase key to PascalCase (sharpness -> Sharpness, afMode -> AfMode)
         const controlName = key.charAt(0).toUpperCase() + key.slice(1)
-        socketRef.current.emit('update_preview_control', {
+        socketRef.current.emit('update_liveview_control', {
           [controlName]: value
         })
       })
@@ -765,7 +765,7 @@ export default function Camera() {
   }
 
   // Silent initialization for video preset (no toast)
-  const initializeVideoPreset = async (presetName) => {
+  const initializeLiveViewPreset = async (presetName) => {
     try {
       await applyPresetMutation.mutateAsync({
         name: presetName,
@@ -796,7 +796,7 @@ export default function Camera() {
     }
   }
 
-  const handleApplyVideoPreset = async (presetName) => {
+  const handleApplyLiveViewPreset = async (presetName) => {
     if (!presetName) {
       return  // Silently ignore empty selection
     }
@@ -810,7 +810,7 @@ export default function Camera() {
       const preset = presetsData?.presets?.find(p => p.name === presetName)
       const displayName = preset?.display_name || presetName
       // Only show toast after initialization
-      if (videoPresetInitialized.current) {
+      if (liveViewPresetInitialized.current) {
         toast.success(`Applied "${displayName}" to stream`)
       }
 
@@ -837,15 +837,15 @@ export default function Camera() {
       console.error('Apply video preset failed:', error)
       const message = error.response?.data?.error || 'Failed to apply preset'
       toast.error(`Apply failed: ${message}`)
-      setSelectedVideoPreset('')
+      setSelectedLiveViewPreset('')
     }
   }
 
-  const handleUpdateVideoPreset = async () => {
-    if (!selectedVideoPreset) return
+  const handleUpdateLiveViewPreset = async () => {
+    if (!selectedLiveViewPreset) return
 
     // Check if this is a built-in preset
-    const preset = presetsData?.presets?.find(p => p.name === selectedVideoPreset)
+    const preset = presetsData?.presets?.find(p => p.name === selectedLiveViewPreset)
     if (preset?.category === 'built-in') {
       toast.error('Cannot modify built-in presets. Use "Save As" to create a copy.')
       return
@@ -854,9 +854,9 @@ export default function Camera() {
     try {
       // Get current live controls from state
       const presetData = {
-        name: selectedVideoPreset,
+        name: selectedLiveViewPreset,
         description: preset?.description || '',
-        workflow: 'video',
+        workflow: 'liveview',
         settings: {
           preview: {
             sharpness: liveControls.sharpness,
@@ -878,7 +878,7 @@ export default function Camera() {
       // Apply to backend config (uses API utility with CSRF token handling)
       await updateWebuiMutation.mutateAsync(presetData.settings.preview)
 
-      const displayName = preset?.display_name || selectedVideoPreset
+      const displayName = preset?.display_name || selectedLiveViewPreset
       toast.success(`Updated "${displayName}" preset`)
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to update preset'
@@ -915,17 +915,17 @@ export default function Camera() {
         {/* Camera Preview with Control Overlays */}
         <div className="bg-white rounded-lg shadow p-3">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">Live Preview</h3>
+            <h3 className="text-lg font-semibold">Live View</h3>
             <button
-              onClick={togglePreview}
+              onClick={toggleLiveView}
               disabled={!connected}
               className={`px-4 py-2 rounded-lg font-medium ${
-                previewActive
+                liveViewActive
                   ? 'bg-red-600 text-white hover:bg-red-700'
                   : 'bg-green-600 text-white hover:bg-green-700'
               } disabled:bg-gray-400`}
             >
-              {previewActive ? 'Stop Preview' : 'Start Preview'}
+              {liveViewActive ? 'Stop Live View' : 'Start Live View'}
             </button>
           </div>
 
@@ -937,7 +937,7 @@ export default function Camera() {
                   alt="Camera preview"
                   className={`w-full h-auto ${zoomLevel > 1.0 ? 'cursor-crosshair' : 'cursor-pointer'}`}
                   onClick={(e) => {
-                    handlePreviewClick(e)
+                    handleLiveViewClick(e)
                     handleAfWindowClick(e)
                   }}
                 />
@@ -998,13 +998,13 @@ export default function Camera() {
             ) : (
               <div className="h-96 flex items-center justify-center">
                 <p className="text-gray-400">
-                  {previewActive ? 'Loading preview...' : 'Click "Start Preview" to begin'}
+                  {liveViewActive ? 'Loading live view...' : 'Click "Start Live View" to begin'}
                 </p>
               </div>
             )}
 
             {/* Metadata Overlay - Top Right */}
-            {previewActive && metadata && !metadata.error && (
+            {liveViewActive && metadata && !metadata.error && (
               <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white shadow-lg max-w-sm">
                 <h4 className="text-sm font-semibold text-gray-200 mb-2">📊 Live Metadata</h4>
 
@@ -1116,15 +1116,15 @@ export default function Camera() {
             )}
 
             {/* Live Controls Overlay - Top Left */}
-            {previewActive && (
+            {liveViewActive && (
               <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white shadow-lg w-72 max-h-[calc(100vh-200px)] overflow-y-auto">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-sm font-semibold text-gray-200">🎨 Live Controls</h3>
                   <div className="flex gap-2">
                     {/* Show Update button only for user presets */}
-                    {selectedVideoPreset && presetsData?.presets?.find(p => p.name === selectedVideoPreset)?.category === 'user' && (
+                    {selectedLiveViewPreset && presetsData?.presets?.find(p => p.name === selectedLiveViewPreset)?.category === 'user' && (
                       <button
-                        onClick={handleUpdateVideoPreset}
+                        onClick={handleUpdateLiveViewPreset}
                         disabled={createPresetMutation.isPending}
                         className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                       >
@@ -1133,7 +1133,7 @@ export default function Camera() {
                     )}
                     <button
                       onClick={() => {
-                        setSaveModalWorkflow('video')
+                        setSaveModalWorkflow('liveview')
                         setShowSaveModal(true)
                       }}
                       className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -1175,19 +1175,19 @@ export default function Camera() {
                 {/* Video Preset Selector */}
                 <div className="mb-3 pb-3 border-b border-white/20">
                   <label className="block text-xs font-medium text-gray-200 mb-2">
-                    🎥 Video Preset (Stream) {applyPresetMutation.isPending && <span className="text-blue-300">(applying...)</span>}
+                    🎥 Live View Preset (Stream) {applyPresetMutation.isPending && <span className="text-blue-300">(applying...)</span>}
                   </label>
                   <select
-                    value={selectedVideoPreset}
+                    value={selectedLiveViewPreset}
                     onChange={(e) => {
                       const newValue = e.target.value
-                      setSelectedVideoPreset(newValue)
-                      handleApplyVideoPreset(newValue)
+                      setSelectedLiveViewPreset(newValue)
+                      handleApplyLiveViewPreset(newValue)
                     }}
                     disabled={applyPresetMutation.isPending}
                     className="w-full px-2 py-1 text-xs bg-white/10 text-white rounded border border-white/20 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {videoPresets.map((preset) => (
+                    {liveViewPresets.map((preset) => (
                       <option key={preset.name} value={preset.name}>
                         {preset.display_name}
                       </option>
@@ -1669,7 +1669,7 @@ export default function Camera() {
                 </div>
 
                 <div className="mt-3 p-2 bg-blue-500/20 border border-blue-400/30 rounded text-[10px] text-blue-200">
-                  <strong>💡 Tip:</strong> Changes apply instantly to preview only. Click preview to focus on specific area.
+                  <strong>💡 Tip:</strong> Changes apply instantly to live view only. Click live view to focus on specific area.
                 </div>
               </div>
             )}
@@ -1750,22 +1750,22 @@ export default function Camera() {
               <h3 className="text-sm font-semibold text-gray-200 mb-2">🔄 Settings Transfer</h3>
               <div className="space-y-2">
                 <button
-                  onClick={handleCopyPreviewToCapture}
+                  onClick={handleCopyLiveViewToCapture}
                   disabled={copyingSettings || !connected}
                   className="w-full px-3 py-2 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-600 font-medium"
                 >
-                  {copyingSettings ? 'Copying...' : '📹 Preview → 📷 Capture'}
+                  {copyingSettings ? 'Copying...' : '📹 Live View → 📷 Capture'}
                 </button>
                 <button
-                  onClick={handleCopyCaptureToPreview}
+                  onClick={handleCopyCaptureToLiveView}
                   disabled={copyingSettings || !connected}
                   className="w-full px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-600 font-medium"
                 >
-                  {copyingSettings ? 'Copying...' : '📷 Capture → 📹 Preview'}
+                  {copyingSettings ? 'Copying...' : '📷 Capture → 📹 Live View'}
                 </button>
               </div>
               <div className="mt-2 p-2 bg-yellow-500/20 border border-yellow-400/30 rounded text-[10px] text-yellow-200">
-                <strong>⚠️</strong> Sync settings between preview and capture modes
+                <strong>⚠️</strong> Sync settings between live view and capture modes
               </div>
             </div>
 
@@ -1805,7 +1805,7 @@ export default function Camera() {
               )}
 
               <div className="mt-2 p-2 bg-gray-500/20 border border-gray-400/30 rounded text-[10px] text-gray-300">
-                <strong>💡</strong> Test preview settings at full resolution
+                <strong>💡</strong> Test live view settings at full resolution
               </div>
             </div>
 
@@ -1834,12 +1834,12 @@ export default function Camera() {
 
           </div>
 
-          {/* Preview Info & HDR Indicator - Below Stream */}
+          {/* Live View Info & HDR Indicator - Below Stream */}
           <div className="mt-2 flex flex-col sm:flex-row gap-2">
-            {previewActive && (
+            {liveViewActive && (
               <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
                 <p className="text-xs text-gray-600">
-                  📹 Preview running at ~10 FPS (1024x768) with continuous autofocus
+                  📹 Live View running at ~10 FPS (1024x768) with continuous autofocus
                 </p>
               </div>
             )}
