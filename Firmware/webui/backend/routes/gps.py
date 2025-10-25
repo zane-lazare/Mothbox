@@ -234,7 +234,9 @@ def sync_gps():
             }), 400
 
         # Get path to GPS.py script
+        print("🔍 Getting GPS script path...")
         gps_script = get_script_path('GPS.py')
+        print(f"🔍 GPS script path: {gps_script}")
 
         if not gps_script.exists():
             return jsonify({
@@ -243,7 +245,9 @@ def sync_gps():
             }), 500
 
         # Run GPS.py with timeout (GPS timeout + 20 seconds overhead)
+        print("🔍 Calculating timeout...")
         timeout = hw_config['gps_timeout'] + 20
+        print(f"🔍 Timeout: {timeout}s")
 
         print(f"📡 Running GPS sync: {gps_script} (timeout: {timeout}s)")
 
@@ -253,15 +257,19 @@ def sync_gps():
         # 2. Rate limiting (5 req/min) prevents worker starvation
         # 3. Other WebUI endpoints remain responsive (separate requests use different workers)
         # For high-frequency operations, consider using Celery or background tasks.
+        print("🔍 Starting subprocess...")
         result = subprocess.run(
             ['python3', str(gps_script)],
             capture_output=True,
             text=True,
             timeout=timeout
         )
+        print(f"🔍 Subprocess completed with returncode: {result.returncode}")
 
         # Read updated values from controls.txt
+        print("🔍 Reading control values...")
         control_values = get_control_values(CONTROLS_FILE)
+        print(f"🔍 Control values: {control_values}")
         latitude = control_values.get('lat', 'n/a')
         longitude = control_values.get('lon', 'n/a')
         gpstime = control_values.get('gpstime', '0')
