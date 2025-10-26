@@ -278,9 +278,11 @@ class TestMetadataAccuracy:
 
             time.sleep(2)
 
-            # Get sensor resolution for reference
-            sensor_width, sensor_height = camera_streamer.sensor_resolution
-            print(f"\n  Sensor resolution: {sensor_width}x{sensor_height}")
+            # Get ScalerCropMaximum for reference (defines active area in full sensor space)
+            scaler_crop_max = camera_streamer.camera.camera_properties.get('ScalerCropMaximum')
+            x_offset, y_offset, active_width, active_height = scaler_crop_max
+            print(f"\n  ScalerCropMaximum: {scaler_crop_max}")
+            print(f"  Active area: {active_width}x{active_height} at offset ({x_offset}, {y_offset})")
 
             # Apply 2x zoom
             camera_streamer.set_zoom(2.0, 0.5, 0.5)
@@ -291,11 +293,11 @@ class TestMetadataAccuracy:
             crop_zoomed = metadata_zoomed['ScalerCrop']
             print(f"  2.0x zoom ScalerCrop: {crop_zoomed}")
 
-            # Verify zoom is active (crop smaller than full sensor)
-            assert crop_zoomed[2] < sensor_width, \
-                f"2.0x zoom should reduce width: {crop_zoomed[2]} vs {sensor_width}"
-            assert crop_zoomed[3] < sensor_height, \
-                f"2.0x zoom should reduce height: {crop_zoomed[3]} vs {sensor_height}"
+            # Verify zoom is active (crop smaller than active area)
+            assert crop_zoomed[2] < active_width, \
+                f"2.0x zoom should reduce width: {crop_zoomed[2]} vs {active_width}"
+            assert crop_zoomed[3] < active_height, \
+                f"2.0x zoom should reduce height: {crop_zoomed[3]} vs {active_height}"
 
             # Reset zoom to 1.0x
             camera_streamer.set_zoom(1.0, 0.5, 0.5)
@@ -306,19 +308,18 @@ class TestMetadataAccuracy:
             crop_reset = metadata_reset['ScalerCrop']
             print(f"  1.0x reset ScalerCrop: {crop_reset}")
 
-            # Verify zoom reset to full sensor
-            # ScalerCrop should be (0, 0, full_width, full_height)
+            # Verify zoom reset to full active area (ScalerCropMaximum)
             # Note: Camera may adjust dimensions slightly (±1 pixel) due to hardware constraints
-            assert crop_reset[0] == 0, \
-                f"Reset zoom should have offset X=0, got {crop_reset[0]}"
-            assert crop_reset[1] == 0, \
-                f"Reset zoom should have offset Y=0, got {crop_reset[1]}"
-            assert abs(crop_reset[2] - sensor_width) <= 1, \
-                f"Reset zoom should have full width {sensor_width}, got {crop_reset[2]} (±1 pixel tolerance)"
-            assert abs(crop_reset[3] - sensor_height) <= 1, \
-                f"Reset zoom should have full height {sensor_height}, got {crop_reset[3]} (±1 pixel tolerance)"
+            assert abs(crop_reset[0] - x_offset) <= 1, \
+                f"Reset zoom should have offset X={x_offset}, got {crop_reset[0]} (±1 pixel tolerance)"
+            assert abs(crop_reset[1] - y_offset) <= 1, \
+                f"Reset zoom should have offset Y={y_offset}, got {crop_reset[1]} (±1 pixel tolerance)"
+            assert abs(crop_reset[2] - active_width) <= 1, \
+                f"Reset zoom should have width {active_width}, got {crop_reset[2]} (±1 pixel tolerance)"
+            assert abs(crop_reset[3] - active_height) <= 1, \
+                f"Reset zoom should have height {active_height}, got {crop_reset[3]} (±1 pixel tolerance)"
 
-            print(f"  ✓ Zoom reset to 1.0x returns full sensor view")
+            print(f"  ✓ Zoom reset to 1.0x returns full active area (ScalerCropMaximum)")
 
         finally:
             camera_streamer.stop_streaming()
@@ -338,9 +339,11 @@ class TestMetadataAccuracy:
 
             time.sleep(2)
 
-            # Get sensor resolution
-            sensor_width, sensor_height = camera_streamer.sensor_resolution
-            print(f"\n  Sensor resolution: {sensor_width}x{sensor_height}")
+            # Get ScalerCropMaximum for reference (defines active area in full sensor space)
+            scaler_crop_max = camera_streamer.camera.camera_properties.get('ScalerCropMaximum')
+            x_offset, y_offset, active_width, active_height = scaler_crop_max
+            print(f"\n  ScalerCropMaximum: {scaler_crop_max}")
+            print(f"  Active area: {active_width}x{active_height} at offset ({x_offset}, {y_offset})")
 
             # Test case from issue #52: click at (0.75, 0.5) with 2x zoom
             test_zoom = 2.0
@@ -355,17 +358,19 @@ class TestMetadataAccuracy:
             scaler_crop = metadata['ScalerCrop']
             offset_x, offset_y, crop_width, crop_height = scaler_crop
 
-            # Calculate actual center of the crop
+            # Calculate actual center of the crop (in full sensor coordinates)
             actual_center_x = offset_x + crop_width / 2
             actual_center_y = offset_y + crop_height / 2
 
-            # Calculate expected center
-            expected_center_x = test_center_x * sensor_width
-            expected_center_y = test_center_y * sensor_height
+            # Calculate expected center (in full sensor coordinates)
+            # center_x/y are normalized to the ACTIVE area
+            # Expected center in full sensor = offset + (center_normalized * active_size)
+            expected_center_x = x_offset + (test_center_x * active_width)
+            expected_center_y = y_offset + (test_center_y * active_height)
 
             print(f"  Zoom: {test_zoom}x at ({test_center_x}, {test_center_y})")
-            print(f"  Expected center: ({expected_center_x:.0f}, {expected_center_y:.0f})")
-            print(f"  Actual center: ({actual_center_x:.0f}, {actual_center_y:.0f})")
+            print(f"  Expected center (full sensor): ({expected_center_x:.0f}, {expected_center_y:.0f})")
+            print(f"  Actual center (full sensor): ({actual_center_x:.0f}, {actual_center_y:.0f})")
             print(f"  ScalerCrop: {scaler_crop}")
 
             # Verify alignment (allow ±2 pixel tolerance for rounding and even enforcement)
