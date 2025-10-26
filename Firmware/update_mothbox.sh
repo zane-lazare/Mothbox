@@ -246,7 +246,7 @@ debug_gps_file_check() {
     echo "" >&2
 
     local source_gps="$MOTHBOX_ROOT/Firmware/${FIRMWARE_VERSION}.x/GPS.py"
-    local dest_gps="/opt/mothbox/GPS.py"
+    local dest_gps="$MOTHBOX_HOME/${FIRMWARE_VERSION}.x/GPS.py"
 
     # Check source file
     if [ -f "$source_gps" ]; then
@@ -310,99 +310,116 @@ verify_file_sync() {
         echo "" >&2
     fi
 
-    # Check each sync target
-    for source_dest in \
-        "$MOTHBOX_ROOT/Firmware/${FIRMWARE_VERSION}.x/:$MOTHBOX_HOME/" \
-        "$MOTHBOX_ROOT/Firmware/mothbox_paths.py:$MOTHBOX_HOME/mothbox_paths.py" \
-        "$MOTHBOX_ROOT/Firmware/webui/:$MOTHBOX_HOME/webui/"
-    do
-        local source="${source_dest%%:*}"
-        local dest="${source_dest##*:}"
+    # Determine which firmware version to exclude
+    local exclude_firmware
+    if [ "$FIRMWARE_VERSION" = "4" ]; then
+        exclude_firmware="5.x"
+    else
+        exclude_firmware="4.x"
+    fi
 
-        # Skip if source doesn't exist
-        if [ ! -e "$source" ]; then
-            [ "$DEBUG_MODE" = "true" ] && echo -e "${YELLOW}[DEBUG] Skipping (source not found): $source${NC}" >&2
-            continue
-        fi
+    # Check the entire Firmware directory (matching rsync copy behavior)
+    local source="$MOTHBOX_ROOT/Firmware/"
+    local dest="$MOTHBOX_HOME/"
 
-        # Debug: Show what we're checking
+    if [ ! -e "$source" ]; then
+        [ "$DEBUG_MODE" = "true" ] && echo -e "${RED}[DEBUG] Source directory not found: $source${NC}" >&2
+        return 1
+    fi
+
+    # Debug: Show what we're checking
+    if [ "$DEBUG_MODE" = "true" ]; then
+        echo -e "${CYAN}[DEBUG] Checking sync:${NC}" >&2
+        echo "  Source: $source" >&2
+        echo "  Dest:   $dest" >&2
+        echo "  Excluding firmware: $exclude_firmware" >&2
+    fi
+
+    # Run rsync dry-run with checksums to detect differences
+    # Use same exclusions as actual sync operation
+    local rsync_output_file="/tmp/mothbox_rsync_output_$$"
+    local rsync_err_file="/tmp/mothbox_rsync_err_$$"
+
+    if [ "$INSTALL_TYPE" = "production" ]; then
         if [ "$DEBUG_MODE" = "true" ]; then
-            echo -e "${CYAN}[DEBUG] Checking sync:${NC}" >&2
-            echo "  Source: $source" >&2
-            echo "  Dest:   $dest" >&2
-            if [ -d "$source" ]; then
-                echo "  Source type: directory" >&2
-            else
-                echo "  Source type: file ($(stat -c%s "$source" 2>/dev/null || echo "unknown") bytes)" >&2
+            # Debug mode: capture full output including errors
+            sudo rsync --dry-run --checksum --itemize-changes --archive \
+                  --exclude='.git' --exclude='__pycache__' --exclude='node_modules' \
+                  --exclude='*.pyc' --exclude='.DS_Store' --exclude='.gitignore' --exclude='.github' \
+                  --exclude='install_mothbox.sh' --exclude='uninstall_mothbox.sh' \
+                  --exclude='installation-utils' --exclude='migrate_*.py' \
+                  --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
+                  --exclude='*.md' \
+                  --exclude="$exclude_firmware" \
+                  "$source" "$dest" > "$rsync_output_file" 2> "$rsync_err_file"
+            local rsync_exit=$?
+
+            echo "  Rsync exit code: $rsync_exit" >&2
+            echo "  Raw rsync output (first 10 lines):" >&2
+            head -10 "$rsync_output_file" | sed 's/^/    /' >&2
+
+            if [ -s "$rsync_err_file" ]; then
+                echo -e "  ${RED}Rsync errors:${NC}" >&2
+                cat "$rsync_err_file" | sed 's/^/    /' >&2
             fi
-        fi
 
-        # Run rsync dry-run with checksums to detect differences
-        # Use sudo if destination is production installation
-        local rsync_output_file="/tmp/mothbox_rsync_output_$$"
-        local rsync_err_file="/tmp/mothbox_rsync_err_$$"
-
-        if [ "$INSTALL_TYPE" = "production" ]; then
-            if [ "$DEBUG_MODE" = "true" ]; then
-                # Debug mode: capture full output including errors
-                sudo rsync --dry-run --checksum --itemize-changes --archive \
-                      --exclude='__pycache__' --exclude='*.pyc' \
-                      --exclude='node_modules' --exclude='.DS_Store' \
-                      "$source" "$dest" > "$rsync_output_file" 2> "$rsync_err_file"
-                local rsync_exit=$?
-
-                echo "  Rsync exit code: $rsync_exit" >&2
-                echo "  Raw rsync output (first 10 lines):" >&2
-                head -10 "$rsync_output_file" | sed 's/^/    /' >&2
-
-                if [ -s "$rsync_err_file" ]; then
-                    echo -e "  ${RED}Rsync errors:${NC}" >&2
-                    cat "$rsync_err_file" | sed 's/^/    /' >&2
-                fi
-
-                # Filter and save differences
-                grep -E '^[^.]' "$rsync_output_file" >> "$sync_check_file"
-                local diff_count=$(grep -E '^[^.]' "$rsync_output_file" | wc -l)
-                echo "  Files with differences: $diff_count" >&2
-                echo "" >&2
-            else
-                # Normal mode: suppress errors
-                sudo rsync --dry-run --checksum --itemize-changes --archive \
-                      --exclude='__pycache__' --exclude='*.pyc' \
-                      --exclude='node_modules' --exclude='.DS_Store' \
-                      "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
-            fi
+            # Filter and save differences
+            grep -E '^[^.]' "$rsync_output_file" >> "$sync_check_file"
+            local diff_count=$(grep -E '^[^.]' "$rsync_output_file" | wc -l)
+            echo "  Files with differences: $diff_count" >&2
+            echo "" >&2
         else
-            if [ "$DEBUG_MODE" = "true" ]; then
-                rsync --dry-run --checksum --itemize-changes --archive \
-                      --exclude='__pycache__' --exclude='*.pyc' \
-                      --exclude='node_modules' --exclude='.DS_Store' \
-                      "$source" "$dest" > "$rsync_output_file" 2> "$rsync_err_file"
-                local rsync_exit=$?
-
-                echo "  Rsync exit code: $rsync_exit" >&2
-                echo "  Raw rsync output (first 10 lines):" >&2
-                head -10 "$rsync_output_file" | sed 's/^/    /' >&2
-
-                if [ -s "$rsync_err_file" ]; then
-                    echo -e "  ${RED}Rsync errors:${NC}" >&2
-                    cat "$rsync_err_file" | sed 's/^/    /' >&2
-                fi
-
-                grep -E '^[^.]' "$rsync_output_file" >> "$sync_check_file"
-                local diff_count=$(grep -E '^[^.]' "$rsync_output_file" | wc -l)
-                echo "  Files with differences: $diff_count" >&2
-                echo "" >&2
-            else
-                rsync --dry-run --checksum --itemize-changes --archive \
-                      --exclude='__pycache__' --exclude='*.pyc' \
-                      --exclude='node_modules' --exclude='.DS_Store' \
-                      "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
-            fi
+            # Normal mode: suppress errors
+            sudo rsync --dry-run --checksum --itemize-changes --archive \
+                  --exclude='.git' --exclude='__pycache__' --exclude='node_modules' \
+                  --exclude='*.pyc' --exclude='.DS_Store' --exclude='.gitignore' --exclude='.github' \
+                  --exclude='install_mothbox.sh' --exclude='uninstall_mothbox.sh' \
+                  --exclude='installation-utils' --exclude='migrate_*.py' \
+                  --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
+                  --exclude='*.md' \
+                  --exclude="$exclude_firmware" \
+                  "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
         fi
+    else
+        if [ "$DEBUG_MODE" = "true" ]; then
+            rsync --dry-run --checksum --itemize-changes --archive \
+                  --exclude='.git' --exclude='__pycache__' --exclude='node_modules' \
+                  --exclude='*.pyc' --exclude='.DS_Store' --exclude='.gitignore' --exclude='.github' \
+                  --exclude='install_mothbox.sh' --exclude='uninstall_mothbox.sh' \
+                  --exclude='installation-utils' --exclude='migrate_*.py' \
+                  --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
+                  --exclude='*.md' \
+                  --exclude="$exclude_firmware" \
+                  "$source" "$dest" > "$rsync_output_file" 2> "$rsync_err_file"
+            local rsync_exit=$?
 
-        rm -f "$rsync_output_file" "$rsync_err_file"
-    done
+            echo "  Rsync exit code: $rsync_exit" >&2
+            echo "  Raw rsync output (first 10 lines):" >&2
+            head -10 "$rsync_output_file" | sed 's/^/    /' >&2
+
+            if [ -s "$rsync_err_file" ]; then
+                echo -e "  ${RED}Rsync errors:${NC}" >&2
+                cat "$rsync_err_file" | sed 's/^/    /' >&2
+            fi
+
+            grep -E '^[^.]' "$rsync_output_file" >> "$sync_check_file"
+            local diff_count=$(grep -E '^[^.]' "$rsync_output_file" | wc -l)
+            echo "  Files with differences: $diff_count" >&2
+            echo "" >&2
+        else
+            rsync --dry-run --checksum --itemize-changes --archive \
+                  --exclude='.git' --exclude='__pycache__' --exclude='node_modules' \
+                  --exclude='*.pyc' --exclude='.DS_Store' --exclude='.gitignore' --exclude='.github' \
+                  --exclude='install_mothbox.sh' --exclude='uninstall_mothbox.sh' \
+                  --exclude='installation-utils' --exclude='migrate_*.py' \
+                  --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
+                  --exclude='*.md' \
+                  --exclude="$exclude_firmware" \
+                  "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
+        fi
+    fi
+
+    rm -f "$rsync_output_file" "$rsync_err_file"
 
     # Check if any files differ
     if [ -s "$sync_check_file" ]; then
@@ -945,27 +962,25 @@ fi
 if [ "$INSTALL_TYPE" = "production" ] && [ "$SKIP_FILE_COPY" = "false" ]; then
     echo -e "${BLUE}Syncing files to installation directory...${NC}"
 
-    # Copy firmware-version-specific files to root of installation
-    echo "Copying ${FIRMWARE_VERSION}.x firmware files..."
-    sudo rsync -av --checksum \
-        --exclude='__pycache__' --exclude='*.pyc' \
-        --exclude='node_modules' --exclude='.DS_Store' \
-        "$MOTHBOX_ROOT/Firmware/${FIRMWARE_VERSION}.x/" "$MOTHBOX_HOME/"
-
-    # Copy common files (mothbox_paths.py, etc.)
-    echo "Copying common files..."
-    sudo rsync -av --checksum \
-        --exclude='__pycache__' --exclude='*.pyc' \
-        "$MOTHBOX_ROOT/Firmware/mothbox_paths.py" "$MOTHBOX_HOME/"
-
-    # Copy Web UI (if it exists)
-    if [ -d "$MOTHBOX_ROOT/Firmware/webui" ]; then
-        echo "Copying Web UI..."
-        sudo rsync -av --checksum \
-            --exclude='__pycache__' --exclude='*.pyc' \
-            --exclude='node_modules' --exclude='.DS_Store' \
-            "$MOTHBOX_ROOT/Firmware/webui/" "$MOTHBOX_HOME/webui/"
+    # Determine which firmware version to exclude (sync only installed version)
+    if [ "$FIRMWARE_VERSION" = "4" ]; then
+        EXCLUDE_FIRMWARE="5.x"
+    else
+        EXCLUDE_FIRMWARE="4.x"
     fi
+
+    # Copy entire Firmware directory structure (matching installer behavior)
+    # This preserves the X.x subdirectory structure that mothbox_paths.py expects
+    echo "Syncing firmware files (${FIRMWARE_VERSION}.x)..."
+    sudo rsync -av --checksum \
+        --exclude='.git' --exclude='__pycache__' --exclude='node_modules' \
+        --exclude='*.pyc' --exclude='.DS_Store' --exclude='.gitignore' --exclude='.github' \
+        --exclude='install_mothbox.sh' --exclude='uninstall_mothbox.sh' \
+        --exclude='installation-utils' --exclude='migrate_*.py' \
+        --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
+        --exclude='*.md' \
+        --exclude="$EXCLUDE_FIRMWARE" \
+        "$MOTHBOX_ROOT/Firmware/" "$MOTHBOX_HOME/"
 
     # Note: We do NOT copy update_mothbox.sh to installation directory
     # The update script must always be run from the source git repository
