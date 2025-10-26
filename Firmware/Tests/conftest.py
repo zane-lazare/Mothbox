@@ -54,6 +54,10 @@ def pytest_configure(config):
         "markers",
         "integration: mark test as integration test (multi-component interaction)"
     )
+    config.addinivalue_line(
+        "markers",
+        "calibration: test calibration functionality (photo/stream autofocus and exposure)"
+    )
 
 
 # ============================================================================

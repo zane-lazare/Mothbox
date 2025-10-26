@@ -18,9 +18,15 @@ Directory Structure Options:
    - Any location via MOTHBOX_HOME environment variable
 
 Usage:
-    from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CONFIG_DIR, get_gpio_pins, get_hardware_config
+    from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CONFIG_DIR, get_gpio_pins, get_hardware_config, get_firmware_version, get_takephoto_script
 
     camera_settings_path = CONFIG_DIR / "camera_settings.csv"
+
+    # Get firmware version
+    firmware_version = get_firmware_version()  # Returns "4" or "5"
+
+    # Get TakePhoto.py script path
+    takephoto_script = get_takephoto_script()  # Returns Path to TakePhoto.py
 
     # Load GPIO pin configuration
     pins = get_gpio_pins()
@@ -120,6 +126,62 @@ def get_control_values(filename: Union[Path, str]) -> Dict[str, str]:
     except FileNotFoundError:
         pass  # Return empty dict if file doesn't exist
     return control_values
+
+
+def get_firmware_version() -> str:
+    """
+    Detect firmware version (4.x or 5.x) from controls.txt.
+
+    Returns:
+        str: "4" or "5" representing the firmware version
+
+    Note:
+        Reads softwareversion from controls.txt (format: X.Y.Z).
+        Falls back to "5" if softwareversion not found or invalid.
+        This is separate from Pi hardware version - users can choose
+        5.x firmware on Pi 4 hardware for different GPIO mappings.
+    """
+    try:
+        controls = get_control_values(CONTROLS_FILE)
+        version_string = controls.get('softwareversion', '5.0.0')
+        # Extract major version (first digit before '.')
+        firmware_version = version_string.split('.')[0]
+        if firmware_version in ['4', '5']:
+            return firmware_version
+        else:
+            print(f"Warning: Unexpected firmware version '{version_string}', defaulting to 5.x", file=sys.stderr)
+            return '5'
+    except Exception as e:
+        print(f"Warning: Could not detect firmware version ({e}). Defaulting to 5.x", file=sys.stderr)
+        return '5'
+
+
+def get_takephoto_script() -> Path:
+    """
+    Get path to TakePhoto.py script based on firmware version.
+
+    Returns:
+        Path: Absolute path to TakePhoto.py for the installed firmware version
+
+    Raises:
+        FileNotFoundError: If TakePhoto.py doesn't exist for detected firmware version
+
+    Example:
+        >>> takephoto = get_takephoto_script()
+        >>> # Returns: /opt/mothbox/5.x/TakePhoto.py (if firmware 5.x is installed)
+    """
+    firmware_version = get_firmware_version()
+    takephoto_dir = MOTHBOX_HOME / f'{firmware_version}.x'
+    takephoto_script = takephoto_dir / 'TakePhoto.py'
+
+    if not takephoto_script.exists():
+        raise FileNotFoundError(
+            f"TakePhoto.py not found at {takephoto_script}. "
+            f"Detected firmware version: {firmware_version}.x. "
+            f"Ensure firmware {firmware_version}.x is installed in {MOTHBOX_HOME}."
+        )
+
+    return takephoto_script
 
 
 def get_gpio_pins() -> Dict[str, int]:
