@@ -1152,10 +1152,27 @@ class LiveViewStreamer:
         if self.zoom_level == 1.0:
             return scaler_crop_max
 
-        # Calculate cropped dimensions (inverse of zoom level)
-        # zoom=2.0 -> 50% of active area, zoom=4.0 -> 25% of active area
-        crop_width = int(sensor_width / self.zoom_level)
-        crop_height = int(sensor_height / self.zoom_level)
+        # Calculate cropped dimensions that preserve OUTPUT aspect ratio
+        # This prevents distortion when ScalerCropMaximum and output have different aspects
+        # Example: 4:3 sensor mode (2312x1736) with 16:9 output (1920x1080)
+        output_aspect = self.stream_width / self.stream_height
+        active_aspect = sensor_width / sensor_height
+
+        # Determine which dimension limits the crop
+        if active_aspect >= output_aspect:
+            # Active area is wider/equal than output - width is the limiting factor
+            # Calculate crop width from zoom, then derive height from output aspect
+            crop_width = int(sensor_width / self.zoom_level)
+            crop_height = int(crop_width / output_aspect)
+        else:
+            # Active area is taller than output - height is the limiting factor
+            # Calculate crop height from zoom, then derive width from output aspect
+            crop_height = int(sensor_height / self.zoom_level)
+            crop_width = int(crop_height * output_aspect)
+
+        # Ensure crop fits within active area (safety clamp)
+        crop_width = min(crop_width, sensor_width)
+        crop_height = min(crop_height, sensor_height)
 
         # Ensure even dimensions (required by some encoders)
         crop_width = crop_width & ~1  # Clear lowest bit to make even
