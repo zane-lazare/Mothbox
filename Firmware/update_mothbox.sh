@@ -64,6 +64,7 @@ VERIFY_ONLY="false"
 SKIP_FILE_COPY="false"
 FORCE_FRONTEND_REBUILD="false"
 FIX_PERMISSIONS="false"
+DEBUG_MODE="false"
 
 # Installation location variables (will be detected)
 MOTHBOX_HOME=""
@@ -111,6 +112,10 @@ while [[ $# -gt 0 ]]; do
             FIX_PERMISSIONS="true"
             shift
             ;;
+        --debug)
+            DEBUG_MODE="true"
+            shift
+            ;;
         --help|-h)
             echo "Mothbox Update Script"
             echo ""
@@ -126,6 +131,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-copy       Skip copying files to installation (for testing)"
             echo "  --rebuild         Force clean rebuild of frontend (clears Vite cache)"
             echo "  --fix-permissions Fix repository ownership issues before updating"
+            echo "  --debug           Enable verbose diagnostic output for troubleshooting"
             echo "  --help, -h        Show this help message"
             exit 0
             ;;
@@ -234,6 +240,57 @@ set_last_update_commit() {
     sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$tracker_file"
 }
 
+# Diagnostic check for specific known-problematic file (GPS.py)
+debug_gps_file_check() {
+    echo -e "${CYAN}[DEBUG] === GPS.py Specific Diagnostic ===${NC}" >&2
+    echo "" >&2
+
+    local source_gps="$MOTHBOX_ROOT/Firmware/${FIRMWARE_VERSION}.x/GPS.py"
+    local dest_gps="/opt/mothbox/GPS.py"
+
+    # Check source file
+    if [ -f "$source_gps" ]; then
+        echo "Source GPS.py:" >&2
+        echo "  Path: $source_gps" >&2
+        echo "  Size: $(stat -c%s "$source_gps") bytes" >&2
+        echo "  MD5:  $(md5sum "$source_gps" | awk '{print $1}')" >&2
+        echo "  Modified: $(stat -c%y "$source_gps")" >&2
+    else
+        echo -e "${RED}Source GPS.py NOT FOUND: $source_gps${NC}" >&2
+    fi
+    echo "" >&2
+
+    # Check destination file
+    if [ -f "$dest_gps" ]; then
+        echo "Destination GPS.py:" >&2
+        echo "  Path: $dest_gps" >&2
+        echo "  Size: $(sudo stat -c%s "$dest_gps") bytes" >&2
+        echo "  MD5:  $(sudo md5sum "$dest_gps" | awk '{print $1}')" >&2
+        echo "  Modified: $(sudo stat -c%y "$dest_gps")" >&2
+        echo "  Owner: $(sudo stat -c%U:%G "$dest_gps")" >&2
+        echo "  Perms: $(sudo stat -c%a "$dest_gps")" >&2
+    else
+        echo -e "${RED}Destination GPS.py NOT FOUND: $dest_gps${NC}" >&2
+    fi
+    echo "" >&2
+
+    # Run targeted rsync check on GPS.py alone
+    if [ -f "$source_gps" ] && [ -f "$dest_gps" ]; then
+        echo "Targeted rsync check for GPS.py:" >&2
+        echo "  Command: sudo rsync --dry-run --checksum --itemize-changes \"$source_gps\" \"$dest_gps\"" >&2
+        echo "  Output:" >&2
+        sudo rsync --dry-run --checksum --itemize-changes "$source_gps" "$dest_gps" 2>&1 | sed 's/^/    /' >&2
+        echo "" >&2
+
+        # Check without --checksum too
+        echo "Without --checksum flag:" >&2
+        echo "  Command: sudo rsync --dry-run --itemize-changes \"$source_gps\" \"$dest_gps\"" >&2
+        echo "  Output:" >&2
+        sudo rsync --dry-run --itemize-changes "$source_gps" "$dest_gps" 2>&1 | sed 's/^/    /' >&2
+    fi
+    echo "" >&2
+}
+
 # Verify file sync status between repo and installation
 verify_file_sync() {
     # Use rsync dry-run with checksums to detect file drift
@@ -241,6 +298,17 @@ verify_file_sync() {
 
     local files_differ=false
     local sync_check_file="/tmp/mothbox_sync_check_$$"
+    local debug_file="/tmp/mothbox_sync_debug_$$"
+
+    # Debug: Show configuration
+    if [ "$DEBUG_MODE" = "true" ]; then
+        echo -e "${CYAN}[DEBUG] verify_file_sync() configuration:${NC}" >&2
+        echo "  MOTHBOX_ROOT: $MOTHBOX_ROOT" >&2
+        echo "  MOTHBOX_HOME: $MOTHBOX_HOME" >&2
+        echo "  FIRMWARE_VERSION: $FIRMWARE_VERSION" >&2
+        echo "  INSTALL_TYPE: $INSTALL_TYPE" >&2
+        echo "" >&2
+    fi
 
     # Check each sync target
     for source_dest in \
@@ -252,21 +320,88 @@ verify_file_sync() {
         local dest="${source_dest##*:}"
 
         # Skip if source doesn't exist
-        [ ! -e "$source" ] && continue
+        if [ ! -e "$source" ]; then
+            [ "$DEBUG_MODE" = "true" ] && echo -e "${YELLOW}[DEBUG] Skipping (source not found): $source${NC}" >&2
+            continue
+        fi
+
+        # Debug: Show what we're checking
+        if [ "$DEBUG_MODE" = "true" ]; then
+            echo -e "${CYAN}[DEBUG] Checking sync:${NC}" >&2
+            echo "  Source: $source" >&2
+            echo "  Dest:   $dest" >&2
+            if [ -d "$source" ]; then
+                echo "  Source type: directory" >&2
+            else
+                echo "  Source type: file ($(stat -c%s "$source" 2>/dev/null || echo "unknown") bytes)" >&2
+            fi
+        fi
 
         # Run rsync dry-run with checksums to detect differences
         # Use sudo if destination is production installation
+        local rsync_output_file="/tmp/mothbox_rsync_output_$$"
+        local rsync_err_file="/tmp/mothbox_rsync_err_$$"
+
         if [ "$INSTALL_TYPE" = "production" ]; then
-            sudo rsync --dry-run --checksum --itemize-changes --archive \
-                  --exclude='__pycache__' --exclude='*.pyc' \
-                  --exclude='node_modules' --exclude='.DS_Store' \
-                  "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
+            if [ "$DEBUG_MODE" = "true" ]; then
+                # Debug mode: capture full output including errors
+                sudo rsync --dry-run --checksum --itemize-changes --archive \
+                      --exclude='__pycache__' --exclude='*.pyc' \
+                      --exclude='node_modules' --exclude='.DS_Store' \
+                      "$source" "$dest" > "$rsync_output_file" 2> "$rsync_err_file"
+                local rsync_exit=$?
+
+                echo "  Rsync exit code: $rsync_exit" >&2
+                echo "  Raw rsync output (first 10 lines):" >&2
+                head -10 "$rsync_output_file" | sed 's/^/    /' >&2
+
+                if [ -s "$rsync_err_file" ]; then
+                    echo -e "  ${RED}Rsync errors:${NC}" >&2
+                    cat "$rsync_err_file" | sed 's/^/    /' >&2
+                fi
+
+                # Filter and save differences
+                grep -E '^[^.]' "$rsync_output_file" >> "$sync_check_file"
+                local diff_count=$(grep -E '^[^.]' "$rsync_output_file" | wc -l)
+                echo "  Files with differences: $diff_count" >&2
+                echo "" >&2
+            else
+                # Normal mode: suppress errors
+                sudo rsync --dry-run --checksum --itemize-changes --archive \
+                      --exclude='__pycache__' --exclude='*.pyc' \
+                      --exclude='node_modules' --exclude='.DS_Store' \
+                      "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
+            fi
         else
-            rsync --dry-run --checksum --itemize-changes --archive \
-                  --exclude='__pycache__' --exclude='*.pyc' \
-                  --exclude='node_modules' --exclude='.DS_Store' \
-                  "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
+            if [ "$DEBUG_MODE" = "true" ]; then
+                rsync --dry-run --checksum --itemize-changes --archive \
+                      --exclude='__pycache__' --exclude='*.pyc' \
+                      --exclude='node_modules' --exclude='.DS_Store' \
+                      "$source" "$dest" > "$rsync_output_file" 2> "$rsync_err_file"
+                local rsync_exit=$?
+
+                echo "  Rsync exit code: $rsync_exit" >&2
+                echo "  Raw rsync output (first 10 lines):" >&2
+                head -10 "$rsync_output_file" | sed 's/^/    /' >&2
+
+                if [ -s "$rsync_err_file" ]; then
+                    echo -e "  ${RED}Rsync errors:${NC}" >&2
+                    cat "$rsync_err_file" | sed 's/^/    /' >&2
+                fi
+
+                grep -E '^[^.]' "$rsync_output_file" >> "$sync_check_file"
+                local diff_count=$(grep -E '^[^.]' "$rsync_output_file" | wc -l)
+                echo "  Files with differences: $diff_count" >&2
+                echo "" >&2
+            else
+                rsync --dry-run --checksum --itemize-changes --archive \
+                      --exclude='__pycache__' --exclude='*.pyc' \
+                      --exclude='node_modules' --exclude='.DS_Store' \
+                      "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
+            fi
         fi
+
+        rm -f "$rsync_output_file" "$rsync_err_file"
     done
 
     # Check if any files differ
@@ -278,7 +413,19 @@ verify_file_sync() {
         [ "$total" -gt 20 ] && echo "  ... and $(($total - 20)) more files" >&2
     fi
 
-    rm -f "$sync_check_file"
+    # Debug: Keep temp files for inspection
+    if [ "$DEBUG_MODE" = "true" ]; then
+        echo -e "${CYAN}[DEBUG] Sync check file saved to: $sync_check_file${NC}" >&2
+        echo -e "${CYAN}[DEBUG] File contents:${NC}" >&2
+        if [ -s "$sync_check_file" ]; then
+            cat "$sync_check_file" | sed 's/^/  /' >&2
+        else
+            echo "  (empty - no differences found)" >&2
+        fi
+        echo "" >&2
+    else
+        rm -f "$sync_check_file"
+    fi
 
     # Return 0 if sync needed, 1 if in sync
     [ "$files_differ" = true ] && return 0 || return 1
@@ -674,6 +821,11 @@ fi
 # For production installs, always check file sync status
 FILES_NEED_SYNC=false
 if [ "$INSTALL_TYPE" = "production" ]; then
+    # Debug: Run GPS.py specific diagnostic before general file sync check
+    if [ "$DEBUG_MODE" = "true" ]; then
+        debug_gps_file_check
+    fi
+
     echo -e "${BLUE}Checking file sync status...${NC}"
     if verify_file_sync; then
         FILES_NEED_SYNC=true
