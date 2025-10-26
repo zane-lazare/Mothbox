@@ -845,6 +845,7 @@ if command -v rsync &> /dev/null; then
         --exclude='installation-utils' --exclude='migrate_*.py' \
         --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
         --exclude='*.md' \
+        --exclude='Tests' \
         --exclude="$EXCLUDE_FIRMWARE" \
         "$SCRIPT_DIR/" "$MOTHBOX_HOME/"
     echo -e "${GREEN}✓ Firmware files copied (${FIRMWARE_VERSION}.x only, excluding dev artifacts)${NC}"

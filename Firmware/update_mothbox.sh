@@ -350,6 +350,7 @@ verify_file_sync() {
                   --exclude='installation-utils' --exclude='migrate_*.py' \
                   --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
                   --exclude='*.md' \
+                  --exclude='Tests' \
                   --exclude="$exclude_firmware" \
                   "$source" "$dest" > "$rsync_output_file" 2> "$rsync_err_file"
             local rsync_exit=$?
@@ -377,6 +378,7 @@ verify_file_sync() {
                   --exclude='installation-utils' --exclude='migrate_*.py' \
                   --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
                   --exclude='*.md' \
+                  --exclude='Tests' \
                   --exclude="$exclude_firmware" \
                   "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
         fi
@@ -389,6 +391,7 @@ verify_file_sync() {
                   --exclude='installation-utils' --exclude='migrate_*.py' \
                   --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
                   --exclude='*.md' \
+                  --exclude='Tests' \
                   --exclude="$exclude_firmware" \
                   "$source" "$dest" > "$rsync_output_file" 2> "$rsync_err_file"
             local rsync_exit=$?
@@ -414,6 +417,7 @@ verify_file_sync() {
                   --exclude='installation-utils' --exclude='migrate_*.py' \
                   --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
                   --exclude='*.md' \
+                  --exclude='Tests' \
                   --exclude="$exclude_firmware" \
                   "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
         fi
@@ -979,6 +983,7 @@ if [ "$INSTALL_TYPE" = "production" ] && [ "$SKIP_FILE_COPY" = "false" ]; then
         --exclude='installation-utils' --exclude='migrate_*.py' \
         --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
         --exclude='*.md' \
+        --exclude='Tests' \
         --exclude="$EXCLUDE_FIRMWARE" \
         "$MOTHBOX_ROOT/Firmware/" "$MOTHBOX_HOME/"
 
