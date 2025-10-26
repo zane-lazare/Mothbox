@@ -240,57 +240,6 @@ set_last_update_commit() {
     sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$tracker_file"
 }
 
-# Diagnostic check for specific known-problematic file (GPS.py)
-debug_gps_file_check() {
-    echo -e "${CYAN}[DEBUG] === GPS.py Specific Diagnostic ===${NC}" >&2
-    echo "" >&2
-
-    local source_gps="$MOTHBOX_ROOT/Firmware/${FIRMWARE_VERSION}.x/GPS.py"
-    local dest_gps="$MOTHBOX_HOME/${FIRMWARE_VERSION}.x/GPS.py"
-
-    # Check source file
-    if [ -f "$source_gps" ]; then
-        echo "Source GPS.py:" >&2
-        echo "  Path: $source_gps" >&2
-        echo "  Size: $(stat -c%s "$source_gps") bytes" >&2
-        echo "  MD5:  $(md5sum "$source_gps" | awk '{print $1}')" >&2
-        echo "  Modified: $(stat -c%y "$source_gps")" >&2
-    else
-        echo -e "${RED}Source GPS.py NOT FOUND: $source_gps${NC}" >&2
-    fi
-    echo "" >&2
-
-    # Check destination file
-    if [ -f "$dest_gps" ]; then
-        echo "Destination GPS.py:" >&2
-        echo "  Path: $dest_gps" >&2
-        echo "  Size: $(sudo stat -c%s "$dest_gps") bytes" >&2
-        echo "  MD5:  $(sudo md5sum "$dest_gps" | awk '{print $1}')" >&2
-        echo "  Modified: $(sudo stat -c%y "$dest_gps")" >&2
-        echo "  Owner: $(sudo stat -c%U:%G "$dest_gps")" >&2
-        echo "  Perms: $(sudo stat -c%a "$dest_gps")" >&2
-    else
-        echo -e "${RED}Destination GPS.py NOT FOUND: $dest_gps${NC}" >&2
-    fi
-    echo "" >&2
-
-    # Run targeted rsync check on GPS.py alone
-    if [ -f "$source_gps" ] && [ -f "$dest_gps" ]; then
-        echo "Targeted rsync check for GPS.py:" >&2
-        echo "  Command: sudo rsync --dry-run --checksum --itemize-changes \"$source_gps\" \"$dest_gps\"" >&2
-        echo "  Output:" >&2
-        sudo rsync --dry-run --checksum --itemize-changes "$source_gps" "$dest_gps" 2>&1 | sed 's/^/    /' >&2
-        echo "" >&2
-
-        # Check without --checksum too
-        echo "Without --checksum flag:" >&2
-        echo "  Command: sudo rsync --dry-run --itemize-changes \"$source_gps\" \"$dest_gps\"" >&2
-        echo "  Output:" >&2
-        sudo rsync --dry-run --itemize-changes "$source_gps" "$dest_gps" 2>&1 | sed 's/^/    /' >&2
-    fi
-    echo "" >&2
-}
-
 # Verify file sync status between repo and installation
 verify_file_sync() {
     # Use rsync dry-run with checksums to detect file drift
@@ -300,14 +249,9 @@ verify_file_sync() {
     local sync_check_file="/tmp/mothbox_sync_check_$$"
     local debug_file="/tmp/mothbox_sync_debug_$$"
 
-    # Debug: Show configuration
+    # Debug: Show sync configuration
     if [ "$DEBUG_MODE" = "true" ]; then
-        echo -e "${CYAN}[DEBUG] verify_file_sync() configuration:${NC}" >&2
-        echo "  MOTHBOX_ROOT: $MOTHBOX_ROOT" >&2
-        echo "  MOTHBOX_HOME: $MOTHBOX_HOME" >&2
-        echo "  FIRMWARE_VERSION: $FIRMWARE_VERSION" >&2
-        echo "  INSTALL_TYPE: $INSTALL_TYPE" >&2
-        echo "" >&2
+        echo -e "${CYAN}[DEBUG] File sync check: ${FIRMWARE_VERSION}.x (excluding ${exclude_firmware:-none})${NC}" >&2
     fi
 
     # Determine which firmware version to exclude
@@ -327,13 +271,7 @@ verify_file_sync() {
         return 1
     fi
 
-    # Debug: Show what we're checking
-    if [ "$DEBUG_MODE" = "true" ]; then
-        echo -e "${CYAN}[DEBUG] Checking sync:${NC}" >&2
-        echo "  Source: $source" >&2
-        echo "  Dest:   $dest" >&2
-        echo "  Excluding firmware: $exclude_firmware" >&2
-    fi
+    # Debug mode shows detailed rsync output below
 
     # Run rsync dry-run with checksums to detect differences
     # Use same exclusions as actual sync operation
@@ -355,19 +293,24 @@ verify_file_sync() {
                   "$source" "$dest" > "$rsync_output_file" 2> "$rsync_err_file"
             local rsync_exit=$?
 
-            echo "  Rsync exit code: $rsync_exit" >&2
-            echo "  Raw rsync output (first 10 lines):" >&2
-            head -10 "$rsync_output_file" | sed 's/^/    /' >&2
-
-            if [ -s "$rsync_err_file" ]; then
-                echo -e "  ${RED}Rsync errors:${NC}" >&2
-                cat "$rsync_err_file" | sed 's/^/    /' >&2
-            fi
-
             # Filter and save differences
             grep -E '^[^.]' "$rsync_output_file" >> "$sync_check_file"
             local diff_count=$(grep -E '^[^.]' "$rsync_output_file" | wc -l)
-            echo "  Files with differences: $diff_count" >&2
+
+            echo -e "${CYAN}[DEBUG] Rsync check complete: $diff_count file(s) differ${NC}" >&2
+            if [ "$diff_count" -gt 0 ] && [ "$diff_count" -le 10 ]; then
+                echo -e "${CYAN}[DEBUG] Changed files:${NC}" >&2
+                grep -E '^[^.]' "$rsync_output_file" | sed 's/^/  /' >&2
+            elif [ "$diff_count" -gt 10 ]; then
+                echo -e "${CYAN}[DEBUG] First 10 changed files:${NC}" >&2
+                grep -E '^[^.]' "$rsync_output_file" | head -10 | sed 's/^/  /' >&2
+                echo "  ... and $(($diff_count - 10)) more" >&2
+            fi
+
+            if [ -s "$rsync_err_file" ]; then
+                echo -e "${RED}[DEBUG] Rsync errors:${NC}" >&2
+                cat "$rsync_err_file" | sed 's/^/  /' >&2
+            fi
             echo "" >&2
         else
             # Normal mode: suppress errors
@@ -396,18 +339,24 @@ verify_file_sync() {
                   "$source" "$dest" > "$rsync_output_file" 2> "$rsync_err_file"
             local rsync_exit=$?
 
-            echo "  Rsync exit code: $rsync_exit" >&2
-            echo "  Raw rsync output (first 10 lines):" >&2
-            head -10 "$rsync_output_file" | sed 's/^/    /' >&2
-
-            if [ -s "$rsync_err_file" ]; then
-                echo -e "  ${RED}Rsync errors:${NC}" >&2
-                cat "$rsync_err_file" | sed 's/^/    /' >&2
-            fi
-
+            # Filter and save differences
             grep -E '^[^.]' "$rsync_output_file" >> "$sync_check_file"
             local diff_count=$(grep -E '^[^.]' "$rsync_output_file" | wc -l)
-            echo "  Files with differences: $diff_count" >&2
+
+            echo -e "${CYAN}[DEBUG] Rsync check complete: $diff_count file(s) differ${NC}" >&2
+            if [ "$diff_count" -gt 0 ] && [ "$diff_count" -le 10 ]; then
+                echo -e "${CYAN}[DEBUG] Changed files:${NC}" >&2
+                grep -E '^[^.]' "$rsync_output_file" | sed 's/^/  /' >&2
+            elif [ "$diff_count" -gt 10 ]; then
+                echo -e "${CYAN}[DEBUG] First 10 changed files:${NC}" >&2
+                grep -E '^[^.]' "$rsync_output_file" | head -10 | sed 's/^/  /' >&2
+                echo "  ... and $(($diff_count - 10)) more" >&2
+            fi
+
+            if [ -s "$rsync_err_file" ]; then
+                echo -e "${RED}[DEBUG] Rsync errors:${NC}" >&2
+                cat "$rsync_err_file" | sed 's/^/  /' >&2
+            fi
             echo "" >&2
         else
             rsync --dry-run --checksum --itemize-changes --archive \
@@ -434,17 +383,8 @@ verify_file_sync() {
         [ "$total" -gt 20 ] && echo "  ... and $(($total - 20)) more files" >&2
     fi
 
-    # Debug: Keep temp files for inspection
-    if [ "$DEBUG_MODE" = "true" ]; then
-        echo -e "${CYAN}[DEBUG] Sync check file saved to: $sync_check_file${NC}" >&2
-        echo -e "${CYAN}[DEBUG] File contents:${NC}" >&2
-        if [ -s "$sync_check_file" ]; then
-            cat "$sync_check_file" | sed 's/^/  /' >&2
-        else
-            echo "  (empty - no differences found)" >&2
-        fi
-        echo "" >&2
-    else
+    # Clean up temp files (kept in debug mode for inspection)
+    if [ "$DEBUG_MODE" != "true" ]; then
         rm -f "$sync_check_file"
     fi
 
@@ -842,11 +782,6 @@ fi
 # For production installs, always check file sync status
 FILES_NEED_SYNC=false
 if [ "$INSTALL_TYPE" = "production" ]; then
-    # Debug: Run GPS.py specific diagnostic before general file sync check
-    if [ "$DEBUG_MODE" = "true" ]; then
-        debug_gps_file_check
-    fi
-
     echo -e "${BLUE}Checking file sync status...${NC}"
     if verify_file_sync; then
         FILES_NEED_SYNC=true
