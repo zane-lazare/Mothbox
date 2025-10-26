@@ -255,10 +255,18 @@ verify_file_sync() {
         [ ! -e "$source" ] && continue
 
         # Run rsync dry-run with checksums to detect differences
-        rsync --dry-run --checksum --itemize-changes --archive \
-              --exclude='__pycache__' --exclude='*.pyc' \
-              --exclude='node_modules' --exclude='.DS_Store' \
-              "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
+        # Use sudo if destination is production installation
+        if [ "$INSTALL_TYPE" = "production" ]; then
+            sudo rsync --dry-run --checksum --itemize-changes --archive \
+                  --exclude='__pycache__' --exclude='*.pyc' \
+                  --exclude='node_modules' --exclude='.DS_Store' \
+                  "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
+        else
+            rsync --dry-run --checksum --itemize-changes --archive \
+                  --exclude='__pycache__' --exclude='*.pyc' \
+                  --exclude='node_modules' --exclude='.DS_Store' \
+                  "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
+        fi
     done
 
     # Check if any files differ
