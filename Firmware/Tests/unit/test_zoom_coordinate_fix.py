@@ -39,9 +39,16 @@ def calculate_scaler_crop(scaler_crop_max, zoom_level, zoom_center_x, zoom_cente
     # Extract active area dimensions AND offset from ScalerCropMaximum
     x_offset, y_offset, sensor_width, sensor_height = scaler_crop_max
 
+    # Special case: zoom=1.0 means full active area (maximum field of view)
+    # Return full ScalerCropMaximum without aspect ratio cropping
+    # The ISP will handle any aspect ratio adjustments via scaling/letterboxing
+    # This ensures zoom=1.0 always shows maximum FOV and acts as a true "reset"
+    if zoom_level == 1.0:
+        return (x_offset, y_offset, sensor_width, sensor_height)
+
     # Calculate cropped dimensions that preserve OUTPUT aspect ratio
-    # This applies even at zoom=1.0 to prevent distortion when active area
-    # and output have different aspect ratios (e.g., 4:3 sensor → 16:9 output)
+    # This prevents distortion when ScalerCropMaximum and output have different aspects
+    # Example: 4:3 sensor mode (2312x1736) with 16:9 output (1920x1080)
     output_aspect = output_width / output_height
     active_aspect = sensor_width / sensor_height
 
@@ -104,33 +111,27 @@ class TestZoomResetBehavior:
         print(f"✓ zoom=1.0 with matching aspects: {scaler_crop}")
 
     def test_zoom_1_0_with_aspect_mismatch(self):
-        """Test that zoom=1.0 crops to preserve aspect ratio when active area differs from output"""
+        """Test that zoom=1.0 returns full active area even when aspect differs from output"""
         # 4:3 active area with 16:9 output
         scaler_crop_max = (0, 0, 2312, 1736)
 
         scaler_crop = calculate_scaler_crop(scaler_crop_max, 1.0, 0.5, 0.5, 1920, 1080)
         offset_x, offset_y, crop_width, crop_height = scaler_crop
 
-        # Should crop to match 16:9 aspect, not return full 4:3 active area
-        crop_aspect = crop_width / crop_height
-        output_aspect = 1920 / 1080
+        # zoom=1.0 should return FULL active area regardless of aspect ratio mismatch
+        # The ISP will handle aspect conversion (scaling/letterboxing)
+        assert scaler_crop == (0, 0, 2312, 1736), \
+            f"zoom=1.0 should return full active area {scaler_crop_max}, got {scaler_crop}"
 
-        assert abs(crop_aspect - output_aspect) < 0.01, \
-            f"zoom=1.0 should preserve output aspect {output_aspect:.4f}, got {crop_aspect:.4f}"
-
-        # Should be centered and fit within active area
-        assert offset_x >= 0 and offset_x + crop_width <= 2312, "Crop exceeds active area width"
-        assert offset_y >= 0 and offset_y + crop_height <= 1736, "Crop exceeds active area height"
-
-        print(f"✓ zoom=1.0 with 4:3→16:9: {scaler_crop}, aspect={crop_aspect:.4f}")
+        print(f"✓ zoom=1.0 with 4:3→16:9: returns full active area (ISP handles aspect)")
 
     def test_zoom_1_0_is_centered(self):
-        """Test that zoom=1.0 produces centered crop"""
-        # Use matching aspects so we can verify centering
+        """Test that zoom=1.0 returns full active area regardless of center position"""
+        # Use matching aspects
         scaler_crop_max = (0, 0, 1920, 1080)
 
-        # Try various center positions - at zoom=1.0 with matching aspects,
-        # should always produce same result (full active area, centered)
+        # Try various center positions - at zoom=1.0, center position is ignored
+        # and full active area is always returned
         test_positions = [
             (0.0, 0.0),   # Top-left
             (0.25, 0.25), # Upper-left quadrant
@@ -146,10 +147,10 @@ class TestZoomResetBehavior:
             assert scaler_crop == expected, \
                 f"zoom=1.0 at ({center_x}, {center_y}) should be {expected}, got {scaler_crop}"
 
-        print(f"✓ zoom=1.0 produces consistent result (tested {len(test_positions)} positions)")
+        print(f"✓ zoom=1.0 always returns full active area (tested {len(test_positions)} positions)")
 
     def test_zoom_reset_sequence(self):
-        """Test zoom 2.0x → 1.0x → verify aspect ratio preserved throughout"""
+        """Test zoom 2.0x → 1.0x → verify full FOV restored on reset"""
         # Use matching aspects
         scaler_crop_max = (0, 0, 1920, 1080)
 
@@ -160,15 +161,15 @@ class TestZoomResetBehavior:
 
         print(f"  2.0x zoom: {crop_2x}")
 
-        # Reset to 1.0x
+        # Reset to 1.0x - should restore FULL active area
         crop_1x = calculate_scaler_crop(scaler_crop_max, 1.0, 0.5, 0.5, 1920, 1080)
 
-        # With matching aspects, should return full active area
+        # Should return full active area (maximum FOV)
         assert crop_1x == (0, 0, 1920, 1080), \
-            f"Reset to 1.0x with matching aspects should return full area, got {crop_1x}"
+            f"Reset to 1.0x should restore full FOV, got {crop_1x}"
 
         print(f"  1.0x reset: {crop_1x}")
-        print(f"✓ Zoom reset sequence works correctly")
+        print(f"✓ Zoom reset sequence works correctly - full FOV restored")
 
 
 class TestCrosshairAlignment:
@@ -392,23 +393,17 @@ class TestEdgeCases:
     """Test edge cases and boundary conditions"""
 
     def test_zoom_exactly_1_0(self):
-        """Test zoom level exactly 1.0 preserves aspect ratio"""
+        """Test zoom level exactly 1.0 returns full active area"""
         # Use matching aspects
         scaler_crop_max = (0, 0, 1920, 1080)
 
         scaler_crop = calculate_scaler_crop(scaler_crop_max, 1.0, 0.5, 0.5, 1920, 1080)
 
-        # With matching aspects, should be full active area
+        # Should be full active area
         assert scaler_crop == (0, 0, 1920, 1080), \
-            f"Zoom 1.0 with matching aspects should be full area, got {scaler_crop}"
+            f"Zoom 1.0 should return full active area, got {scaler_crop}"
 
-        # Verify aspect ratio is preserved
-        crop_aspect = scaler_crop[2] / scaler_crop[3]
-        output_aspect = 1920 / 1080
-        assert abs(crop_aspect - output_aspect) < 0.01, \
-            f"Aspect mismatch: crop={crop_aspect:.4f}, output={output_aspect:.4f}"
-
-        print(f"✓ Zoom exactly 1.0 handled correctly")
+        print(f"✓ Zoom exactly 1.0 returns full active area")
 
     def test_zoom_just_above_1_0(self):
         """Test zoom level just above 1.0 (should crop, not full active area)"""

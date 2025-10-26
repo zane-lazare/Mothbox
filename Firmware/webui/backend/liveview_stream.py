@@ -1147,9 +1147,14 @@ class LiveViewStreamer:
         # The offset defines where the active area starts in full sensor coordinates
         x_offset, y_offset, sensor_width, sensor_height = scaler_crop_max
 
+        # Special case: zoom=1.0 means full active area (maximum field of view)
+        # Return full ScalerCropMaximum without aspect ratio cropping
+        # The ISP will handle any aspect ratio adjustments via scaling/letterboxing
+        # This ensures zoom=1.0 always shows maximum FOV and acts as a true "reset"
+        if self.zoom_level == 1.0:
+            return (x_offset, y_offset, sensor_width, sensor_height)
+
         # Calculate cropped dimensions that preserve OUTPUT aspect ratio
-        # This applies even at zoom=1.0 to prevent distortion when active area
-        # and output have different aspect ratios (e.g., 4:3 sensor → 16:9 output)
         # This prevents distortion when ScalerCropMaximum and output have different aspects
         # Example: 4:3 sensor mode (2312x1736) with 16:9 output (1920x1080)
         output_aspect = self.stream_width / self.stream_height
