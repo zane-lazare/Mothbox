@@ -787,21 +787,21 @@ if [ "$INSTALL_TYPE" = "production" ] && [ "$SKIP_FILE_COPY" = "false" ]; then
 
     # Copy firmware-version-specific files to root of installation
     echo "Copying ${FIRMWARE_VERSION}.x firmware files..."
-    sudo rsync -av \
+    sudo rsync -av --checksum \
         --exclude='__pycache__' --exclude='*.pyc' \
         --exclude='node_modules' --exclude='.DS_Store' \
         "$MOTHBOX_ROOT/Firmware/${FIRMWARE_VERSION}.x/" "$MOTHBOX_HOME/"
 
     # Copy common files (mothbox_paths.py, etc.)
     echo "Copying common files..."
-    sudo rsync -av \
+    sudo rsync -av --checksum \
         --exclude='__pycache__' --exclude='*.pyc' \
         "$MOTHBOX_ROOT/Firmware/mothbox_paths.py" "$MOTHBOX_HOME/"
 
     # Copy Web UI (if it exists)
     if [ -d "$MOTHBOX_ROOT/Firmware/webui" ]; then
         echo "Copying Web UI..."
-        sudo rsync -av \
+        sudo rsync -av --checksum \
             --exclude='__pycache__' --exclude='*.pyc' \
             --exclude='node_modules' --exclude='.DS_Store' \
             "$MOTHBOX_ROOT/Firmware/webui/" "$MOTHBOX_HOME/webui/"
