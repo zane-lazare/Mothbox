@@ -1124,7 +1124,7 @@ class LiveViewStreamer:
             For 2x zoom centered on sensor:
             - Sensor: 4056x3040
             - Cropped size: 2028x1520 (50% of sensor)
-            - Offset: (1014, 760) to center the crop
+            - Offset: (1014, 760) to center the crop at (2028, 1520)
             - ScalerCrop: (1014, 760, 2028, 1520)
         """
         if not self.sensor_resolution:
@@ -1132,8 +1132,13 @@ class LiveViewStreamer:
 
         sensor_width, sensor_height = self.sensor_resolution
 
+        # Special case: zoom=1.0 means full sensor (no crop)
+        # Explicitly reset to full sensor to ensure no residual crop state
+        if self.zoom_level == 1.0:
+            return (0, 0, sensor_width, sensor_height)
+
         # Calculate cropped dimensions (inverse of zoom level)
-        # zoom=1.0 -> 100% of sensor, zoom=2.0 -> 50% of sensor, zoom=4.0 -> 25% of sensor
+        # zoom=2.0 -> 50% of sensor, zoom=4.0 -> 25% of sensor
         crop_width = int(sensor_width / self.zoom_level)
         crop_height = int(sensor_height / self.zoom_level)
 
@@ -1141,10 +1146,12 @@ class LiveViewStreamer:
         crop_width = crop_width & ~1  # Clear lowest bit to make even
         crop_height = crop_height & ~1
 
-        # Calculate offsets based on zoom center point
-        # Center point is normalized (0-1), where 0.5,0.5 = center of sensor
-        offset_x = int((sensor_width - crop_width) * self.zoom_center_x)
-        offset_y = int((sensor_height - crop_height) * self.zoom_center_y)
+        # Calculate offsets to CENTER the crop window at the zoom center point
+        # zoom_center is normalized (0-1), where 0.5 = center of sensor
+        # Formula: offset = (center_position - crop_size/2)
+        # This ensures the GEOMETRIC CENTER of the crop matches the zoom center
+        offset_x = int(self.zoom_center_x * sensor_width - crop_width / 2)
+        offset_y = int(self.zoom_center_y * sensor_height - crop_height / 2)
 
         # Clamp offsets to valid range
         offset_x = max(0, min(offset_x, sensor_width - crop_width))
