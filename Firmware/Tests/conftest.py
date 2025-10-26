@@ -77,7 +77,7 @@ def camera_streamer():
             camera_streamer.initialize_camera()
             # ... test code ...
     """
-    from camera_stream import CameraStreamer
+    from liveview_stream import LiveViewStreamer
 
     class MockSocketIO:
         """Mock SocketIO for testing"""
@@ -85,7 +85,7 @@ def camera_streamer():
             pass
 
     # Create streamer instance
-    streamer = CameraStreamer(MockSocketIO())
+    streamer = LiveViewStreamer(MockSocketIO())
 
     yield streamer
 
@@ -110,7 +110,7 @@ def camera_streamer_func():
             camera_streamer_func.initialize_camera()
             # ... test code ...
     """
-    from camera_stream import CameraStreamer
+    from liveview_stream import LiveViewStreamer
 
     class MockSocketIO:
         """Mock SocketIO for testing"""
@@ -118,7 +118,7 @@ def camera_streamer_func():
             pass
 
     # Create fresh streamer instance
-    streamer = CameraStreamer(MockSocketIO())
+    streamer = LiveViewStreamer(MockSocketIO())
 
     yield streamer
 
@@ -153,7 +153,7 @@ def app():
     from routes.camera import camera_bp
     from routes.config import config_bp
     from routes.presets import presets_bp
-    from camera_stream import CameraStreamer
+    from liveview_stream import LiveViewStreamer
 
     # Create Flask app
     app = Flask(__name__)
@@ -171,7 +171,7 @@ def app():
         def emit(self, event, data, **kwargs):
             pass
 
-    camera_streamer = CameraStreamer(MockSocketIO())
+    camera_streamer = LiveViewStreamer(MockSocketIO())
     app.config['CAMERA_STREAMER'] = camera_streamer
 
     yield app
@@ -224,7 +224,7 @@ def socketio_app():
     from flask_socketio import SocketIO
     from routes.camera import camera_bp
     from routes.config import config_bp
-    from camera_stream import CameraStreamer
+    from liveview_stream import LiveViewStreamer
     from websocket_handlers import register_handlers
 
     # Set MOTHBOX_ENV to development for testing
@@ -252,7 +252,7 @@ def socketio_app():
             def emit(self, event, data, **kwargs):
                 pass
 
-        camera_streamer = CameraStreamer(MockSocketIO())
+        camera_streamer = LiveViewStreamer(MockSocketIO())
         app.config['CAMERA_STREAMER'] = camera_streamer
 
         # Register WebSocket handlers (same as production!)
