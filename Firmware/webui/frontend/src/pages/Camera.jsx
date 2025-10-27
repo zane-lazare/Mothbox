@@ -999,17 +999,41 @@ export default function Camera() {
                 />
 
                 {/* Area of Interest Indicator - Shows both zoom center and AF region */}
-                {afWindow && afWindow.active && (
-                  <div
-                    className="absolute pointer-events-none"
-                    style={{
-                      left: `${afWindow.x * 100}%`,
-                      top: `${afWindow.y * 100}%`,
-                      transform: 'translate(-50%, -50%)',
-                      width: '20%',
-                      height: '20%'
-                    }}
-                  >
+                {afWindow && afWindow.active && (() => {
+                  // Transform marker position from SENSOR coordinates to VIEWPORT coordinates
+                  // afWindow.x/y are in sensor space (0-1 over full sensor)
+                  // When zoomed, viewport shows only a cropped region of the sensor
+                  // We need to map sensor position → viewport position for correct rendering
+
+                  let markerViewportX, markerViewportY
+
+                  if (zoomLevel > 1.0) {
+                    // Inverse transformation: sensor → viewport
+                    // Formula: viewportPos = (sensorPos - cropCenter) / cropFraction + 0.5
+                    const currentCenterX = metadata?.actual_zoom_center_x ?? zoomCenter.x
+                    const currentCenterY = metadata?.actual_zoom_center_y ?? zoomCenter.y
+                    const cropFractionX = metadata?.crop_fraction_x ?? (1.0 / zoomLevel)
+                    const cropFractionY = metadata?.crop_fraction_y ?? (1.0 / zoomLevel)
+
+                    markerViewportX = ((afWindow.x - currentCenterX) / cropFractionX) + 0.5
+                    markerViewportY = ((afWindow.y - currentCenterY) / cropFractionY) + 0.5
+                  } else {
+                    // At 1.0x: viewport = full sensor, no transformation needed
+                    markerViewportX = afWindow.x
+                    markerViewportY = afWindow.y
+                  }
+
+                  return (
+                    <div
+                      className="absolute pointer-events-none"
+                      style={{
+                        left: `${markerViewportX * 100}%`,
+                        top: `${markerViewportY * 100}%`,
+                        transform: 'translate(-50%, -50%)',
+                        width: '20%',
+                        height: '20%'
+                      }}
+                    >
                     {/* Animated focus box */}
                     <div className={`relative w-full h-full ${afWindow.focusing ? 'animate-pulse' : ''}`}>
                       {/* Focus box border */}
@@ -1027,7 +1051,8 @@ export default function Camera() {
                       </div>
                     </div>
                   </div>
-                )}
+                  )
+                })()}
               </>
             ) : (
               <div className="h-96 flex items-center justify-center">
