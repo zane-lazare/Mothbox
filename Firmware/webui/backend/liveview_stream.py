@@ -906,6 +906,8 @@ class LiveViewStreamer:
                           e.g., {"Sharpness": 2.0, "Brightness": 0.1}
                           Also supports focus peaking controls:
                           {"FocusPeakingEnabled": True, "FocusPeakingIntensity": 150}
+                          Also supports colour gains:
+                          {"ColourGainRed": 2.259, "ColourGainBlue": 1.500}
 
         Returns:
             bool: True if successful, False if camera not ready
@@ -913,6 +915,10 @@ class LiveViewStreamer:
         # Handle focus peaking controls separately (these are stream settings, not camera controls)
         focus_peaking_controls = {}
         camera_controls = {}
+
+        # Track colour gains separately - need to combine into tuple
+        colour_gain_red = None
+        colour_gain_blue = None
 
         for key, value in control_dict.items():
             if key == 'FocusPeakingEnabled':
@@ -927,8 +933,23 @@ class LiveViewStreamer:
             elif key == 'FocusPeakingAlgorithm':
                 self.focus_peaking_algorithm = str(value)
                 focus_peaking_controls[key] = value
+            elif key == 'ColourGainRed' or key == 'colour_gains_red':
+                # Handle both PascalCase (camera settings) and snake_case (liveview settings)
+                colour_gain_red = float(value)
+                # Store for persistence
+                self.colour_gains = (colour_gain_red, self.colour_gains[1])
+            elif key == 'ColourGainBlue' or key == 'colour_gains_blue':
+                # Handle both PascalCase (camera settings) and snake_case (liveview settings)
+                colour_gain_blue = float(value)
+                # Store for persistence
+                self.colour_gains = (self.colour_gains[0], colour_gain_blue)
             else:
                 camera_controls[key] = value
+
+        # If colour gains were updated, add them to camera controls as tuple
+        if colour_gain_red is not None or colour_gain_blue is not None:
+            # Use current stored values (already updated above)
+            camera_controls['ColourGains'] = self.colour_gains
 
         # Apply camera controls if any
         if camera_controls and self.camera and self.streaming:
@@ -1183,8 +1204,9 @@ class LiveViewStreamer:
         # Calculate position RELATIVE to active area
         # zoom_center is normalized (0-1), where 0.5 = center of active area
         # Formula: position_in_active_area = (center_position - crop_size/2)
-        offset_x_rel = int(self.zoom_center_x * sensor_width - crop_width / 2)
-        offset_y_rel = int(self.zoom_center_y * sensor_height - crop_height / 2)
+        # Use round() instead of int() to avoid systematic left/top bias from truncation
+        offset_x_rel = round(self.zoom_center_x * sensor_width - crop_width / 2)
+        offset_y_rel = round(self.zoom_center_y * sensor_height - crop_height / 2)
 
         # Clamp to valid range within active area
         offset_x_rel = max(0, min(offset_x_rel, sensor_width - crop_width))
@@ -1390,8 +1412,9 @@ class LiveViewStreamer:
             window_h_pixels = window_h_pixels & ~1
 
             # Calculate window position relative to active area (top-left corner centered on click point)
-            window_x_rel = int((x * sensor_width) - (window_w_pixels / 2))
-            window_y_rel = int((y * sensor_height) - (window_h_pixels / 2))
+            # Use round() instead of int() to avoid systematic left/top bias from truncation
+            window_x_rel = round((x * sensor_width) - (window_w_pixels / 2))
+            window_y_rel = round((y * sensor_height) - (window_h_pixels / 2))
 
             # Clamp position to active area bounds
             window_x_rel = max(0, min(window_x_rel, sensor_width - window_w_pixels))
