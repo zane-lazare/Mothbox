@@ -233,7 +233,7 @@ def register_handlers(socketio, camera_streamer):
                 af_state = ("Idle", "Scanning", "Success", "Fail")[af_state_code] if af_state_code < 4 else "Unknown"
 
                 # Get actual zoom center (accounts for aspect ratio preservation and clamping)
-                # This tells the frontend where the crosshair should actually be displayed
+                # This tells the frontend where the area of interest marker should actually be displayed
                 try:
                     actual_zoom_center = camera_streamer.get_actual_zoom_center()
                 except Exception as e:
