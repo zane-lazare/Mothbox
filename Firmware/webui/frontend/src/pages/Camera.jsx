@@ -639,8 +639,15 @@ export default function Camera() {
       // Note: afWindow state is NOT cleared - it persists to show continued focus region
     }
 
-    // Emit to backend (debounced) with current zoom center
-    debouncedEmitZoom(value, zoomCenter.x, zoomCenter.y)
+    // Determine zoom center: prioritize afWindow (area of interest marker) if set
+    // This ensures zoom centers on the marker position, not the outdated zoomCenter state
+    // Example: User clicks at (0.7, 0.3) at 1.0x → afWindow updated but zoomCenter stays (0.5, 0.5)
+    //          User moves slider to 2.0x → should zoom to (0.7, 0.3), not (0.5, 0.5)
+    const centerX = afWindow?.x ?? zoomCenter.x
+    const centerY = afWindow?.y ?? zoomCenter.y
+
+    // Emit to backend (debounced) with area of interest position
+    debouncedEmitZoom(value, centerX, centerY)
   }
 
   const handleImageClick = (e) => {
