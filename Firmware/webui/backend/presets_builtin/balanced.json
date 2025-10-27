@@ -22,6 +22,8 @@
       "Saturation": 1.0,
       "AwbEnable": "True",
       "AwbMode": 0,
+      "ColourGainRed": 2.259,
+      "ColourGainBlue": 1.500,
       "NoiseReductionMode": 1,
       "HDR": 1,
       "FocusBracket": 1,
