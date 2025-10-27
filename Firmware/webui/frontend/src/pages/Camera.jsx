@@ -947,8 +947,10 @@ export default function Camera() {
                   <div
                     className="absolute pointer-events-none"
                     style={{
-                      left: `${zoomCenter.x * 100}%`,
-                      top: `${zoomCenter.y * 100}%`,
+                      // Use actual zoom center from metadata (accounts for aspect ratio preservation)
+                      // Falls back to requested center if metadata not available yet
+                      left: `${(metadata?.actual_zoom_center_x ?? zoomCenter.x) * 100}%`,
+                      top: `${(metadata?.actual_zoom_center_y ?? zoomCenter.y) * 100}%`,
                       transform: 'translate(-50%, -50%)'
                     }}
                   >

@@ -1201,6 +1201,72 @@ class LiveViewStreamer:
 
         return (offset_x_pixels, offset_y_pixels, crop_width, crop_height)
 
+    def get_actual_zoom_center(self):
+        """
+        Get the actual zoom center position after aspect ratio preservation and clamping.
+
+        This returns where the crop ACTUALLY ended up, accounting for:
+        - Aspect ratio preservation (may shift crop position)
+        - Boundary clamping (when zooming near edges)
+        - Even dimension enforcement (pixel alignment)
+
+        Returns:
+            dict: {'x': float, 'y': float} - Normalized coordinates (0-1) of actual crop center
+                  Returns requested center if calculation fails (graceful fallback)
+
+        Example:
+            User clicks at (0.5, 0.5) with 4:3 sensor → 16:9 output at zoom=1.0
+            - Requested center: (0.5, 0.5)
+            - Actual crop: vertically centered but height reduced to maintain 16:9
+            - Actual center: (0.5, 0.5) - same because symmetric centering
+
+            User clicks at (0.75, 0.25) near top-right edge with zoom=3.0
+            - Requested center: (0.75, 0.25)
+            - Actual crop: clamped to stay within bounds
+            - Actual center: (0.68, 0.28) - shifted due to boundary clamping
+        """
+        # Default to requested center (graceful fallback)
+        fallback = {'x': self.zoom_center_x, 'y': self.zoom_center_y}
+
+        if not self.camera or not self.streaming:
+            return fallback
+
+        # Get ScalerCropMaximum for coordinate space
+        scaler_crop_max = self.camera.camera_properties.get('ScalerCropMaximum')
+        if not scaler_crop_max:
+            return fallback
+
+        # Calculate actual ScalerCrop
+        scaler_crop = self.calculate_scaler_crop()
+        if not scaler_crop:
+            return fallback
+
+        # Extract coordinates
+        x_offset_max, y_offset_max, sensor_width, sensor_height = scaler_crop_max
+        offset_x_pixels, offset_y_pixels, crop_width, crop_height = scaler_crop
+
+        # Calculate actual center in full sensor coordinates
+        actual_center_x_pixels = offset_x_pixels + crop_width / 2
+        actual_center_y_pixels = offset_y_pixels + crop_height / 2
+
+        # Convert from full sensor coordinates back to normalized active area coordinates
+        # Remove the ScalerCropMaximum offset to get position within active area
+        actual_center_x_rel = actual_center_x_pixels - x_offset_max
+        actual_center_y_rel = actual_center_y_pixels - y_offset_max
+
+        # Normalize to 0-1 range relative to active area
+        actual_center_x_normalized = actual_center_x_rel / sensor_width if sensor_width > 0 else 0.5
+        actual_center_y_normalized = actual_center_y_rel / sensor_height if sensor_height > 0 else 0.5
+
+        # Clamp to valid range (should already be valid, but defensive programming)
+        actual_center_x_normalized = max(0.0, min(1.0, actual_center_x_normalized))
+        actual_center_y_normalized = max(0.0, min(1.0, actual_center_y_normalized))
+
+        return {
+            'x': actual_center_x_normalized,
+            'y': actual_center_y_normalized
+        }
+
     def set_zoom(self, zoom_level, center_x=None, center_y=None):
         """
         Set digital zoom level and optionally reposition zoom center.

@@ -232,6 +232,10 @@ def register_handlers(socketio, camera_streamer):
                 # Convert AfState code to string
                 af_state = ("Idle", "Scanning", "Success", "Fail")[af_state_code] if af_state_code < 4 else "Unknown"
 
+                # Get actual zoom center (accounts for aspect ratio preservation and clamping)
+                # This tells the frontend where the crosshair should actually be displayed
+                actual_zoom_center = camera_streamer.get_actual_zoom_center()
+
                 emit('metadata_update', {
                     # Primary metadata (existing)
                     'exposure_time': exposure_time,
@@ -255,6 +259,9 @@ def register_handlers(socketio, camera_streamer):
                     'contrast': round(contrast, 2),
                     'sharpness': round(sharpness, 2),
                     'brightness': round(brightness, 2),
+                    # Zoom metadata (Issue #52 fix)
+                    'actual_zoom_center_x': round(actual_zoom_center['x'], 4),
+                    'actual_zoom_center_y': round(actual_zoom_center['y'], 4),
                     'timestamp': __import__('time').time()
                 })
 
@@ -281,7 +288,9 @@ def register_handlers(socketio, camera_streamer):
                     'saturation': 0,
                     'contrast': 0,
                     'sharpness': 0,
-                    'brightness': 0
+                    'brightness': 0,
+                    'actual_zoom_center_x': 0.5,
+                    'actual_zoom_center_y': 0.5
                 })
 
         except Exception as e:
@@ -307,7 +316,9 @@ def register_handlers(socketio, camera_streamer):
                 'saturation': 0,
                 'contrast': 0,
                 'sharpness': 0,
-                'brightness': 0
+                'brightness': 0,
+                'actual_zoom_center_x': 0.5,
+                'actual_zoom_center_y': 0.5
             })
 
     @socketio.on('update_liveview_control')
