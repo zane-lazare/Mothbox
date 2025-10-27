@@ -232,6 +232,57 @@ def register_handlers(socketio, camera_streamer):
                 # Convert AfState code to string
                 af_state = ("Idle", "Scanning", "Success", "Fail")[af_state_code] if af_state_code < 4 else "Unknown"
 
+                # ========================================
+                # Coordinate Transformation System (Issue #52)
+                # ========================================
+                # The following calculations provide the frontend with a coordinate transformation
+                # matrix consisting of 4 values: actual_zoom_center_x/y and crop_fraction_x/y.
+                # These enable accurate bidirectional transformation between viewport and sensor coordinates.
+                #
+                # Coordinate Systems:
+                #   1. Viewport Space: (0-1) normalized to visible frame on screen
+                #      - What the user sees and interacts with (click positions)
+                #   2. Sensor Space: (0-1) normalized to ScalerCropMaximum active area
+                #      - Internal camera coordinate system for zoom/focus operations
+                #   3. Full Sensor Space: pixel coordinates in ScalerCropMaximum system
+                #      - Hardware-level coordinates used by libcamera
+                #
+                # Transformation Flow:
+                #   User clicks viewport (0.75, 0.5)
+                #   → Frontend transforms to sensor coords using crop fractions
+                #   → Backend applies to hardware (set_zoom, set_af_window)
+                #   → Hardware returns actual crop position via ScalerCrop
+                #   → Backend calculates actual center + fractions
+                #   → Frontend uses these to position the marker overlay
+                #
+                # Why 4 values are needed:
+                #   - actual_zoom_center_x/y: Where crop ACTUALLY ended up (may differ from requested)
+                #     * Accounts for boundary clamping (zooming near edges)
+                #     * Accounts for even dimension enforcement (pixel alignment)
+                #     * Accounts for aspect ratio preservation (may shift position)
+                #   - crop_fraction_x/y: How much of sensor is visible (for inverse transform)
+                #     * Symmetric when sensor and output have same aspect ratio (16:9 → 16:9)
+                #     * Asymmetric when aspect ratios differ (4:3 → 16:9)
+                #     * Required for accurate viewport ↔ sensor coordinate conversion
+                #
+                # Example: 4:3 sensor (2312x1736) → 16:9 output (1920x1080) at 1.0x zoom
+                #   crop_fraction_x ≈ 1.0 (full width used)
+                #   crop_fraction_y ≈ 0.75 (height cropped to maintain 16:9, prevents distortion)
+                #   Frontend click at viewport (0.5, 0.5) correctly maps to sensor (0.5, 0.5)
+                #   Without separate fractions, Y coordinate would be wrong by ~15%
+                #
+                # Fallback Behavior:
+                #   If camera not initialized or ScalerCrop unavailable:
+                #   - actual_zoom_center falls back to (0.5, 0.5)
+                #   - crop_fractions fall back to symmetric (1.0 / zoom_level)
+                #   This is less accurate but prevents UI breakage during initialization
+                #
+                # See also:
+                #   - calculate_scaler_crop() in liveview_stream.py: Calculates the crop
+                #   - get_actual_zoom_center() in liveview_stream.py: Calculates actual center
+                #   - handleImageClick() in Camera.jsx: Forward transform (viewport → sensor)
+                #   - Marker rendering in Camera.jsx: Inverse transform (sensor → viewport)
+
                 # Get actual zoom center (accounts for aspect ratio preservation and clamping)
                 # This tells the frontend where the area of interest marker should actually be displayed
                 try:

@@ -1143,9 +1143,38 @@ class LiveViewStreamer:
         - For binned modes (e.g., 1920x1080): (784, 1312, 7712, 4352) - offset defines
           where the active area starts in full sensor space
 
+        Aspect Ratio Preservation:
+        When the sensor active area and output stream have different aspect ratios
+        (e.g., 4:3 sensor → 16:9 output), the crop dimensions must be adjusted to
+        prevent image distortion. This creates ASYMMETRIC crop fractions.
+
+        Why this is necessary:
+        - Without aspect preservation: 4:3 sensor data would be squashed into 16:9 output
+        - Result: Horizontal stretching or vertical compression
+        - Solution: Crop sensor to match output aspect ratio BEFORE scaling
+
+        Example: 2312x1736 sensor (4:3) → 1920x1080 output (16:9) at zoom=1.0
+          - Active area aspect: 2312/1736 = 1.33 (4:3)
+          - Output aspect: 1920/1080 = 1.78 (16:9)
+          - Output is WIDER than sensor → crop HEIGHT to match
+          - Crop dimensions: 2312×1301 (full width, reduced height)
+          - Crop fractions: X=1.0 (100% width), Y=0.75 (75% height)
+          - Result: Image fills frame without distortion
+
+        Impact on coordinate transformations:
+        These asymmetric fractions are sent to the frontend via metadata
+        (crop_fraction_x, crop_fraction_y) so coordinate transformations remain accurate.
+        Without separate X/Y fractions, viewport→sensor coordinate mapping would be
+        wrong by ~15% in one axis for 4:3→16:9 conversion.
+
         Returns:
             tuple: (x, y, width, height) ScalerCrop coordinates in full sensor space,
                    or None if camera not ready
+
+        See also:
+            - get_actual_zoom_center(): Inverse transformation (pixels → normalized)
+            - set_zoom(): Applies the calculated ScalerCrop to camera hardware
+            - websocket_handlers.py (line 235): Metadata emission with crop fractions
 
         Example:
             ScalerCropMaximum = (784, 1312, 7712, 4352)  # 1920x1080 sensor mode

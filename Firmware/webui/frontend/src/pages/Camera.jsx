@@ -628,6 +628,36 @@ export default function Camera() {
     debouncedEmitControl(controlName, value)
   }
 
+  /**
+   * Handle zoom level changes from the slider control.
+   *
+   * State Management:
+   * - zoomLevel: Current zoom magnification (1.0 = no zoom, 4.0 = 4x digital zoom)
+   * - zoomCenter: Default center position for zoom operations (0-1 normalized)
+   * - afWindow: User's last clicked "area of interest" (persists across zoom levels)
+   *
+   * Zoom Center Priority:
+   * 1. If afWindow is set (user clicked): zoom centers on clicked point
+   * 2. Otherwise: zoom centers on zoomCenter state (default 0.5, 0.5)
+   *
+   * This provides intuitive workflow:
+   * - User clicks on subject at 1.0x → afWindow set to click position
+   * - User drags zoom slider to 2.0x → zoom centers on clicked subject
+   * - User resets to 1.0x → zoomCenter resets to (0.5, 0.5), but afWindow persists
+   * - User zooms to 3.0x again → still centers on original click position
+   *
+   * The afWindow serves triple purpose:
+   * - Visual marker: Shows yellow "area of interest" box on screen
+   * - Autofocus target: Directs hardware AF to focus on this region
+   * - Zoom anchor: Subsequent zoom operations center on this point
+   *
+   * State Synchronization (see also: handleImageClick line 708):
+   * - When user clicks, BOTH zoomCenter and afWindow are updated simultaneously
+   * - This ensures zoom slider always has correct coordinates to use
+   * - afWindow takes priority in this function for backward compatibility
+   *
+   * @param {number} value - New zoom level (1.0 to 4.0)
+   */
   const handleZoomChange = (value) => {
     // Update local state immediately for responsive UI
     setZoomLevel(value)
@@ -640,9 +670,10 @@ export default function Camera() {
     }
 
     // Determine zoom center: prioritize afWindow (area of interest marker) if set
-    // This ensures zoom centers on the marker position, not the outdated zoomCenter state
-    // Example: User clicks at (0.7, 0.3) at 1.0x → afWindow updated but zoomCenter stays (0.5, 0.5)
-    //          User moves slider to 2.0x → should zoom to (0.7, 0.3), not (0.5, 0.5)
+    // This ensures zoom centers on the marker position
+    // Since handleImageClick (line 708) now updates zoomCenter on every click,
+    // both afWindow and zoomCenter should have the same value, but we check
+    // afWindow first for backward compatibility and explicitness
     const centerX = afWindow?.x ?? zoomCenter.x
     const centerY = afWindow?.y ?? zoomCenter.y
 
@@ -664,7 +695,52 @@ export default function Camera() {
     const viewportX = Math.max(0, Math.min(x / rect.width, 1))
     const viewportY = Math.max(0, Math.min(y / rect.height, 1))
 
-    // Calculate SENSOR coordinates (depends on current zoom level)
+    // ========================================
+    // Forward Coordinate Transformation: Viewport → Sensor
+    // ========================================
+    // This is the INVERSE of the marker rendering transformation (line 1010)
+    //
+    // Derivation:
+    //   At zoom=1.0: viewport (0-1) = full sensor (0-1) [identity transform]
+    //   At zoom>1.0: viewport (0-1) = cropped region of sensor
+    //
+    //   Crop properties:
+    //     - Center: (currentCenterX, currentCenterY) in sensor space
+    //     - Size: cropFraction of full sensor (e.g., 0.5 at 2x zoom means 50% visible)
+    //
+    //   Viewport range [0, 1] maps to sensor range [center - size/2, center + size/2]
+    //
+    //   Mathematical derivation:
+    //     viewportPos ranges from 0 to 1
+    //     We want to map this to [center - fraction/2, center + fraction/2]
+    //
+    //     Linear mapping: output = a * input + b
+    //     At viewportPos=0: sensorPos = center - fraction/2
+    //     At viewportPos=1: sensorPos = center + fraction/2
+    //
+    //     Setting up equations:
+    //       center - fraction/2 = a * 0 + b  →  b = center - fraction/2
+    //       center + fraction/2 = a * 1 + b  →  a = (center + fraction/2) - b = fraction
+    //
+    //     Therefore: sensorPos = fraction * viewportPos + (center - fraction/2)
+    //                          = fraction * viewportPos + center - fraction/2
+    //                          = center + fraction * (viewportPos - 0.5)
+    //
+    //   Final formula: sensorPos = currentCenter + (viewportPos - 0.5) * cropFraction
+    //
+    //   Why (viewportPos - 0.5)? It centers the mapping:
+    //     viewportPos=0.0 → sensor = center - 0.5*fraction (left edge of visible region)
+    //     viewportPos=0.5 → sensor = center (center of visible region)
+    //     viewportPos=1.0 → sensor = center + 0.5*fraction (right edge of visible region)
+    //
+    // Inverse formula (marker rendering, line 1078):
+    //   viewportPos = (sensorPos - currentCenter) / cropFraction + 0.5
+    //
+    // See also:
+    //   - Marker rendering (line 1010): Inverse transformation (sensor → viewport)
+    //   - websocket_handlers.py (line 235): Backend metadata emission
+    //   - calculate_scaler_crop() in liveview_stream.py: Crop calculation
+
     let sensorX, sensorY
 
     if (zoomLevel > 1.0) {
@@ -1007,10 +1083,69 @@ export default function Camera() {
 
                 {/* Area of Interest Indicator - Shows both zoom center and AF region */}
                 {afWindow && afWindow.active && (() => {
-                  // Transform marker position from SENSOR coordinates to VIEWPORT coordinates
-                  // afWindow.x/y are in sensor space (0-1 over full sensor)
-                  // When zoomed, viewport shows only a cropped region of the sensor
-                  // We need to map sensor position → viewport position for correct rendering
+                  // ========================================
+                  // Inverse Coordinate Transformation: Sensor → Viewport
+                  // ========================================
+                  // Problem: afWindow stores position in SENSOR coordinates (0-1 over full sensor)
+                  //          but we need VIEWPORT coordinates (0-1 over visible frame) to render the marker
+                  //
+                  // When zoomed, viewport shows only a CROPPED region of the sensor:
+                  //   zoom=1.0: viewport = full sensor (1:1 mapping, no transformation)
+                  //   zoom=2.0: viewport = center 50% of sensor (need transformation)
+                  //   zoom=4.0: viewport = center 25% of sensor (need transformation)
+                  //
+                  // Coordinate Systems:
+                  //   Sensor Space: (0, 0) to (1, 1) - full camera sensor active area
+                  //   Viewport Space: (0, 0) to (1, 1) - visible frame on screen (cropped at zoom > 1.0)
+                  //
+                  // Formula Derivation:
+                  //   Forward transform (handleImageClick, line 692):
+                  //     sensorPos = cropCenter + (viewportPos - 0.5) * cropFraction
+                  //
+                  //   Solving for viewportPos (inverse):
+                  //     viewportPos - 0.5 = (sensorPos - cropCenter) / cropFraction
+                  //     viewportPos = (sensorPos - cropCenter) / cropFraction + 0.5
+                  //
+                  // Parameters from backend metadata (see websocket_handlers.py line 235):
+                  //   - actual_zoom_center_x/y: Where crop is ACTUALLY centered
+                  //     * May differ from requested due to boundary clamping, even enforcement
+                  //   - crop_fraction_x/y: How much of sensor is visible (accounts for aspect ratio)
+                  //     * Symmetric when sensor and output have same aspect ratio (16:9 → 16:9)
+                  //     * Asymmetric when aspect ratios differ (4:3 → 16:9)
+                  //
+                  // Example 1: Symmetric crop (2x zoom, centered, 16:9 → 16:9)
+                  //   afWindow.x = 0.75 (sensor: 75% right)
+                  //   currentCenterX = 0.5 (crop centered)
+                  //   cropFractionX = 0.5 (50% of sensor visible at 2x zoom)
+                  //   → markerViewportX = (0.75 - 0.5) / 0.5 + 0.5 = 0.25 / 0.5 + 0.5 = 1.0
+                  //   → Marker appears at RIGHT EDGE of viewport ✓ (where 75% sensor position maps to)
+                  //
+                  // Example 2: Asymmetric crop (1.0x zoom, centered, 4:3 → 16:9)
+                  //   afWindow.y = 0.5 (sensor: vertical center)
+                  //   currentCenterY = 0.5 (crop centered)
+                  //   cropFractionY = 0.75 (75% of sensor height visible, cropped to maintain 16:9)
+                  //   → markerViewportY = (0.5 - 0.5) / 0.75 + 0.5 = 0 / 0.75 + 0.5 = 0.5
+                  //   → Marker appears at VIEWPORT CENTER ✓ (correct despite asymmetric crop)
+                  //
+                  // Example 3: Click near edge (3x zoom, crop at 0.8, 0.5)
+                  //   User clicked sensor position 0.9 (near right edge)
+                  //   afWindow.x = 0.9
+                  //   currentCenterX = 0.8 (crop had to clamp away from 0.9 to fit in bounds)
+                  //   cropFractionX = 0.333 (33% visible at 3x)
+                  //   → markerViewportX = (0.9 - 0.8) / 0.333 + 0.5 = 0.1 / 0.333 + 0.5 ≈ 0.8
+                  //   → Marker appears at 80% across viewport (NOT at edge, because crop clamped)
+                  //
+                  // Fallback Behavior:
+                  //   When metadata unavailable (camera initializing, connection lag):
+                  //   - Falls back to zoomCenter for crop center (less accurate)
+                  //   - Falls back to symmetric fractions: 1.0 / zoomLevel
+                  //   - May cause slight marker misalignment until metadata arrives
+                  //   - With 4:3→16:9 + symmetric fallback, Y coords can be off by ~15%
+                  //
+                  // See also:
+                  //   - handleImageClick() (line 653): Forward transformation (viewport → sensor)
+                  //   - websocket_handlers.py (line 235): Backend metadata emission
+                  //   - calculate_scaler_crop() in liveview_stream.py: Crop calculation
 
                   let markerViewportX, markerViewportY
 
