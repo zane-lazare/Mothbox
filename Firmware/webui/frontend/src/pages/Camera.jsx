@@ -980,10 +980,12 @@ export default function Camera() {
                   <div
                     className="absolute pointer-events-none"
                     style={{
-                      // Use actual zoom center from metadata (accounts for aspect ratio preservation)
-                      // Falls back to requested center if metadata not available yet
-                      left: `${(metadata?.actual_zoom_center_x ?? zoomCenter.x) * 100}%`,
-                      top: `${(metadata?.actual_zoom_center_y ?? zoomCenter.y) * 100}%`,
+                      // Crosshair is always centered in viewport (50%, 50%)
+                      // The displayed image IS the cropped area, so center of image = center of crop
+                      // This is correct because the backend sends us the cropped portion centered
+                      // at the zoom position we requested
+                      left: '50%',
+                      top: '50%',
                       transform: 'translate(-50%, -50%)'
                     }}
                   >
