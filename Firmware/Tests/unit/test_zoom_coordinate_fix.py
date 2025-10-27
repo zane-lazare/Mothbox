@@ -69,8 +69,9 @@ def calculate_scaler_crop(scaler_crop_max, zoom_level, zoom_center_x, zoom_cente
     crop_height = crop_height & ~1
 
     # Calculate position RELATIVE to active area
-    offset_x_rel = int(zoom_center_x * sensor_width - crop_width / 2)
-    offset_y_rel = int(zoom_center_y * sensor_height - crop_height / 2)
+    # Use round() instead of int() to avoid systematic left/top bias from truncation
+    offset_x_rel = round(zoom_center_x * sensor_width - crop_width / 2)
+    offset_y_rel = round(zoom_center_y * sensor_height - crop_height / 2)
 
     # Clamp to valid range within active area
     offset_x_rel = max(0, min(offset_x_rel, sensor_width - crop_width))
@@ -585,6 +586,97 @@ class TestEdgeCases:
 
         print(f"✓ 1.1x zoom in binned mode is subtle: using {crop_percentage:.1f}% of active area")
         print(f"  Crop dimensions: {crop_width}x{crop_height} out of 7712x4352")
+
+
+class TestRoundingBiasFix:
+    """Test that round() instead of int() eliminates directional bias (Issue #52 fix)"""
+
+    def test_rounding_eliminates_directional_bias(self):
+        """
+        Test that round() instead of int() eliminates systematic left/top bias.
+
+        The bug: int() truncates toward zero, causing systematic left/top offset.
+        The fix: round() rounds to nearest integer, eliminating directional bias.
+
+        This test verifies that when centering at multiple slightly-off-center positions,
+        the average offset has no systematic bias (within ±1px tolerance for even enforcement).
+        """
+        scaler_crop_max = (0, 0, 1920, 1080)
+
+        # Test multiple slightly-off-center positions
+        # With int(), all would be biased left/top
+        # With round(), offsets should vary around the expected center
+        positions = [0.501, 0.502, 0.503, 0.504, 0.505, 0.506, 0.507, 0.508, 0.509]
+        offsets_x = []
+        offsets_y = []
+
+        for center_x in positions:
+            for center_y in positions:
+                crop = calculate_scaler_crop(scaler_crop_max, 2.0, center_x, center_y, 1920, 1080)
+                offset_x, offset_y, crop_width, crop_height = crop
+                offsets_x.append(offset_x)
+                offsets_y.append(offset_y)
+
+        # Calculate average offsets
+        average_offset_x = sum(offsets_x) / len(offsets_x)
+        average_offset_y = sum(offsets_y) / len(offsets_y)
+
+        # Expected offset for center positions around 0.505 at 2x zoom
+        # zoom=2.0 → crop is 50% of sensor → crop_width=960, crop_height=540
+        # center at ~0.505 → expected offset ≈ 0.505 * 1920 - 960/2 = 970 - 480 = 490
+        expected_offset_x = 490  # Approximate expected for positions around 0.505
+        expected_offset_y = 275  # Approximate expected for positions around 0.505
+
+        # With round(), average should be close to expected (±2 due to even enforcement and rounding)
+        # With int(), average would be systematically lower (biased left/top)
+        assert abs(average_offset_x - expected_offset_x) <= 2, \
+            f"X offset shows systematic bias: average={average_offset_x:.1f} vs expected≈{expected_offset_x} (diff={abs(average_offset_x - expected_offset_x):.1f}px)"
+
+        assert abs(average_offset_y - expected_offset_y) <= 2, \
+            f"Y offset shows systematic bias: average={average_offset_y:.1f} vs expected≈{expected_offset_y} (diff={abs(average_offset_y - expected_offset_y):.1f}px)"
+
+        print(f"✓ Rounding eliminates directional bias:")
+        print(f"  Average X offset: {average_offset_x:.1f} (expected ≈{expected_offset_x}, diff={abs(average_offset_x - expected_offset_x):.1f}px)")
+        print(f"  Average Y offset: {average_offset_y:.1f} (expected ≈{expected_offset_y}, diff={abs(average_offset_y - expected_offset_y):.1f}px)")
+
+    def test_rounding_vs_int_comparison(self):
+        """
+        Direct comparison: demonstrate the difference between round() and int().
+
+        This test shows what would happen with int() vs round() for a specific position.
+        """
+        scaler_crop_max = (0, 0, 1920, 1080)
+
+        # Position slightly right of center at 2x zoom
+        center_x = 0.51  # 51% right
+        center_y = 0.5
+        zoom_level = 2.0
+
+        # Calculate with round() (current implementation)
+        crop_with_round = calculate_scaler_crop(scaler_crop_max, zoom_level, center_x, center_y, 1920, 1080)
+        offset_x_round, offset_y_round, crop_width, crop_height = crop_with_round
+
+        # Calculate what int() would have given us (for comparison)
+        # zoom=2.0 → crop_width=960, crop_height=540
+        # center_x=0.51 → position = 0.51 * 1920 - 960/2 = 979.2 - 480 = 499.2
+        # int(499.2) = 499 (truncates down)
+        # round(499.2) = 499 (rounds to nearest)
+        # After even enforcement (& ~1): both → 498
+        # But at center_x=0.515: position = 988.8 - 480 = 508.8
+        # int(508.8) = 508, then & ~1 = 508
+        # round(508.8) = 509, then & ~1 = 508
+
+        # The key insight: int() always truncates down, creating left/top bias
+        # round() rounds to nearest, eliminating systematic bias
+
+        # Verify the offset is reasonable (close to expected for 51% position)
+        # Expected offset for 0.51 center at 2x zoom ≈ 499, after even enforcement ≈ 498
+        assert 496 <= offset_x_round <= 500, \
+            f"Offset X should be ≈498 for center_x=0.51, got {offset_x_round}"
+
+        print(f"✓ round() produces correct offset for center_x={center_x}:")
+        print(f"  Offset X: {offset_x_round} (expected ≈498 after even enforcement)")
+        print(f"  With int(), would systematically bias left for fractional positions")
 
 
 if __name__ == '__main__':

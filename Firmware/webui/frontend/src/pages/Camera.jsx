@@ -46,8 +46,7 @@ export default function Camera() {
   })
   const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
   const [zoomCenter, setZoomCenter] = useState({ x: 0.5, y: 0.5 })  // Normalized zoom center (0.5, 0.5 = center)
-  const [crosshairPos, setCrosshairPos] = useState({ x: 0.5, y: 0.5 })  // Crosshair viewport position (where user clicked)
-  const [afWindow, setAfWindow] = useState(null)  // AF window: {x, y, active, focusing} or null
+  const [afWindow, setAfWindow] = useState(null)  // AF window: {x, y, active, focusing} or null - also serves as visual indicator for area of interest
   const [cameraSettings, setCameraSettings] = useState(null)  // HDR and other camera settings
   const socketRef = useRef(null)
   const metadataIntervalRef = useRef(null)
@@ -633,18 +632,21 @@ export default function Camera() {
     // Update local state immediately for responsive UI
     setZoomLevel(value)
 
-    // If zooming back to 1.0x, reset crosshair to center
+    // If zooming back to 1.0x, reset zoom center but KEEP AF window
+    // AF window persists across zoom levels to maintain area of interest
     if (value === 1.0) {
-      setCrosshairPos({ x: 0.5, y: 0.5 })
+      setZoomCenter({ x: 0.5, y: 0.5 })
+      // Note: afWindow state is NOT cleared - it persists to show continued focus region
     }
 
     // Emit to backend (debounced) with current zoom center
     debouncedEmitZoom(value, zoomCenter.x, zoomCenter.y)
   }
 
-  const handleLiveViewClick = (e) => {
-    // Only process clicks when zoomed (zoom > 1.0)
-    if (zoomLevel <= 1.0 || !liveViewActive) return
+  const handleImageClick = (e) => {
+    // Unified handler: Sets BOTH zoom center AND AF window to create a single "area of interest"
+    // Works at ALL zoom levels - clicking defines both where to zoom and where to focus
+    if (!liveViewActive) return
 
     // Get click position relative to image element
     const rect = e.currentTarget.getBoundingClientRect()
@@ -652,73 +654,73 @@ export default function Camera() {
     const y = e.clientY - rect.top
 
     // Convert to normalized coordinates (0-1) in VIEWPORT space
-    // (where 0=left/top of currently visible area, 1=right/bottom of currently visible area)
     const viewportX = Math.max(0, Math.min(x / rect.width, 1))
     const viewportY = Math.max(0, Math.min(y / rect.height, 1))
 
-    // Save the clicked viewport position for crosshair display
-    // The crosshair should appear where the user clicked
-    setCrosshairPos({ x: viewportX, y: viewportY })
+    // Calculate SENSOR coordinates (depends on current zoom level)
+    let sensorX, sensorY
 
-    // Transform from VIEWPORT space to SENSOR space
-    // The displayed image shows only a fraction of the full sensor (based on zoom level)
-    // We need to map the click position from "what's visible" to "full sensor coordinates"
+    if (zoomLevel > 1.0) {
+      // When zoomed: Transform from viewport space to sensor space
+      // The displayed image shows only a fraction of the full sensor
+      // We need to map the click from "what's visible" to "full sensor coordinates"
 
-    // Get current crop center from metadata (where the crop is actually centered in sensor space)
-    // Falls back to zoomCenter if metadata not available yet
-    const currentCenterX = metadata?.actual_zoom_center_x ?? zoomCenter.x
-    const currentCenterY = metadata?.actual_zoom_center_y ?? zoomCenter.y
+      // Get current crop center from metadata (where the crop is actually centered)
+      // Falls back to zoomCenter if metadata not available yet
+      const currentCenterX = metadata?.actual_zoom_center_x ?? zoomCenter.x
+      const currentCenterY = metadata?.actual_zoom_center_y ?? zoomCenter.y
 
-    // Calculate how much of the sensor is currently visible (inverse of zoom)
-    const cropFraction = 1.0 / zoomLevel  // e.g., 2x zoom = 0.5 = 50% visible
+      // Calculate how much of the sensor is currently visible (inverse of zoom)
+      const cropFraction = 1.0 / zoomLevel  // e.g., 2x zoom = 0.5 = 50% visible
 
-    // Transform click from viewport space to sensor space
-    // Formula: sensorPos = currentCenter + (clickInViewport - 0.5) * cropSize
-    // Example: 2x zoom at center (0.5, 0.5), click right edge of viewport (1.0)
-    //   → sensor_x = 0.5 + (1.0 - 0.5) * 0.5 = 0.5 + 0.25 = 0.75 ✓
-    const sensorX = currentCenterX + (viewportX - 0.5) * cropFraction
-    const sensorY = currentCenterY + (viewportY - 0.5) * cropFraction
+      // Transform click from viewport space to sensor space
+      // Formula: sensorPos = currentCenter + (clickInViewport - 0.5) * cropSize
+      // Example: 2x zoom at center (0.5, 0.5), click right edge of viewport (1.0)
+      //   → sensor_x = 0.5 + (1.0 - 0.5) * 0.5 = 0.5 + 0.25 = 0.75 ✓
+      sensorX = currentCenterX + (viewportX - 0.5) * cropFraction
+      sensorY = currentCenterY + (viewportY - 0.5) * cropFraction
+    } else {
+      // At 1.0x zoom: Viewport coordinates = sensor coordinates (no transformation needed)
+      sensorX = viewportX
+      sensorY = viewportY
+    }
 
     // Clamp to valid sensor range (0-1)
     const clampedX = Math.max(0, Math.min(sensorX, 1))
     const clampedY = Math.max(0, Math.min(sensorY, 1))
 
-    // Update zoom center state with transformed coordinates
+    // Update local state
     setZoomCenter({ x: clampedX, y: clampedY })
+    setAfWindow({
+      x: clampedX,  // Use sensor coordinates for AF window position
+      y: clampedY,
+      active: true,
+      focusing: true  // Trigger focusing animation
+    })
 
-    // Emit to backend immediately (no debounce for clicks - user expects instant response)
+    // Emit BOTH zoom center and AF window to backend
     if (socketRef.current) {
+      // Set zoom center (digital crop repositioning)
       socketRef.current.emit('set_zoom', {
         zoom_level: zoomLevel,
         center_x: clampedX,
         center_y: clampedY
       })
-    }
-  }
 
-  const handleAfWindowClick = (e) => {
-    // Process clicks for AF window when NOT zoomed (zoom = 1.0)
-    // This allows click-to-focus without interfering with zoom repositioning
-    if (zoomLevel > 1.0 || !liveViewActive) return
-
-    // Get click position relative to image element
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-
-    // Convert to normalized coordinates (0-1)
-    const normalizedX = Math.max(0, Math.min(x / rect.width, 1))
-    const normalizedY = Math.max(0, Math.min(y / rect.height, 1))
-
-    // Emit AF window update to backend
-    if (socketRef.current) {
+      // Set AF window (hardware autofocus region)
       socketRef.current.emit('set_af_window', {
-        x: normalizedX,
-        y: normalizedY,
+        x: clampedX,
+        y: clampedY,
         window_size: 0.2  // 20% of frame
       })
-      toast.success(`Focusing at (${(normalizedX * 100).toFixed(0)}%, ${(normalizedY * 100).toFixed(0)}%)`)
+
+      toast.success(`Area of interest: (${(clampedX * 100).toFixed(0)}%, ${(clampedY * 100).toFixed(0)}%)`)
     }
+
+    // Auto-stop focusing animation after 3 seconds (but keep box visible)
+    setTimeout(() => {
+      setAfWindow(prev => prev ? { ...prev, focusing: false } : null)
+    }, 3000)
   }
 
   const handleResetControls = () => {
@@ -979,39 +981,11 @@ export default function Camera() {
                 <img
                   src={currentFrame}
                   alt="Camera preview"
-                  className={`w-full h-auto ${zoomLevel > 1.0 ? 'cursor-crosshair' : 'cursor-pointer'}`}
-                  onClick={(e) => {
-                    handleLiveViewClick(e)
-                    handleAfWindowClick(e)
-                  }}
+                  className="w-full h-auto cursor-crosshair"
+                  onClick={handleImageClick}
                 />
 
-                {/* Zoom Center Indicator - Only show when zoomed */}
-                {zoomLevel > 1.0 && (
-                  <div
-                    className="absolute pointer-events-none"
-                    style={{
-                      // Crosshair appears at the viewport position where user clicked
-                      // This shows "you clicked here" and will naturally migrate toward center
-                      // as the backend recenters the crop around the clicked sensor position
-                      left: `${crosshairPos.x * 100}%`,
-                      top: `${crosshairPos.y * 100}%`,
-                      transform: 'translate(-50%, -50%)'
-                    }}
-                  >
-                    {/* Crosshair */}
-                    <div className="relative">
-                      {/* Horizontal line */}
-                      <div className="absolute w-8 h-0.5 bg-green-400 -left-4 top-1/2 -translate-y-1/2"></div>
-                      {/* Vertical line */}
-                      <div className="absolute h-8 w-0.5 bg-green-400 -top-4 left-1/2 -translate-x-1/2"></div>
-                      {/* Center dot */}
-                      <div className="w-2 h-2 bg-green-400 rounded-full border-2 border-gray-900"></div>
-                    </div>
-                  </div>
-                )}
-
-                {/* AF Window Indicator - Show when AF window is active */}
+                {/* Area of Interest Indicator - Shows both zoom center and AF region */}
                 {afWindow && afWindow.active && (
                   <div
                     className="absolute pointer-events-none"

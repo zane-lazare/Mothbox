@@ -1232,6 +1232,34 @@ class LiveViewStreamer:
         - Boundary clamping (when zooming near edges)
         - Even dimension enforcement (pixel alignment)
 
+        Coordinate Transformation Flow:
+        ┌─────────────────────────────────────────────────────────────┐
+        │ 1. User Request (Normalized 0-1 coords in active area)     │
+        │    e.g., click at (0.75, 0.5) = 75% right, 50% down        │
+        └──────────────────┬──────────────────────────────────────────┘
+                           │
+                           ▼
+        ┌─────────────────────────────────────────────────────────────┐
+        │ 2. calculate_scaler_crop() applies:                        │
+        │    • Aspect ratio preservation (crop size)                 │
+        │    • Boundary clamping (position)                          │
+        │    • Even enforcement (alignment)                          │
+        │    → Produces ScalerCrop in FULL SENSOR coordinates        │
+        └──────────────────┬──────────────────────────────────────────┘
+                           │
+                           ▼
+        ┌─────────────────────────────────────────────────────────────┐
+        │ 3. get_actual_zoom_center() reverses transformation:       │
+        │    Full Sensor Pixels → Active Area Pixels → Normalized    │
+        │    (offset_x, offset_y, w, h) → (center_x, center_y)       │
+        │    → Returns actual center in 0-1 coords                   │
+        └─────────────────────────────────────────────────────────────┘
+
+        Example Coordinate Spaces:
+            Full Sensor:     (0, 0) to (3280, 2464) pixels
+            Active Area:     (768, 692) to (3048, 2156) pixels  [within full sensor]
+            Normalized:      (0.0, 0.0) to (1.0, 1.0)          [within active area]
+
         Returns:
             dict: {'x': float, 'y': float} - Normalized coordinates (0-1) of actual crop center
                   Returns requested center if calculation fails (graceful fallback)

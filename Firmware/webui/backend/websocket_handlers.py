@@ -234,7 +234,11 @@ def register_handlers(socketio, camera_streamer):
 
                 # Get actual zoom center (accounts for aspect ratio preservation and clamping)
                 # This tells the frontend where the crosshair should actually be displayed
-                actual_zoom_center = camera_streamer.get_actual_zoom_center()
+                try:
+                    actual_zoom_center = camera_streamer.get_actual_zoom_center()
+                except Exception as e:
+                    print(f"Warning: Failed to get actual zoom center: {e}")
+                    actual_zoom_center = {'x': 0.5, 'y': 0.5}  # Fallback to center
 
                 emit('metadata_update', {
                     # Primary metadata (existing)
