@@ -240,6 +240,28 @@ def register_handlers(socketio, camera_streamer):
                     print(f"Warning: Failed to get actual zoom center: {e}")
                     actual_zoom_center = {'x': 0.5, 'y': 0.5}  # Fallback to center
 
+                # Calculate crop fractions for accurate coordinate transformation
+                # These account for aspect ratio preservation (e.g., 4:3 sensor → 16:9 output)
+                try:
+                    scaler_crop_result = camera_streamer.calculate_scaler_crop()
+                    scaler_crop_max = camera_streamer.camera.camera_properties.get('ScalerCropMaximum')
+
+                    if scaler_crop_result and scaler_crop_max:
+                        _, _, sensor_width, sensor_height = scaler_crop_max
+                        _, _, crop_width, crop_height = scaler_crop_result
+
+                        # Calculate actual visible fractions (handles asymmetric crops)
+                        crop_fraction_x = crop_width / sensor_width if sensor_width > 0 else 1.0
+                        crop_fraction_y = crop_height / sensor_height if sensor_height > 0 else 1.0
+                    else:
+                        # Fallback: assume no aspect ratio preservation
+                        crop_fraction_x = 1.0 / camera_streamer.zoom_level
+                        crop_fraction_y = 1.0 / camera_streamer.zoom_level
+                except Exception as e:
+                    print(f"Warning: Failed to calculate crop fractions: {e}")
+                    crop_fraction_x = 1.0 / camera_streamer.zoom_level
+                    crop_fraction_y = 1.0 / camera_streamer.zoom_level
+
                 emit('metadata_update', {
                     # Primary metadata (existing)
                     'exposure_time': exposure_time,
@@ -266,6 +288,8 @@ def register_handlers(socketio, camera_streamer):
                     # Zoom metadata (Issue #52 fix)
                     'actual_zoom_center_x': round(actual_zoom_center['x'], 4),
                     'actual_zoom_center_y': round(actual_zoom_center['y'], 4),
+                    'crop_fraction_x': round(crop_fraction_x, 4),
+                    'crop_fraction_y': round(crop_fraction_y, 4),
                     'timestamp': __import__('time').time()
                 })
 
@@ -294,7 +318,9 @@ def register_handlers(socketio, camera_streamer):
                     'sharpness': 0,
                     'brightness': 0,
                     'actual_zoom_center_x': 0.5,
-                    'actual_zoom_center_y': 0.5
+                    'actual_zoom_center_y': 0.5,
+                    'crop_fraction_x': 1.0,
+                    'crop_fraction_y': 1.0
                 })
 
         except Exception as e:

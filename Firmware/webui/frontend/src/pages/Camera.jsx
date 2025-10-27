@@ -670,15 +670,20 @@ export default function Camera() {
       const currentCenterX = metadata?.actual_zoom_center_x ?? zoomCenter.x
       const currentCenterY = metadata?.actual_zoom_center_y ?? zoomCenter.y
 
-      // Calculate how much of the sensor is currently visible (inverse of zoom)
-      const cropFraction = 1.0 / zoomLevel  // e.g., 2x zoom = 0.5 = 50% visible
+      // Calculate how much of the sensor is currently visible
+      // Use actual crop fractions from backend (handles aspect ratio preservation)
+      // When sensor and output have different aspect ratios (e.g., 4:3 sensor → 16:9 output),
+      // the crop fractions will be asymmetric (X and Y different)
+      const cropFractionX = metadata?.crop_fraction_x ?? (1.0 / zoomLevel)
+      const cropFractionY = metadata?.crop_fraction_y ?? (1.0 / zoomLevel)
 
       // Transform click from viewport space to sensor space
-      // Formula: sensorPos = currentCenter + (clickInViewport - 0.5) * cropSize
+      // Formula: sensorPos = currentCenter + (clickInViewport - 0.5) * cropFraction
       // Example: 2x zoom at center (0.5, 0.5), click right edge of viewport (1.0)
-      //   → sensor_x = 0.5 + (1.0 - 0.5) * 0.5 = 0.5 + 0.25 = 0.75 ✓
-      sensorX = currentCenterX + (viewportX - 0.5) * cropFraction
-      sensorY = currentCenterY + (viewportY - 0.5) * cropFraction
+      //   With symmetric crop (16:9 → 16:9): sensor_x = 0.5 + (1.0 - 0.5) * 0.5 = 0.75
+      //   With asymmetric crop (4:3 → 16:9): sensor_x = 0.5 + (1.0 - 0.5) * 0.667 = 0.833
+      sensorX = currentCenterX + (viewportX - 0.5) * cropFractionX
+      sensorY = currentCenterY + (viewportY - 0.5) * cropFractionY
     } else {
       // At 1.0x zoom: Viewport coordinates = sensor coordinates (no transformation needed)
       sensorX = viewportX
