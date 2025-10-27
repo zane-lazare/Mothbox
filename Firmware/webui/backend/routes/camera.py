@@ -130,6 +130,8 @@ ALLOWED_CAMERA_SETTINGS = {
     # White balance controls (Phase 2.1)
     'AwbEnable': lambda v: str(v).lower() in ['true', 'false'],
     'AwbMode': lambda v: 0 <= int(v) <= 7,  # 0=Auto, 1=Incandescent, ..., 7=Custom
+    'ColourGainRed': lambda v: 1.0 <= float(v) <= 4.0,  # Red channel gain
+    'ColourGainBlue': lambda v: 1.0 <= float(v) <= 4.0,  # Blue channel gain
 
     # Noise reduction controls
     'NoiseReductionMode': lambda v: isinstance(v, int) and v in [0, 1, 2] or (isinstance(v, str) and v.isdigit() and int(v) in [0, 1, 2]),  # 0=Off, 1=Fast, 2=High Quality
