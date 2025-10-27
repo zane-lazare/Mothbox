@@ -35,6 +35,9 @@ export default function Camera() {
     lensPosition: 3.0,  // Diopters (0.0-10.0, middle position default)
     afRange: 0,  // 0=Normal, 1=Macro, 2=Full
     afSpeed: 0,  // 0=Normal, 1=Fast
+    // White balance / Color gains
+    colourGainRed: 2.259,  // Red channel gain (1.0-4.0)
+    colourGainBlue: 1.500,  // Blue channel gain (1.0-4.0)
     // Focus peaking controls (live view-only overlay)
     focusPeakingEnabled: false,
     focusPeakingIntensity: 100,  // 50-200 range
@@ -206,7 +209,10 @@ export default function Camera() {
             afMode: data.af_mode !== undefined ? data.af_mode : 2,  // Default: Continuous AF
             lensPosition: data.lens_position !== undefined ? data.lens_position : 3.0,
             afRange: data.af_range !== undefined ? data.af_range : 0,  // Default: Normal range
-            afSpeed: data.af_speed !== undefined ? data.af_speed : 0  // Default: Normal speed
+            afSpeed: data.af_speed !== undefined ? data.af_speed : 0,  // Default: Normal speed
+            // White balance / Color gains - load from backend or use defaults
+            colourGainRed: data.colour_gains_red !== undefined ? data.colour_gains_red : 2.259,
+            colourGainBlue: data.colour_gains_blue !== undefined ? data.colour_gains_blue : 1.500
           })
           console.log('Loaded live controls from settings:', data)
         }
@@ -639,19 +645,43 @@ export default function Camera() {
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
-    // Convert to normalized coordinates (0-1)
-    const normalizedX = Math.max(0, Math.min(x / rect.width, 1))
-    const normalizedY = Math.max(0, Math.min(y / rect.height, 1))
+    // Convert to normalized coordinates (0-1) in VIEWPORT space
+    // (where 0=left/top of currently visible area, 1=right/bottom of currently visible area)
+    const viewportX = Math.max(0, Math.min(x / rect.width, 1))
+    const viewportY = Math.max(0, Math.min(y / rect.height, 1))
 
-    // Update zoom center state
-    setZoomCenter({ x: normalizedX, y: normalizedY })
+    // Transform from VIEWPORT space to SENSOR space
+    // The displayed image shows only a fraction of the full sensor (based on zoom level)
+    // We need to map the click position from "what's visible" to "full sensor coordinates"
+
+    // Get current crop center from metadata (where the crop is actually centered in sensor space)
+    // Falls back to zoomCenter if metadata not available yet
+    const currentCenterX = metadata?.actual_zoom_center_x ?? zoomCenter.x
+    const currentCenterY = metadata?.actual_zoom_center_y ?? zoomCenter.y
+
+    // Calculate how much of the sensor is currently visible (inverse of zoom)
+    const cropFraction = 1.0 / zoomLevel  // e.g., 2x zoom = 0.5 = 50% visible
+
+    // Transform click from viewport space to sensor space
+    // Formula: sensorPos = currentCenter + (clickInViewport - 0.5) * cropSize
+    // Example: 2x zoom at center (0.5, 0.5), click right edge of viewport (1.0)
+    //   → sensor_x = 0.5 + (1.0 - 0.5) * 0.5 = 0.5 + 0.25 = 0.75 ✓
+    const sensorX = currentCenterX + (viewportX - 0.5) * cropFraction
+    const sensorY = currentCenterY + (viewportY - 0.5) * cropFraction
+
+    // Clamp to valid sensor range (0-1)
+    const clampedX = Math.max(0, Math.min(sensorX, 1))
+    const clampedY = Math.max(0, Math.min(sensorY, 1))
+
+    // Update zoom center state with transformed coordinates
+    setZoomCenter({ x: clampedX, y: clampedY })
 
     // Emit to backend immediately (no debounce for clicks - user expects instant response)
     if (socketRef.current) {
       socketRef.current.emit('set_zoom', {
         zoom_level: zoomLevel,
-        center_x: normalizedX,
-        center_y: normalizedY
+        center_x: clampedX,
+        center_y: clampedY
       })
     }
   }
@@ -691,7 +721,10 @@ export default function Camera() {
       afMode: 2,  // Continuous AF
       lensPosition: 3.0,  // Middle position
       afRange: 0,  // Normal range
-      afSpeed: 0  // Normal speed
+      afSpeed: 0,  // Normal speed
+      // Color balance defaults
+      colourGainRed: 2.259,
+      colourGainBlue: 1.500
     }
 
     setLiveControls(prev => ({
@@ -1283,6 +1316,59 @@ export default function Camera() {
                       <span>0</span>
                       <span>1.0</span>
                       <span>4</span>
+                    </div>
+                  </div>
+
+                  {/* Colour Gains Section */}
+                  <div className="pt-2 mt-2 border-t border-white/20">
+                    <h4 className="text-xs font-semibold text-gray-200 mb-2">🎨 Color Balance</h4>
+
+                    {/* Red Gain Slider */}
+                    <div className="mb-3">
+                      <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                        <span>Red Gain</span>
+                        <span className="text-red-300 font-mono">{liveControls.colourGainRed.toFixed(3)}</span>
+                      </label>
+                      <input
+                        type="range"
+                        min="1.0"
+                        max="4.0"
+                        step="0.001"
+                        value={liveControls.colourGainRed}
+                        onChange={(e) => handleControlChange('ColourGainRed', parseFloat(e.target.value))}
+                        className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-red-500"
+                      />
+                      <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                        <span>1.0</span>
+                        <span>2.5</span>
+                        <span>4.0</span>
+                      </div>
+                    </div>
+
+                    {/* Blue Gain Slider */}
+                    <div>
+                      <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                        <span>Blue Gain</span>
+                        <span className="text-blue-300 font-mono">{liveControls.colourGainBlue.toFixed(3)}</span>
+                      </label>
+                      <input
+                        type="range"
+                        min="1.0"
+                        max="4.0"
+                        step="0.001"
+                        value={liveControls.colourGainBlue}
+                        onChange={(e) => handleControlChange('ColourGainBlue', parseFloat(e.target.value))}
+                        className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                      />
+                      <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                        <span>1.0</span>
+                        <span>2.5</span>
+                        <span>4.0</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 text-[10px] text-gray-300">
+                      💡 Locks color balance for LED flash illumination
                     </div>
                   </div>
 
