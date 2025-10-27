@@ -315,8 +315,11 @@ export default function Settings() {
   // Wait for BOTH presetsData and preferences to be loaded to avoid multiple initializations
   useEffect(() => {
     if (presetsData?.presets && preferences && !selectedPhotoPreset && !photoPresetInitialized.current) {
-      // Use user's default preference, or "balanced" as fallback, or first available
-      const defaultPreset = preferences?.default_capture_preset ||
+      // Use user's default preference (only if it still exists), or "balanced" as fallback, or first available
+      const savedDefault = preferences?.default_capture_preset
+      const defaultExists = savedDefault && presetsData.presets.some(p => p.name === savedDefault)
+
+      const defaultPreset = (defaultExists ? savedDefault : null) ||
                            presetsData.presets.find(p => (p.workflow === 'photo' || p.workflow === 'both') && p.name === 'balanced')?.name ||
                            presetsData.presets.find(p => p.workflow === 'photo' || p.workflow === 'both')?.name
       if (defaultPreset) {
@@ -330,8 +333,11 @@ export default function Settings() {
 
   useEffect(() => {
     if (presetsData?.presets && preferences && !selectedLiveViewPreset && !liveViewPresetInitialized.current) {
-      // Use user's default preference, or "balanced" as fallback, or first available
-      const defaultPreset = preferences?.default_liveview_preset || preferences?.default_preview_preset ||
+      // Use user's default preference (only if it still exists), or "balanced" as fallback, or first available
+      const savedDefault = preferences?.default_liveview_preset || preferences?.default_preview_preset
+      const defaultExists = savedDefault && presetsData.presets.some(p => p.name === savedDefault)
+
+      const defaultPreset = (defaultExists ? savedDefault : null) ||
                            presetsData.presets.find(p => (p.workflow === 'video' || p.workflow === 'both') && p.name === 'balanced')?.name ||
                            presetsData.presets.find(p => p.workflow === 'video' || p.workflow === 'both')?.name
       if (defaultPreset) {
