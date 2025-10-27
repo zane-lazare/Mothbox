@@ -1808,24 +1808,13 @@ export default function Settings() {
             </div>
               </CollapsibleCard>
 
-              {/* Info Box */}
-              <div className="settings-info-box bg-blue-50 border-blue-200">
-                <p className="settings-help-text text-blue-800">
-                  <strong>Note:</strong> Changes apply to new stream sessions. Restart stream to apply.
-                </p>
-              </div>
-
-            </div>
-
-            {/* Second row of grid */}
-            <div className="settings-grid">
-              {/* Image Quality Card - spans 2 columns */}
+              {/* Image Quality Card */}
               <CollapsibleCard
                 id="streamImageQuality"
                 title="📸 Image Quality"
                 isCollapsed={collapsedCards.streamImageQuality}
                 onToggle={toggleCard}
-                className="settings-card lg:col-span-2"
+                className="settings-card"
               >
                 <div className="settings-grid-2col">
 
@@ -2128,6 +2117,53 @@ export default function Settings() {
                   </p>
                 </div>
               )}
+
+              {/* Color Gains - Manual Color Balance */}
+              <div className="settings-form-group">
+                <label className="settings-label">
+                  Red Gain: {webuiForm.colour_gains_red !== undefined ? webuiForm.colour_gains_red.toFixed(3) : '2.259'}
+                </label>
+                <input
+                  type="range"
+                  min="1.0"
+                  max="4.0"
+                  step="0.001"
+                  value={webuiForm.colour_gains_red !== undefined ? webuiForm.colour_gains_red : 2.259}
+                  onChange={(e) => setWebuiForm({ ...webuiForm, colour_gains_red: parseFloat(e.target.value) })}
+                  className="w-full cursor-pointer"
+                />
+                <div className="flex justify-between settings-help-text">
+                  <span>1.0</span>
+                  <span>2.259 (Default)</span>
+                  <span>4.0</span>
+                </div>
+                <p className="settings-help-text">
+                  Manual red channel gain for color balance adjustment
+                </p>
+              </div>
+
+              <div className="settings-form-group">
+                <label className="settings-label">
+                  Blue Gain: {webuiForm.colour_gains_blue !== undefined ? webuiForm.colour_gains_blue.toFixed(3) : '1.500'}
+                </label>
+                <input
+                  type="range"
+                  min="1.0"
+                  max="4.0"
+                  step="0.001"
+                  value={webuiForm.colour_gains_blue !== undefined ? webuiForm.colour_gains_blue : 1.500}
+                  onChange={(e) => setWebuiForm({ ...webuiForm, colour_gains_blue: parseFloat(e.target.value) })}
+                  className="w-full cursor-pointer"
+                />
+                <div className="flex justify-between settings-help-text">
+                  <span>1.0</span>
+                  <span>1.500 (Default)</span>
+                  <span>4.0</span>
+                </div>
+                <p className="settings-help-text">
+                  Manual blue channel gain for color balance adjustment
+                </p>
+              </div>
               </CollapsibleCard>
 
               {/* ISP Features Card */}
@@ -2266,70 +2302,68 @@ export default function Settings() {
                   </label>
                 </div>
 
-                {webuiForm.focus_peaking_enabled && (
-                  <div className="ml-6 space-y-2">
-                    {/* Intensity */}
-                    <div className="settings-form-group">
-                      <label htmlFor="focus_peaking_intensity" className="settings-label">
-                        Intensity: {webuiForm.focus_peaking_intensity || 100}
-                      </label>
-                      <input
-                        type="range"
-                        id="focus_peaking_intensity"
-                        min="50"
-                        max="200"
-                        step="10"
-                        value={webuiForm.focus_peaking_intensity || 100}
-                        onChange={(e) => updateWebuiForm({ focus_peaking_intensity: parseInt(e.target.value)})}
-                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
-                      />
-                      <div className="flex justify-between settings-help-text">
-                        <span>50 (Low)</span>
-                        <span>125</span>
-                        <span>200 (High)</span>
-                      </div>
-                    </div>
-
-                    {/* Color */}
-                    <div className="settings-form-group">
-                      <label htmlFor="focus_peaking_color" className="settings-label">
-                        Overlay Color
-                      </label>
-                      <select
-                        id="focus_peaking_color"
-                        value={webuiForm.focus_peaking_color || 'green'}
-                        onChange={(e) => updateWebuiForm({ focus_peaking_color: e.target.value})}
-                        className="settings-select"
-                      >
-                        <option value="green">🟢 Green</option>
-                        <option value="red">🔴 Red</option>
-                        <option value="yellow">🟡 Yellow</option>
-                        <option value="cyan">🔵 Cyan</option>
-                        <option value="magenta">🟣 Magenta</option>
-                      </select>
-                    </div>
-
-                    {/* Algorithm */}
-                    <div className="settings-form-group">
-                      <label htmlFor="focus_peaking_algorithm" className="settings-label">
-                        Edge Detection Algorithm
-                      </label>
-                      <select
-                        id="focus_peaking_algorithm"
-                        value={webuiForm.focus_peaking_algorithm || 'laplacian'}
-                        onChange={(e) => updateWebuiForm({ focus_peaking_algorithm: e.target.value})}
-                        className="settings-select"
-                      >
-                        <option value="laplacian">⚡ Laplacian (Fast)</option>
-                        <option value="sobel">⚙️ Sobel (Balanced)</option>
-                        <option value="canny">🎯 Canny (Accurate)</option>
-                      </select>
-                      <p className="settings-help-text">
-                        Laplacian is fastest for general use. Sobel offers better directional accuracy. Canny is most accurate but slower.
-                      </p>
+                <div className="ml-6 space-y-2">
+                  {/* Intensity */}
+                  <div className="settings-form-group">
+                    <label htmlFor="focus_peaking_intensity" className="settings-label">
+                      Intensity: {webuiForm.focus_peaking_intensity || 100}
+                    </label>
+                    <input
+                      type="range"
+                      id="focus_peaking_intensity"
+                      min="50"
+                      max="200"
+                      step="10"
+                      value={webuiForm.focus_peaking_intensity || 100}
+                      onChange={(e) => updateWebuiForm({ focus_peaking_intensity: parseInt(e.target.value)})}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
+                    />
+                    <div className="flex justify-between settings-help-text">
+                      <span>50 (Low)</span>
+                      <span>125</span>
+                      <span>200 (High)</span>
                     </div>
                   </div>
-                )}
+
+                  {/* Color */}
+                  <div className="settings-form-group">
+                    <label htmlFor="focus_peaking_color" className="settings-label">
+                      Overlay Color
+                    </label>
+                    <select
+                      id="focus_peaking_color"
+                      value={webuiForm.focus_peaking_color || 'green'}
+                      onChange={(e) => updateWebuiForm({ focus_peaking_color: e.target.value})}
+                      className="settings-select"
+                    >
+                      <option value="green">🟢 Green</option>
+                      <option value="red">🔴 Red</option>
+                      <option value="yellow">🟡 Yellow</option>
+                      <option value="cyan">🔵 Cyan</option>
+                      <option value="magenta">🟣 Magenta</option>
+                    </select>
+                  </div>
+
+                  {/* Algorithm */}
+                  <div className="settings-form-group">
+                    <label htmlFor="focus_peaking_algorithm" className="settings-label">
+                      Edge Detection Algorithm
+                    </label>
+                    <select
+                      id="focus_peaking_algorithm"
+                      value={webuiForm.focus_peaking_algorithm || 'laplacian'}
+                      onChange={(e) => updateWebuiForm({ focus_peaking_algorithm: e.target.value})}
+                      className="settings-select"
+                    >
+                      <option value="laplacian">⚡ Laplacian (Fast)</option>
+                      <option value="sobel">⚙️ Sobel (Balanced)</option>
+                      <option value="canny">🎯 Canny (Accurate)</option>
+                    </select>
+                    <p className="settings-help-text">
+                      Laplacian is fastest for general use. Sobel offers better directional accuracy. Canny is most accurate but slower.
+                    </p>
+                  </div>
+                </div>
               </div>
             </CollapsibleCard>
           </div>
