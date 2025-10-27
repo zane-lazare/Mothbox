@@ -263,6 +263,133 @@ class TestMetadataAccuracy:
         finally:
             camera_streamer.stop_streaming()
 
+    def test_zoom_reset_to_full_sensor(self, app):
+        """Test that zoom=1.0 resets to full sensor view (Issue #52 Bug #2)"""
+        camera_streamer = app.config['CAMERA_STREAMER']
+
+        if not camera_streamer.camera:
+            camera_streamer.initialize_camera()
+            time.sleep(1.0)
+
+        try:
+            # Start streaming
+            if not camera_streamer.start_streaming():
+                pytest.skip("Camera not available")
+
+            time.sleep(2)
+
+            # Get ScalerCropMaximum for reference (defines active area in full sensor space)
+            scaler_crop_max = camera_streamer.camera.camera_properties.get('ScalerCropMaximum')
+            x_offset, y_offset, active_width, active_height = scaler_crop_max
+            print(f"\n  ScalerCropMaximum: {scaler_crop_max}")
+            print(f"  Active area: {active_width}x{active_height} at offset ({x_offset}, {y_offset})")
+
+            # Apply 2x zoom
+            camera_streamer.set_zoom(2.0, 0.5, 0.5)
+            time.sleep(1)
+
+            # Get zoomed crop
+            metadata_zoomed = camera_streamer.camera.capture_metadata()
+            crop_zoomed = metadata_zoomed['ScalerCrop']
+            print(f"  2.0x zoom ScalerCrop: {crop_zoomed}")
+
+            # Verify zoom is active (crop smaller than active area)
+            assert crop_zoomed[2] < active_width, \
+                f"2.0x zoom should reduce width: {crop_zoomed[2]} vs {active_width}"
+            assert crop_zoomed[3] < active_height, \
+                f"2.0x zoom should reduce height: {crop_zoomed[3]} vs {active_height}"
+
+            # Reset zoom to 1.0x
+            camera_streamer.set_zoom(1.0, 0.5, 0.5)
+            time.sleep(1)
+
+            # Get reset crop
+            metadata_reset = camera_streamer.camera.capture_metadata()
+            crop_reset = metadata_reset['ScalerCrop']
+            print(f"  1.0x reset ScalerCrop: {crop_reset}")
+
+            # Verify zoom reset to full active area (ScalerCropMaximum)
+            # Note: Camera may adjust dimensions slightly (±1 pixel) due to hardware constraints
+            assert abs(crop_reset[0] - x_offset) <= 1, \
+                f"Reset zoom should have offset X={x_offset}, got {crop_reset[0]} (±1 pixel tolerance)"
+            assert abs(crop_reset[1] - y_offset) <= 1, \
+                f"Reset zoom should have offset Y={y_offset}, got {crop_reset[1]} (±1 pixel tolerance)"
+            assert abs(crop_reset[2] - active_width) <= 1, \
+                f"Reset zoom should have width {active_width}, got {crop_reset[2]} (±1 pixel tolerance)"
+            assert abs(crop_reset[3] - active_height) <= 1, \
+                f"Reset zoom should have height {active_height}, got {crop_reset[3]} (±1 pixel tolerance)"
+
+            print(f"  ✓ Zoom reset to 1.0x returns full active area (ScalerCropMaximum)")
+
+        finally:
+            camera_streamer.stop_streaming()
+
+    def test_zoom_crosshair_alignment(self, app):
+        """Test that zoom center aligns with crosshair position (Issue #52 Bug #1)"""
+        camera_streamer = app.config['CAMERA_STREAMER']
+
+        if not camera_streamer.camera:
+            camera_streamer.initialize_camera()
+            time.sleep(1.0)
+
+        try:
+            # Start streaming
+            if not camera_streamer.start_streaming():
+                pytest.skip("Camera not available")
+
+            time.sleep(2)
+
+            # Get ScalerCropMaximum for reference (defines active area in full sensor space)
+            scaler_crop_max = camera_streamer.camera.camera_properties.get('ScalerCropMaximum')
+            x_offset, y_offset, active_width, active_height = scaler_crop_max
+            print(f"\n  ScalerCropMaximum: {scaler_crop_max}")
+            print(f"  Active area: {active_width}x{active_height} at offset ({x_offset}, {y_offset})")
+
+            # Test case from issue #52: click at (0.75, 0.5) with 2x zoom
+            test_zoom = 2.0
+            test_center_x = 0.75
+            test_center_y = 0.5
+
+            camera_streamer.set_zoom(test_zoom, test_center_x, test_center_y)
+            time.sleep(1)
+
+            # Get actual ScalerCrop
+            metadata = camera_streamer.camera.capture_metadata()
+            scaler_crop = metadata['ScalerCrop']
+            offset_x, offset_y, crop_width, crop_height = scaler_crop
+
+            # Calculate actual center of the crop (in full sensor coordinates)
+            actual_center_x = offset_x + crop_width / 2
+            actual_center_y = offset_y + crop_height / 2
+
+            # Calculate expected center (in full sensor coordinates)
+            # center_x/y are normalized to the ACTIVE area
+            # Expected center in full sensor = offset + (center_normalized * active_size)
+            expected_center_x = x_offset + (test_center_x * active_width)
+            expected_center_y = y_offset + (test_center_y * active_height)
+
+            print(f"  Zoom: {test_zoom}x at ({test_center_x}, {test_center_y})")
+            print(f"  Expected center (full sensor): ({expected_center_x:.0f}, {expected_center_y:.0f})")
+            print(f"  Actual center (full sensor): ({actual_center_x:.0f}, {actual_center_y:.0f})")
+            print(f"  ScalerCrop: {scaler_crop}")
+
+            # Verify alignment (allow ±2 pixel tolerance for rounding and even enforcement)
+            tolerance = 2
+            x_diff = abs(actual_center_x - expected_center_x)
+            y_diff = abs(actual_center_y - expected_center_y)
+
+            assert x_diff <= tolerance, \
+                f"Crosshair X misalignment: expected {expected_center_x:.0f}, " \
+                f"got {actual_center_x:.0f} (diff: {x_diff:.0f} pixels)"
+            assert y_diff <= tolerance, \
+                f"Crosshair Y misalignment: expected {expected_center_y:.0f}, " \
+                f"got {actual_center_y:.0f} (diff: {y_diff:.0f} pixels)"
+
+            print(f"  ✓ Crosshair alignment verified (tolerance: ±{tolerance} pixels)")
+
+        finally:
+            camera_streamer.stop_streaming()
+
     def test_ae_state_reported(self, app):
         """Test that AE state is reported correctly"""
         camera_streamer = app.config['CAMERA_STREAMER']

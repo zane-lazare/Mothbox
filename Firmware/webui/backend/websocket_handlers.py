@@ -232,6 +232,87 @@ def register_handlers(socketio, camera_streamer):
                 # Convert AfState code to string
                 af_state = ("Idle", "Scanning", "Success", "Fail")[af_state_code] if af_state_code < 4 else "Unknown"
 
+                # ========================================
+                # Coordinate Transformation System (Issue #52)
+                # ========================================
+                # The following calculations provide the frontend with a coordinate transformation
+                # matrix consisting of 4 values: actual_zoom_center_x/y and crop_fraction_x/y.
+                # These enable accurate bidirectional transformation between viewport and sensor coordinates.
+                #
+                # Coordinate Systems:
+                #   1. Viewport Space: (0-1) normalized to visible frame on screen
+                #      - What the user sees and interacts with (click positions)
+                #   2. Sensor Space: (0-1) normalized to ScalerCropMaximum active area
+                #      - Internal camera coordinate system for zoom/focus operations
+                #   3. Full Sensor Space: pixel coordinates in ScalerCropMaximum system
+                #      - Hardware-level coordinates used by libcamera
+                #
+                # Transformation Flow:
+                #   User clicks viewport (0.75, 0.5)
+                #   → Frontend transforms to sensor coords using crop fractions
+                #   → Backend applies to hardware (set_zoom, set_af_window)
+                #   → Hardware returns actual crop position via ScalerCrop
+                #   → Backend calculates actual center + fractions
+                #   → Frontend uses these to position the marker overlay
+                #
+                # Why 4 values are needed:
+                #   - actual_zoom_center_x/y: Where crop ACTUALLY ended up (may differ from requested)
+                #     * Accounts for boundary clamping (zooming near edges)
+                #     * Accounts for even dimension enforcement (pixel alignment)
+                #     * Accounts for aspect ratio preservation (may shift position)
+                #   - crop_fraction_x/y: How much of sensor is visible (for inverse transform)
+                #     * Symmetric when sensor and output have same aspect ratio (16:9 → 16:9)
+                #     * Asymmetric when aspect ratios differ (4:3 → 16:9)
+                #     * Required for accurate viewport ↔ sensor coordinate conversion
+                #
+                # Example: 4:3 sensor (2312x1736) → 16:9 output (1920x1080) at 1.0x zoom
+                #   crop_fraction_x ≈ 1.0 (full width used)
+                #   crop_fraction_y ≈ 0.75 (height cropped to maintain 16:9, prevents distortion)
+                #   Frontend click at viewport (0.5, 0.5) correctly maps to sensor (0.5, 0.5)
+                #   Without separate fractions, Y coordinate would be wrong by ~15%
+                #
+                # Fallback Behavior:
+                #   If camera not initialized or ScalerCrop unavailable:
+                #   - actual_zoom_center falls back to (0.5, 0.5)
+                #   - crop_fractions fall back to symmetric (1.0 / zoom_level)
+                #   This is less accurate but prevents UI breakage during initialization
+                #
+                # See also:
+                #   - calculate_scaler_crop() in liveview_stream.py: Calculates the crop
+                #   - get_actual_zoom_center() in liveview_stream.py: Calculates actual center
+                #   - handleImageClick() in Camera.jsx: Forward transform (viewport → sensor)
+                #   - Marker rendering in Camera.jsx: Inverse transform (sensor → viewport)
+
+                # Get actual zoom center (accounts for aspect ratio preservation and clamping)
+                # This tells the frontend where the area of interest marker should actually be displayed
+                try:
+                    actual_zoom_center = camera_streamer.get_actual_zoom_center()
+                except Exception as e:
+                    print(f"Warning: Failed to get actual zoom center: {e}")
+                    actual_zoom_center = {'x': 0.5, 'y': 0.5}  # Fallback to center
+
+                # Calculate crop fractions for accurate coordinate transformation
+                # These account for aspect ratio preservation (e.g., 4:3 sensor → 16:9 output)
+                try:
+                    scaler_crop_result = camera_streamer.calculate_scaler_crop()
+                    scaler_crop_max = camera_streamer.camera.camera_properties.get('ScalerCropMaximum')
+
+                    if scaler_crop_result and scaler_crop_max:
+                        _, _, sensor_width, sensor_height = scaler_crop_max
+                        _, _, crop_width, crop_height = scaler_crop_result
+
+                        # Calculate actual visible fractions (handles asymmetric crops)
+                        crop_fraction_x = crop_width / sensor_width if sensor_width > 0 else 1.0
+                        crop_fraction_y = crop_height / sensor_height if sensor_height > 0 else 1.0
+                    else:
+                        # Fallback: assume no aspect ratio preservation
+                        crop_fraction_x = 1.0 / camera_streamer.zoom_level
+                        crop_fraction_y = 1.0 / camera_streamer.zoom_level
+                except Exception as e:
+                    print(f"Warning: Failed to calculate crop fractions: {e}")
+                    crop_fraction_x = 1.0 / camera_streamer.zoom_level
+                    crop_fraction_y = 1.0 / camera_streamer.zoom_level
+
                 emit('metadata_update', {
                     # Primary metadata (existing)
                     'exposure_time': exposure_time,
@@ -255,6 +336,11 @@ def register_handlers(socketio, camera_streamer):
                     'contrast': round(contrast, 2),
                     'sharpness': round(sharpness, 2),
                     'brightness': round(brightness, 2),
+                    # Zoom metadata (Issue #52 fix)
+                    'actual_zoom_center_x': round(actual_zoom_center['x'], 4),
+                    'actual_zoom_center_y': round(actual_zoom_center['y'], 4),
+                    'crop_fraction_x': round(crop_fraction_x, 4),
+                    'crop_fraction_y': round(crop_fraction_y, 4),
                     'timestamp': __import__('time').time()
                 })
 
@@ -281,7 +367,11 @@ def register_handlers(socketio, camera_streamer):
                     'saturation': 0,
                     'contrast': 0,
                     'sharpness': 0,
-                    'brightness': 0
+                    'brightness': 0,
+                    'actual_zoom_center_x': 0.5,
+                    'actual_zoom_center_y': 0.5,
+                    'crop_fraction_x': 1.0,
+                    'crop_fraction_y': 1.0
                 })
 
         except Exception as e:
@@ -307,7 +397,9 @@ def register_handlers(socketio, camera_streamer):
                 'saturation': 0,
                 'contrast': 0,
                 'sharpness': 0,
-                'brightness': 0
+                'brightness': 0,
+                'actual_zoom_center_x': 0.5,
+                'actual_zoom_center_y': 0.5
             })
 
     @socketio.on('update_liveview_control')

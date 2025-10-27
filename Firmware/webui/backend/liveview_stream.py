@@ -906,6 +906,8 @@ class LiveViewStreamer:
                           e.g., {"Sharpness": 2.0, "Brightness": 0.1}
                           Also supports focus peaking controls:
                           {"FocusPeakingEnabled": True, "FocusPeakingIntensity": 150}
+                          Also supports colour gains:
+                          {"ColourGainRed": 2.259, "ColourGainBlue": 1.500}
 
         Returns:
             bool: True if successful, False if camera not ready
@@ -913,6 +915,10 @@ class LiveViewStreamer:
         # Handle focus peaking controls separately (these are stream settings, not camera controls)
         focus_peaking_controls = {}
         camera_controls = {}
+
+        # Track colour gains separately - need to combine into tuple
+        colour_gain_red = None
+        colour_gain_blue = None
 
         for key, value in control_dict.items():
             if key == 'FocusPeakingEnabled':
@@ -927,8 +933,23 @@ class LiveViewStreamer:
             elif key == 'FocusPeakingAlgorithm':
                 self.focus_peaking_algorithm = str(value)
                 focus_peaking_controls[key] = value
+            elif key == 'ColourGainRed' or key == 'colour_gains_red':
+                # Handle both PascalCase (camera settings) and snake_case (liveview settings)
+                colour_gain_red = float(value)
+                # Store for persistence
+                self.colour_gains = (colour_gain_red, self.colour_gains[1])
+            elif key == 'ColourGainBlue' or key == 'colour_gains_blue':
+                # Handle both PascalCase (camera settings) and snake_case (liveview settings)
+                colour_gain_blue = float(value)
+                # Store for persistence
+                self.colour_gains = (self.colour_gains[0], colour_gain_blue)
             else:
                 camera_controls[key] = value
+
+        # If colour gains were updated, add them to camera controls as tuple
+        if colour_gain_red is not None or colour_gain_blue is not None:
+            # Use current stored values (already updated above)
+            camera_controls['ColourGains'] = self.colour_gains
 
         # Apply camera controls if any
         if camera_controls and self.camera and self.streaming:
@@ -1114,47 +1135,216 @@ class LiveViewStreamer:
         """
         Calculate ScalerCrop rectangle for current zoom level and center point.
 
-        ScalerCrop uses absolute pixel coordinates relative to the full sensor resolution.
-        Format: (offset_x, offset_y, width, height) in sensor pixels
+        CRITICAL: ScalerCrop coordinates must be in FULL SENSOR coordinate space,
+        NOT sensor mode coordinates. This is defined by ScalerCropMaximum.
+
+        ScalerCropMaximum format: (x_offset, y_offset, active_width, active_height)
+        - For full sensor mode: (0, 0, 9152, 6944) - offset is zero
+        - For binned modes (e.g., 1920x1080): (784, 1312, 7712, 4352) - offset defines
+          where the active area starts in full sensor space
+
+        Aspect Ratio Preservation:
+        When the sensor active area and output stream have different aspect ratios
+        (e.g., 4:3 sensor → 16:9 output), the crop dimensions must be adjusted to
+        prevent image distortion. This creates ASYMMETRIC crop fractions.
+
+        Why this is necessary:
+        - Without aspect preservation: 4:3 sensor data would be squashed into 16:9 output
+        - Result: Horizontal stretching or vertical compression
+        - Solution: Crop sensor to match output aspect ratio BEFORE scaling
+
+        Example: 2312x1736 sensor (4:3) → 1920x1080 output (16:9) at zoom=1.0
+          - Active area aspect: 2312/1736 = 1.33 (4:3)
+          - Output aspect: 1920/1080 = 1.78 (16:9)
+          - Output is WIDER than sensor → crop HEIGHT to match
+          - Crop dimensions: 2312×1301 (full width, reduced height)
+          - Crop fractions: X=1.0 (100% width), Y=0.75 (75% height)
+          - Result: Image fills frame without distortion
+
+        Impact on coordinate transformations:
+        These asymmetric fractions are sent to the frontend via metadata
+        (crop_fraction_x, crop_fraction_y) so coordinate transformations remain accurate.
+        Without separate X/Y fractions, viewport→sensor coordinate mapping would be
+        wrong by ~15% in one axis for 4:3→16:9 conversion.
 
         Returns:
-            tuple: (x, y, width, height) ScalerCrop coordinates, or None if sensor not initialized
+            tuple: (x, y, width, height) ScalerCrop coordinates in full sensor space,
+                   or None if camera not ready
+
+        See also:
+            - get_actual_zoom_center(): Inverse transformation (pixels → normalized)
+            - set_zoom(): Applies the calculated ScalerCrop to camera hardware
+            - websocket_handlers.py (line 235): Metadata emission with crop fractions
 
         Example:
-            For 2x zoom centered on sensor:
-            - Sensor: 4056x3040
-            - Cropped size: 2028x1520 (50% of sensor)
-            - Offset: (1014, 760) to center the crop
-            - ScalerCrop: (1014, 760, 2028, 1520)
+            ScalerCropMaximum = (784, 1312, 7712, 4352)  # 1920x1080 sensor mode
+            2x zoom centered -> crop 7712/2 = 3856 pixels of the 7712px active area
+            Position in active area: (1928, 1248)
+            Position in full sensor: (784+1928, 1312+1248) = (2712, 2560)
+            ScalerCrop: (2712, 2560, 3856, 2176)
         """
-        if not self.sensor_resolution:
+        if not self.camera or not self.streaming:
             return None
 
-        sensor_width, sensor_height = self.sensor_resolution
+        # Get full sensor coordinate system from ScalerCropMaximum
+        # ScalerCrop coordinates MUST be in this coordinate space
+        scaler_crop_max = self.camera.camera_properties.get('ScalerCropMaximum')
+        if not scaler_crop_max:
+            print("⚠ Cannot calculate ScalerCrop - ScalerCropMaximum not available")
+            return None
 
-        # Calculate cropped dimensions (inverse of zoom level)
-        # zoom=1.0 -> 100% of sensor, zoom=2.0 -> 50% of sensor, zoom=4.0 -> 25% of sensor
-        crop_width = int(sensor_width / self.zoom_level)
-        crop_height = int(sensor_height / self.zoom_level)
+        # Extract active area dimensions AND offset from ScalerCropMaximum
+        # The offset defines where the active area starts in full sensor coordinates
+        x_offset, y_offset, sensor_width, sensor_height = scaler_crop_max
+
+        # Calculate cropped dimensions that preserve OUTPUT aspect ratio
+        # This applies even at zoom=1.0 to prevent distortion when active area
+        # and output have different aspect ratios (e.g., 4:3 sensor → 16:9 output)
+        # This prevents distortion when ScalerCropMaximum and output have different aspects
+        # Example: 4:3 sensor mode (2312x1736) with 16:9 output (1920x1080)
+        output_aspect = self.stream_width / self.stream_height
+        active_aspect = sensor_width / sensor_height
+
+        # Determine which dimension limits the crop
+        if active_aspect >= output_aspect:
+            # Active area is wider/equal than output - width is the limiting factor
+            # Calculate crop width from zoom, then derive height from output aspect
+            crop_width = int(sensor_width / self.zoom_level)
+            crop_height = int(crop_width / output_aspect)
+        else:
+            # Active area is taller than output - height is the limiting factor
+            # Calculate crop height from zoom, then derive width from output aspect
+            crop_height = int(sensor_height / self.zoom_level)
+            crop_width = int(crop_height * output_aspect)
+
+        # Ensure crop fits within active area (safety clamp)
+        # If clamped, recalculate other dimension to maintain aspect ratio
+        if crop_width > sensor_width:
+            crop_width = sensor_width
+            crop_height = int(crop_width / output_aspect)
+        if crop_height > sensor_height:
+            crop_height = sensor_height
+            crop_width = int(crop_height * output_aspect)
 
         # Ensure even dimensions (required by some encoders)
         crop_width = crop_width & ~1  # Clear lowest bit to make even
         crop_height = crop_height & ~1
 
-        # Calculate offsets based on zoom center point
-        # Center point is normalized (0-1), where 0.5,0.5 = center of sensor
-        offset_x = int((sensor_width - crop_width) * self.zoom_center_x)
-        offset_y = int((sensor_height - crop_height) * self.zoom_center_y)
+        # Calculate position RELATIVE to active area
+        # zoom_center is normalized (0-1), where 0.5 = center of active area
+        # Formula: position_in_active_area = (center_position - crop_size/2)
+        # Use round() instead of int() to avoid systematic left/top bias from truncation
+        offset_x_rel = round(self.zoom_center_x * sensor_width - crop_width / 2)
+        offset_y_rel = round(self.zoom_center_y * sensor_height - crop_height / 2)
 
-        # Clamp offsets to valid range
-        offset_x = max(0, min(offset_x, sensor_width - crop_width))
-        offset_y = max(0, min(offset_y, sensor_height - crop_height))
+        # Clamp to valid range within active area
+        offset_x_rel = max(0, min(offset_x_rel, sensor_width - crop_width))
+        offset_y_rel = max(0, min(offset_y_rel, sensor_height - crop_height))
 
         # Ensure even offsets (required by some encoders)
-        offset_x = offset_x & ~1
-        offset_y = offset_y & ~1
+        offset_x_rel = offset_x_rel & ~1
+        offset_y_rel = offset_y_rel & ~1
 
-        return (offset_x, offset_y, crop_width, crop_height)
+        # Convert to FULL SENSOR coordinates by adding ScalerCropMaximum offset
+        # This is the key fix: we must convert from active area coords to full sensor coords
+        offset_x_pixels = x_offset + offset_x_rel
+        offset_y_pixels = y_offset + offset_y_rel
+
+        return (offset_x_pixels, offset_y_pixels, crop_width, crop_height)
+
+    def get_actual_zoom_center(self):
+        """
+        Get the actual zoom center position after aspect ratio preservation and clamping.
+
+        This returns where the crop ACTUALLY ended up, accounting for:
+        - Aspect ratio preservation (may shift crop position)
+        - Boundary clamping (when zooming near edges)
+        - Even dimension enforcement (pixel alignment)
+
+        Coordinate Transformation Flow:
+        ┌─────────────────────────────────────────────────────────────┐
+        │ 1. User Request (Normalized 0-1 coords in active area)     │
+        │    e.g., click at (0.75, 0.5) = 75% right, 50% down        │
+        └──────────────────┬──────────────────────────────────────────┘
+                           │
+                           ▼
+        ┌─────────────────────────────────────────────────────────────┐
+        │ 2. calculate_scaler_crop() applies:                        │
+        │    • Aspect ratio preservation (crop size)                 │
+        │    • Boundary clamping (position)                          │
+        │    • Even enforcement (alignment)                          │
+        │    → Produces ScalerCrop in FULL SENSOR coordinates        │
+        └──────────────────┬──────────────────────────────────────────┘
+                           │
+                           ▼
+        ┌─────────────────────────────────────────────────────────────┐
+        │ 3. get_actual_zoom_center() reverses transformation:       │
+        │    Full Sensor Pixels → Active Area Pixels → Normalized    │
+        │    (offset_x, offset_y, w, h) → (center_x, center_y)       │
+        │    → Returns actual center in 0-1 coords                   │
+        └─────────────────────────────────────────────────────────────┘
+
+        Example Coordinate Spaces:
+            Full Sensor:     (0, 0) to (3280, 2464) pixels
+            Active Area:     (768, 692) to (3048, 2156) pixels  [within full sensor]
+            Normalized:      (0.0, 0.0) to (1.0, 1.0)          [within active area]
+
+        Returns:
+            dict: {'x': float, 'y': float} - Normalized coordinates (0-1) of actual crop center
+                  Returns requested center if calculation fails (graceful fallback)
+
+        Example:
+            User clicks at (0.5, 0.5) with 4:3 sensor → 16:9 output at zoom=1.0
+            - Requested center: (0.5, 0.5)
+            - Actual crop: vertically centered but height reduced to maintain 16:9
+            - Actual center: (0.5, 0.5) - same because symmetric centering
+
+            User clicks at (0.75, 0.25) near top-right edge with zoom=3.0
+            - Requested center: (0.75, 0.25)
+            - Actual crop: clamped to stay within bounds
+            - Actual center: (0.68, 0.28) - shifted due to boundary clamping
+        """
+        # Default to requested center (graceful fallback)
+        fallback = {'x': self.zoom_center_x, 'y': self.zoom_center_y}
+
+        if not self.camera or not self.streaming:
+            return fallback
+
+        # Get ScalerCropMaximum for coordinate space
+        scaler_crop_max = self.camera.camera_properties.get('ScalerCropMaximum')
+        if not scaler_crop_max:
+            return fallback
+
+        # Calculate actual ScalerCrop
+        scaler_crop = self.calculate_scaler_crop()
+        if not scaler_crop:
+            return fallback
+
+        # Extract coordinates
+        x_offset_max, y_offset_max, sensor_width, sensor_height = scaler_crop_max
+        offset_x_pixels, offset_y_pixels, crop_width, crop_height = scaler_crop
+
+        # Calculate actual center in full sensor coordinates
+        actual_center_x_pixels = offset_x_pixels + crop_width / 2
+        actual_center_y_pixels = offset_y_pixels + crop_height / 2
+
+        # Convert from full sensor coordinates back to normalized active area coordinates
+        # Remove the ScalerCropMaximum offset to get position within active area
+        actual_center_x_rel = actual_center_x_pixels - x_offset_max
+        actual_center_y_rel = actual_center_y_pixels - y_offset_max
+
+        # Normalize to 0-1 range relative to active area
+        actual_center_x_normalized = actual_center_x_rel / sensor_width if sensor_width > 0 else 0.5
+        actual_center_y_normalized = actual_center_y_rel / sensor_height if sensor_height > 0 else 0.5
+
+        # Clamp to valid range (should already be valid, but defensive programming)
+        actual_center_x_normalized = max(0.0, min(1.0, actual_center_x_normalized))
+        actual_center_y_normalized = max(0.0, min(1.0, actual_center_y_normalized))
+
+        return {
+            'x': actual_center_x_normalized,
+            'y': actual_center_y_normalized
+        }
 
     def set_zoom(self, zoom_level, center_x=None, center_y=None):
         """
@@ -1279,8 +1469,9 @@ class LiveViewStreamer:
             window_h_pixels = window_h_pixels & ~1
 
             # Calculate window position relative to active area (top-left corner centered on click point)
-            window_x_rel = int((x * sensor_width) - (window_w_pixels / 2))
-            window_y_rel = int((y * sensor_height) - (window_h_pixels / 2))
+            # Use round() instead of int() to avoid systematic left/top bias from truncation
+            window_x_rel = round((x * sensor_width) - (window_w_pixels / 2))
+            window_y_rel = round((y * sensor_height) - (window_h_pixels / 2))
 
             # Clamp position to active area bounds
             window_x_rel = max(0, min(window_x_rel, sensor_width - window_w_pixels))

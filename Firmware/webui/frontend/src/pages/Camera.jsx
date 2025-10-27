@@ -35,6 +35,9 @@ export default function Camera() {
     lensPosition: 3.0,  // Diopters (0.0-10.0, middle position default)
     afRange: 0,  // 0=Normal, 1=Macro, 2=Full
     afSpeed: 0,  // 0=Normal, 1=Fast
+    // White balance / Color gains
+    colourGainRed: 2.259,  // Red channel gain (1.0-4.0)
+    colourGainBlue: 1.500,  // Blue channel gain (1.0-4.0)
     // Focus peaking controls (live view-only overlay)
     focusPeakingEnabled: false,
     focusPeakingIntensity: 100,  // 50-200 range
@@ -43,7 +46,7 @@ export default function Camera() {
   })
   const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
   const [zoomCenter, setZoomCenter] = useState({ x: 0.5, y: 0.5 })  // Normalized zoom center (0.5, 0.5 = center)
-  const [afWindow, setAfWindow] = useState(null)  // AF window: {x, y, active, focusing} or null
+  const [afWindow, setAfWindow] = useState(null)  // AF window: {x, y, active, focusing} or null - also serves as visual indicator for area of interest
   const [cameraSettings, setCameraSettings] = useState(null)  // HDR and other camera settings
   const socketRef = useRef(null)
   const metadataIntervalRef = useRef(null)
@@ -206,7 +209,10 @@ export default function Camera() {
             afMode: data.af_mode !== undefined ? data.af_mode : 2,  // Default: Continuous AF
             lensPosition: data.lens_position !== undefined ? data.lens_position : 3.0,
             afRange: data.af_range !== undefined ? data.af_range : 0,  // Default: Normal range
-            afSpeed: data.af_speed !== undefined ? data.af_speed : 0  // Default: Normal speed
+            afSpeed: data.af_speed !== undefined ? data.af_speed : 0,  // Default: Normal speed
+            // White balance / Color gains - load from backend or use defaults
+            colourGainRed: data.colour_gains_red !== undefined ? data.colour_gains_red : 2.259,
+            colourGainBlue: data.colour_gains_blue !== undefined ? data.colour_gains_blue : 1.500
           })
           console.log('Loaded live controls from settings:', data)
         }
@@ -622,63 +628,195 @@ export default function Camera() {
     debouncedEmitControl(controlName, value)
   }
 
+  /**
+   * Handle zoom level changes from the slider control.
+   *
+   * State Management:
+   * - zoomLevel: Current zoom magnification (1.0 = no zoom, 4.0 = 4x digital zoom)
+   * - zoomCenter: Default center position for zoom operations (0-1 normalized)
+   * - afWindow: User's last clicked "area of interest" (persists across zoom levels)
+   *
+   * Zoom Center Priority:
+   * 1. If afWindow is set (user clicked): zoom centers on clicked point
+   * 2. Otherwise: zoom centers on zoomCenter state (default 0.5, 0.5)
+   *
+   * This provides intuitive workflow:
+   * - User clicks on subject at 1.0x → afWindow set to click position
+   * - User drags zoom slider to 2.0x → zoom centers on clicked subject
+   * - User resets to 1.0x → zoomCenter resets to (0.5, 0.5), but afWindow persists
+   * - User zooms to 3.0x again → still centers on original click position
+   *
+   * The afWindow serves triple purpose:
+   * - Visual marker: Shows yellow "area of interest" box on screen
+   * - Autofocus target: Directs hardware AF to focus on this region
+   * - Zoom anchor: Subsequent zoom operations center on this point
+   *
+   * State Synchronization (see also: handleImageClick line 708):
+   * - When user clicks, BOTH zoomCenter and afWindow are updated simultaneously
+   * - This ensures zoom slider always has correct coordinates to use
+   * - afWindow takes priority in this function for backward compatibility
+   *
+   * @param {number} value - New zoom level (1.0 to 4.0)
+   */
   const handleZoomChange = (value) => {
     // Update local state immediately for responsive UI
     setZoomLevel(value)
 
-    // Emit to backend (debounced) with current zoom center
-    debouncedEmitZoom(value, zoomCenter.x, zoomCenter.y)
-  }
-
-  const handleLiveViewClick = (e) => {
-    // Only process clicks when zoomed (zoom > 1.0)
-    if (zoomLevel <= 1.0 || !liveViewActive) return
-
-    // Get click position relative to image element
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-
-    // Convert to normalized coordinates (0-1)
-    const normalizedX = Math.max(0, Math.min(x / rect.width, 1))
-    const normalizedY = Math.max(0, Math.min(y / rect.height, 1))
-
-    // Update zoom center state
-    setZoomCenter({ x: normalizedX, y: normalizedY })
-
-    // Emit to backend immediately (no debounce for clicks - user expects instant response)
-    if (socketRef.current) {
-      socketRef.current.emit('set_zoom', {
-        zoom_level: zoomLevel,
-        center_x: normalizedX,
-        center_y: normalizedY
-      })
+    // If zooming back to 1.0x, reset zoom center but KEEP AF window
+    // AF window persists across zoom levels to maintain area of interest
+    if (value === 1.0) {
+      setZoomCenter({ x: 0.5, y: 0.5 })
+      // Note: afWindow state is NOT cleared - it persists to show continued focus region
     }
+
+    // Determine zoom center: prioritize afWindow (area of interest marker) if set
+    // This ensures zoom centers on the marker position
+    // Since handleImageClick (line 708) now updates zoomCenter on every click,
+    // both afWindow and zoomCenter should have the same value, but we check
+    // afWindow first for backward compatibility and explicitness
+    const centerX = afWindow?.x ?? zoomCenter.x
+    const centerY = afWindow?.y ?? zoomCenter.y
+
+    // Emit to backend (debounced) with area of interest position
+    debouncedEmitZoom(value, centerX, centerY)
   }
 
-  const handleAfWindowClick = (e) => {
-    // Process clicks for AF window when NOT zoomed (zoom = 1.0)
-    // This allows click-to-focus without interfering with zoom repositioning
-    if (zoomLevel > 1.0 || !liveViewActive) return
+  const handleImageClick = (e) => {
+    // Unified handler: Sets BOTH zoom center AND AF window to create a single "area of interest"
+    // Works at ALL zoom levels - clicking defines both where to zoom and where to focus
+    if (!liveViewActive) return
 
     // Get click position relative to image element
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
-    // Convert to normalized coordinates (0-1)
-    const normalizedX = Math.max(0, Math.min(x / rect.width, 1))
-    const normalizedY = Math.max(0, Math.min(y / rect.height, 1))
+    // Convert to normalized coordinates (0-1) in VIEWPORT space
+    const viewportX = Math.max(0, Math.min(x / rect.width, 1))
+    const viewportY = Math.max(0, Math.min(y / rect.height, 1))
 
-    // Emit AF window update to backend
+    // ========================================
+    // Forward Coordinate Transformation: Viewport → Sensor
+    // ========================================
+    // This is the INVERSE of the marker rendering transformation (line 1010)
+    //
+    // Derivation:
+    //   At zoom=1.0: viewport (0-1) = full sensor (0-1) [identity transform]
+    //   At zoom>1.0: viewport (0-1) = cropped region of sensor
+    //
+    //   Crop properties:
+    //     - Center: (currentCenterX, currentCenterY) in sensor space
+    //     - Size: cropFraction of full sensor (e.g., 0.5 at 2x zoom means 50% visible)
+    //
+    //   Viewport range [0, 1] maps to sensor range [center - size/2, center + size/2]
+    //
+    //   Mathematical derivation:
+    //     viewportPos ranges from 0 to 1
+    //     We want to map this to [center - fraction/2, center + fraction/2]
+    //
+    //     Linear mapping: output = a * input + b
+    //     At viewportPos=0: sensorPos = center - fraction/2
+    //     At viewportPos=1: sensorPos = center + fraction/2
+    //
+    //     Setting up equations:
+    //       center - fraction/2 = a * 0 + b  →  b = center - fraction/2
+    //       center + fraction/2 = a * 1 + b  →  a = (center + fraction/2) - b = fraction
+    //
+    //     Therefore: sensorPos = fraction * viewportPos + (center - fraction/2)
+    //                          = fraction * viewportPos + center - fraction/2
+    //                          = center + fraction * (viewportPos - 0.5)
+    //
+    //   Final formula: sensorPos = currentCenter + (viewportPos - 0.5) * cropFraction
+    //
+    //   Why (viewportPos - 0.5)? It centers the mapping:
+    //     viewportPos=0.0 → sensor = center - 0.5*fraction (left edge of visible region)
+    //     viewportPos=0.5 → sensor = center (center of visible region)
+    //     viewportPos=1.0 → sensor = center + 0.5*fraction (right edge of visible region)
+    //
+    // Inverse formula (marker rendering, line 1078):
+    //   viewportPos = (sensorPos - currentCenter) / cropFraction + 0.5
+    //
+    // See also:
+    //   - Marker rendering (line 1010): Inverse transformation (sensor → viewport)
+    //   - websocket_handlers.py (line 235): Backend metadata emission
+    //   - calculate_scaler_crop() in liveview_stream.py: Crop calculation
+
+    let sensorX, sensorY
+
+    if (zoomLevel > 1.0) {
+      // When zoomed: Transform from viewport space to sensor space
+      // The displayed image shows only a fraction of the full sensor
+      // We need to map the click from "what's visible" to "full sensor coordinates"
+
+      // Get current crop center from metadata (where the crop is actually centered)
+      // Falls back to zoomCenter if metadata not available yet
+      const currentCenterX = metadata?.actual_zoom_center_x ?? zoomCenter.x
+      const currentCenterY = metadata?.actual_zoom_center_y ?? zoomCenter.y
+
+      // Calculate how much of the sensor is currently visible
+      // Use actual crop fractions from backend (handles aspect ratio preservation)
+      // When sensor and output have different aspect ratios (e.g., 4:3 sensor → 16:9 output),
+      // the crop fractions will be asymmetric (X and Y different)
+      const cropFractionX = metadata?.crop_fraction_x ?? (1.0 / zoomLevel)
+      const cropFractionY = metadata?.crop_fraction_y ?? (1.0 / zoomLevel)
+
+      // Transform click from viewport space to sensor space
+      // Formula: sensorPos = currentCenter + (clickInViewport - 0.5) * cropFraction
+      // Example: 2x zoom at center (0.5, 0.5), click right edge of viewport (1.0)
+      //   With symmetric crop (16:9 → 16:9): sensor_x = 0.5 + (1.0 - 0.5) * 0.5 = 0.75
+      //   With asymmetric crop (4:3 → 16:9): sensor_x = 0.5 + (1.0 - 0.5) * 0.667 = 0.833
+      sensorX = currentCenterX + (viewportX - 0.5) * cropFractionX
+      sensorY = currentCenterY + (viewportY - 0.5) * cropFractionY
+    } else {
+      // At 1.0x zoom: Viewport coordinates = sensor coordinates (no transformation needed)
+      sensorX = viewportX
+      sensorY = viewportY
+    }
+
+    // Clamp to valid sensor range (0-1)
+    const clampedX = Math.max(0, Math.min(sensorX, 1))
+    const clampedY = Math.max(0, Math.min(sensorY, 1))
+
+    // Update local state
+    // Always update zoom center - clicking sets both AF window AND future zoom center
+    // This ensures zoom slider will center on the most recent clicked position
+    // (at 1.0x, no crop shift occurs, but zoom center is prepared for when user zooms)
+    setZoomCenter({ x: clampedX, y: clampedY })
+
+    // Always update AF window (focus works at all zoom levels)
+    setAfWindow({
+      x: clampedX,  // Use sensor coordinates for AF window position
+      y: clampedY,
+      active: true,
+      focusing: true  // Trigger focusing animation
+    })
+
+    // Emit to backend
     if (socketRef.current) {
+      // Only emit set_zoom when zoomed > 1.0x (don't shift crop at 1.0x)
+      // At 1.0x, the full sensor view should be shown without any crop shift
+      if (zoomLevel > 1.0) {
+        socketRef.current.emit('set_zoom', {
+          zoom_level: zoomLevel,
+          center_x: clampedX,
+          center_y: clampedY
+        })
+      }
+
+      // Always set AF window (hardware autofocus region)
       socketRef.current.emit('set_af_window', {
-        x: normalizedX,
-        y: normalizedY,
+        x: clampedX,
+        y: clampedY,
         window_size: 0.2  // 20% of frame
       })
-      toast.success(`Focusing at (${(normalizedX * 100).toFixed(0)}%, ${(normalizedY * 100).toFixed(0)}%)`)
+
+      toast.success(`Area of interest: (${(clampedX * 100).toFixed(0)}%, ${(clampedY * 100).toFixed(0)}%)`)
     }
+
+    // Auto-stop focusing animation after 3 seconds (but keep box visible)
+    setTimeout(() => {
+      setAfWindow(prev => prev ? { ...prev, focusing: false } : null)
+    }, 3000)
   }
 
   const handleResetControls = () => {
@@ -691,7 +829,10 @@ export default function Camera() {
       afMode: 2,  // Continuous AF
       lensPosition: 3.0,  // Middle position
       afRange: 0,  // Normal range
-      afSpeed: 0  // Normal speed
+      afSpeed: 0,  // Normal speed
+      // Color balance defaults
+      colourGainRed: 2.259,
+      colourGainBlue: 1.500
     }
 
     setLiveControls(prev => ({
@@ -700,6 +841,7 @@ export default function Camera() {
     }))
     setZoomLevel(1.0)  // Reset zoom to 1x
     setZoomCenter({ x: 0.5, y: 0.5 })  // Reset zoom center to center
+    setCrosshairPos({ x: 0.5, y: 0.5 })  // Reset crosshair to center
     setAfWindow(null)  // Clear AF window
 
     // Emit all resets to backend
@@ -935,47 +1077,105 @@ export default function Camera() {
                 <img
                   src={currentFrame}
                   alt="Camera preview"
-                  className={`w-full h-auto ${zoomLevel > 1.0 ? 'cursor-crosshair' : 'cursor-pointer'}`}
-                  onClick={(e) => {
-                    handleLiveViewClick(e)
-                    handleAfWindowClick(e)
-                  }}
+                  className="w-full h-auto cursor-crosshair"
+                  onClick={handleImageClick}
                 />
 
-                {/* Zoom Center Indicator - Only show when zoomed */}
-                {zoomLevel > 1.0 && (
-                  <div
-                    className="absolute pointer-events-none"
-                    style={{
-                      left: `${zoomCenter.x * 100}%`,
-                      top: `${zoomCenter.y * 100}%`,
-                      transform: 'translate(-50%, -50%)'
-                    }}
-                  >
-                    {/* Crosshair */}
-                    <div className="relative">
-                      {/* Horizontal line */}
-                      <div className="absolute w-8 h-0.5 bg-green-400 -left-4 top-1/2 -translate-y-1/2"></div>
-                      {/* Vertical line */}
-                      <div className="absolute h-8 w-0.5 bg-green-400 -top-4 left-1/2 -translate-x-1/2"></div>
-                      {/* Center dot */}
-                      <div className="w-2 h-2 bg-green-400 rounded-full border-2 border-gray-900"></div>
-                    </div>
-                  </div>
-                )}
+                {/* Area of Interest Indicator - Shows both zoom center and AF region */}
+                {afWindow && afWindow.active && (() => {
+                  // ========================================
+                  // Inverse Coordinate Transformation: Sensor → Viewport
+                  // ========================================
+                  // Problem: afWindow stores position in SENSOR coordinates (0-1 over full sensor)
+                  //          but we need VIEWPORT coordinates (0-1 over visible frame) to render the marker
+                  //
+                  // When zoomed, viewport shows only a CROPPED region of the sensor:
+                  //   zoom=1.0: viewport = full sensor (1:1 mapping, no transformation)
+                  //   zoom=2.0: viewport = center 50% of sensor (need transformation)
+                  //   zoom=4.0: viewport = center 25% of sensor (need transformation)
+                  //
+                  // Coordinate Systems:
+                  //   Sensor Space: (0, 0) to (1, 1) - full camera sensor active area
+                  //   Viewport Space: (0, 0) to (1, 1) - visible frame on screen (cropped at zoom > 1.0)
+                  //
+                  // Formula Derivation:
+                  //   Forward transform (handleImageClick, line 692):
+                  //     sensorPos = cropCenter + (viewportPos - 0.5) * cropFraction
+                  //
+                  //   Solving for viewportPos (inverse):
+                  //     viewportPos - 0.5 = (sensorPos - cropCenter) / cropFraction
+                  //     viewportPos = (sensorPos - cropCenter) / cropFraction + 0.5
+                  //
+                  // Parameters from backend metadata (see websocket_handlers.py line 235):
+                  //   - actual_zoom_center_x/y: Where crop is ACTUALLY centered
+                  //     * May differ from requested due to boundary clamping, even enforcement
+                  //   - crop_fraction_x/y: How much of sensor is visible (accounts for aspect ratio)
+                  //     * Symmetric when sensor and output have same aspect ratio (16:9 → 16:9)
+                  //     * Asymmetric when aspect ratios differ (4:3 → 16:9)
+                  //
+                  // Example 1: Symmetric crop (2x zoom, centered, 16:9 → 16:9)
+                  //   afWindow.x = 0.75 (sensor: 75% right)
+                  //   currentCenterX = 0.5 (crop centered)
+                  //   cropFractionX = 0.5 (50% of sensor visible at 2x zoom)
+                  //   → markerViewportX = (0.75 - 0.5) / 0.5 + 0.5 = 0.25 / 0.5 + 0.5 = 1.0
+                  //   → Marker appears at RIGHT EDGE of viewport ✓ (where 75% sensor position maps to)
+                  //
+                  // Example 2: Asymmetric crop (1.0x zoom, centered, 4:3 → 16:9)
+                  //   afWindow.y = 0.5 (sensor: vertical center)
+                  //   currentCenterY = 0.5 (crop centered)
+                  //   cropFractionY = 0.75 (75% of sensor height visible, cropped to maintain 16:9)
+                  //   → markerViewportY = (0.5 - 0.5) / 0.75 + 0.5 = 0 / 0.75 + 0.5 = 0.5
+                  //   → Marker appears at VIEWPORT CENTER ✓ (correct despite asymmetric crop)
+                  //
+                  // Example 3: Click near edge (3x zoom, crop at 0.8, 0.5)
+                  //   User clicked sensor position 0.9 (near right edge)
+                  //   afWindow.x = 0.9
+                  //   currentCenterX = 0.8 (crop had to clamp away from 0.9 to fit in bounds)
+                  //   cropFractionX = 0.333 (33% visible at 3x)
+                  //   → markerViewportX = (0.9 - 0.8) / 0.333 + 0.5 = 0.1 / 0.333 + 0.5 ≈ 0.8
+                  //   → Marker appears at 80% across viewport (NOT at edge, because crop clamped)
+                  //
+                  // Fallback Behavior:
+                  //   When metadata unavailable (camera initializing, connection lag):
+                  //   - Falls back to zoomCenter for crop center (less accurate)
+                  //   - Falls back to symmetric fractions: 1.0 / zoomLevel
+                  //   - May cause slight marker misalignment until metadata arrives
+                  //   - With 4:3→16:9 + symmetric fallback, Y coords can be off by ~15%
+                  //
+                  // See also:
+                  //   - handleImageClick() (line 653): Forward transformation (viewport → sensor)
+                  //   - websocket_handlers.py (line 235): Backend metadata emission
+                  //   - calculate_scaler_crop() in liveview_stream.py: Crop calculation
 
-                {/* AF Window Indicator - Show when AF window is active */}
-                {afWindow && afWindow.active && (
-                  <div
-                    className="absolute pointer-events-none"
-                    style={{
-                      left: `${afWindow.x * 100}%`,
-                      top: `${afWindow.y * 100}%`,
-                      transform: 'translate(-50%, -50%)',
-                      width: '20%',
-                      height: '20%'
-                    }}
-                  >
+                  let markerViewportX, markerViewportY
+
+                  if (zoomLevel > 1.0) {
+                    // Inverse transformation: sensor → viewport
+                    // Formula: viewportPos = (sensorPos - cropCenter) / cropFraction + 0.5
+                    const currentCenterX = metadata?.actual_zoom_center_x ?? zoomCenter.x
+                    const currentCenterY = metadata?.actual_zoom_center_y ?? zoomCenter.y
+                    const cropFractionX = metadata?.crop_fraction_x ?? (1.0 / zoomLevel)
+                    const cropFractionY = metadata?.crop_fraction_y ?? (1.0 / zoomLevel)
+
+                    markerViewportX = ((afWindow.x - currentCenterX) / cropFractionX) + 0.5
+                    markerViewportY = ((afWindow.y - currentCenterY) / cropFractionY) + 0.5
+                  } else {
+                    // At 1.0x: viewport = full sensor, no transformation needed
+                    markerViewportX = afWindow.x
+                    markerViewportY = afWindow.y
+                  }
+
+                  return (
+                    <div
+                      className="absolute pointer-events-none"
+                      style={{
+                        left: `${markerViewportX * 100}%`,
+                        top: `${markerViewportY * 100}%`,
+                        transform: 'translate(-50%, -50%)',
+                        width: '20%',
+                        height: '20%'
+                      }}
+                    >
                     {/* Animated focus box */}
                     <div className={`relative w-full h-full ${afWindow.focusing ? 'animate-pulse' : ''}`}>
                       {/* Focus box border */}
@@ -993,7 +1193,8 @@ export default function Camera() {
                       </div>
                     </div>
                   </div>
-                )}
+                  )
+                })()}
               </>
             ) : (
               <div className="h-96 flex items-center justify-center">
@@ -1281,6 +1482,59 @@ export default function Camera() {
                       <span>0</span>
                       <span>1.0</span>
                       <span>4</span>
+                    </div>
+                  </div>
+
+                  {/* Colour Gains Section */}
+                  <div className="pt-2 mt-2 border-t border-white/20">
+                    <h4 className="text-xs font-semibold text-gray-200 mb-2">🎨 Color Balance</h4>
+
+                    {/* Red Gain Slider */}
+                    <div className="mb-3">
+                      <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                        <span>Red Gain</span>
+                        <span className="text-red-300 font-mono">{liveControls.colourGainRed.toFixed(3)}</span>
+                      </label>
+                      <input
+                        type="range"
+                        min="1.0"
+                        max="4.0"
+                        step="0.001"
+                        value={liveControls.colourGainRed}
+                        onChange={(e) => handleControlChange('ColourGainRed', parseFloat(e.target.value))}
+                        className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-red-500"
+                      />
+                      <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                        <span>1.0</span>
+                        <span>2.5</span>
+                        <span>4.0</span>
+                      </div>
+                    </div>
+
+                    {/* Blue Gain Slider */}
+                    <div>
+                      <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
+                        <span>Blue Gain</span>
+                        <span className="text-blue-300 font-mono">{liveControls.colourGainBlue.toFixed(3)}</span>
+                      </label>
+                      <input
+                        type="range"
+                        min="1.0"
+                        max="4.0"
+                        step="0.001"
+                        value={liveControls.colourGainBlue}
+                        onChange={(e) => handleControlChange('ColourGainBlue', parseFloat(e.target.value))}
+                        className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                      />
+                      <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                        <span>1.0</span>
+                        <span>2.5</span>
+                        <span>4.0</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 text-[10px] text-gray-300">
+                      💡 Locks color balance for LED flash illumination
                     </div>
                   </div>
 
