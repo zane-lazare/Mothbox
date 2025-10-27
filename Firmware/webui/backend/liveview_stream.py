@@ -1168,11 +1168,40 @@ class LiveViewStreamer:
         # The offset defines where the active area starts in full sensor coordinates
         x_offset, y_offset, sensor_width, sensor_height = scaler_crop_max
 
-        # Calculate cropped dimensions that preserve OUTPUT aspect ratio
-        # This applies even at zoom=1.0 to prevent distortion when active area
-        # and output have different aspect ratios (e.g., 4:3 sensor → 16:9 output)
-        # This prevents distortion when ScalerCropMaximum and output have different aspects
-        # Example: 4:3 sensor mode (2312x1736) with 16:9 output (1920x1080)
+        # At zoom=1.0x, return FULL active area without cropping
+        # The FOV setting already determined the sensor mode (field of view)
+        # The encoder/scaler pipeline handles aspect ratio conversion via downscaling, not sensor cropping
+        if self.zoom_level <= 1.0:
+            # Use full active area dimensions
+            crop_width = sensor_width
+            crop_height = sensor_height
+
+            # Ensure even dimensions (required by some encoders)
+            crop_width = crop_width & ~1
+            crop_height = crop_height & ~1
+
+            # Calculate position (should be centered at 0.5, 0.5 for zoom=1.0x)
+            # Use round() instead of int() to avoid systematic left/top bias
+            offset_x_rel = round(self.zoom_center_x * sensor_width - crop_width / 2)
+            offset_y_rel = round(self.zoom_center_y * sensor_height - crop_height / 2)
+
+            # Clamp to valid range within active area
+            offset_x_rel = max(0, min(offset_x_rel, sensor_width - crop_width))
+            offset_y_rel = max(0, min(offset_y_rel, sensor_height - crop_height))
+
+            # Ensure even offsets (required by some encoders)
+            offset_x_rel = offset_x_rel & ~1
+            offset_y_rel = offset_y_rel & ~1
+
+            # Convert to FULL SENSOR coordinates by adding ScalerCropMaximum offset
+            offset_x_pixels = x_offset + offset_x_rel
+            offset_y_pixels = y_offset + offset_y_rel
+
+            return (offset_x_pixels, offset_y_pixels, crop_width, crop_height)
+
+        # When zoomed > 1.0x, calculate cropped dimensions that preserve OUTPUT aspect ratio
+        # This prevents distortion when active area and output have different aspect ratios
+        # Example: 4:3 sensor mode (2312x1736) with 16:9 output (1920x1080) at 2x zoom
         output_aspect = self.stream_width / self.stream_height
         active_aspect = sensor_width / sensor_height
 

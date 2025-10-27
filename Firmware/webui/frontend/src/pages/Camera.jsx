@@ -690,7 +690,12 @@ export default function Camera() {
     const clampedY = Math.max(0, Math.min(sensorY, 1))
 
     // Update local state
-    setZoomCenter({ x: clampedX, y: clampedY })
+    // Only update zoom center when actually zoomed (don't shift crop at 1.0x)
+    if (zoomLevel > 1.0) {
+      setZoomCenter({ x: clampedX, y: clampedY })
+    }
+
+    // Always update AF window (focus works at all zoom levels)
     setAfWindow({
       x: clampedX,  // Use sensor coordinates for AF window position
       y: clampedY,
@@ -698,16 +703,19 @@ export default function Camera() {
       focusing: true  // Trigger focusing animation
     })
 
-    // Emit BOTH zoom center and AF window to backend
+    // Emit to backend
     if (socketRef.current) {
-      // Set zoom center (digital crop repositioning)
-      socketRef.current.emit('set_zoom', {
-        zoom_level: zoomLevel,
-        center_x: clampedX,
-        center_y: clampedY
-      })
+      // Only emit set_zoom when zoomed > 1.0x (don't shift crop at 1.0x)
+      // At 1.0x, the full sensor view should be shown without any crop shift
+      if (zoomLevel > 1.0) {
+        socketRef.current.emit('set_zoom', {
+          zoom_level: zoomLevel,
+          center_x: clampedX,
+          center_y: clampedY
+        })
+      }
 
-      // Set AF window (hardware autofocus region)
+      // Always set AF window (hardware autofocus region)
       socketRef.current.emit('set_af_window', {
         x: clampedX,
         y: clampedY,
