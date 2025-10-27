@@ -702,10 +702,10 @@ export default function Camera() {
     const clampedY = Math.max(0, Math.min(sensorY, 1))
 
     // Update local state
-    // Only update zoom center when actually zoomed (don't shift crop at 1.0x)
-    if (zoomLevel > 1.0) {
-      setZoomCenter({ x: clampedX, y: clampedY })
-    }
+    // Always update zoom center - clicking sets both AF window AND future zoom center
+    // This ensures zoom slider will center on the most recent clicked position
+    // (at 1.0x, no crop shift occurs, but zoom center is prepared for when user zooms)
+    setZoomCenter({ x: clampedX, y: clampedY })
 
     // Always update AF window (focus works at all zoom levels)
     setAfWindow({
