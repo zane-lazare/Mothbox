@@ -46,6 +46,7 @@ export default function Camera() {
   })
   const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
   const [zoomCenter, setZoomCenter] = useState({ x: 0.5, y: 0.5 })  // Normalized zoom center (0.5, 0.5 = center)
+  const [crosshairPos, setCrosshairPos] = useState({ x: 0.5, y: 0.5 })  // Crosshair viewport position (where user clicked)
   const [afWindow, setAfWindow] = useState(null)  // AF window: {x, y, active, focusing} or null
   const [cameraSettings, setCameraSettings] = useState(null)  // HDR and other camera settings
   const socketRef = useRef(null)
@@ -632,6 +633,11 @@ export default function Camera() {
     // Update local state immediately for responsive UI
     setZoomLevel(value)
 
+    // If zooming back to 1.0x, reset crosshair to center
+    if (value === 1.0) {
+      setCrosshairPos({ x: 0.5, y: 0.5 })
+    }
+
     // Emit to backend (debounced) with current zoom center
     debouncedEmitZoom(value, zoomCenter.x, zoomCenter.y)
   }
@@ -649,6 +655,10 @@ export default function Camera() {
     // (where 0=left/top of currently visible area, 1=right/bottom of currently visible area)
     const viewportX = Math.max(0, Math.min(x / rect.width, 1))
     const viewportY = Math.max(0, Math.min(y / rect.height, 1))
+
+    // Save the clicked viewport position for crosshair display
+    // The crosshair should appear where the user clicked
+    setCrosshairPos({ x: viewportX, y: viewportY })
 
     // Transform from VIEWPORT space to SENSOR space
     // The displayed image shows only a fraction of the full sensor (based on zoom level)
@@ -733,6 +743,7 @@ export default function Camera() {
     }))
     setZoomLevel(1.0)  // Reset zoom to 1x
     setZoomCenter({ x: 0.5, y: 0.5 })  // Reset zoom center to center
+    setCrosshairPos({ x: 0.5, y: 0.5 })  // Reset crosshair to center
     setAfWindow(null)  // Clear AF window
 
     // Emit all resets to backend
@@ -980,12 +991,11 @@ export default function Camera() {
                   <div
                     className="absolute pointer-events-none"
                     style={{
-                      // Crosshair is always centered in viewport (50%, 50%)
-                      // The displayed image IS the cropped area, so center of image = center of crop
-                      // This is correct because the backend sends us the cropped portion centered
-                      // at the zoom position we requested
-                      left: '50%',
-                      top: '50%',
+                      // Crosshair appears at the viewport position where user clicked
+                      // This shows "you clicked here" and will naturally migrate toward center
+                      // as the backend recenters the crop around the clicked sensor position
+                      left: `${crosshairPos.x * 100}%`,
+                      top: `${crosshairPos.y * 100}%`,
                       transform: 'translate(-50%, -50%)'
                     }}
                   >
