@@ -34,7 +34,7 @@ class TestPresetManager:
             'version': '1.0',
             'settings': {
                 'camera': {'ExposureTime': 5000, 'AnalogueGain': 2.0},
-                'preview': {'sharpness': 1.5}
+                'liveview': {'sharpness': 1.5}
             }
         }
         with open(self.builtin_dir / 'test_builtin.json', 'w') as f:
@@ -83,7 +83,7 @@ class TestPresetManager:
         manager = PresetManager(self.builtin_dir, self.user_dir)
         settings = {
             'camera': {'ExposureTime': 10000},
-            'preview': {'brightness': 0.5}
+            'liveview': {'brightness': 0.5}
         }
 
         success, message = manager.save_preset('my_preset', settings, 'Test description')
@@ -141,7 +141,7 @@ class TestPresetManager:
         is_valid, msg = manager.validate_preset(valid_preset)
         assert is_valid is True
 
-        # Invalid preset (no camera or preview)
+        # Invalid preset (no camera or liveview)
         invalid_preset = {'other': {}}
         is_valid, msg = manager.validate_preset(invalid_preset)
         assert is_valid is False

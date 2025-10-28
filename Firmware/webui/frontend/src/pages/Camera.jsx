@@ -108,7 +108,7 @@ export default function Camera() {
 
   // Filter presets by workflow
   const photoPresets = presetsData?.presets?.filter(p => p.workflow === 'photo' || p.workflow === 'both') || []
-  const liveViewPresets = presetsData?.presets?.filter(p => p.workflow === 'liveview' || p.workflow === 'video' || p.workflow === 'both') || []
+  const liveViewPresets = presetsData?.presets?.filter(p => p.workflow === 'liveview' || p.workflow === 'both') || []
 
   // Load default photo preset from preferences on mount
   useEffect(() => {
@@ -128,7 +128,7 @@ export default function Camera() {
   // Load default liveview preset from preferences on mount
   useEffect(() => {
     if (presetsData?.presets && preferences !== undefined && !liveViewPresetInitialized.current && !selectedLiveViewPreset) {
-      const defaultPreset = preferences?.default_liveview_preset || preferences?.default_preview_preset || 'Balanced'
+      const defaultPreset = preferences?.default_liveview_preset || 'Balanced'
       const presetExists = presetsData.presets.some(p =>
         p.name === defaultPreset && (p.workflow === 'liveview' || p.workflow === 'both')
       )

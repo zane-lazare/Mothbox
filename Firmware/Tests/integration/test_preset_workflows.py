@@ -4,7 +4,7 @@ Integration Tests: Preset Management Workflows
 Tests complete preset workflows from start to finish, including:
 - List presets → Select → Apply → Verify settings updated
 - Save current settings as preset → Apply later → Verify match
-- Apply preset to capture/preview/both → Verify correct targets updated
+- Apply preset to capture/liveview/both → Verify correct targets updated
 - Delete user preset workflow
 - Built-in preset application and protection
 
@@ -33,7 +33,7 @@ class TestPresetWorkflow1_ListSelectApplyVerify:
     This is the primary workflow for users to:
     1. View available presets
     2. Select a preset (e.g., "Night Photography")
-    3. Apply it to camera/preview/both
+    3. Apply it to camera/liveview/both
     4. Verify settings were updated correctly
     """
 
@@ -195,11 +195,11 @@ class TestPresetWorkflow2_SaveAndReuse:
 
 class TestPresetWorkflow3_ApplyToTargets:
     """
-    Workflow 3: Apply preset to different targets (capture/preview/both)
+    Workflow 3: Apply preset to different targets (capture/liveview/both)
 
     Tests that apply_to parameter correctly updates:
     - capture: Only camera_settings.csv
-    - preview: Only webui_settings.txt
+    - liveview: Only liveview_settings.txt
     - both: Both files
     """
 
@@ -225,16 +225,16 @@ class TestPresetWorkflow3_ApplyToTargets:
         if response.status_code == 200:
             result = response.get_json()
             assert 'capture' in result.get('applied_to', [])
-            assert 'preview' not in result.get('applied_to', [])
+            assert 'liveview' not in result.get('applied_to', [])
             print(f"   ✓ Applied to capture only")
             print(f"   Message: {result['message']}")
         else:
             pytest.skip(f"Preset file not found: {preset_name}")
 
-    def test_apply_preset_to_preview_only(self, client):
-        """Test applying preset to preview settings only"""
+    def test_apply_preset_to_liveview_only(self, client):
+        """Test applying preset to liveview settings only"""
         print("\n" + "="*70)
-        print("Workflow 3b: Apply Preset to Preview Only")
+        print("Workflow 3b: Apply Preset to Liveview Only")
         print("="*70)
 
         # Get first available preset
@@ -245,24 +245,24 @@ class TestPresetWorkflow3_ApplyToTargets:
 
         preset_name = presets[0]['name']
 
-        # Apply to preview only
-        print(f"\n👁️  Applying preset '{preset_name}' to PREVIEW only...")
+        # Apply to liveview only
+        print(f"\n👁️  Applying preset '{preset_name}' to LIVEVIEW only...")
         response = client.post(f'/api/presets/{preset_name}/apply',
-                              json={'apply_to': 'preview'})
+                              json={'apply_to': 'liveview'})
 
         if response.status_code == 200:
             result = response.get_json()
-            assert 'preview' in result.get('applied_to', [])
+            assert 'liveview' in result.get('applied_to', [])
             assert 'capture' not in result.get('applied_to', [])
-            print(f"   ✓ Applied to preview only")
+            print(f"   ✓ Applied to liveview only")
             print(f"   Message: {result['message']}")
         else:
             pytest.skip(f"Preset file not found: {preset_name}")
 
     def test_apply_preset_to_both(self, client):
-        """Test applying preset to both capture and preview"""
+        """Test applying preset to both capture and liveview"""
         print("\n" + "="*70)
-        print("Workflow 3c: Apply Preset to Both Capture and Preview")
+        print("Workflow 3c: Apply Preset to Both Capture and Liveview")
         print("="*70)
 
         # Get first available preset
@@ -281,7 +281,7 @@ class TestPresetWorkflow3_ApplyToTargets:
         if response.status_code == 200:
             result = response.get_json()
             applied_to = result.get('applied_to', [])
-            assert 'capture' in applied_to or 'preview' in applied_to
+            assert 'capture' in applied_to or 'liveview' in applied_to
             print(f"   ✓ Applied to: {', '.join(applied_to)}")
             print(f"   Message: {result['message']}")
         else:
