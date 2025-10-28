@@ -211,14 +211,14 @@ class PresetManager:
         # Check for settings key
         if 'settings' in preset_data:
             settings = preset_data['settings']
-        elif 'camera' in preset_data or 'preview' in preset_data:
+        elif 'camera' in preset_data or 'liveview' in preset_data:
             settings = preset_data
         else:
-            return False, "Preset must contain 'settings' or 'camera'/'preview' keys"
+            return False, "Preset must contain 'settings' or 'camera'/'liveview' keys"
 
-        # Settings must have at least camera or preview
-        if 'camera' not in settings and 'preview' not in settings:
-            return False, "Preset must contain 'camera' and/or 'preview' settings"
+        # Settings must have at least camera or liveview
+        if 'camera' not in settings and 'liveview' not in settings:
+            return False, "Preset must contain 'camera' and/or 'liveview' settings"
 
         # Camera settings validation (basic type checking)
         if 'camera' in settings:
@@ -237,42 +237,42 @@ class PresetManager:
                         except (ValueError, TypeError):
                             return False, f"Camera setting '{field}' must be numeric"
 
-        # Preview settings validation
-        if 'preview' in settings:
-            if not isinstance(settings['preview'], dict):
-                return False, "Preview settings must be a dictionary"
+        # Liveview settings validation
+        if 'liveview' in settings:
+            if not isinstance(settings['liveview'], dict):
+                return False, "Liveview settings must be a dictionary"
 
-            # Type checks for preview settings
-            preview = settings['preview']
-            if preview:  # Only validate if not empty
+            # Type checks for liveview settings
+            liveview = settings['liveview']
+            if liveview:  # Only validate if not empty
                 numeric_fields = ['sharpness', 'brightness', 'contrast', 'saturation', 'focus_peaking_intensity']
                 for field in numeric_fields:
-                    if field in preview:
+                    if field in liveview:
                         try:
-                            float(preview[field])
+                            float(liveview[field])
                         except (ValueError, TypeError):
-                            return False, f"Preview setting '{field}' must be numeric"
+                            return False, f"Liveview setting '{field}' must be numeric"
 
                 # Validate focus peaking boolean
-                if 'focus_peaking_enabled' in preview:
-                    if not isinstance(preview['focus_peaking_enabled'], bool):
-                        if isinstance(preview['focus_peaking_enabled'], str):
-                            if preview['focus_peaking_enabled'].lower() not in ['true', 'false']:
-                                return False, "Preview setting 'focus_peaking_enabled' must be boolean or 'true'/'false' string"
+                if 'focus_peaking_enabled' in liveview:
+                    if not isinstance(liveview['focus_peaking_enabled'], bool):
+                        if isinstance(liveview['focus_peaking_enabled'], str):
+                            if liveview['focus_peaking_enabled'].lower() not in ['true', 'false']:
+                                return False, "Liveview setting 'focus_peaking_enabled' must be boolean or 'true'/'false' string"
                         else:
-                            return False, "Preview setting 'focus_peaking_enabled' must be boolean"
+                            return False, "Liveview setting 'focus_peaking_enabled' must be boolean"
 
                 # Validate focus peaking color
-                if 'focus_peaking_color' in preview:
+                if 'focus_peaking_color' in liveview:
                     valid_colors = ['green', 'red', 'yellow', 'cyan', 'magenta']
-                    if preview['focus_peaking_color'] not in valid_colors:
-                        return False, f"Preview setting 'focus_peaking_color' must be one of {valid_colors}"
+                    if liveview['focus_peaking_color'] not in valid_colors:
+                        return False, f"Liveview setting 'focus_peaking_color' must be one of {valid_colors}"
 
                 # Validate focus peaking algorithm
-                if 'focus_peaking_algorithm' in preview:
+                if 'focus_peaking_algorithm' in liveview:
                     valid_algorithms = ['laplacian', 'sobel', 'canny']
-                    if preview['focus_peaking_algorithm'] not in valid_algorithms:
-                        return False, f"Preview setting 'focus_peaking_algorithm' must be one of {valid_algorithms}"
+                    if liveview['focus_peaking_algorithm'] not in valid_algorithms:
+                        return False, f"Liveview setting 'focus_peaking_algorithm' must be one of {valid_algorithms}"
 
         return True, "Preset validation successful"
 

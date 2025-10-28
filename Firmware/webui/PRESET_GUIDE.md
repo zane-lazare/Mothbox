@@ -2,16 +2,16 @@
 
 ## Overview
 
-The preset system allows you to save, load, and share camera and preview settings configurations. This eliminates the need to manually adjust 20+ parameters every time you want to switch between different photography scenarios (daylight, night, macro, etc.).
+The preset system allows you to save, load, and share camera and liveview settings configurations. This eliminates the need to manually adjust 20+ parameters every time you want to switch between different photography scenarios (daylight, night, macro, etc.).
 
 ---
 
 ## What are Presets?
 
-**Presets** are saved configurations that contain both **camera settings** (for full-resolution captures) and **preview settings** (for the live preview stream). A single preset can include:
+**Presets** are saved configurations that contain both **camera settings** (for full-resolution captures) and **liveview settings** (for the live preview stream). A single preset can include:
 
 - **Camera Settings**: Exposure time, ISO/gain, focus mode, sharpness, HDR settings, focus bracketing, etc.
-- **Preview Settings**: Preview quality, brightness, contrast, autofocus mode, noise reduction, etc.
+- **Liveview Settings**: Preview quality, brightness, contrast, autofocus mode, noise reduction, etc.
 
 ---
 
@@ -106,13 +106,13 @@ Mothbox includes 5 professionally optimized built-in presets:
 2. Read the description below the dropdown
 3. Choose where to apply it:
    - **📸 Capture** - Apply to full-resolution photo captures only
-   - **👁️ Preview** - Apply to live preview stream only
-   - **🔄 Both** - Apply to both capture and preview
+   - **👁️ Liveview** - Apply to live preview stream only
+   - **🔄 Both** - Apply to both capture and liveview
 
 4. Click the button - settings will be applied immediately
 5. You'll see a success message confirming the preset was applied
 
-**Tip:** Apply to "Preview" first to test settings, then apply to "Capture" if you like the results!
+**Tip:** Apply to "Liveview" first to test settings, then apply to "Capture" if you like the results!
 
 ---
 
@@ -122,7 +122,7 @@ Mothbox includes 5 professionally optimized built-in presets:
 
 1. **Configure your ideal settings:**
    - Adjust camera settings (exposure, focus, HDR, etc.)
-   - Adjust preview settings (sharpness, brightness, etc.)
+   - Adjust liveview settings (sharpness, brightness, etc.)
    - Test with photos until you're satisfied
 
 2. **Save as preset:**
@@ -203,7 +203,7 @@ Example structure:
       "Sharpness": 2.0,
       ...
     },
-    "preview": {
+    "liveview": {
       "sharpness": 1.5,
       "brightness": 0.0,
       ...
@@ -245,11 +245,11 @@ Example structure:
 **Problem:** Applied preset but settings seem unchanged
 
 **Solutions:**
-1. Check which target you selected (Capture vs Preview vs Both)
+1. Check which target you selected (Capture vs Liveview vs Both)
 2. Verify settings files were updated:
    - Capture: `cat /etc/mothbox/camera_settings.csv`
-   - Preview: `cat /etc/mothbox/webui_settings.txt`
-3. For preview changes, they apply to *new* preview sessions (restart preview)
+   - Liveview: `cat /etc/mothbox/liveview_settings.txt`
+3. For liveview changes, they apply to *new* liveview sessions (restart liveview)
 4. For capture changes, they apply to the *next* photo
 
 ---
