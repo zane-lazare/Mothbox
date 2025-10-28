@@ -1005,7 +1005,7 @@ export default function Camera() {
         description: preset?.description || '',
         workflow: 'liveview',
         settings: {
-          preview: {
+          liveview: {
             sharpness: liveControls.sharpness,
             brightness: liveControls.brightness,
             contrast: liveControls.contrast,
@@ -1023,7 +1023,7 @@ export default function Camera() {
       await createPresetMutation.mutateAsync(presetData)
 
       // Apply to backend config (uses API utility with CSRF token handling)
-      await updateWebuiMutation.mutateAsync(presetData.settings.preview)
+      await updateWebuiMutation.mutateAsync(presetData.settings.liveview)
 
       const displayName = preset?.display_name || selectedLiveViewPreset
       toast.success(`Updated "${displayName}" preset`)

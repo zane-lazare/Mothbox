@@ -254,6 +254,11 @@ class PresetManager:
 
         settings = normalized['settings']
 
+        # Migrate legacy 'preview' key to 'liveview' (backward compatibility)
+        if 'preview' in settings and (not settings.get('liveview') or not settings['liveview']):
+            print(f"Migrating legacy 'preview' key to 'liveview' for preset '{normalized.get('name', 'unknown')}'")
+            settings['liveview'] = settings.pop('preview')
+
         # Add empty camera settings if missing (for liveview-only presets)
         if 'camera' not in settings and normalized['workflow'] in ['photo', 'both']:
             print(f"Warning: Preset missing camera settings for workflow '{normalized['workflow']}'")

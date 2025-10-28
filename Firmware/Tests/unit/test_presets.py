@@ -161,6 +161,76 @@ class TestPresetManager:
         assert counts['user'] == 1  # user1
         assert counts['total'] == 2
 
+    def test_legacy_preview_key_migration(self):
+        """Should migrate legacy 'preview' key to 'liveview'"""
+        from preset_manager import PresetManager
+
+        manager = PresetManager(self.builtin_dir, self.user_dir)
+
+        # Create preset with legacy 'preview' key (old format)
+        legacy_preset = {
+            'name': 'legacy_test',
+            'workflow': 'liveview',
+            'settings': {
+                'preview': {
+                    'sharpness': 2.0,
+                    'noise_reduction_mode': 1,
+                    'brightness': 0.0
+                }
+            }
+        }
+
+        # Normalize should migrate 'preview' to 'liveview'
+        normalized = manager.normalize_preset(legacy_preset)
+
+        # Verify migration occurred
+        assert 'liveview' in normalized['settings']
+        assert 'preview' not in normalized['settings']
+        assert normalized['settings']['liveview']['sharpness'] == 2.0
+        assert normalized['settings']['liveview']['noise_reduction_mode'] == 1
+        assert normalized['settings']['liveview']['brightness'] == 0.0
+
+        # Verify validation passes after migration
+        is_valid, msg = manager.validate_preset(normalized)
+        assert is_valid is True, f"Validation failed: {msg}"
+
+    def test_legacy_preview_preset_apply(self):
+        """Should be able to load and apply preset with legacy 'preview' key"""
+        from preset_manager import PresetManager
+        import json
+
+        manager = PresetManager(self.builtin_dir, self.user_dir)
+
+        # Create a preset file with legacy 'preview' key
+        legacy_preset = {
+            'name': 'legacy_liveview',
+            'display_name': 'Legacy Live View',
+            'description': 'Old format preset',
+            'workflow': 'liveview',
+            'version': '1.0',
+            'settings': {
+                'preview': {
+                    'sharpness': 1.5,
+                    'brightness': 0.2,
+                    'noise_reduction_mode': 2
+                }
+            }
+        }
+
+        # Save to user directory with legacy format
+        with open(self.user_dir / 'legacy_liveview.json', 'w') as f:
+            json.dump(legacy_preset, f)
+
+        # Load preset - should auto-migrate
+        loaded_preset = manager.get_preset('legacy_liveview')
+
+        # Verify it was loaded and migrated
+        assert loaded_preset is not None
+        assert 'liveview' in loaded_preset['settings']
+        assert 'preview' not in loaded_preset['settings']
+        assert loaded_preset['settings']['liveview']['sharpness'] == 1.5
+        assert loaded_preset['settings']['liveview']['noise_reduction_mode'] == 2
+
 
 class TestPresetAPIEndpoints:
     """Test preset API routes"""

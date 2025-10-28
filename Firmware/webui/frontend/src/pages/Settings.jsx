@@ -494,7 +494,7 @@ export default function Settings() {
         description: selectedLiveViewPresetData?.description || '',
         workflow: 'liveview',
         settings: {
-          preview: webuiForm
+          liveview: webuiForm
         }
       }
 
