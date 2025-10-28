@@ -110,36 +110,39 @@ export default function Camera() {
   const photoPresets = presetsData?.presets?.filter(p => p.workflow === 'photo' || p.workflow === 'both') || []
   const liveViewPresets = presetsData?.presets?.filter(p => p.workflow === 'liveview' || p.workflow === 'video' || p.workflow === 'both') || []
 
-  // Load default presets from preferences on mount, with "Balanced" fallback
+  // Load default photo preset from preferences on mount
   useEffect(() => {
-    if (presetsData?.presets && preferences !== undefined && !photoPresetInitialized.current && !liveViewPresetInitialized.current) {
-      // Initialize photo preset
-      if (!selectedPhotoPreset) {
-        const defaultPreset = preferences?.default_capture_preset || 'Balanced'
-        const presetExists = presetsData.presets.some(p =>
-          p.name === defaultPreset && (p.workflow === 'photo' || p.workflow === 'both')
-        )
-        if (presetExists) {
-          setSelectedPhotoPreset(defaultPreset)
-          initializePhotoPreset(defaultPreset)
-          photoPresetInitialized.current = true
-        }
-      }
-
-      // Initialize video preset
-      if (!selectedLiveViewPreset) {
-        const defaultPreset = preferences?.default_liveview_preset || preferences?.default_preview_preset || 'Balanced'
-        const presetExists = presetsData.presets.some(p =>
-          p.name === defaultPreset && (p.workflow === 'video' || p.workflow === 'both')
-        )
-        if (presetExists) {
-          setSelectedLiveViewPreset(defaultPreset)
-          initializeLiveViewPreset(defaultPreset)
-          liveViewPresetInitialized.current = true
-        }
+    if (presetsData?.presets && preferences !== undefined && !photoPresetInitialized.current && !selectedPhotoPreset) {
+      const defaultPreset = preferences?.default_capture_preset || 'Balanced'
+      const presetExists = presetsData.presets.some(p =>
+        p.name === defaultPreset && (p.workflow === 'photo' || p.workflow === 'both')
+      )
+      if (presetExists) {
+        setSelectedPhotoPreset(defaultPreset)
+        initializePhotoPreset(defaultPreset)
+        photoPresetInitialized.current = true
       }
     }
-  }, [presetsData, preferences])
+  }, [presetsData, preferences, selectedPhotoPreset])
+
+  // Load default liveview preset from preferences on mount
+  useEffect(() => {
+    if (presetsData?.presets && preferences !== undefined && !liveViewPresetInitialized.current && !selectedLiveViewPreset) {
+      const defaultPreset = preferences?.default_liveview_preset || preferences?.default_preview_preset || 'Balanced'
+      const presetExists = presetsData.presets.some(p =>
+        p.name === defaultPreset && (p.workflow === 'liveview' || p.workflow === 'both')
+      )
+      if (presetExists) {
+        initializeLiveViewPreset(defaultPreset).then(() => {
+          setSelectedLiveViewPreset(defaultPreset)
+          liveViewPresetInitialized.current = true
+        }).catch((error) => {
+          console.error('Failed to initialize liveview preset:', error)
+          liveViewPresetInitialized.current = false
+        })
+      }
+    }
+  }, [presetsData, preferences, selectedLiveViewPreset])
 
   // Debounced function to emit control updates to backend (Task 5)
   const debouncedEmitControl = (controlName, value) => {
@@ -935,6 +938,8 @@ export default function Camera() {
       console.log(`Initialized video preset: ${presetName}`)
     } catch (error) {
       console.error('Failed to initialize video preset:', error)
+      liveViewPresetInitialized.current = false
+      throw error // Re-throw to allow caller to handle
     }
   }
 
@@ -979,7 +984,7 @@ export default function Camera() {
       console.error('Apply video preset failed:', error)
       const message = error.response?.data?.error || 'Failed to apply preset'
       toast.error(`Apply failed: ${message}`)
-      setSelectedLiveViewPreset('')
+      throw error // Re-throw to allow caller to handle state
     }
   }
 
@@ -1380,10 +1385,15 @@ export default function Camera() {
                   </label>
                   <select
                     value={selectedLiveViewPreset}
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const newValue = e.target.value
-                      setSelectedLiveViewPreset(newValue)
-                      handleApplyLiveViewPreset(newValue)
+                      try {
+                        await handleApplyLiveViewPreset(newValue)
+                        setSelectedLiveViewPreset(newValue)
+                      } catch (error) {
+                        // handleApplyLiveViewPreset already handles error display
+                        // State remains unchanged on error
+                      }
                     }}
                     disabled={applyPresetMutation.isPending}
                     className="w-full px-2 py-1 text-xs bg-white/10 text-white rounded border border-white/20 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
