@@ -391,6 +391,183 @@ class TestPresetTypeNormalization:
         assert preset_manager._convert_value_type('sharpness', 1.0, 'liveview') == 1.0
         assert preset_manager._convert_value_type('focus_peaking_enabled', False, 'liveview') is False
 
+    def test_malformed_int_values_logged_and_preserved(self, preset_manager, caplog):
+        """Test that malformed int values trigger warning and stay as strings"""
+        import logging
+
+        # Enable logging capture
+        with caplog.at_level(logging.WARNING):
+            # Test 'abc' for integer field
+            result = preset_manager._convert_value_type('ExposureTime', 'abc', 'camera')
+            assert result == 'abc'  # Preserved as string
+            assert 'Failed to convert' in caplog.text
+            assert 'ExposureTime' in caplog.text
+
+            caplog.clear()
+
+            # Test '1.5' for integer field (float string)
+            # AfMode uses _validate_int_enum which should be detected as int type
+            result = preset_manager._convert_value_type('AfMode', '1.5', 'camera')
+            assert result == '1.5'  # Should stay as string since int('1.5') fails
+            assert 'Failed to convert' in caplog.text
+            assert 'AfMode' in caplog.text
+
+    def test_malformed_float_values_logged_and_preserved(self, preset_manager, caplog):
+        """Test that malformed float values trigger warning"""
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            # Test 'xyz' for float field
+            result = preset_manager._convert_value_type('Sharpness', 'xyz', 'camera')
+            assert result == 'xyz'  # Preserved as string
+            assert 'Failed to convert' in caplog.text
+            assert 'Sharpness' in caplog.text
+
+    def test_malformed_bool_values_handled_gracefully(self, preset_manager):
+        """Test that malformed bool values default to False"""
+        # 'maybe' is not in the boolean list, so it will be handled by _infer_type
+        # which will treat it as a string
+        result = preset_manager._convert_value_type('AeEnable', 'maybe', 'camera')
+
+        # Since 'maybe' doesn't match any boolean pattern, it returns False
+        # (not in ['true', '1', 'yes'])
+        assert result is False
+
+    def test_schema_based_type_derivation_camera(self, preset_manager):
+        """Test that camera setting types are derived from ALLOWED_CAMERA_SETTINGS"""
+        # Boolean fields
+        assert preset_manager._convert_value_type('AwbEnable', 'true', 'camera') is True
+        assert preset_manager._convert_value_type('AeEnable', 'false', 'camera') is False
+
+        # Integer fields
+        result_int = preset_manager._convert_value_type('AfMode', '1', 'camera')
+        assert isinstance(result_int, int)
+        assert result_int == 1
+
+        # Float fields
+        result_float = preset_manager._convert_value_type('AnalogueGain', '8.0', 'camera')
+        assert isinstance(result_float, float)
+        assert result_float == 8.0
+
+        # String fields
+        result_str = preset_manager._convert_value_type('FocusPeakingColor', 'GREEN', 'camera')
+        assert isinstance(result_str, str)
+        assert result_str == 'green'  # Lowercased
+
+    def test_schema_based_type_derivation_liveview(self, preset_manager):
+        """Test that liveview setting types are derived from ALLOWED_LIVEVIEW_SETTINGS"""
+        # Boolean fields
+        assert preset_manager._convert_value_type('awb_enable', 'true', 'liveview') is True
+        assert preset_manager._convert_value_type('ae_enable', 'false', 'liveview') is False
+
+        # Integer fields
+        result_int = preset_manager._convert_value_type('noise_reduction_mode', '2', 'liveview')
+        assert isinstance(result_int, int)
+        assert result_int == 2
+
+        # Float fields
+        result_float = preset_manager._convert_value_type('sharpness', '1.5', 'liveview')
+        assert isinstance(result_float, float)
+        assert result_float == 1.5
+
+        # String fields
+        result_str = preset_manager._convert_value_type('focus_peaking_color', 'RED', 'liveview')
+        assert isinstance(result_str, str)
+        assert result_str == 'red'  # Lowercased
+
+    def test_type_derivation_caching(self, preset_manager):
+        """Test that type derivation results are cached for performance"""
+        # First call should populate cache
+        preset_manager._convert_value_type('ExposureTime', '500', 'camera')
+
+        # Check that cache entry exists
+        assert ('camera', 'ExposureTime') in preset_manager._type_cache
+        assert preset_manager._type_cache[('camera', 'ExposureTime')] == int
+
+        # Subsequent calls should use cache
+        preset_manager._convert_value_type('ExposureTime', '600', 'camera')
+        # Cache should still have the same entry
+        assert preset_manager._type_cache[('camera', 'ExposureTime')] == int
+
+    def test_unknown_setting_falls_back_to_inference(self, preset_manager, caplog):
+        """Test that unknown settings use type inference"""
+        import logging
+
+        with caplog.at_level(logging.DEBUG):
+            # Unknown camera setting
+            result = preset_manager._convert_value_type('UnknownSetting', '42', 'camera')
+            assert result == 42  # Inferred as int
+            assert 'not found in validation schema' in caplog.text
+
+    def test_normalize_with_schema_validates_correctly(self, preset_manager):
+        """Test that normalized presets validate correctly"""
+        settings = {
+            'camera': {
+                'ExposureTime': '500',
+                'AnalogueGain': '8.0',
+                'AeEnable': 'true',
+            },
+            'liveview': {
+                'noise_reduction_mode': '1',
+                'sharpness': '1.5',
+                'awb_enable': 'false',
+            }
+        }
+
+        # Save preset (which normalizes)
+        success, message = preset_manager.save_preset(
+            name='test_schema_normalized',
+            settings=settings,
+            description='Test schema-based normalization'
+        )
+
+        assert success is True
+
+        # Load and verify types
+        loaded = preset_manager.get_preset('test_schema_normalized')
+        assert isinstance(loaded['settings']['camera']['ExposureTime'], int)
+        assert isinstance(loaded['settings']['camera']['AnalogueGain'], float)
+        assert isinstance(loaded['settings']['camera']['AeEnable'], bool)
+        assert isinstance(loaded['settings']['liveview']['noise_reduction_mode'], int)
+        assert isinstance(loaded['settings']['liveview']['sharpness'], float)
+        assert isinstance(loaded['settings']['liveview']['awb_enable'], bool)
+
+    def test_derive_type_from_validator_patterns(self, preset_manager):
+        """Test type derivation from various validator patterns"""
+        from routes.camera import ALLOWED_CAMERA_SETTINGS, ALLOWED_LIVEVIEW_SETTINGS
+
+        # Test boolean pattern derivation
+        bool_type = preset_manager._derive_type_from_validator(
+            'AeEnable',
+            ALLOWED_CAMERA_SETTINGS['AeEnable'],
+            'camera'
+        )
+        assert bool_type == bool
+
+        # Test int pattern derivation
+        int_type = preset_manager._derive_type_from_validator(
+            'AfMode',
+            ALLOWED_CAMERA_SETTINGS['AfMode'],
+            'camera'
+        )
+        assert int_type == int
+
+        # Test float pattern derivation
+        float_type = preset_manager._derive_type_from_validator(
+            'Sharpness',
+            ALLOWED_CAMERA_SETTINGS['Sharpness'],
+            'camera'
+        )
+        assert float_type == float
+
+        # Test string pattern derivation
+        str_type = preset_manager._derive_type_from_validator(
+            'FocusPeakingColor',
+            ALLOWED_CAMERA_SETTINGS['FocusPeakingColor'],
+            'camera'
+        )
+        assert str_type == str
+
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
