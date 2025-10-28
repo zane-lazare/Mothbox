@@ -5,6 +5,29 @@ import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
 import SavePresetModal from '../components/SavePresetModal'
 
+/**
+ * Validates API response has expected fields, warns in dev mode if missing.
+ * Helps debug silent fallback issues where missing API fields use previous values.
+ *
+ * @param {object} data - API response data
+ * @param {string[]} expectedFields - Array of expected field names
+ * @param {string} context - Description of where this validation is happening
+ * @returns {object} - Same data object (for chaining)
+ */
+const validateApiResponse = (data, expectedFields, context = 'API response') => {
+  if (import.meta.env.DEV) {
+    const missing = expectedFields.filter(field => data[field] === undefined)
+    if (missing.length > 0) {
+      console.warn(
+        `[${context}] Missing fields in API response:`,
+        missing.join(', '),
+        '\n→ Falling back to previous values for these fields'
+      )
+    }
+  }
+  return data
+}
+
 export default function Camera() {
   const [capturing, setCapturing] = useState(false)
   const [lastCapture, setLastCapture] = useState(null)
@@ -313,18 +336,24 @@ export default function Camera() {
         const response = await fetch(`${API_URL}/config/webui`)
         if (response.ok) {
           const data = await response.json()
+          const validatedData = validateApiResponse(data, [
+            'sharpness', 'brightness', 'contrast', 'saturation',
+            'noise_reduction_mode', 'ae_metering_mode', 'ae_enable',
+            'af_mode', 'af_range', 'af_speed'
+          ], 'settings_reloaded event')
+
           setLiveControls(prev => ({
             ...prev,
-            sharpness: data.sharpness ?? prev.sharpness,
-            brightness: data.brightness ?? prev.brightness,
-            contrast: data.contrast ?? prev.contrast,
-            saturation: data.saturation ?? prev.saturation,
-            noiseReductionMode: data.noise_reduction_mode ?? prev.noiseReductionMode,
-            aeMeteringMode: data.ae_metering_mode ?? prev.aeMeteringMode,
-            aeEnable: data.ae_enable ?? prev.aeEnable,
-            afMode: data.af_mode ?? prev.afMode,
-            afRange: data.af_range ?? prev.afRange,
-            afSpeed: data.af_speed ?? prev.afSpeed
+            sharpness: validatedData.sharpness ?? prev.sharpness,
+            brightness: validatedData.brightness ?? prev.brightness,
+            contrast: validatedData.contrast ?? prev.contrast,
+            saturation: validatedData.saturation ?? prev.saturation,
+            noiseReductionMode: validatedData.noise_reduction_mode ?? prev.noiseReductionMode,
+            aeMeteringMode: validatedData.ae_metering_mode ?? prev.aeMeteringMode,
+            aeEnable: validatedData.ae_enable ?? prev.aeEnable,
+            afMode: validatedData.af_mode ?? prev.afMode,
+            afRange: validatedData.af_range ?? prev.afRange,
+            afSpeed: validatedData.af_speed ?? prev.afSpeed
           }))
           // No toast - this event fires on preview start too, not just cross-page updates
         }
@@ -403,21 +432,28 @@ export default function Camera() {
         const response = await fetch(`${API_URL}/config/webui`)
         if (response.ok) {
           const data = await response.json()
+          const validatedData = validateApiResponse(data, [
+            'sharpness', 'brightness', 'contrast', 'saturation',
+            'noise_reduction_mode', 'ae_metering_mode', 'ae_enable',
+            'exposure_time', 'analogue_gain', 'af_mode', 'lens_position',
+            'af_range', 'af_speed'
+          ], 'preview start settings refresh')
+
           setLiveControls(prev => ({
             ...prev,
-            sharpness: data.sharpness ?? prev.sharpness,
-            brightness: data.brightness ?? prev.brightness,
-            contrast: data.contrast ?? prev.contrast,
-            saturation: data.saturation ?? prev.saturation,
-            noiseReductionMode: data.noise_reduction_mode ?? prev.noiseReductionMode,
-            aeMeteringMode: data.ae_metering_mode ?? prev.aeMeteringMode,
-            aeEnable: data.ae_enable ?? prev.aeEnable,
-            exposureTime: data.exposure_time ?? prev.exposureTime,
-            analogueGain: data.analogue_gain ?? prev.analogueGain,
-            afMode: data.af_mode ?? prev.afMode,
-            lensPosition: data.lens_position ?? prev.lensPosition,
-            afRange: data.af_range ?? prev.afRange,
-            afSpeed: data.af_speed ?? prev.afSpeed
+            sharpness: validatedData.sharpness ?? prev.sharpness,
+            brightness: validatedData.brightness ?? prev.brightness,
+            contrast: validatedData.contrast ?? prev.contrast,
+            saturation: validatedData.saturation ?? prev.saturation,
+            noiseReductionMode: validatedData.noise_reduction_mode ?? prev.noiseReductionMode,
+            aeMeteringMode: validatedData.ae_metering_mode ?? prev.aeMeteringMode,
+            aeEnable: validatedData.ae_enable ?? prev.aeEnable,
+            exposureTime: validatedData.exposure_time ?? prev.exposureTime,
+            analogueGain: validatedData.analogue_gain ?? prev.analogueGain,
+            afMode: validatedData.af_mode ?? prev.afMode,
+            lensPosition: validatedData.lens_position ?? prev.lensPosition,
+            afRange: validatedData.af_range ?? prev.afRange,
+            afSpeed: validatedData.af_speed ?? prev.afSpeed
           }))
           console.log('Refreshed live controls from backend before preview start')
 
@@ -922,17 +958,23 @@ export default function Camera() {
       const response = await fetch(`${API_URL}/config/webui`)
       if (response.ok) {
         const data = await response.json()
+        const validatedData = validateApiResponse(data, [
+          'sharpness', 'brightness', 'contrast', 'saturation',
+          'noise_reduction_mode', 'ae_metering_mode', 'af_mode',
+          'af_range', 'af_speed'
+        ], 'preset initialization')
+
         setLiveControls(prev => ({
           ...prev,
-          sharpness: data.sharpness ?? prev.sharpness,
-          brightness: data.brightness ?? prev.brightness,
-          contrast: data.contrast ?? prev.contrast,
-          saturation: data.saturation ?? prev.saturation,
-          noiseReductionMode: data.noise_reduction_mode ?? prev.noiseReductionMode,
-          aeMeteringMode: data.ae_metering_mode ?? prev.aeMeteringMode,
-          afMode: data.af_mode ?? prev.afMode,
-          afRange: data.af_range ?? prev.afRange,
-          afSpeed: data.af_speed ?? prev.afSpeed
+          sharpness: validatedData.sharpness ?? prev.sharpness,
+          brightness: validatedData.brightness ?? prev.brightness,
+          contrast: validatedData.contrast ?? prev.contrast,
+          saturation: validatedData.saturation ?? prev.saturation,
+          noiseReductionMode: validatedData.noise_reduction_mode ?? prev.noiseReductionMode,
+          aeMeteringMode: validatedData.ae_metering_mode ?? prev.aeMeteringMode,
+          afMode: validatedData.af_mode ?? prev.afMode,
+          afRange: validatedData.af_range ?? prev.afRange,
+          afSpeed: validatedData.af_speed ?? prev.afSpeed
         }))
       }
       console.log(`Initialized video preset: ${presetName}`)
@@ -966,18 +1008,24 @@ export default function Camera() {
       const response = await fetch(`${API_URL}/config/webui`)
       if (response.ok) {
         const data = await response.json()
+        const validatedData = validateApiResponse(data, [
+          'sharpness', 'brightness', 'contrast', 'saturation',
+          'noise_reduction_mode', 'ae_metering_mode', 'af_mode',
+          'af_range', 'af_speed'
+        ], 'settings update after preset')
+
         // Update live controls with new preset values
         setLiveControls(prev => ({
           ...prev,
-          sharpness: data.sharpness ?? prev.sharpness,
-          brightness: data.brightness ?? prev.brightness,
-          contrast: data.contrast ?? prev.contrast,
-          saturation: data.saturation ?? prev.saturation,
-          noiseReductionMode: data.noise_reduction_mode ?? prev.noiseReductionMode,
-          aeMeteringMode: data.ae_metering_mode ?? prev.aeMeteringMode,
-          afMode: data.af_mode ?? prev.afMode,
-          afRange: data.af_range ?? prev.afRange,
-          afSpeed: data.af_speed ?? prev.afSpeed
+          sharpness: validatedData.sharpness ?? prev.sharpness,
+          brightness: validatedData.brightness ?? prev.brightness,
+          contrast: validatedData.contrast ?? prev.contrast,
+          saturation: validatedData.saturation ?? prev.saturation,
+          noiseReductionMode: validatedData.noise_reduction_mode ?? prev.noiseReductionMode,
+          aeMeteringMode: validatedData.ae_metering_mode ?? prev.aeMeteringMode,
+          afMode: validatedData.af_mode ?? prev.afMode,
+          afRange: validatedData.af_range ?? prev.afRange,
+          afSpeed: validatedData.af_speed ?? prev.afSpeed
         }))
       }
     } catch (error) {
