@@ -999,23 +999,35 @@ export default function Camera() {
     }
 
     try {
-      // Get current live controls from state
+      // Fetch complete current settings from backend (includes all 24+ fields)
+      const API_URL = import.meta.env.VITE_API_URL || '/api'
+      const response = await fetch(`${API_URL}/config/webui`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch complete settings')
+      }
+      const completeSettings = await response.json()
+
+      // Merge UI-controlled values into complete settings
+      // This preserves stream config, exposure, white balance, ISP, focus peaking, etc.
+      const mergedSettings = {
+        ...completeSettings,
+        sharpness: liveControls.sharpness,
+        brightness: liveControls.brightness,
+        contrast: liveControls.contrast,
+        saturation: liveControls.saturation,
+        noise_reduction_mode: liveControls.noiseReductionMode,
+        ae_metering_mode: liveControls.aeMeteringMode,
+        af_mode: liveControls.afMode,
+        af_range: liveControls.afRange,
+        af_speed: liveControls.afSpeed
+      }
+
       const presetData = {
         name: selectedLiveViewPreset,
         description: preset?.description || '',
         workflow: 'liveview',
         settings: {
-          liveview: {
-            sharpness: liveControls.sharpness,
-            brightness: liveControls.brightness,
-            contrast: liveControls.contrast,
-            saturation: liveControls.saturation,
-            noise_reduction_mode: liveControls.noiseReductionMode,
-            ae_metering_mode: liveControls.aeMeteringMode,
-            af_mode: liveControls.afMode,
-            af_range: liveControls.afRange,
-            af_speed: liveControls.afSpeed
-          }
+          liveview: mergedSettings  // Now contains all settings
         }
       }
 
@@ -1023,7 +1035,7 @@ export default function Camera() {
       await createPresetMutation.mutateAsync(presetData)
 
       // Apply to backend config (uses API utility with CSRF token handling)
-      await updateWebuiMutation.mutateAsync(presetData.settings.liveview)
+      await updateWebuiMutation.mutateAsync(mergedSettings)
 
       const displayName = preset?.display_name || selectedLiveViewPreset
       toast.success(`Updated "${displayName}" preset`)
