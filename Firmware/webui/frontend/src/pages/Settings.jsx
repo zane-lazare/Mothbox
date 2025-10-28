@@ -294,6 +294,28 @@ export default function Settings() {
       console.log(`Initialized photo preset: ${presetName}`)
     } catch (error) {
       console.error('Failed to initialize photo preset:', error)
+      const errorMsg = error.response?.data?.error || error.message
+
+      // If preset not found or workflow mismatch, try to find a valid fallback
+      if (errorMsg.includes('not found') || errorMsg.includes('workflow')) {
+        console.warn(`Preset "${presetName}" is invalid, trying fallback preset`)
+        // Try to apply balanced preset as fallback
+        const fallbackPreset = presetsData?.presets?.find(p =>
+          (p.workflow === 'photo' || p.workflow === 'both') && p.name === 'balanced'
+        )
+        if (fallbackPreset) {
+          try {
+            await applyPresetMutation.mutateAsync({
+              name: fallbackPreset.name,
+              applyTo: 'capture'
+            })
+            setSelectedPhotoPreset(fallbackPreset.name)
+            console.log(`Applied fallback photo preset: ${fallbackPreset.name}`)
+          } catch (fallbackError) {
+            console.error('Failed to apply fallback photo preset:', fallbackError)
+          }
+        }
+      }
     }
   }
 
@@ -308,6 +330,28 @@ export default function Settings() {
       console.log(`Initialized live view preset: ${presetName}`)
     } catch (error) {
       console.error('Failed to initialize live view preset:', error)
+      const errorMsg = error.response?.data?.error || error.message
+
+      // If preset not found or workflow mismatch, try to find a valid fallback
+      if (errorMsg.includes('not found') || errorMsg.includes('workflow')) {
+        console.warn(`Preset "${presetName}" is invalid, trying fallback preset`)
+        // Try to apply balanced preset as fallback
+        const fallbackPreset = presetsData?.presets?.find(p =>
+          (p.workflow === 'liveview' || p.workflow === 'both') && p.name === 'balanced'
+        )
+        if (fallbackPreset) {
+          try {
+            await applyPresetMutation.mutateAsync({
+              name: fallbackPreset.name,
+              applyTo: 'liveview'
+            })
+            setSelectedLiveViewPreset(fallbackPreset.name)
+            console.log(`Applied fallback liveview preset: ${fallbackPreset.name}`)
+          } catch (fallbackError) {
+            console.error('Failed to apply fallback liveview preset:', fallbackError)
+          }
+        }
+      }
     }
   }
 
@@ -338,8 +382,8 @@ export default function Settings() {
       const defaultExists = savedDefault && presetsData.presets.some(p => p.name === savedDefault)
 
       const defaultPreset = (defaultExists ? savedDefault : null) ||
-                           presetsData.presets.find(p => (p.workflow === 'video' || p.workflow === 'both') && p.name === 'balanced')?.name ||
-                           presetsData.presets.find(p => p.workflow === 'video' || p.workflow === 'both')?.name
+                           presetsData.presets.find(p => (p.workflow === 'liveview' || p.workflow === 'both') && p.name === 'balanced')?.name ||
+                           presetsData.presets.find(p => p.workflow === 'liveview' || p.workflow === 'both')?.name
       if (defaultPreset) {
         setSelectedLiveViewPreset(defaultPreset)
         // Silent initialization - no toast

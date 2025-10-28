@@ -8,9 +8,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import mothbox_import  # Sets up sys.path for mothbox
 
 from user_preferences import preferences_manager
+from preset_manager import PresetManager
+from mothbox_paths import BUILTIN_PRESET_DIR, USER_PRESET_DIR
 
 
 preferences_bp = Blueprint('preferences', __name__)
+
+# Initialize preset manager for validation
+preset_manager = PresetManager(BUILTIN_PRESET_DIR, USER_PRESET_DIR)
 
 
 @preferences_bp.route('', methods=['GET'], strict_slashes=False)
@@ -102,4 +107,42 @@ def reset_preferences():
             return jsonify({'error': 'Failed to reset preferences'}), 500
 
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@preferences_bp.route('/validate', methods=['POST'])
+def validate_preferences():
+    """
+    Validate preset references and clean up deleted preset references
+
+    Returns:
+        Validation results with cleaned preferences
+    """
+    try:
+        result = preferences_manager.validate_preset_references(preset_manager)
+
+        if result['cleaned']:
+            message = f"Cleaned {len(result['removed_references'])} invalid preset reference(s)"
+            return jsonify({
+                'success': True,
+                'message': message,
+                'cleaned': True,
+                'removed_references': [
+                    {'key': key, 'invalid_value': value}
+                    for key, value in result['removed_references']
+                ],
+                'preferences': result['preferences']
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'message': 'All preset references are valid',
+                'cleaned': False,
+                'preferences': result['preferences']
+            })
+
+    except Exception as e:
+        import traceback
+        print(f"Error validating preferences: {e}")
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500

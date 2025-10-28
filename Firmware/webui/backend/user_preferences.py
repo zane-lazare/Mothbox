@@ -67,6 +67,54 @@ class UserPreferencesManager:
             print(f"Warning: Could not load preferences, using defaults: {e}")
             return DEFAULT_PREFERENCES.copy()
 
+    def validate_preset_references(self, preset_manager) -> Dict[str, Any]:
+        """
+        Validate preset references in preferences and remove references to deleted presets
+
+        Args:
+            preset_manager: PresetManager instance to check if presets exist
+
+        Returns:
+            Dict with validation results:
+            {
+                'cleaned': bool,
+                'removed_references': list of (key, invalid_value) tuples,
+                'preferences': updated preferences dict
+            }
+        """
+        prefs = self.get_preferences()
+        removed = []
+        cleaned = False
+
+        # Get list of available presets
+        available_presets = preset_manager.list_presets()
+        preset_names = {p['name'] for p in available_presets}
+
+        # Check each preset reference
+        for key in ['default_capture_preset', 'default_preview_preset', 'default_liveview_preset']:
+            if key in prefs and prefs[key] is not None:
+                preset_name = prefs[key]
+                if preset_name not in preset_names:
+                    # Invalid/deleted preset reference
+                    removed.append((key, preset_name))
+                    prefs[key] = None
+                    cleaned = True
+                    print(f"Warning: Removed invalid preset reference: {key}={preset_name} (preset not found)")
+
+        # Save cleaned preferences if any changes were made
+        if cleaned:
+            try:
+                with open(self.preferences_file, 'w') as f:
+                    json.dump(prefs, f, indent=2)
+            except IOError as e:
+                print(f"Error: Could not save cleaned preferences: {e}")
+
+        return {
+            'cleaned': cleaned,
+            'removed_references': removed,
+            'preferences': prefs
+        }
+
     def get_preference(self, key: str) -> Optional[Any]:
         """
         Get specific preference value

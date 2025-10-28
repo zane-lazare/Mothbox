@@ -192,8 +192,37 @@ def apply_preset(name):
         if not settings:
             return jsonify({'error': 'Preset has no settings'}), 400
 
+        # Check preset workflow compatibility
+        preset_workflow = preset_data.get('workflow', 'both')
         camera_settings = settings.get('camera', {})
         liveview_settings = settings.get('liveview', {})
+
+        # Validate workflow compatibility before attempting to apply
+        if apply_to == 'capture':
+            if not camera_settings:
+                if preset_workflow == 'liveview':
+                    return jsonify({
+                        'error': f'Cannot apply liveview-only preset "{name}" to capture workflow. This preset only contains liveview/preview settings.'
+                    }), 400
+                else:
+                    return jsonify({
+                        'error': f'Preset "{name}" has no camera settings for capture workflow'
+                    }), 400
+        elif apply_to == 'liveview':
+            if not liveview_settings:
+                if preset_workflow == 'photo':
+                    return jsonify({
+                        'error': f'Cannot apply photo-only preset "{name}" to liveview workflow. This preset only contains camera/capture settings.'
+                    }), 400
+                else:
+                    return jsonify({
+                        'error': f'Preset "{name}" has no liveview settings for liveview workflow'
+                    }), 400
+        elif apply_to == 'both':
+            if not camera_settings and not liveview_settings:
+                return jsonify({
+                    'error': f'Preset "{name}" has no settings for either workflow'
+                }), 400
 
         applied = []
 
