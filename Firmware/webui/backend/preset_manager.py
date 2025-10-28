@@ -11,9 +11,14 @@ This module provides functionality to:
 
 import json
 import os
+import sys
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any, Union
+
+# Import validation schema for type normalization
+sys.path.insert(0, str(Path(__file__).parent))
+from routes.camera import ALLOWED_CAMERA_SETTINGS
 
 
 class PresetManager:
@@ -32,6 +37,160 @@ class PresetManager:
 
         # Create user directory if it doesn't exist
         self.user_dir.mkdir(parents=True, exist_ok=True)
+
+    def _normalize_setting_types(self, settings: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Normalize setting value types from strings to their proper types.
+
+        This ensures consistent JSON serialization regardless of data source:
+        - Numbers stored as strings (from CSV/TXT files) → int/float
+        - Booleans stored as strings ("true", "True", "false") → bool
+        - Actual string values remain strings
+
+        Args:
+            settings: Dict with 'camera' and/or 'liveview' settings
+
+        Returns:
+            Settings dict with normalized types
+        """
+        normalized = {}
+
+        # Normalize camera settings
+        if 'camera' in settings:
+            normalized['camera'] = {}
+            for key, value in settings['camera'].items():
+                normalized['camera'][key] = self._convert_value_type(key, value, 'camera')
+
+        # Normalize liveview settings
+        if 'liveview' in settings:
+            normalized['liveview'] = {}
+            for key, value in settings['liveview'].items():
+                normalized['liveview'][key] = self._convert_value_type(key, value, 'liveview')
+
+        return normalized
+
+    def _convert_value_type(self, key: str, value: Any, setting_type: str) -> Union[int, float, bool, str]:
+        """
+        Convert a single setting value from string to its proper type.
+
+        Args:
+            key: Setting name (e.g., 'ExposureTime', 'sharpness')
+            value: Raw value (possibly string)
+            setting_type: 'camera' or 'liveview'
+
+        Returns:
+            Value with proper type
+        """
+        # If already correct type, return as-is
+        if not isinstance(value, str):
+            return value
+
+        # For camera settings, use ALLOWED_CAMERA_SETTINGS schema
+        if setting_type == 'camera':
+            # Map camera setting to expected type based on validation
+            if key in ['AeEnable', 'AwbEnable', 'LensShadingEnable',
+                      'DefectCorrectionEnable', 'UseCustomTuning',
+                      'FocusPeakingEnabled']:
+                # Boolean fields
+                return value.lower() in ['true', '1', 'yes']
+
+            elif key in ['ExposureTime', 'AeMeteringMode', 'AfMode', 'AfSpeed',
+                        'AfRange', 'AfMetering', 'AwbMode', 'NoiseReductionMode',
+                        'HDR', 'HDR_width', 'FocusBracket', 'ImageFileType',
+                        'VerticalFlip', 'AutoCalibration', 'AutoCalibrationPeriod',
+                        'FocusPeakingIntensity', 'FlashDelay_BeforeCapture',
+                        'FlashDelay_AfterCapture', 'FocusBracket_SettleDelay',
+                        'FocusBracket_LockColorGains']:
+                # Integer fields
+                try:
+                    return int(value)
+                except (ValueError, TypeError):
+                    return value
+
+            elif key in ['Sharpness', 'Brightness', 'Contrast', 'Saturation',
+                        'ExposureValue', 'AnalogueGain', 'LensPosition',
+                        'ColourGainRed', 'ColourGainBlue', 'FocusBracket_Start',
+                        'FocusBracket_End', 'FocusBracket_ColorGainRed',
+                        'FocusBracket_ColorGainBlue']:
+                # Float fields
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return value
+
+            elif key in ['FocusPeakingColor', 'FocusPeakingAlgorithm']:
+                # String fields - keep as-is
+                return value.lower() if value else value
+
+            else:
+                # Unknown field - try to infer type
+                return self._infer_type(value)
+
+        # For liveview settings
+        elif setting_type == 'liveview':
+            # Map liveview settings to expected types
+            if key in ['focus_peaking_enabled', 'awb_enable', 'ae_enable']:
+                # Boolean fields
+                return value.lower() in ['true', '1', 'yes']
+
+            elif key in ['noise_reduction_mode', 'awb_mode', 'stream_width',
+                        'stream_height', 'stream_quality', 'stream_framerate']:
+                # Integer fields
+                try:
+                    return int(value)
+                except (ValueError, TypeError):
+                    return value
+
+            elif key in ['sharpness', 'brightness', 'contrast', 'saturation',
+                        'focus_peaking_intensity', 'exposure_value', 'analogue_gain']:
+                # Float fields
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return value
+
+            elif key in ['focus_peaking_color', 'focus_peaking_algorithm']:
+                # String fields
+                return value.lower() if value else value
+
+            else:
+                # Unknown field - try to infer type
+                return self._infer_type(value)
+
+        return value
+
+    def _infer_type(self, value: str) -> Union[int, float, bool, str]:
+        """
+        Infer the proper type for a string value.
+
+        Args:
+            value: String value to convert
+
+        Returns:
+            Value with inferred type
+        """
+        if not isinstance(value, str):
+            return value
+
+        # Try boolean
+        if value.lower() in ['true', 'false', 'yes', 'no', '1', '0']:
+            return value.lower() in ['true', 'yes', '1']
+
+        # Try integer
+        try:
+            if '.' not in value:
+                return int(value)
+        except (ValueError, TypeError):
+            pass
+
+        # Try float
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            pass
+
+        # Keep as string
+        return value
 
     def list_presets(self) -> List[Dict]:
         """
@@ -175,7 +334,10 @@ class PresetManager:
         if workflow not in ['photo', 'liveview', 'both']:
             return False, "Workflow must be 'photo', 'liveview', or 'both'"
 
-        # Build preset data FIRST
+        # Normalize setting types FIRST (convert strings to proper types)
+        normalized_settings = self._normalize_setting_types(settings)
+
+        # Build preset data
         preset_data = {
             'name': name,
             'display_name': name.replace('_', ' ').title(),
@@ -185,7 +347,7 @@ class PresetManager:
             'author': 'user',
             'category': 'user',
             'workflow': workflow,
-            'settings': settings
+            'settings': normalized_settings
         }
 
         # Normalize and validate the complete preset structure
