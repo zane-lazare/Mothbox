@@ -203,6 +203,10 @@ export default function Camera() {
         }).catch((error) => {
           console.error('Failed to initialize liveview preset:', error)
           liveViewPresetInitialized.current = false
+          const preset = presetsData.presets.find(p => p.name === defaultPreset)
+          const displayName = preset?.display_name || defaultPreset
+          const message = error.response?.data?.error || 'Failed to load preset'
+          toast.error(`Preset "${displayName}" failed to load: ${message}`)
         })
       }
     }
@@ -960,6 +964,10 @@ export default function Camera() {
       console.log(`Initialized photo preset: ${presetName}`)
     } catch (error) {
       console.error('Failed to initialize photo preset:', error)
+      const preset = presetsData?.presets?.find(p => p.name === presetName)
+      const displayName = preset?.display_name || presetName
+      const message = error.response?.data?.error || 'Failed to load preset'
+      toast.error(`Preset "${displayName}" failed to load: ${message}`)
     }
   }
 
