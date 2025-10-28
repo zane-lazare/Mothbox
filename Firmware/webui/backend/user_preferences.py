@@ -22,6 +22,7 @@ from mothbox_paths import USER_PREFERENCES_FILE
 DEFAULT_PREFERENCES = {
     "default_capture_preset": None,  # Photo workflow default
     "default_preview_preset": None,  # Video workflow default
+    "default_liveview_preset": None,  # Live view workflow default
 }
 
 
