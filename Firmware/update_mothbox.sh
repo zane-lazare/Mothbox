@@ -943,6 +943,22 @@ if [ "$INSTALL_TYPE" = "production" ] && [ "$SKIP_FILE_COPY" = "false" ]; then
 
     echo -e "${GREEN}✓ Files synced to $MOTHBOX_HOME${NC}"
     echo ""
+
+    # Sync built-in presets to config directory
+    echo "Syncing built-in presets..."
+    BUILTIN_PRESET_SOURCE="$MOTHBOX_ROOT/Firmware/webui/backend/presets_builtin"
+    PRESET_DIR="$CONFIG_DIR/presets"
+
+    if [ -d "$BUILTIN_PRESET_SOURCE" ]; then
+        sudo mkdir -p "$PRESET_DIR/built-in"
+        sudo cp -f "$BUILTIN_PRESET_SOURCE"/*.json "$PRESET_DIR/built-in/"
+        sudo chown -R "$MOTHBOX_USER:gpio" "$PRESET_DIR"
+        sudo chmod -R 644 "$PRESET_DIR/built-in"/*.json
+        echo -e "${GREEN}✓ Built-in presets synced${NC}"
+    else
+        echo -e "${YELLOW}⚠ Built-in preset source not found: $BUILTIN_PRESET_SOURCE${NC}"
+    fi
+    echo ""
 elif [ "$INSTALL_TYPE" = "legacy" ]; then
     # For legacy installs, git repo IS the installation - no copying needed
     echo -e "${CYAN}Legacy install detected - files already in place${NC}"

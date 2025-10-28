@@ -53,6 +53,14 @@ class PresetManager:
                 try:
                     with open(preset_file, 'r') as f:
                         data = json.load(f)
+
+                        # Normalize and validate preset
+                        data = self.normalize_preset(data)
+                        valid, error_msg = self.validate_preset(data)
+                        if not valid:
+                            print(f"Warning: Skipping invalid built-in preset {preset_file.name}: {error_msg}")
+                            continue
+
                         presets.append({
                             'name': data.get('name', preset_file.stem),
                             'display_name': data.get('display_name', preset_file.stem),
@@ -71,6 +79,14 @@ class PresetManager:
                 try:
                     with open(preset_file, 'r') as f:
                         data = json.load(f)
+
+                        # Normalize and validate preset
+                        data = self.normalize_preset(data)
+                        valid, error_msg = self.validate_preset(data)
+                        if not valid:
+                            print(f"Warning: Skipping invalid user preset {preset_file.name}: {error_msg}")
+                            continue
+
                         presets.append({
                             'name': data.get('name', preset_file.stem),
                             'display_name': data.get('display_name', preset_file.stem),
@@ -94,25 +110,39 @@ class PresetManager:
             name: Preset name (without .json extension)
 
         Returns:
-            Preset data dict, or None if not found
+            Preset data dict, or None if not found or invalid
         """
+        preset_data = None
+
         # Try built-in first
         builtin_path = self.builtin_dir / f"{name}.json"
         if builtin_path.exists():
             try:
                 with open(builtin_path, 'r') as f:
-                    return json.load(f)
+                    preset_data = json.load(f)
             except (json.JSONDecodeError, IOError) as e:
                 print(f"Error loading built-in preset {name}: {e}")
+                return None
 
-        # Try user presets
-        user_path = self.user_dir / f"{name}.json"
-        if user_path.exists():
-            try:
-                with open(user_path, 'r') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, IOError) as e:
-                print(f"Error loading user preset {name}: {e}")
+        # Try user presets if not found in built-in
+        if not preset_data:
+            user_path = self.user_dir / f"{name}.json"
+            if user_path.exists():
+                try:
+                    with open(user_path, 'r') as f:
+                        preset_data = json.load(f)
+                except (json.JSONDecodeError, IOError) as e:
+                    print(f"Error loading user preset {name}: {e}")
+                    return None
+
+        # Normalize and validate the preset before returning
+        if preset_data:
+            preset_data = self.normalize_preset(preset_data)
+            valid, error_msg = self.validate_preset(preset_data)
+            if not valid:
+                print(f"Error: Invalid preset '{name}': {error_msg}")
+                return None
+            return preset_data
 
         return None
 
@@ -197,6 +227,43 @@ class PresetManager:
             return True, f"Preset '{name}' deleted successfully"
         except IOError as e:
             return False, f"Failed to delete preset: {str(e)}"
+
+    def normalize_preset(self, preset_data: Dict) -> Dict:
+        """
+        Normalize preset by adding missing fields with defaults
+
+        Args:
+            preset_data: Raw preset data
+
+        Returns:
+            Normalized preset with all required fields
+        """
+        normalized = preset_data.copy()
+
+        # Ensure top-level metadata exists
+        if 'workflow' not in normalized:
+            normalized['workflow'] = 'both'  # Safe default
+
+        if 'version' not in normalized:
+            normalized['version'] = '1.0'
+
+        # Ensure settings structure exists
+        if 'settings' not in normalized:
+            normalized['settings'] = {}
+
+        settings = normalized['settings']
+
+        # Add empty camera settings if missing (for liveview-only presets)
+        if 'camera' not in settings and normalized['workflow'] in ['photo', 'both']:
+            print(f"Warning: Preset missing camera settings for workflow '{normalized['workflow']}'")
+            settings['camera'] = {}
+
+        # Add empty liveview settings if missing (for capture-only presets)
+        if 'liveview' not in settings and normalized['workflow'] in ['liveview', 'both']:
+            print(f"Warning: Preset missing liveview settings for workflow '{normalized['workflow']}'")
+            settings['liveview'] = {}
+
+        return normalized
 
     def validate_preset(self, preset_data: Dict) -> Tuple[bool, str]:
         """
