@@ -175,12 +175,7 @@ class PresetManager:
         if workflow not in ['photo', 'liveview', 'both']:
             return False, "Workflow must be 'photo', 'liveview', or 'both'"
 
-        # Validate settings structure
-        valid, error_msg = self.validate_preset(settings)
-        if not valid:
-            return False, error_msg
-
-        # Build preset data
+        # Build preset data FIRST
         preset_data = {
             'name': name,
             'display_name': name.replace('_', ' ').title(),
@@ -192,6 +187,12 @@ class PresetManager:
             'workflow': workflow,
             'settings': settings
         }
+
+        # Normalize and validate the complete preset structure
+        preset_data = self.normalize_preset(preset_data)
+        valid, error_msg = self.validate_preset(preset_data)
+        if not valid:
+            return False, error_msg
 
         # Save to user directory
         try:
