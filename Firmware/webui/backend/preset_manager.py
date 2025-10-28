@@ -11,9 +11,19 @@ This module provides functionality to:
 
 import json
 import os
+import sys
+import logging
+import re
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any, Union, Callable
+
+# Import validation schemas for type normalization
+sys.path.insert(0, str(Path(__file__).parent))
+from routes.camera import ALLOWED_CAMERA_SETTINGS, ALLOWED_LIVEVIEW_SETTINGS
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 
 class PresetManager:
@@ -32,6 +42,264 @@ class PresetManager:
 
         # Create user directory if it doesn't exist
         self.user_dir.mkdir(parents=True, exist_ok=True)
+
+        # Cache for type derivation results to avoid re-analyzing validators
+        self._type_cache: Dict[Tuple[str, str], type] = {}
+
+    def _derive_type_from_validator(self, key: str, validator: Callable, setting_type: str) -> Optional[type]:
+        """
+        Derive the expected type from a validation lambda function.
+
+        Analyzes validation function source code patterns to determine expected type:
+        - float(v) with decimal range → float
+        - int(v) in [...] → int
+        - .lower() in ['true', 'false'] → bool
+        - .lower() in [string list] → str
+
+        Args:
+            key: Setting name
+            validator: Validation lambda function
+            setting_type: 'camera' or 'liveview' (for cache key)
+
+        Returns:
+            Python type (int, float, bool, str) or None if unable to determine
+        """
+        # Check cache first
+        cache_key = (setting_type, key)
+        if cache_key in self._type_cache:
+            return self._type_cache[cache_key]
+
+        try:
+            # Get the source code of the validator (works for lambdas and functions)
+            import inspect
+
+            # Check if it's a lambda or a function
+            validator_name = getattr(validator, '__name__', None)
+
+            # Handle special function names that indicate type
+            if validator_name:
+                if 'int_enum' in validator_name:
+                    derived_type = int
+                    self._type_cache[cache_key] = derived_type
+                    return derived_type
+                elif 'exposure_time' in validator_name:
+                    # ExposureTime validation function returns int
+                    derived_type = int
+                    self._type_cache[cache_key] = derived_type
+                    return derived_type
+
+            source = inspect.getsource(validator).strip()
+
+            # Pattern matching to infer type
+            derived_type = None
+
+            # Check for calls to validation helper functions
+            if '_validate_int_enum' in source or '_validate_exposure_time' in source:
+                derived_type = int
+
+            # Boolean: str(v).lower() in ['true', 'false']
+            elif re.search(r"\.lower\(\)\s+in\s+\[.*['\"]true['\"].*['\"]false['\"]", source):
+                derived_type = bool
+
+            # String enum: str(v).lower() in ['option1', 'option2', ...]
+            # (but NOT the boolean pattern above)
+            elif re.search(r"str\(v\)\.lower\(\)", source) and not re.search(r"['\"]true['\"]", source):
+                derived_type = str
+
+            # Float: float(v) with decimal literals in range checks
+            elif re.search(r"float\(v\)", source) and re.search(r"\d+\.\d+", source):
+                derived_type = float
+
+            # Integer: int(v) in [...] or range checks with integers only
+            elif re.search(r"int\(v\)", source):
+                derived_type = int
+
+            # isinstance checks (complex validators)
+            elif re.search(r"isinstance\(v,\s*int\)", source):
+                derived_type = int
+            elif re.search(r"isinstance\(v,\s*float\)", source):
+                derived_type = float
+            elif re.search(r"isinstance\(v,\s*bool\)", source):
+                derived_type = bool
+
+            # Cache the result
+            if derived_type:
+                self._type_cache[cache_key] = derived_type
+
+            return derived_type
+
+        except (OSError, TypeError) as e:
+            # inspect.getsource() can fail for built-in functions or C code
+            logger.debug(f"Could not derive type for {setting_type} setting '{key}': {e}")
+            return None
+
+    def _normalize_setting_types(self, settings: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Normalize setting value types from strings to their proper types.
+
+        This ensures consistent JSON serialization regardless of data source:
+        - Numbers stored as strings (from CSV/TXT files) → int/float
+        - Booleans stored as strings ("true", "True", "false") → bool
+        - Actual string values remain strings
+
+        Args:
+            settings: Dict with 'camera' and/or 'liveview' settings
+
+        Returns:
+            Settings dict with normalized types
+        """
+        normalized = {}
+
+        # Normalize camera settings
+        if 'camera' in settings:
+            normalized['camera'] = {}
+            for key, value in settings['camera'].items():
+                normalized['camera'][key] = self._convert_value_type(key, value, 'camera')
+
+        # Normalize liveview settings
+        if 'liveview' in settings:
+            normalized['liveview'] = {}
+            for key, value in settings['liveview'].items():
+                normalized['liveview'][key] = self._convert_value_type(key, value, 'liveview')
+
+        return normalized
+
+    def _convert_value_type(self, key: str, value: Any, setting_type: str) -> Union[int, float, bool, str]:
+        """
+        Convert a single setting value from string to its proper type using validation schemas.
+
+        This method derives the expected type from the validation schema (ALLOWED_CAMERA_SETTINGS
+        or ALLOWED_LIVEVIEW_SETTINGS) rather than using hardcoded type lists. This ensures
+        consistency between validation and type normalization.
+
+        Args:
+            key: Setting name (e.g., 'ExposureTime', 'sharpness')
+            value: Raw value (possibly string)
+            setting_type: 'camera' or 'liveview'
+
+        Returns:
+            Value with proper type, or original value if conversion fails
+        """
+        # If already non-string type, return as-is (already correct type)
+        if not isinstance(value, str):
+            return value
+
+        # Get the appropriate validation schema
+        schema = ALLOWED_CAMERA_SETTINGS if setting_type == 'camera' else ALLOWED_LIVEVIEW_SETTINGS
+
+        # Check if key exists in schema
+        if key in schema:
+            validator = schema[key]
+
+            # Derive type from validator function
+            expected_type = self._derive_type_from_validator(key, validator, setting_type)
+
+            if expected_type == bool:
+                # Boolean conversion: 'true', '1', 'yes' → True
+                return value.lower() in ['true', '1', 'yes']
+
+            elif expected_type == int:
+                # Integer conversion
+                try:
+                    return int(value)
+                except (ValueError, TypeError) as e:
+                    logger.warning(
+                        f"Failed to convert {setting_type} setting '{key}' value '{value}' to int: {e}. "
+                        f"Keeping as string."
+                    )
+                    return value
+
+            elif expected_type == float:
+                # Float conversion
+                try:
+                    return float(value)
+                except (ValueError, TypeError) as e:
+                    logger.warning(
+                        f"Failed to convert {setting_type} setting '{key}' value '{value}' to float: {e}. "
+                        f"Keeping as string."
+                    )
+                    return value
+
+            elif expected_type == str:
+                # String enum - lowercase for consistency
+                return value.lower() if value else value
+
+            else:
+                # Could not derive type from validator - fall back to inference
+                logger.debug(
+                    f"Could not derive type for {setting_type} setting '{key}' from validator. "
+                    f"Using type inference."
+                )
+                return self._infer_type(value)
+        else:
+            # Unknown setting not in schema - use type inference
+            logger.debug(
+                f"{setting_type.capitalize()} setting '{key}' not found in validation schema. "
+                f"Using type inference."
+            )
+            return self._infer_type(value)
+
+        return value
+
+    def _infer_type(self, value: str) -> Union[int, float, bool, str]:
+        """
+        Infer the proper type for a string value when schema lookup fails.
+
+        This method is ONLY used as a fallback when:
+        1. A setting is not found in ALLOWED_CAMERA_SETTINGS or ALLOWED_LIVEVIEW_SETTINGS
+        2. Type derivation from the validator function fails
+
+        For known settings, type conversion is always schema-based via _convert_value_type().
+
+        Type inference hierarchy:
+        1. Boolean: 'true', 'false', 'yes', 'no', '1', '0' → bool
+           - Note: '0'/'1' are treated as booleans in this fallback
+           - Schema-based conversion distinguishes boolean vs integer fields
+        2. Integer: No decimal point → int (e.g., '42', '100')
+        3. Float: Contains decimal point → float (e.g., '3.14', '1.0')
+        4. String: Everything else → str (e.g., 'green', 'custom')
+
+        Args:
+            value: String value to convert
+
+        Returns:
+            Value with inferred type
+
+        Examples:
+            >>> _infer_type('true')
+            True
+            >>> _infer_type('1')
+            True  # Treated as boolean in fallback
+            >>> _infer_type('42')
+            42
+            >>> _infer_type('3.14')
+            3.14
+            >>> _infer_type('hello')
+            'hello'
+        """
+        if not isinstance(value, str):
+            return value
+
+        # Try boolean - includes '1'/'0' for compatibility
+        # (Note: Schema-based conversion handles proper bool vs int distinction)
+        if value.lower() in ['true', 'false', 'yes', 'no', '1', '0']:
+            return value.lower() in ['true', 'yes', '1']
+
+        # Try integer (no decimal point)
+        try:
+            if '.' not in value:
+                return int(value)
+        except (ValueError, TypeError):
+            pass
+
+        # Try float (has decimal point or scientific notation)
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            pass
+
+        # Keep as string (for text values, enums, etc.)
+        return value
 
     def list_presets(self) -> List[Dict]:
         """
@@ -175,7 +443,10 @@ class PresetManager:
         if workflow not in ['photo', 'liveview', 'both']:
             return False, "Workflow must be 'photo', 'liveview', or 'both'"
 
-        # Build preset data FIRST
+        # Normalize setting types FIRST (convert strings to proper types)
+        normalized_settings = self._normalize_setting_types(settings)
+
+        # Build preset data
         preset_data = {
             'name': name,
             'display_name': name.replace('_', ' ').title(),
@@ -185,7 +456,7 @@ class PresetManager:
             'author': 'user',
             'category': 'user',
             'workflow': workflow,
-            'settings': settings
+            'settings': normalized_settings
         }
 
         # Normalize and validate the complete preset structure

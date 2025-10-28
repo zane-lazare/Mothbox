@@ -175,6 +175,50 @@ ALLOWED_CAMERA_SETTINGS = {
     'FocusPeakingAlgorithm': lambda v: str(v).lower() in ['laplacian', 'sobel', 'canny'],
 }
 
+# Liveview settings validation schema
+# These settings control the live preview stream and real-time camera controls
+ALLOWED_LIVEVIEW_SETTINGS = {
+    # Boolean controls - Enable/disable features
+    'focus_peaking_enabled': lambda v: str(v).lower() in ['true', 'false'],
+    'awb_enable': lambda v: str(v).lower() in ['true', 'false'],
+    'ae_enable': lambda v: str(v).lower() in ['true', 'false'],
+    'lens_shading_enable': lambda v: str(v).lower() in ['true', 'false'],
+    'defect_correction_enable': lambda v: str(v).lower() in ['true', 'false'],
+    'use_custom_tuning': lambda v: str(v).lower() in ['true', 'false'],
+
+    # Integer controls - Modes and discrete values
+    'noise_reduction_mode': lambda v: int(v) in [0, 1, 2],  # 0=Off, 1=Fast, 2=High Quality
+    'awb_mode': lambda v: 0 <= int(v) <= 7,  # 0=Auto, 1=Incandescent, ..., 7=Custom
+    'af_mode': lambda v: int(v) in [0, 1, 2],  # 0=Manual, 1=Auto Single, 2=Continuous
+    'af_speed': lambda v: int(v) in [0, 1],  # 0=Normal, 1=Fast
+    'af_range': lambda v: int(v) in [0, 1, 2],  # 0=Normal, 1=Macro, 2=Full
+    'ae_metering_mode': lambda v: int(v) in [0, 1, 2],  # 0=Centre, 1=Spot, 2=Matrix
+
+    # Stream configuration (integers)
+    'stream_width': lambda v: 640 <= int(v) <= 1920,
+    'stream_height': lambda v: 480 <= int(v) <= 1080,
+    'stream_quality': lambda v: 1 <= int(v) <= 100,  # JPEG quality
+    'stream_framerate': lambda v: 1 <= int(v) <= 60,
+
+    # Float controls - Continuous adjustments
+    'sharpness': lambda v: 0.0 <= float(v) <= 4.0,
+    'brightness': lambda v: -1.0 <= float(v) <= 1.0,
+    'contrast': lambda v: 0.0 <= float(v) <= 4.0,
+    'saturation': lambda v: 0.0 <= float(v) <= 4.0,
+    'analogue_gain': lambda v: 1.0 <= float(v) <= 16.0,  # ISO gain
+    'exposure_value': lambda v: -8.0 <= float(v) <= 8.0,  # EV compensation
+    'lens_position': lambda v: 0.0 <= float(v) <= 10.0,  # Diopters (manual focus)
+
+    # Color gains (floats) - for manual white balance
+    'colour_gains_red': lambda v: 1.0 <= float(v) <= 4.0,
+    'colour_gains_blue': lambda v: 1.0 <= float(v) <= 4.0,
+
+    # Focus peaking configuration
+    'focus_peaking_intensity': lambda v: 0.0 <= float(v) <= 200.0,
+    'focus_peaking_color': lambda v: str(v).lower() in ['green', 'red', 'yellow', 'cyan', 'magenta'],
+    'focus_peaking_algorithm': lambda v: str(v).lower() in ['laplacian', 'sobel', 'canny'],
+}
+
 camera_bp = Blueprint('camera', __name__)
 
 
