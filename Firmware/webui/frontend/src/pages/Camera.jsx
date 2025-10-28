@@ -6,6 +6,47 @@ import toast from 'react-hot-toast'
 import SavePresetModal from '../components/SavePresetModal'
 
 /**
+ * Field list constants for API response validation
+ *
+ * These constants define which fields to validate in different contexts.
+ * Different API endpoints and workflows expose different subsets of settings.
+ *
+ * Field Categories:
+ * - BASIC_SETTINGS_FIELDS: Core image quality settings (sharpness, brightness, contrast, saturation)
+ * - CAMERA_CONTROL_FIELDS: Camera mode/behavior settings (noise reduction, metering, AF modes)
+ * - AE_FIELDS: Auto-exposure enable flag (used when AE state is relevant)
+ * - MANUAL_CONTROL_FIELDS: Manual exposure/focus values (exposure_time, gain, lens_position)
+ *
+ * Validation Strategy by Context:
+ *
+ * 1. settings_reloaded event (SSE):
+ *    - Validates: BASIC + CAMERA_CONTROL + AE_FIELDS
+ *    - Rationale: Cross-page settings updates include AE state but not manual control values
+ *
+ * 2. preview start settings refresh:
+ *    - Validates: BASIC + CAMERA_CONTROL + AE_FIELDS + MANUAL_CONTROL_FIELDS
+ *    - Rationale: Live preview needs all settings including manual controls for UI consistency
+ *
+ * 3. preset initialization:
+ *    - Validates: BASIC + CAMERA_CONTROL (no AE_FIELDS or MANUAL_CONTROL_FIELDS)
+ *    - Rationale: Preset application focuses on core settings, manual values handled separately
+ *
+ * 4. settings update after preset:
+ *    - Validates: BASIC + CAMERA_CONTROL (no AE_FIELDS or MANUAL_CONTROL_FIELDS)
+ *    - Rationale: Same as preset initialization - core settings only
+ *
+ * Why different field lists?
+ * - Not all API endpoints return the same fields
+ * - Manual control values are only relevant during live preview
+ * - Validating unused fields would create false warnings
+ * - This approach makes validation intent explicit and maintainable
+ */
+const BASIC_SETTINGS_FIELDS = ['sharpness', 'brightness', 'contrast', 'saturation']
+const CAMERA_CONTROL_FIELDS = ['noise_reduction_mode', 'ae_metering_mode', 'af_mode', 'af_range', 'af_speed']
+const AE_FIELDS = ['ae_enable']
+const MANUAL_CONTROL_FIELDS = ['exposure_time', 'analogue_gain', 'lens_position']
+
+/**
  * Validates API response has expected fields, warns in dev mode if missing.
  * Helps debug silent fallback issues where missing API fields use previous values.
  *
@@ -336,10 +377,11 @@ export default function Camera() {
         const response = await fetch(`${API_URL}/config/webui`)
         if (response.ok) {
           const data = await response.json()
+          // Validate basic settings + camera controls + AE enable
           const validatedData = validateApiResponse(data, [
-            'sharpness', 'brightness', 'contrast', 'saturation',
-            'noise_reduction_mode', 'ae_metering_mode', 'ae_enable',
-            'af_mode', 'af_range', 'af_speed'
+            ...BASIC_SETTINGS_FIELDS,
+            ...CAMERA_CONTROL_FIELDS,
+            ...AE_FIELDS
           ], 'settings_reloaded event')
 
           setLiveControls(prev => ({
@@ -432,11 +474,12 @@ export default function Camera() {
         const response = await fetch(`${API_URL}/config/webui`)
         if (response.ok) {
           const data = await response.json()
+          // Validate all settings including manual controls for live preview
           const validatedData = validateApiResponse(data, [
-            'sharpness', 'brightness', 'contrast', 'saturation',
-            'noise_reduction_mode', 'ae_metering_mode', 'ae_enable',
-            'exposure_time', 'analogue_gain', 'af_mode', 'lens_position',
-            'af_range', 'af_speed'
+            ...BASIC_SETTINGS_FIELDS,
+            ...CAMERA_CONTROL_FIELDS,
+            ...AE_FIELDS,
+            ...MANUAL_CONTROL_FIELDS
           ], 'preview start settings refresh')
 
           setLiveControls(prev => ({
@@ -958,10 +1001,10 @@ export default function Camera() {
       const response = await fetch(`${API_URL}/config/webui`)
       if (response.ok) {
         const data = await response.json()
+        // Validate basic settings + camera controls (no manual fields for preset init)
         const validatedData = validateApiResponse(data, [
-          'sharpness', 'brightness', 'contrast', 'saturation',
-          'noise_reduction_mode', 'ae_metering_mode', 'af_mode',
-          'af_range', 'af_speed'
+          ...BASIC_SETTINGS_FIELDS,
+          ...CAMERA_CONTROL_FIELDS
         ], 'preset initialization')
 
         setLiveControls(prev => ({
@@ -1008,10 +1051,10 @@ export default function Camera() {
       const response = await fetch(`${API_URL}/config/webui`)
       if (response.ok) {
         const data = await response.json()
+        // Validate basic settings + camera controls (no manual fields after preset)
         const validatedData = validateApiResponse(data, [
-          'sharpness', 'brightness', 'contrast', 'saturation',
-          'noise_reduction_mode', 'ae_metering_mode', 'af_mode',
-          'af_range', 'af_speed'
+          ...BASIC_SETTINGS_FIELDS,
+          ...CAMERA_CONTROL_FIELDS
         ], 'settings update after preset')
 
         // Update live controls with new preset values
