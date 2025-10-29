@@ -12,8 +12,15 @@ import simplejpeg
 from PIL import Image
 
 
+@pytest.mark.hardware
 class TestSimpleJPEGEncoding:
-    """Test simplejpeg encoding performance vs PIL"""
+    """Test simplejpeg encoding performance vs PIL
+
+    Marked with @pytest.mark.hardware because:
+    - Requires simplejpeg (compiled ARM extension, Pi-only)
+    - Tests will auto-skip in CI (no Pi hardware)
+    - Tests run on actual Raspberry Pi hardware
+    """
 
     def test_simplejpeg_available(self):
         """Verify simplejpeg is installed"""
