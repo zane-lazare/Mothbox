@@ -8,8 +8,15 @@ import numpy as np
 import time
 import io
 import base64
-import simplejpeg
 from PIL import Image
+
+# Import simplejpeg conditionally - only available on Raspberry Pi
+try:
+    import simplejpeg
+    SIMPLEJPEG_AVAILABLE = True
+except ImportError:
+    SIMPLEJPEG_AVAILABLE = False
+    simplejpeg = None  # Allow test collection to succeed
 
 
 @pytest.mark.hardware
