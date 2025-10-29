@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCapture, freezeSettings, getPresets, applyPreset, createPreset, getPreferences, setPreference, updateWebuiSettings } from '../utils/api'
+import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCaptureLiveview, freezeSettings, getPresets, applyPreset, createPreset, getPreferences, setPreference, updateWebuiSettings } from '../utils/api'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { io } from 'socket.io-client'
@@ -727,7 +727,7 @@ export default function Camera() {
     setTestCapturing(true)
     setTestCaptureResult(null)
     try {
-      const response = await testCapture()
+      const response = await testCaptureLiveview()
       toast.success(`Test photo captured: ${response.data.test_photo_path}`)
       setTestCaptureResult({
         success: true,
