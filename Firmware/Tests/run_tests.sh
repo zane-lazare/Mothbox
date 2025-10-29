@@ -75,6 +75,13 @@ case "$TEST_TYPE" in
         pytest Tests/integration/test_stream_performance.py -v -s
         ;;
 
+    "installer"|"installer-integration")
+        echo "🚀 Running Installer Integration tests (Issue #13 Phase 2)..."
+        echo ""
+        echo "Testing install_mothbox.sh workflows (Python equivalents + mocks)"
+        pytest Tests/integration/test_installer_workflows.py -v
+        ;;
+
     "controls")
         # Phase 2: Test camera controls validation
         echo "🚀 Testing Phase 2 camera controls validation..."

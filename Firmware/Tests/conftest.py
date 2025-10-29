@@ -513,11 +513,18 @@ def pytest_collection_modifyitems(config, items):
     Automatically mark tests requiring hardware
 
     Tests in integration/ directory are automatically marked with @pytest.mark.hardware
-    unless they're manual verification tests.
+    unless they're:
+    - manual verification tests
+    - installer workflow tests (use mocks/tmp_path, no actual hardware needed)
     """
     for item in items:
-        # Mark integration tests (except manual verification) as hardware tests
-        if 'integration' in str(item.fspath) and 'manual_verification' not in str(item.fspath):
+        # Mark integration tests (except manual verification and installer) as hardware tests
+        fspath_str = str(item.fspath)
+        is_integration = 'integration' in fspath_str
+        is_manual = 'manual_verification' in fspath_str
+        is_installer = 'installer' in fspath_str  # installer_workflows or installer_helpers
+
+        if is_integration and not is_manual and not is_installer:
             item.add_marker(pytest.mark.hardware)
 
 
