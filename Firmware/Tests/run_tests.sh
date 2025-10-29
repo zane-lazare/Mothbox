@@ -297,6 +297,22 @@ case "$TEST_TYPE" in
         cd ../..
         ;;
 
+    "preset-errors"|"preset-notifications")
+        # Preset Error Notification tests (PR #72)
+        echo "🚀 Running Preset Error Notification Integration tests (PR #72)..."
+        echo ""
+        if [ ! -d "webui/frontend/node_modules" ]; then
+            echo "   Installing frontend dependencies..."
+            cd webui/frontend && npm install && cd ../..
+        fi
+        echo "Testing preset initialization error notifications..."
+        echo "⚠️  NOTE: Backend must be running at http://localhost:5000"
+        echo ""
+        cd webui/frontend
+        npm test -- --run preset-errors
+        cd ../..
+        ;;
+
     "issue43"|"complete")
         # All tests for GitHub issue #43 (updated for Issue #45)
         echo "🚀 Running COMPLETE test suite for GitHub issue #43..."
@@ -366,6 +382,8 @@ case "$TEST_TYPE" in
         echo "  gps-integration - Same as gps"
         echo "  gps-frontend  - GPS Frontend tests (Vitest - React components)"
         echo "  gps-all       - All GPS tests (backend pytest + frontend vitest)"
+        echo "  preset-errors - Preset Error Notification tests (PR #72 - frontend integration)"
+        echo "  preset-notifications - Same as preset-errors"
         echo ""
         echo "=== Legacy Phase Commands (backward compatibility) ==="
         echo "  phase2        - Run Phase 2 complete test suite"

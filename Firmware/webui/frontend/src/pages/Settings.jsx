@@ -313,8 +313,21 @@ export default function Settings() {
             console.log(`Applied fallback photo preset: ${fallbackPreset.name}`)
           } catch (fallbackError) {
             console.error('Failed to apply fallback photo preset:', fallbackError)
+            const fallbackDisplayName = fallbackPreset.display_name || fallbackPreset.name
+            const fallbackMsg = fallbackError.response?.data?.error || 'Failed to load preset'
+            toast.error(`Failed to load fallback preset "${fallbackDisplayName}": ${fallbackMsg}`)
           }
+        } else {
+          // No fallback available
+          const preset = presetsData?.presets?.find(p => p.name === presetName)
+          const displayName = preset?.display_name || presetName
+          toast.error(`Photo preset "${displayName}" not found and no fallback available`)
         }
+      } else {
+        // Non-recoverable error (not a preset not found issue)
+        const preset = presetsData?.presets?.find(p => p.name === presetName)
+        const displayName = preset?.display_name || presetName
+        toast.error(`Preset "${displayName}" failed to load: ${errorMsg}`)
       }
     }
   }
@@ -349,8 +362,21 @@ export default function Settings() {
             console.log(`Applied fallback liveview preset: ${fallbackPreset.name}`)
           } catch (fallbackError) {
             console.error('Failed to apply fallback liveview preset:', fallbackError)
+            const fallbackDisplayName = fallbackPreset.display_name || fallbackPreset.name
+            const fallbackMsg = fallbackError.response?.data?.error || 'Failed to load preset'
+            toast.error(`Failed to load fallback preset "${fallbackDisplayName}": ${fallbackMsg}`)
           }
+        } else {
+          // No fallback available
+          const preset = presetsData?.presets?.find(p => p.name === presetName)
+          const displayName = preset?.display_name || presetName
+          toast.error(`Liveview preset "${displayName}" not found and no fallback available`)
         }
+      } else {
+        // Non-recoverable error (not a preset not found issue)
+        const preset = presetsData?.presets?.find(p => p.name === presetName)
+        const displayName = preset?.display_name || presetName
+        toast.error(`Preset "${displayName}" failed to load: ${errorMsg}`)
       }
     }
   }
