@@ -252,10 +252,10 @@ class PresetManager:
         For known settings, type conversion is always schema-based via _convert_value_type().
 
         Type inference hierarchy:
-        1. Boolean: 'true', 'false', 'yes', 'no', '1', '0' → bool
-           - Note: '0'/'1' are treated as booleans in this fallback
+        1. Boolean: 'true', 'false', 'yes', 'no' → bool
+           - Conservative: '0'/'1' NOT treated as booleans
            - Schema-based conversion distinguishes boolean vs integer fields
-        2. Integer: No decimal point → int (e.g., '42', '100')
+        2. Integer: No decimal point → int (e.g., '0', '1', '42', '100')
         3. Float: Contains decimal point → float (e.g., '3.14', '1.0')
         4. String: Everything else → str (e.g., 'green', 'custom')
 
@@ -269,7 +269,9 @@ class PresetManager:
             >>> _infer_type('true')
             True
             >>> _infer_type('1')
-            True  # Treated as boolean in fallback
+            1  # Treated as integer (conservative approach)
+            >>> _infer_type('0')
+            0  # Treated as integer (conservative approach)
             >>> _infer_type('42')
             42
             >>> _infer_type('3.14')
@@ -280,12 +282,15 @@ class PresetManager:
         if not isinstance(value, str):
             return value
 
-        # Try boolean - includes '1'/'0' for compatibility
-        # (Note: Schema-based conversion handles proper bool vs int distinction)
-        if value.lower() in ['true', 'false', 'yes', 'no', '1', '0']:
-            return value.lower() in ['true', 'yes', '1']
+        # Try boolean - only explicit boolean strings, not numeric '0'/'1'
+        # This is more conservative: '0'/'1' are treated as integers, not booleans.
+        # Known settings use schema-based conversion which correctly distinguishes
+        # between integer enums (0/1/2) and boolean fields (true/false).
+        if value.lower() in ['true', 'false', 'yes', 'no']:
+            return value.lower() in ['true', 'yes']
 
         # Try integer (no decimal point)
+        # Note: '0' and '1' will be parsed here as integers, not as booleans above
         try:
             if '.' not in value:
                 return int(value)

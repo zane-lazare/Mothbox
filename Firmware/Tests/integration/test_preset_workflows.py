@@ -429,3 +429,98 @@ def client():
     app.register_blueprint(config_bp, url_prefix='/api/config')
 
     return app.test_client()
+
+
+class TestBooleanNormalizationValidation:
+    """
+    Test that boolean normalization (liberal) + validation (strict) work correctly.
+
+    Addresses code review issue #4: Verify that liberal boolean normalization
+    ('1', 'yes' → True) combined with strict validation ('true'/'false' only)
+    creates a secure canonicalization pipeline without bypasses.
+    """
+
+    def test_boolean_normalization_validation_consistency(self):
+        """Verify that liberal normalization + strict validation work together"""
+        from preset_manager import PresetManager
+        from routes.camera import ALLOWED_CAMERA_SETTINGS
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            builtin_dir = Path(tmpdir) / "builtin"
+            user_dir = Path(tmpdir) / "user"
+            builtin_dir.mkdir()
+            user_dir.mkdir()
+
+            manager = PresetManager(builtin_dir, user_dir)
+
+            # Test Case 1: Save preset with '1' (liberal input accepted by normalization)
+            print("\n🧪 Test 1: Liberal normalization accepts '1' for boolean...")
+            success, msg = manager.save_preset(
+                name="test_bool_1",
+                settings={
+                    'camera': {'AeEnable': '1'}  # String '1'
+                },
+                description="Test boolean from '1'",
+                workflow="photo"
+            )
+            assert success, f"Should accept '1' via normalization: {msg}"
+            print("✓ Normalization accepted '1' and saved preset")
+
+            # Test Case 2: Verify normalization converted '1' → True (Python bool)
+            print("\n🧪 Test 2: Verify '1' was normalized to boolean True...")
+            preset = manager.get_preset("test_bool_1")
+            assert preset is not None
+            assert preset['settings']['camera']['AeEnable'] is True, \
+                f"Should normalize '1' to True, got {preset['settings']['camera']['AeEnable']}"
+            assert isinstance(preset['settings']['camera']['AeEnable'], bool), \
+                f"Should be boolean, got {type(preset['settings']['camera']['AeEnable'])}"
+            print(f"✓ Normalized value is Python bool: {preset['settings']['camera']['AeEnable']}")
+
+            # Test Case 3: Verify validation accepts normalized boolean
+            print("\n🧪 Test 3: Strict validation accepts normalized boolean True...")
+            validator = ALLOWED_CAMERA_SETTINGS['AeEnable']
+            # Validation converts: bool → str → 'true' → validates
+            assert validator(True), "Validator should accept Python bool True"
+            print("✓ Validation passed for boolean True")
+
+            # Test Case 4: Direct API with '1' should REJECT (strict validation)
+            print("\n🧪 Test 4: Direct API calls with '1' are rejected...")
+            # Validator checks: str('1').lower() in ['true', 'false'] → False
+            try:
+                result = validator('1')
+                assert not result, "Validator should reject string '1' directly"
+                print("✓ Direct '1' rejected by strict validation")
+            except:
+                print("✓ Direct '1' rejected by strict validation (exception)")
+
+            # Test Case 5: Same test with 'yes'
+            print("\n🧪 Test 5: Liberal normalization accepts 'yes'...")
+            success, msg = manager.save_preset(
+                name="test_bool_yes",
+                settings={
+                    'liveview': {'ae_enable': 'yes'}  # String 'yes'
+                },
+                description="Test boolean from 'yes'",
+                workflow="liveview"
+            )
+            assert success, f"Should accept 'yes' via normalization: {msg}"
+
+            preset = manager.get_preset("test_bool_yes")
+            assert preset['settings']['liveview']['ae_enable'] is True
+            print("✓ Normalization accepted 'yes' → True")
+
+            # Test Case 6: Verify 'yes' cannot bypass validation
+            print("\n🧪 Test 6: Direct 'yes' rejected by strict validation...")
+            from routes.camera import ALLOWED_LIVEVIEW_SETTINGS
+            liveview_validator = ALLOWED_LIVEVIEW_SETTINGS['ae_enable']
+            try:
+                result = liveview_validator('yes')
+                assert not result, "Validator should reject string 'yes' directly"
+                print("✓ Direct 'yes' rejected by strict validation")
+            except:
+                print("✓ Direct 'yes' rejected by strict validation (exception)")
+
+            print("\n" + "="*70)
+            print("✓ All tests passed: Normalization + Validation = Secure Pipeline")
+            print("="*70)

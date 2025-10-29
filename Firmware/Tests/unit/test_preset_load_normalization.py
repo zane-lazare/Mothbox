@@ -86,7 +86,7 @@ class TestPresetLoadNormalization:
         assert liveview['brightness'] == 0
 
     def test_list_presets_with_string_values(self, preset_manager):
-        """Test that list_presets() also normalizes types"""
+        """Test that list_presets() normalizes types when loading presets"""
         # Create multiple presets with string values
         for i in range(3):
             preset_data = {
@@ -119,6 +119,30 @@ class TestPresetLoadNormalization:
         for preset in presets:
             assert preset['category'] == 'built-in', "Category should be 'built-in'"
             assert 'test_preset_' in preset['name']
+
+        # NEW: Verify that type normalization actually occurred by loading full preset data
+        for i in range(3):
+            preset_data = preset_manager.get_preset(f'test_preset_{i}')
+            assert preset_data is not None, f"Preset test_preset_{i} should load successfully"
+
+            # Verify camera setting types were normalized from strings to proper types
+            camera = preset_data['settings']['camera']
+            assert isinstance(camera['ExposureTime'], int), \
+                f"ExposureTime should be int, got {type(camera['ExposureTime'])}"
+            assert camera['ExposureTime'] == 10000 + i * 1000, \
+                f"ExposureTime value should be {10000 + i * 1000}, got {camera['ExposureTime']}"
+
+            assert isinstance(camera['Sharpness'], float), \
+                f"Sharpness should be float, got {type(camera['Sharpness'])}"
+            assert camera['Sharpness'] == pytest.approx(1.0 + i * 0.1), \
+                f"Sharpness value should be ~{1.0 + i * 0.1}, got {camera['Sharpness']}"
+
+            # Verify liveview setting types were normalized
+            liveview = preset_data['settings']['liveview']
+            assert isinstance(liveview['sharpness'], float), \
+                f"liveview sharpness should be float, got {type(liveview['sharpness'])}"
+            assert liveview['sharpness'] == pytest.approx(1.5 + i * 0.1), \
+                f"liveview sharpness value should be ~{1.5 + i * 0.1}, got {liveview['sharpness']}"
 
     def test_load_preset_with_mixed_types(self, preset_manager):
         """Test preset with both proper types and string types"""
