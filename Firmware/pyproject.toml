@@ -1,0 +1,104 @@
+# Mothbox Firmware - pytest and coverage configuration
+# Created for Issue #13 Phase 3: CI/CD Integration
+
+[tool.pytest.ini_options]
+testpaths = ["Tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Additional pytest options
+addopts = [
+    "-ra",                    # Show summary of all test outcomes
+    "--strict-markers",       # Raise error on unregistered markers
+    "--strict-config",        # Raise error on config issues
+    "--showlocals",          # Show local variables in tracebacks
+]
+
+# Test markers (defined in Tests/conftest.py)
+markers = [
+    "hardware: tests requiring Raspberry Pi hardware (camera, GPIO, sensors)",
+    "photo: tests using photo workflow (TakePhoto.py subprocess)",
+    "stream: tests using stream workflow (CameraStreamer instance)",
+    "both: tests using both photo and stream workflows",
+    "websocket: tests using WebSocket/SocketIO layer",
+    "performance: performance and benchmark tests",
+    "integration: multi-component integration tests",
+    "calibration: calibration functionality tests",
+    "unit: unit tests for individual functions and modules",
+]
+
+[tool.coverage.run]
+# Source directories to measure coverage
+source = [".", "webui/backend"]
+
+# Files and directories to omit from coverage
+omit = [
+    # Test files
+    "*/tests/*",
+    "*/Tests/*",
+
+    # Python cache and build
+    "*/__pycache__/*",
+    "*/site-packages/*",
+    "*/venv/*",
+    "*/.venv/*",
+
+    # External libraries bundled with firmware
+    "*/4.x/scripts/RaspberryPi_JetsonNano_Epaper/*",
+    "*/5.x/scripts/RaspberryPi_JetsonNano_Epaper/*",
+
+    # Frontend code (tested separately with vitest)
+    "*/webui/frontend/*",
+
+    # Scripts that are run manually (not imported)
+    "*/installation-utils/scripts/*",
+]
+
+# Enable branch coverage (more thorough than line coverage)
+branch = true
+
+[tool.coverage.report]
+# Decimal precision for coverage percentages
+precision = 2
+
+# Show lines that are missing coverage
+show_missing = true
+
+# Don't skip files with 100% coverage
+skip_covered = false
+
+# Lines to exclude from coverage measurement
+exclude_lines = [
+    # Standard pragmas
+    "pragma: no cover",
+
+    # Defensive programming
+    "raise AssertionError",
+    "raise NotImplementedError",
+
+    # Type checking
+    "if TYPE_CHECKING:",
+    "if not TYPE_CHECKING:",
+
+    # Debugging
+    "def __repr__",
+
+    # Platform-specific code
+    "if sys.platform",
+
+    # Main block
+    "if __name__ == .__main__.:",
+
+    # Abstract methods
+    "@(abc\\.)?abstractmethod",
+    "@overload",
+]
+
+[tool.coverage.html]
+# Output directory for HTML coverage reports
+directory = "htmlcov"
+
+[tool.coverage.xml]
+# Output file for XML coverage reports (for CI/CD)
+output = "coverage.xml"

@@ -347,13 +347,151 @@ pytest Tests/integration/test_frontend_integration.py Tests/unit/test_settings_c
 pytest Tests/integration/test_manual_verification.py::TestPhase3ManualVerification -v -s
 ```
 
-## Next Steps
+## CI/CD Integration (Issue #13 Phase 3)
+
+### Overview
+
+Automated testing runs on every push to `main`, `dev`, and `feature/**` branches via GitHub Actions.
+
+**Workflow File**: `.github/workflows/test.yml`
+
+### What Runs in CI/CD
+
+**Backend Tests** (Python 3.13):
+- Unit tests with coverage tracking
+- Integration tests (non-hardware only)
+- Coverage threshold enforcement (85%)
+
+**Frontend Tests** (Node.js 20):
+- Vitest component tests
+- Coverage reports
+
+**Total CI Time**: ~5-8 minutes per run
+
+### Test Badges
+
+[![Tests](https://github.com/zane-lazare/Mothbox/actions/workflows/test.yml/badge.svg)](https://github.com/zane-lazare/Mothbox/actions/workflows/test.yml)
+
+### Running CI Tests Locally
+
+Simulate the GitHub Actions workflow on your local machine:
+
+```bash
+# Run the same tests that run in CI/CD
+./Tests/run_tests.sh ci
+
+# This will:
+# 1. Run unit tests with coverage (mothbox_paths.py, webui/backend)
+# 2. Run integration tests (skipping hardware-dependent tests)
+# 3. Check coverage threshold (must be ≥85%)
+# 4. Generate HTML coverage report
+```
+
+**Coverage Reports**:
+- **HTML**: `Firmware/htmlcov/index.html` (open in browser)
+- **XML**: `Firmware/coverage.xml` (for CI/CD tools)
+- **Terminal**: Displayed after test run
+
+### Hardware vs CI Tests
+
+**Hardware Tests** (marked with `@pytest.mark.hardware`):
+- ✅ **On Raspberry Pi**: All tests run (unit + integration + hardware)
+- ⚠️ **In CI (GitHub Actions)**: Hardware tests automatically skipped
+- 🔧 **Local dev**: Hardware tests skipped on non-Pi systems
+
+**Why Some Tests Are Skipped in CI**:
+- CI runs on `ubuntu-latest` (no camera hardware)
+- Hardware tests require: Picamera2, GPIO pins, sensors
+- Automatic detection via `Tests/conftest.py` pytest hooks
+
+### Coverage Requirements
+
+**Enforced Thresholds**:
+- **New code**: 85% coverage minimum (enforced in CI)
+- **mothbox_paths.py**: 95%+ target
+- **webui/backend**: 85%+ target
+
+**Checking Coverage**:
+```bash
+# Run tests with coverage report
+pytest Tests/unit/ --cov=mothbox_paths --cov=webui/backend --cov-report=term-missing
+
+# Check if coverage meets threshold
+coverage report --fail-under=85
+```
+
+### Workflow Triggers
+
+**Automatic**:
+- Push to `main`, `dev`, or `feature/**` branches
+- Pull requests to `main` or `dev`
+- Only when relevant files change (Python, tests, configs)
+
+**Manual**:
+- Go to Actions tab in GitHub
+- Select "Mothbox Tests" workflow
+- Click "Run workflow"
+
+### Viewing CI Results
+
+**GitHub Actions**:
+1. Go to repository → Actions tab
+2. Click on latest workflow run
+3. View "Backend Tests" and "Frontend Tests" jobs
+4. Download coverage artifacts (available for 7 days)
+
+**Coverage Artifacts**:
+- `coverage-report-python-3.13`: HTML coverage report
+- `coverage-xml-python-3.13`: XML for external tools
+- `frontend-coverage-node-20`: Frontend coverage
+
+### Troubleshooting CI Failures
+
+**Common Issues**:
+
+1. **Coverage below 85%**:
+   ```bash
+   # Run locally to see what's missing
+   ./Tests/run_tests.sh ci
+   # Open htmlcov/index.html to see uncovered lines
+   ```
+
+2. **Hardware test failures in CI**:
+   - Check if test is marked with `@pytest.mark.hardware`
+   - Ensure test uses `-m "not hardware"` filter in CI
+
+3. **Import errors**:
+   - Verify `requirements-test.txt` is up to date
+   - Check Python version compatibility (3.10+)
+
+4. **Test timeouts**:
+   - CI has 2-minute timeout per test (pytest-timeout)
+   - Long-running tests should use `@pytest.mark.timeout(300)`
+
+### Configuration Files
+
+**pytest Configuration**: `Firmware/pyproject.toml`
+- Test discovery patterns
+- Coverage source paths
+- Test markers (hardware, photo, stream, etc.)
+- Excluded paths and lines
+
+**GitHub Actions**: `.github/workflows/test.yml`
+- Python version matrix (3.13)
+- Node.js version (20.x)
+- Coverage threshold (85%)
+- Artifact retention (7 days)
+
+### Next Steps
 
 Completed Phases:
 - **Phase 1.1-1.3**: ✅ Camera stream performance optimizations
 - **Phase 2.1**: ✅ Expanded camera controls
 - **Phase 2.2**: ✅ Interactive features (autofocus, calibration, metadata)
 - **Phase 3**: ✅ Frontend integration tests
+- **Issue #13 Phase 1**: ✅ Hardware configuration tests (mothbox_paths.py)
+- **Issue #13 Phase 2**: ✅ Installer integration tests
+- **Issue #13 Phase 3**: ✅ CI/CD integration with GitHub Actions
 
 Future Phases:
 - **Phase 4**: Advanced features (HDR, presets, profiles)
@@ -362,6 +500,6 @@ See [GitHub Issue #43](https://github.com/user/repo/issues/43) for full implemen
 
 ---
 
-**Last Updated**: 2025-10-12
-**Test Suite Version**: 2.0.0 (Phase 3 Complete)
+**Last Updated**: 2025-10-30
+**Test Suite Version**: 3.0.0 (Issue #13 Phase 3 - CI/CD Integration)
 **Mothbox Version**: 5.x
