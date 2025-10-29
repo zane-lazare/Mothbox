@@ -324,6 +324,11 @@ class PresetManager:
 
                         # Normalize and validate preset
                         data = self.normalize_preset(data)
+
+                        # Normalize setting types (convert strings to proper int/float/bool)
+                        if 'settings' in data:
+                            data['settings'] = self._normalize_setting_types(data['settings'])
+
                         valid, error_msg = self.validate_preset(data)
                         if not valid:
                             print(f"Warning: Skipping invalid built-in preset {preset_file.name}: {error_msg}")
@@ -350,6 +355,11 @@ class PresetManager:
 
                         # Normalize and validate preset
                         data = self.normalize_preset(data)
+
+                        # Normalize setting types (convert strings to proper int/float/bool)
+                        if 'settings' in data:
+                            data['settings'] = self._normalize_setting_types(data['settings'])
+
                         valid, error_msg = self.validate_preset(data)
                         if not valid:
                             print(f"Warning: Skipping invalid user preset {preset_file.name}: {error_msg}")
@@ -406,6 +416,12 @@ class PresetManager:
         # Normalize and validate the preset before returning
         if preset_data:
             preset_data = self.normalize_preset(preset_data)
+
+            # Normalize setting types (convert strings to proper int/float/bool)
+            # This handles legacy presets and manually edited files
+            if 'settings' in preset_data:
+                preset_data['settings'] = self._normalize_setting_types(preset_data['settings'])
+
             valid, error_msg = self.validate_preset(preset_data)
             if not valid:
                 print(f"Error: Invalid preset '{name}': {error_msg}")
@@ -552,22 +568,25 @@ class PresetManager:
         Returns:
             Tuple of (valid: bool, error_message: str)
         """
+        preset_name = preset_data.get('name', 'unknown')
+        preset_category = preset_data.get('category', 'unknown')
+
         # Check for settings key
         if 'settings' in preset_data:
             settings = preset_data['settings']
         elif 'camera' in preset_data or 'liveview' in preset_data:
             settings = preset_data
         else:
-            return False, "Preset must contain 'settings' or 'camera'/'liveview' keys"
+            return False, f"Preset must contain 'settings' or 'camera'/'liveview' keys. If this is a legacy preset, try re-saving it from the Settings page."
 
         # Settings must have at least camera or liveview
         if 'camera' not in settings and 'liveview' not in settings:
-            return False, "Preset must contain 'camera' and/or 'liveview' settings"
+            return False, f"Preset must contain 'camera' and/or 'liveview' settings. This preset may be corrupted or from an incompatible version."
 
         # Camera settings validation (basic type checking)
         if 'camera' in settings:
             if not isinstance(settings['camera'], dict):
-                return False, "Camera settings must be a dictionary"
+                return False, f"Camera settings must be a dictionary (found {type(settings['camera']).__name__}). This preset may be corrupted."
 
             # Check for common required fields
             camera = settings['camera']
@@ -578,13 +597,13 @@ class PresetManager:
                     if field in camera:
                         try:
                             float(camera[field])
-                        except (ValueError, TypeError):
-                            return False, f"Camera setting '{field}' must be numeric"
+                        except (ValueError, TypeError) as e:
+                            return False, f"Camera setting '{field}' has invalid value '{camera[field]}' (must be numeric). If this is a legacy preset, try re-saving it."
 
         # Liveview settings validation
         if 'liveview' in settings:
             if not isinstance(settings['liveview'], dict):
-                return False, "Liveview settings must be a dictionary"
+                return False, f"Liveview settings must be a dictionary (found {type(settings['liveview']).__name__}). This preset may be corrupted."
 
             # Type checks for liveview settings
             liveview = settings['liveview']
@@ -594,8 +613,8 @@ class PresetManager:
                     if field in liveview:
                         try:
                             float(liveview[field])
-                        except (ValueError, TypeError):
-                            return False, f"Liveview setting '{field}' must be numeric"
+                        except (ValueError, TypeError) as e:
+                            return False, f"Liveview setting '{field}' has invalid value '{liveview[field]}' (must be numeric). If this is a legacy preset, try re-saving it."
 
                 # Validate focus peaking boolean
                 if 'focus_peaking_enabled' in liveview:
