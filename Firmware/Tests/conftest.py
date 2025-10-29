@@ -648,6 +648,89 @@ def verify_camera_state(request):
             camera_streamer.stop_streaming()
 
 
+@pytest.fixture
+def temp_controls_file(tmp_path, monkeypatch):
+    """
+    Create temporary controls.txt for isolated testing.
+
+    Follows pattern from temp_webui_settings fixture. Creates temp file and
+    patches mothbox_paths.CONTROLS_FILE to point to it.
+
+    This fixture ensures tests:
+    - Don't modify real configuration files
+    - Run in isolation (each test gets fresh file)
+    - Work on any platform (no hardware dependencies)
+
+    Usage:
+        def test_something(temp_controls_file):
+            temp_controls_file.write_text("Relay_Ch1=5\\n")
+            # Test code using patched CONTROLS_FILE...
+
+    Related: Issue #13 Phase 1 (hardware configuration testing)
+    """
+    import mothbox_paths
+
+    # Create temporary file
+    temp_file = tmp_path / "controls.txt"
+    temp_file.touch()
+
+    # Patch the module-level constant (use Path object, not string)
+    monkeypatch.setattr(mothbox_paths, 'CONTROLS_FILE', temp_file)
+
+    yield temp_file
+    # Cleanup happens automatically with tmp_path
+
+
+@pytest.fixture
+def controls_file_factory(tmp_path):
+    """
+    Factory fixture for creating controls.txt files with custom content.
+
+    Allows creating multiple controls files in a single test for comparison.
+
+    Usage:
+        def test_multiple_configs(controls_file_factory):
+            config1 = controls_file_factory("Relay_Ch1=5\\n")
+            config2 = controls_file_factory("Relay_Ch1=10\\n")
+            # Compare behaviors...
+
+    Related: Issue #13 Phase 1 (hardware configuration testing)
+    """
+    def _create_controls(content: str) -> Path:
+        """Create a controls file with the given content"""
+        controls = tmp_path / f"controls_{id(content)}.txt"
+        controls.write_text(content)
+        return controls
+
+    return _create_controls
+
+
+@pytest.fixture
+def assert_gpio_pins_equal():
+    """
+    Helper to compare GPIO pin dictionaries with clear error messages.
+
+    Provides better error messages than direct dict comparison by checking
+    each key individually and showing which pin mismatched.
+
+    Usage:
+        def test_pins(assert_gpio_pins_equal):
+            actual = get_gpio_pins()
+            expected = {'Relay_Ch1': 5, 'Relay_Ch2': 19, 'Relay_Ch3': 9}
+            assert_gpio_pins_equal(actual, expected, "5.x firmware pins")
+
+    Related: Issue #13 Phase 1 (hardware configuration testing)
+    """
+    def _assert_equal(actual, expected, message=""):
+        """Compare two GPIO pin dictionaries with detailed error messages"""
+        for key in expected:
+            assert key in actual, f"{message}: Missing key {key}"
+            assert actual[key] == expected[key], \
+                f"{message}: {key} mismatch - expected {expected[key]}, got {actual[key]}"
+
+    return _assert_equal
+
+
 def pytest_runtest_teardown(item, nextitem):
     """
     Force garbage collection after each test to prevent memory exhaustion

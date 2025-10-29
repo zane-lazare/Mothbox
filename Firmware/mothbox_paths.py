@@ -122,7 +122,8 @@ def get_control_values(filename: Union[Path, str]) -> Dict[str, str]:
                 line = line.strip()
                 if line and '=' in line and not line.startswith('#'):
                     key, value = line.split("=", 1)
-                    control_values[key] = value
+                    # Strip whitespace from key and value (Issue #13 bug fix)
+                    control_values[key.strip()] = value.strip()
     except FileNotFoundError:
         pass  # Return empty dict if file doesn't exist
     return control_values
@@ -184,6 +185,57 @@ def get_takephoto_script() -> Path:
     return takephoto_script
 
 
+def _validate_gpio_pin(pin: int, pin_name: str, mode: str = 'BCM') -> int:
+    """
+    Validate GPIO pin number for Raspberry Pi.
+
+    Args:
+        pin: GPIO pin number to validate
+        pin_name: Name of the pin for error messages (e.g., 'Relay_Ch1')
+        mode: Pin numbering mode - 'BCM' (Broadcom) or 'BOARD' (physical)
+
+    Returns:
+        int: The validated pin number
+
+    Raises:
+        ValueError: If pin number is invalid for the specified mode
+
+    Note:
+        - BCM mode: Valid range 2-27 (avoid 0,1 reserved for I2C)
+        - BOARD mode: Valid range 1-40 (physical pin positions)
+        - Added in Issue #13 Phase 1 for input validation
+    """
+    import sys
+
+    if mode == 'BCM':
+        # BCM GPIO numbering (Broadcom chip)
+        if pin < 0 or pin > 27:
+            raise ValueError(
+                f"Invalid BCM GPIO pin for {pin_name}: {pin}. "
+                f"Valid range is 0-27. Check controls.txt configuration."
+            )
+        if pin in (0, 1):
+            # Pins 0 and 1 are typically reserved for I2C (ID_SD, ID_SC)
+            print(
+                f"Warning: {pin_name} uses BCM GPIO {pin}, which is typically "
+                f"reserved for I2C. Ensure this doesn't conflict with hardware.",
+                file=sys.stderr
+            )
+    elif mode == 'BOARD':
+        # Physical pin numbering (1-40 on 40-pin header)
+        if pin < 1 or pin > 40:
+            raise ValueError(
+                f"Invalid BOARD mode pin for {pin_name}: {pin}. "
+                f"Valid range is 1-40 (physical pins). Check controls.txt configuration."
+            )
+        # Pins 1,2,4,6,9,14,17,20,25,27,28,30,34,39 are power/ground (not GPIO)
+        # But we allow them - validation happens at GPIO library level
+    else:
+        raise ValueError(f"Invalid GPIO mode: {mode}. Must be 'BCM' or 'BOARD'.")
+
+    return pin
+
+
 def get_gpio_pins() -> Dict[str, int]:
     """
     Load GPIO pin configuration from controls.txt with fallback defaults.
@@ -197,13 +249,16 @@ def get_gpio_pins() -> Dict[str, int]:
             Relay_Ch1=5
             Relay_Ch2=19
             Relay_Ch3=9
+
+        Pins are validated to be in BCM range (0-27). Invalid pins raise ValueError.
     """
     try:
         pins = get_control_values(CONTROLS_FILE)
+        # Parse and validate each pin (BCM mode)
         return {
-            'Relay_Ch1': int(pins.get('Relay_Ch1', 26)),  # Default to 4.x pins
-            'Relay_Ch2': int(pins.get('Relay_Ch2', 20)),
-            'Relay_Ch3': int(pins.get('Relay_Ch3', 21))
+            'Relay_Ch1': _validate_gpio_pin(int(pins.get('Relay_Ch1', 26)), 'Relay_Ch1', 'BCM'),
+            'Relay_Ch2': _validate_gpio_pin(int(pins.get('Relay_Ch2', 20)), 'Relay_Ch2', 'BCM'),
+            'Relay_Ch3': _validate_gpio_pin(int(pins.get('Relay_Ch3', 21)), 'Relay_Ch3', 'BCM')
         }
     except (FileNotFoundError, ValueError, KeyError) as e:
         import sys
@@ -222,15 +277,18 @@ def get_epaper_pins() -> Dict[str, int]:
     Note:
         Default pins for Waveshare 2.13" e-paper display:
             RST_PIN=17, DC_PIN=25, CS_PIN=8, BUSY_PIN=24, PWR_PIN=18
+
+        Pins are validated to be in BCM range (0-27). Invalid pins raise ValueError.
     """
     try:
         config = get_control_values(CONTROLS_FILE)
+        # Parse and validate each pin (BCM mode)
         return {
-            'RST_PIN': int(config.get('epaper_rst_pin', '17')),
-            'DC_PIN': int(config.get('epaper_dc_pin', '25')),
-            'CS_PIN': int(config.get('epaper_cs_pin', '8')),
-            'BUSY_PIN': int(config.get('epaper_busy_pin', '24')),
-            'PWR_PIN': int(config.get('epaper_pwr_pin', '18')),
+            'RST_PIN': _validate_gpio_pin(int(config.get('epaper_rst_pin', '17')), 'epaper_rst_pin', 'BCM'),
+            'DC_PIN': _validate_gpio_pin(int(config.get('epaper_dc_pin', '25')), 'epaper_dc_pin', 'BCM'),
+            'CS_PIN': _validate_gpio_pin(int(config.get('epaper_cs_pin', '8')), 'epaper_cs_pin', 'BCM'),
+            'BUSY_PIN': _validate_gpio_pin(int(config.get('epaper_busy_pin', '24')), 'epaper_busy_pin', 'BCM'),
+            'PWR_PIN': _validate_gpio_pin(int(config.get('epaper_pwr_pin', '18')), 'epaper_pwr_pin', 'BCM'),
         }
     except (FileNotFoundError, ValueError, KeyError) as e:
         import sys
@@ -254,17 +312,20 @@ def get_mux_pins() -> Dict[str, int]:
     Note:
         Default pins for CD74HC4067 dual multiplexer setup:
             EN_A=31, EN_B=29, S0=33, S1=13, S2=12, S3=15, SIG=36
+
+        Pins are validated to be in BOARD range (1-40). Invalid pins raise ValueError.
     """
     try:
         config = get_control_values(CONTROLS_FILE)
+        # Parse and validate each pin (BOARD mode - physical pin numbers)
         return {
-            'EN_A': int(config.get('mux_en_a', '31')),
-            'EN_B': int(config.get('mux_en_b', '29')),
-            'S0': int(config.get('mux_s0', '33')),
-            'S1': int(config.get('mux_s1', '13')),
-            'S2': int(config.get('mux_s2', '12')),
-            'S3': int(config.get('mux_s3', '15')),
-            'SIG': int(config.get('mux_sig', '36')),
+            'EN_A': _validate_gpio_pin(int(config.get('mux_en_a', '31')), 'mux_en_a', 'BOARD'),
+            'EN_B': _validate_gpio_pin(int(config.get('mux_en_b', '29')), 'mux_en_b', 'BOARD'),
+            'S0': _validate_gpio_pin(int(config.get('mux_s0', '33')), 'mux_s0', 'BOARD'),
+            'S1': _validate_gpio_pin(int(config.get('mux_s1', '13')), 'mux_s1', 'BOARD'),
+            'S2': _validate_gpio_pin(int(config.get('mux_s2', '12')), 'mux_s2', 'BOARD'),
+            'S3': _validate_gpio_pin(int(config.get('mux_s3', '15')), 'mux_s3', 'BOARD'),
+            'SIG': _validate_gpio_pin(int(config.get('mux_sig', '36')), 'mux_sig', 'BOARD'),
         }
     except (FileNotFoundError, ValueError, KeyError) as e:
         import sys

@@ -56,12 +56,14 @@ pytest Tests/unit/test_camera_stream.py::TestSimpleJPEGEncoding::test_encoding_s
 ```
 Tests/
 ├── __init__.py
-├── README.md                    # This file
-├── requirements-test.txt        # Test dependencies
+├── README.md                     # This file
+├── conftest.py                   # Shared fixtures
+├── requirements-test.txt         # Test dependencies
 ├── unit/
 │   ├── __init__.py
-│   ├── test_camera_stream.py   # simplejpeg encoding tests
-│   └── test_config_validation.py  # Settings validation tests
+│   ├── test_camera_stream.py    # simplejpeg encoding tests
+│   ├── test_config_validation.py # Settings validation tests
+│   └── test_mothbox_paths_hardware.py  # Hardware configuration tests (Issue #13)
 └── integration/
     ├── __init__.py
     ├── test_stream_performance.py  # Sustained performance tests
@@ -86,6 +88,49 @@ Tests/
 - **Frame rate validation**: 1-30 FPS
 - **Stream mode validation**: simplejpeg/mjpeg_hardware
 - **Settings persistence**: Save and load correctly
+
+#### `test_mothbox_paths_hardware.py` *(NEW - Issue #13 Phase 1)*
+Comprehensive tests for hardware configuration functions in `mothbox_paths.py`:
+
+- **get_control_values()** (12 tests): Configuration file parser
+  - Basic key=value parsing, comment handling, edge cases
+  - Whitespace stripping (bug fix validation)
+  - Unicode support, long lines, malformed input
+
+- **get_gpio_pins()** (13 tests): Relay GPIO pin configuration
+  - Default 4.x firmware pins (26/20/21)
+  - Custom pin configuration from controls.txt
+  - Partial configuration (some keys missing)
+  - GPIO validation (BCM range 0-27)
+  - I2C reserved pin warnings (GPIO 0, 1)
+
+- **get_epaper_pins()** (9 tests): E-paper display pins
+  - Waveshare 2.13" defaults (17/25/8/24/18)
+  - Config key mapping (epaper_*_pin → *_PIN)
+  - Partial and invalid configurations
+
+- **get_mux_pins()** (10 tests): Multiplexer pins
+  - CD74HC4067 defaults (31/29/33/13/12/15/36)
+  - BOARD mode validation (physical pins 1-40)
+  - Distinction from BCM numbering
+
+- **get_hardware_config()** (15 tests): Complete hardware configuration (32 keys)
+  - All 7 hardware modules (relay, INA260, e-paper, GPS, light sensor, PCA9536, mux)
+  - Boolean parsing (case-insensitive)
+  - Hex address parsing (0x40 → 64)
+  - GPS adaptive timeouts (5 timeout keys)
+  - Partial and missing configuration handling
+
+**Coverage**: 97.8% for tested functions (270/276 lines)
+
+**Run**:
+```bash
+# Run all hardware config tests
+pytest Tests/unit/test_mothbox_paths_hardware.py -v
+
+# With coverage report
+pytest Tests/unit/test_mothbox_paths_hardware.py --cov=mothbox_paths --cov-report=term-missing
+```
 
 ### Integration Tests
 
