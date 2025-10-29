@@ -14,6 +14,9 @@ from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CAMERA_SETTINGS_FILE, CONTRO
 # Import camera control mapping
 from camera_control_mapping import build_picamera_controls, convert_from_settings_file
 
+# Import shared utilities
+from utils import sanitize_csv_value, ALLOWED_CAMERA_SETTINGS, ALLOWED_LIVEVIEW_SETTINGS
+
 
 # ============================================================================
 # Helper Functions
@@ -81,166 +84,6 @@ def _emit_calibration_progress(step, total_steps, message, progress):
         # Don't fail calibration if progress emission fails
         print(f"Warning: Failed to emit calibration progress: {e}")
 
-
-# Allowed camera settings with validation functions
-def _validate_int_enum(v, allowed_values):
-    """Validate integer enum - rejects floats, raises exception for invalid types"""
-    if isinstance(v, bool):
-        raise TypeError("Boolean not allowed")
-    if isinstance(v, float):
-        raise TypeError("Float not allowed for integer enum")
-    return int(v) in allowed_values
-
-def _validate_exposure_time(v):
-    """Validate ExposureTime - must be integer or digit string in range"""
-    if v is None:
-        raise TypeError("None not allowed for ExposureTime")
-    if isinstance(v, bool):
-        raise TypeError("Boolean not allowed for ExposureTime")
-
-    # Try to convert to integer
-    try:
-        value = int(v)
-    except (ValueError, TypeError):
-        raise ValueError(f"ExposureTime must be integer or digit string, got {type(v).__name__}")
-
-    # Check range: must be positive and less than 1 second (1000000µs)
-    return 0 < value < 1000000
-
-def _validate_noise_reduction_mode(v):
-    """Validate NoiseReductionMode - accepts int or digit string in [0,1,2]
-
-    Args:
-        v: Value to validate (int or string)
-
-    Returns:
-        bool: True if valid (int in [0,1,2] OR digit string converting to [0,1,2])
-
-    Notes:
-        0=Off, 1=Fast, 2=High Quality
-    """
-    # Accept integers directly
-    if isinstance(v, int) and v in [0, 1, 2]:
-        return True
-    # Accept digit strings that convert to valid values
-    if isinstance(v, str) and v.isdigit() and int(v) in [0, 1, 2]:
-        return True
-    return False
-
-ALLOWED_CAMERA_SETTINGS = {
-    # Image quality controls (practical ranges: 0-4 for sharpness/contrast/saturation)
-    'Sharpness': lambda v: 0.0 <= float(v) <= 4.0,
-    'Brightness': lambda v: -1.0 <= float(v) <= 1.0,
-    'Contrast': lambda v: 0.0 <= float(v) <= 4.0,
-    'Saturation': lambda v: 0.0 <= float(v) <= 4.0,
-
-    # Exposure controls
-    'ExposureTime': _validate_exposure_time,  # microseconds
-    'ExposureValue': lambda v: -8.0 <= float(v) <= 8.0,  # EV compensation
-    'AnalogueGain': lambda v: 1.0 <= float(v) <= 16.0,  # ISO gain
-    'AeEnable': lambda v: str(v).lower() in ['true', 'false'],  # Auto exposure
-
-    # Focus controls
-    'AfMode': lambda v: _validate_int_enum(v, [0, 1, 2]),  # 0=Manual, 1=Auto Single, 2=Continuous
-    'AfSpeed': lambda v: _validate_int_enum(v, [0, 1]),  # 0=Normal, 1=Fast
-    'AfRange': lambda v: _validate_int_enum(v, [0, 1, 2]),  # 0=Normal, 1=Macro, 2=Full
-    'AfMetering': lambda v: _validate_int_enum(v, [0, 1, 2]),  # Metering mode
-    'LensPosition': lambda v: 0.0 <= float(v) <= 10.0,  # Diopters (manual focus)
-
-    # Exposure metering controls
-    'AeMeteringMode': lambda v: int(v) in [0, 1, 2],  # 0=Centre, 1=Spot, 2=Matrix
-
-    # White balance controls
-    'AwbEnable': lambda v: str(v).lower() in ['true', 'false'],
-    'AwbMode': lambda v: 0 <= int(v) <= 7,  # 0=Auto, 1=Incandescent, ..., 7=Custom
-    'ColourGainRed': lambda v: 1.0 <= float(v) <= 4.0,  # Red channel gain
-    'ColourGainBlue': lambda v: 1.0 <= float(v) <= 4.0,  # Blue channel gain
-
-    # Noise reduction controls
-    'NoiseReductionMode': lambda v: _validate_noise_reduction_mode(v),  # 0=Off, 1=Fast, 2=High Quality
-
-    # ISP features (Phase: ISP Tuning)
-    'LensShadingEnable': lambda v: str(v).lower() in ['true', 'false'],
-    'DefectCorrectionEnable': lambda v: str(v).lower() in ['true', 'false'],
-    'UseCustomTuning': lambda v: str(v).lower() in ['true', 'false'],
-
-    # HDR/Bracketing
-    'HDR': lambda v: int(v) in [1, 3, 5, 7],  # Number of bracketed exposures
-    'HDR_width': lambda v: 1000 <= int(v) <= 50000,  # Bracket step size (µs)
-
-    # Focus Bracketing
-    'FocusBracket': lambda v: 1 <= int(v) <= 10,  # Number of focus steps
-    'FocusBracket_Start': lambda v: 0.0 <= float(v) <= 10.0,  # Start focus position (diopters)
-    'FocusBracket_End': lambda v: 0.0 <= float(v) <= 10.0,  # End focus position (diopters)
-
-    # Focus Bracketing - Advanced Timing Settings
-    'FlashDelay_BeforeCapture': lambda v: 0 <= int(v) <= 500,  # Delay after flash on, before capture (ms)
-    'FlashDelay_AfterCapture': lambda v: 0 <= int(v) <= 500,  # Delay after capture, before flash off (ms)
-    'FocusBracket_SettleDelay': lambda v: 100 <= int(v) <= 2000,  # Lens settle delay between focus changes (ms)
-
-    # Focus Bracketing - Color Consistency Settings
-    'FocusBracket_LockColorGains': lambda v: int(v) in [0, 1],  # 0=Use AWB, 1=Lock gains
-    'FocusBracket_ColorGainRed': lambda v: 1.0 <= float(v) <= 4.0,  # Red channel gain
-    'FocusBracket_ColorGainBlue': lambda v: 1.0 <= float(v) <= 4.0,  # Blue channel gain
-
-    # Auto-calibration
-    'AutoCalibration': lambda v: int(v) in [0, 1],  # 0=Off, 1=On
-    'AutoCalibrationPeriod': lambda v: 1 <= int(v) <= 10000,  # Photos between calibrations
-
-    # Image format
-    'ImageFileType': lambda v: int(v) in [0, 1, 2],  # 0=JPEG, 1=PNG, 2=BMP
-    'VerticalFlip': lambda v: int(v) in [0, 1],  # 0=No flip, 1=Flip
-
-    # Focus peaking (preview-only overlay)
-    'FocusPeakingEnabled': lambda v: str(v).lower() in ['true', 'false'],
-    'FocusPeakingIntensity': lambda v: 50 <= int(v) <= 200,
-    'FocusPeakingColor': lambda v: str(v).lower() in ['green', 'red', 'yellow', 'cyan', 'magenta'],
-    'FocusPeakingAlgorithm': lambda v: str(v).lower() in ['laplacian', 'sobel', 'canny'],
-}
-
-# Liveview settings validation schema
-# These settings control the live preview stream and real-time camera controls
-ALLOWED_LIVEVIEW_SETTINGS = {
-    # Boolean controls - Enable/disable features
-    'focus_peaking_enabled': lambda v: str(v).lower() in ['true', 'false'],
-    'awb_enable': lambda v: str(v).lower() in ['true', 'false'],
-    'ae_enable': lambda v: str(v).lower() in ['true', 'false'],
-    'lens_shading_enable': lambda v: str(v).lower() in ['true', 'false'],
-    'defect_correction_enable': lambda v: str(v).lower() in ['true', 'false'],
-    'use_custom_tuning': lambda v: str(v).lower() in ['true', 'false'],
-
-    # Integer controls - Modes and discrete values
-    'noise_reduction_mode': lambda v: int(v) in [0, 1, 2],  # 0=Off, 1=Fast, 2=High Quality
-    'awb_mode': lambda v: 0 <= int(v) <= 7,  # 0=Auto, 1=Incandescent, ..., 7=Custom
-    'af_mode': lambda v: int(v) in [0, 1, 2],  # 0=Manual, 1=Auto Single, 2=Continuous
-    'af_speed': lambda v: int(v) in [0, 1],  # 0=Normal, 1=Fast
-    'af_range': lambda v: int(v) in [0, 1, 2],  # 0=Normal, 1=Macro, 2=Full
-    'ae_metering_mode': lambda v: int(v) in [0, 1, 2],  # 0=Centre, 1=Spot, 2=Matrix
-
-    # Stream configuration (integers)
-    'stream_width': lambda v: 640 <= int(v) <= 1920,
-    'stream_height': lambda v: 480 <= int(v) <= 1080,
-    'stream_quality': lambda v: 1 <= int(v) <= 100,  # JPEG quality
-    'stream_framerate': lambda v: 1 <= int(v) <= 60,
-
-    # Float controls - Continuous adjustments
-    'sharpness': lambda v: 0.0 <= float(v) <= 4.0,
-    'brightness': lambda v: -1.0 <= float(v) <= 1.0,
-    'contrast': lambda v: 0.0 <= float(v) <= 4.0,
-    'saturation': lambda v: 0.0 <= float(v) <= 4.0,
-    'analogue_gain': lambda v: 1.0 <= float(v) <= 16.0,  # ISO gain
-    'exposure_value': lambda v: -8.0 <= float(v) <= 8.0,  # EV compensation
-    'lens_position': lambda v: 0.0 <= float(v) <= 10.0,  # Diopters (manual focus)
-
-    # Color gains (floats) - for manual white balance
-    'colour_gains_red': lambda v: 1.0 <= float(v) <= 4.0,
-    'colour_gains_blue': lambda v: 1.0 <= float(v) <= 4.0,
-
-    # Focus peaking configuration
-    'focus_peaking_intensity': lambda v: 0.0 <= float(v) <= 200.0,
-    'focus_peaking_color': lambda v: str(v).lower() in ['green', 'red', 'yellow', 'cyan', 'magenta'],
-    'focus_peaking_algorithm': lambda v: str(v).lower() in ['laplacian', 'sobel', 'canny'],
-}
 
 camera_bp = Blueprint('camera', __name__)
 
@@ -581,9 +424,7 @@ def update_camera_settings():
                 csv_rows.append(dict(row))
 
         # Sanitize values to prevent CSV injection (defense in depth)
-        # Lazy import to avoid circular dependency with app.py
-        from routes.config import _sanitize_csv_value
-        sanitized_settings = {k: _sanitize_csv_value(v) for k, v in new_settings.items()}
+        sanitized_settings = {k: sanitize_csv_value(v) for k, v in new_settings.items()}
 
         # Update the corresponding rows
         for setting_name, setting_value in sanitized_settings.items():

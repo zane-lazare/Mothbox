@@ -21,7 +21,7 @@ from typing import Dict, List, Optional, Tuple, Any, Union, Callable
 
 # Import validation schemas for type normalization
 sys.path.insert(0, str(Path(__file__).parent))
-from routes.camera import ALLOWED_CAMERA_SETTINGS, ALLOWED_LIVEVIEW_SETTINGS
+from utils import ALLOWED_CAMERA_SETTINGS, ALLOWED_LIVEVIEW_SETTINGS
 
 # Setup logging
 logger = logging.getLogger(__name__)

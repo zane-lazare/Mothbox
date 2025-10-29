@@ -21,46 +21,13 @@ from mothbox_paths import (
 # Import camera control mapping
 from camera_control_mapping import SNAKE_TO_PASCAL, convert_to_settings_file
 
+# Import shared utilities
+from utils import sanitize_csv_value, ALLOWED_CAMERA_SETTINGS, create_backup
+
 # Valid BCM GPIO pins (BCM mode: GPIO 2-27)
 VALID_BCM_GPIO_PINS = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27]
 
 config_bp = Blueprint('config', __name__)
-
-def _create_backup(file_path, keep=5):
-    """
-    Create a timestamped backup of a configuration file.
-
-    Args:
-        file_path: Path to the file to backup
-        keep: Number of backups to retain (default: 5)
-
-    Returns:
-        Path to the backup file
-    """
-    if not file_path.exists():
-        return None
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = file_path.with_suffix(f'{file_path.suffix}.backup.{timestamp}')
-
-    try:
-        shutil.copy2(file_path, backup_path)
-
-        # Cleanup old backups - keep only the most recent 'keep' backups
-        backup_pattern = f"{file_path.name}.backup.*"
-        backups = sorted(file_path.parent.glob(backup_pattern), key=lambda p: p.stat().st_mtime, reverse=True)
-
-        # Remove old backups beyond the keep limit
-        for old_backup in backups[keep:]:
-            try:
-                old_backup.unlink()
-            except Exception as e:
-                print(f"Warning: Could not delete old backup {old_backup}: {e}")
-
-        return backup_path
-    except Exception as e:
-        print(f"Warning: Failed to create backup of {file_path}: {e}")
-        return None
 
 # Whitelist of allowed controls.txt keys with validation functions
 ALLOWED_CONTROLS = {
@@ -125,7 +92,7 @@ def update_controls():
         }
 
         # Create backup before modification
-        backup_path = _create_backup(CONTROLS_FILE)
+        backup_path = create_backup(CONTROLS_FILE)
 
         # Write new configuration
         with open(CONTROLS_FILE, 'w') as f:
@@ -158,22 +125,6 @@ def get_schedule_settings():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def _sanitize_csv_value(value):
-    """Sanitize value to prevent CSV injection attacks"""
-    str_value = str(value)
-
-    # Prevent CSV formula injection by prefixing with single quote if starts with dangerous chars
-    if str_value.startswith(('=', '+', '-', '@', '\t', '\r')):
-        str_value = "'" + str_value
-
-    # Remove newlines and carriage returns to prevent multi-line injection
-    str_value = str_value.replace('\n', ' ').replace('\r', ' ')
-
-    # Limit length to prevent DoS
-    if len(str_value) > 1000:
-        str_value = str_value[:1000]
-
-    return str_value
 
 @config_bp.route('/schedule', methods=['POST'])
 def update_schedule_settings():
@@ -197,12 +148,12 @@ def update_schedule_settings():
 
         # Sanitize all values to prevent CSV injection
         sanitized_settings = {
-            k: _sanitize_csv_value(v)
+            k: sanitize_csv_value(v)
             for k, v in new_settings.items()
         }
 
         # Create backup before modification
-        backup_path = _create_backup(SCHEDULE_SETTINGS_FILE)
+        backup_path = create_backup(SCHEDULE_SETTINGS_FILE)
 
         # Write updated settings
         with open(SCHEDULE_SETTINGS_FILE, 'w', newline='') as f:
@@ -505,7 +456,7 @@ def update_webui_settings():
             return jsonify({'error': 'focus_peaking_algorithm must be laplacian, sobel, or canny'}), 400
 
         # Create backup before modification
-        backup_path = _create_backup(LIVEVIEW_SETTINGS_FILE)
+        backup_path = create_backup(LIVEVIEW_SETTINGS_FILE)
 
         # Write settings to file
         with open(LIVEVIEW_SETTINGS_FILE, 'w') as f:
@@ -656,7 +607,6 @@ def copy_settings():
                         capture_value = converter(preview_value)
 
                         # Validate using capture validator
-                        from routes.camera import ALLOWED_CAMERA_SETTINGS
                         if capture_key in ALLOWED_CAMERA_SETTINGS:
                             if ALLOWED_CAMERA_SETTINGS[capture_key](capture_value):
                                 # Update the settings dict
