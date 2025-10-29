@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCapture, freezeSettings, getPresets, applyPreset, createPreset, getPreferences, setPreference, updateWebUISettings } from '../utils/api'
+import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCapture, freezeSettings, getPresets, applyPreset, createPreset, getPreferences, setPreference, updateWebuiSettings } from '../utils/api'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
@@ -99,13 +99,13 @@ export default function Camera() {
     lensPosition: 3.0,  // Diopters (0.0-10.0, middle position default)
     afRange: 0,  // 0=Normal, 1=Macro, 2=Full
     afSpeed: 0,  // 0=Normal, 1=Fast
-    // White balance / Color gains
+    // White balance / Colour gains
     colourGainRed: 2.259,  // Red channel gain (1.0-4.0)
     colourGainBlue: 1.500,  // Blue channel gain (1.0-4.0)
     // Focus peaking controls (live view-only overlay)
     focusPeakingEnabled: false,
     focusPeakingIntensity: 100,  // 50-200 range
-    focusPeakingColor: 'green',  // green, red, yellow, cyan, magenta
+    focusPeakingColour: 'green',  // green, red, yellow, cyan, magenta
     focusPeakingAlgorithm: 'laplacian'  // laplacian, sobel, canny
   })
   const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
@@ -160,7 +160,7 @@ export default function Camera() {
 
   // Update webui settings mutation
   const updateWebuiMutation = useMutation({
-    mutationFn: updateWebUISettings,
+    mutationFn: updateWebuiSettings,
     onSuccess: () => {
       queryClient.invalidateQueries(['webui-settings'])
     },
@@ -281,7 +281,7 @@ export default function Camera() {
             lensPosition: data.lens_position !== undefined ? data.lens_position : 3.0,
             afRange: data.af_range !== undefined ? data.af_range : 0,  // Default: Normal range
             afSpeed: data.af_speed !== undefined ? data.af_speed : 0,  // Default: Normal speed
-            // White balance / Color gains - load from backend or use defaults
+            // White balance / Colour gains - load from backend or use defaults
             colourGainRed: data.colour_gains_red !== undefined ? data.colour_gains_red : 2.259,
             colourGainBlue: data.colour_gains_blue !== undefined ? data.colour_gains_blue : 1.500
           })
@@ -960,7 +960,7 @@ export default function Camera() {
       lensPosition: 3.0,  // Middle position
       afRange: 0,  // Normal range
       afSpeed: 0,  // Normal speed
-      // Color balance defaults
+      // Colour balance defaults
       colourGainRed: 2.259,
       colourGainBlue: 1.500
     }
@@ -1390,7 +1390,7 @@ export default function Camera() {
                     <span className="font-semibold text-blue-300">{metadata.af_state}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-300">Color Temp:</span>
+                    <span className="text-gray-300">Colour Temp:</span>
                     <span className="font-semibold text-blue-300">{metadata.colour_temperature}K</span>
                   </div>
                 </div>
@@ -1652,7 +1652,7 @@ export default function Camera() {
 
                   {/* Colour Gains Section */}
                   <div className="pt-2 mt-2 border-t border-white/20">
-                    <h4 className="text-xs font-semibold text-gray-200 mb-2">🎨 Color Balance</h4>
+                    <h4 className="text-xs font-semibold text-gray-200 mb-2">🎨 Colour Balance</h4>
 
                     {/* Red Gain Slider */}
                     <div className="mb-3">
@@ -1699,7 +1699,7 @@ export default function Camera() {
                     </div>
 
                     <div className="mt-2 text-[10px] text-gray-300">
-                      💡 Locks color balance for LED flash illumination
+                      💡 Locks colour balance for LED flash illumination
                     </div>
                   </div>
 
@@ -2045,15 +2045,15 @@ export default function Camera() {
                           </div>
                         </div>
 
-                        {/* Color Dropdown */}
+                        {/* Colour Dropdown */}
                         <div>
-                          <label className="text-[10px] text-gray-300 mb-1 block">Color</label>
+                          <label className="text-[10px] text-gray-300 mb-1 block">Colour</label>
                           <select
-                            value={liveControls.focusPeakingColor}
+                            value={liveControls.focusPeakingColour}
                             onChange={(e) => {
-                              const color = e.target.value
-                              setLiveControls(prev => ({ ...prev, focusPeakingColor: color }))
-                              debouncedEmitControl('FocusPeakingColor', color)
+                              const colour = e.target.value
+                              setLiveControls(prev => ({ ...prev, focusPeakingColour: colour }))
+                              debouncedEmitControl('FocusPeakingColour', colour)
                             }}
                             className="w-full px-2 py-1 text-[10px] bg-white/10 text-white rounded border border-white/20"
                           >

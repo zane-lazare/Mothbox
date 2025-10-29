@@ -606,7 +606,7 @@ class PresetManager:
                         else:
                             return False, "Liveview setting 'focus_peaking_enabled' must be boolean"
 
-                # Validate focus peaking color
+                # Validate focus peaking colour
                 if 'focus_peaking_color' in liveview:
                     valid_colors = ['green', 'red', 'yellow', 'cyan', 'magenta']
                     if liveview['focus_peaking_color'] not in valid_colors:

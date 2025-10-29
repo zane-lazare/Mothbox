@@ -93,8 +93,8 @@ export const getControls = () => api.get('/config/controls')
 export const updateControls = (controls) => api.post('/config/controls', controls)
 export const getScheduleSettings = () => api.get('/config/schedule')
 export const updateScheduleSettings = (settings) => api.post('/config/schedule', settings)
-export const getWebUISettings = () => api.get('/config/webui')
-export const updateWebUISettings = (settings) => api.post('/config/webui', settings)
+export const getWebuiSettings = () => api.get('/config/webui')
+export const updateWebuiSettings = (settings) => api.post('/config/webui', settings)
 export const copySettings = (data) => api.post('/config/copy-settings', data)
 
 // GPIO APIs
@@ -120,7 +120,7 @@ export const getPreferences = () => api.get('/preferences')
 export const setPreference = (key, value) => api.post('/preferences', { key, value })
 
 // GPS APIs
-export const getGPSStatus = () => api.get('/gps/status')
-export const syncGPS = () => api.post('/gps/sync')
-export const getGPSConfig = () => api.get('/gps/config')
-export const updateGPSConfig = (config) => api.put('/gps/config', config)
+export const getGpsStatus = () => api.get('/gps/status')
+export const syncGps = () => api.post('/gps/sync')
+export const getGpsConfig = () => api.get('/gps/config')
+export const updateGpsConfig = (config) => api.put('/gps/config', config)

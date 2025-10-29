@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSystemStatus, getPowerStatus, capturePhoto, getPhotos, syncGPS } from '../utils/api'
+import { getSystemStatus, getPowerStatus, capturePhoto, getPhotos, syncGps } from '../utils/api'
 import { formatTimestamp } from '../utils/helpers'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
@@ -51,7 +51,7 @@ export default function Dashboard() {
     )
 
     try {
-      const result = await syncGPS()
+      const result = await syncGps()
       toast.dismiss(toastId)
 
       if (result.data.success) {

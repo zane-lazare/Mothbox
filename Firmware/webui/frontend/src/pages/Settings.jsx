@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getControls, updateControls, getCameraSettings, updateCameraSettings, getSystemInfo, getDiagnosticInfo, getWebUISettings, updateWebUISettings, getPresets, getPreset, applyPreset, deletePreset, createPreset, getPreferences, setPreference } from '../utils/api'
+import { getControls, updateControls, getCameraSettings, updateCameraSettings, getSystemInfo, getDiagnosticInfo, getWebuiSettings, updateWebuiSettings, getPresets, getPreset, applyPreset, deletePreset, createPreset, getPreferences, setPreference } from '../utils/api'
 import { useState, useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
@@ -71,7 +71,7 @@ export default function Settings() {
 
   const { data: webuiSettings, isLoading: webuiLoading } = useQuery({
     queryKey: ['webui-settings'],
-    queryFn: () => getWebUISettings().then(res => res.data),
+    queryFn: () => getWebuiSettings().then(res => res.data),
   })
 
   const { data: systemInfo } = useQuery({
@@ -111,7 +111,7 @@ export default function Settings() {
   })
 
   const updateWebuiMutation = useMutation({
-    mutationFn: updateWebUISettings,
+    mutationFn: updateWebuiSettings,
     onSuccess: () => {
       isDirtyRef.current.webui = false
       queryClient.invalidateQueries(['webui-settings'])
@@ -1297,7 +1297,7 @@ export default function Settings() {
                   {/* Advanced Focus Bracketing Settings - Collapsible */}
                   <details className="mt-4 border border-gray-300 rounded-lg">
                     <summary className="cursor-pointer px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium text-gray-700">
-                      ⚙️ Advanced Settings (Timing & Color)
+                      ⚙️ Advanced Settings (Timing & Colour)
                     </summary>
 
                     <div className="p-4 space-y-4">
@@ -1378,11 +1378,11 @@ export default function Settings() {
                         </div>
                       </div>
 
-                      {/* Color Consistency Section */}
+                      {/* Colour Consistency Section */}
                       <div className="pt-4 border-t border-gray-200">
-                        <h5 className="text-sm font-semibold text-gray-800 mb-3">🎨 Color Consistency</h5>
+                        <h5 className="text-sm font-semibold text-gray-800 mb-3">🎨 Colour Consistency</h5>
 
-                        {/* Lock Color Gains Toggle */}
+                        {/* Lock Colour Gains Toggle */}
                         <div className="settings-form-group">
                           <label className="flex items-center space-x-3 cursor-pointer">
                             <input
@@ -1395,15 +1395,15 @@ export default function Settings() {
                               className="settings-checkbox"
                             />
                             <div>
-                              <span className="settings-label mb-0">Lock Color Gains</span>
+                              <span className="settings-label mb-0">Lock Colour Gains</span>
                               <p className="settings-help-text">
-                                Ensures consistent color across all focus bracket images (recommended for stacking)
+                                Ensures consistent colour across all focus bracket images (recommended for stacking)
                               </p>
                             </div>
                           </label>
                         </div>
 
-                        {/* Color Gain Controls (only if locked) */}
+                        {/* Colour Gain Controls (only if locked) */}
                         {parseInt(cameraForm.FocusBracket_LockColorGains || 1) === 1 && (
                           <>
                             <div className="settings-form-group pl-8">
@@ -1448,7 +1448,7 @@ export default function Settings() {
 
                             <div className="settings-info-box bg-yellow-50 border-yellow-200 pl-8">
                               <p className="settings-help-text text-yellow-800">
-                                <strong>Note:</strong> Locked gains ensure uniform color when combining images in focus stacking software
+                                <strong>Note:</strong> Locked gains ensure uniform colour when combining images in focus stacking software
                                 (e.g., Helicon Focus, Zerene Stacker). Leave defaults unless you need specific white balance.
                               </p>
                             </div>
@@ -1460,7 +1460,7 @@ export default function Settings() {
                           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                             <p className="text-xs text-blue-800">
                               When unlocked, each focus bracket image uses auto white balance (AWB).
-                              Color may vary slightly between images based on lighting conditions during capture.
+                              Colour may vary slightly between images based on lighting conditions during capture.
                             </p>
                           </div>
                         )}
@@ -1986,7 +1986,7 @@ export default function Settings() {
                   <span>4.0 (Vivid)</span>
                 </div>
                 <p className="settings-help-text">
-                  Adjust color intensity. 0.0 = grayscale, 1.0 = normal saturation.
+                  Adjust colour intensity. 0.0 = grayscale, 1.0 = normal saturation.
                 </p>
               </div>
 
@@ -2163,7 +2163,7 @@ export default function Settings() {
                   </span>
                 </label>
                 <p className="settings-help-text ml-6">
-                  Let camera automatically adjust color temperature
+                  Let camera automatically adjust colour temperature
                 </p>
               </div>
 
@@ -2194,7 +2194,7 @@ export default function Settings() {
                 </div>
               )}
 
-              {/* Color Gains - Manual Color Balance */}
+              {/* Colour Gains - Manual Colour Balance */}
               <div className="settings-form-group">
                 <label className="settings-label">
                   Red Gain: {webuiForm.colour_gains_red !== undefined ? webuiForm.colour_gains_red.toFixed(3) : '2.259'}
@@ -2214,7 +2214,7 @@ export default function Settings() {
                   <span>4.0</span>
                 </div>
                 <p className="settings-help-text">
-                  Manual red channel gain for color balance adjustment
+                  Manual red channel gain for colour balance adjustment
                 </p>
               </div>
 
@@ -2237,7 +2237,7 @@ export default function Settings() {
                   <span>4.0</span>
                 </div>
                 <p className="settings-help-text">
-                  Manual blue channel gain for color balance adjustment
+                  Manual blue channel gain for colour balance adjustment
                 </p>
               </div>
               </CollapsibleCard>
@@ -2344,7 +2344,7 @@ export default function Settings() {
                   </span>
                 </label>
                 <p className="settings-help-text ml-6">
-                  Fixes color fringing at edges. Requires Raspberry Pi 5 hardware and camera calibration with tuning file configuration.
+                  Fixes colour fringing at edges. Requires Raspberry Pi 5 hardware and camera calibration with tuning file configuration.
                   Not available for runtime toggling - must be configured in tuning file before camera initialization.
                 </p>
               </div>
@@ -2401,10 +2401,10 @@ export default function Settings() {
                     </div>
                   </div>
 
-                  {/* Color */}
+                  {/* Colour */}
                   <div className="settings-form-group">
                     <label htmlFor="focus_peaking_color" className="settings-label">
-                      Overlay Color
+                      Overlay Colour
                     </label>
                     <select
                       id="focus_peaking_color"

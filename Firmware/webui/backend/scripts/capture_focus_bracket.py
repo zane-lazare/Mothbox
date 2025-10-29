@@ -49,10 +49,10 @@ flash_delay_before = 50    # Delay after flash on, before capture (milliseconds)
 flash_delay_after = 0      # Delay after capture, before flash off (milliseconds)
 focus_settle_delay = 500   # Delay for lens to settle after focus change (milliseconds)
 
-# Color Gains Controls - overridden by CSV settings if present
-lock_color_gains = 1             # 0=Use AWB, 1=Lock gains for consistency
-color_gain_red = 2.259439776    # Red channel gain (when locked)
-color_gain_blue = 1.500129925   # Blue channel gain (when locked)
+# Colour Gains Controls - overridden by CSV settings if present
+lock_colour_gains = 1             # 0=Use AWB, 1=Lock gains for consistency
+colour_gain_red = 2.259439776    # Red channel gain (when locked)
+colour_gain_blue = 1.500129925   # Blue channel gain (when locked)
 
 computerName = "mothboxD"
 
@@ -200,7 +200,7 @@ def calculate_focus_positions(start, end, steps):
 
 def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focus_end,
                            focus_settle_delay, flash_delay_before, flash_delay_after,
-                           lock_color_gains, color_gain_red, color_gain_blue,
+                           lock_colour_gains, colour_gain_red, colour_gain_blue,
                            onlyflash, computerName):
     """
     Capture multiple photos at different focus positions (focus bracketing)
@@ -214,9 +214,9 @@ def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focu
         focus_settle_delay: Delay in ms for lens to settle
         flash_delay_before: Delay in ms before capture
         flash_delay_after: Delay in ms after capture
-        lock_color_gains: Whether to lock color gains (0 or 1)
-        color_gain_red: Red channel gain value
-        color_gain_blue: Blue channel gain value
+        lock_colour_gains: Whether to lock color gains (0 or 1)
+        colour_gain_red: Red channel gain value
+        colour_gain_blue: Blue channel gain value
         onlyflash: Whether flash is always on
         computerName: Name of the computer for file naming
     """
@@ -230,12 +230,12 @@ def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focu
         print("can't set controls")
 
     # Apply color gains based on lock setting
-    if lock_color_gains:
-        # Lock color gains for consistency across focus stack
-        # This ensures uniform color when images are combined in stacking software
-        cgains = (color_gain_red, color_gain_blue)
+    if lock_colour_gains:
+        # Lock colour gains for consistency across focus stack
+        # This ensures uniform colour when images are combined in stacking software
+        cgains = (colour_gain_red, colour_gain_blue)
         picam2.set_controls({"ColourGains": cgains})
-        print(f"Color gains locked at R={color_gain_red:.3f}, B={color_gain_blue:.3f}")
+        print(f"Color gains locked at R={colour_gain_red:.3f}, B={colour_gain_blue:.3f}")
     else:
         # Use auto white balance - each image may vary slightly based on lighting
         print("Using auto white balance (color may vary across stack)")
@@ -371,9 +371,9 @@ def main():
     _focus_settle_delay = int(camera_settings.pop("FocusBracket_SettleDelay", focus_settle_delay))
 
     # Extract color gains settings
-    _lock_color_gains = int(camera_settings.pop("FocusBracket_LockColorGains", lock_color_gains))
-    _color_gain_red = float(camera_settings.pop("FocusBracket_ColorGainRed", color_gain_red))
-    _color_gain_blue = float(camera_settings.pop("FocusBracket_ColorGainBlue", color_gain_blue))
+    _lock_colour_gains = int(camera_settings.pop("FocusBracket_LockColorGains", lock_colour_gains))
+    _colour_gain_red = float(camera_settings.pop("FocusBracket_ColorGainRed", colour_gain_red))
+    _colour_gain_blue = float(camera_settings.pop("FocusBracket_ColorGainBlue", colour_gain_blue))
 
     # Validate focus bracket settings
     if _num_steps < 1:
@@ -410,25 +410,25 @@ def main():
         print(f"Warning: Invalid FocusBracket_SettleDelay, defaulting to {_focus_settle_delay}ms")
 
     # Validate color gains
-    if _lock_color_gains not in [0, 1]:
-        _lock_color_gains = 1
-        print(f"Warning: Invalid FocusBracket_LockColorGains, defaulting to {_lock_color_gains}")
+    if _lock_colour_gains not in [0, 1]:
+        _lock_colour_gains = 1
+        print(f"Warning: Invalid FocusBracket_LockColorGains, defaulting to {_lock_colour_gains}")
 
-    if _color_gain_red < 1.0 or _color_gain_red > 4.0:
-        _color_gain_red = 2.259439776
-        print(f"Warning: Invalid FocusBracket_ColorGainRed, defaulting to {_color_gain_red}")
+    if _colour_gain_red < 1.0 or _colour_gain_red > 4.0:
+        _colour_gain_red = 2.259439776
+        print(f"Warning: Invalid FocusBracket_ColorGainRed, defaulting to {_colour_gain_red}")
 
-    if _color_gain_blue < 1.0 or _color_gain_blue > 4.0:
-        _color_gain_blue = 1.500129925
-        print(f"Warning: Invalid FocusBracket_ColorGainBlue, defaulting to {_color_gain_blue}")
+    if _colour_gain_blue < 1.0 or _colour_gain_blue > 4.0:
+        _colour_gain_blue = 1.500129925
+        print(f"Warning: Invalid FocusBracket_ColorGainBlue, defaulting to {_colour_gain_blue}")
 
     # Log the configuration being used
     print(f"Focus bracket configuration:")
     print(f"  Steps: {_num_steps}, Range: {_focus_start} to {_focus_end} diopters")
     print(f"  Flash delays: {_flash_delay_before}ms before, {_flash_delay_after}ms after")
     print(f"  Lens settle delay: {_focus_settle_delay}ms")
-    if _lock_color_gains:
-        print(f"  Color gains locked: R={_color_gain_red:.3f}, B={_color_gain_blue:.3f}")
+    if _lock_colour_gains:
+        print(f"  Color gains locked: R={_colour_gain_red:.3f}, B={_colour_gain_blue:.3f}")
     else:
         print(f"  Using auto white balance (AWB)")
 
@@ -447,7 +447,7 @@ def main():
     time.sleep(.5)
     takePhoto_FocusBracket(picam2, camera_settings, _num_steps, _focus_start, _focus_end,
                           _focus_settle_delay, _flash_delay_before, _flash_delay_after,
-                          _lock_color_gains, _color_gain_red, _color_gain_blue,
+                          _lock_colour_gains, _colour_gain_red, _colour_gain_blue,
                           onlyflash, computerName)
 
     picam2.stop()

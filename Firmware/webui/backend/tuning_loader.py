@@ -4,7 +4,7 @@ Camera ISP Tuning File Loader
 Loads and applies Picamera2 tuning files for ISP features:
 - Lens shading correction (vignetting correction) - runtime toggle available
 - Defect pixel correction (stuck/dead pixel correction) - runtime toggle available
-- Chromatic aberration correction (color fringing correction) - Pi 5 only, tuning file only
+- Chromatic aberration correction (colour fringing correction) - Pi 5 only, tuning file only
 
 Tuning files are JSON-based configuration files that control the Image Signal
 Processor (ISP) pipeline. They must be loaded when the camera is created,

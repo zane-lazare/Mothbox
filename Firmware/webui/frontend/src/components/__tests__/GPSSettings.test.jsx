@@ -7,10 +7,10 @@ import * as api from '../../utils/api'
 
 // Mock the API module
 vi.mock('../../utils/api', () => ({
-  getGPSConfig: vi.fn(),
-  updateGPSConfig: vi.fn(),
-  getGPSStatus: vi.fn(),
-  syncGPS: vi.fn(),
+  getGpsConfig: vi.fn(),
+  updateGpsConfig: vi.fn(),
+  getGpsStatus: vi.fn(),
+  syncGps: vi.fn(),
 }))
 
 // Mock toast
@@ -54,8 +54,8 @@ describe('GPSSettings', () => {
     vi.clearAllMocks()
 
     // Set default mock responses
-    api.getGPSConfig.mockResolvedValue({ data: mockGPSConfig })
-    api.getGPSStatus.mockResolvedValue({ data: mockGPSStatus })
+    api.getGpsConfig.mockResolvedValue({ data: mockGPSConfig })
+    api.getGpsStatus.mockResolvedValue({ data: mockGPSStatus })
   })
 
   const renderComponent = () => {
@@ -95,7 +95,7 @@ describe('GPSSettings', () => {
   })
 
   it('displays "No GPS Fix" when GPS has no fix', async () => {
-    api.getGPSStatus.mockResolvedValue({
+    api.getGpsStatus.mockResolvedValue({
       data: { ...mockGPSStatus, has_fix: false },
     })
 
@@ -118,7 +118,7 @@ describe('GPSSettings', () => {
   })
 
   it('hides configuration fields when GPS is disabled', async () => {
-    api.getGPSConfig.mockResolvedValue({
+    api.getGpsConfig.mockResolvedValue({
       data: { ...mockGPSConfig, enabled: false },
     })
 
@@ -180,7 +180,7 @@ describe('GPSSettings', () => {
 
   it('saves configuration when save button clicked', async () => {
     const user = userEvent.setup()
-    api.updateGPSConfig.mockResolvedValue({ data: { success: true } })
+    api.updateGpsConfig.mockResolvedValue({ data: { success: true } })
 
     renderComponent()
 
@@ -192,7 +192,7 @@ describe('GPSSettings', () => {
     await user.click(saveButton)
 
     await waitFor(() => {
-      expect(api.updateGPSConfig).toHaveBeenCalledWith({
+      expect(api.updateGpsConfig).toHaveBeenCalledWith({
         gps_enabled: true,
         gps_device: '/dev/ttyAMA0',
         gps_baudrate: 9600,
@@ -203,7 +203,7 @@ describe('GPSSettings', () => {
 
   it('syncs GPS when sync button clicked', async () => {
     const user = userEvent.setup()
-    api.syncGPS.mockResolvedValue({
+    api.syncGps.mockResolvedValue({
       data: {
         success: true,
         latitude: 37.7749,
@@ -224,7 +224,7 @@ describe('GPSSettings', () => {
     expect(screen.getByText(/Syncing.../i)).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(api.syncGPS).toHaveBeenCalled()
+      expect(api.syncGps).toHaveBeenCalled()
     })
   })
 

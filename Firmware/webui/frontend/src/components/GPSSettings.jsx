@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getGPSConfig, updateGPSConfig, getGPSStatus, syncGPS } from '../utils/api'
+import { getGpsConfig, updateGpsConfig, getGpsStatus, syncGps } from '../utils/api'
 import { formatTimestamp } from '../utils/helpers'
 import { validateDevicePath, validateBaudrate, validateTimeout } from '../utils/gpsValidation'
 import { useState, useEffect } from 'react'
@@ -31,7 +31,7 @@ export default function GPSSettings() {
 
   const { data: gpsConfig, isLoading: configLoading } = useQuery({
     queryKey: ['gps-config'],
-    queryFn: () => getGPSConfig().then(res => res.data),
+    queryFn: () => getGpsConfig().then(res => res.data),
   })
 
   // Sync local config with query data (replaces deprecated onSuccess)
@@ -43,13 +43,13 @@ export default function GPSSettings() {
 
   const { data: gpsStatus } = useQuery({
     queryKey: ['gps-status'],
-    queryFn: () => getGPSStatus().then(res => res.data),
+    queryFn: () => getGpsStatus().then(res => res.data),
     // Pause polling during sync to avoid spam, otherwise poll every 15s
     refetchInterval: (data) => syncing ? false : 15000,
   })
 
   const updateConfigMutation = useMutation({
-    mutationFn: updateGPSConfig,
+    mutationFn: updateGpsConfig,
     onSuccess: (response) => {
       queryClient.invalidateQueries(['gps-config'])
       queryClient.invalidateQueries(['gps-status'])
@@ -67,7 +67,7 @@ export default function GPSSettings() {
   })
 
   // Helper to get GPS state description
-  const getGPSStateInfo = (gpstime) => {
+  const getGpsStateInfo = (gpstime) => {
     if (gpstime === 0) {
       return { state: 'almanac_expired', time: '5-20 min', description: 'First sync (almanac download)' }
     }
@@ -92,7 +92,7 @@ export default function GPSSettings() {
     setSyncing(true)
 
     // Get expected GPS state based on last sync
-    const stateInfo = getGPSStateInfo(gpsStatus?.gpstime || 0)
+    const stateInfo = getGpsStateInfo(gpsStatus?.gpstime || 0)
 
     // Use actual configured timeout values based on GPS state
     const timeoutMap = {
@@ -129,7 +129,7 @@ export default function GPSSettings() {
     }, 20000)  // Every 20 seconds (provides safety margin against 60s auto-dismiss)
 
     try {
-      const result = await syncGPS()
+      const result = await syncGps()
       clearInterval(progressInterval)
       toast.dismiss(toastId)
 
@@ -360,7 +360,7 @@ export default function GPSSettings() {
                       <span className="font-medium">PDOP:</span> {gpsStatus.pdop?.toFixed(2) || 'N/A'}
                     </p>
                     {(() => {
-                      const stateInfo = getGPSStateInfo(gpsStatus.gpstime || 0)
+                      const stateInfo = getGpsStateInfo(gpsStatus.gpstime || 0)
                       return (
                         <p className="text-blue-700 text-xs">
                           <span className="font-medium">Next sync:</span>{' '}

@@ -110,7 +110,7 @@ class LiveViewStreamer:
         self.awb_enable = True
         self.awb_mode = 0  # Auto
         # ColourGains: Fixed gains for LED illumination (from TakePhoto.py calibration)
-        # Important: These values lock down color balance under white LED flash
+        # Important: These values lock down colour balance under white LED flash
         self.colour_gains = (2.259, 1.500)  # (red, blue)
 
         # Digital zoom / ROI controls
@@ -135,7 +135,7 @@ class LiveViewStreamer:
         # Focus peaking controls (preview-only overlay)
         self.focus_peaking_enabled = False
         self.focus_peaking_intensity = 100  # 50-200 range
-        self.focus_peaking_color = 'green'  # green, red, yellow, cyan, magenta
+        self.focus_peaking_colour = 'green'  # green, red, yellow, cyan, magenta
         self.focus_peaking_algorithm = 'laplacian'  # laplacian, sobel, canny
 
         try:
@@ -213,8 +213,8 @@ class LiveViewStreamer:
                     self.focus_peaking_enabled = settings['focus_peaking_enabled'].lower() == 'true'
                 if 'focus_peaking_intensity' in settings:
                     self.focus_peaking_intensity = int(settings['focus_peaking_intensity'])
-                if 'focus_peaking_color' in settings:
-                    self.focus_peaking_color = settings['focus_peaking_color']
+                if 'focus_peaking_colour' in settings:
+                    self.focus_peaking_colour = settings['focus_peaking_colour']
                 if 'focus_peaking_algorithm' in settings:
                     self.focus_peaking_algorithm = settings['focus_peaking_algorithm']
 
@@ -225,7 +225,7 @@ class LiveViewStreamer:
                 print(f"  Focus: Mode={self.af_mode}, Speed={self.af_speed}, Range={self.af_range}")
                 print(f"  White balance: AWB={self.awb_enable}, Mode={self.awb_mode}, ColourGains={self.colour_gains}")
                 print(f"  ISP: LensShading={self.lens_shading_enable}, DefectCorrection={self.defect_correction_enable}, CustomTuning={self.use_custom_tuning}")
-                print(f"  Focus peaking: Enabled={self.focus_peaking_enabled}, Intensity={self.focus_peaking_intensity}, Color={self.focus_peaking_color}, Algorithm={self.focus_peaking_algorithm}")
+                print(f"  Focus peaking: Enabled={self.focus_peaking_enabled}, Intensity={self.focus_peaking_intensity}, Color={self.focus_peaking_colour}, Algorithm={self.focus_peaking_algorithm}")
         except Exception as e:
             print(f"Error loading stream settings, using defaults: {e}")
 
@@ -470,7 +470,7 @@ class LiveViewStreamer:
 
             # White balance controls
             "AwbEnable": self.awb_enable,
-            # ColourGains: Critical for locking color balance under LED illumination
+            # ColourGains: Critical for locking colour balance under LED illumination
             # Note: Must be set even with AwbEnable to lock white balance (TakePhoto.py:519)
             "ColourGains": self.colour_gains,
         }
@@ -757,19 +757,19 @@ class LiveViewStreamer:
                             frame = self._apply_focus_peaking_sobel(
                                 frame,
                                 threshold=self.focus_peaking_intensity,
-                                color=self.focus_peaking_color
+                                color=self.focus_peaking_colour
                             )
                         elif self.focus_peaking_algorithm == 'canny':
                             frame = self._apply_focus_peaking_canny(
                                 frame,
                                 threshold=self.focus_peaking_intensity,
-                                color=self.focus_peaking_color
+                                color=self.focus_peaking_colour
                             )
                         else:  # Default to laplacian
                             frame = self._apply_focus_peaking_laplacian(
                                 frame,
                                 threshold=self.focus_peaking_intensity,
-                                color=self.focus_peaking_color
+                                color=self.focus_peaking_colour
                             )
 
                     # Encode as JPEG using fastest available method
@@ -927,8 +927,8 @@ class LiveViewStreamer:
             elif key == 'FocusPeakingIntensity':
                 self.focus_peaking_intensity = int(value)
                 focus_peaking_controls[key] = value
-            elif key == 'FocusPeakingColor':
-                self.focus_peaking_color = str(value)
+            elif key == 'FocusPeakingColour':
+                self.focus_peaking_colour = str(value)
                 focus_peaking_controls[key] = value
             elif key == 'FocusPeakingAlgorithm':
                 self.focus_peaking_algorithm = str(value)
@@ -985,7 +985,7 @@ class LiveViewStreamer:
         Args:
             frame: BGR888 numpy array (height, width, 3)
             threshold: Edge detection sensitivity (50-200, higher = more sensitive)
-            color: Overlay color ('green', 'red', 'yellow', 'cyan', 'magenta')
+            color: Overlay colour ('green', 'red', 'yellow', 'cyan', 'magenta')
 
         Returns:
             Modified BGR888 frame with focus peaking overlay
@@ -994,14 +994,14 @@ class LiveViewStreamer:
             return frame
 
         # Color mapping (RGB format - picamera2 BGR888 is actually RGB)
-        color_map = {
+        colour_map = {
             'green': (0, 255, 0),
             'red': (255, 0, 0),       # RGB not BGR
             'yellow': (255, 255, 0),  # RGB not BGR
             'cyan': (0, 255, 255),    # RGB not BGR
             'magenta': (255, 0, 255)
         }
-        overlay_color = color_map.get(color, (0, 255, 0))  # Default to green
+        overlay_colour = colour_map.get(color, (0, 255, 0))  # Default to green
 
         # Convert to grayscale
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -1020,7 +1020,7 @@ class LiveViewStreamer:
 
         # Create colored overlay
         overlay = np.zeros_like(frame)
-        overlay[edge_mask > 0] = overlay_color
+        overlay[edge_mask > 0] = overlay_colour
 
         # Blend with original (60% overlay visibility)
         result = cv2.addWeighted(frame, 1.0, overlay, 0.6, 0)
@@ -1037,7 +1037,7 @@ class LiveViewStreamer:
         Args:
             frame: BGR888 numpy array (height, width, 3)
             threshold: Edge detection sensitivity (50-200, higher = more sensitive)
-            color: Overlay color ('green', 'red', 'yellow', 'cyan', 'magenta')
+            color: Overlay colour ('green', 'red', 'yellow', 'cyan', 'magenta')
 
         Returns:
             Modified BGR888 frame with focus peaking overlay
@@ -1046,14 +1046,14 @@ class LiveViewStreamer:
             return frame
 
         # Color mapping (RGB format - picamera2 BGR888 is actually RGB)
-        color_map = {
+        colour_map = {
             'green': (0, 255, 0),
             'red': (255, 0, 0),       # RGB not BGR
             'yellow': (255, 255, 0),  # RGB not BGR
             'cyan': (0, 255, 255),    # RGB not BGR
             'magenta': (255, 0, 255)
         }
-        overlay_color = color_map.get(color, (0, 255, 0))  # Default to green
+        overlay_colour = colour_map.get(color, (0, 255, 0))  # Default to green
 
         # Convert to grayscale
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -1075,7 +1075,7 @@ class LiveViewStreamer:
 
         # Create colored overlay
         overlay = np.zeros_like(frame)
-        overlay[edge_mask > 0] = overlay_color
+        overlay[edge_mask > 0] = overlay_colour
 
         # Blend with original (60% overlay visibility)
         result = cv2.addWeighted(frame, 1.0, overlay, 0.6, 0)
@@ -1092,7 +1092,7 @@ class LiveViewStreamer:
         Args:
             frame: BGR888 numpy array (height, width, 3)
             threshold: Edge detection sensitivity (50-200, higher = more sensitive)
-            color: Overlay color ('green', 'red', 'yellow', 'cyan', 'magenta')
+            color: Overlay colour ('green', 'red', 'yellow', 'cyan', 'magenta')
 
         Returns:
             Modified BGR888 frame with focus peaking overlay
@@ -1101,14 +1101,14 @@ class LiveViewStreamer:
             return frame
 
         # Color mapping (RGB format - picamera2 BGR888 is actually RGB)
-        color_map = {
+        colour_map = {
             'green': (0, 255, 0),
             'red': (255, 0, 0),       # RGB not BGR
             'yellow': (255, 255, 0),  # RGB not BGR
             'cyan': (0, 255, 255),    # RGB not BGR
             'magenta': (255, 0, 255)
         }
-        overlay_color = color_map.get(color, (0, 255, 0))  # Default to green
+        overlay_colour = colour_map.get(color, (0, 255, 0))  # Default to green
 
         # Convert to grayscale
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -1124,7 +1124,7 @@ class LiveViewStreamer:
 
         # Create colored overlay
         overlay = np.zeros_like(frame)
-        overlay[edge_mask > 0] = overlay_color
+        overlay[edge_mask > 0] = overlay_colour
 
         # Blend with original (60% overlay visibility)
         result = cv2.addWeighted(frame, 1.0, overlay, 0.6, 0)

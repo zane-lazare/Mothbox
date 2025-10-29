@@ -104,7 +104,7 @@ python3 app.py
    - Gain (ISO)
    - Focus position
    - AF State
-   - Color Temp
+   - Colour Temp
 6. **Click "More Details ▼" to expand extended metadata**
 7. **Verify extended fields show:**
    - Digital Gain

@@ -85,7 +85,7 @@ export const validateTimeout = (timeout) => {
  * @param {Object} config - GPS configuration object
  * @returns {{valid: boolean, errors: Object}} Validation result with field-specific errors
  */
-export const validateGPSConfig = (config) => {
+export const validateGpsConfig = (config) => {
   const errors = {}
   let isValid = true
 
