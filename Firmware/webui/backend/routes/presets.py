@@ -11,8 +11,8 @@ import mothbox_import  # Sets up sys.path for mothbox
 from mothbox_paths import CAMERA_SETTINGS_FILE, LIVEVIEW_SETTINGS_FILE, get_control_values, BUILTIN_PRESET_DIR, USER_PRESET_DIR
 from preset_manager import PresetManager
 
-# Import validation from existing routes
-from routes.camera import ALLOWED_CAMERA_SETTINGS
+# Import validation from utils
+from utils import ALLOWED_CAMERA_SETTINGS
 
 
 presets_bp = Blueprint('presets', __name__)

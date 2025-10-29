@@ -12,7 +12,14 @@ from pathlib import Path
 # Add the webui backend to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "webui" / "backend"))
 
-from utils import sanitize_csv_value
+from utils import (
+    sanitize_csv_value,
+    _validate_int_enum,
+    _validate_exposure_time,
+    _validate_noise_reduction_mode,
+    ALLOWED_CAMERA_SETTINGS,
+    ALLOWED_LIVEVIEW_SETTINGS
+)
 
 
 class TestSanitizeCSVValue:
@@ -263,3 +270,273 @@ class TestSanitizeCSVValue:
         hyperlink = '=HYPERLINK("http://evil.com","Click")'
         result = sanitize_csv_value(hyperlink)
         assert result.startswith("'=")
+
+
+class TestValidateIntEnum:
+    """Test integer enum validation helper"""
+
+    def test_valid_int_in_set(self):
+        """Should accept valid integers"""
+        assert _validate_int_enum(0, [0, 1, 2]) == True
+        assert _validate_int_enum(1, [0, 1, 2]) == True
+        assert _validate_int_enum(2, [0, 1, 2]) == True
+
+    def test_invalid_int_not_in_set(self):
+        """Should reject integers not in allowed set"""
+        assert _validate_int_enum(3, [0, 1, 2]) == False
+        assert _validate_int_enum(-1, [0, 1, 2]) == False
+
+    def test_string_digit_conversion(self):
+        """Should convert string digits to int"""
+        assert _validate_int_enum("1", [0, 1, 2]) == True
+
+    def test_reject_float(self):
+        """Should reject float values"""
+        with pytest.raises(TypeError, match="Float not allowed"):
+            _validate_int_enum(1.0, [0, 1, 2])
+
+    def test_reject_boolean(self):
+        """Should reject boolean values"""
+        with pytest.raises(TypeError, match="Boolean not allowed"):
+            _validate_int_enum(True, [0, 1, 2])
+
+
+class TestValidateExposureTime:
+    """Test exposure time validation"""
+
+    def test_valid_exposure_int(self):
+        """Should accept valid integer exposure times"""
+        assert _validate_exposure_time(1000) == True  # 1ms
+        assert _validate_exposure_time(10000) == True  # 10ms
+        assert _validate_exposure_time(999999) == True  # Just under 1s
+
+    def test_valid_exposure_string(self):
+        """Should accept valid string digits"""
+        assert _validate_exposure_time("50000") == True
+
+    def test_reject_none(self):
+        """Should reject None"""
+        with pytest.raises(TypeError, match="None not allowed"):
+            _validate_exposure_time(None)
+
+    def test_reject_boolean(self):
+        """Should reject boolean"""
+        with pytest.raises(TypeError, match="Boolean not allowed"):
+            _validate_exposure_time(True)
+
+    def test_reject_too_long(self):
+        """Should reject exposure times >= 1 second"""
+        assert _validate_exposure_time(1000000) == False  # 1s
+        assert _validate_exposure_time(2000000) == False  # 2s
+
+    def test_reject_zero_or_negative(self):
+        """Should reject zero or negative values"""
+        assert _validate_exposure_time(0) == False
+        assert _validate_exposure_time(-1000) == False
+
+    def test_reject_invalid_string(self):
+        """Should reject non-digit strings"""
+        with pytest.raises(ValueError, match="must be integer or digit string"):
+            _validate_exposure_time("not_a_number")
+
+
+class TestValidateNoiseReductionMode:
+    """Test noise reduction mode validation"""
+
+    def test_valid_int_values(self):
+        """Should accept valid integer modes"""
+        assert _validate_noise_reduction_mode(0) == True  # Off
+        assert _validate_noise_reduction_mode(1) == True  # Fast
+        assert _validate_noise_reduction_mode(2) == True  # High Quality
+
+    def test_valid_string_values(self):
+        """Should accept valid string digit modes"""
+        assert _validate_noise_reduction_mode("0") == True
+        assert _validate_noise_reduction_mode("1") == True
+        assert _validate_noise_reduction_mode("2") == True
+
+    def test_invalid_int(self):
+        """Should reject invalid integer values"""
+        assert _validate_noise_reduction_mode(3) == False
+        assert _validate_noise_reduction_mode(-1) == False
+
+    def test_invalid_string(self):
+        """Should reject invalid string values"""
+        assert _validate_noise_reduction_mode("3") == False
+        assert _validate_noise_reduction_mode("invalid") == False
+        assert _validate_noise_reduction_mode("") == False
+
+
+class TestCameraSettingsSchema:
+    """Test camera settings validation schema"""
+
+    def test_schema_exists(self):
+        """Should have camera settings schema"""
+        assert ALLOWED_CAMERA_SETTINGS is not None
+        assert isinstance(ALLOWED_CAMERA_SETTINGS, dict)
+
+    def test_sharpness_validation(self):
+        """Should validate sharpness range"""
+        validator = ALLOWED_CAMERA_SETTINGS['Sharpness']
+        assert validator(0.0) == True
+        assert validator(2.0) == True
+        assert validator(4.0) == True
+        assert validator(4.1) == False
+        assert validator(-0.1) == False
+
+    def test_brightness_validation(self):
+        """Should validate brightness range"""
+        validator = ALLOWED_CAMERA_SETTINGS['Brightness']
+        assert validator(-1.0) == True
+        assert validator(0.0) == True
+        assert validator(1.0) == True
+        assert validator(-1.1) == False
+        assert validator(1.1) == False
+
+    def test_exposure_time_validation(self):
+        """Should validate exposure time"""
+        validator = ALLOWED_CAMERA_SETTINGS['ExposureTime']
+        assert validator(10000) == True  # 10ms
+        assert validator("50000") == True  # 50ms string
+        assert validator(1000000) == False  # Too long
+
+    def test_af_mode_validation(self):
+        """Should validate autofocus mode"""
+        validator = ALLOWED_CAMERA_SETTINGS['AfMode']
+        assert validator(0) == True  # Manual
+        assert validator(1) == True  # Auto Single
+        assert validator(2) == True  # Continuous
+        assert validator(3) == False
+
+    def test_hdr_validation(self):
+        """Should validate HDR bracket count"""
+        validator = ALLOWED_CAMERA_SETTINGS['HDR']
+        assert validator(1) == True
+        assert validator(3) == True
+        assert validator(5) == True
+        assert validator(7) == True
+        assert validator(2) == False  # Must be odd
+        assert validator(4) == False
+
+    def test_focus_bracket_validation(self):
+        """Should validate focus bracket count"""
+        validator = ALLOWED_CAMERA_SETTINGS['FocusBracket']
+        assert validator(1) == True
+        assert validator(5) == True
+        assert validator(10) == True
+        assert validator(0) == False
+        assert validator(11) == False
+
+    def test_boolean_settings(self):
+        """Should validate boolean settings"""
+        validator = ALLOWED_CAMERA_SETTINGS['AeEnable']
+        assert validator('true') == True
+        assert validator('false') == True
+        assert validator('True') == True  # Case insensitive
+        assert validator('FALSE') == True
+        assert validator('invalid') == False
+
+    def test_all_settings_have_validators(self):
+        """Should have validators for all expected settings"""
+        expected_settings = [
+            'Sharpness', 'Brightness', 'Contrast', 'Saturation',
+            'ExposureTime', 'ExposureValue', 'AnalogueGain', 'AeEnable',
+            'AfMode', 'AfSpeed', 'AfRange', 'LensPosition',
+            'AwbEnable', 'AwbMode', 'HDR', 'FocusBracket'
+        ]
+        for setting in expected_settings:
+            assert setting in ALLOWED_CAMERA_SETTINGS
+
+
+class TestLiveviewSettingsSchema:
+    """Test liveview settings validation schema"""
+
+    def test_schema_exists(self):
+        """Should have liveview settings schema"""
+        assert ALLOWED_LIVEVIEW_SETTINGS is not None
+        assert isinstance(ALLOWED_LIVEVIEW_SETTINGS, dict)
+
+    def test_boolean_controls(self):
+        """Should validate boolean enable/disable controls"""
+        validator = ALLOWED_LIVEVIEW_SETTINGS['focus_peaking_enabled']
+        assert validator('true') == True
+        assert validator('false') == True
+        assert validator('True') == True
+        assert validator('invalid') == False
+
+    def test_stream_dimensions(self):
+        """Should validate stream width/height"""
+        width_validator = ALLOWED_LIVEVIEW_SETTINGS['stream_width']
+        assert width_validator(640) == True
+        assert width_validator(1920) == True
+        assert width_validator(639) == False  # Too small
+        assert width_validator(1921) == False  # Too large
+
+        height_validator = ALLOWED_LIVEVIEW_SETTINGS['stream_height']
+        assert height_validator(480) == True
+        assert height_validator(1080) == True
+        assert height_validator(479) == False
+        assert height_validator(1081) == False
+
+    def test_stream_quality(self):
+        """Should validate JPEG quality"""
+        validator = ALLOWED_LIVEVIEW_SETTINGS['stream_quality']
+        assert validator(1) == True
+        assert validator(50) == True
+        assert validator(100) == True
+        assert validator(0) == False
+        assert validator(101) == False
+
+    def test_float_controls(self):
+        """Should validate float-based controls"""
+        validator = ALLOWED_LIVEVIEW_SETTINGS['sharpness']
+        assert validator(0.0) == True
+        assert validator(2.5) == True
+        assert validator(4.0) == True
+        assert validator(-0.1) == False
+        assert validator(4.1) == False
+
+    def test_mode_integers(self):
+        """Should validate mode integers"""
+        validator = ALLOWED_LIVEVIEW_SETTINGS['af_mode']
+        assert validator(0) == True
+        assert validator(1) == True
+        assert validator(2) == True
+        assert validator(3) == False
+
+    def test_color_gains(self):
+        """Should validate color gain ranges"""
+        red_validator = ALLOWED_LIVEVIEW_SETTINGS['colour_gains_red']
+        blue_validator = ALLOWED_LIVEVIEW_SETTINGS['colour_gains_blue']
+
+        assert red_validator(1.0) == True
+        assert red_validator(2.5) == True
+        assert red_validator(4.0) == True
+        assert red_validator(0.9) == False
+        assert red_validator(4.1) == False
+
+        assert blue_validator(1.0) == True
+        assert blue_validator(4.0) == True
+
+    def test_focus_peaking_config(self):
+        """Should validate focus peaking configuration"""
+        intensity_validator = ALLOWED_LIVEVIEW_SETTINGS['focus_peaking_intensity']
+        assert intensity_validator(0.0) == True
+        assert intensity_validator(100.0) == True
+        assert intensity_validator(200.0) == True
+        assert intensity_validator(-0.1) == False
+        assert intensity_validator(200.1) == False
+
+        color_validator = ALLOWED_LIVEVIEW_SETTINGS['focus_peaking_color']
+        assert color_validator('green') == True
+        assert color_validator('red') == True
+        assert color_validator('yellow') == True
+        assert color_validator('cyan') == True
+        assert color_validator('magenta') == True
+        assert color_validator('blue') == False  # Not in list
+
+        algo_validator = ALLOWED_LIVEVIEW_SETTINGS['focus_peaking_algorithm']
+        assert algo_validator('laplacian') == True
+        assert algo_validator('sobel') == True
+        assert algo_validator('canny') == True
+        assert algo_validator('invalid') == False

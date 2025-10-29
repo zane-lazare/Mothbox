@@ -22,7 +22,7 @@ from mothbox_paths import (
 from camera_control_mapping import SNAKE_TO_PASCAL, convert_to_settings_file
 
 # Import shared utilities
-from utils import sanitize_csv_value
+from utils import sanitize_csv_value, ALLOWED_CAMERA_SETTINGS
 
 # Valid BCM GPIO pins (BCM mode: GPIO 2-27)
 VALID_BCM_GPIO_PINS = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27]
@@ -643,7 +643,6 @@ def copy_settings():
                         capture_value = converter(preview_value)
 
                         # Validate using capture validator
-                        from routes.camera import ALLOWED_CAMERA_SETTINGS
                         if capture_key in ALLOWED_CAMERA_SETTINGS:
                             if ALLOWED_CAMERA_SETTINGS[capture_key](capture_value):
                                 # Update the settings dict
