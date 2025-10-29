@@ -144,8 +144,8 @@ def get_power_status():
         if not hw_config.get('ina260_enabled'):
             return jsonify({'enabled': False})
 
-        # Try to get power stats (would need to import INA260 module)
-        # For now, return placeholder
+        # TODO: Implement power monitoring
+        # See: https://github.com/zane-lazare/Mothbox/issues/73
         return jsonify({
             'enabled': True,
             'voltage': None,

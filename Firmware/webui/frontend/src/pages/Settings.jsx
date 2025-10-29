@@ -1,26 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getControls, updateControls, getCameraSettings, updateCameraSettings, getSystemInfo, getDiagnosticInfo, getWebuiSettings, updateWebuiSettings, getPresets, getPreset, applyPreset, deletePreset, createPreset, getPreferences, setPreference } from '../utils/api'
+import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState, useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
 import SavePresetModal from '../components/SavePresetModal'
 import GPSSettings from '../components/GPSSettings'
-
-// Collapsible Card Component
-const CollapsibleCard = ({ id, title, isCollapsed, onToggle, children, className = "settings-card" }) => (
-  <div className={className}>
-    <div
-      className="flex justify-between items-center cursor-pointer select-none"
-      onClick={() => onToggle(id)}
-    >
-      <h4 className="settings-card-title mb-0">{title}</h4>
-      <span className="text-gray-500 text-sm">
-        {isCollapsed ? '▶' : '▼'}
-      </span>
-    </div>
-    {!isCollapsed && <div className="mt-2">{children}</div>}
-  </div>
-)
+import CollapsibleCard from '../components/CollapsibleCard'
 
 export default function Settings() {
   const queryClient = useQueryClient()
@@ -60,27 +46,27 @@ export default function Settings() {
   }
 
   const { data: controls, isLoading: controlsLoading } = useQuery({
-    queryKey: ['controls'],
+    queryKey: QUERY_KEYS.CONTROLS,
     queryFn: () => getControls().then(res => res.data),
   })
 
   const { data: cameraSettings, isLoading: cameraLoading } = useQuery({
-    queryKey: ['camera-settings'],
+    queryKey: QUERY_KEYS.CAMERA_SETTINGS,
     queryFn: () => getCameraSettings().then(res => res.data),
   })
 
   const { data: webuiSettings, isLoading: webuiLoading } = useQuery({
-    queryKey: ['webui-settings'],
+    queryKey: QUERY_KEYS.WEBUI_SETTINGS,
     queryFn: () => getWebuiSettings().then(res => res.data),
   })
 
   const { data: systemInfo } = useQuery({
-    queryKey: ['system-info'],
+    queryKey: QUERY_KEYS.SYSTEM_INFO,
     queryFn: () => getSystemInfo().then(res => res.data),
   })
 
   const { data: diagnosticInfo } = useQuery({
-    queryKey: ['diagnostic-info'],
+    queryKey: QUERY_KEYS.DIAGNOSTIC_INFO,
     queryFn: () => getDiagnosticInfo().then(res => res.data),
   })
 
@@ -88,7 +74,7 @@ export default function Settings() {
     mutationFn: updateControls,
     onSuccess: () => {
       isDirtyRef.current.controls = false
-      queryClient.invalidateQueries(['controls'])
+      queryClient.invalidateQueries(QUERY_KEYS.CONTROLS)
       toast.success('Hardware controls updated successfully!')
     },
     onError: (error) => {
@@ -101,7 +87,7 @@ export default function Settings() {
     mutationFn: updateCameraSettings,
     onSuccess: () => {
       isDirtyRef.current.camera = false
-      queryClient.invalidateQueries(['camera-settings'])
+      queryClient.invalidateQueries(QUERY_KEYS.CAMERA_SETTINGS)
       // No toast - only used by handleUpdatePhotoPreset which shows its own toast
     },
     onError: (error) => {
@@ -114,7 +100,7 @@ export default function Settings() {
     mutationFn: updateWebuiSettings,
     onSuccess: () => {
       isDirtyRef.current.webui = false
-      queryClient.invalidateQueries(['webui-settings'])
+      queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
       // Notify backend to reload settings via WebSocket
       if (socketRef.current) {
         socketRef.current.emit('reload_stream_settings')
@@ -129,21 +115,21 @@ export default function Settings() {
 
   // Preset management
   const { data: presetsData, isLoading: presetsLoading } = useQuery({
-    queryKey: ['presets'],
+    queryKey: QUERY_KEYS.PRESETS,
     queryFn: () => getPresets().then(res => res.data),
   })
 
   // User preferences (for default presets)
   const { data: preferences } = useQuery({
-    queryKey: ['preferences'],
+    queryKey: QUERY_KEYS.PREFERENCES,
     queryFn: () => getPreferences().then(res => res.data),
   })
 
   const applyPresetMutation = useMutation({
     mutationFn: ({ name, applyTo }) => applyPreset(name, applyTo),
     onSuccess: (response) => {
-      queryClient.invalidateQueries(['camera-settings'])
-      queryClient.invalidateQueries(['webui-settings'])
+      queryClient.invalidateQueries(QUERY_KEYS.CAMERA_SETTINGS)
+      queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
       // No toast here - let individual handlers control when to show toasts
       // This allows silent initialization vs. user-action feedback
     },
@@ -156,7 +142,7 @@ export default function Settings() {
   const deletePresetMutation = useMutation({
     mutationFn: (name) => deletePreset(name),
     onSuccess: () => {
-      queryClient.invalidateQueries(['presets'])
+      queryClient.invalidateQueries(QUERY_KEYS.PRESETS)
       setSelectedPhotoPreset('')
       setSelectedLiveViewPreset('')
       toast.success('Preset deleted successfully!')
@@ -170,7 +156,7 @@ export default function Settings() {
   const createPresetMutation = useMutation({
     mutationFn: (data) => createPreset(data),
     onSuccess: () => {
-      queryClient.invalidateQueries(['presets'])
+      queryClient.invalidateQueries(QUERY_KEYS.PRESETS)
       // No toast here - used by both Update and Save As
       // Update handlers show "Updated [preset]" toast
       // Save As shows toast via SavePresetModal's onSave callback
@@ -185,7 +171,7 @@ export default function Settings() {
   const setPreferenceMutation = useMutation({
     mutationFn: ({ key, value }) => setPreference(key, value),
     onSuccess: () => {
-      queryClient.invalidateQueries(['preferences'])
+      queryClient.invalidateQueries(QUERY_KEYS.PREFERENCES)
       toast.success('Default preset updated!')
     },
     onError: (error) => {
@@ -237,7 +223,7 @@ export default function Settings() {
     socketRef.current.on('settings_reloaded', (data) => {
       console.log('Stream settings reloaded:', data)
       // Trigger refetch of webui settings - form will auto-sync if clean
-      queryClient.invalidateQueries(['webui-settings'])
+      queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
     })
 
     return () => {
@@ -289,7 +275,7 @@ export default function Settings() {
         name: presetName,
         applyTo: 'capture'
       })
-      await queryClient.invalidateQueries(['camera-settings'])
+      await queryClient.invalidateQueries(QUERY_KEYS.CAMERA_SETTINGS)
       // No toast - silent initialization
       console.log(`Initialized photo preset: ${presetName}`)
     } catch (error) {
@@ -338,7 +324,7 @@ export default function Settings() {
         name: presetName,
         applyTo: 'liveview'
       })
-      await queryClient.invalidateQueries(['webui-settings'])
+      await queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
       // No toast - silent initialization
       console.log(`Initialized live view preset: ${presetName}`)
     } catch (error) {
@@ -431,7 +417,7 @@ export default function Settings() {
         applyTo: 'capture'
       })
       // Query invalidation triggers form update
-      await queryClient.invalidateQueries(['camera-settings'])
+      await queryClient.invalidateQueries(QUERY_KEYS.CAMERA_SETTINGS)
 
       const preset = presetsData?.presets?.find(p => p.name === presetName)
       const displayName = preset?.display_name || presetName
@@ -458,7 +444,7 @@ export default function Settings() {
         applyTo: 'liveview'
       })
       // Query invalidation triggers form update
-      await queryClient.invalidateQueries(['webui-settings'])
+      await queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
 
       const preset = presetsData?.presets?.find(p => p.name === presetName)
       const displayName = preset?.display_name || presetName

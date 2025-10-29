@@ -15,8 +15,6 @@ This script:
 Exit codes:
     0: Calibration successful
     1: Calibration failed (error details in stderr)
-
-Related: Issue #45 - Camera Calibration Architecture
 """
 import sys
 from pathlib import Path

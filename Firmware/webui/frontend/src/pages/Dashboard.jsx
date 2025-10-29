@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSystemStatus, getPowerStatus, capturePhoto, getPhotos, syncGps } from '../utils/api'
 import { formatTimestamp } from '../utils/helpers'
+import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 
@@ -10,19 +11,19 @@ export default function Dashboard() {
   const queryClient = useQueryClient()
 
   const { data: status, isLoading: statusLoading } = useQuery({
-    queryKey: ['system-status'],
+    queryKey: QUERY_KEYS.SYSTEM_STATUS,
     queryFn: () => getSystemStatus().then(res => res.data),
     refetchInterval: 5000, // Refresh every 5 seconds
   })
 
   const { data: power } = useQuery({
-    queryKey: ['power-status'],
+    queryKey: QUERY_KEYS.POWER_STATUS,
     queryFn: () => getPowerStatus().then(res => res.data),
     refetchInterval: 5000,
   })
 
   const { data: photos } = useQuery({
-    queryKey: ['photos'],
+    queryKey: QUERY_KEYS.PHOTOS,
     queryFn: () => getPhotos().then(res => res.data.photos),
   })
 
@@ -71,8 +72,8 @@ export default function Dashboard() {
       }
 
       // Refetch system status to get updated GPS data
-      queryClient.invalidateQueries(['system-status'])
-      queryClient.invalidateQueries(['gps-status'])
+      queryClient.invalidateQueries(QUERY_KEYS.SYSTEM_STATUS)
+      queryClient.invalidateQueries(QUERY_KEYS.GPS_STATUS)
     } catch (error) {
       toast.dismiss(toastId)
       console.error('Failed to sync GPS:', error)

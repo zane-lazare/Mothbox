@@ -11,14 +11,17 @@ import mothbox_import  # Sets up sys.path for mothbox
 
 from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CAMERA_SETTINGS_FILE, CONTROLS_FILE, LIVEVIEW_SETTINGS_FILE
 
+# Import camera control mapping
+from camera_control_mapping import build_picamera_controls, convert_from_settings_file
+
 
 # ============================================================================
-# Helper Functions (Issue #46)
+# Helper Functions
 # ============================================================================
 
 def acquire_camera_with_retry(camera_id=0, max_retries=3, wait_time=2.0):
     """
-    Acquire camera with retry logic for busy state (Issue #46 Solution #3)
+    Acquire camera with retry logic for busy state
 
     Handles cases where hardware hasn't fully released yet after
     camera_streamer.release_camera() call. Common when switching
@@ -56,7 +59,7 @@ def acquire_camera_with_retry(camera_id=0, max_retries=3, wait_time=2.0):
 
 def _emit_calibration_progress(step, total_steps, message, progress):
     """
-    Emit calibration progress via WebSocket (Task 4: Real-time Calibration Progress)
+    Emit calibration progress via WebSocket for real-time progress updates
 
     Args:
         step: Current step number (1-indexed)
@@ -79,7 +82,7 @@ def _emit_calibration_progress(step, total_steps, message, progress):
         print(f"Warning: Failed to emit calibration progress: {e}")
 
 
-# Allowed camera settings with validation functions (Phase 2.1: expanded controls)
+# Allowed camera settings with validation functions
 def _validate_int_enum(v, allowed_values):
     """Validate integer enum - rejects floats, raises exception for invalid types"""
     if isinstance(v, bool):
@@ -117,7 +120,7 @@ ALLOWED_CAMERA_SETTINGS = {
     'AnalogueGain': lambda v: 1.0 <= float(v) <= 16.0,  # ISO gain
     'AeEnable': lambda v: str(v).lower() in ['true', 'false'],  # Auto exposure
 
-    # Focus controls (Phase 2.1)
+    # Focus controls
     'AfMode': lambda v: _validate_int_enum(v, [0, 1, 2]),  # 0=Manual, 1=Auto Single, 2=Continuous
     'AfSpeed': lambda v: _validate_int_enum(v, [0, 1]),  # 0=Normal, 1=Fast
     'AfRange': lambda v: _validate_int_enum(v, [0, 1, 2]),  # 0=Normal, 1=Macro, 2=Full
@@ -127,7 +130,7 @@ ALLOWED_CAMERA_SETTINGS = {
     # Exposure metering controls
     'AeMeteringMode': lambda v: int(v) in [0, 1, 2],  # 0=Centre, 1=Spot, 2=Matrix
 
-    # White balance controls (Phase 2.1)
+    # White balance controls
     'AwbEnable': lambda v: str(v).lower() in ['true', 'false'],
     'AwbMode': lambda v: 0 <= int(v) <= 7,  # 0=Auto, 1=Incandescent, ..., 7=Custom
     'ColourGainRed': lambda v: 1.0 <= float(v) <= 4.0,  # Red channel gain
@@ -141,7 +144,7 @@ ALLOWED_CAMERA_SETTINGS = {
     'DefectCorrectionEnable': lambda v: str(v).lower() in ['true', 'false'],
     'UseCustomTuning': lambda v: str(v).lower() in ['true', 'false'],
 
-    # HDR/Bracketing (Phase 2.1)
+    # HDR/Bracketing
     'HDR': lambda v: int(v) in [1, 3, 5, 7],  # Number of bracketed exposures
     'HDR_width': lambda v: 1000 <= int(v) <= 50000,  # Bracket step size (µs)
 
@@ -160,7 +163,7 @@ ALLOWED_CAMERA_SETTINGS = {
     'FocusBracket_ColorGainRed': lambda v: 1.0 <= float(v) <= 4.0,  # Red channel gain
     'FocusBracket_ColorGainBlue': lambda v: 1.0 <= float(v) <= 4.0,  # Blue channel gain
 
-    # Auto-calibration (Phase 2.1)
+    # Auto-calibration
     'AutoCalibration': lambda v: int(v) in [0, 1],  # 0=Off, 1=On
     'AutoCalibrationPeriod': lambda v: 1 <= int(v) <= 10000,  # Photos between calibrations
 
@@ -594,7 +597,7 @@ def update_camera_settings():
 @camera_bp.route('/autofocus', methods=['POST'])
 def trigger_autofocus():
     """
-    Trigger autofocus cycle (Phase 2.2)
+    Trigger autofocus cycle
 
     Based on PlowmanAutofocus.py and TakePhoto.py:410 pattern.
 
@@ -687,7 +690,7 @@ def trigger_autofocus():
                 picam2.stop()
                 picam2.close()
 
-                # Lock to manual focus mode to preserve AF position (Phase 2.2: AF preservation)
+                # Lock to manual focus mode to preserve AF position
                 # This prevents continuous AF from overriding the locked focus when stream restarts
                 if success:
                     print("Locking to manual focus mode to preserve autofocus position...")
@@ -758,7 +761,7 @@ def trigger_autofocus():
 @camera_bp.route('/calibrate-photo', methods=['POST'])
 def calibrate_photo():
     """
-    Calibrate TakePhoto.py settings (Issue #45)
+    Calibrate TakePhoto.py settings
 
     Runs TakePhoto.py's run_calibration() function via subprocess
     to properly calibrate exposure, gain, and focus for high-res
@@ -945,7 +948,7 @@ def calibrate_photo():
 
 
 # ============================================================================
-# Migration Note (Issue #45):
+# Migration Note:
 # The /calibrate endpoint was removed and replaced by /calibrate-photo.
 # Use the new subprocess-based endpoint for proper camera resource management.
 # ============================================================================
@@ -954,7 +957,7 @@ def calibrate_photo():
 @camera_bp.route('/freeze-settings', methods=['POST'])
 def freeze_settings():
     """
-    Freeze camera settings to current values (Phase 2.2 - Task 2)
+    Freeze camera settings to current values
 
     Locks exposure, gain, and focus to prevent automatic adjustments.
     Useful for reproducible captures under consistent conditions.
@@ -1244,21 +1247,34 @@ def test_capture_liveview():
         if LIVEVIEW_SETTINGS_FILE.exists():
             liveview_settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
 
-        # Build controls dict from live view settings
-        controls = {
-            'Sharpness': float(liveview_settings.get('sharpness', 1.0)),
-            'Brightness': float(liveview_settings.get('brightness', 0.0)),
-            'Contrast': float(liveview_settings.get('contrast', 1.0)),
-            'Saturation': float(liveview_settings.get('saturation', 1.0)),
-            'AfMode': int(liveview_settings.get('af_mode', 2)),
-            'AfSpeed': int(liveview_settings.get('af_speed', 0)),
-            'AfRange': int(liveview_settings.get('af_range', 0)),
-            'AwbEnable': liveview_settings.get('awb_enable', 'true').lower() == 'true',
-        }
+        # Use centralized mapping from camera_control_mapping.py
+        # This eliminates implicit snake_case → PascalCase conversion
+
+        # Extract and convert settings with proper types
+        settings = {}
+        setting_keys = ['sharpness', 'brightness', 'contrast', 'saturation',
+                        'af_mode', 'af_speed', 'af_range', 'awb_enable', 'awb_mode']
+
+        for key in setting_keys:
+            if key in liveview_settings:
+                settings[key] = convert_from_settings_file(key, liveview_settings[key])
+
+        # Apply defaults for missing settings
+        settings.setdefault('sharpness', 1.0)
+        settings.setdefault('brightness', 0.0)
+        settings.setdefault('contrast', 1.0)
+        settings.setdefault('saturation', 1.0)
+        settings.setdefault('af_mode', 2)
+        settings.setdefault('af_speed', 0)
+        settings.setdefault('af_range', 0)
+        settings.setdefault('awb_enable', True)
+
+        # Build controls dict (handles case conversion and type validation)
+        controls = build_picamera_controls(settings)
 
         # Only set AwbMode if AWB is disabled
-        if not controls['AwbEnable']:
-            controls['AwbMode'] = int(liveview_settings.get('awb_mode', 0))
+        if not settings.get('awb_enable', True) and 'awb_mode' in settings:
+            controls['AwbMode'] = settings['awb_mode']
 
         return _execute_test_capture(controls, 'live view')
 

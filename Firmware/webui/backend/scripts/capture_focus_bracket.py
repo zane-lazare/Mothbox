@@ -34,6 +34,10 @@ import RPi.GPIO as GPIO
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from mothbox_paths import CONTROLS_FILE, CAMERA_SETTINGS_FILE, PHOTOS_DIR, get_gpio_pins
 
+# Import camera control mapping
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from camera_control_mapping import build_picamera_controls
+
 
 # ============================================================================
 # Default Configuration (fallback values if not in CSV)
@@ -234,7 +238,8 @@ def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focu
         # Lock colour gains for consistency across focus stack
         # This ensures uniform colour when images are combined in stacking software
         cgains = (colour_gain_red, colour_gain_blue)
-        picam2.set_controls({"ColourGains": cgains})
+        # Use centralized mapping
+        picam2.set_controls(build_picamera_controls({'colour_gains': cgains}))
         print(f"Color gains locked at R={colour_gain_red:.3f}, B={colour_gain_blue:.3f}")
     else:
         # Use auto white balance - each image may vary slightly based on lighting
@@ -265,7 +270,8 @@ def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focu
         print(f"FOCUS_BRACKET_PROGRESS: {progress_pct}% - Step {step_num}/{num_steps}: Setting focus to {focus_pos:.2f} diopters")
 
         # Set focus position (manual mode)
-        picam2.set_controls({"LensPosition": focus_pos, "AfMode": 0})
+        # Use centralized mapping
+        picam2.set_controls(build_picamera_controls({'lens_position': focus_pos, 'af_mode': 0}))
         print(f"Focus position set: {focus_pos:.2f} diopters (step {step_num}/{num_steps})")
 
         # Wait for lens to settle after focus change (convert ms to seconds)

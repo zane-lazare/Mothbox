@@ -18,6 +18,9 @@ from mothbox_paths import (
     get_control_values
 )
 
+# Import camera control mapping
+from camera_control_mapping import SNAKE_TO_PASCAL, convert_to_settings_file
+
 # Valid BCM GPIO pins (BCM mode: GPIO 2-27)
 VALID_BCM_GPIO_PINS = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27]
 
@@ -222,7 +225,7 @@ def update_schedule_settings():
 def get_webui_settings():
     """Get WebUI stream settings"""
     try:
-        # Default settings (Phase 2.1: expanded with image quality, focus, WB controls)
+        # Default settings
         defaults = {
             # Stream/encoding settings
             'stream_width': 1024,
@@ -232,7 +235,7 @@ def get_webui_settings():
             'stream_mode': 'simplejpeg',  # Fast software encoding (5-7x faster than PIL)
             'sensor_mode': 'auto',  # auto, 4:3, 16:9, full - controls field of view
 
-            # Image quality controls (Phase 2.1)
+            # Image quality controls
             'sharpness': 1.0,
             'brightness': 0.0,
             'contrast': 1.0,
@@ -241,16 +244,16 @@ def get_webui_settings():
             # Noise reduction control
             'noise_reduction_mode': 0,  # 0=Off, 1=Fast, 2=High Quality
 
-            # Focus controls (Phase 2.1)
+            # Focus controls
             'af_mode': 2,  # Continuous autofocus
             'af_speed': 0,  # Normal speed
             'af_range': 0,  # Normal range
 
-            # White balance controls (Phase 2.1)
+            # White balance controls
             'awb_enable': True,
             'awb_mode': 0,  # Auto
 
-            # Colour gains (Phase 2.1 - fix for blue/white saturation)
+            # Colour gains - fix for blue/white saturation under LED illumination
             # These values from TakePhoto.py calibration lock color balance under LED flash
             'colour_gains_red': 2.259,
             'colour_gains_blue': 1.500,
@@ -306,7 +309,7 @@ def get_webui_settings():
 
 @config_bp.route('/webui', methods=['POST'])
 def update_webui_settings():
-    """Update WebUI stream settings (with backup) - Phase 2.1: expanded validation"""
+    """Update WebUI stream settings (with backup)"""
     backup_path = None
     try:
         new_settings = request.json
@@ -331,7 +334,7 @@ def update_webui_settings():
         if not isinstance(sensor_mode, str):
             return jsonify({'error': 'sensor_mode must be a string'}), 400
 
-        # Validate and convert types - Image quality controls (Phase 2.1)
+        # Validate and convert types - Image quality controls
         try:
             sharpness = float(new_settings.get('sharpness', existing.get('sharpness', 1.0)))
             brightness = float(new_settings.get('brightness', existing.get('brightness', 0.0)))
@@ -350,7 +353,7 @@ def update_webui_settings():
         except (ValueError, TypeError) as e:
             return jsonify({'error': f'Invalid noise_reduction_mode type: {e}'}), 400
 
-        # Validate and convert types - Focus controls (Phase 2.1)
+        # Validate and convert types - Focus controls
         try:
             af_mode = int(new_settings.get('af_mode', existing.get('af_mode', 2)))
             af_speed = int(new_settings.get('af_speed', existing.get('af_speed', 0)))
@@ -358,7 +361,7 @@ def update_webui_settings():
         except (ValueError, TypeError) as e:
             return jsonify({'error': f'Invalid focus control type: {e}'}), 400
 
-        # Validate and convert types - White balance controls (Phase 2.1)
+        # Validate and convert types - White balance controls
         awb_enable = new_settings.get('awb_enable', existing.get('awb_enable', 'true'))
         if isinstance(awb_enable, str):
             awb_enable = awb_enable.lower() == 'true'
@@ -368,7 +371,7 @@ def update_webui_settings():
         except (ValueError, TypeError) as e:
             return jsonify({'error': f'Invalid white balance mode type: {e}'}), 400
 
-        # Validate and convert types - Colour gains (Phase 2.1 - blue/white saturation fix)
+        # Validate and convert types - Colour gains (blue/white saturation fix)
         try:
             colour_gains_red = float(new_settings.get('colour_gains_red', existing.get('colour_gains_red', 2.259)))
             colour_gains_blue = float(new_settings.get('colour_gains_blue', existing.get('colour_gains_blue', 1.500)))
@@ -439,7 +442,7 @@ def update_webui_settings():
         if sensor_mode not in ['auto', '4:3', '16:9', 'full']:
             return jsonify({'error': 'sensor_mode must be auto, 4:3, 16:9, or full'}), 400
 
-        # Validate ranges - Image quality (Phase 2.1)
+        # Validate ranges - Image quality
         if not (0.0 <= sharpness <= 16.0):
             return jsonify({'error': 'Sharpness must be between 0.0 and 16.0'}), 400
         if not (-1.0 <= brightness <= 1.0):
@@ -453,7 +456,7 @@ def update_webui_settings():
         if noise_reduction_mode not in [0, 1, 2]:
             return jsonify({'error': 'noise_reduction_mode must be 0 (Off), 1 (Fast), or 2 (High Quality)'}), 400
 
-        # Validate ranges - Focus controls (Phase 2.1)
+        # Validate ranges - Focus controls
         if af_mode not in [0, 1, 2]:
             return jsonify({'error': 'AfMode must be 0 (Manual), 1 (Auto Single), or 2 (Continuous)'}), 400
         if af_speed not in [0, 1]:
@@ -461,13 +464,13 @@ def update_webui_settings():
         if af_range not in [0, 1, 2]:
             return jsonify({'error': 'AfRange must be 0 (Normal), 1 (Macro), or 2 (Full)'}), 400
 
-        # Validate ranges - White balance (Phase 2.1)
+        # Validate ranges - White balance
         if not isinstance(awb_enable, bool):
             return jsonify({'error': 'AwbEnable must be a boolean'}), 400
         if not (0 <= awb_mode <= 7):
             return jsonify({'error': 'AwbMode must be between 0 and 7'}), 400
 
-        # Validate ranges - Colour gains (Phase 2.1)
+        # Validate ranges - Colour gains
         if not (0.0 <= colour_gains_red <= 8.0):
             return jsonify({'error': 'Red colour gain must be between 0.0 and 8.0'}), 400
         if not (0.0 <= colour_gains_blue <= 8.0):
@@ -504,7 +507,7 @@ def update_webui_settings():
         # Create backup before modification
         backup_path = _create_backup(LIVEVIEW_SETTINGS_FILE)
 
-        # Write settings to file (Phase 2.1: expanded settings)
+        # Write settings to file
         with open(LIVEVIEW_SETTINGS_FILE, 'w') as f:
             # Stream/encoding settings
             f.write(f"stream_width={stream_width}\n")
@@ -532,7 +535,7 @@ def update_webui_settings():
             f.write(f"awb_enable={'true' if awb_enable else 'false'}\n")
             f.write(f"awb_mode={awb_mode}\n")
 
-            # Colour gains (Phase 2.1 - fix for blue/white saturation)
+            # Colour gains - fix for blue/white saturation under LED illumination
             f.write(f"colour_gains_red={colour_gains_red}\n")
             f.write(f"colour_gains_blue={colour_gains_blue}\n")
 
@@ -568,7 +571,7 @@ def update_webui_settings():
 @config_bp.route('/copy-settings', methods=['POST'])
 def copy_settings():
     """
-    Copy compatible settings between live view and capture systems (Phase 2.2)
+    Copy compatible settings between live view and capture systems
 
     Request JSON:
         - direction: "preview_to_capture" or "capture_to_preview"
@@ -590,18 +593,18 @@ def copy_settings():
 
         print(f"Copy settings requested: {direction}")
 
-        # Define mapping of compatible controls between systems
+        # Use centralized mapping from camera_control_mapping.py
+        # This eliminates local duplicate mapping table
+
+        # Define compatible controls to copy between systems
         # Format: (preview_name, capture_name, converter_func)
+        compatible_keys = ['sharpness', 'brightness', 'contrast', 'saturation',
+                          'af_mode', 'af_speed', 'af_range', 'awb_enable', 'awb_mode']
+
+        # Generate mappings from centralized source
         compatible_mappings = [
-            ('sharpness', 'Sharpness', lambda v: str(v)),
-            ('brightness', 'Brightness', lambda v: str(v)),
-            ('contrast', 'Contrast', lambda v: str(v)),
-            ('saturation', 'Saturation', lambda v: str(v)),
-            ('af_mode', 'AfMode', lambda v: str(v)),
-            ('af_speed', 'AfSpeed', lambda v: str(v)),
-            ('af_range', 'AfRange', lambda v: str(v)),
-            ('awb_enable', 'AwbEnable', lambda v: 'true' if v else 'false'),
-            ('awb_mode', 'AwbMode', lambda v: str(v)),
+            (snake, SNAKE_TO_PASCAL[snake], lambda v, k=snake: convert_to_settings_file(k, v))
+            for snake in compatible_keys
         ]
 
         copied = []

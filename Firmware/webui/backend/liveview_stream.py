@@ -23,6 +23,13 @@ except ImportError:
     ISP_TUNING_AVAILABLE = False
     print("Warning: ISP tuning loader not available")
 
+# Import camera control mapping
+from camera_control_mapping import (
+    build_picamera_controls,
+    normalize_control_key,
+    handle_colour_gains
+)
+
 try:
     from picamera2 import Picamera2
     from picamera2.encoders import MJPEGEncoder
@@ -86,7 +93,7 @@ class LiveViewStreamer:
         self.stream_mode = 'simplejpeg'  # Default: fast software encoding
         self.sensor_mode = 'auto'  # auto, 4:3, 16:9, full - controls field of view
 
-        # Image quality controls (Phase 2.1)
+        # Image quality controls
         self.sharpness = 1.0
         self.brightness = 0.0
         self.contrast = 1.0
@@ -95,7 +102,7 @@ class LiveViewStreamer:
         # Noise reduction control
         self.noise_reduction_mode = 0  # 0=Off, 1=Fast, 2=High Quality
 
-        # Focus controls (Phase 2.1)
+        # Focus controls
         self.af_mode = 2  # Continuous autofocus by default
         self.af_speed = 0  # Normal speed
         self.af_range = 0  # Normal range
@@ -106,7 +113,7 @@ class LiveViewStreamer:
         self.exposure_time = 500  # Microseconds (for manual mode)
         self.analogue_gain = 8.0  # ISO gain (for manual mode)
 
-        # White balance controls (Phase 2.1)
+        # White balance controls
         self.awb_enable = True
         self.awb_mode = 0  # Auto
         # ColourGains: Fixed gains for LED illumination (from TakePhoto.py calibration)
@@ -157,7 +164,7 @@ class LiveViewStreamer:
                 if 'sensor_mode' in settings:
                     self.sensor_mode = settings['sensor_mode']
 
-                # Image quality settings (Phase 2.1)
+                # Image quality settings
                 if 'sharpness' in settings:
                     self.sharpness = float(settings['sharpness'])
                 if 'brightness' in settings:
@@ -171,7 +178,7 @@ class LiveViewStreamer:
                 if 'noise_reduction_mode' in settings:
                     self.noise_reduction_mode = int(settings['noise_reduction_mode'])
 
-                # Focus settings (Phase 2.1)
+                # Focus settings
                 if 'af_mode' in settings:
                     self.af_mode = int(settings['af_mode'])
                 if 'af_speed' in settings:
@@ -189,7 +196,7 @@ class LiveViewStreamer:
                 if 'analogue_gain' in settings:
                     self.analogue_gain = float(settings['analogue_gain'])
 
-                # White balance settings (Phase 2.1)
+                # White balance settings
                 if 'awb_enable' in settings:
                     self.awb_enable = settings['awb_enable'].lower() == 'true'
                 if 'awb_mode' in settings:
@@ -447,42 +454,49 @@ class LiveViewStreamer:
         # Use AF mode override if set (e.g., after autofocus button locks focus)
         af_mode_to_use = self._af_mode_override if self._af_mode_override is not None else self.af_mode
 
-        controls_dict = {
+        # Use centralized mapping from camera_control_mapping.py
+        # This eliminates implicit snake_case → PascalCase conversion
+        settings = {
             # Focus controls
-            "AfMode": af_mode_to_use,
-            "AfSpeed": self.af_speed,
-            "AfRange": self.af_range,
+            'af_mode': af_mode_to_use,
+            'af_speed': self.af_speed,
+            'af_range': self.af_range,
             # Use Windows mode (1) if AF window is active, otherwise Auto (0)
-            "AfMetering": 1 if self._af_window_active else 0,
+            'af_metering': 1 if self._af_window_active else 0,
 
             # Image quality controls
-            "Sharpness": self.sharpness,
-            "Brightness": self.brightness,
-            "Contrast": self.contrast,
-            "Saturation": self.saturation,
+            'sharpness': self.sharpness,
+            'brightness': self.brightness,
+            'contrast': self.contrast,
+            'saturation': self.saturation,
 
             # Exposure controls
-            "AeEnable": self.ae_enable,
-            "AeMeteringMode": self.ae_metering_mode,
+            'ae_enable': self.ae_enable,
+            'ae_metering_mode': self.ae_metering_mode,
 
             # Noise reduction control
-            "NoiseReductionMode": self.noise_reduction_mode,
+            'noise_reduction_mode': self.noise_reduction_mode,
 
             # White balance controls
-            "AwbEnable": self.awb_enable,
+            'awb_enable': self.awb_enable,
             # ColourGains: Critical for locking colour balance under LED illumination
             # Note: Must be set even with AwbEnable to lock white balance (TakePhoto.py:519)
-            "ColourGains": self.colour_gains,
+            'colour_gains': self.colour_gains,
         }
+
+        # Build base controls with PascalCase keys
+        controls_dict = build_picamera_controls(settings)
 
         # Only set AwbMode if AWB is disabled (manual mode)
         if not self.awb_enable:
-            controls_dict["AwbMode"] = self.awb_mode
+            controls_dict.update(build_picamera_controls({'awb_mode': self.awb_mode}))
 
         # Only set manual exposure values if auto exposure is disabled
         if not self.ae_enable:
-            controls_dict["ExposureTime"] = self.exposure_time
-            controls_dict["AnalogueGain"] = self.analogue_gain
+            controls_dict.update(build_picamera_controls({
+                'exposure_time': self.exposure_time,
+                'analogue_gain': self.analogue_gain
+            }))
 
         self.camera.set_controls(controls_dict)
 
@@ -899,7 +913,7 @@ class LiveViewStreamer:
 
     def update_control(self, control_dict):
         """
-        Update camera control(s) without restarting stream (Phase 2.1)
+        Update camera control(s) without restarting stream
 
         Args:
             control_dict: Dictionary of control names and values
@@ -920,36 +934,44 @@ class LiveViewStreamer:
         colour_gain_red = None
         colour_gain_blue = None
 
+        # Use centralized mapping for dual naming support (PascalCase or snake_case)
         for key, value in control_dict.items():
-            if key == 'FocusPeakingEnabled':
+            # Normalize key to PascalCase for consistent handling
+            normalized_key = normalize_control_key(key)
+
+            if normalized_key == 'FocusPeakingEnabled':
                 self.focus_peaking_enabled = value if isinstance(value, bool) else str(value).lower() == 'true'
                 focus_peaking_controls[key] = value
-            elif key == 'FocusPeakingIntensity':
+            elif normalized_key == 'FocusPeakingIntensity':
                 self.focus_peaking_intensity = int(value)
                 focus_peaking_controls[key] = value
-            elif key == 'FocusPeakingColour':
+            elif normalized_key == 'FocusPeakingColour':
                 self.focus_peaking_colour = str(value)
                 focus_peaking_controls[key] = value
-            elif key == 'FocusPeakingAlgorithm':
+            elif normalized_key == 'FocusPeakingAlgorithm':
                 self.focus_peaking_algorithm = str(value)
                 focus_peaking_controls[key] = value
-            elif key == 'ColourGainRed' or key == 'colour_gains_red':
+            elif normalized_key == 'ColourGainRed':
                 # Handle both PascalCase (camera settings) and snake_case (liveview settings)
                 colour_gain_red = float(value)
                 # Store for persistence
                 self.colour_gains = (colour_gain_red, self.colour_gains[1])
-            elif key == 'ColourGainBlue' or key == 'colour_gains_blue':
+            elif normalized_key == 'ColourGainBlue':
                 # Handle both PascalCase (camera settings) and snake_case (liveview settings)
                 colour_gain_blue = float(value)
                 # Store for persistence
                 self.colour_gains = (self.colour_gains[0], colour_gain_blue)
             else:
-                camera_controls[key] = value
+                # Use normalized PascalCase key for camera controls
+                camera_controls[normalized_key] = value
 
-        # If colour gains were updated, add them to camera controls as tuple
+        # If colour gains were updated, add them to camera controls using helper
         if colour_gain_red is not None or colour_gain_blue is not None:
-            # Use current stored values (already updated above)
-            camera_controls['ColourGains'] = self.colour_gains
+            camera_controls.update(handle_colour_gains(
+                red=colour_gain_red,
+                blue=colour_gain_blue,
+                current=self.colour_gains
+            ))
 
         # Apply camera controls if any
         if camera_controls and self.camera and self.streaming:
@@ -1599,7 +1621,7 @@ class LiveViewStreamer:
 
     def set_manual_focus_mode(self, enabled=True):
         """
-        Enable or disable manual focus mode override (Phase 2.2: AF preservation)
+        Enable or disable manual focus mode override for AF preservation
 
         This method sets an AF mode override that persists across camera restarts.
         Used by the autofocus button to lock focus after autofocus completes.
@@ -1643,7 +1665,7 @@ class LiveViewStreamer:
 
     def cleanup(self):
         """
-        Cleanup camera resources with timeout protection (Issue #46 Solution #4)
+        Cleanup camera resources with timeout protection
 
         Improvements:
         - Waits for stream thread to fully stop before closing camera
@@ -1661,7 +1683,7 @@ class LiveViewStreamer:
         # Stop streaming gracefully
         self.stop_streaming()
 
-        # Wait for stream thread to actually finish (Issue #46 fix)
+        # Wait for stream thread to actually finish
         if self.stream_thread and self.stream_thread.is_alive():
             print("⏳ Waiting for stream thread to stop...")
             self.stream_thread.join(timeout=5.0)
@@ -1695,6 +1717,6 @@ class LiveViewStreamer:
                 # Catch any errors in the cleanup mechanism itself
                 print(f"⚠️  Error during camera cleanup: {e}")
             finally:
-                # ALWAYS set to None, even on error (Issue #46 fix)
+                # ALWAYS set to None, even on error
                 self.camera = None
                 print("✓ Camera cleanup complete")

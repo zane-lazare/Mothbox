@@ -2,24 +2,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getGpsConfig, updateGpsConfig, getGpsStatus, syncGps } from '../utils/api'
 import { formatTimestamp } from '../utils/helpers'
 import { validateDevicePath, validateBaudrate, validateTimeout } from '../utils/gpsValidation'
+import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
-
-// Collapsible Card Component (from Settings.jsx)
-const CollapsibleCard = ({ id, title, isCollapsed, onToggle, children, className = "settings-card" }) => (
-  <div className={className}>
-    <div
-      className="flex justify-between items-center cursor-pointer select-none"
-      onClick={() => onToggle(id)}
-    >
-      <h4 className="settings-card-title mb-0">{title}</h4>
-      <span className="text-gray-500 text-sm">
-        {isCollapsed ? '▶' : '▼'}
-      </span>
-    </div>
-    {!isCollapsed && <div className="mt-2">{children}</div>}
-  </div>
-)
+import CollapsibleCard from './CollapsibleCard'
 
 export default function GPSSettings() {
   const queryClient = useQueryClient()
@@ -30,7 +16,7 @@ export default function GPSSettings() {
   const [validationErrors, setValidationErrors] = useState({})
 
   const { data: gpsConfig, isLoading: configLoading } = useQuery({
-    queryKey: ['gps-config'],
+    queryKey: QUERY_KEYS.GPS_CONFIG,
     queryFn: () => getGpsConfig().then(res => res.data),
   })
 
@@ -42,7 +28,7 @@ export default function GPSSettings() {
   }, [gpsConfig])
 
   const { data: gpsStatus } = useQuery({
-    queryKey: ['gps-status'],
+    queryKey: QUERY_KEYS.GPS_STATUS,
     queryFn: () => getGpsStatus().then(res => res.data),
     // Pause polling during sync to avoid spam, otherwise poll every 15s
     refetchInterval: (data) => syncing ? false : 15000,
@@ -51,8 +37,8 @@ export default function GPSSettings() {
   const updateConfigMutation = useMutation({
     mutationFn: updateGpsConfig,
     onSuccess: (response) => {
-      queryClient.invalidateQueries(['gps-config'])
-      queryClient.invalidateQueries(['gps-status'])
+      queryClient.invalidateQueries(QUERY_KEYS.GPS_CONFIG)
+      queryClient.invalidateQueries(QUERY_KEYS.GPS_STATUS)
 
       if (response.data.gpsd_restarted) {
         toast.success('GPS configuration updated and service restarted!', { duration: 4000 })
@@ -66,8 +52,8 @@ export default function GPSSettings() {
     },
   })
 
-  // Helper to get GPS state description
-  const getGpsStateInfo = (gpstime) => {
+  // Helper to format GPS state description
+  const formatGpsStateInfo = (gpstime) => {
     if (gpstime === 0) {
       return { state: 'almanac_expired', time: '5-20 min', description: 'First sync (almanac download)' }
     }
@@ -92,7 +78,7 @@ export default function GPSSettings() {
     setSyncing(true)
 
     // Get expected GPS state based on last sync
-    const stateInfo = getGpsStateInfo(gpsStatus?.gpstime || 0)
+    const stateInfo = formatGpsStateInfo(gpsStatus?.gpstime || 0)
 
     // Use actual configured timeout values based on GPS state
     const timeoutMap = {
@@ -155,8 +141,8 @@ export default function GPSSettings() {
           { duration: 8000 }
         )
       }
-      queryClient.invalidateQueries(['gps-status'])
-      queryClient.invalidateQueries(['system-status'])
+      queryClient.invalidateQueries(QUERY_KEYS.GPS_STATUS)
+      queryClient.invalidateQueries(QUERY_KEYS.SYSTEM_STATUS)
     } catch (error) {
       clearInterval(progressInterval)
       toast.dismiss(toastId)
@@ -360,7 +346,7 @@ export default function GPSSettings() {
                       <span className="font-medium">PDOP:</span> {gpsStatus.pdop?.toFixed(2) || 'N/A'}
                     </p>
                     {(() => {
-                      const stateInfo = getGpsStateInfo(gpsStatus.gpstime || 0)
+                      const stateInfo = formatGpsStateInfo(gpsStatus.gpstime || 0)
                       return (
                         <p className="text-blue-700 text-xs">
                           <span className="font-medium">Next sync:</span>{' '}
