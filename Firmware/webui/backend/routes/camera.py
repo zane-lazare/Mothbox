@@ -107,6 +107,26 @@ def _validate_exposure_time(v):
     # Check range: must be positive and less than 1 second (1000000µs)
     return 0 < value < 1000000
 
+def _validate_noise_reduction_mode(v):
+    """Validate NoiseReductionMode - accepts int or digit string in [0,1,2]
+
+    Args:
+        v: Value to validate (int or string)
+
+    Returns:
+        bool: True if valid (int in [0,1,2] OR digit string converting to [0,1,2])
+
+    Notes:
+        0=Off, 1=Fast, 2=High Quality
+    """
+    # Accept integers directly
+    if isinstance(v, int) and v in [0, 1, 2]:
+        return True
+    # Accept digit strings that convert to valid values
+    if isinstance(v, str) and v.isdigit() and int(v) in [0, 1, 2]:
+        return True
+    return False
+
 ALLOWED_CAMERA_SETTINGS = {
     # Image quality controls (practical ranges: 0-4 for sharpness/contrast/saturation)
     'Sharpness': lambda v: 0.0 <= float(v) <= 4.0,
@@ -137,7 +157,7 @@ ALLOWED_CAMERA_SETTINGS = {
     'ColourGainBlue': lambda v: 1.0 <= float(v) <= 4.0,  # Blue channel gain
 
     # Noise reduction controls
-    'NoiseReductionMode': lambda v: isinstance(v, int) and v in [0, 1, 2] or (isinstance(v, str) and v.isdigit() and int(v) in [0, 1, 2]),  # 0=Off, 1=Fast, 2=High Quality
+    'NoiseReductionMode': lambda v: _validate_noise_reduction_mode(v),  # 0=Off, 1=Fast, 2=High Quality
 
     # ISP features (Phase: ISP Tuning)
     'LensShadingEnable': lambda v: str(v).lower() in ['true', 'false'],

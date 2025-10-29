@@ -233,6 +233,11 @@ def convert_from_settings_file(key: str, value: Any) -> Any:
         try:
             return float(value)
         except (ValueError, TypeError):
+            # Intentional silent pass-through: Return original value unchanged
+            # if conversion fails. Invalid values will be caught by the validation
+            # layer (ALLOWED_CAMERA_SETTINGS/ALLOWED_LIVEVIEW_SETTINGS) with
+            # proper error messages. This allows legitimate non-numeric values
+            # (e.g., 'auto', 'default') to pass through without logging noise.
             return value
 
     # Special handling for colour_gains tuple
