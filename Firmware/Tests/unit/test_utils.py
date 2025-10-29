@@ -18,8 +18,13 @@ from utils import (
     _validate_exposure_time,
     _validate_noise_reduction_mode,
     ALLOWED_CAMERA_SETTINGS,
-    ALLOWED_LIVEVIEW_SETTINGS
+    ALLOWED_LIVEVIEW_SETTINGS,
+    create_backup,
+    validate_path_within_directory
 )
+import tempfile
+import shutil as shutil_module
+import time
 
 
 class TestSanitizeCSVValue:
@@ -540,3 +545,215 @@ class TestLiveviewSettingsSchema:
         assert algo_validator('sobel') == True
         assert algo_validator('canny') == True
         assert algo_validator('invalid') == False
+
+
+class TestCreateBackup:
+    """Test file backup creation and management"""
+
+    def test_backup_creates_file(self):
+        """Should create backup file with timestamp"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create test file
+            test_file = Path(tmpdir) / "test.csv"
+            test_file.write_text("test data")
+
+            # Create backup
+            backup_path = create_backup(test_file)
+
+            # Verify backup exists
+            assert backup_path is not None
+            assert backup_path.exists()
+            assert backup_path.read_text() == "test data"
+            assert ".backup." in str(backup_path)
+
+    def test_backup_naming_format(self):
+        """Should use correct naming format"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_file = Path(tmpdir) / "settings.csv"
+            test_file.write_text("data")
+
+            backup_path = create_backup(test_file)
+
+            # Format: settings.csv.backup.YYYYMMDD_HHMMSS
+            assert backup_path.name.startswith("settings.csv.backup.")
+            # Check timestamp format (8 digits + underscore + 6 digits)
+            timestamp = backup_path.name.split(".backup.")[1]
+            assert len(timestamp) == 15  # YYYYMMDD_HHMMSS
+            assert timestamp[8] == "_"
+
+    def test_backup_cleanup_old_backups(self):
+        """Should keep only specified number of backups"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_file = Path(tmpdir) / "test.txt"
+            test_file.write_text("v1")
+
+            # Create 5 backups (with delays to ensure different timestamps)
+            for i in range(5):
+                test_file.write_text(f"v{i}")
+                create_backup(test_file, keep=3)
+                time.sleep(1.1)  # Ensure different timestamps (format is by second)
+
+            # Count backups
+            backups = list(Path(tmpdir).glob("test.txt.backup.*"))
+            assert len(backups) == 3  # Should only keep 3 most recent
+
+    def test_backup_nonexistent_file(self):
+        """Should return None for nonexistent file"""
+        nonexistent = Path("/tmp/does_not_exist_12345.txt")
+        result = create_backup(nonexistent)
+        assert result is None
+
+    def test_backup_preserves_content(self):
+        """Should preserve exact file content"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_file = Path(tmpdir) / "data.json"
+            test_content = '{"key": "value", "number": 42}'
+            test_file.write_text(test_content)
+
+            backup_path = create_backup(test_file)
+
+            assert backup_path.read_text() == test_content
+
+    def test_backup_custom_keep_count(self):
+        """Should respect custom keep parameter"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_file = Path(tmpdir) / "test.csv"
+            test_file.write_text("data")
+
+            # Create 4 backups, keeping only 2
+            for i in range(4):
+                create_backup(test_file, keep=2)
+                time.sleep(1.1)  # Ensure different timestamps (format is by second)
+
+            backups = list(Path(tmpdir).glob("test.csv.backup.*"))
+            assert len(backups) == 2
+
+    def test_backup_different_extensions(self):
+        """Should handle files with different extensions"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for ext in ['.txt', '.csv', '.json', '.conf', '']:
+                test_file = Path(tmpdir) / f"file{ext}"
+                test_file.write_text("data")
+
+                backup_path = create_backup(test_file)
+                assert backup_path is not None
+                assert backup_path.exists()
+
+
+class TestValidatePathWithinDirectory:
+    """Test path traversal protection"""
+
+    def test_valid_path_within_directory(self):
+        """Should accept paths within base directory"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir)
+            subdir = base_dir / "subdir"
+            subdir.mkdir()
+
+            # Valid path
+            result = validate_path_within_directory(Path("subdir/file.txt"), base_dir)
+            assert result == base_dir / "subdir" / "file.txt"
+
+    def test_reject_path_traversal_parent(self):
+        """Should reject path traversal with ../ """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir) / "photos"
+            base_dir.mkdir()
+
+            # Attempt to traverse to parent
+            with pytest.raises(ValueError):
+                validate_path_within_directory(Path("../../../etc/passwd"), base_dir)
+
+    def test_reject_absolute_path_outside(self):
+        """Should reject absolute paths outside base_dir"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir) / "safe"
+            base_dir.mkdir()
+
+            # Try absolute path outside base_dir
+            with pytest.raises(ValueError):
+                validate_path_within_directory(Path("/etc/passwd"), base_dir)
+
+    def test_nested_subdirectories(self):
+        """Should accept deeply nested valid paths"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir)
+            deep_dir = base_dir / "a" / "b" / "c" / "d"
+            deep_dir.mkdir(parents=True)
+
+            result = validate_path_within_directory(Path("a/b/c/d/file.txt"), base_dir)
+            assert result == deep_dir / "file.txt"
+
+    def test_path_with_dots_in_filename(self):
+        """Should accept filenames containing dots"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir)
+
+            # Filename with dots is fine (not path traversal)
+            result = validate_path_within_directory(Path("file.backup.txt"), base_dir)
+            assert result == base_dir / "file.backup.txt"
+
+    def test_current_directory_reference(self):
+        """Should handle ./ references"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir)
+
+            result = validate_path_within_directory(Path("./file.txt"), base_dir)
+            assert result == base_dir / "file.txt"
+
+    def test_complex_traversal_attempt(self):
+        """Should reject complex traversal attempts"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir) / "restricted"
+            base_dir.mkdir()
+
+            # Try various traversal techniques
+            traversal_attempts = [
+                "../../../etc/passwd",
+                "subdir/../../../../../../etc/shadow",
+                "../outside/file.txt",
+            ]
+
+            for attempt in traversal_attempts:
+                with pytest.raises(ValueError):
+                    validate_path_within_directory(Path(attempt), base_dir)
+
+    def test_returns_resolved_absolute_path(self):
+        """Should return fully resolved absolute path"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir)
+            subdir = base_dir / "photos"
+            subdir.mkdir()
+
+            result = validate_path_within_directory(Path("photos/image.jpg"), base_dir)
+
+            # Should be absolute
+            assert result.is_absolute()
+            # Should be resolved (no .. or . components)
+            assert ".." not in str(result)
+            assert result == base_dir / "photos" / "image.jpg"
+
+    def test_symlink_within_directory(self):
+        """Should resolve symlinks and validate final location"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir) / "safe"
+            base_dir.mkdir()
+
+            # Create a symlink within the base directory
+            target = base_dir / "target.txt"
+            target.write_text("data")
+            link = base_dir / "link.txt"
+            link.symlink_to(target)
+
+            # Should resolve symlink and verify it's within base_dir
+            result = validate_path_within_directory(Path("link.txt"), base_dir)
+            assert result == target
+
+    def test_empty_path_component(self):
+        """Should handle paths with empty components (e.g., double slashes)"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir)
+
+            # Path with double slash gets normalized
+            result = validate_path_within_directory(Path("subdir//file.txt"), base_dir)
+            assert result == base_dir / "subdir" / "file.txt"
