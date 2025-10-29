@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCapture, freezeSettings, getPresets, applyPreset, createPreset, getPreferences, setPreference, updateWebUISettings } from '../utils/api'
+import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCaptureLiveview, freezeSettings, getPresets, applyPreset, createPreset, getPreferences, setPreference, updateWebuiSettings } from '../utils/api'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '../utils/queryKeys'
 import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
 import SavePresetModal from '../components/SavePresetModal'
+import { convertFromBackend, toPicameraControl } from '../utils/cameraControlMapping'
 
 /**
  * Field list constants for API response validation
@@ -83,8 +85,8 @@ export default function Camera() {
   const [actionResult, setActionResult] = useState(null)
   const [testCapturing, setTestCapturing] = useState(false)
   const [testCaptureResult, setTestCaptureResult] = useState(null)
-  const [calibrationProgress, setCalibrationProgress] = useState(null)  // Task 4: Real-time progress
-  const [liveControls, setLiveControls] = useState({  // Task 5: Real-time control sliders
+  const [calibrationProgress, setCalibrationProgress] = useState(null)
+  const [liveControls, setLiveControls] = useState({
     sharpness: 1.0,
     brightness: 0.0,
     contrast: 1.0,
@@ -99,13 +101,13 @@ export default function Camera() {
     lensPosition: 3.0,  // Diopters (0.0-10.0, middle position default)
     afRange: 0,  // 0=Normal, 1=Macro, 2=Full
     afSpeed: 0,  // 0=Normal, 1=Fast
-    // White balance / Color gains
+    // White balance / Colour gains
     colourGainRed: 2.259,  // Red channel gain (1.0-4.0)
     colourGainBlue: 1.500,  // Blue channel gain (1.0-4.0)
     // Focus peaking controls (live view-only overlay)
     focusPeakingEnabled: false,
     focusPeakingIntensity: 100,  // 50-200 range
-    focusPeakingColor: 'green',  // green, red, yellow, cyan, magenta
+    focusPeakingColour: 'green',  // green, red, yellow, cyan, magenta
     focusPeakingAlgorithm: 'laplacian'  // laplacian, sobel, canny
   })
   const [zoomLevel, setZoomLevel] = useState(1.0)  // Digital zoom level (1.0 = no zoom, 4.0 = 4x)
@@ -114,7 +116,7 @@ export default function Camera() {
   const [cameraSettings, setCameraSettings] = useState(null)  // HDR and other camera settings
   const socketRef = useRef(null)
   const metadataIntervalRef = useRef(null)
-  const debounceTimerRef = useRef(null)  // Task 5: Debounce timer for control updates
+  const debounceTimerRef = useRef(null)
   const zoomDebounceTimerRef = useRef(null)  // Debounce timer for zoom updates
 
   // Preset management
@@ -130,14 +132,14 @@ export default function Camera() {
 
   // Fetch available presets
   const { data: presetsData } = useQuery({
-    queryKey: ['presets'],
+    queryKey: QUERY_KEYS.PRESETS,
     queryFn: () => getPresets().then(res => res.data),
     staleTime: 30000 // 30 seconds
   })
 
   // Fetch user preferences
   const { data: preferences } = useQuery({
-    queryKey: ['preferences'],
+    queryKey: QUERY_KEYS.PREFERENCES,
     queryFn: () => getPreferences().then(res => res.data),
   })
 
@@ -145,8 +147,8 @@ export default function Camera() {
   const applyPresetMutation = useMutation({
     mutationFn: ({ name, applyTo }) => applyPreset(name, applyTo),
     onSuccess: () => {
-      queryClient.invalidateQueries(['webuiSettings'])
-      queryClient.invalidateQueries(['cameraSettings'])
+      queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
+      queryClient.invalidateQueries(QUERY_KEYS.CAMERA_SETTINGS)
     }
   })
 
@@ -154,15 +156,15 @@ export default function Camera() {
   const createPresetMutation = useMutation({
     mutationFn: createPreset,
     onSuccess: () => {
-      queryClient.invalidateQueries(['presets'])
+      queryClient.invalidateQueries(QUERY_KEYS.PRESETS)
     }
   })
 
   // Update webui settings mutation
   const updateWebuiMutation = useMutation({
-    mutationFn: updateWebUISettings,
+    mutationFn: updateWebuiSettings,
     onSuccess: () => {
-      queryClient.invalidateQueries(['webui-settings'])
+      queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
     },
     onError: (error) => {
       const message = error.response?.data?.error || 'Failed to update stream settings'
@@ -212,7 +214,7 @@ export default function Camera() {
     }
   }, [presetsData, preferences, selectedLiveViewPreset])
 
-  // Debounced function to emit control updates to backend (Task 5)
+  // Debounced function to emit control updates to backend
   const debouncedEmitControl = (controlName, value) => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current)
@@ -264,27 +266,36 @@ export default function Camera() {
         const response = await fetch(`${API_URL}/config/webui`)
         if (response.ok) {
           const data = await response.json()
-          // Update live controls with actual settings from backend
+
+          // Use centralized mapping from cameraControlMapping.js
+          // This eliminates manual snake_case → camelCase conversion
+          const frontendControls = convertFromBackend(data)
+
+          // Apply defaults for missing fields
+          const defaultControls = {
+            sharpness: 1.0,
+            brightness: 0.0,
+            contrast: 1.0,
+            saturation: 1.0,
+            noiseReductionMode: 0,
+            aeMeteringMode: 0,
+            aeEnable: true,
+            exposureTime: 500,
+            analogueGain: 8.0,
+            afMode: 2,  // Default: Continuous AF
+            lensPosition: 3.0,
+            afRange: 0,  // Default: Normal range
+            afSpeed: 0,  // Default: Normal speed
+            colourGainRed: 2.259,
+            colourGainBlue: 1.500
+          }
+
+          // Update live controls with merged defaults and backend data
           setLiveControls({
-            sharpness: data.sharpness !== undefined ? data.sharpness : 1.0,
-            brightness: data.brightness !== undefined ? data.brightness : 0.0,
-            contrast: data.contrast !== undefined ? data.contrast : 1.0,
-            saturation: data.saturation !== undefined ? data.saturation : 1.0,
-            noiseReductionMode: data.noise_reduction_mode !== undefined ? data.noise_reduction_mode : 0,
-            // Exposure controls - load from backend or use defaults
-            aeMeteringMode: data.ae_metering_mode !== undefined ? data.ae_metering_mode : 0,
-            aeEnable: data.ae_enable !== undefined ? data.ae_enable : true,
-            exposureTime: data.exposure_time !== undefined ? data.exposure_time : 500,
-            analogueGain: data.analogue_gain !== undefined ? data.analogue_gain : 8.0,
-            // Focus controls - load from backend or use defaults
-            afMode: data.af_mode !== undefined ? data.af_mode : 2,  // Default: Continuous AF
-            lensPosition: data.lens_position !== undefined ? data.lens_position : 3.0,
-            afRange: data.af_range !== undefined ? data.af_range : 0,  // Default: Normal range
-            afSpeed: data.af_speed !== undefined ? data.af_speed : 0,  // Default: Normal speed
-            // White balance / Color gains - load from backend or use defaults
-            colourGainRed: data.colour_gains_red !== undefined ? data.colour_gains_red : 2.259,
-            colourGainBlue: data.colour_gains_blue !== undefined ? data.colour_gains_blue : 1.500
+            ...defaultControls,
+            ...frontendControls
           })
+
           console.log('Loaded live controls from settings:', data)
         }
       } catch (error) {
@@ -419,7 +430,7 @@ export default function Camera() {
     }
   }, [])
 
-  // Poll metadata when preview is active (Phase 2.2)
+  // Poll metadata when preview is active
   useEffect(() => {
     if (liveViewActive && socketRef.current) {
       // Request metadata every 500ms
@@ -716,7 +727,7 @@ export default function Camera() {
     setTestCapturing(true)
     setTestCaptureResult(null)
     try {
-      const response = await testCapture()
+      const response = await testCaptureLiveview()
       toast.success(`Test photo captured: ${response.data.test_photo_path}`)
       setTestCaptureResult({
         success: true,
@@ -742,7 +753,7 @@ export default function Camera() {
     return str.charAt(0).toLowerCase() + str.slice(1)
   }
 
-  // Task 5: Real-time control slider handlers
+  // Real-time control slider handlers
   const handleControlChange = (controlName, value) => {
     // Convert PascalCase control name to camelCase state key
     // e.g., 'NoiseReductionMode' -> 'noiseReductionMode', 'Sharpness' -> 'sharpness'
@@ -960,7 +971,7 @@ export default function Camera() {
       lensPosition: 3.0,  // Middle position
       afRange: 0,  // Normal range
       afSpeed: 0,  // Normal speed
-      // Color balance defaults
+      // Colour balance defaults
       colourGainRed: 2.259,
       colourGainBlue: 1.500
     }
@@ -1390,7 +1401,7 @@ export default function Camera() {
                     <span className="font-semibold text-blue-300">{metadata.af_state}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-300">Color Temp:</span>
+                    <span className="text-gray-300">Colour Temp:</span>
                     <span className="font-semibold text-blue-300">{metadata.colour_temperature}K</span>
                   </div>
                 </div>
@@ -1574,7 +1585,7 @@ export default function Camera() {
                       max="4"
                       step="0.1"
                       value={liveControls.sharpness}
-                      onChange={(e) => handleControlChange('Sharpness', parseFloat(e.target.value))}
+                      onChange={(e) => handleControlChange(toPicameraControl('sharpness'), parseFloat(e.target.value))}
                       className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
                     <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
@@ -1596,7 +1607,7 @@ export default function Camera() {
                       max="1"
                       step="0.1"
                       value={liveControls.brightness}
-                      onChange={(e) => handleControlChange('Brightness', parseFloat(e.target.value))}
+                      onChange={(e) => handleControlChange(toPicameraControl('brightness'), parseFloat(e.target.value))}
                       className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
                     <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
@@ -1618,7 +1629,7 @@ export default function Camera() {
                       max="4"
                       step="0.1"
                       value={liveControls.contrast}
-                      onChange={(e) => handleControlChange('Contrast', parseFloat(e.target.value))}
+                      onChange={(e) => handleControlChange(toPicameraControl('contrast'), parseFloat(e.target.value))}
                       className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
                     <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
@@ -1640,7 +1651,7 @@ export default function Camera() {
                       max="4"
                       step="0.1"
                       value={liveControls.saturation}
-                      onChange={(e) => handleControlChange('Saturation', parseFloat(e.target.value))}
+                      onChange={(e) => handleControlChange(toPicameraControl('saturation'), parseFloat(e.target.value))}
                       className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
                     <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
@@ -1652,7 +1663,7 @@ export default function Camera() {
 
                   {/* Colour Gains Section */}
                   <div className="pt-2 mt-2 border-t border-white/20">
-                    <h4 className="text-xs font-semibold text-gray-200 mb-2">🎨 Color Balance</h4>
+                    <h4 className="text-xs font-semibold text-gray-200 mb-2">🎨 Colour Balance</h4>
 
                     {/* Red Gain Slider */}
                     <div className="mb-3">
@@ -1666,7 +1677,7 @@ export default function Camera() {
                         max="4.0"
                         step="0.001"
                         value={liveControls.colourGainRed}
-                        onChange={(e) => handleControlChange('ColourGainRed', parseFloat(e.target.value))}
+                        onChange={(e) => handleControlChange(toPicameraControl('colourGainRed'), parseFloat(e.target.value))}
                         className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-red-500"
                       />
                       <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
@@ -1688,7 +1699,7 @@ export default function Camera() {
                         max="4.0"
                         step="0.001"
                         value={liveControls.colourGainBlue}
-                        onChange={(e) => handleControlChange('ColourGainBlue', parseFloat(e.target.value))}
+                        onChange={(e) => handleControlChange(toPicameraControl('colourGainBlue'), parseFloat(e.target.value))}
                         className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
                       />
                       <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
@@ -1699,7 +1710,7 @@ export default function Camera() {
                     </div>
 
                     <div className="mt-2 text-[10px] text-gray-300">
-                      💡 Locks color balance for LED flash illumination
+                      💡 Locks colour balance for LED flash illumination
                     </div>
                   </div>
 
@@ -1713,7 +1724,7 @@ export default function Camera() {
                       onChange={(e) => {
                         const newValue = e.target.value === 'true'
                         setLiveControls(prev => ({ ...prev, aeEnable: newValue }))
-                        handleControlChange('AeEnable', newValue)
+                        handleControlChange(toPicameraControl('aeEnable'), newValue)
                       }}
                       className="w-full px-2 py-1.5 text-xs bg-white/10 text-white border border-white/20 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
@@ -1755,7 +1766,7 @@ export default function Camera() {
                             const logValue = minLog + (sliderValue / 100) * (maxLog - minLog)
                             const exposureTime = Math.round(Math.pow(2, logValue))
                             setLiveControls(prev => ({ ...prev, exposureTime: exposureTime }))
-                            handleControlChange('ExposureTime', exposureTime)
+                            handleControlChange(toPicameraControl('exposureTime'), exposureTime)
                           }}
                           className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-orange-500"
                         />
@@ -1781,7 +1792,7 @@ export default function Camera() {
                           onChange={(e) => {
                             const newValue = parseFloat(e.target.value)
                             setLiveControls(prev => ({ ...prev, analogueGain: newValue }))
-                            handleControlChange('AnalogueGain', newValue)
+                            handleControlChange(toPicameraControl('analogueGain'), newValue)
                           }}
                           className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-orange-500"
                         />
@@ -1802,7 +1813,7 @@ export default function Camera() {
                       </label>
                       <select
                         value={liveControls.aeMeteringMode}
-                        onChange={(e) => handleControlChange('AeMeteringMode', parseInt(e.target.value))}
+                        onChange={(e) => handleControlChange(toPicameraControl('aeMeteringMode'), parseInt(e.target.value))}
                         className="w-full px-2 py-1.5 text-xs bg-white/10 text-white border border-white/20 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="0" className="bg-gray-800">Centre-Weighted</option>
@@ -1827,7 +1838,7 @@ export default function Camera() {
                       onChange={(e) => {
                         const newValue = parseInt(e.target.value)
                         setLiveControls(prev => ({ ...prev, afMode: newValue }))
-                        handleControlChange('AfMode', newValue)
+                        handleControlChange(toPicameraControl('afMode'), newValue)
                       }}
                       className="w-full px-2 py-1.5 text-xs bg-white/10 text-white border border-white/20 rounded focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                     >
@@ -1858,7 +1869,7 @@ export default function Camera() {
                         onChange={(e) => {
                           const newValue = parseFloat(e.target.value)
                           setLiveControls(prev => ({ ...prev, lensPosition: newValue }))
-                          handleControlChange('LensPosition', newValue)
+                          handleControlChange(toPicameraControl('lensPosition'), newValue)
                         }}
                         className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-orange-500"
                       />
@@ -1878,7 +1889,7 @@ export default function Camera() {
                       </label>
                       <select
                         value={liveControls.afRange}
-                        onChange={(e) => handleControlChange('AfRange', parseInt(e.target.value))}
+                        onChange={(e) => handleControlChange(toPicameraControl('afRange'), parseInt(e.target.value))}
                         className="w-full px-2 py-1.5 text-xs bg-white/10 text-white border border-white/20 rounded focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                       >
                         <option value="0" className="bg-gray-800">Normal (0.5m - ∞)</option>
@@ -1901,7 +1912,7 @@ export default function Camera() {
                       </label>
                       <select
                         value={liveControls.afSpeed}
-                        onChange={(e) => handleControlChange('AfSpeed', parseInt(e.target.value))}
+                        onChange={(e) => handleControlChange(toPicameraControl('afSpeed'), parseInt(e.target.value))}
                         className="w-full px-2 py-1.5 text-xs bg-white/10 text-white border border-white/20 rounded focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                       >
                         <option value="0" className="bg-gray-800">Normal (Accurate)</option>
@@ -1925,7 +1936,7 @@ export default function Camera() {
                     </label>
                     <select
                       value={liveControls.noiseReductionMode}
-                      onChange={(e) => handleControlChange('NoiseReductionMode', parseInt(e.target.value))}
+                      onChange={(e) => handleControlChange(toPicameraControl('noiseReductionMode'), parseInt(e.target.value))}
                       className="w-full px-2 py-1.5 bg-white/20 text-white text-xs rounded border border-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="0">Off</option>
@@ -2045,15 +2056,15 @@ export default function Camera() {
                           </div>
                         </div>
 
-                        {/* Color Dropdown */}
+                        {/* Colour Dropdown */}
                         <div>
-                          <label className="text-[10px] text-gray-300 mb-1 block">Color</label>
+                          <label className="text-[10px] text-gray-300 mb-1 block">Colour</label>
                           <select
-                            value={liveControls.focusPeakingColor}
+                            value={liveControls.focusPeakingColour}
                             onChange={(e) => {
-                              const color = e.target.value
-                              setLiveControls(prev => ({ ...prev, focusPeakingColor: color }))
-                              debouncedEmitControl('FocusPeakingColor', color)
+                              const colour = e.target.value
+                              setLiveControls(prev => ({ ...prev, focusPeakingColour: colour }))
+                              debouncedEmitControl('FocusPeakingColour', colour)
                             }}
                             className="w-full px-2 py-1 text-[10px] bg-white/10 text-white rounded border border-white/20"
                           >
@@ -2120,7 +2131,7 @@ export default function Camera() {
                 </button>
               </div>
 
-              {/* Calibration Progress Indicator (Task 4) */}
+              {/* Calibration Progress Indicator */}
               {calibrationProgress && (
                 <div className="mt-2 p-2 bg-blue-500/20 border border-blue-400/30 rounded">
                   <div className="flex items-center justify-between mb-1">

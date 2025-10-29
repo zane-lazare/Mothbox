@@ -4,7 +4,7 @@ Camera ISP Tuning File Loader
 Loads and applies Picamera2 tuning files for ISP features:
 - Lens shading correction (vignetting correction) - runtime toggle available
 - Defect pixel correction (stuck/dead pixel correction) - runtime toggle available
-- Chromatic aberration correction (color fringing correction) - Pi 5 only, tuning file only
+- Chromatic aberration correction (colour fringing correction) - Pi 5 only, tuning file only
 
 Tuning files are JSON-based configuration files that control the Image Signal
 Processor (ISP) pipeline. They must be loaded when the camera is created,
@@ -22,6 +22,9 @@ import sys
 # Add parent directory to path for mothbox_paths import
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from mothbox_paths import ISP_TUNING_DIR, ISP_DEFAULT_TUNING_FILE
+
+# Import camera control mapping
+from camera_control_mapping import SNAKE_TO_PASCAL
 
 # Tuning directory from centralized path configuration
 TUNING_DIR = ISP_TUNING_DIR
@@ -135,28 +138,32 @@ def apply_isp_controls(camera, lens_shading=True, defect_correction=True):
     # Lens shading correction (vignetting fix)
     # Mode 0 = Off, Mode 1 = On
     # Note: Not available on some cameras (e.g., ov64a40) - always on via tuning file
-    if 'LensShadingMapMode' in available_controls:
+    # Use centralized mapping
+    lens_shading_control = SNAKE_TO_PASCAL['lens_shading_map_mode']
+    if lens_shading_control in available_controls:
         try:
-            camera.set_controls({'LensShadingMapMode': 1 if lens_shading else 0})
+            camera.set_controls({lens_shading_control: 1 if lens_shading else 0})
             print(f"ISP: Lens shading correction {'enabled' if lens_shading else 'disabled'}")
             applied_count += 1
         except Exception as e:
-            print(f"Warning: Could not apply LensShadingMapMode: {e}")
+            print(f"Warning: Could not apply {lens_shading_control}: {e}")
     else:
-        print("ISP: LensShadingMapMode not available (always on via tuning file)")
+        print(f"ISP: {lens_shading_control} not available (always on via tuning file)")
 
     # Defect pixel correction (hot/dead pixel fix)
     # Mode 0 = Off, Mode 1 = Fast, Mode 2 = HighQuality
     # We use Fast (1) for better performance
-    if 'HotPixelMode' in available_controls:
+    # Use centralized mapping
+    hot_pixel_control = SNAKE_TO_PASCAL['hot_pixel_mode']
+    if hot_pixel_control in available_controls:
         try:
-            camera.set_controls({'HotPixelMode': 1 if defect_correction else 0})
+            camera.set_controls({hot_pixel_control: 1 if defect_correction else 0})
             print(f"ISP: Defect pixel correction {'enabled (Fast mode)' if defect_correction else 'disabled'}")
             applied_count += 1
         except Exception as e:
-            print(f"Warning: Could not apply HotPixelMode: {e}")
+            print(f"Warning: Could not apply {hot_pixel_control}: {e}")
     else:
-        print("Warning: HotPixelMode not available on this camera")
+        print(f"Warning: {hot_pixel_control} not available on this camera")
 
     # Return True if at least one control was applied successfully
     if applied_count > 0:

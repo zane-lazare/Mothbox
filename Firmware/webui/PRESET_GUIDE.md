@@ -55,7 +55,7 @@ Mothbox includes 5 professionally optimized built-in presets:
 - 5-step focus bracketing for depth stacking
 - Maximum sharpness (2.5) for incredible detail
 - Lens settle delay (500ms) for stable focus transitions
-- Locked color gains for consistent stacking
+- Locked colour gains for consistent stacking
 
 **Ideal for:** Tiny insects, extreme detail work, scientific documentation
 

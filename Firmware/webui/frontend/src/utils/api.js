@@ -80,8 +80,9 @@ export const getCameraSettings = () => api.get('/camera/settings')
 export const updateCameraSettings = (settings) => api.post('/camera/settings', settings)
 export const triggerAutofocus = () => api.post('/camera/autofocus')
 export const autoCalibrate = (data) => api.post('/camera/calibrate', data)
-export const freezeSettings = () => api.post('/camera/freeze-settings')  // Phase 2.2 - Task 2
-export const testCapture = () => api.post('/camera/test-capture')  // Phase 4.5
+export const freezeSettings = () => api.post('/camera/freeze-settings')
+export const testCaptureLiveview = () => api.post('/camera/test-capture-liveview')
+export const testCapturePhoto = () => api.post('/camera/test-capture-photo')
 
 // Gallery APIs
 export const getPhotos = () => api.get('/gallery/photos')
@@ -93,8 +94,8 @@ export const getControls = () => api.get('/config/controls')
 export const updateControls = (controls) => api.post('/config/controls', controls)
 export const getScheduleSettings = () => api.get('/config/schedule')
 export const updateScheduleSettings = (settings) => api.post('/config/schedule', settings)
-export const getWebUISettings = () => api.get('/config/webui')
-export const updateWebUISettings = (settings) => api.post('/config/webui', settings)
+export const getWebuiSettings = () => api.get('/config/webui')
+export const updateWebuiSettings = (settings) => api.post('/config/webui', settings)
 export const copySettings = (data) => api.post('/config/copy-settings', data)
 
 // GPIO APIs
@@ -120,7 +121,7 @@ export const getPreferences = () => api.get('/preferences')
 export const setPreference = (key, value) => api.post('/preferences', { key, value })
 
 // GPS APIs
-export const getGPSStatus = () => api.get('/gps/status')
-export const syncGPS = () => api.post('/gps/sync')
-export const getGPSConfig = () => api.get('/gps/config')
-export const updateGPSConfig = (config) => api.put('/gps/config', config)
+export const getGpsStatus = () => api.get('/gps/status')
+export const syncGps = () => api.post('/gps/sync')
+export const getGpsConfig = () => api.get('/gps/config')
+export const updateGpsConfig = (config) => api.put('/gps/config', config)

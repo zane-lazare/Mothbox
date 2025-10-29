@@ -28,6 +28,9 @@ Usage:
 
 from flask_socketio import emit
 
+# Import camera control mapping
+from camera_control_mapping import from_picamera_metadata
+
 
 def register_handlers(socketio, camera_streamer):
     """
@@ -162,7 +165,7 @@ def register_handlers(socketio, camera_streamer):
     @socketio.on('get_metadata')
     def handle_get_metadata():
         """
-        Get current camera metadata (Phase 2.2)
+        Get current camera metadata
 
         Returns real-time camera metadata for display in UI:
         - ExposureTime (µs)
@@ -205,35 +208,16 @@ def register_handlers(socketio, camera_streamer):
                         print(f"Failed to get metadata via capture_request: {e2}")
                         raise
 
-                # Extract primary metadata fields (existing)
-                exposure_time = md.get('ExposureTime', 0)
-                analogue_gain = md.get('AnalogueGain', 0.0)
-                lens_position = md.get('LensPosition', 0.0)
-                af_state_code = md.get('AfState', 0)
-                colour_temp = md.get('ColourTemperature', 0)
+                # Use centralized mapping from camera_control_mapping.py
+                # This eliminates manual PascalCase → snake_case conversion (30+ fields)
+                metadata_snake = from_picamera_metadata(md)
 
-                # Extract extended metadata fields (new)
-                digital_gain = md.get('DigitalGain', 0.0)
-                focus_fom = md.get('FocusFoM', 0)
-                sensor_timestamp = md.get('SensorTimestamp', 0)
-                colour_gains = md.get('ColourGains', (0.0, 0.0))
-                frame_duration = md.get('FrameDuration', 0)
-                sensor_black_level = md.get('SensorBlackLevel', 0)
-                sensor_temperature = md.get('SensorTemperature', None)
-                scaler_crop = md.get('ScalerCrop', (0, 0, 0, 0))
-                ae_locked = md.get('AeLocked', False)
-                awb_locked = md.get('AwbLocked', False)
-                lux = md.get('Lux', 0)
-                saturation = md.get('Saturation', 0.0)
-                contrast = md.get('Contrast', 0.0)
-                sharpness = md.get('Sharpness', 0.0)
-                brightness = md.get('Brightness', 0.0)
-
-                # Convert AfState code to string
+                # Convert AfState code to string (keep existing logic)
+                af_state_code = metadata_snake.get('af_state', 0)
                 af_state = ("Idle", "Scanning", "Success", "Fail")[af_state_code] if af_state_code < 4 else "Unknown"
 
                 # ========================================
-                # Coordinate Transformation System (Issue #52)
+                # Coordinate Transformation System
                 # ========================================
                 # The following calculations provide the frontend with a coordinate transformation
                 # matrix consisting of 4 values: actual_zoom_center_x/y and crop_fraction_x/y.
@@ -313,36 +297,29 @@ def register_handlers(socketio, camera_streamer):
                     crop_fraction_x = 1.0 / camera_streamer.zoom_level
                     crop_fraction_y = 1.0 / camera_streamer.zoom_level
 
-                emit('metadata_update', {
-                    # Primary metadata (existing)
-                    'exposure_time': exposure_time,
-                    'analogue_gain': round(analogue_gain, 2),
-                    'lens_position': round(lens_position, 2),
-                    'af_state': af_state,
-                    'colour_temperature': colour_temp,
-                    # Extended metadata (new)
-                    'digital_gain': round(digital_gain, 2),
-                    'focus_fom': round(focus_fom, 3) if focus_fom else 0,
-                    'sensor_timestamp': sensor_timestamp,
-                    'colour_gains': (round(colour_gains[0], 2), round(colour_gains[1], 2)) if len(colour_gains) >= 2 else (0.0, 0.0),
-                    'frame_duration': frame_duration,
-                    'sensor_black_level': sensor_black_level,
-                    'sensor_temperature': round(sensor_temperature, 1) if sensor_temperature is not None else None,
-                    'scaler_crop': scaler_crop if scaler_crop else (0, 0, 0, 0),
-                    'ae_locked': ae_locked,
-                    'awb_locked': awb_locked,
-                    'lux': lux,
-                    'saturation': round(saturation, 2),
-                    'contrast': round(contrast, 2),
-                    'sharpness': round(sharpness, 2),
-                    'brightness': round(brightness, 2),
-                    # Zoom metadata (Issue #52 fix)
+                # Apply rounding to specific fields
+                rounded_metadata = {
+                    **metadata_snake,
+                    'af_state': af_state,  # Use converted string
+                    'analogue_gain': round(metadata_snake.get('analogue_gain', 0.0), 2),
+                    'lens_position': round(metadata_snake.get('lens_position', 0.0), 2),
+                    'digital_gain': round(metadata_snake.get('digital_gain', 0.0), 2),
+                    'focus_fom': round(metadata_snake.get('focus_fom', 0), 3) if metadata_snake.get('focus_fom') else 0,  # Figure of Merit - autofocus quality metric (higher = sharper)
+                    'colour_gains': tuple(round(g, 2) for g in metadata_snake.get('colour_gains', (0.0, 0.0))) if metadata_snake.get('colour_gains') else (0.0, 0.0),
+                    'sensor_temperature': round(metadata_snake.get('sensor_temperature', 0), 1) if metadata_snake.get('sensor_temperature') is not None else None,
+                    'saturation': round(metadata_snake.get('saturation', 0.0), 2),
+                    'contrast': round(metadata_snake.get('contrast', 0.0), 2),
+                    'sharpness': round(metadata_snake.get('sharpness', 0.0), 2),
+                    'brightness': round(metadata_snake.get('brightness', 0.0), 2),
+                    # Zoom metadata
                     'actual_zoom_center_x': round(actual_zoom_center['x'], 4),
                     'actual_zoom_center_y': round(actual_zoom_center['y'], 4),
                     'crop_fraction_x': round(crop_fraction_x, 4),
                     'crop_fraction_y': round(crop_fraction_y, 4),
                     'timestamp': __import__('time').time()
-                })
+                }
+
+                emit('metadata_update', rounded_metadata)
 
             else:
                 # Camera not active - return unavailable status
@@ -354,7 +331,7 @@ def register_handlers(socketio, camera_streamer):
                     'af_state': 'Unavailable',
                     'colour_temperature': 0,
                     'digital_gain': 0,
-                    'focus_fom': 0,
+                    'focus_fom': 0,  # Figure of Merit - autofocus quality/sharpness indicator
                     'sensor_timestamp': 0,
                     'colour_gains': (0.0, 0.0),
                     'frame_duration': 0,
@@ -384,7 +361,7 @@ def register_handlers(socketio, camera_streamer):
                 'af_state': 'Error',
                 'colour_temperature': 0,
                 'digital_gain': 0,
-                'focus_fom': 0,
+                'focus_fom': 0,  # Figure of Merit - autofocus quality/sharpness indicator
                 'sensor_timestamp': 0,
                 'colour_gains': (0.0, 0.0),
                 'frame_duration': 0,
@@ -405,7 +382,7 @@ def register_handlers(socketio, camera_streamer):
     @socketio.on('update_liveview_control')
     def handle_update_liveview_control(data):
         """
-        Update a single camera control without restarting stream (Phase 2.2)
+        Update a single camera control without restarting stream
 
         Args:
             data: dict with control name and value, e.g., {'Sharpness': 2.0}

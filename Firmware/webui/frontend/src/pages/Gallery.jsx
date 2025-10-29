@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { getPhotos, getThumbnailUrl, getPhotoUrl } from '../utils/api'
+import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState } from 'react'
 
 export default function Gallery() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
 
   const { data: photos, isLoading } = useQuery({
-    queryKey: ['photos'],
+    queryKey: QUERY_KEYS.PHOTOS,
     queryFn: () => getPhotos().then(res => res.data.photos),
   })
 

@@ -3,7 +3,7 @@ import {
   validateDevicePath,
   validateBaudrate,
   validateTimeout,
-  validateGPSConfig
+  validateGpsConfig
 } from '../gpsValidation'
 
 describe('validateDevicePath', () => {
@@ -134,14 +134,14 @@ describe('validateTimeout', () => {
   })
 })
 
-describe('validateGPSConfig', () => {
+describe('validateGpsConfig', () => {
   it('validates complete valid config', () => {
     const config = {
       device: '/dev/ttyAMA0',
       baudrate: 9600,
       timeout: 10
     }
-    const result = validateGPSConfig(config)
+    const result = validateGpsConfig(config)
     expect(result.valid).toBe(true)
     expect(result.errors).toEqual({})
   })
@@ -152,7 +152,7 @@ describe('validateGPSConfig', () => {
       baudrate: 9600,
       timeout: 10
     }
-    const result = validateGPSConfig(config)
+    const result = validateGpsConfig(config)
     expect(result.valid).toBe(false)
     expect(result.errors.device).toBeDefined()
   })
@@ -163,7 +163,7 @@ describe('validateGPSConfig', () => {
       baudrate: 12345,
       timeout: 10
     }
-    const result = validateGPSConfig(config)
+    const result = validateGpsConfig(config)
     expect(result.valid).toBe(false)
     expect(result.errors.baudrate).toBeDefined()
   })
@@ -174,7 +174,7 @@ describe('validateGPSConfig', () => {
       baudrate: 9600,
       timeout: 1000
     }
-    const result = validateGPSConfig(config)
+    const result = validateGpsConfig(config)
     expect(result.valid).toBe(false)
     expect(result.errors.timeout).toBeDefined()
   })
@@ -185,7 +185,7 @@ describe('validateGPSConfig', () => {
       baudrate: 12345,
       timeout: 1
     }
-    const result = validateGPSConfig(config)
+    const result = validateGpsConfig(config)
     expect(result.valid).toBe(false)
     expect(result.errors.device).toBeDefined()
     expect(result.errors.baudrate).toBeDefined()
@@ -196,7 +196,7 @@ describe('validateGPSConfig', () => {
     const config = {
       timeout: 20
     }
-    const result = validateGPSConfig(config)
+    const result = validateGpsConfig(config)
     expect(result.valid).toBe(true)
     expect(result.errors).toEqual({})
   })

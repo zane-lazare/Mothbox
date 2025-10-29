@@ -11,7 +11,7 @@ vi.mock('../../utils/api', () => ({
   getPowerStatus: vi.fn(),
   getPhotos: vi.fn(),
   capturePhoto: vi.fn(),
-  syncGPS: vi.fn(),
+  syncGps: vi.fn(),
 }))
 
 // Mock toast
@@ -206,7 +206,7 @@ describe('Dashboard', () => {
 
   it('syncs GPS when sync button is clicked', async () => {
     const user = userEvent.setup()
-    api.syncGPS.mockResolvedValue({ data: { success: true } })
+    api.syncGps.mockResolvedValue({ data: { success: true } })
 
     renderComponent()
 
@@ -221,7 +221,7 @@ describe('Dashboard', () => {
     expect(screen.getByText(/Syncing.../i)).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(api.syncGPS).toHaveBeenCalled()
+      expect(api.syncGps).toHaveBeenCalled()
     })
   })
 
@@ -292,7 +292,7 @@ describe('Dashboard', () => {
 
   it('disables sync button while syncing', async () => {
     const user = userEvent.setup()
-    api.syncGPS.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 1000)))
+    api.syncGps.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 1000)))
 
     renderComponent()
 

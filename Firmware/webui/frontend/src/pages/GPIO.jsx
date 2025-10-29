@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getGpioStatus, controlGpio, triggerFlash } from '../utils/api'
+import { QUERY_KEYS } from '../utils/queryKeys'
 
 export default function GPIO() {
   const queryClient = useQueryClient()
 
   const { data: gpioStatus, isLoading, isFetching } = useQuery({
-    queryKey: ['gpio-status'],
+    queryKey: QUERY_KEYS.GPIO_STATUS,
     queryFn: () => getGpioStatus().then(res => res.data),
     refetchInterval: 5000, // Refresh every 5 seconds instead of 2
     refetchOnWindowFocus: false, // Don't refetch when window regains focus
@@ -16,13 +17,13 @@ export default function GPIO() {
     mutationFn: ({ relay, state }) => controlGpio(relay, state),
     onMutate: async ({ relay, state }) => {
       // Cancel any outgoing refetches
-      await queryClient.cancelQueries(['gpio-status'])
+      await queryClient.cancelQueries(QUERY_KEYS.GPIO_STATUS)
 
       // Snapshot the previous value
-      const previousStatus = queryClient.getQueryData(['gpio-status'])
+      const previousStatus = queryClient.getQueryData(QUERY_KEYS.GPIO_STATUS)
 
       // Optimistically update to the new value
-      queryClient.setQueryData(['gpio-status'], (old) => ({
+      queryClient.setQueryData(QUERY_KEYS.GPIO_STATUS, (old) => ({
         ...old,
         [relay]: state
       }))
@@ -32,12 +33,12 @@ export default function GPIO() {
     onError: (err, variables, context) => {
       // Rollback on error
       if (context?.previousStatus) {
-        queryClient.setQueryData(['gpio-status'], context.previousStatus)
+        queryClient.setQueryData(QUERY_KEYS.GPIO_STATUS, context.previousStatus)
       }
     },
     onSettled: () => {
       // Refetch after mutation
-      queryClient.invalidateQueries(['gpio-status'])
+      queryClient.invalidateQueries(QUERY_KEYS.GPIO_STATUS)
     },
   })
 

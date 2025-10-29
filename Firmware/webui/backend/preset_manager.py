@@ -14,6 +14,7 @@ import os
 import sys
 import logging
 import re
+import fcntl
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any, Union, Callable
@@ -468,8 +469,17 @@ class PresetManager:
         # Save to user directory
         try:
             preset_path = self.user_dir / f"{name}.json"
+            # Use file locking to prevent race conditions during concurrent writes
+            # (e.g., if multiple API requests try to save presets simultaneously)
             with open(preset_path, 'w') as f:
-                json.dump(preset_data, f, indent=2)
+                try:
+                    # Acquire exclusive lock (blocks until lock is available)
+                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                    json.dump(preset_data, f, indent=2)
+                    f.flush()
+                finally:
+                    # Release lock (automatically released when file closes, but explicit is better)
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
             return True, f"Preset '{name}' saved successfully"
         except IOError as e:
             return False, f"Failed to save preset: {str(e)}"
@@ -606,7 +616,7 @@ class PresetManager:
                         else:
                             return False, "Liveview setting 'focus_peaking_enabled' must be boolean"
 
-                # Validate focus peaking color
+                # Validate focus peaking colour
                 if 'focus_peaking_color' in liveview:
                     valid_colors = ['green', 'red', 'yellow', 'cyan', 'magenta']
                     if liveview['focus_peaking_color'] not in valid_colors:
