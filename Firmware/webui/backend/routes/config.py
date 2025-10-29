@@ -21,6 +21,9 @@ from mothbox_paths import (
 # Import camera control mapping
 from camera_control_mapping import SNAKE_TO_PASCAL, convert_to_settings_file
 
+# Import shared utilities
+from utils import sanitize_csv_value
+
 # Valid BCM GPIO pins (BCM mode: GPIO 2-27)
 VALID_BCM_GPIO_PINS = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27]
 
@@ -158,22 +161,6 @@ def get_schedule_settings():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def _sanitize_csv_value(value):
-    """Sanitize value to prevent CSV injection attacks"""
-    str_value = str(value)
-
-    # Prevent CSV formula injection by prefixing with single quote if starts with dangerous chars
-    if str_value.startswith(('=', '+', '-', '@', '\t', '\r')):
-        str_value = "'" + str_value
-
-    # Remove newlines and carriage returns to prevent multi-line injection
-    str_value = str_value.replace('\n', ' ').replace('\r', ' ')
-
-    # Limit length to prevent DoS
-    if len(str_value) > 1000:
-        str_value = str_value[:1000]
-
-    return str_value
 
 @config_bp.route('/schedule', methods=['POST'])
 def update_schedule_settings():
@@ -197,7 +184,7 @@ def update_schedule_settings():
 
         # Sanitize all values to prevent CSV injection
         sanitized_settings = {
-            k: _sanitize_csv_value(v)
+            k: sanitize_csv_value(v)
             for k, v in new_settings.items()
         }
 

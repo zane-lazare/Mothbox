@@ -14,6 +14,9 @@ from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CAMERA_SETTINGS_FILE, CONTRO
 # Import camera control mapping
 from camera_control_mapping import build_picamera_controls, convert_from_settings_file
 
+# Import shared utilities
+from utils import sanitize_csv_value
+
 
 # ============================================================================
 # Helper Functions
@@ -581,9 +584,7 @@ def update_camera_settings():
                 csv_rows.append(dict(row))
 
         # Sanitize values to prevent CSV injection (defense in depth)
-        # Lazy import to avoid circular dependency with app.py
-        from routes.config import _sanitize_csv_value
-        sanitized_settings = {k: _sanitize_csv_value(v) for k, v in new_settings.items()}
+        sanitized_settings = {k: sanitize_csv_value(v) for k, v in new_settings.items()}
 
         # Update the corresponding rows
         for setting_name, setting_value in sanitized_settings.items():
