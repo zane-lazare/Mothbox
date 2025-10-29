@@ -506,18 +506,62 @@ export default function Camera() {
 
           // Tell backend to reload settings from file before starting stream
           // This ensures backend CameraStreamer uses fresh settings, not cached values
+          console.log('Requesting backend to reload settings before preview start')
           await new Promise((resolve) => {
-            const handleReloaded = () => {
+            let isResolved = false
+            const timeoutMs = 1000
+
+            const handleReloaded = (data) => {
+              if (isResolved) return
+              isResolved = true
+              clearTimeout(timeoutId)
               socketRef.current.off('settings_reloaded', handleReloaded)
-              resolve()
+
+              // Check if backend reported error during reload
+              if (data && data.success === false) {
+                console.warn(
+                  `[${new Date().toISOString()}] Backend settings reload failed:`,
+                  data.error,
+                  `| Socket connected: ${socketRef.current?.connected}`
+                )
+                toast.error(`Settings reload failed: ${data.error}. Stream may use cached settings.`, { duration: 5000 })
+              } else {
+                console.log('Backend settings reloaded successfully:', data)
+              }
+
+              resolve()  // Always resolve to allow stream start (degraded mode)
             }
+
+            const timeoutId = setTimeout(() => {
+              if (isResolved) return
+              isResolved = true
+              socketRef.current.off('settings_reloaded', handleReloaded)
+
+              console.error(
+                `[${new Date().toISOString()}] Settings reload timed out after ${timeoutMs}ms`,
+                `| Socket connected: ${socketRef.current?.connected}`
+              )
+              toast.error(`Settings reload timed out. Stream will use cached settings.`, { duration: 5000 })
+
+              resolve()  // Resolve even on timeout (degraded mode)
+            }, timeoutMs)
+
+            // Check socket connection before emitting
+            if (!socketRef.current?.connected) {
+              clearTimeout(timeoutId)
+              console.error(
+                `[${new Date().toISOString()}] Cannot reload settings: WebSocket not connected`
+              )
+              toast.error('WebSocket disconnected. Cannot reload settings.', { duration: 5000 })
+              resolve()  // Continue anyway
+              return
+            }
+
             socketRef.current.once('settings_reloaded', handleReloaded)
             socketRef.current.emit('reload_stream_settings')
-            // Timeout fallback in case event doesn't fire
-            setTimeout(resolve, 300)
           })
 
-          console.log('Backend settings reloaded, starting preview')
+          console.log('Backend settings reload completed, starting preview')
         }
       } catch (error) {
         console.error('Failed to refresh settings before preview start:', error)
