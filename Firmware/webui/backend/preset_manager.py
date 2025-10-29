@@ -253,10 +253,10 @@ class PresetManager:
         For known settings, type conversion is always schema-based via _convert_value_type().
 
         Type inference hierarchy:
-        1. Boolean: 'true', 'false', 'yes', 'no', '1', '0' → bool
-           - Note: '0'/'1' are treated as booleans in this fallback
+        1. Boolean: 'true', 'false', 'yes', 'no' → bool
+           - Conservative: '0'/'1' NOT treated as booleans
            - Schema-based conversion distinguishes boolean vs integer fields
-        2. Integer: No decimal point → int (e.g., '42', '100')
+        2. Integer: No decimal point → int (e.g., '0', '1', '42', '100')
         3. Float: Contains decimal point → float (e.g., '3.14', '1.0')
         4. String: Everything else → str (e.g., 'green', 'custom')
 
@@ -270,7 +270,9 @@ class PresetManager:
             >>> _infer_type('true')
             True
             >>> _infer_type('1')
-            True  # Treated as boolean in fallback
+            1  # Treated as integer (conservative approach)
+            >>> _infer_type('0')
+            0  # Treated as integer (conservative approach)
             >>> _infer_type('42')
             42
             >>> _infer_type('3.14')
@@ -281,12 +283,15 @@ class PresetManager:
         if not isinstance(value, str):
             return value
 
-        # Try boolean - includes '1'/'0' for compatibility
-        # (Note: Schema-based conversion handles proper bool vs int distinction)
-        if value.lower() in ['true', 'false', 'yes', 'no', '1', '0']:
-            return value.lower() in ['true', 'yes', '1']
+        # Try boolean - only explicit boolean strings, not numeric '0'/'1'
+        # This is more conservative: '0'/'1' are treated as integers, not booleans.
+        # Known settings use schema-based conversion which correctly distinguishes
+        # between integer enums (0/1/2) and boolean fields (true/false).
+        if value.lower() in ['true', 'false', 'yes', 'no']:
+            return value.lower() in ['true', 'yes']
 
         # Try integer (no decimal point)
+        # Note: '0' and '1' will be parsed here as integers, not as booleans above
         try:
             if '.' not in value:
                 return int(value)
@@ -325,6 +330,11 @@ class PresetManager:
 
                         # Normalize and validate preset
                         data = self.normalize_preset(data)
+
+                        # Normalize setting types (convert strings to proper int/float/bool)
+                        if 'settings' in data:
+                            data['settings'] = self._normalize_setting_types(data['settings'])
+
                         valid, error_msg = self.validate_preset(data)
                         if not valid:
                             print(f"Warning: Skipping invalid built-in preset {preset_file.name}: {error_msg}")
@@ -351,6 +361,11 @@ class PresetManager:
 
                         # Normalize and validate preset
                         data = self.normalize_preset(data)
+
+                        # Normalize setting types (convert strings to proper int/float/bool)
+                        if 'settings' in data:
+                            data['settings'] = self._normalize_setting_types(data['settings'])
+
                         valid, error_msg = self.validate_preset(data)
                         if not valid:
                             print(f"Warning: Skipping invalid user preset {preset_file.name}: {error_msg}")
@@ -407,6 +422,12 @@ class PresetManager:
         # Normalize and validate the preset before returning
         if preset_data:
             preset_data = self.normalize_preset(preset_data)
+
+            # Normalize setting types (convert strings to proper int/float/bool)
+            # This handles legacy presets and manually edited files
+            if 'settings' in preset_data:
+                preset_data['settings'] = self._normalize_setting_types(preset_data['settings'])
+
             valid, error_msg = self.validate_preset(preset_data)
             if not valid:
                 print(f"Error: Invalid preset '{name}': {error_msg}")
@@ -562,22 +583,25 @@ class PresetManager:
         Returns:
             Tuple of (valid: bool, error_message: str)
         """
+        preset_name = preset_data.get('name', 'unknown')
+        preset_category = preset_data.get('category', 'unknown')
+
         # Check for settings key
         if 'settings' in preset_data:
             settings = preset_data['settings']
         elif 'camera' in preset_data or 'liveview' in preset_data:
             settings = preset_data
         else:
-            return False, "Preset must contain 'settings' or 'camera'/'liveview' keys"
+            return False, f"Preset must contain 'settings' or 'camera'/'liveview' keys. If this is a legacy preset, try re-saving it from the Settings page."
 
         # Settings must have at least camera or liveview
         if 'camera' not in settings and 'liveview' not in settings:
-            return False, "Preset must contain 'camera' and/or 'liveview' settings"
+            return False, f"Preset must contain 'camera' and/or 'liveview' settings. This preset may be corrupted or from an incompatible version."
 
         # Camera settings validation (basic type checking)
         if 'camera' in settings:
             if not isinstance(settings['camera'], dict):
-                return False, "Camera settings must be a dictionary"
+                return False, f"Camera settings must be a dictionary (found {type(settings['camera']).__name__}). This preset may be corrupted."
 
             # Check for common required fields
             camera = settings['camera']
@@ -588,13 +612,13 @@ class PresetManager:
                     if field in camera:
                         try:
                             float(camera[field])
-                        except (ValueError, TypeError):
-                            return False, f"Camera setting '{field}' must be numeric"
+                        except (ValueError, TypeError) as e:
+                            return False, f"Camera setting '{field}' has invalid value '{camera[field]}' (must be numeric). If this is a legacy preset, try re-saving it."
 
         # Liveview settings validation
         if 'liveview' in settings:
             if not isinstance(settings['liveview'], dict):
-                return False, "Liveview settings must be a dictionary"
+                return False, f"Liveview settings must be a dictionary (found {type(settings['liveview']).__name__}). This preset may be corrupted."
 
             # Type checks for liveview settings
             liveview = settings['liveview']
@@ -604,8 +628,8 @@ class PresetManager:
                     if field in liveview:
                         try:
                             float(liveview[field])
-                        except (ValueError, TypeError):
-                            return False, f"Liveview setting '{field}' must be numeric"
+                        except (ValueError, TypeError) as e:
+                            return False, f"Liveview setting '{field}' has invalid value '{liveview[field]}' (must be numeric). If this is a legacy preset, try re-saving it."
 
                 # Validate focus peaking boolean
                 if 'focus_peaking_enabled' in liveview:
