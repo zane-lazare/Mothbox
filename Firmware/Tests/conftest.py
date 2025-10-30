@@ -14,10 +14,47 @@ import pytest
 import sys
 import gc
 import time
+import os
 from pathlib import Path
 
 # Setup path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / 'webui' / 'backend'))
+
+
+# ============================================================================
+# Test Environment Setup
+# ============================================================================
+
+@pytest.fixture(scope='session', autouse=True)
+def setup_test_environment():
+    """
+    Set MOTHBOX_ENV=test for all test sessions
+
+    This ensures mothbox_paths.py uses repository root as MOTHBOX_HOME
+    instead of defaulting to /home/pi/Desktop/Mothbox or /opt/mothbox.
+
+    The test mode uses legacy-style path layout where all directories
+    (config, data, firmware) are under the repository root.
+
+    Priority:
+    1. Respects existing MOTHBOX_ENV if already set
+    2. Sets MOTHBOX_ENV=test if not present
+    3. Optionally sets MOTHBOX_HOME for clarity
+
+    This fixture runs once per test session before any tests execute.
+    """
+    if 'MOTHBOX_ENV' not in os.environ:
+        os.environ['MOTHBOX_ENV'] = 'test'
+
+    # Also set MOTHBOX_HOME explicitly for clarity (optional, test mode uses __file__ parent)
+    if 'MOTHBOX_HOME' not in os.environ:
+        test_root = Path(__file__).parent.parent
+        os.environ['MOTHBOX_HOME'] = str(test_root)
+        print(f"\n🧪 Test Mode: MOTHBOX_HOME={test_root}")
+
+    yield
+
+    # Cleanup not needed - environment persists for entire session
 
 
 # ============================================================================

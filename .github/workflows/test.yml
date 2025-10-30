@@ -81,6 +81,8 @@ jobs:
           pip install python-crontab timezonefinder==6.5.4
 
       - name: Run unit tests with coverage
+        env:
+          MOTHBOX_ENV: test
         run: |
           pytest Tests/unit/ \
             --cov=mothbox_paths \
@@ -92,6 +94,8 @@ jobs:
             --tb=short
 
       - name: Run integration tests (non-hardware)
+        env:
+          MOTHBOX_ENV: test
         run: |
           pytest Tests/integration/ \
             -v \

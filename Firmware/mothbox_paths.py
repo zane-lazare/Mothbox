@@ -17,6 +17,10 @@ Directory Structure Options:
 3. Development:
    - Any location via MOTHBOX_HOME environment variable
 
+4. Test (CI/CD and local testing):
+   - Repository root via MOTHBOX_ENV=test
+   - Auto-detects pytest execution
+
 Usage:
     from mothbox_paths import MOTHBOX_HOME, PHOTOS_DIR, CONFIG_DIR, get_gpio_pins, get_hardware_config, get_firmware_version, get_takephoto_script
 
@@ -44,11 +48,17 @@ from pathlib import Path
 from typing import Dict, Union, Any
 
 # Detect installation type
-# Priority: marker file > /opt/mothbox exists > env var > legacy path
+# Priority: test mode > marker file > /opt/mothbox exists > env var > legacy path
 installation_marker = Path("/opt/mothbox/.installation_type")
 MOTHBOX_HOME_ENV = os.environ.get('MOTHBOX_HOME')
+MOTHBOX_ENV = os.environ.get('MOTHBOX_ENV', 'production')
 
-if installation_marker.exists():
+# TEST MODE: Use repository root for testing (CI/CD and local tests)
+if MOTHBOX_ENV == 'test' or os.environ.get('PYTEST_CURRENT_TEST'):
+    # In test environment: use current file's parent directory (repository root)
+    MOTHBOX_HOME = Path(__file__).parent
+    _installation_type = "test"
+elif installation_marker.exists():
     # Read installation type from marker file (most reliable)
     try:
         _installation_type = installation_marker.read_text().strip()
@@ -78,7 +88,7 @@ if _installation_type == "production":
     DATA_DIR = Path("/var/lib/mothbox")
     FIRMWARE_DIR = MOTHBOX_HOME
 else:
-    # Legacy or custom: everything under MOTHBOX_HOME
+    # Test, legacy, or custom: everything under MOTHBOX_HOME
     CONFIG_DIR = MOTHBOX_HOME
     DATA_DIR = MOTHBOX_HOME
     FIRMWARE_DIR = MOTHBOX_HOME
