@@ -532,7 +532,7 @@ class TestLiveviewSettingsSchema:
         assert intensity_validator(-0.1) == False
         assert intensity_validator(200.1) == False
 
-        color_validator = ALLOWED_LIVEVIEW_SETTINGS['focus_peaking_color']
+        color_validator = ALLOWED_LIVEVIEW_SETTINGS['focus_peaking_colour']
         assert color_validator('green') == True
         assert color_validator('red') == True
         assert color_validator('yellow') == True

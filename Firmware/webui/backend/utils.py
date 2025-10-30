@@ -243,7 +243,7 @@ ALLOWED_CAMERA_SETTINGS: Dict[str, Callable[[Any], bool]] = {
     # Focus peaking (preview-only overlay)
     'FocusPeakingEnabled': lambda v: str(v).lower() in ['true', 'false'],
     'FocusPeakingIntensity': lambda v: 50 <= int(v) <= 200,
-    'FocusPeakingColor': lambda v: str(v).lower() in ['green', 'red', 'yellow', 'cyan', 'magenta'],
+    'FocusPeakingColour': lambda v: str(v).lower() in ['green', 'red', 'yellow', 'cyan', 'magenta'],
     'FocusPeakingAlgorithm': lambda v: str(v).lower() in ['laplacian', 'sobel', 'canny'],
 }
 
@@ -287,7 +287,7 @@ ALLOWED_LIVEVIEW_SETTINGS: Dict[str, Callable[[Any], bool]] = {
 
     # Focus peaking configuration
     'focus_peaking_intensity': lambda v: 0.0 <= float(v) <= 200.0,
-    'focus_peaking_color': lambda v: str(v).lower() in ['green', 'red', 'yellow', 'cyan', 'magenta'],
+    'focus_peaking_colour': lambda v: str(v).lower() in ['green', 'red', 'yellow', 'cyan', 'magenta'],
     'focus_peaking_algorithm': lambda v: str(v).lower() in ['laplacian', 'sobel', 'canny'],
 }
 

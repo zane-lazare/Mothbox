@@ -218,7 +218,7 @@ def get_webui_settings():
             # Focus peaking controls (preview-only overlay)
             'focus_peaking_enabled': False,
             'focus_peaking_intensity': 100,     # 50-200 range
-            'focus_peaking_color': 'green',     # green, red, yellow, cyan, magenta
+            'focus_peaking_colour': 'green',     # green, red, yellow, cyan, magenta
             'focus_peaking_algorithm': 'laplacian',  # laplacian, sobel, canny
         }
 
@@ -228,7 +228,7 @@ def get_webui_settings():
             # Load settings from file, converting to appropriate types
             for key in defaults:
                 if key in settings:
-                    if key in ['stream_mode', 'focus_peaking_color', 'focus_peaking_algorithm', 'sensor_mode']:
+                    if key in ['stream_mode', 'focus_peaking_colour', 'focus_peaking_algorithm', 'sensor_mode']:
                         # String values - don't convert
                         defaults[key] = settings[key]
                     elif key in ['awb_enable', 'ae_enable', 'focus_peaking_enabled']:
@@ -371,9 +371,9 @@ def update_webui_settings():
         except (ValueError, TypeError) as e:
             return jsonify({'error': f'Invalid focus_peaking_intensity type: {e}'}), 400
 
-        focus_peaking_color = new_settings.get('focus_peaking_color', existing.get('focus_peaking_color', 'green'))
-        if not isinstance(focus_peaking_color, str):
-            return jsonify({'error': 'focus_peaking_color must be a string'}), 400
+        focus_peaking_colour = new_settings.get('focus_peaking_colour', existing.get('focus_peaking_colour', 'green'))
+        if not isinstance(focus_peaking_colour, str):
+            return jsonify({'error': 'focus_peaking_colour must be a string'}), 400
 
         focus_peaking_algorithm = new_settings.get('focus_peaking_algorithm', existing.get('focus_peaking_algorithm', 'laplacian'))
         if not isinstance(focus_peaking_algorithm, str):
@@ -451,8 +451,8 @@ def update_webui_settings():
             return jsonify({'error': 'focus_peaking_enabled must be a boolean'}), 400
         if not (50 <= focus_peaking_intensity <= 200):
             return jsonify({'error': 'focus_peaking_intensity must be between 50 and 200'}), 400
-        if focus_peaking_color not in ['green', 'red', 'yellow', 'cyan', 'magenta']:
-            return jsonify({'error': 'focus_peaking_color must be green, red, yellow, cyan, or magenta'}), 400
+        if focus_peaking_colour not in ['green', 'red', 'yellow', 'cyan', 'magenta']:
+            return jsonify({'error': 'focus_peaking_colour must be green, red, yellow, cyan, or magenta'}), 400
         if focus_peaking_algorithm not in ['laplacian', 'sobel', 'canny']:
             return jsonify({'error': 'focus_peaking_algorithm must be laplacian, sobel, or canny'}), 400
 
@@ -505,7 +505,7 @@ def update_webui_settings():
             # Focus peaking controls (preview-only overlay)
             f.write(f"focus_peaking_enabled={'true' if focus_peaking_enabled else 'false'}\n")
             f.write(f"focus_peaking_intensity={focus_peaking_intensity}\n")
-            f.write(f"focus_peaking_color={focus_peaking_color}\n")
+            f.write(f"focus_peaking_colour={focus_peaking_colour}\n")
             f.write(f"focus_peaking_algorithm={focus_peaking_algorithm}\n")
 
         return jsonify({'success': True})

@@ -357,8 +357,9 @@ def temp_webui_settings(tmp_path, monkeypatch):
     temp_file = tmp_path / "webui_settings.txt"
     temp_file.touch()
 
-    # Patch the module-level constant (use Path object, not string)
+    # Patch both module-level constants (WEBUI_SETTINGS_FILE and LIVEVIEW_SETTINGS_FILE are aliases)
     monkeypatch.setattr(mothbox_paths, 'WEBUI_SETTINGS_FILE', temp_file)
+    monkeypatch.setattr(mothbox_paths, 'LIVEVIEW_SETTINGS_FILE', temp_file)
 
     yield temp_file
     # Cleanup happens automatically with tmp_path

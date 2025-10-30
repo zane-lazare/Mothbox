@@ -50,8 +50,8 @@ class TestFocusPeakingValidation:
         assert validator(1000) == False
 
     def test_focus_peaking_color_validation(self):
-        """Test FocusPeakingColor options validation"""
-        validator = ALLOWED_CAMERA_SETTINGS['FocusPeakingColor']
+        """Test FocusPeakingColour options validation"""
+        validator = ALLOWED_CAMERA_SETTINGS['FocusPeakingColour']
 
         # Valid colors
         assert validator('green') == True
@@ -220,7 +220,7 @@ class TestFocusPeakingSettings:
         # Check defaults
         assert streamer.focus_peaking_enabled == False
         assert streamer.focus_peaking_intensity == 100
-        assert streamer.focus_peaking_color == 'green'
+        assert streamer.focus_peaking_colour == 'green'
         assert streamer.focus_peaking_algorithm == 'laplacian'
 
     def test_update_control_focus_peaking(self):
@@ -242,9 +242,9 @@ class TestFocusPeakingSettings:
         assert streamer.focus_peaking_intensity == 150
 
         # Test color update
-        result = streamer.update_control({'FocusPeakingColor': 'red'})
+        result = streamer.update_control({'FocusPeakingColour': 'red'})
         assert result == True
-        assert streamer.focus_peaking_color == 'red'
+        assert streamer.focus_peaking_colour == 'red'
 
         # Test algorithm update
         result = streamer.update_control({'FocusPeakingAlgorithm': 'sobel'})
@@ -263,12 +263,12 @@ class TestFocusPeakingSettings:
         result = streamer.update_control({
             'FocusPeakingEnabled': True,
             'FocusPeakingIntensity': 175,
-            'FocusPeakingColor': 'yellow',
+            'FocusPeakingColour': 'yellow',
             'FocusPeakingAlgorithm': 'canny'
         })
 
         assert result == True
         assert streamer.focus_peaking_enabled == True
         assert streamer.focus_peaking_intensity == 175
-        assert streamer.focus_peaking_color == 'yellow'
+        assert streamer.focus_peaking_colour == 'yellow'
         assert streamer.focus_peaking_algorithm == 'canny'
