@@ -1,11 +1,10 @@
 """
-import os
-os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
-
 Unit tests for AeMeteringMode validation
 
 Tests that AeMeteringMode values are properly validated in camera.py
 """
+import os
+os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
 import pytest
 import sys
 from pathlib import Path

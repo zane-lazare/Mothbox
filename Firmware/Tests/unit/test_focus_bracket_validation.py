@@ -129,7 +129,7 @@ class TestCalculateFocusPositions:
 
     def test_single_step_returns_start_only(self):
         """Test that single step returns only the start position"""
-        from webui.backend.scripts.capture_focus_bracket import calculate_focus_positions
+        from scripts.capture_focus_bracket import calculate_focus_positions
 
         positions = calculate_focus_positions(5.0, 8.0, 1)
         assert len(positions) == 1
@@ -137,7 +137,7 @@ class TestCalculateFocusPositions:
 
     def test_evenly_spaced_positions(self):
         """Test that positions are evenly spaced"""
-        from webui.backend.scripts.capture_focus_bracket import calculate_focus_positions
+        from scripts.capture_focus_bracket import calculate_focus_positions
 
         positions = calculate_focus_positions(2.0, 8.0, 5)
 
@@ -153,7 +153,7 @@ class TestCalculateFocusPositions:
 
     def test_three_steps_correct_positions(self):
         """Test specific positions for 3-step bracket"""
-        from webui.backend.scripts.capture_focus_bracket import calculate_focus_positions
+        from scripts.capture_focus_bracket import calculate_focus_positions
 
         positions = calculate_focus_positions(0.0, 10.0, 3)
 
@@ -164,7 +164,7 @@ class TestCalculateFocusPositions:
 
     def test_reverse_range(self):
         """Test that reverse range (start > end) works correctly"""
-        from webui.backend.scripts.capture_focus_bracket import calculate_focus_positions
+        from scripts.capture_focus_bracket import calculate_focus_positions
 
         positions = calculate_focus_positions(8.0, 2.0, 4)
 
@@ -178,7 +178,7 @@ class TestCalculateFocusPositions:
 
     def test_input_validation_raises_error_steps_out_of_range(self):
         """Test that invalid step count raises ValueError"""
-        from webui.backend.scripts.capture_focus_bracket import calculate_focus_positions
+        from scripts.capture_focus_bracket import calculate_focus_positions
 
         with pytest.raises(ValueError, match="Steps must be an integer between 1 and 10"):
             calculate_focus_positions(2.0, 8.0, 0)
@@ -191,7 +191,7 @@ class TestCalculateFocusPositions:
 
     def test_input_validation_raises_error_start_out_of_range(self):
         """Test that invalid start position raises ValueError"""
-        from webui.backend.scripts.capture_focus_bracket import calculate_focus_positions
+        from scripts.capture_focus_bracket import calculate_focus_positions
 
         with pytest.raises(ValueError, match="Start position must be 0.0-10.0 diopters"):
             calculate_focus_positions(-0.5, 8.0, 5)
@@ -201,7 +201,7 @@ class TestCalculateFocusPositions:
 
     def test_input_validation_raises_error_end_out_of_range(self):
         """Test that invalid end position raises ValueError"""
-        from webui.backend.scripts.capture_focus_bracket import calculate_focus_positions
+        from scripts.capture_focus_bracket import calculate_focus_positions
 
         with pytest.raises(ValueError, match="End position must be 0.0-10.0 diopters"):
             calculate_focus_positions(2.0, -1.0, 5)
@@ -211,7 +211,7 @@ class TestCalculateFocusPositions:
 
     def test_boundary_values(self):
         """Test boundary values for diopters (0 and 10)"""
-        from webui.backend.scripts.capture_focus_bracket import calculate_focus_positions
+        from scripts.capture_focus_bracket import calculate_focus_positions
 
         # Test 0 to 10 range
         positions = calculate_focus_positions(0.0, 10.0, 5)
