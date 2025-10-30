@@ -253,10 +253,10 @@ class PresetManager:
         For known settings, type conversion is always schema-based via _convert_value_type().
 
         Type inference hierarchy:
-        1. Boolean: 'true', 'false', 'yes', 'no' → bool
-           - Conservative: '0'/'1' NOT treated as booleans
+        1. Boolean: 'true', 'false', 'yes', 'no', '0', '1' → bool
+           - '0' → False, '1' → True (common in camera control systems)
            - Schema-based conversion distinguishes boolean vs integer fields
-        2. Integer: No decimal point → int (e.g., '0', '1', '42', '100')
+        2. Integer: No decimal point → int (e.g., '2', '42', '100')
         3. Float: Contains decimal point → float (e.g., '3.14', '1.0')
         4. String: Everything else → str (e.g., 'green', 'custom')
 
@@ -270,9 +270,9 @@ class PresetManager:
             >>> _infer_type('true')
             True
             >>> _infer_type('1')
-            1  # Treated as integer (conservative approach)
+            True  # '1' is treated as boolean True
             >>> _infer_type('0')
-            0  # Treated as integer (conservative approach)
+            False  # '0' is treated as boolean False
             >>> _infer_type('42')
             42
             >>> _infer_type('3.14')
@@ -283,15 +283,20 @@ class PresetManager:
         if not isinstance(value, str):
             return value
 
-        # Try boolean - only explicit boolean strings, not numeric '0'/'1'
-        # This is more conservative: '0'/'1' are treated as integers, not booleans.
-        # Known settings use schema-based conversion which correctly distinguishes
-        # between integer enums (0/1/2) and boolean fields (true/false).
+        # Try boolean - explicit boolean strings AND numeric '0'/'1'
+        # '0' → False, '1' → True (common in camera control systems)
+        # '2' and higher are treated as integers
         if value.lower() in ['true', 'false', 'yes', 'no']:
             return value.lower() in ['true', 'yes']
 
+        # Special case: '0' and '1' are treated as booleans
+        if value == '0':
+            return False
+        if value == '1':
+            return True
+
         # Try integer (no decimal point)
-        # Note: '0' and '1' will be parsed here as integers, not as booleans above
+        # Note: '2' and higher will be parsed here as integers
         try:
             if '.' not in value:
                 return int(value)

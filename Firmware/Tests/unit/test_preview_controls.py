@@ -672,8 +672,8 @@ class TestSettingsValidationChains:
         response = client.post('/api/config/webui', json={'sharpness': 1.0})
         assert response.status_code == 200
 
-        # Increment in steps
-        for step in [2.0, 3.0, 4.0, 5.0]:
+        # Increment in steps (within valid range 0.0-4.0)
+        for step in [1.5, 2.0, 3.0, 4.0]:
             response = client.post('/api/config/webui', json={'sharpness': step})
             assert response.status_code == 200
             print(f"   ✓ Incremented to {step}")
@@ -681,7 +681,7 @@ class TestSettingsValidationChains:
         # Verify final value
         response = client.get('/api/config/webui')
         data = response.get_json()
-        assert abs(data['sharpness'] - 5.0) < 0.01
+        assert abs(data['sharpness'] - 4.0) < 0.01
         print("   ✓ Final value correct after increments")
 
     def test_validation_chain_with_one_failure(self, client):

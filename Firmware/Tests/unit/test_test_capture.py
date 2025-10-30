@@ -4,7 +4,19 @@ Unit tests for test capture endpoint (Phase 4.5)
 Tests the /api/camera/test-capture-liveview endpoint that captures full-resolution
 test photos using preview settings without affecting production config.
 
-RUN ON RASPBERRY PI ONLY - tests camera hardware
+HARDWARE REQUIREMENTS:
+- Raspberry Pi (3/4/5)
+- picamera2 installed
+- Camera module connected
+
+These tests are marked with @pytest.mark.hardware and will:
+- Skip automatically in CI (no hardware available)
+- Run on Raspberry Pi before releases
+- Verify real photo capture behavior
+
+Related: Issue #13, PR #77 - Hardware test categorization
+
+Run with: pytest Tests/unit/test_test_capture.py -v
 """
 
 import pytest
@@ -17,9 +29,41 @@ import time
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
 
+# =============================================================================
+# Hardware Detection
+# =============================================================================
+
+def can_import_picamera2():
+    """Check if picamera2 is available (indicates Pi hardware)"""
+    try:
+        import picamera2
+        return True
+    except ImportError:
+        return False
+
+
+PICAMERA_AVAILABLE = can_import_picamera2()
+
+
+# =============================================================================
+# Hardware Tests (Require Real Camera)
+# =============================================================================
+
+@pytest.mark.hardware
 @pytest.mark.photo
+@pytest.mark.skipif(not PICAMERA_AVAILABLE, reason="Requires picamera2 and camera hardware")
 class TestTestCaptureEndpoint:
-    """Test test capture endpoint with real hardware"""
+    """Test test capture endpoint with real hardware
+
+    These tests verify actual camera operation:
+    - Real photo capture at full resolution
+    - Actual camera metadata
+    - File I/O with camera
+    - Settings application
+    - Production setting isolation
+
+    Tests skip automatically in CI and run on Raspberry Pi.
+    """
 
     def test_test_capture_endpoint_exists(self):
         """Test that test capture endpoint is registered"""
@@ -465,7 +509,7 @@ class TestTestCaptureWithoutStreaming:
             def emit(self, event, data, **kwargs):
                 pass
 
-        camera_streamer = CameraStreamer(MockSocketIO())
+        camera_streamer = LiveViewStreamer(MockSocketIO())
         camera_streamer.stop_streaming()  # Ensure stopped
 
         app.config['CAMERA_STREAMER'] = camera_streamer
@@ -494,7 +538,7 @@ class TestTestCaptureWithoutStreaming:
             def emit(self, event, data, **kwargs):
                 pass
 
-        camera_streamer = CameraStreamer(MockSocketIO())
+        camera_streamer = LiveViewStreamer(MockSocketIO())
         app.config['CAMERA_STREAMER'] = camera_streamer
 
         # Start streaming

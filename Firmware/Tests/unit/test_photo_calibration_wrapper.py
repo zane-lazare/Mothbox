@@ -10,7 +10,18 @@ Key functionality tested:
 - Import error handling and messaging
 - Helpful error messages with firmware context
 
+HARDWARE REQUIREMENTS:
+- Raspberry Pi (3/4/5)
+- picamera2 installed
+- Camera module connected
+
+These tests are marked with @pytest.mark.hardware and will:
+- Skip automatically in CI (no hardware available)
+- Run on Raspberry Pi before releases
+- Verify real subprocess and camera behavior
+
 Related: Issue #45, PR #55 - Camera Calibration Architecture
+Related: Issue #13, PR #77 - Hardware test categorization
 
 Run with: pytest Tests/unit/test_photo_calibration_wrapper.py -v
 """
@@ -22,8 +33,34 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 
+# =============================================================================
+# Hardware Detection
+# =============================================================================
+
+def can_import_picamera2():
+    """Check if picamera2 is available (indicates Pi hardware)"""
+    try:
+        import picamera2
+        return True
+    except ImportError:
+        return False
+
+
+PICAMERA_AVAILABLE = can_import_picamera2()
+
+
+# =============================================================================
+# Wrapper Script Tests (Hardware Required)
+# =============================================================================
+
+@pytest.mark.hardware
+@pytest.mark.skipif(not PICAMERA_AVAILABLE, reason="picamera2 not available - requires Raspberry Pi hardware")
 class TestWrapperScriptBehavior:
-    """Unit tests for run_photo_calibration.py wrapper script behavior"""
+    """Unit tests for run_photo_calibration.py wrapper script behavior
+
+    These tests verify subprocess behavior and TakePhoto.py integration.
+    They require actual hardware and will skip in CI.
+    """
 
     def test_wrapper_detects_firmware_version(self, tmp_path, monkeypatch, capsys):
         """Test wrapper script detects firmware version on import"""
@@ -159,8 +196,14 @@ def run_calibration():
         print(f"   ✓ Error: {result.stderr[:80]}...")
 
 
+@pytest.mark.hardware
+@pytest.mark.skipif(not PICAMERA_AVAILABLE, reason="picamera2 not available - requires Raspberry Pi hardware")
 class TestWrapperErrorMessages:
-    """Test wrapper script provides helpful error messages"""
+    """Test wrapper script provides helpful error messages
+
+    These tests verify error handling when TakePhoto.py is missing or broken.
+    They require actual hardware and will skip in CI.
+    """
 
     def test_filenotfound_error_message_helpful(self, tmp_path, monkeypatch):
         """Test FileNotFoundError message is helpful and actionable"""

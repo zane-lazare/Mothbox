@@ -244,6 +244,7 @@ ALLOWED_CAMERA_SETTINGS: Dict[str, Callable[[Any], bool]] = {
     'FocusPeakingEnabled': lambda v: str(v).lower() in ['true', 'false'],
     'FocusPeakingIntensity': lambda v: 50 <= int(v) <= 200,
     'FocusPeakingColour': lambda v: str(v).lower() in ['green', 'red', 'yellow', 'cyan', 'magenta'],
+    'FocusPeakingColor': lambda v: str(v).lower() in ['green', 'red', 'yellow', 'cyan', 'magenta'],  # American spelling alias
     'FocusPeakingAlgorithm': lambda v: str(v).lower() in ['laplacian', 'sobel', 'canny'],
 }
 

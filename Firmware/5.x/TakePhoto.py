@@ -854,12 +854,11 @@ try:
     
     time.sleep(.5)
     takePhoto_Manual()
-    
-    
-        picam2.stop()
-    
-        #cannot call GPIO cleanup here because it will kill the relay turning on the attractor
-        GPIO.output(Relay_Ch3,GPIO.LOW) #might as well ensure attract is on because new wiring dictates that
+
+    picam2.stop()
+
+    #cannot call GPIO cleanup here because it will kill the relay turning on the attractor
+    GPIO.output(Relay_Ch3,GPIO.LOW) #might as well ensure attract is on because new wiring dictates that
 
 finally:
     # Cleanup flash relay (Relay_Ch2) on exit to ensure it's off
