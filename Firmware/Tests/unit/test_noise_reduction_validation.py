@@ -27,20 +27,38 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'
 class TestNoiseReductionModeBoundaryValues:
     """Test noise reduction mode validation (0, 1, 2)"""
 
-    def test_noise_reduction_off(self, client):
+    def test_noise_reduction_off(self, client, temp_camera_settings):
         """Test NoiseReductionMode = 0 (Off)"""
+        import csv
+        # Initialize temp camera settings file with header
+        with open(temp_camera_settings, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+
         response = client.post('/api/camera/settings', json={'NoiseReductionMode': 0})
         assert response.status_code == 200, "Should accept NoiseReductionMode=0 (Off)"
         print("\n✓ Accepted NoiseReductionMode=0 (Off)")
 
-    def test_noise_reduction_fast(self, client):
+    def test_noise_reduction_fast(self, client, temp_camera_settings):
         """Test NoiseReductionMode = 1 (Fast)"""
+        import csv
+        # Initialize temp camera settings file with header
+        with open(temp_camera_settings, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+
         response = client.post('/api/camera/settings', json={'NoiseReductionMode': 1})
         assert response.status_code == 200, "Should accept NoiseReductionMode=1 (Fast)"
         print("✓ Accepted NoiseReductionMode=1 (Fast)")
 
-    def test_noise_reduction_high_quality(self, client):
+    def test_noise_reduction_high_quality(self, client, temp_camera_settings):
         """Test NoiseReductionMode = 2 (High Quality)"""
+        import csv
+        # Initialize temp camera settings file with header
+        with open(temp_camera_settings, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+
         response = client.post('/api/camera/settings', json={'NoiseReductionMode': 2})
         assert response.status_code == 200, "Should accept NoiseReductionMode=2 (High Quality)"
         print("✓ Accepted NoiseReductionMode=2 (High Quality)")
@@ -98,8 +116,14 @@ class TestNoiseReductionModeBoundaryValues:
 class TestNoiseReductionPersistence:
     """Test noise reduction mode persistence"""
 
-    def test_noise_reduction_persistence_off(self, client):
+    def test_noise_reduction_persistence_off(self, client, temp_camera_settings):
         """Test that NoiseReductionMode=0 persists correctly"""
+        import csv
+        # Initialize temp camera settings file with header
+        with open(temp_camera_settings, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+
         # Set to Off
         response = client.post('/api/camera/settings', json={'NoiseReductionMode': 0})
         assert response.status_code == 200
@@ -112,8 +136,14 @@ class TestNoiseReductionPersistence:
         assert int(data['NoiseReductionMode']) == 0
         print("\n✓ NoiseReductionMode=0 (Off) persisted correctly")
 
-    def test_noise_reduction_persistence_fast(self, client):
+    def test_noise_reduction_persistence_fast(self, client, temp_camera_settings):
         """Test that NoiseReductionMode=1 persists correctly"""
+        import csv
+        # Initialize temp camera settings file with header
+        with open(temp_camera_settings, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+
         # Set to Fast
         response = client.post('/api/camera/settings', json={'NoiseReductionMode': 1})
         assert response.status_code == 200
@@ -125,8 +155,14 @@ class TestNoiseReductionPersistence:
         assert int(data['NoiseReductionMode']) == 1
         print("✓ NoiseReductionMode=1 (Fast) persisted correctly")
 
-    def test_noise_reduction_persistence_high_quality(self, client):
+    def test_noise_reduction_persistence_high_quality(self, client, temp_camera_settings):
         """Test that NoiseReductionMode=2 persists correctly"""
+        import csv
+        # Initialize temp camera settings file with header
+        with open(temp_camera_settings, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['SETTING', 'VALUE', 'DETAILS'])
+
         # Set to High Quality
         response = client.post('/api/camera/settings', json={'NoiseReductionMode': 2})
         assert response.status_code == 200

@@ -418,10 +418,11 @@ def update_camera_settings():
 
         # Read current settings (vertical format: each row is a setting)
         csv_rows = []
-        with open(CAMERA_SETTINGS_FILE, 'r') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                csv_rows.append(dict(row))
+        if CAMERA_SETTINGS_FILE.exists():
+            with open(CAMERA_SETTINGS_FILE, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    csv_rows.append(dict(row))
 
         # Sanitize values to prevent CSV injection (defense in depth)
         sanitized_settings = {k: sanitize_csv_value(v) for k, v in new_settings.items()}
