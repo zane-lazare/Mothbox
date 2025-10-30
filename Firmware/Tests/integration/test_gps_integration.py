@@ -10,9 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "webui" / "backend"))
 
 from app import app, limiter
-from mothbox_paths import CONTROLS_FILE, get_control_values, get_hardware_config
-import tempfile
-import shutil
+from mothbox_paths import get_control_values, get_hardware_config
 
 
 @pytest.fixture
@@ -28,35 +26,8 @@ def client():
         yield client
 
 
-@pytest.fixture
-def temp_controls_file():
-    """Create temporary controls.txt for testing"""
-    temp_dir = tempfile.mkdtemp()
-    temp_controls = Path(temp_dir) / "controls.txt"
-
-    # Create test controls file with GPS settings
-    content = """# Test GPS Configuration
-gps_enabled=true
-gps_device=/dev/ttyAMA0
-gps_baudrate=9600
-gps_timeout=10
-lat=n/a
-lon=n/a
-gpstime=0
-UTCoff=0
-"""
-    temp_controls.write_text(content)
-
-    # Temporarily replace CONTROLS_FILE
-    original_file = CONTROLS_FILE
-    import routes.gps as gps_module
-    gps_module.CONTROLS_FILE = temp_controls
-
-    yield temp_controls
-
-    # Cleanup
-    gps_module.CONTROLS_FILE = original_file
-    shutil.rmtree(temp_dir)
+# Note: temp_controls_file fixture now provided by conftest.py
+# with proper patching for all imported modules (Issue #13 Phase 1)
 
 
 @pytest.fixture

@@ -239,6 +239,7 @@ class TestStreamModeValidation:
 
         # Get current mode first
         response = client.get('/api/config/webui')
+        assert response.status_code == 200, "GET config failed"
         original_mode = response.get_json().get('stream_mode', 'simplejpeg')
 
         # Set to a different mode
@@ -247,15 +248,17 @@ class TestStreamModeValidation:
             'stream_mode': new_mode,
             'jpeg_quality': 85
         })
-        assert response.status_code == 200, "Should accept valid stream_mode"
+        assert response.status_code == 200, f"POST config failed: {response.get_json()}"
 
-        # Verify it was written to file
-        if WEBUI_SETTINGS_FILE.exists():
-            with open(WEBUI_SETTINGS_FILE, 'r') as f:
-                content = f.read()
-                assert f'stream_mode={new_mode}' in content, \
-                    f"stream_mode should be in config file"
-            print(f"\n💾 Stream mode written to file: {new_mode} ✓")
+        # Verify it was written to file - file MUST exist after POST
+        assert WEBUI_SETTINGS_FILE.exists(), \
+            f"Config file must exist after saving settings: {WEBUI_SETTINGS_FILE}"
+
+        with open(WEBUI_SETTINGS_FILE, 'r') as f:
+            content = f.read()
+            assert f'stream_mode={new_mode}' in content, \
+                f"stream_mode should be in config file. Got:\n{content}"
+        print(f"\n💾 Stream mode written to file: {new_mode} ✓")
 
         # Verify it reads back correctly
         response = client.get('/api/config/webui')

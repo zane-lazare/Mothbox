@@ -336,13 +336,92 @@ def mock_socketio():
     return MockSocketIO()
 
 
+def patch_path_constant_everywhere(monkeypatch, constant_name, temp_path):
+    """
+    Helper to patch a path constant in mothbox_paths AND all modules that imported it.
+
+    This solves the "import timing" problem where module-scoped fixtures (like app)
+    import route modules BEFORE function-scoped path fixtures run. Those route modules
+    capture the constant value at import time, so patching mothbox_paths alone has no effect.
+
+    Args:
+        monkeypatch: pytest's monkeypatch fixture
+        constant_name: Name of the constant (e.g., 'LIVEVIEW_SETTINGS_FILE')
+        temp_path: Temporary Path object to use instead
+
+    Implementation:
+        1. Patch the source module (mothbox_paths)
+        2. Check sys.modules for already-loaded modules
+        3. Patch the constant in each loaded module that has it
+
+    Example:
+        patch_path_constant_everywhere(monkeypatch, 'LIVEVIEW_SETTINGS_FILE', temp_file)
+        # Now routes.config.LIVEVIEW_SETTINGS_FILE points to temp_file
+
+    Related: Issue #13 Phase 1 - Path constant patching (73 affected tests)
+    """
+    import sys
+    import mothbox_paths
+
+    # Step 1: Patch the source module
+    monkeypatch.setattr(mothbox_paths, constant_name, temp_path)
+
+    # Step 2: Define modules that might have imported this constant
+    # Map constant name to list of module paths that import it
+    MODULE_IMPORT_MAP = {
+        'LIVEVIEW_SETTINGS_FILE': [
+            'routes.config',
+            'routes.camera',
+            'routes.presets',
+            # Note: liveview_stream uses mothbox_paths.LIVEVIEW_SETTINGS_FILE (qualified)
+            # so it doesn't need patching - it reads from source module
+        ],
+        'WEBUI_SETTINGS_FILE': [
+            # WEBUI_SETTINGS_FILE is an alias for LIVEVIEW_SETTINGS_FILE
+            # Same modules, handled together
+            'routes.config',
+            'routes.camera',
+            'routes.presets',
+        ],
+        'CAMERA_SETTINGS_FILE': [
+            'routes.config',
+            'routes.camera',
+            'routes.presets',
+            'routes.system',
+        ],
+        'CONTROLS_FILE': [
+            'routes.config',
+            'routes.camera',
+            'routes.gps',
+            'routes.gpio',
+            'routes.system',
+        ],
+    }
+
+    # Step 3: Get list of modules to patch for this constant
+    modules_to_patch = MODULE_IMPORT_MAP.get(constant_name, [])
+
+    # Step 4: Patch each module IF it's already loaded in sys.modules
+    patched_count = 0
+    for module_path in modules_to_patch:
+        if module_path in sys.modules:
+            module = sys.modules[module_path]
+            # Check if module actually has this attribute (might not if import failed)
+            if hasattr(module, constant_name):
+                monkeypatch.setattr(module, constant_name, temp_path)
+                patched_count += 1
+
+
 @pytest.fixture
 def temp_webui_settings(tmp_path, monkeypatch):
     """
     Temporary webui_settings.txt for isolated testing
 
-    Creates a temporary settings file and patches mothbox_paths.WEBUI_SETTINGS_FILE
-    to point to it. This ensures tests don't modify the real settings file.
+    Creates a temporary settings file and patches BOTH mothbox_paths module
+    AND any route modules that have already imported the constants.
+
+    This ensures tests don't modify the real settings file, even when using
+    the module-scoped app fixture (which imports routes before this fixture runs).
 
     Usage:
         def test_something(temp_webui_settings):
@@ -350,6 +429,8 @@ def temp_webui_settings(tmp_path, monkeypatch):
             with open(temp_webui_settings, 'w') as f:
                 f.write("sharpness=2.0\\n")
             # ... test code ...
+
+    Related: Issue #13 Phase 1 - Path constant patching fix
     """
     import mothbox_paths
 
@@ -357,12 +438,12 @@ def temp_webui_settings(tmp_path, monkeypatch):
     temp_file = tmp_path / "webui_settings.txt"
     temp_file.touch()
 
-    # Patch both module-level constants (WEBUI_SETTINGS_FILE and LIVEVIEW_SETTINGS_FILE are aliases)
-    monkeypatch.setattr(mothbox_paths, 'WEBUI_SETTINGS_FILE', temp_file)
-    monkeypatch.setattr(mothbox_paths, 'LIVEVIEW_SETTINGS_FILE', temp_file)
+    # Patch both aliases everywhere (WEBUI_SETTINGS_FILE and LIVEVIEW_SETTINGS_FILE are the same)
+    patch_path_constant_everywhere(monkeypatch, 'WEBUI_SETTINGS_FILE', temp_file)
+    patch_path_constant_everywhere(monkeypatch, 'LIVEVIEW_SETTINGS_FILE', temp_file)
 
     yield temp_file
-    # Cleanup happens automatically with tmp_path
+    # Cleanup happens automatically with tmp_path and monkeypatch
 
 
 @pytest.fixture
@@ -370,8 +451,11 @@ def temp_camera_settings(tmp_path, monkeypatch):
     """
     Temporary camera_settings.csv for isolated testing
 
-    Creates a temporary settings file and patches mothbox_paths.CAMERA_SETTINGS_FILE
-    to point to it. This ensures photo workflow tests don't modify real settings.
+    Creates a temporary settings file and patches BOTH mothbox_paths module
+    AND any route modules that have already imported the constant.
+
+    This ensures photo workflow tests don't modify real settings, even when
+    using the module-scoped app fixture.
 
     Usage:
         def test_something(temp_camera_settings):
@@ -379,6 +463,8 @@ def temp_camera_settings(tmp_path, monkeypatch):
             with open(temp_camera_settings, 'w') as f:
                 f.write("ExposureTime,500\\n")
             # ... test code ...
+
+    Related: Issue #13 Phase 1 - Path constant patching fix
     """
     import mothbox_paths
 
@@ -386,11 +472,11 @@ def temp_camera_settings(tmp_path, monkeypatch):
     temp_file = tmp_path / "camera_settings.csv"
     temp_file.touch()
 
-    # Patch the module-level constant (use Path object, not string)
-    monkeypatch.setattr(mothbox_paths, 'CAMERA_SETTINGS_FILE', temp_file)
+    # Patch everywhere (source module + imported modules)
+    patch_path_constant_everywhere(monkeypatch, 'CAMERA_SETTINGS_FILE', temp_file)
 
     yield temp_file
-    # Cleanup happens automatically with tmp_path
+    # Cleanup happens automatically with tmp_path and monkeypatch
 
 
 # ============================================================================
@@ -698,12 +784,13 @@ def temp_controls_file(tmp_path, monkeypatch):
     """
     Create temporary controls.txt for isolated testing.
 
-    Follows pattern from temp_webui_settings fixture. Creates temp file and
-    patches mothbox_paths.CONTROLS_FILE to point to it.
+    Creates a temporary controls file and patches BOTH mothbox_paths module
+    AND any route modules that have already imported CONTROLS_FILE constant.
 
     This fixture ensures tests:
     - Don't modify real configuration files
     - Run in isolation (each test gets fresh file)
+    - Work correctly with module-scoped app fixture
     - Work on any platform (no hardware dependencies)
 
     Usage:
@@ -711,7 +798,7 @@ def temp_controls_file(tmp_path, monkeypatch):
             temp_controls_file.write_text("Relay_Ch1=5\\n")
             # Test code using patched CONTROLS_FILE...
 
-    Related: Issue #13 Phase 1 (hardware configuration testing)
+    Related: Issue #13 Phase 1 - Path constant patching fix
     """
     import mothbox_paths
 
@@ -719,11 +806,11 @@ def temp_controls_file(tmp_path, monkeypatch):
     temp_file = tmp_path / "controls.txt"
     temp_file.touch()
 
-    # Patch the module-level constant (use Path object, not string)
-    monkeypatch.setattr(mothbox_paths, 'CONTROLS_FILE', temp_file)
+    # Patch everywhere (source module + imported modules)
+    patch_path_constant_everywhere(monkeypatch, 'CONTROLS_FILE', temp_file)
 
     yield temp_file
-    # Cleanup happens automatically with tmp_path
+    # Cleanup happens automatically with tmp_path and monkeypatch
 
 
 @pytest.fixture

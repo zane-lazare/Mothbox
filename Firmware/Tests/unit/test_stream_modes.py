@@ -23,6 +23,9 @@ import time
 # Setup path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
+# Import for hardware availability checks
+from liveview_stream import PICAMERA_AVAILABLE
+
 
 @pytest.mark.stream
 class TestEncoderFallback:
@@ -37,6 +40,7 @@ class TestEncoderFallback:
         except ImportError:
             pytest.skip("simplejpeg not installed in test environment")
 
+    @pytest.mark.skipif(not PICAMERA_AVAILABLE, reason="picamera2 not available (Pi hardware only)")
     @patch('liveview_stream.SIMPLEJPEG_AVAILABLE', False)
     def test_pil_fallback_when_simplejpeg_unavailable(self, camera_streamer_func):
         """Verify PIL is used when simplejpeg is unavailable"""
@@ -70,6 +74,7 @@ class TestEncoderFallback:
         finally:
             camera_streamer_func.camera.stop()
 
+    @pytest.mark.skipif(not PICAMERA_AVAILABLE, reason="picamera2 not available (Pi hardware only)")
     def test_encoding_method_selection(self, camera_streamer_func):
         """Verify correct encoding method is selected based on availability"""
         import liveview_stream
@@ -394,6 +399,7 @@ class TestEncodingErrorHandling:
 class TestResourceCleanup:
     """Test resource cleanup on encoding failures"""
 
+    @pytest.mark.skipif(not PICAMERA_AVAILABLE, reason="picamera2 not available (Pi hardware only)")
     def test_cleanup_after_encoding_error(self, camera_streamer_func):
         """Verify resources are cleaned up after encoding errors"""
         print("\n📊 Testing resource cleanup after encoding error...")
@@ -422,6 +428,7 @@ class TestResourceCleanup:
         assert camera_streamer_func.camera is None, "Camera not cleaned up after error"
         print("✓ Resources cleaned up successfully after error")
 
+    @pytest.mark.skipif(not PICAMERA_AVAILABLE, reason="picamera2 not available (Pi hardware only)")
     def test_multiple_cleanup_calls(self, camera_streamer_func):
         """Verify cleanup can be called multiple times safely"""
         print("\n📊 Testing multiple cleanup calls...")
@@ -452,7 +459,7 @@ class TestResourceCleanup:
 class TestHardwareMJPEGMode:
     """Test hardware MJPEG mode validation and fallback"""
 
-    @patch('camera_stream.HARDWARE_MJPEG_AVAILABLE', False)
+    @patch('liveview_stream.HARDWARE_MJPEG_AVAILABLE', False)
     def test_hardware_mjpeg_unavailable_fallback(self, camera_streamer_func):
         """Verify fallback when hardware MJPEG is unavailable"""
         print("\n📊 Testing hardware MJPEG unavailable fallback...")
