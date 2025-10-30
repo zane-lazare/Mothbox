@@ -44,8 +44,8 @@ class TestConfigDefaults:
 
         # Expected defaults (used when no config file exists)
         expected_defaults = {
-            'preview_width': 1024,
-            'preview_height': 768,
+            'stream_width': 1024,
+            'stream_height': 768,
             'frame_rate': 10,
             'jpeg_quality': 85
         }
@@ -54,8 +54,8 @@ class TestConfigDefaults:
         if WEBUI_SETTINGS_FILE.exists():
             print(f"   Source: {WEBUI_SETTINGS_FILE} (existing config)")
             # Just verify values are in valid ranges
-            assert 320 <= data.get('preview_width', 0) <= 1920, "Width out of range"
-            assert 240 <= data.get('preview_height', 0) <= 1080, "Height out of range"
+            assert 320 <= data.get('stream_width', 0) <= 1920, "Width out of range"
+            assert 240 <= data.get('stream_height', 0) <= 1080, "Height out of range"
             assert 1 <= data.get('frame_rate', 0) <= 30, "FPS out of range"
             assert 50 <= data.get('jpeg_quality', 0) <= 100, "Quality out of range"
             for key in expected_defaults:
@@ -110,15 +110,15 @@ class TestResolutionValidation:
         """Test resolution must be within valid ranges"""
         # Invalid: width too low
         response = client.post('/api/config/webui', json={
-            'preview_width': 319,
-            'preview_height': 768
+            'stream_width': 319,
+            'stream_height': 768
         })
         assert response.status_code == 400, "Should reject width < 320"
 
         # Invalid: height too high
         response = client.post('/api/config/webui', json={
-            'preview_width': 1024,
-            'preview_height': 1081
+            'stream_width': 1024,
+            'stream_height': 1081
         })
         assert response.status_code == 400, "Should reject height > 1080"
 
@@ -132,8 +132,8 @@ class TestResolutionValidation:
         print(f"\n📐 Testing valid resolutions:")
         for width, height in valid_resolutions:
             response = client.post('/api/config/webui', json={
-                'preview_width': width,
-                'preview_height': height
+                'stream_width': width,
+                'stream_height': height
             })
             assert response.status_code == 200, \
                 f"Should accept {width}x{height}"
@@ -170,8 +170,8 @@ class TestSettingsPersistence:
     def test_settings_update_and_retrieve(self, client, temp_webui_settings):
         """Test settings can be updated and retrieved"""
         test_settings = {
-            'preview_width': 1280,
-            'preview_height': 720,
+            'stream_width': 1280,
+            'stream_height': 720,
             'frame_rate': 15,
             'jpeg_quality': 90
         }

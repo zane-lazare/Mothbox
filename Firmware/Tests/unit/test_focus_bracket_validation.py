@@ -11,6 +11,18 @@ in webui/backend/routes/camera.py
 import pytest
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
+
+# Mock hardware dependencies before importing capture_focus_bracket
+sys.modules['cv2'] = MagicMock()
+sys.modules['picamera2'] = MagicMock()
+sys.modules['picamera2.picamera2'] = MagicMock()
+sys.modules['RPi'] = MagicMock()
+sys.modules['RPi.GPIO'] = MagicMock()
+sys.modules['PIL'] = MagicMock()
+sys.modules['PIL.Image'] = MagicMock()
+sys.modules['libcamera'] = MagicMock()
+sys.modules['libcamera.controls'] = MagicMock()
 
 # Add webui backend to path
 FIRMWARE_DIR = Path(__file__).parent.parent.parent

@@ -284,10 +284,11 @@ class TestAfWindowParameterValidation:
         windows = controls_set['AfWindows']
         x, y, w, h = windows[0]
 
-        # Verify minimum size is enforced (5% of smaller dimension)
-        min_size = int(min(9152, 6944) * 0.05)
-        assert w >= min_size
-        assert h >= min_size
+        # Verify minimum size is enforced (5% of smaller dimension, rounded down to even)
+        # min(9152, 6944) * 0.05 = 6944 * 0.05 = 347.2 → 346 (after even rounding)
+        min_size = int(min(9152, 6944) * 0.05) & ~1  # Round down to even number
+        assert w >= min_size, f"Width {w} should be >= {min_size}"
+        assert h >= min_size, f"Height {h} should be >= {min_size}"
 
         print(f"\n✓ Minimum window size enforced: {w}x{h} >= {min_size}x{min_size}")
 
@@ -437,8 +438,11 @@ class TestAfWindowEdgeCases:
             streamer.set_af_window(None, None)
 
         # Verify all operations succeeded
-        assert len(controls_history) == 20
-        print(f"\n✓ Completed 10 rapid set/clear cycles without errors")
+        # Each cycle: set_af_window() sets both AfMetering AND AfWindows (2 controls)
+        # clear sets only AfMetering (1 control)
+        # Total: 10 * (2 + 1) = 30 control calls
+        assert len(controls_history) == 30, f"Expected 30 control calls (2 per set + 1 per clear), got {len(controls_history)}"
+        print(f"\n✓ Completed 10 rapid set/clear cycles without errors ({len(controls_history)} control calls)")
 
     def test_even_dimension_enforcement(self):
         """Test all dimensions are even (encoder requirement)"""

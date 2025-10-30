@@ -5,10 +5,10 @@ Tests validation logic for image quality controls including
 boundary values, type conversion, and error handling.
 
 These tests validate the routes/config.py validation logic for:
-- Sharpness (0.0-16.0)
+- Sharpness (0.0-4.0) - picamera2 hardware limits
 - Brightness (-1.0 to 1.0)
-- Contrast (0.0-32.0)
-- Saturation (0.0-32.0)
+- Contrast (0.0-4.0) - picamera2 hardware limits
+- Saturation (0.0-4.0) - picamera2 hardware limits
 - White balance modes (0-7)
 
 RUN ON RASPBERRY PI ONLY - tests Flask routes
@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'
 
 @pytest.mark.stream
 class TestSharpnessBoundaryValues:
-    """Test sharpness control boundary validation (0.0-16.0)"""
+    """Test sharpness control boundary validation (0.0-4.0 per picamera2 hardware limits)"""
 
     def test_sharpness_minimum_valid(self, client):
         """Test sharpness at minimum valid value (0.0)"""
@@ -41,31 +41,31 @@ class TestSharpnessBoundaryValues:
         print("✓ Accepted sharpness=0.1")
 
     def test_sharpness_midpoint(self, client):
-        """Test sharpness at midpoint (8.0)"""
-        response = client.post('/api/config/webui', json={'sharpness': 8.0})
-        assert response.status_code == 200, "Should accept sharpness=8.0"
-        print("✓ Accepted sharpness=8.0 (midpoint)")
+        """Test sharpness at midpoint (2.0)"""
+        response = client.post('/api/config/webui', json={'sharpness': 2.0})
+        assert response.status_code == 200, "Should accept sharpness=2.0"
+        print("✓ Accepted sharpness=2.0 (midpoint)")
 
     def test_sharpness_just_below_maximum(self, client):
-        """Test sharpness just below maximum (15.9)"""
-        response = client.post('/api/config/webui', json={'sharpness': 15.9})
-        assert response.status_code == 200, "Should accept sharpness=15.9"
-        print("✓ Accepted sharpness=15.9")
+        """Test sharpness just below maximum (3.9)"""
+        response = client.post('/api/config/webui', json={'sharpness': 3.9})
+        assert response.status_code == 200, "Should accept sharpness=3.9"
+        print("✓ Accepted sharpness=3.9")
 
     def test_sharpness_maximum_valid(self, client):
-        """Test sharpness at maximum valid value (16.0)"""
-        response = client.post('/api/config/webui', json={'sharpness': 16.0})
-        assert response.status_code == 200, "Should accept sharpness=16.0"
-        print("✓ Accepted sharpness=16.0 (maximum)")
+        """Test sharpness at maximum valid value (4.0)"""
+        response = client.post('/api/config/webui', json={'sharpness': 4.0})
+        assert response.status_code == 200, "Should accept sharpness=4.0"
+        print("✓ Accepted sharpness=4.0 (maximum)")
 
     def test_sharpness_just_above_maximum(self, client):
-        """Test sharpness just above maximum (16.1) - should fail"""
-        response = client.post('/api/config/webui', json={'sharpness': 16.1})
-        assert response.status_code == 400, "Should reject sharpness=16.1 (too high)"
+        """Test sharpness just above maximum (4.1) - should fail"""
+        response = client.post('/api/config/webui', json={'sharpness': 4.1})
+        assert response.status_code == 400, "Should reject sharpness=4.1 (too high)"
         data = response.get_json()
         assert 'error' in data
         assert 'Sharpness' in data['error']
-        print("✓ Rejected sharpness=16.1 (too high)")
+        print("✓ Rejected sharpness=4.1 (too high)")
 
     def test_sharpness_negative(self, client):
         """Test sharpness below minimum (-1) - should fail"""
@@ -154,7 +154,7 @@ class TestBrightnessBoundaryValues:
 
 @pytest.mark.stream
 class TestContrastBoundaryValues:
-    """Test contrast control boundary validation (0.0-32.0)"""
+    """Test contrast control boundary validation (0.0-4.0 per picamera2 hardware limits)"""
 
     def test_contrast_minimum_valid(self, client):
         """Test contrast at minimum valid value (0.0)"""
@@ -163,25 +163,25 @@ class TestContrastBoundaryValues:
         print("\n✓ Accepted contrast=0.0 (minimum)")
 
     def test_contrast_midpoint(self, client):
-        """Test contrast at midpoint (16.0)"""
-        response = client.post('/api/config/webui', json={'contrast': 16.0})
-        assert response.status_code == 200, "Should accept contrast=16.0"
-        print("✓ Accepted contrast=16.0 (midpoint)")
+        """Test contrast at midpoint (2.0)"""
+        response = client.post('/api/config/webui', json={'contrast': 2.0})
+        assert response.status_code == 200, "Should accept contrast=2.0"
+        print("✓ Accepted contrast=2.0 (midpoint)")
 
     def test_contrast_maximum_valid(self, client):
-        """Test contrast at maximum valid value (32.0)"""
-        response = client.post('/api/config/webui', json={'contrast': 32.0})
-        assert response.status_code == 200, "Should accept contrast=32.0"
-        print("✓ Accepted contrast=32.0 (maximum)")
+        """Test contrast at maximum valid value (4.0)"""
+        response = client.post('/api/config/webui', json={'contrast': 4.0})
+        assert response.status_code == 200, "Should accept contrast=4.0"
+        print("✓ Accepted contrast=4.0 (maximum)")
 
     def test_contrast_above_maximum(self, client):
-        """Test contrast above maximum (32.1) - should fail"""
-        response = client.post('/api/config/webui', json={'contrast': 32.1})
-        assert response.status_code == 400, "Should reject contrast=32.1"
+        """Test contrast above maximum (4.1) - should fail"""
+        response = client.post('/api/config/webui', json={'contrast': 4.1})
+        assert response.status_code == 400, "Should reject contrast=4.1"
         data = response.get_json()
         assert 'error' in data
         assert 'Contrast' in data['error']
-        print("✓ Rejected contrast=32.1 (too high)")
+        print("✓ Rejected contrast=4.1 (too high)")
 
     def test_contrast_negative(self, client):
         """Test contrast negative (-1) - should fail"""
@@ -203,7 +203,7 @@ class TestContrastBoundaryValues:
 
 @pytest.mark.stream
 class TestSaturationBoundaryValues:
-    """Test saturation control boundary validation (0.0-32.0)"""
+    """Test saturation control boundary validation (0.0-4.0 per picamera2 hardware limits)"""
 
     def test_saturation_minimum_valid(self, client):
         """Test saturation at minimum valid value (0.0)"""
@@ -212,25 +212,25 @@ class TestSaturationBoundaryValues:
         print("\n✓ Accepted saturation=0.0 (minimum, grayscale)")
 
     def test_saturation_midpoint(self, client):
-        """Test saturation at midpoint (16.0)"""
-        response = client.post('/api/config/webui', json={'saturation': 16.0})
-        assert response.status_code == 200, "Should accept saturation=16.0"
-        print("✓ Accepted saturation=16.0 (midpoint)")
+        """Test saturation at midpoint (2.0)"""
+        response = client.post('/api/config/webui', json={'saturation': 2.0})
+        assert response.status_code == 200, "Should accept saturation=2.0"
+        print("✓ Accepted saturation=2.0 (midpoint)")
 
     def test_saturation_maximum_valid(self, client):
-        """Test saturation at maximum valid value (32.0)"""
-        response = client.post('/api/config/webui', json={'saturation': 32.0})
-        assert response.status_code == 200, "Should accept saturation=32.0"
-        print("✓ Accepted saturation=32.0 (maximum)")
+        """Test saturation at maximum valid value (4.0)"""
+        response = client.post('/api/config/webui', json={'saturation': 4.0})
+        assert response.status_code == 200, "Should accept saturation=4.0"
+        print("✓ Accepted saturation=4.0 (maximum)")
 
     def test_saturation_above_maximum(self, client):
-        """Test saturation above maximum (33) - should fail"""
-        response = client.post('/api/config/webui', json={'saturation': 33})
-        assert response.status_code == 400, "Should reject saturation=33"
+        """Test saturation above maximum (4.1) - should fail"""
+        response = client.post('/api/config/webui', json={'saturation': 4.1})
+        assert response.status_code == 400, "Should reject saturation=4.1"
         data = response.get_json()
         assert 'error' in data
         assert 'Saturation' in data['error']
-        print("✓ Rejected saturation=33 (too high)")
+        print("✓ Rejected saturation=4.1 (too high)")
 
     def test_saturation_negative(self, client):
         """Test saturation negative (-5) - should fail"""
@@ -306,9 +306,9 @@ class TestSettingsFileCorruption:
 
         print("\n📋 Default values when file missing/corrupted:")
 
-        # Verify defaults exist and are in valid ranges
+        # Verify defaults exist and are in valid ranges (picamera2 limits)
         assert 'sharpness' in data
-        assert 0.0 <= data['sharpness'] <= 16.0
+        assert 0.0 <= data['sharpness'] <= 4.0
         print(f"   sharpness: {data['sharpness']} ✓")
 
         assert 'brightness' in data
@@ -316,11 +316,11 @@ class TestSettingsFileCorruption:
         print(f"   brightness: {data['brightness']} ✓")
 
         assert 'contrast' in data
-        assert 0.0 <= data['contrast'] <= 32.0
+        assert 0.0 <= data['contrast'] <= 4.0
         print(f"   contrast: {data['contrast']} ✓")
 
         assert 'saturation' in data
-        assert 0.0 <= data['saturation'] <= 32.0
+        assert 0.0 <= data['saturation'] <= 4.0
         print(f"   saturation: {data['saturation']} ✓")
 
         assert 'awb_mode' in data
@@ -397,7 +397,7 @@ class TestCombinedControlValidation:
         settings = {
             'sharpness': 2.5,      # Valid
             'brightness': 0.2,     # Valid
-            'contrast': 50.0,      # INVALID (> 32.0)
+            'contrast': 50.0,      # INVALID (> 4.0)
             'saturation': 1.2      # Valid
         }
 
@@ -411,7 +411,7 @@ class TestCombinedControlValidation:
     def test_multiple_invalid_values(self, client):
         """Test handling of multiple invalid values"""
         settings = {
-            'sharpness': 20.0,     # INVALID (> 16.0)
+            'sharpness': 20.0,     # INVALID (> 4.0)
             'brightness': 5.0,     # INVALID (> 1.0)
             'contrast': 1.0,       # Valid
             'saturation': 1.0      # Valid
@@ -425,11 +425,11 @@ class TestCombinedControlValidation:
         print("\n✓ Correctly rejected update with multiple invalid values")
 
     def test_extreme_boundary_combination(self, client):
-        """Test all controls at extreme boundary values"""
+        """Test all controls at extreme boundary values (picamera2 limits)"""
         settings = {
-            'sharpness': 16.0,     # Maximum
+            'sharpness': 4.0,      # Maximum
             'brightness': -1.0,    # Minimum
-            'contrast': 32.0,      # Maximum
+            'contrast': 4.0,       # Maximum
             'saturation': 0.0      # Minimum
         }
 
@@ -441,9 +441,9 @@ class TestCombinedControlValidation:
         response = client.get('/api/config/webui')
         data = response.get_json()
 
-        assert abs(data['sharpness'] - 16.0) < 0.01
+        assert abs(data['sharpness'] - 4.0) < 0.01
         assert abs(data['brightness'] - (-1.0)) < 0.01
-        assert abs(data['contrast'] - 32.0) < 0.01
+        assert abs(data['contrast'] - 4.0) < 0.01
         assert abs(data['saturation'] - 0.0) < 0.01
         print("   All extreme values stored correctly ✓")
 

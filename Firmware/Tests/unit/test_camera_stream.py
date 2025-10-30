@@ -27,6 +27,7 @@ except ImportError:
 
 
 @pytest.mark.hardware
+@pytest.mark.skipif(not SIMPLEJPEG_AVAILABLE, reason="simplejpeg not available (Pi hardware only)")
 class TestSimpleJPEGEncoding:
     """Test simplejpeg encoding performance vs PIL
 
@@ -38,7 +39,7 @@ class TestSimpleJPEGEncoding:
 
     def test_simplejpeg_available(self):
         """Verify simplejpeg is installed"""
-        import simplejpeg
+        assert simplejpeg is not None
         assert simplejpeg.__version__ == '1.8.1'
         print(f"\n✓ simplejpeg version: {simplejpeg.__version__}")
 
@@ -131,6 +132,8 @@ class TestSimpleJPEGEncoding:
         assert elapsed_ms < 50, f"Encoding took {elapsed_ms:.1f}ms (target: <50ms for WebSocket overhead)"
 
 
+@pytest.mark.hardware
+@pytest.mark.skipif(not SIMPLEJPEG_AVAILABLE, reason="simplejpeg not available (Pi hardware only)")
 class TestQualitySettings:
     """Test JPEG quality range"""
 
@@ -181,6 +184,8 @@ class TestQualitySettings:
             f"Expected ≥20% size reduction, got {size_reduction:.1f}%"
 
 
+@pytest.mark.hardware
+@pytest.mark.skipif(not SIMPLEJPEG_AVAILABLE or not PIL_AVAILABLE, reason="simplejpeg/PIL not available (Pi hardware only)")
 class TestErrorConditions:
     """Test error handling and edge cases (Feature Set 1 enhancement)"""
 

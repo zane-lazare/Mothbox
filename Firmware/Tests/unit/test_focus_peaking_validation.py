@@ -107,33 +107,33 @@ class TestFocusPeakingAlgorithm:
 
     def test_laplacian_algorithm_exists(self):
         """Test that Laplacian algorithm method exists"""
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         assert hasattr(streamer, '_apply_focus_peaking_laplacian')
         assert callable(streamer._apply_focus_peaking_laplacian)
 
     def test_sobel_algorithm_exists(self):
         """Test that Sobel algorithm method exists"""
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         assert hasattr(streamer, '_apply_focus_peaking_sobel')
         assert callable(streamer._apply_focus_peaking_sobel)
 
     def test_canny_algorithm_exists(self):
         """Test that Canny algorithm method exists"""
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         assert hasattr(streamer, '_apply_focus_peaking_canny')
         assert callable(streamer._apply_focus_peaking_canny)
@@ -146,11 +146,11 @@ class TestFocusPeakingAlgorithm:
         except ImportError:
             pytest.skip("OpenCV not available")
 
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         # Test Laplacian
         result = streamer._apply_focus_peaking_laplacian(mock_frame, threshold=100, color='green')
@@ -175,11 +175,11 @@ class TestFocusPeakingAlgorithm:
         except ImportError:
             pytest.skip("OpenCV not available")
 
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         colors = ['green', 'red', 'yellow', 'cyan', 'magenta']
 
@@ -191,11 +191,11 @@ class TestFocusPeakingAlgorithm:
 
     def test_opencv_unavailable_graceful(self):
         """Test that algorithms gracefully handle OpenCV unavailable"""
-        from webui.backend.camera_stream import CameraStreamer, CV2_AVAILABLE
+        from webui.backend.liveview_stream import LiveViewStreamer, CV2_AVAILABLE
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         if not CV2_AVAILABLE:
             # If OpenCV not available, methods should return frame unmodified
@@ -211,11 +211,11 @@ class TestFocusPeakingSettings:
 
     def test_default_settings(self):
         """Test default focus peaking settings"""
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         # Check defaults
         assert streamer.focus_peaking_enabled == False
@@ -225,11 +225,11 @@ class TestFocusPeakingSettings:
 
     def test_update_control_focus_peaking(self):
         """Test updating focus peaking controls"""
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         # Test enabling focus peaking
         result = streamer.update_control({'FocusPeakingEnabled': True})
@@ -253,11 +253,11 @@ class TestFocusPeakingSettings:
 
     def test_update_multiple_controls(self):
         """Test updating multiple focus peaking controls at once"""
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         # Update all settings at once
         result = streamer.update_control({
