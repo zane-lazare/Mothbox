@@ -20,10 +20,21 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'
 class TestSettingsCopyLogic:
     """Test settings copy endpoint logic"""
 
-    def test_copy_preview_to_capture_compatible_settings(self):
+    def test_copy_preview_to_capture_compatible_settings(self, temp_camera_settings):
         """Test that compatible settings are copied from preview to capture"""
         from routes.config import config_bp
         from flask import Flask
+
+        # Populate camera_settings.csv with test data
+        temp_camera_settings.write_text("""SETTING,VALUE,DETAILS
+LensPosition,0.5,Test value
+ExposureTime,499,Test value
+AfMode,0,Manual focus
+Sharpness,1.0,Test value
+Brightness,0.0,Test value
+Contrast,1.0,Test value
+Saturation,1.0,Test value
+""")
 
         app = Flask(__name__)
         app.register_blueprint(config_bp, url_prefix='/api/config')
@@ -60,10 +71,18 @@ class TestSettingsCopyLogic:
 
             print(f"\n✓ Copied {len(copied)} compatible settings")
 
-    def test_copy_capture_to_preview(self):
+    def test_copy_capture_to_preview(self, temp_camera_settings):
         """Test copying settings from capture to preview"""
         from routes.config import config_bp
         from flask import Flask
+
+        # Populate camera_settings.csv with test data
+        temp_camera_settings.write_text("""SETTING,VALUE,DETAILS
+LensPosition,0.7,Test value
+Sharpness,2.0,Test value
+Brightness,0.1,Test value
+AfMode,1,Auto focus
+""")
 
         app = Flask(__name__)
         app.register_blueprint(config_bp, url_prefix='/api/config')
@@ -81,10 +100,18 @@ class TestSettingsCopyLogic:
 
             print("\n✓ Copy capture → preview succeeded")
 
-    def test_incompatible_settings_not_copied(self):
+    def test_incompatible_settings_not_copied(self, temp_camera_settings):
         """Test that mode-specific settings are not copied"""
         from routes.config import config_bp
         from flask import Flask
+
+        # Populate camera_settings.csv with mode-specific settings
+        temp_camera_settings.write_text("""SETTING,VALUE,DETAILS
+ExposureTime,1000,Photo mode setting
+AnalogueGain,5.0,Photo mode setting
+Sharpness,1.5,Compatible setting
+Brightness,0.2,Compatible setting
+""")
 
         app = Flask(__name__)
         app.register_blueprint(config_bp, url_prefix='/api/config')
@@ -153,10 +180,16 @@ class TestSettingsCopyValidation:
 
             print("\n✓ Missing direction rejected")
 
-    def test_valid_directions_accepted(self):
+    def test_valid_directions_accepted(self, temp_camera_settings):
         """Test that both valid directions are accepted"""
         from routes.config import config_bp
         from flask import Flask
+
+        # Populate camera_settings.csv with test data
+        temp_camera_settings.write_text("""SETTING,VALUE,DETAILS
+Sharpness,1.0,Test value
+Brightness,0.0,Test value
+""")
 
         app = Flask(__name__)
         app.register_blueprint(config_bp, url_prefix='/api/config')
@@ -180,11 +213,18 @@ class TestSettingsCopyValidation:
 class TestSettingsCopyFileOperations:
     """Test file operations during settings copy"""
 
-    def test_backup_created_on_copy(self):
+    def test_backup_created_on_copy(self, temp_camera_settings):
         """Test that backup is created when copying settings"""
         from routes.config import config_bp
         from flask import Flask
         from mothbox_paths import CAMERA_SETTINGS_FILE
+
+        # Populate camera_settings.csv with test data
+        temp_camera_settings.write_text("""SETTING,VALUE,DETAILS
+Sharpness,1.5,Test value
+Brightness,0.1,Test value
+Contrast,1.2,Test value
+""")
 
         app = Flask(__name__)
         app.register_blueprint(config_bp, url_prefix='/api/config')
@@ -511,10 +551,17 @@ class TestValidationChain:
 class TestPartiallyValidSettings:
     """Test copy with partially valid settings"""
 
-    def test_copy_with_some_invalid_settings(self):
+    def test_copy_with_some_invalid_settings(self, temp_camera_settings):
         """Test copy when some settings are invalid"""
         from routes.config import config_bp
         from flask import Flask
+
+        # Populate camera_settings.csv with test data
+        temp_camera_settings.write_text("""SETTING,VALUE,DETAILS
+Sharpness,1.0,Valid setting
+Brightness,0.0,Valid setting
+Contrast,1.0,Valid setting
+""")
 
         app = Flask(__name__)
         app.register_blueprint(config_bp, url_prefix='/api/config')

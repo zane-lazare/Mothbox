@@ -154,9 +154,10 @@ class TestFocusPeakingAlgorithm:
         streamer = LiveViewStreamer(socketio)
 
         # Mock cv2 methods to return proper numpy arrays instead of MagicMock objects
-        mock_gray = np.random.randint(0, 256, (480, 640), dtype=np.uint8)
-        mock_edge_result = np.random.rand(480, 640) * 256  # NumPy 2.x compatible (float64)
-        mock_edge_mask = np.random.randint(0, 2, (480, 640), dtype=np.uint8) * 255
+        # Dimensions must match mock_frame fixture (100x100x3)
+        mock_gray = np.random.randint(0, 256, (100, 100), dtype=np.uint8)
+        mock_edge_result = np.random.rand(100, 100) * 256  # NumPy 2.x compatible (float64)
+        mock_edge_mask = np.random.randint(0, 2, (100, 100), dtype=np.uint8) * 255
 
         with patch.object(cv2, 'cvtColor', return_value=mock_gray):
             with patch.object(cv2, 'Laplacian', return_value=mock_edge_result):
@@ -198,9 +199,10 @@ class TestFocusPeakingAlgorithm:
         colors = ['green', 'red', 'yellow', 'cyan', 'magenta']
 
         # Mock cv2 methods to return proper numpy arrays
-        mock_gray = np.random.randint(0, 256, (480, 640), dtype=np.uint8)
-        mock_edge_result = np.random.rand(480, 640) * 256  # NumPy 2.x compatible (float64)
-        mock_edge_mask = np.random.randint(0, 2, (480, 640), dtype=np.uint8) * 255
+        # Dimensions must match mock_frame fixture (100x100x3)
+        mock_gray = np.random.randint(0, 256, (100, 100), dtype=np.uint8)
+        mock_edge_result = np.random.rand(100, 100) * 256  # NumPy 2.x compatible (float64)
+        mock_edge_mask = np.random.randint(0, 2, (100, 100), dtype=np.uint8) * 255
 
         # Create a modified frame to simulate overlay application
         modified_frame = mock_frame.copy()

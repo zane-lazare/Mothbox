@@ -1056,7 +1056,7 @@ class LiveViewStreamer:
 
         # Create colored overlay
         overlay = np.zeros_like(frame)
-        overlay[edge_mask > 0] = overlay_colour
+        overlay[edge_mask.astype(bool)] = overlay_colour
 
         # Blend with original (60% overlay visibility)
         result = cv2.addWeighted(frame, 1.0, overlay, 0.6, 0)
@@ -1111,7 +1111,7 @@ class LiveViewStreamer:
 
         # Create colored overlay
         overlay = np.zeros_like(frame)
-        overlay[edge_mask > 0] = overlay_colour
+        overlay[edge_mask.astype(bool)] = overlay_colour
 
         # Blend with original (60% overlay visibility)
         result = cv2.addWeighted(frame, 1.0, overlay, 0.6, 0)
@@ -1160,7 +1160,7 @@ class LiveViewStreamer:
 
         # Create colored overlay
         overlay = np.zeros_like(frame)
-        overlay[edge_mask > 0] = overlay_colour
+        overlay[edge_mask.astype(bool)] = overlay_colour
 
         # Blend with original (60% overlay visibility)
         result = cv2.addWeighted(frame, 1.0, overlay, 0.6, 0)
