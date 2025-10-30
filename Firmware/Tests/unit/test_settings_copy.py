@@ -462,10 +462,11 @@ class TestValidationChain:
         # Valid values
         assert validator(1.0) == True
         assert validator(2.5) == True
-        assert validator(16.0) == True
+        assert validator(4.0) == True  # Max valid value for Sharpness (0.0-4.0)
 
         # Invalid values
         assert validator(-1.0) == False
+        assert validator(16.0) == False  # Out of valid range (0.0-4.0)
         assert validator(20.0) == False
 
         print("\n✓ Validation chain works")

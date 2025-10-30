@@ -246,8 +246,8 @@ class TestWebSocketReloadSettingsEvent:
         socketio = SocketIO(app)
         camera_streamer = LiveViewStreamer(socketio)
 
-        # Mock missing settings file
-        with patch.object(WEBUI_SETTINGS_FILE, 'exists', return_value=False):
+        # Mock missing settings file (Python 3.13 compatible)
+        with patch('pathlib.Path.exists', return_value=False):
             camera_streamer.load_stream_settings()
 
             # Should have default values
