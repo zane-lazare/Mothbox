@@ -394,14 +394,15 @@ def update_webui_settings():
             return jsonify({'error': 'sensor_mode must be auto, 4:3, 16:9, or full'}), 400
 
         # Validate ranges - Image quality
-        if not (0.0 <= sharpness <= 16.0):
-            return jsonify({'error': 'Sharpness must be between 0.0 and 16.0'}), 400
+        # Using picamera2 typical ranges (0.0-4.0) for safety and hardware compatibility
+        if not (0.0 <= sharpness <= 4.0):
+            return jsonify({'error': 'Sharpness must be between 0.0 and 4.0'}), 400
         if not (-1.0 <= brightness <= 1.0):
             return jsonify({'error': 'Brightness must be between -1.0 and 1.0'}), 400
-        if not (0.0 <= contrast <= 32.0):
-            return jsonify({'error': 'Contrast must be between 0.0 and 32.0'}), 400
-        if not (0.0 <= saturation <= 32.0):
-            return jsonify({'error': 'Saturation must be between 0.0 and 32.0'}), 400
+        if not (0.0 <= contrast <= 4.0):
+            return jsonify({'error': 'Contrast must be between 0.0 and 4.0'}), 400
+        if not (0.0 <= saturation <= 4.0):
+            return jsonify({'error': 'Saturation must be between 0.0 and 4.0'}), 400
 
         # Validate ranges - Noise reduction
         if noise_reduction_mode not in [0, 1, 2]:

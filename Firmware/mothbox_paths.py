@@ -53,8 +53,26 @@ installation_marker = Path("/opt/mothbox/.installation_type")
 MOTHBOX_HOME_ENV = os.environ.get('MOTHBOX_HOME')
 MOTHBOX_ENV = os.environ.get('MOTHBOX_ENV', 'production')
 
+# Auto-detect test/CI environment
+def _is_test_environment():
+    """Detect if running in test or CI environment."""
+    # Check explicit test mode
+    if MOTHBOX_ENV == 'test':
+        return True
+
+    # Check for pytest execution
+    if os.environ.get('PYTEST_CURRENT_TEST') or 'pytest' in sys.modules:
+        return True
+
+    # Check for common CI environment variables
+    ci_indicators = ['CI', 'GITHUB_ACTIONS', 'GITLAB_CI', 'JENKINS_HOME', 'CIRCLECI', 'TRAVIS']
+    if any(os.environ.get(var) for var in ci_indicators):
+        return True
+
+    return False
+
 # TEST MODE: Use repository root for testing (CI/CD and local tests)
-if MOTHBOX_ENV == 'test' or os.environ.get('PYTEST_CURRENT_TEST'):
+if _is_test_environment():
     # In test environment: use current file's parent directory (repository root)
     MOTHBOX_HOME = Path(__file__).parent
     _installation_type = "test"

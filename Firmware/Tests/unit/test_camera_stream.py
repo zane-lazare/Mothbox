@@ -8,7 +8,14 @@ import numpy as np
 import time
 import io
 import base64
-from PIL import Image
+
+# Import PIL conditionally - only available on Raspberry Pi
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+    Image = None  # Allow test collection to succeed
 
 # Import simplejpeg conditionally - only available on Raspberry Pi
 try:

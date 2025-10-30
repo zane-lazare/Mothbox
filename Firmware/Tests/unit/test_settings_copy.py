@@ -26,7 +26,7 @@ class TestSettingsCopyLogic:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             # Set preview settings
@@ -66,7 +66,7 @@ class TestSettingsCopyLogic:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             response = client.post('/api/config/copy-settings', json={
@@ -87,7 +87,7 @@ class TestSettingsCopyLogic:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             # Get capture settings before copy
@@ -123,7 +123,7 @@ class TestSettingsCopyValidation:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             response = client.post('/api/config/copy-settings', json={
@@ -142,7 +142,7 @@ class TestSettingsCopyValidation:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             response = client.post('/api/config/copy-settings', json={})
@@ -159,7 +159,7 @@ class TestSettingsCopyValidation:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             # Test preview_to_capture
@@ -187,7 +187,7 @@ class TestSettingsCopyFileOperations:
         from mothbox_paths import CAMERA_SETTINGS_FILE
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             # Check backup directory before copy
@@ -219,7 +219,7 @@ class TestSettingsCopyFileOperations:
         from mothbox_paths import CAMERA_SETTINGS_FILE
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         # Read original settings
         if CAMERA_SETTINGS_FILE.exists():
@@ -307,7 +307,7 @@ class TestSettingsCopyEdgeCases:
         import shutil
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         # Backup original file
         backup = None
@@ -345,7 +345,7 @@ class TestSettingsCopyEdgeCases:
         import shutil
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         # Backup original
         backup = None
@@ -382,7 +382,7 @@ class TestSettingsCopyEdgeCases:
         import shutil
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         # Backup original
         backup = None
@@ -430,7 +430,7 @@ class TestIncompatibleSettingsCombinations:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             # Copy settings
@@ -516,7 +516,7 @@ class TestPartiallyValidSettings:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             # Set mix of valid and invalid preview settings
@@ -547,7 +547,7 @@ class TestPartiallyValidSettings:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             response = client.post('/api/config/copy-settings', json={

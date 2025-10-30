@@ -17,12 +17,12 @@ class TestImageQualityValidation:
     """Test image quality controls validation"""
 
     def test_sharpness_range_validation(self):
-        """Test sharpness must be 0.0-16.0"""
+        """Test sharpness must be 0.0-4.0 (picamera2 typical range)"""
         from routes.config import config_bp
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             # Invalid: too low
@@ -31,12 +31,12 @@ class TestImageQualityValidation:
             print(f"\n✓ Rejected sharpness=-0.1 (too low)")
 
             # Invalid: too high
-            response = client.post('/api/config/webui', json={'sharpness': 16.1})
-            assert response.status_code == 400, "Should reject sharpness > 16.0"
-            print(f"✓ Rejected sharpness=16.1 (too high)")
+            response = client.post('/api/config/webui', json={'sharpness': 4.1})
+            assert response.status_code == 400, "Should reject sharpness > 4.0"
+            print(f"✓ Rejected sharpness=4.1 (too high)")
 
             # Valid: boundary values
-            for sharpness in [0.0, 1.0, 8.0, 16.0]:
+            for sharpness in [0.0, 1.0, 2.0, 4.0]:
                 response = client.post('/api/config/webui', json={'sharpness': sharpness})
                 assert response.status_code == 200, \
                     f"Should accept sharpness={sharpness}"
@@ -48,7 +48,7 @@ class TestImageQualityValidation:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             # Invalid: too low
@@ -69,12 +69,12 @@ class TestImageQualityValidation:
                 print(f"✓ Accepted brightness={brightness}")
 
     def test_contrast_saturation_validation(self):
-        """Test contrast and saturation 0.0-32.0"""
+        """Test contrast and saturation 0.0-4.0 (picamera2 typical range)"""
         from routes.config import config_bp
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             print(f"\n📊 Testing contrast validation:")
@@ -84,12 +84,12 @@ class TestImageQualityValidation:
             assert response.status_code == 400, "Should reject contrast < 0.0"
             print(f"   ✓ Rejected contrast=-0.1")
 
-            response = client.post('/api/config/webui', json={'contrast': 32.1})
-            assert response.status_code == 400, "Should reject contrast > 32.0"
-            print(f"   ✓ Rejected contrast=32.1")
+            response = client.post('/api/config/webui', json={'contrast': 4.1})
+            assert response.status_code == 400, "Should reject contrast > 4.0"
+            print(f"   ✓ Rejected contrast=4.1")
 
             # Contrast: valid values
-            for contrast in [0.0, 1.0, 16.0, 32.0]:
+            for contrast in [0.0, 1.0, 2.0, 4.0]:
                 response = client.post('/api/config/webui', json={'contrast': contrast})
                 assert response.status_code == 200, f"Should accept contrast={contrast}"
                 print(f"   ✓ Accepted contrast={contrast}")
@@ -101,12 +101,12 @@ class TestImageQualityValidation:
             assert response.status_code == 400, "Should reject saturation < 0.0"
             print(f"   ✓ Rejected saturation=-0.1")
 
-            response = client.post('/api/config/webui', json={'saturation': 32.1})
-            assert response.status_code == 400, "Should reject saturation > 32.0"
-            print(f"   ✓ Rejected saturation=32.1")
+            response = client.post('/api/config/webui', json={'saturation': 4.1})
+            assert response.status_code == 400, "Should reject saturation > 4.0"
+            print(f"   ✓ Rejected saturation=4.1")
 
             # Saturation: valid values
-            for saturation in [0.0, 1.0, 16.0, 32.0]:
+            for saturation in [0.0, 1.0, 2.0, 4.0]:
                 response = client.post('/api/config/webui', json={'saturation': saturation})
                 assert response.status_code == 200, f"Should accept saturation={saturation}"
                 print(f"   ✓ Accepted saturation={saturation}")
@@ -121,7 +121,7 @@ class TestFocusControlsValidation:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             # Invalid values
@@ -149,7 +149,7 @@ class TestFocusControlsValidation:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             # Invalid values
@@ -180,7 +180,7 @@ class TestFocusControlsValidation:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             # Invalid values
@@ -211,7 +211,7 @@ class TestWhiteBalanceValidation:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             # Valid: boolean values
@@ -227,7 +227,7 @@ class TestWhiteBalanceValidation:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             # Invalid values
@@ -267,7 +267,7 @@ class TestPreviewControlsPersistence:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         test_settings = {
             'sharpness': 2.5,
@@ -300,7 +300,7 @@ class TestPreviewControlsPersistence:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         test_settings = {
             'af_mode': 1,  # Auto single
@@ -332,7 +332,7 @@ class TestPreviewControlsPersistence:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         test_settings = {
             'awb_enable': False,
@@ -364,7 +364,7 @@ class TestPreviewControlsPersistence:
         from mothbox_paths import WEBUI_SETTINGS_FILE
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         with app.test_client() as client:
             response = client.get('/api/config/webui')
@@ -388,10 +388,10 @@ class TestPreviewControlsPersistence:
             if WEBUI_SETTINGS_FILE.exists():
                 print(f"   Source: {WEBUI_SETTINGS_FILE} (existing config)")
                 # Just verify values are in valid ranges
-                assert 0.0 <= data.get('sharpness', 0) <= 16.0, "Sharpness out of range"
+                assert 0.0 <= data.get('sharpness', 0) <= 4.0, "Sharpness out of range"
                 assert -1.0 <= data.get('brightness', 0) <= 1.0, "Brightness out of range"
-                assert 0.0 <= data.get('contrast', 0) <= 32.0, "Contrast out of range"
-                assert 0.0 <= data.get('saturation', 0) <= 32.0, "Saturation out of range"
+                assert 0.0 <= data.get('contrast', 0) <= 4.0, "Contrast out of range"
+                assert 0.0 <= data.get('saturation', 0) <= 4.0, "Saturation out of range"
                 assert data.get('af_mode', -1) in [0, 1, 2], "AfMode out of range"
                 assert data.get('af_speed', -1) in [0, 1], "AfSpeed out of range"
                 assert data.get('af_range', -1) in [0, 1, 2], "AfRange out of range"
@@ -418,7 +418,7 @@ class TestCombinedSettings:
         from flask import Flask
 
         app = Flask(__name__)
-        app.register_blueprint(config_bp, url_prefix='/config')
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
         # Comprehensive settings update
         all_settings = {
@@ -537,13 +537,13 @@ class TestCombinedControlInteractions:
         print("   ✓ Low sharpness + high contrast + low brightness")
 
         # High sharpness, low contrast, high brightness
-        settings = {'sharpness': 8.0, 'contrast': 0.5, 'brightness': 0.9}
+        settings = {'sharpness': 3.5, 'contrast': 0.5, 'brightness': 0.9}
         response = client.post('/api/config/webui', json=settings)
         assert response.status_code == 200
         print("   ✓ High sharpness + low contrast + high brightness")
 
         # All maximum
-        settings = {'sharpness': 16.0, 'contrast': 32.0, 'brightness': 1.0}
+        settings = {'sharpness': 4.0, 'contrast': 4.0, 'brightness': 1.0}
         response = client.post('/api/config/webui', json=settings)
         assert response.status_code == 200
         print("   ✓ All at maximum values")
@@ -560,8 +560,8 @@ class TestCombinedControlInteractions:
 
         # Combination 1: Maximum sharpness/contrast, minimum brightness/saturation
         settings = {
-            'sharpness': 16.0,
-            'contrast': 32.0,
+            'sharpness': 4.0,
+            'contrast': 4.0,
             'brightness': -1.0,
             'saturation': 0.0
         }
@@ -574,7 +574,7 @@ class TestCombinedControlInteractions:
             'sharpness': 0.0,
             'contrast': 0.0,
             'brightness': 1.0,
-            'saturation': 32.0
+            'saturation': 4.0
         }
         response = client.post('/api/config/webui', json=settings)
         assert response.status_code == 200
@@ -582,7 +582,7 @@ class TestCombinedControlInteractions:
 
         # Combination 3: Alternating extremes
         settings = {
-            'sharpness': 16.0,
+            'sharpness': 4.0,
             'contrast': 0.0,
             'brightness': 1.0,
             'saturation': 0.0
@@ -726,10 +726,10 @@ class TestInvalidCombinations:
         print("\n❌ Testing all invalid values:")
 
         invalid_settings = {
-            'sharpness': 100.0,    # Invalid: > 16.0
+            'sharpness': 100.0,    # Invalid: > 4.0
             'brightness': 5.0,     # Invalid: > 1.0
             'contrast': -10.0,     # Invalid: < 0.0
-            'saturation': 50.0     # Invalid: > 32.0
+            'saturation': 50.0     # Invalid: > 4.0
         }
 
         response = client.post('/api/config/webui', json=invalid_settings)

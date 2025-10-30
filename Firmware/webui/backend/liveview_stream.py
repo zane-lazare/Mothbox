@@ -6,9 +6,21 @@ import time
 import base64
 from threading import Thread, Event, Lock
 from contextlib import contextmanager
-from PIL import Image
 from pathlib import Path
 import sys
+
+# Lazy import PIL - only needed when actually encoding images
+# This allows tests to import this module without PIL installed
+PIL_Image = None
+def _get_pil_image():
+    global PIL_Image
+    if PIL_Image is None:
+        try:
+            from PIL import Image as PIL_Image_module
+            PIL_Image = PIL_Image_module
+        except ImportError:
+            raise ImportError("PIL/Pillow is required for image encoding but not installed")
+    return PIL_Image
 
 # Setup path for mothbox imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -796,6 +808,7 @@ class LiveViewStreamer:
                         )
                     else:
                         # Fallback path: PIL (slower, remove optimize=True for speed)
+                        Image = _get_pil_image()
                         img = Image.fromarray(frame)
                         buffer = io.BytesIO()
                         img.save(buffer, format='JPEG', quality=self.jpeg_quality)
@@ -895,6 +908,7 @@ class LiveViewStreamer:
                 )
             else:
                 # Fallback to PIL
+                Image = _get_pil_image()
                 img = Image.fromarray(frame)
                 buffer = io.BytesIO()
                 img.save(buffer, format='JPEG', quality=self.jpeg_quality)
