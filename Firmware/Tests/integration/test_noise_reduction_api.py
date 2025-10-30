@@ -23,7 +23,7 @@ from pathlib import Path
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
-from camera_stream import CameraStreamer
+from liveview_stream import LiveViewStreamer
 
 
 @pytest.mark.both
@@ -97,7 +97,7 @@ class TestNoiseReductionEndToEnd:
         from unittest.mock import MagicMock
 
         socketio = MagicMock()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
         streamer.load_stream_settings()
 
         assert streamer.noise_reduction_mode == 2

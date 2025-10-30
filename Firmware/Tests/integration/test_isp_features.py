@@ -19,11 +19,6 @@ import sys
 # Add paths for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
-# Mock Flask/SocketIO before importing camera_stream
-from unittest.mock import MagicMock
-sys.modules['flask_socketio'] = MagicMock()
-
-import camera_stream
 from tuning_loader import apply_isp_controls
 
 

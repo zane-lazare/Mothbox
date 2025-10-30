@@ -25,7 +25,7 @@ from pathlib import Path
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
-from camera_stream import CameraStreamer
+from liveview_stream import LiveViewStreamer
 from mothbox_paths import WEBUI_SETTINGS_FILE
 
 
@@ -45,7 +45,7 @@ class TestNoiseReductionPersistence:
 
         # Create streamer and load settings
         socketio = MagicMock()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
         streamer.load_stream_settings()
 
         # Verify noise reduction loaded
@@ -62,7 +62,7 @@ class TestNoiseReductionPersistence:
 
         # Create streamer and load settings
         socketio = MagicMock()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
         streamer.load_stream_settings()
 
         # Should default to 0 (Off)
@@ -79,7 +79,7 @@ class TestNoiseReductionControlsIntegration:
         from unittest.mock import MagicMock, patch
 
         socketio = MagicMock()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
         streamer.noise_reduction_mode = 1
 
         # Mock camera and set_controls
@@ -109,7 +109,7 @@ class TestNoiseReductionControlsIntegration:
         socketio = MagicMock()
 
         for mode in [0, 1, 2]:
-            streamer = CameraStreamer(socketio)
+            streamer = LiveViewStreamer(socketio)
             streamer.noise_reduction_mode = mode
 
             mock_camera = MagicMock()
