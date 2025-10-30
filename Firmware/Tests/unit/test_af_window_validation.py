@@ -21,11 +21,11 @@ class TestAfWindowCoordinateConversion:
 
     def test_center_position_conversion(self):
         """Test AF window at center (0.5, 0.5) converts correctly"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         # Create streamer with mock socketio
         mock_socketio = Mock()
-        streamer = CameraStreamer(mock_socketio)
+        streamer = LiveViewStreamer(mock_socketio)
 
         # Mock sensor resolution (9152x6944 - Arducam 64MP OV64A40 sensor)
         streamer.sensor_resolution = (9152, 6944)
@@ -83,10 +83,10 @@ class TestAfWindowCoordinateConversion:
 
     def test_corner_position_conversion(self):
         """Test AF window at corner (0.25, 0.25) converts correctly"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         mock_socketio = Mock()
-        streamer = CameraStreamer(mock_socketio)
+        streamer = LiveViewStreamer(mock_socketio)
         streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
@@ -126,10 +126,10 @@ class TestAfWindowCoordinateConversion:
 
     def test_window_size_scaling(self):
         """Test different window sizes convert correctly"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         mock_socketio = Mock()
-        streamer = CameraStreamer(mock_socketio)
+        streamer = LiveViewStreamer(mock_socketio)
         streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
@@ -168,10 +168,10 @@ class TestAfWindowParameterValidation:
 
     def test_none_coordinates_clear_window(self):
         """Test None coordinates trigger window clearing"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         mock_socketio = Mock()
-        streamer = CameraStreamer(mock_socketio)
+        streamer = LiveViewStreamer(mock_socketio)
         streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
@@ -197,10 +197,10 @@ class TestAfWindowParameterValidation:
 
     def test_coordinates_clamped_to_range(self):
         """Test coordinates outside 0-1 range are clamped"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         mock_socketio = Mock()
-        streamer = CameraStreamer(mock_socketio)
+        streamer = LiveViewStreamer(mock_socketio)
         streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
@@ -229,10 +229,10 @@ class TestAfWindowParameterValidation:
 
     def test_camera_not_streaming_returns_false(self):
         """Test setting AF window when camera not streaming returns False"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         mock_socketio = Mock()
-        streamer = CameraStreamer(mock_socketio)
+        streamer = LiveViewStreamer(mock_socketio)
         streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = False  # Not streaming
@@ -244,10 +244,10 @@ class TestAfWindowParameterValidation:
 
     def test_sensor_resolution_not_available(self):
         """Test setting AF window when ScalerCropMaximum not available"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         mock_socketio = Mock()
-        streamer = CameraStreamer(mock_socketio)
+        streamer = LiveViewStreamer(mock_socketio)
         streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
@@ -262,10 +262,10 @@ class TestAfWindowParameterValidation:
 
     def test_minimum_window_size_enforced(self):
         """Test minimum window size (5% of frame) is enforced"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         mock_socketio = Mock()
-        streamer = CameraStreamer(mock_socketio)
+        streamer = LiveViewStreamer(mock_socketio)
         streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
@@ -297,10 +297,10 @@ class TestAfWindowEdgeCases:
 
     def test_all_corner_positions(self):
         """Test AF window at all four corners"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         mock_socketio = Mock()
-        streamer = CameraStreamer(mock_socketio)
+        streamer = LiveViewStreamer(mock_socketio)
         streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
@@ -338,10 +338,10 @@ class TestAfWindowEdgeCases:
 
     def test_all_edge_positions(self):
         """Test AF window at edge midpoints"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         mock_socketio = Mock()
-        streamer = CameraStreamer(mock_socketio)
+        streamer = LiveViewStreamer(mock_socketio)
         streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
@@ -379,10 +379,10 @@ class TestAfWindowEdgeCases:
 
     def test_large_window_at_edge_clamped(self):
         """Test large window size at edge is clamped to sensor bounds"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         mock_socketio = Mock()
-        streamer = CameraStreamer(mock_socketio)
+        streamer = LiveViewStreamer(mock_socketio)
         streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
@@ -411,10 +411,10 @@ class TestAfWindowEdgeCases:
 
     def test_rapid_set_clear_cycles(self):
         """Test rapid setting and clearing of AF window"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         mock_socketio = Mock()
-        streamer = CameraStreamer(mock_socketio)
+        streamer = LiveViewStreamer(mock_socketio)
         streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True
@@ -442,10 +442,10 @@ class TestAfWindowEdgeCases:
 
     def test_even_dimension_enforcement(self):
         """Test all dimensions are even (encoder requirement)"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         mock_socketio = Mock()
-        streamer = CameraStreamer(mock_socketio)
+        streamer = LiveViewStreamer(mock_socketio)
         streamer.sensor_resolution = (9152, 6944)
         streamer.camera = Mock()
         streamer.streaming = True

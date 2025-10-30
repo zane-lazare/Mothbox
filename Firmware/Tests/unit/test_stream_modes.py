@@ -37,10 +37,10 @@ class TestEncoderFallback:
         except ImportError:
             pytest.skip("simplejpeg not installed in test environment")
 
-    @patch('camera_stream.SIMPLEJPEG_AVAILABLE', False)
+    @patch('liveview_stream.SIMPLEJPEG_AVAILABLE', False)
     def test_pil_fallback_when_simplejpeg_unavailable(self, camera_streamer_func):
         """Verify PIL is used when simplejpeg is unavailable"""
-        from camera_stream import SIMPLEJPEG_AVAILABLE
+        from liveview_stream import SIMPLEJPEG_AVAILABLE
 
         print("\n📊 Testing PIL fallback when simplejpeg unavailable...")
 
@@ -72,12 +72,12 @@ class TestEncoderFallback:
 
     def test_encoding_method_selection(self, camera_streamer_func):
         """Verify correct encoding method is selected based on availability"""
-        import camera_stream
+        import liveview_stream
 
         print("\n📊 Testing encoding method selection...")
 
         # Check what's available
-        has_simplejpeg = camera_stream.SIMPLEJPEG_AVAILABLE
+        has_simplejpeg = liveview_stream.SIMPLEJPEG_AVAILABLE
         has_pil = True  # PIL is always available
 
         print(f"   simplejpeg available: {has_simplejpeg}")
@@ -461,7 +461,7 @@ class TestHardwareMJPEGMode:
         camera_streamer_func.stream_mode = 'mjpeg_hardware'
 
         # Verify HARDWARE_MJPEG_AVAILABLE is False
-        from camera_stream import HARDWARE_MJPEG_AVAILABLE
+        from liveview_stream import HARDWARE_MJPEG_AVAILABLE
         assert HARDWARE_MJPEG_AVAILABLE is False
 
         print("✓ Hardware MJPEG marked unavailable, will fall back to software")

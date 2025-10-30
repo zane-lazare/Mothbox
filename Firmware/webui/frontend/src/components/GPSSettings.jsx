@@ -377,6 +377,7 @@ export default function GPSSettings() {
                   value={localConfig?.device || ''}
                   onChange={(e) => handleDeviceChange(e.target.value)}
                   placeholder="/dev/ttyAMA0"
+                  aria-label="GPS Device Path"
                   className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                     validationErrors.device
                       ? 'border-red-300 focus:ring-red-500 bg-red-50'
@@ -407,6 +408,7 @@ export default function GPSSettings() {
                 <select
                   value={localConfig?.baudrate || 9600}
                   onChange={(e) => handleBaudrateChange(parseInt(e.target.value))}
+                  aria-label="Baud Rate"
                   className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                     validationErrors.baudrate
                       ? 'border-red-300 focus:ring-red-500 bg-red-50'

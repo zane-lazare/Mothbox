@@ -84,14 +84,14 @@ class TestWebSocketDisconnectEvent:
         """Test disconnect event stops camera streaming"""
         from flask import Flask
         from flask_socketio import SocketIO
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         app = Flask(__name__)
         app.config['TESTING'] = True
         socketio = SocketIO(app)
 
         # Create camera streamer
-        camera_streamer = CameraStreamer(socketio)
+        camera_streamer = LiveViewStreamer(socketio)
 
         # Mock streaming state
         camera_streamer.streaming = True
@@ -112,11 +112,11 @@ class TestWebSocketDisconnectEvent:
         """Test disconnect properly cleans up resources"""
         from flask import Flask
         from flask_socketio import SocketIO
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         app = Flask(__name__)
         socketio = SocketIO(app)
-        camera_streamer = CameraStreamer(socketio)
+        camera_streamer = LiveViewStreamer(socketio)
 
         # Start streaming
         camera_streamer.streaming = True
@@ -135,12 +135,12 @@ class TestWebSocketPreviewEvents:
         """Test start_preview event with successful initialization"""
         from flask import Flask
         from flask_socketio import SocketIO
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         app = Flask(__name__)
         socketio = SocketIO(app)
 
-        camera_streamer = CameraStreamer(socketio)
+        camera_streamer = LiveViewStreamer(socketio)
 
         # Mock successful initialization
         with patch.object(camera_streamer, 'start_streaming', return_value=True):
@@ -151,13 +151,13 @@ class TestWebSocketPreviewEvents:
 
     def test_start_preview_failure(self):
         """Test start_preview event with camera initialization failure"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
         from flask import Flask
 
         app = Flask(__name__)
         socketio = SocketIO(app)
-        camera_streamer = CameraStreamer(socketio)
+        camera_streamer = LiveViewStreamer(socketio)
 
         # Mock failed initialization
         with patch.object(camera_streamer, 'initialize_camera', return_value=False):
@@ -168,13 +168,13 @@ class TestWebSocketPreviewEvents:
 
     def test_stop_preview_when_not_streaming(self):
         """Test stop_preview when camera is not streaming"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
         from flask import Flask
 
         app = Flask(__name__)
         socketio = SocketIO(app)
-        camera_streamer = CameraStreamer(socketio)
+        camera_streamer = LiveViewStreamer(socketio)
 
         # Ensure not streaming
         camera_streamer.streaming = False
@@ -187,13 +187,13 @@ class TestWebSocketPreviewEvents:
 
     def test_stop_preview_cleanup(self):
         """Test stop_preview properly cleans up camera resources"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
         from flask import Flask
 
         app = Flask(__name__)
         socketio = SocketIO(app)
-        camera_streamer = CameraStreamer(socketio)
+        camera_streamer = LiveViewStreamer(socketio)
 
         # Set up streaming state
         camera_streamer.streaming = True
@@ -215,13 +215,13 @@ class TestWebSocketReloadSettingsEvent:
 
     def test_reload_settings_success(self):
         """Test reload_stream_settings reloads configuration"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
         from flask import Flask
 
         app = Flask(__name__)
         socketio = SocketIO(app)
-        camera_streamer = CameraStreamer(socketio)
+        camera_streamer = LiveViewStreamer(socketio)
 
         # Store initial settings
         initial_sharpness = camera_streamer.sharpness
@@ -237,14 +237,14 @@ class TestWebSocketReloadSettingsEvent:
 
     def test_reload_settings_preserves_defaults(self):
         """Test reload_settings uses defaults if file missing"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
         from flask import Flask
         from mothbox_paths import WEBUI_SETTINGS_FILE
 
         app = Flask(__name__)
         socketio = SocketIO(app)
-        camera_streamer = CameraStreamer(socketio)
+        camera_streamer = LiveViewStreamer(socketio)
 
         # Mock missing settings file
         with patch.object(WEBUI_SETTINGS_FILE, 'exists', return_value=False):
@@ -432,13 +432,13 @@ class TestWebSocketMetadataEvent:
 
     def test_get_metadata_when_streaming(self):
         """Test get_metadata returns live metadata when streaming"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
         from flask import Flask
 
         app = Flask(__name__)
         socketio = SocketIO(app)
-        camera_streamer = CameraStreamer(socketio)
+        camera_streamer = LiveViewStreamer(socketio)
 
         # Mock streaming state with metadata
         camera_streamer.streaming = True
@@ -465,13 +465,13 @@ class TestWebSocketMetadataEvent:
 
     def test_get_metadata_when_not_streaming(self):
         """Test get_metadata returns error when not streaming"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
         from flask import Flask
 
         app = Flask(__name__)
         socketio = SocketIO(app)
-        camera_streamer = CameraStreamer(socketio)
+        camera_streamer = LiveViewStreamer(socketio)
 
         # Not streaming
         camera_streamer.streaming = False
@@ -514,13 +514,13 @@ class TestWebSocketUpdatePreviewControl:
 
     def test_update_preview_control_success(self):
         """Test update_preview_control applies control change"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
         from flask import Flask
 
         app = Flask(__name__)
         socketio = SocketIO(app)
-        camera_streamer = CameraStreamer(socketio)
+        camera_streamer = LiveViewStreamer(socketio)
 
         # Mock streaming camera
         camera_streamer.streaming = True
@@ -538,13 +538,13 @@ class TestWebSocketUpdatePreviewControl:
 
     def test_update_preview_control_when_not_streaming(self):
         """Test update_preview_control fails when not streaming"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
         from flask import Flask
 
         app = Flask(__name__)
         socketio = SocketIO(app)
-        camera_streamer = CameraStreamer(socketio)
+        camera_streamer = LiveViewStreamer(socketio)
 
         # Not streaming
         camera_streamer.streaming = False
@@ -558,13 +558,13 @@ class TestWebSocketUpdatePreviewControl:
 
     def test_update_preview_control_invalid_data(self):
         """Test update_preview_control with invalid data format"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
         from flask import Flask
 
         app = Flask(__name__)
         socketio = SocketIO(app)
-        camera_streamer = CameraStreamer(socketio)
+        camera_streamer = LiveViewStreamer(socketio)
 
         # Mock streaming
         camera_streamer.streaming = True

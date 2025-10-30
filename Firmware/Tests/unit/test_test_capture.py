@@ -455,7 +455,7 @@ class TestTestCaptureWithoutStreaming:
         """Test capture works when streaming is not active"""
         from routes.camera import camera_bp
         from flask import Flask
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         app = Flask(__name__)
         app.register_blueprint(camera_bp, url_prefix='/api/camera')
@@ -485,7 +485,7 @@ class TestTestCaptureWithoutStreaming:
         """Test capture properly releases and restarts streaming"""
         from routes.camera import camera_bp
         from flask import Flask
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         app = Flask(__name__)
         app.register_blueprint(camera_bp, url_prefix='/api/camera')
