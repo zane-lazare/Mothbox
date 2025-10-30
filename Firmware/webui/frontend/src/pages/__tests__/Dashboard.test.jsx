@@ -19,6 +19,8 @@ vi.mock('react-hot-toast', () => ({
   default: {
     success: vi.fn(),
     error: vi.fn(),
+    loading: vi.fn(() => 'toast-id'),
+    dismiss: vi.fn(),
   },
 }))
 
@@ -206,7 +208,12 @@ describe('Dashboard', () => {
 
   it('syncs GPS when sync button is clicked', async () => {
     const user = userEvent.setup()
-    api.syncGps.mockResolvedValue({ data: { success: true } })
+
+    // Create a promise that won't resolve immediately
+    let resolveSyncGps
+    api.syncGps.mockImplementation(() => new Promise((resolve) => {
+      resolveSyncGps = () => resolve({ data: { success: true } })
+    }))
 
     renderComponent()
 
@@ -218,10 +225,18 @@ describe('Dashboard', () => {
     await user.click(syncButton)
 
     // Button should show "Syncing..." while operation is in progress
-    expect(screen.getByText(/Syncing.../i)).toBeInTheDocument()
-
     await waitFor(() => {
-      expect(api.syncGps).toHaveBeenCalled()
+      expect(screen.getByText(/Syncing.../i)).toBeInTheDocument()
+    })
+
+    expect(api.syncGps).toHaveBeenCalled()
+
+    // Resolve the promise
+    resolveSyncGps()
+
+    // Wait for sync to complete
+    await waitFor(() => {
+      expect(screen.getByText(/Sync Now/i)).toBeInTheDocument()
     })
   })
 
@@ -233,7 +248,7 @@ describe('Dashboard', () => {
     })
 
     // formatTimestamp should format the timestamp
-    expect(screen.getByText(/2023/)).toBeInTheDocument()
+    expect(screen.getAllByText(/2023/).length).toBeGreaterThan(0)
   })
 
   it('displays latest photo information', async () => {
@@ -248,7 +263,12 @@ describe('Dashboard', () => {
 
   it('handles capture photo button click', async () => {
     const user = userEvent.setup()
-    api.capturePhoto.mockResolvedValue({ data: { success: true } })
+
+    // Create a promise that won't resolve immediately
+    let resolveCapturePhoto
+    api.capturePhoto.mockImplementation(() => new Promise((resolve) => {
+      resolveCapturePhoto = () => resolve({ data: { success: true } })
+    }))
 
     // Mock window.location.reload
     const originalLocation = window.location
@@ -264,10 +284,18 @@ describe('Dashboard', () => {
     const captureButton = screen.getByText(/Capture Photo/i)
     await user.click(captureButton)
 
-    expect(screen.getByText(/Capturing.../i)).toBeInTheDocument()
-
     await waitFor(() => {
-      expect(api.capturePhoto).toHaveBeenCalled()
+      expect(screen.getByText(/Capturing.../i)).toBeInTheDocument()
+    })
+
+    expect(api.capturePhoto).toHaveBeenCalled()
+
+    // Resolve the promise
+    resolveCapturePhoto()
+
+    // Wait for capture to complete
+    await waitFor(() => {
+      expect(screen.getByText(/Capture Photo/i)).toBeInTheDocument()
     })
 
     // Restore original location
