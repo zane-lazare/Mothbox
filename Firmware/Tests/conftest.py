@@ -192,6 +192,7 @@ def app():
     from routes.config import config_bp
     from routes.presets import presets_bp
     from routes.gpio import gpio_bp
+    from routes.gps import gps_bp
     from liveview_stream import LiveViewStreamer
 
     # Create Flask app
@@ -204,6 +205,7 @@ def app():
     app.register_blueprint(config_bp, url_prefix='/api/config')
     app.register_blueprint(presets_bp, url_prefix='/api')
     app.register_blueprint(gpio_bp, url_prefix='/api/gpio')
+    app.register_blueprint(gps_bp, url_prefix='/api/gps')
 
     # Create camera_streamer and register in app config
     # This is critical - many endpoints expect this

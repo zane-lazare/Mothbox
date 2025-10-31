@@ -546,3 +546,88 @@ class TestGPIOErrorRecovery:
 
         # Original state should remain (note: GPIO was already set, but state file wasn't updated)
         # This is expected behavior - GPIO state and file can diverge on write errors
+
+
+class TestGPIOAvailability:
+    """Tests for GPIO availability and permission checks"""
+
+    def test_status_missing_relay_in_state_file(self, client, mock_rpi_gpio, temp_gpio_state_file, temp_controls_file):
+        """Status endpoint returns False for relays not in state file"""
+        # Setup: State file with only 2 of 3 relays
+        state = {
+            "Relay_Ch1": True,
+            "Relay_Ch2": False
+            # Relay_Ch3 intentionally missing
+        }
+        temp_gpio_state_file.write_text(json.dumps(state))
+
+        with patch('routes.gpio.get_gpio_pins') as mock_get_pins:
+            mock_get_pins.return_value = {
+                'Relay_Ch1': 26,
+                'Relay_Ch2': 19,
+                'Relay_Ch3': 13  # This one is missing from state
+            }
+
+            response = client.get('/api/gpio/status')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['Relay_Ch1'] is True
+        assert data['Relay_Ch2'] is False
+        assert data['Relay_Ch3'] is False  # Should default to False
+
+    def test_control_when_gpio_not_available(self, client, monkeypatch):
+        """Control endpoint returns 500 when GPIO hardware not available"""
+        # Mock GPIO_AVAILABLE to False
+        monkeypatch.setattr('routes.gpio.GPIO_AVAILABLE', False)
+
+        response = client.post('/api/gpio/control', json={
+            'relay': 'Relay_Ch1',
+            'state': True
+        })
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert 'GPIO not available' in data['error']
+
+    def test_control_when_gpio_permission_denied(self, client, monkeypatch):
+        """Control endpoint returns 403 when GPIO permissions denied"""
+        # Mock GPIO as available but permissions denied
+        monkeypatch.setattr('routes.gpio.GPIO_AVAILABLE', True)
+        monkeypatch.setattr('routes.gpio.GPIO_PERMISSIONS_OK', False)
+        monkeypatch.setattr('routes.gpio.GPIO_PERMISSION_ERROR', 'Permission denied: user not in gpio group')
+
+        response = client.post('/api/gpio/control', json={
+            'relay': 'Relay_Ch1',
+            'state': True
+        })
+
+        assert response.status_code == 403
+        data = response.get_json()
+        assert 'GPIO permission denied' in data['error']
+        assert 'user not in gpio group' in data['details']
+
+    def test_flash_when_gpio_not_available(self, client, monkeypatch):
+        """Flash endpoint returns 500 when GPIO hardware not available"""
+        # Mock GPIO_AVAILABLE to False
+        monkeypatch.setattr('routes.gpio.GPIO_AVAILABLE', False)
+
+        response = client.post('/api/gpio/flash')
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert 'GPIO not available' in data['error']
+
+    def test_flash_when_gpio_permission_denied(self, client, monkeypatch):
+        """Flash endpoint returns 403 when GPIO permissions denied"""
+        # Mock GPIO as available but permissions denied
+        monkeypatch.setattr('routes.gpio.GPIO_AVAILABLE', True)
+        monkeypatch.setattr('routes.gpio.GPIO_PERMISSIONS_OK', False)
+        monkeypatch.setattr('routes.gpio.GPIO_PERMISSION_ERROR', 'Permission denied: user not in gpio group')
+
+        response = client.post('/api/gpio/flash')
+
+        assert response.status_code == 403
+        data = response.get_json()
+        assert 'GPIO permission denied' in data['error']
+        assert 'user not in gpio group' in data['details']

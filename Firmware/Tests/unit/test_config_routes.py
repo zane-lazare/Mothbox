@@ -293,6 +293,183 @@ class TestWebuiEndpoints:
         assert 'stream_width=1024' in content  # Preserved
         assert 'frame_rate=10' in content      # Preserved
 
+    def test_get_webui_handles_invalid_types_gracefully(self, client, temp_webui_settings):
+        """GET /webui keeps defaults when type conversion fails"""
+        # Write settings with invalid values that can't convert
+        temp_webui_settings.write_text(
+            "sharpness=not_a_float\n"
+            "noise_reduction_mode=not_an_int\n"
+            "exposure_time=invalid_int\n"
+        )
+
+        response = client.get('/api/config/webui')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        # Should fall back to defaults when conversion fails
+        assert data['sharpness'] == 1.0  # Default
+        assert data['noise_reduction_mode'] == 0  # Default
+        assert data['exposure_time'] == 500  # Default
+
+    def test_post_webui_validates_boolean_types(self, client, temp_webui_settings):
+        """POST /webui validates boolean type settings after conversion"""
+        # awb_enable - After string conversion, if it's still not a bool (e.g., a list), it should fail
+        # Strings get converted to bool, so we need non-convertible types
+        response = client.post('/api/config/webui', json={'awb_enable': ['list', 'value']})
+        assert response.status_code == 400
+        assert 'AwbEnable must be a boolean' in response.get_json()['error']
+
+        # ae_enable must be boolean (non-string, non-bool type)
+        response = client.post('/api/config/webui', json={'ae_enable': {'dict': 'value'}})
+        assert response.status_code == 400
+        assert 'ae_enable must be a boolean' in response.get_json()['error']
+
+        # use_custom_tuning must be boolean (non-string, non-bool type)
+        response = client.post('/api/config/webui', json={'use_custom_tuning': 123})
+        assert response.status_code == 400
+        assert 'use_custom_tuning must be a boolean' in response.get_json()['error']
+
+        # lens_shading_enable must be boolean (non-string, non-bool type)
+        response = client.post('/api/config/webui', json={'lens_shading_enable': 1.5})
+        assert response.status_code == 400
+        assert 'lens_shading_enable must be a boolean' in response.get_json()['error']
+
+        # defect_correction_enable must be boolean (non-string, non-bool type)
+        response = client.post('/api/config/webui', json={'defect_correction_enable': None})
+        assert response.status_code == 400
+        assert 'defect_correction_enable must be a boolean' in response.get_json()['error']
+
+    def test_post_webui_validates_string_types(self, client, temp_webui_settings):
+        """POST /webui validates string type settings"""
+        # sensor_mode must be string
+        response = client.post('/api/config/webui', json={'sensor_mode': 123})
+        assert response.status_code == 400
+        assert 'sensor_mode must be a string' in response.get_json()['error']
+
+        # focus_peaking_colour must be string
+        response = client.post('/api/config/webui', json={'focus_peaking_colour': 123})
+        assert response.status_code == 400
+        assert 'focus_peaking_colour must be a string' in response.get_json()['error']
+
+        # focus_peaking_algorithm must be string
+        response = client.post('/api/config/webui', json={'focus_peaking_algorithm': ['list']})
+        assert response.status_code == 400
+        assert 'focus_peaking_algorithm must be a string' in response.get_json()['error']
+
+    def test_post_webui_validates_type_conversion_errors(self, client, temp_webui_settings):
+        """POST /webui returns 400 on type conversion failures"""
+        # Stream settings - invalid types
+        response = client.post('/api/config/webui', json={'stream_width': 'not_an_int'})
+        assert response.status_code == 400
+        assert 'Invalid stream setting type' in response.get_json()['error']
+
+        # Image quality - invalid types
+        response = client.post('/api/config/webui', json={'sharpness': 'not_a_float'})
+        assert response.status_code == 400
+        assert 'Invalid image quality setting type' in response.get_json()['error']
+
+        # Noise reduction - invalid type
+        response = client.post('/api/config/webui', json={'noise_reduction_mode': 'not_an_int'})
+        assert response.status_code == 400
+        assert 'Invalid noise_reduction_mode type' in response.get_json()['error']
+
+        # Noise reduction - float when int required
+        response = client.post('/api/config/webui', json={'noise_reduction_mode': 1.5})
+        assert response.status_code == 400
+        assert 'noise_reduction_mode must be an integer' in response.get_json()['error']
+
+        # Focus controls - invalid type
+        response = client.post('/api/config/webui', json={'af_mode': 'invalid'})
+        assert response.status_code == 400
+        assert 'Invalid focus control type' in response.get_json()['error']
+
+        # White balance - invalid type
+        response = client.post('/api/config/webui', json={'awb_mode': 'invalid'})
+        assert response.status_code == 400
+        assert 'Invalid white balance mode type' in response.get_json()['error']
+
+        # Colour gains - invalid type
+        response = client.post('/api/config/webui', json={'colour_gains_red': 'invalid'})
+        assert response.status_code == 400
+        assert 'Invalid colour gains type' in response.get_json()['error']
+
+        # Exposure controls - invalid type
+        response = client.post('/api/config/webui', json={'exposure_time': 'invalid'})
+        assert response.status_code == 400
+        assert 'Invalid exposure settings type' in response.get_json()['error']
+
+        # ae_metering_mode - float when int required
+        response = client.post('/api/config/webui', json={'ae_metering_mode': 1.7})
+        assert response.status_code == 400
+        assert 'ae_metering_mode must be an integer' in response.get_json()['error']
+
+        # Focus peaking intensity - invalid type
+        response = client.post('/api/config/webui', json={'focus_peaking_intensity': 'invalid'})
+        assert response.status_code == 400
+        assert 'Invalid focus_peaking_intensity type' in response.get_json()['error']
+
+    def test_post_webui_validates_all_numeric_ranges(self, client, temp_webui_settings):
+        """POST /webui validates all numeric setting ranges"""
+        # Sharpness range (0.0-4.0)
+        response = client.post('/api/config/webui', json={'sharpness': 5.0})
+        assert response.status_code == 400
+        assert 'Sharpness must be between' in response.get_json()['error']
+
+        # Brightness range (-1.0-1.0)
+        response = client.post('/api/config/webui', json={'brightness': -2.0})
+        assert response.status_code == 400
+        assert 'Brightness must be between' in response.get_json()['error']
+
+        # Contrast range (0.0-4.0)
+        response = client.post('/api/config/webui', json={'contrast': 4.5})
+        assert response.status_code == 400
+        assert 'Contrast must be between' in response.get_json()['error']
+
+        # Saturation range (0.0-4.0)
+        response = client.post('/api/config/webui', json={'saturation': -0.1})
+        assert response.status_code == 400
+        assert 'Saturation must be between' in response.get_json()['error']
+
+        # awb_mode range (0-7)
+        response = client.post('/api/config/webui', json={'awb_mode': 8})
+        assert response.status_code == 400
+        assert 'AwbMode must be between' in response.get_json()['error']
+
+        # colour_gains_red range (0.0-8.0)
+        response = client.post('/api/config/webui', json={'colour_gains_red': 8.5})
+        assert response.status_code == 400
+        assert 'Red colour gain must be between' in response.get_json()['error']
+
+        # colour_gains_blue range (0.0-8.0)
+        response = client.post('/api/config/webui', json={'colour_gains_blue': -0.1})
+        assert response.status_code == 400
+        assert 'Blue colour gain must be between' in response.get_json()['error']
+
+        # exposure_time range (100-200000 microseconds)
+        response = client.post('/api/config/webui', json={'exposure_time': 50})
+        assert response.status_code == 400
+        assert 'exposure_time must be between' in response.get_json()['error']
+
+        # analogue_gain range (1.0-16.0)
+        response = client.post('/api/config/webui', json={'analogue_gain': 20.0})
+        assert response.status_code == 400
+        assert 'analogue_gain must be between' in response.get_json()['error']
+
+        # af_speed enum (0 or 1)
+        response = client.post('/api/config/webui', json={'af_speed': 2})
+        assert response.status_code == 400
+        assert 'AfSpeed must be' in response.get_json()['error']
+
+        # af_range enum (0, 1, or 2)
+        response = client.post('/api/config/webui', json={'af_range': 3})
+        assert response.status_code == 400
+        assert 'AfRange must be' in response.get_json()['error']
+
+        # sensor_mode enum validation
+        response = client.post('/api/config/webui', json={'sensor_mode': 'invalid_mode'})
+        assert response.status_code == 400
+        assert 'sensor_mode must be' in response.get_json()['error']
+
 
 class TestCopySettingsEndpoint:
     """Tests for POST /api/config/copy-settings endpoint"""
@@ -341,6 +518,73 @@ class TestCopySettingsEndpoint:
         })
 
         assert response.status_code == 400
+
+    def test_copy_preview_to_capture_missing_file(self, client, tmp_path, monkeypatch):
+        """POST /copy-settings returns 404 if preview settings missing"""
+        from Tests.conftest import patch_path_constant_everywhere
+
+        # Point to non-existent preview file
+        missing_file = tmp_path / "missing_preview.txt"
+        patch_path_constant_everywhere(monkeypatch, 'LIVEVIEW_SETTINGS_FILE', missing_file)
+
+        # Camera settings file exists
+        camera_file = tmp_path / "camera_settings.csv"
+        camera_file.write_text("SETTING,VALUE,DETAILS\nSharpness,1.0,Default\n")
+        patch_path_constant_everywhere(monkeypatch, 'CAMERA_SETTINGS_FILE', camera_file)
+
+        response = client.post('/api/config/copy-settings', json={
+            'direction': 'preview_to_capture'
+        })
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert 'webui_settings.txt not found' in data['error']
+
+    def test_copy_handles_type_conversion_in_preview(self, client, temp_webui_settings, temp_camera_settings):
+        """POST /copy-settings handles type conversion for preview settings"""
+        # Setup: Preview settings with values that need type conversion
+        temp_webui_settings.write_text(
+            "sharpness=2.5\n"
+            "af_mode=1\n"
+            "awb_enable=false\n"
+        )
+
+        # Setup: Camera settings CSV
+        with open(temp_camera_settings, 'a') as f:
+            f.write("Sharpness,1.0,Original\n")
+            f.write("AfMode,2,Original\n")
+            f.write("AwbEnable,1,Original\n")
+
+        response = client.post('/api/config/copy-settings', json={
+            'direction': 'preview_to_capture'
+        })
+
+        assert response.status_code == 200
+        data = response.get_json()
+        # Should have copied some settings
+        assert 'copied' in data
+        assert isinstance(data['copied'], list)
+
+    def test_copy_capture_to_preview_creates_file_if_missing(self, client, tmp_path, temp_camera_settings, monkeypatch):
+        """POST /copy-settings capture_to_preview creates preview file if missing"""
+        from Tests.conftest import patch_path_constant_everywhere
+
+        # Setup: Camera settings exist
+        with open(temp_camera_settings, 'a') as f:
+            f.write("Sharpness,2.0,Test\n")
+
+        # Preview settings file doesn't exist
+        preview_file = tmp_path / "new_preview.txt"
+        patch_path_constant_everywhere(monkeypatch, 'LIVEVIEW_SETTINGS_FILE', preview_file)
+
+        response = client.post('/api/config/copy-settings', json={
+            'direction': 'capture_to_preview'
+        })
+
+        assert response.status_code == 200
+
+        # File should be created
+        assert preview_file.exists()
 
 
 class TestConfigSecurity:
@@ -428,6 +672,99 @@ class TestConfigConcurrency:
         # File should be valid (not corrupted)
         content = temp_controls_file.read_text()
         assert 'name=Box' in content
+
+
+class TestConfigEndpointErrors:
+    """Error handling tests for endpoint exceptions"""
+
+    def test_get_controls_handles_file_read_error(self, client, tmp_path, monkeypatch):
+        """GET /controls returns 500 on file read error"""
+        from Tests.conftest import patch_path_constant_everywhere
+
+        # Point to a file that will cause an error when read
+        bad_path = tmp_path / "unreadable.txt"
+        bad_path.write_text("test")
+        bad_path.chmod(0o000)  # Make unreadable
+
+        patch_path_constant_everywhere(monkeypatch, 'CONTROLS_FILE', bad_path)
+
+        response = client.get('/api/config/controls')
+
+        # Should return 500 error
+        assert response.status_code == 500
+        data = response.get_json()
+        assert 'error' in data
+
+        # Cleanup
+        bad_path.chmod(0o644)
+
+    def test_get_schedule_handles_file_error(self, client, tmp_path, monkeypatch):
+        """GET /schedule returns 500 on file read error"""
+        from Tests.conftest import patch_path_constant_everywhere
+
+        # Point to non-existent file
+        missing_file = tmp_path / "missing_schedule.csv"
+        patch_path_constant_everywhere(monkeypatch, 'SCHEDULE_SETTINGS_FILE', missing_file)
+
+        response = client.get('/api/config/schedule')
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert 'error' in data
+
+    def test_get_webui_handles_file_error(self, client, tmp_path, monkeypatch):
+        """GET /webui returns 500 on unexpected error"""
+        from Tests.conftest import patch_path_constant_everywhere
+
+        # Mock get_control_values to raise an exception
+        def mock_get_control_values(file_path):
+            raise RuntimeError("Unexpected error reading file")
+
+        monkeypatch.setattr('routes.config.get_control_values', mock_get_control_values)
+
+        # Setup valid file to trigger the mocked function
+        valid_file = tmp_path / "liveview_settings.txt"
+        valid_file.write_text("test=value\n")
+        patch_path_constant_everywhere(monkeypatch, 'LIVEVIEW_SETTINGS_FILE', valid_file)
+
+        response = client.get('/api/config/webui')
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert 'error' in data
+
+    def test_post_schedule_restores_backup_on_write_failure(self, client, temp_schedule_settings, monkeypatch):
+        """Schedule endpoint restores backup if write fails"""
+        # Setup: Original schedule
+        original = "weekdays,hours,minutes,runtime\n1,8,0,60\n"
+        temp_schedule_settings.write_text(original)
+
+        # Track backup restoration
+        restore_called = []
+        original_copy2 = __import__('shutil').copy2
+
+        def mock_copy2(src, dst):
+            restore_called.append((src, dst))
+            return original_copy2(src, dst)
+
+        monkeypatch.setattr('shutil.copy2', mock_copy2)
+
+        # Mock csv.DictWriter to fail during writerow
+        original_dictwriter = __import__('csv').DictWriter
+
+        class FailingDictWriter(original_dictwriter):
+            def writerow(self, row):
+                raise IOError("Disk full")
+
+        monkeypatch.setattr('csv.DictWriter', FailingDictWriter)
+
+        # Attempt update (should fail and restore)
+        response = client.post('/api/config/schedule', json={'runtime': '90'})
+
+        assert response.status_code == 500
+
+        # Verify backup was restored (copy2 called for restore)
+        assert any('backup' in str(src).lower() for src, dst in restore_called if dst == temp_schedule_settings)
 
 
 class TestConfigErrorRecovery:
