@@ -178,6 +178,7 @@ def app():
     Provides a Flask app with:
     - Camera routes registered
     - Config routes registered
+    - GPIO routes registered (Issue #78)
     - CAMERA_STREAMER in app.config (fixes test failures)
     - CSRF disabled for testing
 
@@ -190,6 +191,7 @@ def app():
     from routes.camera import camera_bp
     from routes.config import config_bp
     from routes.presets import presets_bp
+    from routes.gpio import gpio_bp
     from liveview_stream import LiveViewStreamer
 
     # Create Flask app
@@ -201,6 +203,7 @@ def app():
     app.register_blueprint(camera_bp, url_prefix='/api/camera')
     app.register_blueprint(config_bp, url_prefix='/api/config')
     app.register_blueprint(presets_bp, url_prefix='/api')
+    app.register_blueprint(gpio_bp, url_prefix='/api/gpio')
 
     # Create camera_streamer and register in app config
     # This is critical - many endpoints expect this
@@ -395,6 +398,9 @@ def patch_path_constant_everywhere(monkeypatch, constant_name, temp_path):
             'routes.gps',
             'routes.gpio',
             'routes.system',
+        ],
+        'DATA_DIR': [
+            'routes.gpio',  # Issue #78 - GPIO state file
         ],
     }
 
@@ -861,6 +867,263 @@ def assert_gpio_pins_equal():
                 f"{message}: {key} mismatch - expected {expected[key]}, got {actual[key]}"
 
     return _assert_equal
+
+
+# ============================================================================
+# Unit Test Mocking Fixtures (Issue #78 - Backend Route Testing)
+# ============================================================================
+
+@pytest.fixture
+def temp_gpio_state_file(tmp_path, monkeypatch):
+    """
+    Temporary GPIO state file for isolated testing.
+
+    Creates temporary gpio_state.json and patches DATA_DIR and STATE_FILE
+    to ensure tests don't modify real GPIO state.
+
+    Usage:
+        def test_gpio_status(temp_gpio_state_file):
+            # Test will use isolated state file
+            response = client.get('/api/gpio/status')
+
+    Related: Issue #78 - GPIO routes testing
+    """
+    # Create temporary state file with default state
+    state_file = tmp_path / "gpio_state.json"
+    state_file.write_text('{"Relay_Ch1": false, "Relay_Ch2": false, "Relay_Ch3": false}')
+
+    # Patch DATA_DIR to point to tmp_path
+    patch_path_constant_everywhere(monkeypatch, 'DATA_DIR', tmp_path)
+
+    # Also directly patch STATE_FILE in routes.gpio if already loaded
+    import sys
+    if 'routes.gpio' in sys.modules:
+        monkeypatch.setattr('routes.gpio.STATE_FILE', state_file)
+
+    yield state_file
+    # Cleanup automatic with tmp_path
+
+
+@pytest.fixture
+def mock_rpi_gpio(monkeypatch):
+    """
+    Mock RPi.GPIO module for GPIO tests without hardware.
+
+    Provides MockGPIO class that tracks setup/output/cleanup calls
+    for verification in tests.
+
+    Usage:
+        def test_gpio_control(mock_rpi_gpio):
+            # GPIO module is mocked, calls tracked
+            response = client.post('/api/gpio/control', json={...})
+            assert mock_rpi_gpio.outputs[0] == (26, 1)
+
+    Related: Issue #78 - GPIO routes testing
+    """
+    class MockGPIO:
+        BCM = 'BCM'
+        OUT = 'OUT'
+        HIGH = 1
+        LOW = 0
+
+        setups = []  # Track setup() calls
+        outputs = []  # Track output() calls
+        cleanups = []  # Track cleanup() calls
+
+        @classmethod
+        def setmode(cls, mode):
+            pass
+
+        @classmethod
+        def setwarnings(cls, enabled):
+            pass
+
+        @classmethod
+        def setup(cls, pin, mode, initial=None):
+            cls.setups.append((pin, mode, initial))
+
+        @classmethod
+        def output(cls, pin, value):
+            cls.outputs.append((pin, value))
+
+        @classmethod
+        def cleanup(cls, pin=None):
+            cls.cleanups.append(pin)
+
+        @classmethod
+        def reset_tracking(cls):
+            cls.setups.clear()
+            cls.outputs.clear()
+            cls.cleanups.clear()
+
+    # Inject mock into sys.modules and patch routes.gpio
+    import sys
+    sys.modules['RPi'] = type(sys)('RPi')
+    sys.modules['RPi.GPIO'] = MockGPIO
+
+    # Patch module-level constants in routes.gpio if already loaded
+    if 'routes.gpio' in sys.modules:
+        # Set GPIO attribute if it doesn't exist
+        if not hasattr(sys.modules['routes.gpio'], 'GPIO'):
+            setattr(sys.modules['routes.gpio'], 'GPIO', MockGPIO)
+        else:
+            monkeypatch.setattr('routes.gpio.GPIO', MockGPIO)
+
+        monkeypatch.setattr('routes.gpio.GPIO_AVAILABLE', True)
+        monkeypatch.setattr('routes.gpio.GPIO_PERMISSIONS_OK', True)
+
+    yield MockGPIO
+
+    # Cleanup
+    MockGPIO.reset_tracking()
+    if 'RPi' in sys.modules:
+        del sys.modules['RPi']
+    if 'RPi.GPIO' in sys.modules:
+        del sys.modules['RPi.GPIO']
+
+
+@pytest.fixture
+def mock_picamera2_for_streamer():
+    """
+    Comprehensive Picamera2 mock for LiveViewStreamer tests.
+
+    Simulates camera initialization, configuration, streaming,
+    and control application without requiring hardware.
+
+    Usage:
+        def test_camera_init(mock_picamera2_for_streamer):
+            with patch('liveview_stream.Picamera2', return_value=mock_picamera2_for_streamer):
+                streamer = LiveViewStreamer(mock_socketio())
+                assert streamer.initialize_camera() == True
+
+    Related: Issue #78 - LiveView streamer testing
+    """
+    class MockPicamera2:
+        def __init__(self, camera_num=0, tuning=None):
+            self.camera_num = camera_num
+            self.tuning = tuning
+            self.started = False
+            self.streaming = False
+            self.controls = {}
+            self.sensor_modes = [
+                {'size': (1920, 1080)},
+                {'size': (2304, 1736)},
+                {'size': (4608, 2592)}
+            ]
+            self.camera_properties = {
+                'PixelArraySize': (4608, 2592),
+                'ScalerCropMaximum': (0, 0, 4608, 2592)
+            }
+
+        def create_video_configuration(self, main=None, raw=None, encode=None):
+            return {'main': main, 'raw': raw, 'encode': encode}
+
+        def configure(self, config):
+            self.config = config
+
+        def camera_configuration(self):
+            return self.config
+
+        def start(self):
+            if self.started:
+                raise RuntimeError("Camera already started")
+            self.started = True
+
+        def stop(self):
+            self.started = False
+
+        def start_recording(self, encoder, output):
+            self.streaming = True
+
+        def stop_recording(self):
+            self.streaming = False
+
+        def capture_array(self):
+            import numpy as np
+            return np.zeros((768, 1024, 3), dtype=np.uint8)
+
+        def capture_metadata(self):
+            return {
+                'AfState': 2,  # Focused
+                'ExposureTime': 500,
+                'AnalogueGain': 8.0,
+                'LensPosition': 1.5
+            }
+
+        def capture_request(self):
+            class MockRequest:
+                def get_metadata(self):
+                    return {
+                        'AfState': 2,
+                        'ExposureTime': 500
+                    }
+                def release(self):
+                    pass
+            return MockRequest()
+
+        def set_controls(self, controls):
+            self.controls.update(controls)
+
+        def close(self):
+            self.started = False
+            self.streaming = False
+
+    return MockPicamera2()
+
+
+@pytest.fixture
+def mock_file_locking(monkeypatch):
+    """
+    Mock fcntl.flock for file locking tests.
+
+    Tracks lock acquisitions/releases and simulates
+    blocking behavior for concurrency testing.
+
+    Usage:
+        def test_file_locking(mock_file_locking):
+            # flock calls are tracked
+            _get_state()
+            assert len(mock_file_locking.locks_acquired) > 0
+
+    Related: Issue #78 - Concurrency testing
+    """
+    try:
+        import fcntl as real_fcntl
+    except ImportError:
+        # Not available on Windows - create stub
+        class real_fcntl:
+            LOCK_EX = 2
+            LOCK_SH = 1
+            LOCK_UN = 8
+            LOCK_NB = 4
+
+    class MockFlock:
+        locks_acquired = []
+        locks_released = []
+        should_block = False
+
+        @classmethod
+        def flock(cls, fd, operation):
+            if operation & real_fcntl.LOCK_EX:
+                if cls.should_block:
+                    raise BlockingIOError("Resource temporarily unavailable")
+                cls.locks_acquired.append(('exclusive', fd))
+            elif operation & real_fcntl.LOCK_SH:
+                cls.locks_acquired.append(('shared', fd))
+            elif operation & real_fcntl.LOCK_UN:
+                cls.locks_released.append(fd)
+
+        @classmethod
+        def reset(cls):
+            cls.locks_acquired.clear()
+            cls.locks_released.clear()
+            cls.should_block = False
+
+    monkeypatch.setattr('fcntl.flock', MockFlock.flock)
+
+    yield MockFlock
+
+    MockFlock.reset()
 
 
 def pytest_runtest_teardown(item, nextitem):

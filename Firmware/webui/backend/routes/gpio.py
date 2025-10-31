@@ -146,6 +146,9 @@ def _save_state(status):
 
     Args:
         status (dict): GPIO state dictionary to save
+
+    Raises:
+        IOError: If state file cannot be written (disk full, permissions, etc.)
     """
     try:
         # Create parent directory if it doesn't exist
@@ -163,6 +166,8 @@ def _save_state(status):
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
     except IOError as e:
         print(f"Error: Failed to save GPIO state file: {e}")
+        # Propagate error - state file persistence is critical for data integrity
+        raise
 
 @gpio_bp.route('/status', methods=['GET'])
 def get_gpio_status():
