@@ -720,35 +720,335 @@ class TestCaptureEndpoint:
         # Verify: release_camera was called
         assert mock_camera_streamer.release_camera.called
 
-    def test_capture_hdr_mode_pi4(self):
+    def test_capture_hdr_mode_pi4(self, client, temp_camera_settings, mock_subprocess_run,
+                                  temp_photos_dir, mock_camera_streamer, monkeypatch):
         """Capture HDR bracket on Pi 4"""
-        # TODO: Implement in Phase 2G (requires mock_pi_version)
-        pytest.skip("Phase 2G: HDR & Focus Bracket")
+        from pathlib import Path
 
-    def test_capture_hdr_mode_pi5(self):
+        # Setup: Configure for HDR mode (3 exposures)
+        temp_camera_settings.write_text(
+            "SETTING,VALUE,DETAILS\n"
+            "HDR,3,Three exposure HDR\n"
+            "HDR_width,7000,Bracket width in microseconds\n"
+        )
+
+        # Setup: Mock Pi 4 version detection
+        mock_cpuinfo = "Model\t\t: Raspberry Pi 4 Model B Rev 1.5\n"
+        original_open = open
+        def patched_open(file, *args, **kwargs):
+            if str(file) == "/proc/cpuinfo":
+                from io import StringIO
+                return StringIO(mock_cpuinfo)
+            return original_open(file, *args, **kwargs)
+        monkeypatch.setattr('builtins.open', patched_open)
+
+        # Setup: Mock Path.exists() for HDR script
+        original_exists = Path.exists
+        def patched_exists(self):
+            if 'TakePhoto_HDR.py' in str(self):
+                return True
+            return original_exists(self)
+        monkeypatch.setattr(Path, 'exists', patched_exists)
+
+        # Setup: Mock subprocess success for HDR script
+        mock_run = mock_subprocess_run('TakePhoto_HDR.py', returncode=0)
+        monkeypatch.setattr('subprocess.run', mock_run)
+
+        # Setup: Create HDR photo files
+        for i in range(3):
+            photo_file = temp_photos_dir / f"hdr_photo_{i:03d}.jpg"
+            photo_file.touch()
+
+        # Execute: POST request
+        response = client.post('/api/camera/capture')
+
+        # Verify: Success response
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['hdr_mode'] is True
+        assert data['hdr_count'] == 3
+        assert data['hdr_width'] == 7000
+        assert data['script_used'] == 'TakePhoto_HDR.py'
+        assert 'HDR capture complete' in data['message']
+
+        # Verify: Subprocess was called with HDR script
+        assert mock_run.called
+        call_args = mock_run.call_args[0][0]
+        assert 'TakePhoto_HDR.py' in str(call_args)
+        assert '4.x' in str(call_args)  # Pi 4 script path
+
+    def test_capture_hdr_mode_pi5(self, client, temp_camera_settings, mock_subprocess_run,
+                                  temp_photos_dir, mock_camera_streamer, monkeypatch):
         """Capture HDR bracket on Pi 5"""
-        # TODO: Implement in Phase 2G (requires mock_pi_version)
-        pytest.skip("Phase 2G: HDR & Focus Bracket")
+        from pathlib import Path
 
-    def test_capture_focus_bracket_mode(self):
+        # Setup: Configure for HDR mode (5 exposures)
+        temp_camera_settings.write_text(
+            "SETTING,VALUE,DETAILS\n"
+            "HDR,5,Five exposure HDR\n"
+            "HDR_width,10000,Bracket width in microseconds\n"
+        )
+
+        # Setup: Mock Pi 5 version detection
+        mock_cpuinfo = "Model\t\t: Raspberry Pi 5 Model B Rev 1.0\n"
+        original_open = open
+        def patched_open(file, *args, **kwargs):
+            if str(file) == "/proc/cpuinfo":
+                from io import StringIO
+                return StringIO(mock_cpuinfo)
+            return original_open(file, *args, **kwargs)
+        monkeypatch.setattr('builtins.open', patched_open)
+
+        # Setup: Mock Path.exists() for HDR script
+        original_exists = Path.exists
+        def patched_exists(self):
+            if 'TakePhoto_HDR.py' in str(self):
+                return True
+            return original_exists(self)
+        monkeypatch.setattr(Path, 'exists', patched_exists)
+
+        # Setup: Mock subprocess success for HDR script
+        mock_run = mock_subprocess_run('TakePhoto_HDR.py', returncode=0)
+        monkeypatch.setattr('subprocess.run', mock_run)
+
+        # Setup: Create HDR photo files
+        for i in range(5):
+            photo_file = temp_photos_dir / f"hdr_photo_{i:03d}.jpg"
+            photo_file.touch()
+
+        # Execute: POST request
+        response = client.post('/api/camera/capture')
+
+        # Verify: Success response
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['hdr_mode'] is True
+        assert data['hdr_count'] == 5
+        assert data['hdr_width'] == 10000
+        assert data['script_used'] == 'TakePhoto_HDR.py'
+        assert 'HDR capture complete' in data['message']
+
+        # Verify: Subprocess was called with HDR script on Pi 5 path
+        assert mock_run.called
+        call_args = mock_run.call_args[0][0]
+        assert 'TakePhoto_HDR.py' in str(call_args)
+        assert '5.x' in str(call_args)  # Pi 5 script path
+
+    def test_capture_focus_bracket_mode(self, client, temp_camera_settings, mock_subprocess_run,
+                                        temp_photos_dir, mock_camera_streamer, monkeypatch):
         """Capture focus bracket sequence"""
-        # TODO: Implement in Phase 2G
-        pytest.skip("Phase 2G: HDR & Focus Bracket")
+        from pathlib import Path
 
-    def test_capture_focus_bracket_subprocess_failure(self):
+        # Setup: Configure for Focus Bracket mode (5 steps)
+        temp_camera_settings.write_text(
+            "SETTING,VALUE,DETAILS\n"
+            "FocusBracket,5,Five focus steps\n"
+            "FocusBracket_Start,2.0,Start position in diopters\n"
+            "FocusBracket_End,8.0,End position in diopters\n"
+            "HDR,1,Single exposure per focus step\n"
+        )
+
+        # Setup: Mock Pi version (focus bracket script is Pi-independent)
+        mock_cpuinfo = "Model\t\t: Raspberry Pi 4 Model B Rev 1.5\n"
+        original_open = open
+        def patched_open(file, *args, **kwargs):
+            if str(file) == "/proc/cpuinfo":
+                from io import StringIO
+                return StringIO(mock_cpuinfo)
+            return original_open(file, *args, **kwargs)
+        monkeypatch.setattr('builtins.open', patched_open)
+
+        # Setup: Mock Path.exists() for focus bracket script
+        original_exists = Path.exists
+        def patched_exists(self):
+            if 'capture_focus_bracket.py' in str(self):
+                return True
+            return original_exists(self)
+        monkeypatch.setattr(Path, 'exists', patched_exists)
+
+        # Setup: Mock subprocess success for focus bracket script
+        mock_run = mock_subprocess_run('capture_focus_bracket.py', returncode=0)
+        monkeypatch.setattr('subprocess.run', mock_run)
+
+        # Setup: Create focus bracket photo files
+        for i in range(5):
+            photo_file = temp_photos_dir / f"focus_bracket_{i:03d}.jpg"
+            photo_file.touch()
+
+        # Execute: POST request
+        response = client.post('/api/camera/capture')
+
+        # Verify: Success response
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['focus_bracket_mode'] is True
+        assert data['focus_bracket_steps'] == 5
+        assert data['focus_bracket_start'] == 2.0
+        assert data['focus_bracket_end'] == 8.0
+        assert data['script_used'] == 'capture_focus_bracket.py'
+        assert 'Focus bracket capture complete' in data['message']
+
+        # Verify: Subprocess was called with focus bracket script
+        assert mock_run.called
+        call_args = mock_run.call_args[0][0]
+        assert 'capture_focus_bracket.py' in str(call_args)
+
+    def test_capture_focus_bracket_subprocess_failure(self, client, temp_camera_settings, mock_subprocess_run,
+                                                       mock_camera_streamer, monkeypatch):
         """Handle focus bracket script failure"""
-        # TODO: Implement in Phase 2G (requires mock_subprocess_run)
-        pytest.skip("Phase 2G: HDR & Focus Bracket")
+        from pathlib import Path
 
-    def test_capture_photo_count_cache_invalidation(self):
+        # Setup: Configure for Focus Bracket mode
+        temp_camera_settings.write_text(
+            "SETTING,VALUE,DETAILS\n"
+            "FocusBracket,3,Three focus steps\n"
+            "FocusBracket_Start,3.0,Start position\n"
+            "FocusBracket_End,7.0,End position\n"
+        )
+
+        # Setup: Mock Pi version
+        mock_cpuinfo = "Model\t\t: Raspberry Pi 5 Model B Rev 1.0\n"
+        original_open = open
+        def patched_open(file, *args, **kwargs):
+            if str(file) == "/proc/cpuinfo":
+                from io import StringIO
+                return StringIO(mock_cpuinfo)
+            return original_open(file, *args, **kwargs)
+        monkeypatch.setattr('builtins.open', patched_open)
+
+        # Setup: Mock Path.exists() for script
+        original_exists = Path.exists
+        def patched_exists(self):
+            if 'capture_focus_bracket.py' in str(self):
+                return True
+            return original_exists(self)
+        monkeypatch.setattr(Path, 'exists', patched_exists)
+
+        # Setup: Mock subprocess failure
+        mock_run = mock_subprocess_run('capture_focus_bracket.py', returncode=1,
+                                       stderr="Focus bracket script failed: Camera error")
+        monkeypatch.setattr('subprocess.run', mock_run)
+
+        # Execute: POST request
+        response = client.post('/api/camera/capture')
+
+        # Verify: Error response
+        assert response.status_code == 500
+        data = response.get_json()
+        assert data['success'] is False
+        assert 'error' in data
+
+    def test_capture_photo_count_cache_invalidation(self, client, temp_camera_settings, mock_subprocess_run,
+                                                     temp_photos_dir, mock_camera_streamer, monkeypatch):
         """Verify photo count cache is invalidated after capture"""
-        # TODO: Implement in Phase 2F
-        pytest.skip("Phase 2F: Basic Capture")
+        from pathlib import Path
+        from unittest.mock import patch, MagicMock
 
-    def test_capture_stream_restart(self):
+        # Setup: Configure for single exposure
+        temp_camera_settings.write_text(
+            "SETTING,VALUE,DETAILS\n"
+            "HDR,1,Single exposure\n"
+        )
+
+        # Setup: Mock Pi version
+        mock_cpuinfo = "Model\t\t: Raspberry Pi 4 Model B Rev 1.5\n"
+        original_open = open
+        def patched_open(file, *args, **kwargs):
+            if str(file) == "/proc/cpuinfo":
+                from io import StringIO
+                return StringIO(mock_cpuinfo)
+            return original_open(file, *args, **kwargs)
+        monkeypatch.setattr('builtins.open', patched_open)
+
+        # Setup: Mock Path.exists() for script
+        original_exists = Path.exists
+        def patched_exists(self):
+            if 'TakePhoto.py' in str(self):
+                return True
+            return original_exists(self)
+        monkeypatch.setattr(Path, 'exists', patched_exists)
+
+        # Setup: Mock subprocess success
+        mock_run = mock_subprocess_run('TakePhoto.py', returncode=0)
+        monkeypatch.setattr('subprocess.run', mock_run)
+
+        # Setup: Create a photo file
+        photo_file = temp_photos_dir / "test_photo_001.jpg"
+        photo_file.touch()
+
+        # Setup: Mock the invalidate_photo_count_cache function from routes.system
+        mock_invalidate = MagicMock()
+        with patch('routes.system.invalidate_photo_count_cache', mock_invalidate):
+            # Execute: POST request
+            response = client.post('/api/camera/capture')
+
+            # Verify: Success
+            assert response.status_code == 200
+
+            # Verify: Cache invalidation was called
+            assert mock_invalidate.called
+
+    def test_capture_stream_restart(self, client, temp_camera_settings, mock_subprocess_run,
+                                    temp_photos_dir, mock_camera_streamer, monkeypatch):
         """Verify stream restarts after capture"""
-        # TODO: Implement in Phase 2F (requires mock_camera_streamer)
-        pytest.skip("Phase 2F: Basic Capture")
+        from pathlib import Path
+
+        # Setup: Configure for single exposure
+        temp_camera_settings.write_text(
+            "SETTING,VALUE,DETAILS\n"
+            "HDR,1,Single exposure\n"
+        )
+
+        # Setup: Mock Pi version
+        mock_cpuinfo = "Model\t\t: Raspberry Pi 4 Model B Rev 1.5\n"
+        original_open = open
+        def patched_open(file, *args, **kwargs):
+            if str(file) == "/proc/cpuinfo":
+                from io import StringIO
+                return StringIO(mock_cpuinfo)
+            return original_open(file, *args, **kwargs)
+        monkeypatch.setattr('builtins.open', patched_open)
+
+        # Setup: Mock Path.exists() for script
+        original_exists = Path.exists
+        def patched_exists(self):
+            if 'TakePhoto.py' in str(self):
+                return True
+            return original_exists(self)
+        monkeypatch.setattr(Path, 'exists', patched_exists)
+
+        # Setup: Mock subprocess success
+        mock_run = mock_subprocess_run('TakePhoto.py', returncode=0)
+        monkeypatch.setattr('subprocess.run', mock_run)
+
+        # Setup: Create a photo file
+        photo_file = temp_photos_dir / "test_photo_001.jpg"
+        photo_file.touch()
+
+        # Setup: Mark camera streamer as streaming initially
+        mock_camera_streamer.streaming = True
+        mock_camera_streamer.camera = MagicMock()
+
+        # Track start_streaming calls
+        start_stream_call_count = 0
+        original_start_streaming = mock_camera_streamer.start_streaming
+        def track_start_streaming():
+            nonlocal start_stream_call_count
+            start_stream_call_count += 1
+            return original_start_streaming()
+        mock_camera_streamer.start_streaming.side_effect = track_start_streaming
+
+        # Execute: POST request
+        response = client.post('/api/camera/capture')
+
+        # Verify: Success
+        assert response.status_code == 200
+
+        # Verify: Stream was restarted after capture
+        assert start_stream_call_count > 0, "Stream should have been restarted after capture"
 
 
 # ============================================================================
