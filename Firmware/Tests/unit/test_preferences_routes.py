@@ -14,10 +14,6 @@ from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 from flask import Flask
 
-# Mock external dependencies before importing
-sys.modules['user_preferences'] = MagicMock()
-sys.modules['preset_manager'] = MagicMock()
-
 # Import the blueprint
 from routes.preferences import preferences_bp
 
@@ -42,17 +38,19 @@ def preferences_client(preferences_app):
 
 
 @pytest.fixture
-def mock_preferences_manager():
+def mock_preferences_manager(monkeypatch):
     """Mock preferences_manager for testing"""
-    with patch('routes.preferences.preferences_manager') as mock_mgr:
-        yield mock_mgr
+    mock_mgr = MagicMock()
+    monkeypatch.setattr('routes.preferences.preferences_manager', mock_mgr)
+    return mock_mgr
 
 
 @pytest.fixture
-def mock_preset_manager():
+def mock_preset_manager(monkeypatch):
     """Mock preset_manager for testing"""
-    with patch('routes.preferences.preset_manager') as mock_mgr:
-        yield mock_mgr
+    mock_mgr = MagicMock()
+    monkeypatch.setattr('routes.preferences.preset_manager', mock_mgr)
+    return mock_mgr
 
 
 # ============================================================================
