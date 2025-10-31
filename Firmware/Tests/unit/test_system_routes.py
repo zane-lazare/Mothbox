@@ -360,3 +360,189 @@ class TestSystemDiagnostic:
             assert 'error' in data
             # Traceback included in debug mode
             assert 'traceback' in data
+
+
+# ============================================================================
+# Test Photo Count Caching
+# ============================================================================
+
+class TestPhotoCountCache:
+    """Tests for photo count caching functionality"""
+
+    def test_photo_count_cache_hit(self, mock_paths):
+        """Photo count cache returns cached value when fresh"""
+        from routes.system import _get_cached_photo_count, _photo_count_cache
+
+        # Set up a fresh cache entry
+        with _photo_count_cache['lock']:
+            _photo_count_cache['count'] = 100
+            _photo_count_cache['timestamp'] = time.time()
+
+        # Should return cached value without hitting filesystem
+        count = _get_cached_photo_count()
+        assert count == 100
+
+    def test_photo_count_cache_miss_expired(self, mock_paths):
+        """Photo count cache performs fresh count when expired"""
+        from routes.system import _get_cached_photo_count, _photo_count_cache, PHOTO_COUNT_CACHE_TTL
+
+        # Set up expired cache entry
+        with _photo_count_cache['lock']:
+            _photo_count_cache['count'] = 50
+            _photo_count_cache['timestamp'] = time.time() - (PHOTO_COUNT_CACHE_TTL + 10)
+
+        # Mock the filesystem to return 75 photos
+        with patch('routes.system.PHOTOS_DIR') as mock_photos_dir:
+            mock_photos_dir.exists.return_value = True
+            mock_photos_dir.glob.return_value = ['photo.jpg'] * 75
+
+            count = _get_cached_photo_count()
+
+            # Should perform fresh count and update cache
+            assert count == 75
+            assert _photo_count_cache['count'] == 75
+
+    def test_photo_count_cache_miss_empty(self, mock_paths):
+        """Photo count cache performs fresh count when empty"""
+        from routes.system import _get_cached_photo_count, _photo_count_cache
+
+        # Clear cache
+        with _photo_count_cache['lock']:
+            _photo_count_cache['count'] = None
+            _photo_count_cache['timestamp'] = 0
+
+        # Mock the filesystem
+        with patch('routes.system.PHOTOS_DIR') as mock_photos_dir:
+            mock_photos_dir.exists.return_value = True
+            mock_photos_dir.glob.return_value = ['a.jpg', 'b.jpg', 'c.jpg']
+
+            count = _get_cached_photo_count()
+
+            assert count == 3
+            assert _photo_count_cache['count'] == 3
+
+    def test_photo_count_handles_missing_dir(self, mock_paths):
+        """Photo count returns 0 when photos directory missing"""
+        from routes.system import _get_cached_photo_count, _photo_count_cache
+
+        # Clear cache
+        with _photo_count_cache['lock']:
+            _photo_count_cache['count'] = None
+            _photo_count_cache['timestamp'] = 0
+
+        # Mock photos directory not existing
+        with patch('routes.system.PHOTOS_DIR') as mock_photos_dir:
+            mock_photos_dir.exists.return_value = False
+
+            count = _get_cached_photo_count()
+
+            assert count == 0
+            assert _photo_count_cache['count'] == 0
+
+    def test_photo_count_handles_error_with_cached_value(self, mock_paths):
+        """Photo count returns cached value on error if available"""
+        from routes.system import _get_cached_photo_count, _photo_count_cache, PHOTO_COUNT_CACHE_TTL
+
+        # Set up expired cache with value
+        with _photo_count_cache['lock']:
+            _photo_count_cache['count'] = 42
+            _photo_count_cache['timestamp'] = time.time() - (PHOTO_COUNT_CACHE_TTL + 10)
+
+        # Mock filesystem error
+        with patch('routes.system.PHOTOS_DIR') as mock_photos_dir:
+            mock_photos_dir.exists.side_effect = PermissionError("Access denied")
+
+            count = _get_cached_photo_count()
+
+            # Should return stale cached value rather than failing
+            assert count == 42
+
+    def test_photo_count_handles_error_without_cached_value(self, mock_paths):
+        """Photo count returns 0 on error when no cached value"""
+        from routes.system import _get_cached_photo_count, _photo_count_cache
+
+        # Clear cache completely
+        with _photo_count_cache['lock']:
+            _photo_count_cache['count'] = None
+            _photo_count_cache['timestamp'] = 0
+
+        # Mock filesystem error
+        with patch('routes.system.PHOTOS_DIR') as mock_photos_dir:
+            mock_photos_dir.exists.side_effect = OSError("Disk error")
+
+            count = _get_cached_photo_count()
+
+            # Should return 0 when no cached value available
+            assert count == 0
+
+    def test_invalidate_photo_count_cache(self, mock_paths):
+        """invalidate_photo_count_cache forces cache refresh"""
+        from routes.system import invalidate_photo_count_cache, _photo_count_cache
+
+        # Set up fresh cache
+        with _photo_count_cache['lock']:
+            _photo_count_cache['count'] = 100
+            _photo_count_cache['timestamp'] = time.time()
+
+        # Invalidate
+        invalidate_photo_count_cache()
+
+        # Timestamp should be reset to force cache miss
+        assert _photo_count_cache['timestamp'] == 0
+        # Count should still exist (not cleared)
+        assert _photo_count_cache['count'] == 100
+
+
+# ============================================================================
+# Test Diagnostic Endpoint - File Reading
+# ============================================================================
+
+class TestDiagnosticFileReading:
+    """Tests for diagnostic endpoint file reading logic"""
+
+    def test_diagnostic_reads_controls_file(self, system_client, mock_paths):
+        """GET /diagnostic reads and reports controls.txt contents"""
+        controls_content = "softwareversion:v1.2.3\nname:TestBox\nRelay_Ch1:17\n"
+
+        with patch('routes.system.CONTROLS_FILE') as mock_controls, \
+             patch('routes.system.get_control_values', return_value={
+                 'softwareversion': 'v1.2.3',
+                 'name': 'TestBox',
+                 'Relay_Ch1': '17',
+                 'Relay_Ch2': '27',
+                 'Relay_Ch3': '22'
+             }), \
+             patch('routes.system.get_hardware_config', return_value={}), \
+             patch('routes.system.get_gpio_pins', return_value={}), \
+             patch('builtins.open', mock_open(read_data=controls_content)):
+
+            mock_controls.exists.return_value = True
+            mock_controls.stat.return_value.st_size = len(controls_content)
+
+            response = system_client.get('/api/system/diagnostic')
+
+            assert response.status_code == 200
+            data = json.loads(response.data)
+
+            assert 'controls_content' in data
+            assert data['controls_content']['raw_lines'] == 3
+            assert data['controls_content']['has_gpio_pins'] is True
+
+    def test_diagnostic_handles_missing_controls_file(self, system_client, mock_paths):
+        """GET /diagnostic handles missing controls.txt gracefully"""
+        with patch('routes.system.CONTROLS_FILE') as mock_controls, \
+             patch('routes.system.get_control_values', return_value={}), \
+             patch('routes.system.get_hardware_config', return_value={}), \
+             patch('routes.system.get_gpio_pins', return_value={}):
+
+            mock_controls.exists.return_value = False
+            mock_controls.stat.return_value.st_size = 0
+
+            response = system_client.get('/api/system/diagnostic')
+
+            assert response.status_code == 200
+            data = json.loads(response.data)
+
+            assert data['paths']['controls_file_exists'] is False
+            assert data['paths']['controls_file_size'] == 0
+            assert data['controls_content']['raw_lines'] == 0

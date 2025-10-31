@@ -146,10 +146,38 @@ class TestStreamModeValidation:
     """Test stream mode configuration and validation"""
 
     def test_default_stream_mode(self, camera_streamer_func):
-        """Verify default stream mode is simplejpeg"""
-        print("\n📊 Testing default stream mode...")
-        assert camera_streamer_func.stream_mode == 'simplejpeg'
-        print(f"✓ Default stream mode: {camera_streamer_func.stream_mode}")
+        """Verify configured stream mode is loaded from liveview_settings.txt"""
+        print("\n📊 Testing configured stream mode...")
+        # Production config sets mjpeg_hardware as default
+        assert camera_streamer_func.stream_mode == 'mjpeg_hardware'
+        print(f"✓ Configured stream mode: {camera_streamer_func.stream_mode}")
+
+    def test_hardcoded_default_stream_mode(self, monkeypatch):
+        """Verify hardcoded default when config file doesn't exist"""
+        from liveview_stream import LiveViewStreamer
+        from pathlib import Path
+
+        print("\n📊 Testing hardcoded default stream mode...")
+
+        # Create streamer with config file disabled by patching Path.exists
+        original_exists = Path.exists
+        def mock_exists(self):
+            # Return False for liveview_settings.txt, True for others
+            if 'liveview_settings.txt' in str(self):
+                return False
+            return original_exists(self)
+
+        monkeypatch.setattr(Path, 'exists', mock_exists)
+
+        class MockSocketIO:
+            def emit(self, event, data, **kwargs):
+                pass
+
+        streamer = LiveViewStreamer(MockSocketIO())
+
+        # Should use hardcoded default
+        assert streamer.stream_mode == 'simplejpeg'
+        print(f"✓ Hardcoded default stream mode: {streamer.stream_mode}")
 
     def test_hardware_mjpeg_mode_selection(self, camera_streamer_func):
         """Verify hardware MJPEG mode can be set"""
