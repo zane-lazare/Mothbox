@@ -402,6 +402,9 @@ def patch_path_constant_everywhere(monkeypatch, constant_name, temp_path):
         'DATA_DIR': [
             'routes.gpio',  # Issue #78 - GPIO state file
         ],
+        'SCHEDULE_SETTINGS_FILE': [
+            'routes.config',  # Issue #78 - Schedule settings
+        ],
     }
 
     # Step 3: Get list of modules to patch for this constant
@@ -474,12 +477,41 @@ def temp_camera_settings(tmp_path, monkeypatch):
     """
     import mothbox_paths
 
-    # Create temporary file
+    # Create temporary file with CSV header
     temp_file = tmp_path / "camera_settings.csv"
-    temp_file.touch()
+    temp_file.write_text("SETTING,VALUE,DETAILS\n")
 
     # Patch everywhere (source module + imported modules)
     patch_path_constant_everywhere(monkeypatch, 'CAMERA_SETTINGS_FILE', temp_file)
+
+    yield temp_file
+    # Cleanup happens automatically with tmp_path and monkeypatch
+
+
+@pytest.fixture
+def temp_schedule_settings(tmp_path, monkeypatch):
+    """
+    Temporary schedule_settings.csv for isolated testing
+
+    Creates a temporary schedule settings file and patches BOTH mothbox_paths
+    module AND any route modules that have already imported the constant.
+
+    Usage:
+        def test_something(temp_schedule_settings):
+            # Write test settings
+            temp_schedule_settings.write_text("weekdays,hours,minutes,runtime\\n1,8,0,60\\n")
+            # ... test code ...
+
+    Related: Issue #78 - Config routes testing
+    """
+    import mothbox_paths
+
+    # Create temporary file with CSV header
+    temp_file = tmp_path / "schedule_settings.csv"
+    temp_file.write_text("weekdays,hours,minutes,runtime\n")
+
+    # Patch everywhere (source module + imported modules)
+    patch_path_constant_everywhere(monkeypatch, 'SCHEDULE_SETTINGS_FILE', temp_file)
 
     yield temp_file
     # Cleanup happens automatically with tmp_path and monkeypatch

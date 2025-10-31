@@ -81,19 +81,6 @@ class TestControlsEndpoints:
         response = client.post('/api/config/controls', json={'Relay_Ch1': 'invalid'})
         assert response.status_code == 400
 
-    def test_post_controls_sanitizes_values(self, client, temp_controls_file):
-        """POST /controls removes newlines/CR from values"""
-        response = client.post('/api/config/controls', json={
-            'name': 'Box\nWith\rNewlines'
-        })
-
-        assert response.status_code == 200
-
-        # Verify newlines were removed
-        controls = temp_controls_file.read_text()
-        assert 'name=BoxWithNewlines' in controls
-        assert '\n\n' not in controls  # No double newlines from value
-
     def test_post_controls_creates_backup(self, client, temp_controls_file, tmp_path, monkeypatch):
         """POST /controls creates timestamped backup"""
         # Setup: Existing controls
@@ -147,14 +134,10 @@ class TestControlsEndpoints:
 class TestScheduleEndpoints:
     """Tests for GET/POST /api/config/schedule endpoints"""
 
-    def test_get_schedule_returns_csv_row(self, client, tmp_path, monkeypatch):
+    def test_get_schedule_returns_csv_row(self, client, temp_schedule_settings):
         """GET /schedule returns first CSV row as dict"""
-        # Create temporary schedule file
-        schedule_file = tmp_path / "schedule_settings.csv"
-        schedule_file.write_text("weekdays,hours,minutes,runtime\n1;2;3,8;9;10,30,120\n")
-
-        from Tests.conftest import patch_path_constant_everywhere
-        patch_path_constant_everywhere(monkeypatch, 'SCHEDULE_SETTINGS_FILE', schedule_file)
+        # Write test data
+        temp_schedule_settings.write_text("weekdays,hours,minutes,runtime\n1;2;3,8;9;10,30,120\n")
 
         response = client.get('/api/config/schedule')
 
@@ -165,14 +148,10 @@ class TestScheduleEndpoints:
         assert data['minutes'] == '30'
         assert data['runtime'] == '120'
 
-    def test_post_schedule_updates_csv(self, client, tmp_path, monkeypatch):
+    def test_post_schedule_updates_csv(self, client, temp_schedule_settings):
         """POST /schedule writes to schedule_settings.csv"""
-        # Create temporary schedule file
-        schedule_file = tmp_path / "schedule_settings.csv"
-        schedule_file.write_text("weekdays,hours,minutes,runtime\n1,8,0,60\n")
-
-        from Tests.conftest import patch_path_constant_everywhere
-        patch_path_constant_everywhere(monkeypatch, 'SCHEDULE_SETTINGS_FILE', schedule_file)
+        # Setup: Existing data
+        temp_schedule_settings.write_text("weekdays,hours,minutes,runtime\n1,8,0,60\n")
 
         response = client.post('/api/config/schedule', json={
             'weekdays': '1;2;3;4;5',
@@ -184,19 +163,15 @@ class TestScheduleEndpoints:
         assert response.status_code == 200
 
         # Verify file was updated
-        with open(schedule_file) as f:
+        with open(temp_schedule_settings) as f:
             reader = csv.DictReader(f)
             row = next(reader)
             assert row['weekdays'] == '1;2;3;4;5'
             assert row['runtime'] == '90'
 
-    def test_post_schedule_sanitizes_csv_values(self, client, tmp_path, monkeypatch):
+    def test_post_schedule_sanitizes_csv_values(self, client, temp_schedule_settings):
         """POST /schedule applies sanitize_csv_value() to all fields"""
-        schedule_file = tmp_path / "schedule_settings.csv"
-        schedule_file.write_text("weekdays,hours,minutes,runtime\n1,8,0,60\n")
-
-        from Tests.conftest import patch_path_constant_everywhere
-        patch_path_constant_everywhere(monkeypatch, 'SCHEDULE_SETTINGS_FILE', schedule_file)
+        temp_schedule_settings.write_text("weekdays,hours,minutes,runtime\n1,8,0,60\n")
 
         # Try to inject formula
         response = client.post('/api/config/schedule', json={
@@ -206,17 +181,13 @@ class TestScheduleEndpoints:
         assert response.status_code == 200
 
         # Verify injection was sanitized
-        with open(schedule_file) as f:
+        with open(temp_schedule_settings) as f:
             content = f.read()
             assert "'=SUM" in content  # Sanitized with prefix
 
-    def test_post_schedule_validates_fieldnames(self, client, tmp_path, monkeypatch):
+    def test_post_schedule_validates_fieldnames(self, client, temp_schedule_settings):
         """POST /schedule rejects keys not in CSV header"""
-        schedule_file = tmp_path / "schedule_settings.csv"
-        schedule_file.write_text("weekdays,hours,minutes,runtime\n1,8,0,60\n")
-
-        from Tests.conftest import patch_path_constant_everywhere
-        patch_path_constant_everywhere(monkeypatch, 'SCHEDULE_SETTINGS_FILE', schedule_file)
+        temp_schedule_settings.write_text("weekdays,hours,minutes,runtime\n1,8,0,60\n")
 
         response = client.post('/api/config/schedule', json={
             'invalid_field': 'value'
@@ -309,7 +280,7 @@ class TestWebuiEndpoints:
     def test_post_webui_merges_with_existing(self, client, temp_webui_settings):
         """POST /webui preserves unmodified settings"""
         # Setup: Existing settings
-        temp_webui_settings.write_text("jpeg_quality=80\nstream_width=1024\nstream_fps=10.0\n")
+        temp_webui_settings.write_text("jpeg_quality=80\nstream_width=1024\nframe_rate=10\n")
 
         # Update only one setting
         response = client.post('/api/config/webui', json={'jpeg_quality': 90})
@@ -320,19 +291,20 @@ class TestWebuiEndpoints:
         content = temp_webui_settings.read_text()
         assert 'jpeg_quality=90' in content
         assert 'stream_width=1024' in content  # Preserved
-        assert 'stream_fps=10.0' in content    # Preserved
+        assert 'frame_rate=10' in content      # Preserved
 
 
 class TestCopySettingsEndpoint:
     """Tests for POST /api/config/copy-settings endpoint"""
 
-    def test_copy_preview_to_capture(self, client, temp_webui_settings, temp_camera_settings, tmp_path, monkeypatch):
+    def test_copy_preview_to_capture(self, client, temp_webui_settings, temp_camera_settings):
         """POST /copy-settings direction=preview_to_capture"""
         # Setup: Preview settings (snake_case)
         temp_webui_settings.write_text("sharpness=2.5\nexposure_time=500\n")
 
-        # Setup: Camera settings (PascalCase)
-        temp_camera_settings.write_text("SETTING,VALUE,DETAILS\nExposureTime,1000,Old value\n")
+        # Setup: Camera settings (PascalCase) - already has header from fixture
+        with open(temp_camera_settings, 'a') as f:
+            f.write("ExposureTime,1000,Old value\n")
 
         response = client.post('/api/config/copy-settings', json={
             'direction': 'preview_to_capture'
@@ -345,8 +317,9 @@ class TestCopySettingsEndpoint:
 
     def test_copy_capture_to_preview(self, client, temp_webui_settings, temp_camera_settings):
         """POST /copy-settings direction=capture_to_preview"""
-        # Setup: Camera settings (PascalCase)
-        temp_camera_settings.write_text("SETTING,VALUE,DETAILS\nSharpness,3.0,Sharp\n")
+        # Setup: Camera settings (PascalCase) - already has header from fixture
+        with open(temp_camera_settings, 'a') as f:
+            f.write("Sharpness,3.0,Sharp\n")
 
         # Setup: Preview settings (snake_case)
         temp_webui_settings.write_text("sharpness=1.0\n")
@@ -373,13 +346,9 @@ class TestCopySettingsEndpoint:
 class TestConfigSecurity:
     """Security and validation tests"""
 
-    def test_csv_injection_prevention_schedule(self, client, tmp_path, monkeypatch):
+    def test_csv_injection_prevention_schedule(self, client, temp_schedule_settings):
         """Schedule endpoint prevents =, +, -, @ injection"""
-        schedule_file = tmp_path / "schedule_settings.csv"
-        schedule_file.write_text("weekdays,hours,minutes,runtime\n1,8,0,60\n")
-
-        from Tests.conftest import patch_path_constant_everywhere
-        patch_path_constant_everywhere(monkeypatch, 'SCHEDULE_SETTINGS_FILE', schedule_file)
+        temp_schedule_settings.write_text("weekdays,hours,minutes,runtime\n1,8,0,60\n")
 
         malicious_payloads = [
             '=SUM(A1:A10)',
@@ -395,20 +364,23 @@ class TestConfigSecurity:
             assert response.status_code == 200
 
             # Verify sanitization
-            content = schedule_file.read_text()
+            content = temp_schedule_settings.read_text()
             assert "'" in content  # Prefixed with '
 
-    def test_newline_removal_controls(self, client, temp_controls_file):
-        """Controls endpoint removes newlines/CR"""
+    def test_newline_rejection_controls(self, client, temp_controls_file):
+        """Controls endpoint rejects values with newlines/CR (validation before sanitization)"""
         response = client.post('/api/config/controls', json={
             'name': 'Test\nBox\rName'
         })
 
-        assert response.status_code == 200
+        # Should reject due to validation (newlines not allowed in name field)
+        assert response.status_code == 400
 
-        content = temp_controls_file.read_text()
-        # Newlines within value should be removed
-        assert 'name=TestBoxName' in content
+        # Valid value without newlines should work
+        response = client.post('/api/config/controls', json={
+            'name': 'TestBoxName'
+        })
+        assert response.status_code == 200
 
     def test_whitelist_enforcement_controls(self, client, temp_controls_file):
         """Controls endpoint rejects unknown keys"""
