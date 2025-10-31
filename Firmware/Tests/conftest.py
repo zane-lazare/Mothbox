@@ -203,7 +203,7 @@ def app():
     # Register blueprints with /api prefix to match production
     app.register_blueprint(camera_bp, url_prefix='/api/camera')
     app.register_blueprint(config_bp, url_prefix='/api/config')
-    app.register_blueprint(presets_bp, url_prefix='/api')
+    app.register_blueprint(presets_bp, url_prefix='/api/presets')
     app.register_blueprint(gpio_bp, url_prefix='/api/gpio')
     app.register_blueprint(gps_bp, url_prefix='/api/gps')
 
@@ -554,6 +554,614 @@ def af_window_test_positions():
         (0.0, 1.0, "bottom-left-corner"),
         (1.0, 1.0, "bottom-right-corner"),
     ]
+
+
+# ============================================================================
+# Module-Level Instance Mocking Fixtures (Issue #78 Phase 2C/2D)
+# ============================================================================
+
+@pytest.fixture
+def mock_picamera2():
+    """
+    Comprehensive mock for Picamera2 class with state tracking
+
+    Mocks the entire Picamera2 API used by camera routes including:
+    - Camera initialization and lifecycle (start/stop/close)
+    - Configuration (preview, still, video)
+    - Control setting (exposure, focus, white balance)
+    - Capture operations (files, metadata, arrays)
+    - Autofocus cycle
+    - State transitions
+
+    The mock tracks state to enable realistic testing:
+    - camera_state: 'stopped' → 'configured' → 'started' → 'stopped'
+    - controls: dict of currently applied controls
+    - configurations: history of applied configurations
+
+    Usage:
+        def test_autofocus(client, mock_picamera2, monkeypatch):
+            # Inject mock into sys.modules before import
+            monkeypatch.setitem(sys.modules, 'picamera2', mock_picamera2)
+
+            # Configure expected behavior
+            mock_picamera2.Picamera2.return_value.autofocus_cycle.return_value = True
+            mock_picamera2.Picamera2.return_value.capture_metadata.return_value = {
+                'LensPosition': 5.5,
+                'AfState': 2,  # Success
+                'ExposureTime': 10000,
+                'AnalogueGain': 1.5
+            }
+
+            # Make request (will use mocked Picamera2)
+            response = client.post('/api/camera/autofocus')
+
+            # Verify mock was called correctly
+            assert mock_picamera2.Picamera2.called
+            assert mock_picamera2.Picamera2.return_value.autofocus_cycle.called
+
+    Pattern: This uses sys.modules injection (similar to RPi.GPIO mock) because
+    Picamera2 is imported dynamically inside route functions with try/except.
+
+    Related: Issue #78 Phase 2D - Camera testing infrastructure
+    """
+    from unittest.mock import MagicMock, Mock
+    import sys
+
+    # Create mock module
+    mock_picamera2_module = MagicMock()
+
+    # Create mock instance that will be returned by Picamera2()
+    mock_instance = MagicMock()
+
+    # Track camera state for realistic behavior
+    mock_instance.camera_state = 'stopped'
+    mock_instance.controls_history = []
+    mock_instance.config_history = []
+
+    # ========================================================================
+    # Lifecycle methods with state tracking
+    # ========================================================================
+
+    def mock_configure(config):
+        """Mock configure() - transitions to 'configured' state"""
+        mock_instance.camera_state = 'configured'
+        mock_instance.config_history.append(config)
+
+    def mock_start():
+        """Mock start() - transitions to 'started' state"""
+        if mock_instance.camera_state != 'configured':
+            raise RuntimeError("Camera must be configured before starting")
+        mock_instance.camera_state = 'started'
+
+    def mock_stop():
+        """Mock stop() - transitions back to 'configured' state"""
+        if mock_instance.camera_state != 'started':
+            raise RuntimeError("Camera not started")
+        mock_instance.camera_state = 'configured'
+
+    def mock_close():
+        """Mock close() - transitions to 'stopped' state"""
+        mock_instance.camera_state = 'stopped'
+
+    # Attach state-tracking methods
+    mock_instance.configure.side_effect = mock_configure
+    mock_instance.start.side_effect = mock_start
+    mock_instance.stop.side_effect = mock_stop
+    mock_instance.close.side_effect = mock_close
+
+    # ========================================================================
+    # Configuration builders
+    # ========================================================================
+
+    def mock_create_preview_configuration(**kwargs):
+        """Mock create_preview_configuration() - returns mock config dict"""
+        return {
+            'type': 'preview',
+            'main': kwargs.get('main', {}),
+            'lores': kwargs.get('lores', {}),
+            'raw': kwargs.get('raw', {})
+        }
+
+    def mock_create_still_configuration(**kwargs):
+        """Mock create_still_configuration() - returns mock config dict"""
+        return {
+            'type': 'still',
+            'main': kwargs.get('main', {}),
+            'lores': kwargs.get('lores', {}),
+            'raw': kwargs.get('raw', {})
+        }
+
+    def mock_create_video_configuration(**kwargs):
+        """Mock create_video_configuration() - returns mock config dict"""
+        return {
+            'type': 'video',
+            'main': kwargs.get('main', {}),
+            'lores': kwargs.get('lores', {}),
+            'raw': kwargs.get('raw', {})
+        }
+
+    mock_instance.create_preview_configuration.side_effect = mock_create_preview_configuration
+    mock_instance.create_still_configuration.side_effect = mock_create_still_configuration
+    mock_instance.create_video_configuration.side_effect = mock_create_video_configuration
+
+    # ========================================================================
+    # Control setting with history tracking
+    # ========================================================================
+
+    def mock_set_controls(controls):
+        """Mock set_controls() - tracks control history"""
+        mock_instance.controls_history.append(controls.copy())
+
+    mock_instance.set_controls.side_effect = mock_set_controls
+
+    # ========================================================================
+    # Capture operations
+    # ========================================================================
+
+    # Default metadata for capture_metadata()
+    mock_instance.capture_metadata.return_value = {
+        'LensPosition': 5.0,
+        'AfState': 2,  # Success
+        'ExposureTime': 10000,
+        'AnalogueGain': 1.0,
+        'ColourTemperature': 5500,
+        'Sharpness': 1.0,
+        'Contrast': 1.0,
+        'Brightness': 0.0,
+        'Saturation': 1.0
+    }
+
+    # Default behavior for capture_file()
+    def mock_capture_file(path, name='main', wait=True):
+        """Mock capture_file() - creates empty file at path"""
+        from pathlib import Path
+        Path(path).touch()
+        return path
+
+    mock_instance.capture_file.side_effect = mock_capture_file
+
+    # Default behavior for capture_array()
+    def mock_capture_array(name='main'):
+        """Mock capture_array() - returns dummy numpy array"""
+        import numpy as np
+        return np.zeros((1080, 1920, 3), dtype=np.uint8)
+
+    mock_instance.capture_array.side_effect = mock_capture_array
+
+    # ========================================================================
+    # Autofocus
+    # ========================================================================
+
+    # Default autofocus_cycle() returns success
+    mock_instance.autofocus_cycle.return_value = True
+
+    # ========================================================================
+    # Picamera2 class mock (returns instance)
+    # ========================================================================
+
+    def mock_picamera2_constructor(camera_num=0):
+        """Mock Picamera2 constructor - can simulate 'busy' errors"""
+        # Reset state for new instance
+        mock_instance.camera_state = 'stopped'
+        mock_instance.controls_history = []
+        mock_instance.config_history = []
+        return mock_instance
+
+    mock_picamera2_module.Picamera2.side_effect = mock_picamera2_constructor
+
+    # Also expose the mock instance for direct access in tests
+    mock_picamera2_module._mock_instance = mock_instance
+
+    yield mock_picamera2_module
+
+    # Cleanup: remove from sys.modules if it was injected
+    if 'picamera2' in sys.modules and sys.modules['picamera2'] == mock_picamera2_module:
+        del sys.modules['picamera2']
+
+
+@pytest.fixture
+def mock_pi_version(monkeypatch, tmp_path):
+    """
+    Mock Pi version detection via /proc/cpuinfo
+
+    Camera routes detect Pi 4 vs Pi 5 by reading /proc/cpuinfo and searching
+    for "Pi 4" or "Pi 5" in the Model line (camera.py:244-251).
+
+    This fixture creates a temporary cpuinfo file and patches the file path
+    so tests can control which Pi version is detected.
+
+    Usage:
+        def test_capture_pi4(client, mock_pi_version):
+            # Configure for Pi 4
+            mock_pi_version('4')
+
+            response = client.post('/api/camera/capture')
+            # Will use Pi 4 code path (TakePhoto_HDR.py)
+
+        def test_capture_pi5(client, mock_pi_version):
+            # Configure for Pi 5
+            mock_pi_version('5')
+
+            response = client.post('/api/camera/capture')
+            # Will use Pi 5 code path (TakePhoto.py with HDR support)
+
+    Returns:
+        function: Call with '4' or '5' to set Pi version
+
+    Related: Issue #78 Phase 2D - Camera testing infrastructure
+    """
+    from pathlib import Path
+
+    # Create temporary cpuinfo file
+    cpuinfo_file = tmp_path / "cpuinfo"
+
+    def set_pi_version(version):
+        """
+        Set the Pi version ('4' or '5')
+
+        Args:
+            version: str - '4' for Pi 4, '5' for Pi 5
+        """
+        if version == '4':
+            content = """processor\t: 0
+Model\t\t: Raspberry Pi 4 Model B Rev 1.5
+BogoMIPS\t: 108.00
+Features\t: fp asimd evtstrm crc32 cpuid
+CPU implementer\t: 0x41
+CPU architecture: 8
+CPU variant\t: 0x0
+CPU part\t: 0xd08
+CPU revision\t: 3
+"""
+        elif version == '5':
+            content = """processor\t: 0
+Model\t\t: Raspberry Pi 5 Model B Rev 1.0
+BogoMIPS\t: 108.00
+Features\t: fp asimd evtstrm crc32 cpuid
+CPU implementer\t: 0x41
+CPU architecture: 8
+CPU variant\t: 0x4
+CPU part\t: 0xd0b
+CPU revision\t: 1
+"""
+        else:
+            raise ValueError(f"Invalid Pi version: {version}. Must be '4' or '5'")
+
+        cpuinfo_file.write_text(content)
+
+        # Patch the /proc/cpuinfo path
+        # We need to patch the `open()` builtin when it's called with "/proc/cpuinfo"
+        original_open = open
+
+        def patched_open(file, *args, **kwargs):
+            if str(file) == "/proc/cpuinfo":
+                return original_open(cpuinfo_file, *args, **kwargs)
+            return original_open(file, *args, **kwargs)
+
+        monkeypatch.setattr('builtins.open', patched_open)
+
+    # Return the setter function
+    yield set_pi_version
+
+    # Cleanup happens automatically with tmp_path and monkeypatch
+
+
+@pytest.fixture
+def mock_subprocess_run():
+    """
+    Factory fixture for mocking subprocess.run() with predefined responses
+
+    Camera routes use subprocess.run() to execute TakePhoto.py, TakePhoto_HDR.py,
+    and capture_focus_bracket.py scripts. This fixture provides a factory to
+    create mocks for each script type with realistic return values.
+
+    Usage:
+        def test_capture_single(client, mock_subprocess_run, monkeypatch):
+            # Create mock for TakePhoto.py success
+            mock_run = mock_subprocess_run('TakePhoto.py', returncode=0)
+
+            # Patch subprocess.run
+            monkeypatch.setattr('subprocess.run', mock_run)
+
+            response = client.post('/api/camera/capture')
+
+            # Verify subprocess was called correctly
+            assert mock_run.called
+            assert 'TakePhoto.py' in mock_run.call_args[0][0]
+
+    Factory parameters:
+        script_name: str - Name of script ('TakePhoto.py', 'TakePhoto_HDR.py',
+                          'capture_focus_bracket.py', 'run_calibration.py')
+        returncode: int - Exit code (0 = success, non-zero = error)
+        stdout: str - Optional custom stdout (defaults based on script)
+        stderr: str - Optional custom stderr
+        timeout: bool - If True, raises TimeoutExpired
+
+    Related: Issue #78 Phase 2D - Camera testing infrastructure
+    """
+    from unittest.mock import MagicMock
+    import subprocess
+
+    def factory(script_name, returncode=0, stdout=None, stderr=None, timeout=False):
+        """
+        Create a mock subprocess.run function
+
+        Args:
+            script_name: str - Script being mocked
+            returncode: int - Exit code
+            stdout: str - Custom stdout (optional)
+            stderr: str - Custom stderr (optional)
+            timeout: bool - Whether to raise TimeoutExpired
+
+        Returns:
+            MagicMock configured to return subprocess.CompletedProcess
+        """
+        # Default outputs based on script type
+        if stdout is None:
+            if script_name == 'TakePhoto.py' or script_name == 'TakePhoto_HDR.py':
+                stdout = "Photo captured successfully\nFilename: photo_001.jpg\n"
+            elif script_name == 'capture_focus_bracket.py':
+                stdout = "Focus bracket completed: 5 images captured\n"
+            elif script_name == 'run_calibration.py':
+                stdout = """Calibration started...
+Autofocus completed: Success at 5.2 diopters
+Running test exposures...
+Optimal settings: ExposureTime=10000, AnalogueGain=1.5
+Calibration complete!
+"""
+            else:
+                stdout = f"{script_name} completed\n"
+
+        if stderr is None:
+            stderr = "" if returncode == 0 else f"Error in {script_name}\n"
+
+        mock_run = MagicMock()
+
+        if timeout:
+            # Simulate timeout
+            mock_run.side_effect = subprocess.TimeoutExpired(
+                cmd=['python3', script_name],
+                timeout=30
+            )
+        else:
+            # Return CompletedProcess
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=['python3', script_name],
+                returncode=returncode,
+                stdout=stdout,
+                stderr=stderr
+            )
+
+        return mock_run
+
+    yield factory
+
+
+@pytest.fixture
+def mock_camera_streamer(app):
+    """
+    Mock camera_streamer with operation lock tracking
+
+    Camera routes coordinate with CameraStreamer via acquire_for_operation()
+    context manager to prevent concurrent camera access. This fixture provides
+    a mock that tracks lock acquisition/release.
+
+    The mock is automatically registered in app.config['CAMERA_STREAMER'] so
+    route code can find it via current_app.config.get('CAMERA_STREAMER').
+
+    Usage:
+        def test_capture_with_lock(client, mock_camera_streamer):
+            response = client.post('/api/camera/capture')
+
+            # Verify lock was acquired
+            assert mock_camera_streamer.acquire_for_operation.called
+
+            # Verify camera was released
+            assert mock_camera_streamer.release_camera.called
+
+    Tracked state:
+        - lock_acquired: bool - Whether acquire_for_operation() was called
+        - camera: MagicMock - Mock camera instance (or None)
+        - streaming: bool - Whether streaming is active
+        - release_count: int - Number of times release_camera() called
+
+    Related: Issue #78 Phase 2D - Camera testing infrastructure
+    """
+    from unittest.mock import MagicMock
+    from contextlib import contextmanager
+
+    mock_streamer = MagicMock()
+
+    # State tracking
+    mock_streamer.camera = None  # No camera initially
+    mock_streamer.streaming = False
+    mock_streamer.lock_acquired = False
+    mock_streamer.release_count = 0
+
+    # Mock release_camera()
+    def mock_release():
+        mock_streamer.camera = None
+        mock_streamer.streaming = False
+        mock_streamer.release_count += 1
+
+    mock_streamer.release_camera.side_effect = mock_release
+
+    # Mock start_streaming()
+    def mock_start_streaming():
+        if not mock_streamer.camera:
+            # Initialize mock camera
+            mock_streamer.camera = MagicMock()
+        mock_streamer.streaming = True
+        return True
+
+    mock_streamer.start_streaming.side_effect = mock_start_streaming
+
+    # Mock stop_streaming()
+    def mock_stop_streaming():
+        mock_streamer.streaming = False
+
+    mock_streamer.stop_streaming.side_effect = mock_stop_streaming
+
+    # Mock acquire_for_operation() context manager
+    @contextmanager
+    def mock_acquire_for_operation():
+        mock_streamer.lock_acquired = True
+        try:
+            yield
+        finally:
+            mock_streamer.lock_acquired = False
+
+    mock_streamer.acquire_for_operation.side_effect = mock_acquire_for_operation
+
+    # Mock set_manual_focus_mode()
+    mock_streamer.set_manual_focus_mode.return_value = True
+
+    # Register in app config (routes expect this)
+    app.config['CAMERA_STREAMER'] = mock_streamer
+
+    yield mock_streamer
+
+    # Cleanup
+    app.config.pop('CAMERA_STREAMER', None)
+
+
+@pytest.fixture
+def temp_photos_dir(tmp_path, monkeypatch):
+    """
+    Temporary PHOTOS_DIR for isolated camera testing
+
+    Creates a temporary photos directory and patches mothbox_paths.PHOTOS_DIR
+    to prevent tests from modifying real photo storage.
+
+    Usage:
+        def test_capture(client, temp_photos_dir):
+            response = client.post('/api/camera/capture')
+
+            # Photos go to temp_photos_dir, not real PHOTOS_DIR
+            photos = list(temp_photos_dir.glob('*.jpg'))
+            assert len(photos) == 1
+
+    Returns:
+        Path: Temporary photos directory
+
+    Related: Issue #78 Phase 2D - Camera testing infrastructure
+    """
+    # Create temporary photos directory
+    photos_dir = tmp_path / "photos"
+    photos_dir.mkdir()
+
+    # Patch PHOTOS_DIR everywhere
+    patch_path_constant_everywhere(monkeypatch, 'PHOTOS_DIR', photos_dir)
+
+    yield photos_dir
+
+    # Cleanup happens automatically with tmp_path
+
+
+@pytest.fixture
+def mock_socketio_emit(app, monkeypatch):
+    """
+    Mock SocketIO emit() with call tracking
+
+    Camera routes emit WebSocket events for progress updates (e.g.,
+    calibration_progress). This fixture provides a mock that tracks
+    all emitted events.
+
+    The mock is registered in app.extensions['socketio'] so routes
+    can find it via current_app.extensions.get('socketio').
+
+    Usage:
+        def test_calibration_progress(client, mock_socketio_emit):
+            response = client.post('/api/camera/calibrate-photo')
+
+            # Verify progress events were emitted
+            assert mock_socketio_emit.called
+            calls = mock_socketio_emit.call_args_list
+
+            # Check for calibration_progress event
+            progress_calls = [c for c in calls if c[0][0] == 'calibration_progress']
+            assert len(progress_calls) > 0
+
+    Tracked state:
+        - call_args_list: List of all emit() calls
+        - emit_history: List of (event, data) tuples
+
+    Related: Issue #78 Phase 2D - Camera testing infrastructure
+    """
+    from unittest.mock import MagicMock
+
+    # Create mock socketio instance
+    mock_socketio = MagicMock()
+
+    # Track emission history
+    emit_history = []
+
+    def mock_emit(event, data, **kwargs):
+        """Track all emissions"""
+        emit_history.append((event, data))
+
+    mock_socketio.emit.side_effect = mock_emit
+    mock_socketio.emit_history = emit_history
+
+    # Register in app extensions
+    app.extensions['socketio'] = mock_socketio
+
+    yield mock_socketio
+
+    # Cleanup
+    app.extensions.pop('socketio', None)
+
+
+@pytest.fixture
+def mock_preset_manager(monkeypatch):
+    """
+    Mock the module-level preset_manager instance in routes.presets
+
+    Problem: routes/presets.py line 21 instantiates preset_manager at module
+    import time, before test patches can be applied:
+        preset_manager = PresetManager(BUILTIN_PRESET_DIR, USER_PRESET_DIR)
+
+    Solution: Use monkeypatch.setattr() to replace the instance after import.
+    This fixture provides a pre-configured MagicMock with common return values.
+
+    Usage:
+        def test_list_presets(client, mock_preset_manager):
+            # Configure mock behavior
+            mock_preset_manager.list_presets.return_value = [
+                {'name': 'test', 'workflow': 'both'}
+            ]
+
+            # Make request (will use mocked preset_manager)
+            response = client.get('/api/presets')
+
+    Pattern: This approach works for any module-level instance that can't be
+    patched before import. Similar to how we mock RPi.GPIO via sys.modules,
+    but simpler since we just replace the instance attribute.
+
+    Related: Issue #78 Phase 2C - Preset route testing
+    """
+    from unittest.mock import MagicMock
+
+    # Create mock instance
+    mock_pm = MagicMock()
+
+    # Set default return values (can be overridden in tests)
+    mock_pm.list_presets.return_value = []
+    mock_pm.get_preset_count.return_value = {'built-in': 0, 'user': 0, 'total': 0}
+    mock_pm.get_preset.return_value = None
+    mock_pm.create_preset.return_value = True
+    mock_pm.delete_preset.return_value = True
+    mock_pm.apply_preset.return_value = {'success': True}
+
+    # Import routes.presets (already imported by app fixture, but safe to re-import)
+    from routes import presets
+
+    # Replace the module-level instance with our mock
+    monkeypatch.setattr(presets, 'preset_manager', mock_pm)
+
+    yield mock_pm
+
+    # Cleanup happens automatically via monkeypatch
 
 
 # ============================================================================
