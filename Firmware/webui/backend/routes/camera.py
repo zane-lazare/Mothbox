@@ -1216,8 +1216,10 @@ def test_capture_photo():
             with open(CAMERA_SETTINGS_FILE, 'r') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    photo_settings = row
-                    break  # Only need first row
+                    # Build settings dict from vertical CSV format (SETTING,VALUE,DETAILS)
+                    setting_name = row['SETTING'].strip()
+                    setting_value = row['VALUE'].strip()
+                    photo_settings[setting_name] = setting_value
 
         # Build controls dict from photo capture settings
         controls = {}

@@ -2066,15 +2066,21 @@ class TestTestCapturePhoto:
         assert data['settings_source'] == 'photo capture'
 
         # Verify: Settings were applied from CSV
-        # NOTE: Current implementation has a bug where it reads CSV with DictReader
-        # but then checks for control names directly in the row dict, which has
-        # keys 'SETTING', 'VALUE', 'DETAILS' instead of the actual control names.
-        # This results in empty controls being passed to the camera.
-        # Test verifies current (buggy) behavior until fixed.
         assert 'settings_used' in data
         settings_used = data['settings_used']
-        # BUG: settings_used will be empty {} due to CSV parsing issue
-        assert settings_used == {}
+        assert settings_used != {}  # Settings should be populated after bug fix
+        assert 'Sharpness' in settings_used
+        assert settings_used['Sharpness'] == 1.5
+        assert 'Brightness' in settings_used
+        assert settings_used['Brightness'] == 0.2
+        assert 'Contrast' in settings_used
+        assert settings_used['Contrast'] == 1.3
+        assert 'Saturation' in settings_used
+        assert settings_used['Saturation'] == 1.1
+        assert 'ExposureTime' in settings_used
+        assert settings_used['ExposureTime'] == 10000
+        assert 'AnalogueGain' in settings_used
+        assert settings_used['AnalogueGain'] == 2.0
 
         # Verify: Metadata returned
         assert 'metadata' in data
