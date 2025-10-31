@@ -250,52 +250,62 @@ def update_gps_config():
     Returns:
         JSON with success status
     """
+    # Handle JSON parsing separately to return proper 400 errors
     try:
         data = request.get_json()
+    except Exception:
+        data = None
 
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
 
-        # Validate inputs
-        if 'gps_enabled' in data:
-            if not isinstance(data['gps_enabled'], bool):
-                return jsonify({'error': 'gps_enabled must be a boolean'}), 400
+    # Validate all inputs first (before any operations that can fail)
+    if 'gps_enabled' in data:
+        if not isinstance(data['gps_enabled'], bool):
+            return jsonify({'error': 'gps_enabled must be a boolean'}), 400
 
-        if 'gps_baudrate' in data:
-            valid_baudrates = [4800, 9600, 19200, 38400, 57600, 115200]
-            if data['gps_baudrate'] not in valid_baudrates:
-                return jsonify({'error': f'Invalid baudrate. Must be one of: {valid_baudrates}'}), 400
+    if 'gps_baudrate' in data:
+        valid_baudrates = [4800, 9600, 19200, 38400, 57600, 115200]
+        if data['gps_baudrate'] not in valid_baudrates:
+            return jsonify({'error': f'Invalid baudrate. Must be one of: {valid_baudrates}'}), 400
 
-        if 'gps_timeout' in data:
-            timeout = data['gps_timeout']
-            if not isinstance(timeout, int) or timeout < 5 or timeout > 60:
-                return jsonify({'error': 'gps_timeout must be an integer between 5 and 60'}), 400
+    if 'gps_timeout' in data:
+        timeout = data['gps_timeout']
+        if not isinstance(timeout, int) or timeout < 5 or timeout > 60:
+            return jsonify({'error': 'gps_timeout must be an integer between 5 and 60'}), 400
 
-        if 'gps_timeout_hot' in data:
-            timeout = data['gps_timeout_hot']
-            if not isinstance(timeout, int) or timeout < 5 or timeout > 60:
-                return jsonify({'error': 'gps_timeout_hot must be an integer between 5 and 60'}), 400
+    if 'gps_timeout_hot' in data:
+        timeout = data['gps_timeout_hot']
+        if not isinstance(timeout, int) or timeout < 5 or timeout > 60:
+            return jsonify({'error': 'gps_timeout_hot must be an integer between 5 and 60'}), 400
 
-        if 'gps_timeout_warm' in data:
-            timeout = data['gps_timeout_warm']
-            if not isinstance(timeout, int) or timeout < 30 or timeout > 180:
-                return jsonify({'error': 'gps_timeout_warm must be an integer between 30 and 180'}), 400
+    if 'gps_timeout_warm' in data:
+        timeout = data['gps_timeout_warm']
+        if not isinstance(timeout, int) or timeout < 30 or timeout > 180:
+            return jsonify({'error': 'gps_timeout_warm must be an integer between 30 and 180'}), 400
 
-        if 'gps_timeout_cold' in data:
-            timeout = data['gps_timeout_cold']
-            if not isinstance(timeout, int) or timeout < 60 or timeout > 300:
-                return jsonify({'error': 'gps_timeout_cold must be an integer between 60 and 300'}), 400
+    if 'gps_timeout_cold' in data:
+        timeout = data['gps_timeout_cold']
+        if not isinstance(timeout, int) or timeout < 60 or timeout > 300:
+            return jsonify({'error': 'gps_timeout_cold must be an integer between 60 and 300'}), 400
 
-        if 'gps_timeout_almanac' in data:
-            timeout = data['gps_timeout_almanac']
-            if not isinstance(timeout, int) or timeout < 300 or timeout > 1800:
-                return jsonify({'error': 'gps_timeout_almanac must be an integer between 300 and 1800 (5-30 minutes)'}), 400
+    if 'gps_timeout_almanac' in data:
+        timeout = data['gps_timeout_almanac']
+        if not isinstance(timeout, int) or timeout < 300 or timeout > 1800:
+            return jsonify({'error': 'gps_timeout_almanac must be an integer between 300 and 1800 (5-30 minutes)'}), 400
 
-        if 'gps_device' in data:
-            device = data['gps_device']
-            if not device.startswith('/dev/'):
-                return jsonify({'error': 'gps_device must start with /dev/'}), 400
+    if 'gps_device' in data:
+        device = data['gps_device']
+        if not device.startswith('/dev/'):
+            return jsonify({'error': 'gps_device must start with /dev/'}), 400
+        # Prevent path traversal attacks (e.g., /dev/../etc/passwd)
+        import os
+        normalized_path = os.path.normpath(device)
+        if not normalized_path.startswith('/dev/'):
+            return jsonify({'error': 'gps_device must start with /dev/'}), 400
 
+    # Now wrap file I/O and subprocess operations in try/except for 500 errors
+    try:
         # Check if device or baudrate changed (requires gpsd restart)
         hw_config = get_hardware_config()
         device_changed = 'gps_device' in data and data['gps_device'] != hw_config['gps_device']

@@ -1801,6 +1801,41 @@ def mock_file_locking(monkeypatch):
     MockFlock.reset()
 
 
+@pytest.fixture(autouse=True)
+def clear_gps_cache(request):
+    """
+    Clear GPS status cache before AND after each test to prevent cache pollution.
+
+    The GPS status endpoint uses a 2-second cache. When tests run quickly
+    (faster than the cache TTL), later tests can receive stale cached data
+    from earlier tests, causing test failures.
+
+    This fixture only clears the cache if the test module is testing GPS routes.
+    """
+    # Only clear cache for GPS route tests
+    if 'test_gps_routes' in request.node.nodeid:
+        try:
+            from routes.gps import _gps_status_cache
+            with _gps_status_cache['lock']:
+                _gps_status_cache['data'] = None
+                _gps_status_cache['timestamp'] = 0
+        except (ImportError, KeyError):
+            # Module not imported yet or cache structure changed - safe to ignore
+            pass
+
+    yield
+
+    # Clear cache after test as well
+    if 'test_gps_routes' in request.node.nodeid:
+        try:
+            from routes.gps import _gps_status_cache
+            with _gps_status_cache['lock']:
+                _gps_status_cache['data'] = None
+                _gps_status_cache['timestamp'] = 0
+        except (ImportError, KeyError):
+            pass
+
+
 def pytest_runtest_teardown(item, nextitem):
     """
     Force garbage collection after each test to prevent memory exhaustion
