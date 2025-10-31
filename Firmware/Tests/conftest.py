@@ -135,12 +135,15 @@ def camera_streamer():
 
 
 @pytest.fixture(scope='function')
-def camera_streamer_func():
+def camera_streamer_func(tmp_path, monkeypatch):
     """
-    Function-scoped camera streamer fixture
+    Function-scoped camera streamer fixture with isolated config
 
-    Provides a fresh CameraStreamer instance for each test.
-    Use this when tests need complete isolation.
+    Provides a fresh CameraStreamer instance for each test with
+    temporary liveview_settings.txt for complete test isolation.
+
+    This ensures tests don't depend on real liveview_settings.txt
+    and get consistent hardcoded defaults in both dev and CI.
 
     Usage:
         def test_something(camera_streamer_func):
@@ -149,12 +152,19 @@ def camera_streamer_func():
     """
     from liveview_stream import LiveViewStreamer
 
+    # Create temp config file (empty = use hardcoded defaults)
+    temp_liveview = tmp_path / "liveview_settings.txt"
+    temp_liveview.write_text("")  # Empty file
+
+    # Patch path everywhere using established helper
+    patch_path_constant_everywhere(monkeypatch, 'LIVEVIEW_SETTINGS_FILE', temp_liveview)
+
     class MockSocketIO:
         """Mock SocketIO for testing"""
         def emit(self, event, data, **kwargs):
             pass
 
-    # Create fresh streamer instance
+    # Create fresh streamer instance (will use temp path)
     streamer = LiveViewStreamer(MockSocketIO())
 
     yield streamer
