@@ -19,6 +19,20 @@ from utils import sanitize_csv_value, ALLOWED_CAMERA_SETTINGS, ALLOWED_LIVEVIEW_
 
 
 # ============================================================================
+# Operation Timeouts and Delays
+# ============================================================================
+
+# Camera hardware release timing
+CAMERA_RELEASE_WAIT_SECONDS = 1.5  # Wait after releasing camera before subprocess (increased from 0.5s)
+
+# Subprocess timeouts
+CALIBRATION_TIMEOUT_SECONDS = 30  # Maximum time for photo calibration subprocess (matches TakePhoto.py timeout)
+
+# Error reporting limits
+ERROR_DETAILS_MAX_LENGTH = 500  # Maximum characters of stderr to include in API error responses
+
+
+# ============================================================================
 # Helper Functions
 # ============================================================================
 
@@ -649,6 +663,9 @@ def calibrate_photo():
 
     print("📸 Photo calibration requested via API")
 
+    # Emit progress: Starting calibration
+    _emit_calibration_progress(1, 4, "Starting photo calibration...", 0)
+
     # Read current settings for "before" snapshot
     before_settings = {}
     try:
@@ -691,6 +708,9 @@ def calibrate_photo():
                 camera_streamer.release_camera()
                 time.sleep(CAMERA_RELEASE_WAIT_SECONDS)  # Ensure hardware fully released
 
+            # Emit progress: Running subprocess
+            _emit_calibration_progress(2, 4, "Running photo calibration subprocess...", 25)
+
             # Run calibration via subprocess
             calibration_script = Path(__file__).parent.parent / 'scripts' / 'run_photo_calibration.py'
 
@@ -731,12 +751,12 @@ def calibrate_photo():
 
             # Determine error type from stderr
             error_msg = 'Calibration subprocess failed'
-            stderr_lower = subprocess_result.stderr.lower()
+            stderr_lower = subprocess_result.stderr.lower() if subprocess_result.stderr else ''
 
-            if 'filenotfounderror' in subprocess_result.stderr:
+            if 'filenotfounderror' in stderr_lower:
                 firmware_version = get_firmware_version()
                 error_msg = f'TakePhoto.py not found for firmware {firmware_version}.x'
-            elif 'importerror' in subprocess_result.stderr or 'modulenotfounderror' in subprocess_result.stderr:
+            elif 'importerror' in stderr_lower or 'modulenotfounderror' in stderr_lower:
                 error_msg = 'TakePhoto.py import failed - missing dependencies'
             elif 'busy' in stderr_lower or 'resource' in stderr_lower:
                 error_msg = 'Camera hardware busy'
@@ -750,6 +770,9 @@ def calibrate_photo():
                 'details': subprocess_result.stderr[-ERROR_DETAILS_MAX_LENGTH:] if subprocess_result.stderr else None,
                 'returncode': subprocess_result.returncode
             }), 500
+
+        # Emit progress: Parsing results
+        _emit_calibration_progress(3, 4, "Parsing calibration results...", 75)
 
         # Read updated settings for "after" snapshot
         after_settings = {}
@@ -770,6 +793,9 @@ def calibrate_photo():
         print(f"✅ Photo calibration completed in {duration:.2f}s")
         print(f"   Before: Exp={before_snapshot['ExposureTime']}, Gain={before_snapshot['AnalogueGain']}, Lens={before_snapshot['LensPosition']}")
         print(f"   After:  Exp={after_snapshot['ExposureTime']}, Gain={after_snapshot['AnalogueGain']}, Lens={after_snapshot['LensPosition']}")
+
+        # Emit progress: Complete
+        _emit_calibration_progress(4, 4, "Photo calibration complete!", 100)
 
         return jsonify({
             'success': True,
