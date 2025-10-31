@@ -524,25 +524,201 @@ class TestFreezeSettings:
 class TestCaptureEndpoint:
     """Tests for POST /api/camera/capture endpoint (single/HDR/focus bracket)"""
 
-    def test_capture_single_exposure_success(self):
+    def test_capture_single_exposure_success(self, client, temp_camera_settings, mock_subprocess_run,
+                                              temp_photos_dir, mock_camera_streamer, monkeypatch):
         """Successfully capture single exposure photo"""
-        # TODO: Implement in Phase 2F
-        pytest.skip("Phase 2F: Basic Capture")
+        from pathlib import Path
 
-    def test_capture_single_exposure_subprocess_failure(self):
+        # Setup: Configure for single exposure (HDR=1)
+        temp_camera_settings.write_text(
+            "SETTING,VALUE,DETAILS\n"
+            "HDR,1,Single exposure\n"
+            "ExposureTime,10000,Exposure time\n"
+        )
+
+        # Setup: Mock Pi version detection (Pi 4)
+        mock_cpuinfo = "Model\t\t: Raspberry Pi 4 Model B Rev 1.5\n"
+        original_open = open
+        def patched_open(file, *args, **kwargs):
+            if str(file) == "/proc/cpuinfo":
+                from io import StringIO
+                return StringIO(mock_cpuinfo)
+            return original_open(file, *args, **kwargs)
+        monkeypatch.setattr('builtins.open', patched_open)
+
+        # Setup: Mock Path.exists() to make script path check pass
+        original_exists = Path.exists
+        def patched_exists(self):
+            # Make TakePhoto.py script appear to exist
+            if 'TakePhoto.py' in str(self):
+                return True
+            return original_exists(self)
+        monkeypatch.setattr(Path, 'exists', patched_exists)
+
+        # Setup: Mock subprocess.run for TakePhoto.py success
+        mock_run = mock_subprocess_run('TakePhoto.py', returncode=0)
+        monkeypatch.setattr('subprocess.run', mock_run)
+
+        # Setup: Create a fake photo file that will be found
+        photo_file = temp_photos_dir / "test_photo_001.jpg"
+        photo_file.touch()
+
+        # Execute: POST request to capture
+        response = client.post('/api/camera/capture')
+
+        # Verify: Success response
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert 'latest_photo' in data
+        assert data['focus_bracket_mode'] is False
+        assert data['hdr_mode'] is False
+        assert data['script_used'] == 'TakePhoto.py'
+        assert data['message'] == 'Single exposure capture complete'
+
+        # Verify: Subprocess was called
+        assert mock_run.called
+        call_args = mock_run.call_args[0][0]
+        assert 'TakePhoto.py' in str(call_args)
+
+        # Verify: Camera streamer lock was acquired
+        assert mock_camera_streamer.acquire_for_operation.called
+
+    def test_capture_single_exposure_subprocess_failure(self, client, temp_camera_settings, mock_subprocess_run,
+                                                        mock_camera_streamer, monkeypatch):
         """Handle TakePhoto.py subprocess failure"""
-        # TODO: Implement in Phase 2F (requires mock_subprocess_run)
-        pytest.skip("Phase 2F: Basic Capture")
+        from pathlib import Path
 
-    def test_capture_single_exposure_timeout(self):
+        # Setup: Configure for single exposure
+        temp_camera_settings.write_text(
+            "SETTING,VALUE,DETAILS\n"
+            "HDR,1,Single exposure\n"
+        )
+
+        # Setup: Mock Pi version
+        mock_cpuinfo = "Model\t\t: Raspberry Pi 4 Model B Rev 1.5\n"
+        original_open = open
+        def patched_open(file, *args, **kwargs):
+            if str(file) == "/proc/cpuinfo":
+                from io import StringIO
+                return StringIO(mock_cpuinfo)
+            return original_open(file, *args, **kwargs)
+        monkeypatch.setattr('builtins.open', patched_open)
+
+        # Setup: Mock Path.exists() for script
+        original_exists = Path.exists
+        def patched_exists(self):
+            if 'TakePhoto.py' in str(self):
+                return True
+            return original_exists(self)
+        monkeypatch.setattr(Path, 'exists', patched_exists)
+
+        # Setup: Mock subprocess failure
+        mock_run = mock_subprocess_run('TakePhoto.py', returncode=1, stderr="Camera initialization failed")
+        monkeypatch.setattr('subprocess.run', mock_run)
+
+        # Execute: POST request
+        response = client.post('/api/camera/capture')
+
+        # Verify: Error response
+        assert response.status_code == 500
+        data = response.get_json()
+        assert data['success'] is False
+        assert 'error' in data
+
+    def test_capture_single_exposure_timeout(self, client, temp_camera_settings, mock_subprocess_run,
+                                             mock_camera_streamer, monkeypatch):
         """Handle capture timeout"""
-        # TODO: Implement in Phase 2F (requires mock_subprocess_run)
-        pytest.skip("Phase 2F: Basic Capture")
+        from pathlib import Path
 
-    def test_capture_single_exposure_camera_busy(self):
+        # Setup: Configure for single exposure
+        temp_camera_settings.write_text(
+            "SETTING,VALUE,DETAILS\n"
+            "HDR,1,Single exposure\n"
+        )
+
+        # Setup: Mock Pi version
+        mock_cpuinfo = "Model\t\t: Raspberry Pi 4 Model B Rev 1.5\n"
+        original_open = open
+        def patched_open(file, *args, **kwargs):
+            if str(file) == "/proc/cpuinfo":
+                from io import StringIO
+                return StringIO(mock_cpuinfo)
+            return original_open(file, *args, **kwargs)
+        monkeypatch.setattr('builtins.open', patched_open)
+
+        # Setup: Mock Path.exists() for script
+        original_exists = Path.exists
+        def patched_exists(self):
+            if 'TakePhoto.py' in str(self):
+                return True
+            return original_exists(self)
+        monkeypatch.setattr(Path, 'exists', patched_exists)
+
+        # Setup: Mock subprocess timeout
+        mock_run = mock_subprocess_run('TakePhoto.py', timeout=True)
+        monkeypatch.setattr('subprocess.run', mock_run)
+
+        # Execute: POST request
+        response = client.post('/api/camera/capture')
+
+        # Verify: Timeout error
+        assert response.status_code == 500
+        data = response.get_json()
+        assert data['success'] is False
+        assert 'timed out' in data['error'].lower()
+
+    def test_capture_single_exposure_camera_busy(self, client, temp_camera_settings, mock_subprocess_run,
+                                                  mock_camera_streamer, temp_photos_dir, monkeypatch):
         """Handle camera busy during capture"""
-        # TODO: Implement in Phase 2F (requires mock_camera_streamer)
-        pytest.skip("Phase 2F: Basic Capture")
+        from pathlib import Path
+
+        # Setup: Configure for single exposure
+        temp_camera_settings.write_text(
+            "SETTING,VALUE,DETAILS\n"
+            "HDR,1,Single exposure\n"
+        )
+
+        # Setup: Mock Pi version
+        mock_cpuinfo = "Model\t\t: Raspberry Pi 4 Model B Rev 1.5\n"
+        original_open = open
+        def patched_open(file, *args, **kwargs):
+            if str(file) == "/proc/cpuinfo":
+                from io import StringIO
+                return StringIO(mock_cpuinfo)
+            return original_open(file, *args, **kwargs)
+        monkeypatch.setattr('builtins.open', patched_open)
+
+        # Setup: Mock Path.exists() for script
+        original_exists = Path.exists
+        def patched_exists(self):
+            if 'TakePhoto.py' in str(self):
+                return True
+            return original_exists(self)
+        monkeypatch.setattr(Path, 'exists', patched_exists)
+
+        # Setup: Mock subprocess success
+        mock_run = mock_subprocess_run('TakePhoto.py', returncode=0)
+        monkeypatch.setattr('subprocess.run', mock_run)
+
+        # Setup: Create a photo file
+        photo_file = temp_photos_dir / "test_photo_001.jpg"
+        photo_file.touch()
+
+        # Setup: Mark camera streamer as streaming
+        mock_camera_streamer.streaming = True
+        mock_camera_streamer.camera = MagicMock()
+
+        # Execute: POST request
+        response = client.post('/api/camera/capture')
+
+        # Verify: Success (camera was released before capture)
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+
+        # Verify: release_camera was called
+        assert mock_camera_streamer.release_camera.called
 
     def test_capture_hdr_mode_pi4(self):
         """Capture HDR bracket on Pi 4"""
