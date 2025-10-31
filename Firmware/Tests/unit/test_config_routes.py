@@ -194,7 +194,7 @@ class TestScheduleEndpoints:
         })
 
         assert response.status_code == 400
-        assert 'not in allowed fields' in response.get_json()['error'].lower()
+        assert 'invalid keys' in response.get_json()['error'].lower()
 
 
 class TestWebuiEndpoints:
@@ -230,15 +230,15 @@ class TestWebuiEndpoints:
 
     def test_get_webui_converts_types(self, client, temp_webui_settings):
         """GET /webui converts string values to correct types"""
-        temp_webui_settings.write_text("jpeg_quality=85\nstream_fps=15.0\nautofocus_enabled=true\n")
+        temp_webui_settings.write_text("jpeg_quality=85\nframe_rate=15\nae_enable=true\n")
 
         response = client.get('/api/config/webui')
 
         data = response.get_json()
         # Should convert to proper types
         assert isinstance(data['jpeg_quality'], int)
-        assert isinstance(data['stream_fps'], float)
-        assert isinstance(data['autofocus_enabled'], bool)
+        assert isinstance(data['frame_rate'], int)  # frame_rate is int, not float
+        assert isinstance(data['ae_enable'], bool)
 
     def test_post_webui_validates_ranges(self, client, temp_webui_settings):
         """POST /webui enforces min/max for numeric settings"""
@@ -439,15 +439,18 @@ class TestConfigErrorRecovery:
         original = "name=OriginalBox\nshutdown_enabled=true\n"
         temp_controls_file.write_text(original)
 
-        # Mock file write to fail after backup
-        write_count = [0]
+        # Mock file write to fail on main file (after backup succeeds)
         original_open = open
 
         def failing_open(path, mode='r', **kwargs):
-            if mode == 'w' and 'controls.txt' in str(path) and not 'backup' in str(path):
-                write_count[0] += 1
-                if write_count[0] > 1:  # Fail on second write (the actual update, not backup)
-                    raise IOError("Disk full")
+            # Allow all reads and backup writes to succeed
+            if mode == 'r' or 'backup' in str(path):
+                return original_open(path, mode, **kwargs)
+
+            # Fail writes to main controls.txt (simulates disk full after backup created)
+            if mode == 'w' and 'controls.txt' in str(path):
+                raise IOError("Disk full")
+
             return original_open(path, mode, **kwargs)
 
         monkeypatch.setattr('builtins.open', failing_open)

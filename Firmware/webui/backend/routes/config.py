@@ -265,6 +265,33 @@ def update_webui_settings():
     try:
         new_settings = request.json
 
+        # Whitelist of allowed webui setting keys (Issue #78 - security improvement)
+        ALLOWED_WEBUI_KEYS = {
+            # Stream/encoding settings
+            'stream_width', 'stream_height', 'frame_rate', 'jpeg_quality', 'stream_mode', 'sensor_mode',
+            # Image quality controls
+            'sharpness', 'brightness', 'contrast', 'saturation',
+            # Noise reduction
+            'noise_reduction_mode',
+            # Focus controls
+            'af_mode', 'af_speed', 'af_range',
+            # White balance
+            'awb_enable', 'awb_mode',
+            # Colour gains
+            'colour_gains_red', 'colour_gains_blue',
+            # Exposure controls
+            'ae_metering_mode', 'ae_enable', 'exposure_time', 'analogue_gain',
+            # ISP tuning
+            'use_custom_tuning', 'lens_shading_enable', 'defect_correction_enable',
+            # Focus peaking
+            'focus_peaking_enabled', 'focus_peaking_intensity', 'focus_peaking_colour', 'focus_peaking_algorithm'
+        }
+
+        # Validate all keys are allowed (prevent injection/confusion attacks)
+        invalid_keys = set(new_settings.keys()) - ALLOWED_WEBUI_KEYS
+        if invalid_keys:
+            return jsonify({'error': f'Invalid keys: {", ".join(invalid_keys)}'}), 400
+
         # Load existing settings to merge with updates (preserves unmodified values)
         existing = {}
         if LIVEVIEW_SETTINGS_FILE.exists():
