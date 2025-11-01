@@ -988,7 +988,12 @@ class LiveViewStreamer:
             ))
 
         # Apply camera controls if any
-        if camera_controls and self.camera and self.streaming:
+        if camera_controls:
+            # Return False if camera is not available for camera-specific controls
+            if not self.camera or not self.streaming:
+                print(f"Cannot update camera controls - camera not ready (camera={self.camera is not None}, streaming={self.streaming})")
+                return False
+
             try:
                 self.camera.set_controls(camera_controls)
 
@@ -1098,8 +1103,8 @@ class LiveViewStreamer:
         sobel_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
         sobel_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
 
-        # Combine gradients (magnitude)
-        sobel_mag = np.sqrt(sobel_x**2 + sobel_y**2)
+        # Combine gradients (magnitude) - use np.hypot for numeric stability
+        sobel_mag = np.hypot(sobel_x, sobel_y)
 
         # Threshold for sharp edges (inverted: high intensity = more edges)
         inverted_threshold = 250 - threshold  # 200→50, 100→150, 50→200
