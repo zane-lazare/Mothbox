@@ -1,7 +1,15 @@
 """
-Unit tests for camera streaming module
+Hardware encoding tests for camera streaming module
 
 RUN ON RASPBERRY PI ONLY - requires simplejpeg and numpy
+
+These tests verify hardware-specific encoding functionality including
+simplejpeg JPEG encoding performance, quality, and edge cases.
+All tests are marked with @pytest.mark.hardware and skip in CI.
+
+For comprehensive unit tests with mocking, see test_camera_stream_unit.py.
+
+Related: Issue #78 - Camera Backend Testing (Phase 1)
 """
 import pytest
 import numpy as np

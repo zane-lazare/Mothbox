@@ -562,6 +562,57 @@ def temp_schedule_settings(tmp_path, monkeypatch):
     # Cleanup happens automatically with tmp_path and monkeypatch
 
 
+@pytest.fixture
+def temp_preferences_file(tmp_path, monkeypatch):
+    """
+    Temporary user_preferences.json for isolated testing
+
+    Creates a temporary preferences file and patches USER_PREFERENCES_FILE
+    constant everywhere. Also recreates the global preferences_manager instance
+    to use the temp file.
+
+    This ensures preferences tests don't modify real user preferences.
+
+    Usage:
+        def test_something(temp_preferences_file):
+            # preferences_manager now uses temp file
+            # Write/read test preferences
+            temp_preferences_file.write_text('{"default_capture_preset": "test"}')
+            # ... test code ...
+
+    Related: Issue #78 - User preferences testing
+    """
+    import json
+
+    # Create temporary file with default preferences
+    temp_file = tmp_path / "user_preferences.json"
+    temp_file.write_text(json.dumps({
+        "default_capture_preset": None,
+        "default_preview_preset": None,
+        "default_liveview_preset": None
+    }, indent=2))
+
+    # Patch the constant in mothbox_paths
+    import mothbox_paths
+    monkeypatch.setattr(mothbox_paths, 'USER_PREFERENCES_FILE', temp_file)
+
+    # Recreate the global preferences_manager instance with temp path
+    # This is needed because the manager was already instantiated at module import time
+    from webui.backend import user_preferences
+    from webui.backend.user_preferences import UserPreferencesManager
+
+    new_manager = UserPreferencesManager(temp_file)
+    monkeypatch.setattr(user_preferences, 'preferences_manager', new_manager)
+
+    # Also patch in routes.preferences if already loaded
+    import sys
+    if 'routes.preferences' in sys.modules:
+        monkeypatch.setattr('routes.preferences.preferences_manager', new_manager)
+
+    yield temp_file
+    # Cleanup happens automatically with tmp_path and monkeypatch
+
+
 # ============================================================================
 # AF Window Test Fixtures (Click-to-Focus Feature)
 # ============================================================================
@@ -1668,6 +1719,263 @@ def mock_rpi_gpio(monkeypatch):
 
 
 @pytest.fixture
+def mock_opencv(monkeypatch):
+    """
+    Mock OpenCV (cv2) for focus peaking tests
+
+    Simulates edge detection algorithms with realistic numpy array returns.
+    All methods return arrays with correct shapes and dtypes.
+
+    Usage:
+        def test_focus_peaking(camera_streamer_func, mock_opencv):
+            # OpenCV methods are mocked, return realistic arrays
+            # Test focus peaking without OpenCV dependency
+    """
+    import numpy as np
+    from unittest.mock import MagicMock
+
+    mock_cv2 = MagicMock()
+
+    # cvtColor: RGB → Grayscale
+    def mock_cvtColor(frame, code):
+        """Convert to grayscale (average across channels)"""
+        if len(frame.shape) == 3:
+            return np.mean(frame, axis=2).astype(np.uint8)
+        return frame
+    mock_cv2.cvtColor = mock_cvtColor
+
+    # Laplacian: Edge detection (variance-based)
+    def mock_Laplacian(src, ddepth, ksize=1):
+        """Simulate Laplacian edge detection"""
+        h, w = src.shape[:2]
+        # Create edges with some randomness
+        edges = np.random.rand(h, w) * 50  # Low intensity edges
+        # Add some strong edges (simulate actual edges)
+        edges[h//4:3*h//4, w//4:3*w//4] = 200  # Strong central edge
+        return edges.astype(np.uint8)
+    mock_cv2.Laplacian = mock_Laplacian
+
+    # Sobel: Directional edge detection
+    def mock_Sobel(src, ddepth, dx, dy, ksize=3):
+        """Simulate Sobel edge detection"""
+        h, w = src.shape[:2]
+        edges = np.random.rand(h, w) * 40
+        # Directional edges
+        if dx > 0:  # Horizontal edges
+            edges[:, w//2:] = 150
+        if dy > 0:  # Vertical edges
+            edges[h//2:, :] = 150
+        return edges.astype(np.uint8)
+    mock_cv2.Sobel = mock_Sobel
+
+    # Canny: Two-threshold edge detection
+    def mock_Canny(image, threshold1, threshold2):
+        """Simulate Canny edge detection"""
+        h, w = image.shape[:2]
+        edges = np.zeros((h, w), dtype=np.uint8)
+        # Binary edges (0 or 255)
+        edges[h//4:3*h//4, w//4:3*w//4] = 255
+        return edges
+    mock_cv2.Canny = mock_Canny
+
+    # getStructuringElement: For morphology
+    def mock_getStructuringElement(shape, ksize):
+        """Return structuring element for morphology"""
+        return np.ones(ksize, dtype=np.uint8)
+    mock_cv2.getStructuringElement = mock_getStructuringElement
+
+    # morphologyEx: Morphological operations
+    def mock_morphologyEx(src, op, kernel):
+        """Dilate edges slightly"""
+        return src  # Just return input for simplicity
+    mock_cv2.morphologyEx = mock_morphologyEx
+
+    # addWeighted: Blend overlay with frame
+    def mock_addWeighted(src1, alpha, src2, beta, gamma):
+        """Blend two images"""
+        # Weighted average
+        return (src1 * alpha + src2 * beta + gamma).astype(np.uint8)
+    mock_cv2.addWeighted = mock_addWeighted
+
+    # Constants
+    mock_cv2.COLOR_RGB2GRAY = 6
+    mock_cv2.CV_64F = 6
+    mock_cv2.CV_8U = 0
+    mock_cv2.MORPH_DILATE = 1
+    mock_cv2.MORPH_RECT = 0
+
+    # Inject into sys.modules
+    import sys
+    monkeypatch.setitem(sys.modules, 'cv2', mock_cv2)
+
+    yield mock_cv2
+
+
+@pytest.fixture
+def mock_simplejpeg(monkeypatch):
+    """
+    Mock simplejpeg for software JPEG encoding tests
+
+    Returns realistic JPEG bytes with proper headers/trailers.
+    Simulates encoding performance (quality affects size).
+
+    Usage:
+        def test_encoding(camera_streamer_func, mock_simplejpeg):
+            # simplejpeg.encode_jpeg() is mocked
+            # Returns JPEG bytes without needing actual library
+    """
+    from unittest.mock import MagicMock
+
+    mock_sj = MagicMock()
+
+    def mock_encode_jpeg(frame, quality=85, colorspace='RGB'):
+        """
+        Simulate JPEG encoding
+
+        Returns realistic JPEG bytes:
+        - FF D8: JPEG start marker
+        - FF D9: JPEG end marker
+        - Size varies with quality (higher quality = larger size)
+        """
+        h, w = frame.shape[:2]
+        # Rough size estimate: quality affects compression
+        # Higher quality = less compression = larger file
+        base_size = h * w * 3  # RGB bytes
+        compression_ratio = quality / 100.0  # 0.85 for Q85, 0.95 for Q95
+        jpeg_size = int(base_size * (0.05 + compression_ratio * 0.25))  # 5-30% of original
+
+        # Generate realistic JPEG structure
+        jpeg_bytes = b'\xff\xd8'  # SOI (Start of Image)
+        jpeg_bytes += b'\xff\xe0'  # APP0 marker
+        jpeg_bytes += b'\x00' * (jpeg_size - 4)  # Compressed data
+        jpeg_bytes += b'\xff\xd9'  # EOI (End of Image)
+
+        return jpeg_bytes
+
+    mock_sj.encode_jpeg = mock_encode_jpeg
+
+    # Inject into sys.modules
+    import sys
+    monkeypatch.setitem(sys.modules, 'simplejpeg', mock_sj)
+
+    yield mock_sj
+
+
+@pytest.fixture
+def mock_mjpeg_encoder(monkeypatch):
+    """
+    Mock MJPEGEncoder and FileOutput for hardware encoding tests
+
+    Simulates Picamera2's hardware MJPEG encoder with frame emission tracking.
+
+    Usage:
+        def test_hardware_encoding(camera_streamer_func, mock_mjpeg_encoder):
+            # MJPEGEncoder and WebSocketOutput are mocked
+            # Test hardware encoding path without actual encoder
+    """
+    from unittest.mock import MagicMock, Mock
+
+    # Mock FileOutput base class
+    class MockFileOutput:
+        """Mock FileOutput base class"""
+        def __init__(self):
+            self.frames_written = 0
+
+        def outputframe(self, frame, keyframe=True, timestamp=None):
+            """Track frame outputs"""
+            self.frames_written += 1
+
+    # Mock MJPEGEncoder
+    class MockMJPEGEncoder:
+        """Mock hardware MJPEG encoder"""
+        def __init__(self, qp=None):
+            self.qp = qp  # Quality parameter (1-25, lower is higher quality)
+            self.enabled = True
+
+        def __repr__(self):
+            return f"MockMJPEGEncoder(qp={self.qp})"
+
+    # Create mock picamera2 modules in sys.modules
+    import sys
+
+    # Mock picamera2.outputs module
+    mock_outputs = type(sys)('picamera2.outputs')
+    mock_outputs.FileOutput = MockFileOutput
+
+    # Mock picamera2.encoders module
+    mock_encoders = type(sys)('picamera2.encoders')
+    mock_encoders.MJPEGEncoder = MockMJPEGEncoder
+
+    # Inject into sys.modules
+    monkeypatch.setitem(sys.modules, 'picamera2.outputs', mock_outputs)
+    monkeypatch.setitem(sys.modules, 'picamera2.encoders', mock_encoders)
+
+    yield {
+        'FileOutput': MockFileOutput,
+        'MJPEGEncoder': MockMJPEGEncoder
+    }
+
+
+@pytest.fixture
+def mock_isp_tuning(monkeypatch, tmp_path):
+    """
+    Mock ISP tuning loader for custom tuning file tests
+
+    Creates fake tuning files and mocks tuning_loader functions.
+
+    Usage:
+        def test_custom_tuning(camera_streamer_func, mock_isp_tuning):
+            # get_tuning_path() and apply_isp_controls() are mocked
+            # Test ISP tuning without actual tuning files
+    """
+    from unittest.mock import MagicMock
+    import json
+
+    # Create fake tuning files
+    arducam_tuning = tmp_path / "arducam_64mp.json"
+    arducam_tuning.write_text(json.dumps({
+        "version": 2.0,
+        "target": "arducam_64mp",
+        "algorithms": [
+            {"name": "lens_shading", "enabled": True},
+            {"name": "defect_correction", "enabled": True}
+        ]
+    }))
+
+    imx477_tuning = tmp_path / "imx477.json"
+    imx477_tuning.write_text(json.dumps({
+        "version": 2.0,
+        "target": "imx477",
+        "algorithms": []
+    }))
+
+    # Mock tuning_loader functions
+    def mock_get_tuning_path(tuning_name):
+        """Return path to fake tuning file"""
+        if "arducam" in tuning_name.lower():
+            return str(arducam_tuning)
+        elif "imx477" in tuning_name.lower():
+            return str(imx477_tuning)
+        return None
+
+    def mock_apply_isp_controls(camera, settings):
+        """Mock ISP control application (no-op)"""
+        return True
+
+    mock_loader = MagicMock()
+    mock_loader.get_tuning_path = mock_get_tuning_path
+    mock_loader.apply_isp_controls = mock_apply_isp_controls
+
+    # Patch in liveview_stream module (if already loaded)
+    import sys
+    if 'liveview_stream' in sys.modules:
+        monkeypatch.setattr('liveview_stream.get_tuning_path', mock_get_tuning_path, raising=False)
+        monkeypatch.setattr('liveview_stream.apply_isp_controls', mock_apply_isp_controls, raising=False)
+
+    yield mock_loader
+
+
+@pytest.fixture
 def mock_picamera2_for_streamer():
     """
     Comprehensive Picamera2 mock for LiveViewStreamer tests.
@@ -1690,15 +1998,36 @@ def mock_picamera2_for_streamer():
             self.started = False
             self.streaming = False
             self.controls = {}
+            self.current_controls = {}  # Track current control state
+            self.control_history = []  # Track all set_controls calls
             self.sensor_modes = [
                 {'size': (1920, 1080)},
                 {'size': (2304, 1736)},
                 {'size': (4608, 2592)}
             ]
-            self.camera_properties = {
-                'PixelArraySize': (4608, 2592),
-                'ScalerCropMaximum': (0, 0, 4608, 2592)
+            self.scaler_crop_maximum = (0, 0, 4056, 3040)  # Arducam 64MP
+            self._simulate_busy = False
+            self._simulate_already_started = False
+
+        @property
+        def camera_properties(self):
+            """Camera properties including ScalerCropMaximum"""
+            return {
+                'ScalerCropMaximum': self.scaler_crop_maximum,
+                'Model': 'Arducam 64MP',
+                'UnitCellSize': (1120, 1120),  # 1.12µm pixels
+                'PixelArraySize': (9248, 6944)
             }
+
+        @property
+        def state(self):
+            """Current camera state"""
+            if self.streaming:
+                return 'streaming'
+            elif self.started:
+                return 'started'
+            else:
+                return 'stopped'
 
         def create_video_configuration(self, main=None, raw=None, encode=None):
             return {'main': main, 'raw': raw, 'encode': encode}
@@ -1710,6 +2039,12 @@ def mock_picamera2_for_streamer():
             return self.config
 
         def start(self):
+            if self._simulate_already_started:
+                self._simulate_already_started = False
+                raise RuntimeError("Camera already started")
+            if self._simulate_busy:
+                self._simulate_busy = False
+                raise RuntimeError("Camera is busy")
             if self.started:
                 raise RuntimeError("Camera already started")
             self.started = True
@@ -1747,11 +2082,36 @@ def mock_picamera2_for_streamer():
             return MockRequest()
 
         def set_controls(self, controls):
+            """
+            Set camera controls with state validation
+
+            Args:
+                controls: Dict of control_name: value
+
+            Raises:
+                RuntimeError: If camera not in correct state
+            """
+            if self.state == 'stopped':
+                raise RuntimeError("Camera not started")
+
+            # Track control history
+            self.control_history.append(controls.copy())
+
+            # Update current controls
+            self.current_controls.update(controls)
             self.controls.update(controls)
 
         def close(self):
             self.started = False
             self.streaming = False
+
+        def simulate_camera_busy_error(self):
+            """Make next operation raise 'camera busy' error"""
+            self._simulate_busy = True
+
+        def simulate_already_started_error(self):
+            """Make next start() raise 'already started' error"""
+            self._simulate_already_started = True
 
     return MockPicamera2()
 

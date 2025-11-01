@@ -497,3 +497,177 @@ class TestPreferencesSecurity:
             if response.status_code == 200:
                 # Verify value was passed as-is to manager (manager handles sanitization)
                 mock_preferences_manager.set_preference.assert_called_with('test_key', malicious_value)
+
+
+# ============================================================================
+# Integration Tests (with real UserPreferencesManager)
+# ============================================================================
+
+class TestPreferencesIntegration:
+    """
+    Integration tests using real UserPreferencesManager with temp files
+
+    These tests complement the mock-based tests above by testing actual
+    file I/O and persistence logic.
+    """
+
+    def test_set_get_reset_workflow(self, preferences_client, temp_preferences_file):
+        """Complete workflow: set → get → reset → verify"""
+        # Set a preference
+        response = preferences_client.post('/api/preferences', json={
+            'key': 'default_capture_preset',
+            'value': 'wildlife_daylight'
+        })
+        assert response.status_code == 200
+
+        # Get and verify
+        response = preferences_client.get('/api/preferences')
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['default_capture_preset'] == 'wildlife_daylight'
+
+        # Verify persisted to file
+        import json
+        with open(temp_preferences_file, 'r') as f:
+            file_data = json.load(f)
+        assert file_data['default_capture_preset'] == 'wildlife_daylight'
+
+        # Reset
+        response = preferences_client.post('/api/preferences/reset')
+        assert response.status_code == 200
+
+        # Get and verify back to defaults
+        response = preferences_client.get('/api/preferences')
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['default_capture_preset'] is None
+
+    def test_multiple_preferences_persist_together(self, preferences_client, temp_preferences_file):
+        """Setting multiple preferences - all should persist"""
+        # Set multiple preferences
+        preferences_to_set = [
+            ('default_capture_preset', 'preset1'),
+            ('default_preview_preset', 'preset2'),
+            ('default_liveview_preset', 'preset3')
+        ]
+
+        for key, value in preferences_to_set:
+            response = preferences_client.post('/api/preferences', json={
+                'key': key,
+                'value': value
+            })
+            assert response.status_code == 200
+
+        # Get all preferences
+        response = preferences_client.get('/api/preferences')
+        assert response.status_code == 200
+        data = response.get_json()
+
+        # Verify all three are present
+        assert data['default_capture_preset'] == 'preset1'
+        assert data['default_preview_preset'] == 'preset2'
+        assert data['default_liveview_preset'] == 'preset3'
+
+        # Verify file has all three
+        import json
+        with open(temp_preferences_file, 'r') as f:
+            file_data = json.load(f)
+        assert file_data['default_capture_preset'] == 'preset1'
+        assert file_data['default_preview_preset'] == 'preset2'
+        assert file_data['default_liveview_preset'] == 'preset3'
+
+    def test_preferences_survive_manager_recreation(self, tmp_path, monkeypatch):
+        """Preferences persist across manager recreation (simulating app restart)"""
+        from flask import Flask
+        from routes.preferences import preferences_bp
+        from webui.backend.user_preferences import UserPreferencesManager
+        import json
+
+        # Create temp file
+        prefs_file = tmp_path / "persistence_test.json"
+        prefs_file.write_text(json.dumps({
+            "default_capture_preset": None,
+            "default_preview_preset": None,
+            "default_liveview_preset": None
+        }, indent=2))
+
+        # Create first manager and set preferences
+        manager1 = UserPreferencesManager(prefs_file)
+        manager1.set_preference("default_capture_preset", "persisted_value")
+
+        # Destroy first manager
+        del manager1
+
+        # Create second manager with same file (simulating restart)
+        manager2 = UserPreferencesManager(prefs_file)
+
+        # Preferences should still be there
+        prefs = manager2.get_preferences()
+        assert prefs["default_capture_preset"] == "persisted_value"
+
+    def test_validate_cleans_after_preset_deletion(self, preferences_client, temp_preferences_file):
+        """Validate endpoint cleans up after preset is deleted"""
+        # Set preference referencing a preset
+        response = preferences_client.post('/api/preferences', json={
+            'key': 'default_capture_preset',
+            'value': 'preset_to_be_deleted'
+        })
+        assert response.status_code == 200
+
+        # Mock preset_manager in routes to show preset exists initially
+        from routes import preferences as prefs_module
+        from unittest.mock import Mock
+        original_preset_manager = prefs_module.preset_manager
+
+        # First validation - preset exists
+        mock_mgr = Mock()
+        mock_mgr.list_presets.return_value = [
+            {"name": "preset_to_be_deleted"}
+        ]
+        prefs_module.preset_manager = mock_mgr
+
+        response = preferences_client.post('/api/preferences/validate')
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['cleaned'] is False  # No cleanup needed
+
+        # Now simulate preset deletion
+        mock_mgr.list_presets.return_value = []  # Preset deleted
+
+        # Second validation - preset missing
+        response = preferences_client.post('/api/preferences/validate')
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['cleaned'] is True  # Cleanup performed
+        assert len(data['removed_references']) == 1
+        assert data['removed_references'][0] == {'key': 'default_capture_preset', 'invalid_value': 'preset_to_be_deleted'}
+
+        # Verify preference was set to None
+        response = preferences_client.get('/api/preferences')
+        data = response.get_json()
+        assert data['default_capture_preset'] is None
+
+        # Restore original preset manager
+        prefs_module.preset_manager = original_preset_manager
+
+    def test_file_persistence_with_special_characters(self, preferences_client, temp_preferences_file):
+        """Preferences with special characters persist correctly to file"""
+        import json
+
+        # Set preference with special characters
+        special_value = 'preset_with_emoji_🦋_and_quotes_"test"'
+        response = preferences_client.post('/api/preferences', json={
+            'key': 'default_capture_preset',
+            'value': special_value
+        })
+        assert response.status_code == 200
+
+        # Verify retrieved correctly via API
+        response = preferences_client.get('/api/preferences')
+        data = response.get_json()
+        assert data['default_capture_preset'] == special_value
+
+        # Verify file is valid JSON and contains correct value
+        with open(temp_preferences_file, 'r') as f:
+            file_data = json.load(f)
+        assert file_data['default_capture_preset'] == special_value
