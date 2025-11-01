@@ -1799,10 +1799,13 @@ def mock_opencv(monkeypatch):
 
     # Constants
     mock_cv2.COLOR_RGB2GRAY = 6
+    mock_cv2.COLOR_BGR2GRAY = 6  # Same conversion in this mock
     mock_cv2.CV_64F = 6
     mock_cv2.CV_8U = 0
     mock_cv2.MORPH_DILATE = 1
     mock_cv2.MORPH_RECT = 0
+    mock_cv2.MORPH_ELLIPSE = 2
+    mock_cv2.MORPH_CLOSE = 3
 
     # Inject into sys.modules
     import sys
@@ -2000,6 +2003,7 @@ def mock_picamera2_for_streamer():
             self.controls = {}
             self.current_controls = {}  # Track current control state
             self.control_history = []  # Track all set_controls calls
+            self.config = None  # Initialized by configure()
             self.sensor_modes = [
                 {'size': (1920, 1080)},
                 {'size': (2304, 1736)},
@@ -2029,7 +2033,33 @@ def mock_picamera2_for_streamer():
             else:
                 return 'stopped'
 
+        @property
+        def camera_controls(self):
+            """Available camera controls"""
+            return {
+                'AfMode': (0, 2, 2),
+                'AfSpeed': (0, 1, 0),
+                'AfRange': (0, 2, 0),
+                'AfMetering': (0, 1, 0),
+                'AfWindows': [(0, 0, 0, 0)],
+                'Sharpness': (0.0, 16.0, 1.0),
+                'Brightness': (-1.0, 1.0, 0.0),
+                'Contrast': (0.0, 32.0, 1.0),
+                'Saturation': (0.0, 32.0, 1.0),
+                'AwbEnable': (False, True, True),
+                'AwbMode': (0, 7, 0),
+                'AeEnable': (False, True, True),
+                'AeMeteringMode': (0, 3, 0),
+                'ExposureTime': (0, 1000000, 0),
+                'AnalogueGain': (1.0, 16.0, 1.0),
+                'ColourGains': (0.0, 32.0, 0.0),
+                'NoiseReductionMode': (0, 4, 0)
+            }
+
         def create_video_configuration(self, main=None, raw=None, encode=None):
+            # If raw is None, use a default raw size to match real Picamera2 behavior
+            if raw is None:
+                raw = {'size': (2304, 1736)}  # Default 4:3 mode
             return {'main': main, 'raw': raw, 'encode': encode}
 
         def configure(self, config):
