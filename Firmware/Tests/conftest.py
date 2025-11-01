@@ -1721,80 +1721,132 @@ def mock_rpi_gpio(monkeypatch):
 @pytest.fixture
 def mock_opencv(monkeypatch):
     """
-    Mock OpenCV (cv2) for focus peaking tests
+    Mock OpenCV (cv2) for focus peaking algorithm tests.
 
-    Simulates edge detection algorithms with realistic numpy array returns.
-    All methods return arrays with correct shapes and dtypes.
+    Provides realistic numpy-based implementations of OpenCV functions
+    used in focus peaking, using scipy convolution for accurate edge detection.
+    Automatically injected into sys.modules for seamless 'import cv2' usage.
+
+    All methods return arrays with correct shapes and dtypes matching real OpenCV.
 
     Usage:
         def test_focus_peaking(camera_streamer_func, mock_opencv):
-            # OpenCV methods are mocked, return realistic arrays
-            # Test focus peaking without OpenCV dependency
+            # OpenCV is automatically available via 'import cv2'
+            # Or use mock_opencv directly for assertions
+            result = streamer._apply_focus_peaking_laplacian(frame)
+
+    Related: Issue #78 - Focus peaking algorithm testing
     """
     import numpy as np
     from unittest.mock import MagicMock
 
     mock_cv2 = MagicMock()
 
-    # cvtColor: RGB → Grayscale
+    # cvtColor: RGB ↔ Grayscale conversion
     def mock_cvtColor(frame, code):
-        """Convert to grayscale (average across channels)"""
-        if len(frame.shape) == 3:
-            return np.mean(frame, axis=2).astype(np.uint8)
+        """Convert between color spaces using luminosity method"""
+        if code in (6,):  # COLOR_RGB2GRAY, COLOR_BGR2GRAY
+            if len(frame.shape) == 3:
+                # Luminosity method (more realistic than simple averaging)
+                return np.dot(frame[...,:3], [0.299, 0.587, 0.114]).astype(np.uint8)
+            return frame
+        elif code in (8,):  # COLOR_GRAY2RGB, COLOR_GRAY2BGR
+            if len(frame.shape) == 2:
+                return np.stack([frame, frame, frame], axis=2)
+            return frame
         return frame
     mock_cv2.cvtColor = mock_cvtColor
 
-    # Laplacian: Edge detection (variance-based)
+    # Laplacian: Edge detection using convolution
     def mock_Laplacian(src, ddepth, ksize=1):
-        """Simulate Laplacian edge detection"""
-        h, w = src.shape[:2]
-        # Create edges with float64 dtype (CV_64F)
-        edges = np.zeros((h, w), dtype=np.float64)
-        # Add VERY strong edges to ensure visibility after blending
-        # Use 255.0 to guarantee edges pass any reasonable threshold
-        edges[h//4:3*h//4, w//4:3*w//4] = 255.0  # Maximum edge strength
-        return edges
+        """Laplacian edge detection with scipy convolution"""
+        from scipy.ndimage import convolve
+
+        # Standard Laplacian kernel
+        kernel = np.array([[0, 1, 0],
+                          [1, -4, 1],
+                          [0, 1, 0]])
+
+        # Apply convolution
+        result = convolve(src.astype(float), kernel, mode='reflect')
+
+        # Return absolute value as uint8
+        return np.abs(result).astype(np.uint8)
     mock_cv2.Laplacian = mock_Laplacian
 
-    # Sobel: Directional edge detection
+    # Sobel: Directional edge detection with convolution
     def mock_Sobel(src, ddepth, dx, dy, ksize=3):
-        """Simulate Sobel edge detection"""
-        h, w = src.shape[:2]
-        edges = np.random.rand(h, w) * 40
-        # Directional edges
-        if dx > 0:  # Horizontal edges
-            edges[:, w//2:] = 150
-        if dy > 0:  # Vertical edges
-            edges[h//2:, :] = 150
-        return edges.astype(np.uint8)
+        """Sobel edge detection with proper gradient kernels"""
+        from scipy.ndimage import convolve
+
+        if dx == 1 and dy == 0:
+            # Horizontal gradient (Sobel X)
+            kernel = np.array([[-1, 0, 1],
+                              [-2, 0, 2],
+                              [-1, 0, 1]])
+        elif dx == 0 and dy == 1:
+            # Vertical gradient (Sobel Y)
+            kernel = np.array([[-1, -2, -1],
+                              [0, 0, 0],
+                              [1, 2, 1]])
+        else:
+            return np.zeros_like(src, dtype=np.int16)
+
+        result = convolve(src.astype(float), kernel, mode='reflect')
+        return result.astype(np.int16)  # Sobel returns signed int16
     mock_cv2.Sobel = mock_Sobel
 
     # Canny: Two-threshold edge detection
     def mock_Canny(image, threshold1, threshold2):
-        """Simulate Canny edge detection"""
-        h, w = image.shape[:2]
-        edges = np.zeros((h, w), dtype=np.uint8)
-        # Binary edges (0 or 255)
-        edges[h//4:3*h//4, w//4:3*w//4] = 255
+        """Canny edge detection using gradient magnitude"""
+        from scipy.ndimage import convolve
+
+        # Sobel kernels for gradient computation
+        kernel_x = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+        kernel_y = np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]])
+
+        grad_x = convolve(image.astype(float), kernel_x, mode='reflect')
+        grad_y = convolve(image.astype(float), kernel_y, mode='reflect')
+
+        # Gradient magnitude
+        magnitude = np.sqrt(grad_x**2 + grad_y**2)
+
+        # Apply high threshold (simplified - no hysteresis)
+        edges = np.zeros_like(image, dtype=np.uint8)
+        edges[magnitude > threshold2] = 255
+
         return edges
     mock_cv2.Canny = mock_Canny
 
-    # getStructuringElement: For morphology
+    # getStructuringElement: Morphological kernels
     def mock_getStructuringElement(shape, ksize):
-        """Return structuring element for morphology"""
-        return np.ones(ksize, dtype=np.uint8)
+        """Create morphological structuring element"""
+        h, w = ksize
+        if shape == 2:  # MORPH_ELLIPSE
+            # Create elliptical kernel
+            y, x = np.ogrid[-h//2:h//2+1, -w//2:w//2+1]
+            kernel = ((x**2 / (w/2)**2) + (y**2 / (h/2)**2)) <= 1
+            return kernel.astype(np.uint8)
+        else:
+            # Rectangular kernel
+            return np.ones(ksize, dtype=np.uint8)
     mock_cv2.getStructuringElement = mock_getStructuringElement
 
     # morphologyEx: Morphological operations
     def mock_morphologyEx(src, op, kernel):
-        """Dilate edges slightly"""
-        return src  # Just return input for simplicity
+        """Morphological operations (closing)"""
+        if op == 3:  # MORPH_CLOSE
+            from scipy.ndimage import binary_dilation, binary_erosion
+            dilated = binary_dilation(src > 0, structure=kernel)
+            closed = binary_erosion(dilated, structure=kernel)
+            return (closed * 255).astype(np.uint8)
+        return src
     mock_cv2.morphologyEx = mock_morphologyEx
 
     # addWeighted: Blend overlay with frame
     def mock_addWeighted(src1, alpha, src2, beta, gamma):
-        """Blend two images"""
-        # Ensure proper blending with type preservation
+        """Weighted blend of two images"""
+        # Ensure proper type handling and clipping
         result = (src1.astype(np.float32) * alpha + src2.astype(np.float32) * beta + gamma)
         result = np.clip(result, 0, 255).astype(np.uint8)
         return result
@@ -1802,7 +1854,9 @@ def mock_opencv(monkeypatch):
 
     # Constants
     mock_cv2.COLOR_RGB2GRAY = 6
-    mock_cv2.COLOR_BGR2GRAY = 6  # Same conversion in this mock
+    mock_cv2.COLOR_BGR2GRAY = 6  # Same as RGB in picamera2
+    mock_cv2.COLOR_GRAY2RGB = 8
+    mock_cv2.COLOR_GRAY2BGR = 8
     mock_cv2.CV_64F = 6
     mock_cv2.CV_8U = 0
     mock_cv2.MORPH_DILATE = 1
@@ -1810,7 +1864,7 @@ def mock_opencv(monkeypatch):
     mock_cv2.MORPH_ELLIPSE = 2
     mock_cv2.MORPH_CLOSE = 3
 
-    # Inject into sys.modules
+    # Inject into sys.modules for automatic availability
     import sys
     monkeypatch.setitem(sys.modules, 'cv2', mock_cv2)
 
@@ -2253,139 +2307,6 @@ def pytest_runtest_teardown(item, nextitem):
     # Multiple collections handle circular references in camera objects
     gc.collect()
     gc.collect()
-
-
-@pytest.fixture
-def mock_opencv():
-    """
-    Mock OpenCV (cv2) for focus peaking algorithm tests.
-
-    Provides realistic numpy-based implementations of OpenCV functions
-    used in focus peaking without requiring actual cv2 installation.
-
-    Usage:
-        def test_focus_peaking(camera_streamer_func, mock_opencv):
-            with patch('liveview_stream.CV2_AVAILABLE', True):
-                with patch('liveview_stream.cv2', mock_opencv):
-                    result = streamer._apply_focus_peaking_laplacian(frame)
-
-    Related: Issue #78 - Focus peaking algorithm testing
-    """
-    import numpy as np
-
-    class MockCV2:
-        """Mock cv2 module with focus peaking operations"""
-
-        # Color conversion constants
-        COLOR_RGB2GRAY = 6
-        COLOR_BGR2GRAY = 6  # Same as RGB2GRAY (picamera2 BGR888 is actually RGB)
-        COLOR_GRAY2RGB = 8
-        COLOR_GRAY2BGR = 8  # Same as GRAY2RGB
-
-        # Morphology constants
-        MORPH_ELLIPSE = 2
-        MORPH_CLOSE = 3
-
-        # Data type constants
-        CV_64F = 6  # 64-bit float
-
-        def cvtColor(self, src, code):
-            """Convert between color spaces"""
-            if code in (self.COLOR_RGB2GRAY, self.COLOR_BGR2GRAY):
-                # RGB/BGR to grayscale: luminosity method
-                if len(src.shape) == 3:
-                    return np.dot(src[...,:3], [0.299, 0.587, 0.114]).astype(np.uint8)
-                return src
-            elif code in (self.COLOR_GRAY2RGB, self.COLOR_GRAY2BGR):
-                # Grayscale to RGB/BGR: replicate across channels
-                if len(src.shape) == 2:
-                    return np.stack([src, src, src], axis=2)
-                return src
-            return src
-
-        def Laplacian(self, src, ddepth, ksize=1):
-            """Laplacian edge detection (simplified)"""
-            # Simple edge detection using gradient approximation
-            kernel = np.array([[0, 1, 0],
-                             [1, -4, 1],
-                             [0, 1, 0]])
-
-            # Apply convolution (simplified - edge modes not perfect)
-            from scipy.ndimage import convolve
-            result = convolve(src.astype(float), kernel, mode='reflect')
-
-            # Take absolute value and convert to uint8
-            result = np.abs(result).astype(np.uint8)
-            return result
-
-        def Sobel(self, src, ddepth, dx, dy, ksize=3):
-            """Sobel edge detection"""
-            if dx == 1 and dy == 0:
-                # Horizontal gradient
-                kernel = np.array([[-1, 0, 1],
-                                 [-2, 0, 2],
-                                 [-1, 0, 1]])
-            elif dx == 0 and dy == 1:
-                # Vertical gradient
-                kernel = np.array([[-1, -2, -1],
-                                 [0, 0, 0],
-                                 [1, 2, 1]])
-            else:
-                return np.zeros_like(src)
-
-            from scipy.ndimage import convolve
-            result = convolve(src.astype(float), kernel, mode='reflect')
-            return result.astype(np.int16)  # Sobel returns signed
-
-        def Canny(self, image, threshold1, threshold2):
-            """Canny edge detection (simplified)"""
-            # Simplified: Use gradient magnitude threshold
-            from scipy.ndimage import convolve
-
-            # Sobel in both directions
-            kernel_x = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
-            kernel_y = np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]])
-
-            grad_x = convolve(image.astype(float), kernel_x, mode='reflect')
-            grad_y = convolve(image.astype(float), kernel_y, mode='reflect')
-
-            # Gradient magnitude
-            magnitude = np.sqrt(grad_x**2 + grad_y**2)
-
-            # Dual threshold
-            edges = np.zeros_like(image, dtype=np.uint8)
-            edges[magnitude > threshold2] = 255
-
-            return edges
-
-        def addWeighted(self, src1, alpha, src2, beta, gamma):
-            """Weighted blend of two images"""
-            result = (src1 * alpha + src2 * beta + gamma).astype(np.uint8)
-            return np.clip(result, 0, 255)
-
-        def getStructuringElement(self, shape, ksize):
-            """Create morphological structuring element"""
-            h, w = ksize
-            if shape == self.MORPH_ELLIPSE:
-                # Create elliptical kernel
-                y, x = np.ogrid[-h//2:h//2+1, -w//2:w//2+1]
-                kernel = ((x**2 / (w/2)**2) + (y**2 / (h/2)**2)) <= 1
-                return kernel.astype(np.uint8)
-            else:
-                # Rectangular kernel
-                return np.ones(ksize, dtype=np.uint8)
-
-        def morphologyEx(self, src, op, kernel):
-            """Morphological operations"""
-            if op == self.MORPH_CLOSE:
-                # Closing: dilation followed by erosion
-                from scipy.ndimage import binary_dilation, binary_erosion
-                dilated = binary_dilation(src > 0, structure=kernel)
-                closed = binary_erosion(dilated, structure=kernel)
-                return (closed * 255).astype(np.uint8)
-            return src
-
-    return MockCV2()
 
 
 @pytest.fixture
