@@ -271,3 +271,98 @@ class TestTakePhotoScriptResolution:
         expected_path = mothbox_home / "5.x" / "TakePhoto.py"
         assert str(expected_path) in error_msg, "Error should include expected path"
         print(f"   ✓ Error message includes path: {expected_path}")
+
+
+class TestExceptionHandlers:
+    """
+    Unit tests for exception handling in mothbox_paths.py.
+
+    Lines tested:
+    - 183-185: Exception handler in get_firmware_version()
+    - 262: Invalid GPIO mode validation in _validate_gpio_pin()
+    - 440-444: Exception handler in get_hardware_config()
+    """
+
+    def test_get_firmware_version_handles_exception(self, tmp_path, monkeypatch, capfd):
+        """Test that get_firmware_version handles exceptions and prints warning"""
+        # Lines tested: 183-185
+        import mothbox_paths
+        from unittest.mock import Mock, patch
+
+        # Mock get_control_values to raise an exception
+        def mock_get_control_values(filename):
+            raise RuntimeError("Unexpected error reading file")
+
+        monkeypatch.setattr(mothbox_paths, 'get_control_values', mock_get_control_values)
+
+        # Call function - should not raise exception
+        from mothbox_paths import get_firmware_version
+        version = get_firmware_version()
+
+        # Should fallback to "5"
+        assert version == "5", "Should fallback to '5' on exception"
+
+        # Verify warning was printed to stderr
+        captured = capfd.readouterr()
+        assert "Warning: Could not detect firmware version" in captured.err
+        assert "Defaulting to 5.x" in captured.err
+        assert "Unexpected error reading file" in captured.err
+        print("✓ Exception in get_firmware_version() handled with warning and fallback")
+
+    def test_validate_gpio_pin_invalid_mode(self):
+        """Test that _validate_gpio_pin raises ValueError for invalid mode"""
+        # Lines tested: 262
+        from mothbox_paths import _validate_gpio_pin
+
+        # Test with invalid mode
+        with pytest.raises(ValueError) as exc_info:
+            _validate_gpio_pin(10, 'test_pin', mode='INVALID')
+
+        error_msg = str(exc_info.value)
+        assert "Invalid GPIO mode" in error_msg
+        assert "INVALID" in error_msg
+        assert "Must be 'BCM' or 'BOARD'" in error_msg
+        print("✓ Invalid GPIO mode raises ValueError with helpful message")
+
+    def test_get_hardware_config_exception_fallback(self, tmp_path, monkeypatch, capfd):
+        """Test that get_hardware_config handles exceptions with defaults"""
+        # Lines tested: 440-444
+        import mothbox_paths
+        from unittest.mock import Mock, patch
+
+        # Mock get_control_values to raise an exception
+        def mock_get_control_values(filename):
+            raise KeyError("Missing configuration key")
+
+        monkeypatch.setattr(mothbox_paths, 'get_control_values', mock_get_control_values)
+
+        # Call function - should not raise exception
+        from mothbox_paths import get_hardware_config
+        hw_config = get_hardware_config()
+
+        # Should return defaults
+        assert hw_config is not None
+        assert isinstance(hw_config, dict)
+
+        # Verify default values (lines 444-477)
+        assert hw_config['relay_enabled'] is True  # Relays enabled by default
+        assert hw_config['ina260_enabled'] is False  # All other modules disabled
+        assert hw_config['ina260_address'] == 0x40
+        assert hw_config['epaper_enabled'] is False
+        assert hw_config['epaper_rst_pin'] == 17
+        assert hw_config['gps_enabled'] is False
+        assert hw_config['gps_timeout'] == 60
+        assert hw_config['gps_timeout_hot'] == 15
+        assert hw_config['gps_timeout_warm'] == 60
+        assert hw_config['gps_timeout_cold'] == 90
+        assert hw_config['gps_timeout_almanac'] == 1200
+        assert hw_config['light_sensor_enabled'] is False
+        assert hw_config['pca9536_enabled'] is False
+        assert hw_config['mux_enabled'] is False
+
+        # Verify warning was printed to stderr
+        captured = capfd.readouterr()
+        assert "Warning: Could not load hardware configuration" in captured.err
+        assert "Using defaults" in captured.err
+        assert "Missing configuration key" in captured.err
+        print("✓ Exception in get_hardware_config() handled with warning and default values")
