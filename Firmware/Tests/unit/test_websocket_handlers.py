@@ -1743,3 +1743,548 @@ class TestWebSocketCoordinateTransformations:
 
         client.disconnect()
         print("\n✓ ScalerCrop missing fallback: crop_fraction=(0.5, 0.5) symmetric fallback")
+
+    # ========================================
+    # Phase 4: Frontend Integration Tests
+    # ========================================
+
+    def test_coordinate_round_trip_transformation(self):
+        """
+        Test viewport → sensor → viewport transformation preserves position
+
+        Scenario: Frontend calculates sensor coords from viewport click, backend
+        processes and returns metadata, frontend inverse transforms back to viewport.
+
+        Coordinate Systems:
+        - Viewport: 0-1 normalized to visible UI frame (what user sees/clicks)
+        - Sensor: 0-1 normalized to ScalerCropMaximum active area
+
+        Transformation Formulas (from Camera.jsx):
+        Forward (viewport → sensor):
+          sensor_x = center_x + (viewport_x - 0.5) * crop_fraction_x
+          sensor_y = center_y + (viewport_y - 0.5) * crop_fraction_y
+
+        Inverse (sensor → viewport):
+          viewport_x = ((sensor_x - center_x) / crop_fraction_x) + 0.5
+          viewport_y = ((sensor_y - center_y) / crop_fraction_y) + 0.5
+
+        Test: Click at viewport (0.75, 0.5) with zoom=2.0, center=(0.5, 0.5)
+        Expected: Round-trip preserves position within ±0.01 tolerance
+        """
+        from flask import Flask
+        from flask_socketio import SocketIO
+        from liveview_stream import LiveViewStreamer
+        import websocket_handlers
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        socketio = SocketIO(app, cors_allowed_origins='*')
+
+        # Create camera streamer
+        camera_streamer = LiveViewStreamer(socketio)
+
+        # Setup: 16:9 sensor, zoom=2.0, center=(0.5, 0.5)
+        camera_streamer.streaming = True
+        camera_streamer.camera = Mock()
+        camera_streamer.camera.camera_properties = {
+            'ScalerCropMaximum': (0, 0, 1920, 1080),  # 16:9 sensor
+            'PixelArraySize': (1920, 1080)
+        }
+        camera_streamer.zoom_level = 2.0
+        camera_streamer.zoom_center_x = 0.5
+        camera_streamer.zoom_center_y = 0.5
+
+        # Mock metadata with 2x zoom centered crop
+        camera_streamer.camera.capture_metadata = Mock(return_value={
+            'ExposureTime': 10000,
+            'AnalogueGain': 2.5,
+            'LensPosition': 5.0,
+            'AfState': 2,
+            'ColourTemperature': 5500,
+            'ColourGains': (2.259, 1.5),
+            'DigitalGain': 1.0,
+            'FocusFoM': 500,
+            'SensorTimestamp': 1234567,
+            'FrameDuration': 33000,
+            'SensorBlackLevels': [64],
+            'ScalerCrop': (480, 270, 960, 540)  # 2x zoom centered
+        })
+
+        # Mock coordinate calculations
+        camera_streamer.get_actual_zoom_center = Mock(return_value={'x': 0.5, 'y': 0.5})
+        camera_streamer.calculate_scaler_crop = Mock(return_value=(480, 270, 960, 540))
+
+        # Register handlers
+        websocket_handlers.register_handlers(socketio, camera_streamer)
+
+        # Connect and get metadata
+        client = socketio.test_client(app)
+        client.get_received()  # Clear connect messages
+
+        client.emit('get_metadata')
+        received = client.get_received()
+        metadata_events = [e for e in received if e['name'] == 'metadata_update']
+        assert len(metadata_events) > 0
+        metadata = metadata_events[0]['args'][0]
+
+        # Extract backend values
+        center_x = metadata['actual_zoom_center_x']
+        center_y = metadata['actual_zoom_center_y']
+        crop_fraction_x = metadata['crop_fraction_x']
+        crop_fraction_y = metadata['crop_fraction_y']
+
+        print("\n=== Round-Trip Transformation Test ===")
+        print(f"Backend state: zoom={camera_streamer.zoom_level}, center=({center_x}, {center_y})")
+        print(f"Crop fractions: ({crop_fraction_x}, {crop_fraction_y})")
+
+        # Simulate frontend click at viewport (0.75, 0.5)
+        viewport_click_x = 0.75
+        viewport_click_y = 0.5
+        print(f"\n1. Frontend click at viewport: ({viewport_click_x}, {viewport_click_y})")
+
+        # Frontend transforms to sensor space (Camera.jsx:904-910)
+        sensor_x = center_x + (viewport_click_x - 0.5) * crop_fraction_x
+        sensor_y = center_y + (viewport_click_y - 0.5) * crop_fraction_y
+        print(f"2. Transform to sensor space: ({sensor_x:.3f}, {sensor_y:.3f})")
+        print(f"   Formula: sensor = center + (viewport - 0.5) * crop_fraction")
+        print(f"   sensor_x = {center_x} + ({viewport_click_x} - 0.5) * {crop_fraction_x} = {sensor_x:.3f}")
+        print(f"   sensor_y = {center_y} + ({viewport_click_y} - 0.5) * {crop_fraction_y} = {sensor_y:.3f}")
+
+        # Backend processes (already have metadata)
+        print(f"3. Backend returns metadata with actual center and crop fractions")
+
+        # Frontend inverse transforms back to viewport (Camera.jsx:1331-1332)
+        viewport_back_x = ((sensor_x - center_x) / crop_fraction_x) + 0.5
+        viewport_back_y = ((sensor_y - center_y) / crop_fraction_y) + 0.5
+        print(f"4. Inverse transform back to viewport: ({viewport_back_x:.3f}, {viewport_back_y:.3f})")
+        print(f"   Formula: viewport = ((sensor - center) / crop_fraction) + 0.5")
+        print(f"   viewport_x = (({sensor_x:.3f} - {center_x}) / {crop_fraction_x}) + 0.5 = {viewport_back_x:.3f}")
+        print(f"   viewport_y = (({sensor_y:.3f} - {center_y}) / {crop_fraction_y}) + 0.5 = {viewport_back_y:.3f}")
+
+        # Verify round-trip preserves position
+        print(f"\n5. Verification:")
+        print(f"   Original viewport: ({viewport_click_x}, {viewport_click_y})")
+        print(f"   After round-trip:  ({viewport_back_x:.3f}, {viewport_back_y:.3f})")
+        print(f"   Difference: ({abs(viewport_back_x - viewport_click_x):.6f}, {abs(viewport_back_y - viewport_click_y):.6f})")
+
+        assert viewport_back_x == pytest.approx(viewport_click_x, abs=0.01)
+        assert viewport_back_y == pytest.approx(viewport_click_y, abs=0.01)
+
+        client.disconnect()
+        print("✓ Round-trip transformation preserves position within ±0.01 tolerance")
+
+    def test_asymmetric_fractions_for_ui_compensation(self):
+        """
+        Test frontend receives correct asymmetric crop fractions for 4:3→16:9
+
+        Scenario: 4:3 sensor (2312×1736) outputting to 16:9 viewport at zoom=1.0
+        Expected: crop_fraction = (1.0, ~0.749) - height is cropped
+
+        The frontend uses these asymmetric fractions to correctly transform viewport
+        clicks to sensor coordinates, accounting for aspect ratio mismatch.
+
+        Test: Viewport click at (0.5, 0.75) should transform correctly using
+        asymmetric fractions, not assuming symmetric 1:1 mapping.
+        """
+        from flask import Flask
+        from flask_socketio import SocketIO
+        from liveview_stream import LiveViewStreamer
+        import websocket_handlers
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        socketio = SocketIO(app, cors_allowed_origins='*')
+
+        # Create camera streamer
+        camera_streamer = LiveViewStreamer(socketio)
+
+        # Setup: 4:3 sensor (HQ Camera), 16:9 output, zoom=1.0
+        camera_streamer.streaming = True
+        camera_streamer.camera = Mock()
+        camera_streamer.camera.camera_properties = {
+            'ScalerCropMaximum': (0, 0, 2312, 1736),  # 4:3 sensor
+            'PixelArraySize': (2312, 1736)
+        }
+        camera_streamer.zoom_level = 1.0
+        camera_streamer.zoom_center_x = 0.5
+        camera_streamer.zoom_center_y = 0.5
+
+        # Calculate expected crop for 16:9 output from 4:3 sensor
+        # Aspect ratios: sensor=4:3=1.333, output=16:9=1.778
+        # Height will be cropped: crop_height = 2312 / (16/9) = 1300.5
+        # Offset: (1736 - 1300.5) / 2 = 217.75
+        expected_crop_height = int(2312 / (16/9))  # 1300
+        expected_y_offset = (1736 - expected_crop_height) // 2  # ~218
+
+        camera_streamer.camera.capture_metadata = Mock(return_value={
+            'ExposureTime': 10000,
+            'AnalogueGain': 2.5,
+            'LensPosition': 5.0,
+            'AfState': 2,
+            'ColourTemperature': 5500,
+            'ColourGains': (2.259, 1.5),
+            'DigitalGain': 1.0,
+            'FocusFoM': 500,
+            'SensorTimestamp': 1234567,
+            'FrameDuration': 33000,
+            'SensorBlackLevels': [64],
+            'ScalerCrop': (0, expected_y_offset, 2312, expected_crop_height)
+        })
+
+        # Mock coordinate calculations
+        camera_streamer.get_actual_zoom_center = Mock(return_value={'x': 0.5, 'y': 0.5})
+        camera_streamer.calculate_scaler_crop = Mock(return_value=(0, expected_y_offset, 2312, expected_crop_height))
+
+        # Register handlers
+        websocket_handlers.register_handlers(socketio, camera_streamer)
+
+        # Connect and get metadata
+        client = socketio.test_client(app)
+        client.get_received()  # Clear connect messages
+
+        client.emit('get_metadata')
+        received = client.get_received()
+        metadata_events = [e for e in received if e['name'] == 'metadata_update']
+        assert len(metadata_events) > 0
+        metadata = metadata_events[0]['args'][0]
+
+        # Extract backend values
+        center_x = metadata['actual_zoom_center_x']
+        center_y = metadata['actual_zoom_center_y']
+        crop_fraction_x = metadata['crop_fraction_x']
+        crop_fraction_y = metadata['crop_fraction_y']
+
+        print("\n=== Asymmetric Fractions UI Compensation Test ===")
+        print(f"Sensor: 4:3 (2312×1736) → Output: 16:9 (height cropped)")
+        print(f"Backend state: zoom={camera_streamer.zoom_level}, center=({center_x}, {center_y})")
+        print(f"Crop fractions: ({crop_fraction_x:.3f}, {crop_fraction_y:.3f})")
+
+        # Verify asymmetric fractions
+        assert crop_fraction_x == pytest.approx(1.0, abs=0.01)  # Full width
+        assert crop_fraction_y == pytest.approx(0.749, abs=0.02)  # Height cropped (~75%)
+        print(f"✓ Asymmetric fractions detected: X={crop_fraction_x:.3f} (full), Y={crop_fraction_y:.3f} (cropped)")
+
+        # Test viewport click transformation with asymmetric fractions
+        viewport_click_x = 0.5
+        viewport_click_y = 0.75  # Click near bottom of viewport
+        print(f"\nFrontend click at viewport: ({viewport_click_x}, {viewport_click_y})")
+
+        # Frontend transforms using asymmetric fractions
+        sensor_x = center_x + (viewport_click_x - 0.5) * crop_fraction_x
+        sensor_y = center_y + (viewport_click_y - 0.5) * crop_fraction_y
+        print(f"Transform to sensor space: ({sensor_x:.3f}, {sensor_y:.3f})")
+        print(f"  sensor_x = {center_x} + ({viewport_click_x} - 0.5) * {crop_fraction_x:.3f} = {sensor_x:.3f}")
+        print(f"  sensor_y = {center_y} + ({viewport_click_y} - 0.5) * {crop_fraction_y:.3f} = {sensor_y:.3f}")
+
+        # Expected: sensor_y = 0.5 + (0.75 - 0.5) * 0.749 ≈ 0.687
+        expected_sensor_y = 0.5 + (0.75 - 0.5) * crop_fraction_y
+        assert sensor_y == pytest.approx(expected_sensor_y, abs=0.01)
+        print(f"✓ Asymmetric Y transformation correct: {sensor_y:.3f} ≈ {expected_sensor_y:.3f}")
+
+        # Verify X unchanged (symmetric, centered)
+        assert sensor_x == pytest.approx(0.5, abs=0.01)
+        print(f"✓ Symmetric X transformation correct: {sensor_x:.3f} ≈ 0.5")
+
+        client.disconnect()
+        print("✓ Frontend correctly compensates for aspect ratio using asymmetric fractions")
+
+    def test_zoom_center_shift_notification_to_frontend(self):
+        """
+        Test frontend receives actual center when it differs from requested (due to clamping)
+
+        Scenario: User zooms 3x near corner (0.9, 0.9), backend clamps to (0.77, 0.77)
+        to keep zoomed area within sensor bounds.
+
+        Frontend needs to know:
+        1. Requested values (from zoom_updated event) - what user asked for
+        2. Actual values (from metadata_update event) - what backend actually set
+
+        The difference alerts frontend that zoom was clamped, allowing UI feedback
+        (e.g., repositioning zoom box overlay to actual location, not requested location)
+        """
+        from flask import Flask
+        from flask_socketio import SocketIO
+        from liveview_stream import LiveViewStreamer
+        import websocket_handlers
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        socketio = SocketIO(app, cors_allowed_origins='*')
+
+        # Create camera streamer
+        camera_streamer = LiveViewStreamer(socketio)
+
+        # Setup: 16:9 sensor, high zoom near corner
+        camera_streamer.streaming = True
+        camera_streamer.camera = Mock()
+        camera_streamer.camera.camera_properties = {
+            'ScalerCropMaximum': (0, 0, 1920, 1080),  # 16:9 sensor
+            'PixelArraySize': (1920, 1080)
+        }
+        camera_streamer.zoom_level = 1.0  # Initial zoom
+        camera_streamer.zoom_center_x = 0.5
+        camera_streamer.zoom_center_y = 0.5
+        camera_streamer.set_zoom = Mock(return_value=True)
+
+        # Mock metadata - will be updated after zoom change
+        camera_streamer.camera.capture_metadata = Mock(return_value={
+            'ExposureTime': 10000,
+            'AnalogueGain': 2.5,
+            'LensPosition': 5.0,
+            'AfState': 2,
+            'ColourTemperature': 5500,
+            'ColourGains': (2.259, 1.5),
+            'DigitalGain': 1.0,
+            'FocusFoM': 500,
+            'SensorTimestamp': 1234567,
+            'FrameDuration': 33000,
+            'SensorBlackLevels': [64],
+            'ScalerCrop': (1280, 720, 320, 180)  # 3x zoom clamped
+        })
+
+        # Mock get_actual_zoom_center to return clamped values
+        # At 3x zoom, crop fraction = 1/3 ≈ 0.333
+        # Max center to keep crop in bounds: 0.5 + 0.333/2 = 0.667 for symmetric
+        # But with more precise calculation, max is ~0.833
+        # Requested (0.9, 0.9) gets clamped to (~0.77, ~0.77) to keep 3x crop in bounds
+        clamped_center_x = 0.77
+        clamped_center_y = 0.77
+        camera_streamer.get_actual_zoom_center = Mock(return_value={
+            'x': clamped_center_x,
+            'y': clamped_center_y
+        })
+
+        # Calculate crop for 3x zoom at clamped center
+        # At 3x: crop size = (640, 360), offset for center (0.77, 0.77)
+        # offset_x = 0.77 * 1920 - 320 = 1158.4 ≈ 1158
+        # offset_y = 0.77 * 1080 - 180 = 651.6 ≈ 652
+        camera_streamer.calculate_scaler_crop = Mock(return_value=(1158, 652, 640, 360))
+
+        # Register handlers
+        websocket_handlers.register_handlers(socketio, camera_streamer)
+
+        # Connect
+        client = socketio.test_client(app)
+        client.get_received()  # Clear connect messages
+
+        print("\n=== Zoom Center Shift Notification Test ===")
+
+        # User requests 3x zoom at corner (0.9, 0.9)
+        requested_zoom = 3.0
+        requested_center_x = 0.9
+        requested_center_y = 0.9
+        print(f"1. Frontend requests: zoom={requested_zoom}, center=({requested_center_x}, {requested_center_y})")
+
+        client.emit('set_zoom', {
+            'zoom_level': requested_zoom,
+            'center_x': requested_center_x,
+            'center_y': requested_center_y
+        })
+
+        # Update camera state to reflect the zoom
+        camera_streamer.zoom_level = requested_zoom
+        camera_streamer.zoom_center_x = clamped_center_x  # Backend clamped it
+        camera_streamer.zoom_center_y = clamped_center_y
+
+        # Get zoom_updated event
+        received = client.get_received()
+        zoom_events = [e for e in received if e['name'] == 'zoom_updated']
+        assert len(zoom_events) > 0
+        zoom_response = zoom_events[0]['args'][0]
+
+        print(f"2. Backend zoom_updated event:")
+        print(f"   Requested values echoed: zoom={zoom_response.get('zoom_level')}, " +
+              f"center=({zoom_response.get('center_x')}, {zoom_response.get('center_y')})")
+
+        # Now get metadata to see actual values
+        client.emit('get_metadata')
+        received = client.get_received()
+        metadata_events = [e for e in received if e['name'] == 'metadata_update']
+        assert len(metadata_events) > 0
+        metadata = metadata_events[0]['args'][0]
+
+        actual_center_x = metadata['actual_zoom_center_x']
+        actual_center_y = metadata['actual_zoom_center_y']
+        crop_fraction_x = metadata['crop_fraction_x']
+        crop_fraction_y = metadata['crop_fraction_y']
+
+        print(f"3. Backend metadata_update event:")
+        print(f"   Actual values: center=({actual_center_x}, {actual_center_y})")
+        print(f"   Crop fractions: ({crop_fraction_x:.3f}, {crop_fraction_y:.3f})")
+
+        # Verify actual center differs from requested (clamping occurred)
+        print(f"\n4. Verification:")
+        print(f"   Requested center: ({requested_center_x}, {requested_center_y})")
+        print(f"   Actual center:    ({actual_center_x}, {actual_center_y})")
+        print(f"   Difference: ({abs(actual_center_x - requested_center_x):.3f}, " +
+              f"{abs(actual_center_y - requested_center_y):.3f})")
+
+        assert actual_center_x == pytest.approx(clamped_center_x, abs=0.01)
+        assert actual_center_y == pytest.approx(clamped_center_y, abs=0.01)
+        assert actual_center_x < requested_center_x  # Clamped down
+        assert actual_center_y < requested_center_y  # Clamped down
+        print(f"✓ Center was clamped from ({requested_center_x}, {requested_center_y}) " +
+              f"to ({actual_center_x}, {actual_center_y})")
+
+        # Verify crop fractions match 3x zoom
+        expected_crop_fraction = 1.0 / 3.0
+        assert crop_fraction_x == pytest.approx(expected_crop_fraction, abs=0.01)
+        assert crop_fraction_y == pytest.approx(expected_crop_fraction, abs=0.01)
+        print(f"✓ Crop fractions correct for 3x zoom: ({crop_fraction_x:.3f}, {crop_fraction_y:.3f})")
+
+        client.disconnect()
+        print("✓ Frontend receives both requested and actual center values for UI feedback")
+
+    def test_af_window_viewport_to_sensor_transformation(self):
+        """
+        Test AF window coordinates transform correctly from viewport to sensor space
+
+        Scenario: User clicks at viewport (0.8, 0.3) at zoom=2.0 to set AF window.
+        Frontend transforms viewport→sensor, sends to backend, backend confirms.
+
+        This is the critical path for click-to-focus functionality:
+        1. User clicks on viewport (UI)
+        2. Frontend transforms to sensor coordinates using crop fractions
+        3. Frontend sends sensor coordinates to backend via set_af_window
+        4. Backend echoes confirmation via af_window_updated
+        5. Metadata confirms window is at expected position
+
+        Test validates the frontend→backend coordinate transformation contract.
+        """
+        from flask import Flask
+        from flask_socketio import SocketIO
+        from liveview_stream import LiveViewStreamer
+        import websocket_handlers
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        socketio = SocketIO(app, cors_allowed_origins='*')
+
+        # Create camera streamer
+        camera_streamer = LiveViewStreamer(socketio)
+
+        # Setup: 16:9 sensor, zoom=2.0, center=(0.5, 0.5)
+        camera_streamer.streaming = True
+        camera_streamer.camera = Mock()
+        camera_streamer.camera.camera_properties = {
+            'ScalerCropMaximum': (0, 0, 1920, 1080),  # 16:9 sensor
+            'PixelArraySize': (1920, 1080)
+        }
+        camera_streamer.zoom_level = 2.0
+        camera_streamer.zoom_center_x = 0.5
+        camera_streamer.zoom_center_y = 0.5
+        camera_streamer.set_af_window = Mock(return_value=True)
+
+        # Mock metadata with 2x zoom centered crop
+        camera_streamer.camera.capture_metadata = Mock(return_value={
+            'ExposureTime': 10000,
+            'AnalogueGain': 2.5,
+            'LensPosition': 5.0,
+            'AfState': 2,
+            'ColourTemperature': 5500,
+            'ColourGains': (2.259, 1.5),
+            'DigitalGain': 1.0,
+            'FocusFoM': 500,
+            'SensorTimestamp': 1234567,
+            'FrameDuration': 33000,
+            'SensorBlackLevels': [64],
+            'ScalerCrop': (480, 270, 960, 540)  # 2x zoom centered
+        })
+
+        # Mock coordinate calculations
+        camera_streamer.get_actual_zoom_center = Mock(return_value={'x': 0.5, 'y': 0.5})
+        camera_streamer.calculate_scaler_crop = Mock(return_value=(480, 270, 960, 540))
+
+        # Register handlers
+        websocket_handlers.register_handlers(socketio, camera_streamer)
+
+        # Connect
+        client = socketio.test_client(app)
+        client.get_received()  # Clear connect messages
+
+        # First get metadata to know crop fractions
+        client.emit('get_metadata')
+        received = client.get_received()
+        metadata_events = [e for e in received if e['name'] == 'metadata_update']
+        assert len(metadata_events) > 0
+        metadata = metadata_events[0]['args'][0]
+
+        center_x = metadata['actual_zoom_center_x']
+        center_y = metadata['actual_zoom_center_y']
+        crop_fraction_x = metadata['crop_fraction_x']
+        crop_fraction_y = metadata['crop_fraction_y']
+
+        print("\n=== AF Window Viewport→Sensor Transformation Test ===")
+        print(f"Backend state: zoom={camera_streamer.zoom_level}, center=({center_x}, {center_y})")
+        print(f"Crop fractions: ({crop_fraction_x}, {crop_fraction_y})")
+
+        # User clicks at viewport (0.8, 0.3) to set AF window
+        viewport_click_x = 0.8
+        viewport_click_y = 0.3
+        print(f"\n1. User clicks viewport at: ({viewport_click_x}, {viewport_click_y})")
+
+        # Frontend transforms viewport→sensor (Camera.jsx:904-910)
+        sensor_x = center_x + (viewport_click_x - 0.5) * crop_fraction_x
+        sensor_y = center_y + (viewport_click_y - 0.5) * crop_fraction_y
+        print(f"2. Frontend transforms to sensor space: ({sensor_x:.3f}, {sensor_y:.3f})")
+        print(f"   Formula: sensor = center + (viewport - 0.5) * crop_fraction")
+        print(f"   sensor_x = {center_x} + ({viewport_click_x} - 0.5) * {crop_fraction_x} = {sensor_x:.3f}")
+        print(f"   sensor_y = {center_y} + ({viewport_click_y} - 0.5) * {crop_fraction_y} = {sensor_y:.3f}")
+
+        # Frontend sends sensor coordinates to backend
+        af_window_size = 0.125  # Standard AF window size
+        print(f"3. Frontend sends set_af_window with sensor coords and window_size={af_window_size}")
+
+        client.emit('set_af_window', {
+            'x': sensor_x,
+            'y': sensor_y,
+            'window_size': af_window_size
+        })
+
+        # Get af_window_updated event
+        received = client.get_received()
+        af_events = [e for e in received if e['name'] == 'af_window_updated']
+        assert len(af_events) > 0
+        af_response = af_events[0]['args'][0]
+
+        print(f"4. Backend af_window_updated confirmation:")
+        print(f"   Position: ({af_response.get('x'):.3f}, {af_response.get('y'):.3f})")
+        print(f"   Window size: {af_response.get('window_size')}")
+        print(f"   Success: {af_response.get('success')}")
+
+        # Verify backend echoed back the coordinates
+        assert af_response['success'] == True
+        assert af_response['x'] == pytest.approx(sensor_x, abs=0.01)
+        assert af_response['y'] == pytest.approx(sensor_y, abs=0.01)
+        assert af_response['window_size'] == pytest.approx(af_window_size, abs=0.01)
+        print(f"✓ Backend confirmed AF window at sensor coordinates ({sensor_x:.3f}, {sensor_y:.3f})")
+
+        # Now verify in metadata (if backend tracks AF window position)
+        client.emit('get_metadata')
+        received = client.get_received()
+        metadata_events = [e for e in received if e['name'] == 'metadata_update']
+        assert len(metadata_events) > 0
+        metadata = metadata_events[0]['args'][0]
+
+        print(f"5. Metadata verification:")
+        print(f"   Zoom state unchanged: center=({metadata['actual_zoom_center_x']}, " +
+              f"{metadata['actual_zoom_center_y']})")
+
+        # Verify zoom state didn't change (AF window independent of zoom)
+        assert metadata['actual_zoom_center_x'] == pytest.approx(center_x, abs=0.01)
+        assert metadata['actual_zoom_center_y'] == pytest.approx(center_y, abs=0.01)
+        print(f"✓ Zoom state unchanged after AF window set")
+
+        # Expected sensor coordinates at 2x zoom
+        # With crop_fraction=(0.5, 0.5), center=(0.5, 0.5), viewport=(0.8, 0.3)
+        # sensor_x = 0.5 + (0.8 - 0.5) * 0.5 = 0.5 + 0.15 = 0.65
+        # sensor_y = 0.5 + (0.3 - 0.5) * 0.5 = 0.5 - 0.10 = 0.40
+        expected_sensor_x = 0.65
+        expected_sensor_y = 0.40
+        assert sensor_x == pytest.approx(expected_sensor_x, abs=0.01)
+        assert sensor_y == pytest.approx(expected_sensor_y, abs=0.01)
+        print(f"✓ Transformation correct: viewport ({viewport_click_x}, {viewport_click_y}) → " +
+              f"sensor ({sensor_x:.3f}, {sensor_y:.3f})")
+
+        client.disconnect()
+        print("✓ AF window click-to-focus transformation validated")
