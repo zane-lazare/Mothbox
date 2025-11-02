@@ -80,6 +80,221 @@ class TestWebSocketConnectEvent:
             client.disconnect()
 
 
+class TestOriginValidationSecurity:
+    """
+    Test Origin header validation for WebSocket CSRF protection (SECURITY CRITICAL)
+
+    WebSocket CSRF attacks occur when a malicious website establishes a WebSocket
+    connection to a trusted server on behalf of an authenticated user. This is
+    particularly dangerous for Mothbox because:
+    1. WebSockets can control GPIO hardware (relay switches)
+    2. WebSockets can access camera feeds (privacy)
+    3. Origin validation is the PRIMARY defense against these attacks
+
+    Lines covered: 79-98 (handle_connect origin validation logic)
+    """
+
+    def test_connect_rejects_unauthorized_origin_with_cors_configured(self, socketio_app):
+        """Test connection is rejected when Origin not in CORS_ORIGINS list"""
+        from unittest.mock import patch, MagicMock
+
+        socketio, app = socketio_app
+
+        # Mock config.get_config() to return specific CORS origins
+        mock_config = MagicMock()
+        mock_config.CORS_ORIGINS = ['http://localhost:3000', 'http://localhost:5000']
+
+        # Mock request with unauthorized origin
+        mock_request = MagicMock()
+        mock_request.headers.get.side_effect = lambda key, default=None: {
+            'Origin': 'http://evil.com',
+            'Host': 'mothbox.local:5000'
+        }.get(key, default)
+        mock_request.is_secure = False
+        mock_request.remote_addr = '192.168.1.100'
+
+        # Patch both config.get_config and flask.request
+        with patch('config.get_config', return_value=mock_config):
+            with patch('flask.request', mock_request):
+                # Attempt to connect
+                client = socketio.test_client(app, namespace='/')
+
+                # Connection should be rejected (client.is_connected() == False)
+                # When connection is rejected, client is not connected
+                assert not client.is_connected(), "Connection should be rejected from unauthorized origin"
+
+                print("\n✓ Unauthorized origin rejected (CORS configured)")
+
+    def test_connect_allows_authorized_origin(self, socketio_app):
+        """Test connection is allowed when Origin is in CORS_ORIGINS list"""
+        from unittest.mock import patch, MagicMock
+
+        socketio, app = socketio_app
+
+        # Mock config with CORS origins
+        mock_config = MagicMock()
+        mock_config.CORS_ORIGINS = ['http://localhost:3000', 'http://localhost:5000']
+
+        # Mock request with authorized origin
+        mock_request = MagicMock()
+        mock_request.headers.get.side_effect = lambda key, default=None: {
+            'Origin': 'http://localhost:3000',
+            'Host': 'mothbox.local:5000'
+        }.get(key, default)
+        mock_request.is_secure = False
+        mock_request.remote_addr = '127.0.0.1'
+
+        # Patch both config.get_config and flask.request
+        with patch('config.get_config', return_value=mock_config):
+            with patch('flask.request', mock_request):
+                # Attempt to connect
+                client = socketio.test_client(app, namespace='/')
+
+                # Should receive 'connected' event
+                received = client.get_received()
+                connected_events = [e for e in received if e['name'] == 'connected']
+                assert len(connected_events) > 0, "Connection should be allowed from authorized origin"
+                assert connected_events[0]['args'][0]['status'] == 'connected'
+
+                print("\n✓ Authorized origin allowed (CORS configured)")
+
+                client.disconnect()
+
+    def test_connect_allows_wildcard_cors_origins(self, socketio_app):
+        """Test connection is allowed when CORS_ORIGINS is wildcard '*'"""
+        from unittest.mock import patch, MagicMock
+
+        socketio, app = socketio_app
+
+        # Mock config with wildcard CORS
+        mock_config = MagicMock()
+        mock_config.CORS_ORIGINS = '*'
+
+        # Mock request with any origin
+        mock_request = MagicMock()
+        mock_request.headers.get.side_effect = lambda key, default=None: {
+            'Origin': 'http://random-website.com',
+            'Host': 'mothbox.local:5000'
+        }.get(key, default)
+        mock_request.is_secure = False
+        mock_request.remote_addr = '192.168.1.50'
+
+        # Patch both config.get_config and flask.request
+        with patch('config.get_config', return_value=mock_config):
+            with patch('flask.request', mock_request):
+                # Attempt to connect
+                client = socketio.test_client(app, namespace='/')
+
+                # Should receive 'connected' event (wildcard allows all)
+                received = client.get_received()
+                connected_events = [e for e in received if e['name'] == 'connected']
+                assert len(connected_events) > 0, "Wildcard should allow any origin"
+                assert connected_events[0]['args'][0]['status'] == 'connected'
+
+                print("\n✓ Wildcard CORS allows any origin")
+
+                client.disconnect()
+
+    def test_connect_uses_same_origin_policy_when_no_cors_configured(self, socketio_app):
+        """Test same-origin policy is enforced when CORS_ORIGINS is None (production mode)"""
+        from unittest.mock import patch, MagicMock
+
+        socketio, app = socketio_app
+
+        # Mock config with no CORS origins (production mode)
+        mock_config = MagicMock()
+        mock_config.CORS_ORIGINS = None
+
+        # Mock request with same origin
+        mock_request = MagicMock()
+        mock_request.headers.get.side_effect = lambda key, default=None: {
+            'Origin': 'http://mothbox.local:5000',
+            'Host': 'mothbox.local:5000'
+        }.get(key, default)
+        mock_request.is_secure = False
+        mock_request.remote_addr = '127.0.0.1'
+
+        # Patch both config.get_config and flask.request
+        with patch('config.get_config', return_value=mock_config):
+            with patch('flask.request', mock_request):
+                # Attempt to connect
+                client = socketio.test_client(app, namespace='/')
+
+                # Should receive 'connected' event (same origin)
+                received = client.get_received()
+                connected_events = [e for e in received if e['name'] == 'connected']
+                assert len(connected_events) > 0, "Same origin should be allowed in production mode"
+                assert connected_events[0]['args'][0]['status'] == 'connected'
+
+                print("\n✓ Same-origin policy allows matching origin (production mode)")
+
+                client.disconnect()
+
+    def test_connect_rejects_different_origin_in_production(self, socketio_app):
+        """Test different origin is rejected when CORS_ORIGINS is None (production mode)"""
+        from unittest.mock import patch, MagicMock
+
+        socketio, app = socketio_app
+
+        # Mock config with no CORS origins (production mode)
+        mock_config = MagicMock()
+        mock_config.CORS_ORIGINS = None
+
+        # Mock request with different origin
+        mock_request = MagicMock()
+        mock_request.headers.get.side_effect = lambda key, default=None: {
+            'Origin': 'http://evil.com',
+            'Host': 'mothbox.local:5000'
+        }.get(key, default)
+        mock_request.is_secure = False
+        mock_request.remote_addr = '192.168.1.100'
+
+        # Patch both config.get_config and flask.request
+        with patch('config.get_config', return_value=mock_config):
+            with patch('flask.request', mock_request):
+                # Attempt to connect
+                client = socketio.test_client(app, namespace='/')
+
+                # Connection should be rejected (client.is_connected() == False)
+                assert not client.is_connected(), "Different origin should be rejected in production mode"
+
+                print("\n✓ Different origin rejected in production mode (SECURITY)")
+
+    def test_connect_allows_no_origin_header(self, socketio_app):
+        """Test connection is allowed when no Origin header is present (local tools like curl)"""
+        from unittest.mock import patch, MagicMock
+
+        socketio, app = socketio_app
+
+        # Mock config
+        mock_config = MagicMock()
+        mock_config.CORS_ORIGINS = None
+
+        # Mock request with NO Origin header (e.g., curl, local tools)
+        mock_request = MagicMock()
+        mock_request.headers.get.side_effect = lambda key, default=None: {
+            'Host': 'mothbox.local:5000'
+        }.get(key, default)
+        mock_request.is_secure = False
+        mock_request.remote_addr = '127.0.0.1'
+
+        # Patch both config.get_config and flask.request
+        with patch('config.get_config', return_value=mock_config):
+            with patch('flask.request', mock_request):
+                # Attempt to connect
+                client = socketio.test_client(app, namespace='/')
+
+                # Should receive 'connected' event (no Origin header = local connection)
+                received = client.get_received()
+                connected_events = [e for e in received if e['name'] == 'connected']
+                assert len(connected_events) > 0, "No Origin header should be allowed (local connections)"
+                assert connected_events[0]['args'][0]['status'] == 'connected'
+
+                print("\n✓ No Origin header allowed (local connections)")
+
+                client.disconnect()
+
+
 class TestWebSocketDisconnectEvent:
     """Test WebSocket disconnect event handler"""
 
@@ -211,6 +426,267 @@ class TestWebSocketPreviewEvents:
         camera_streamer.camera.stop.assert_called()
 
         print("\n✓ Stop preview cleanup verified")
+
+
+class TestStartLiveviewHandler:
+    """
+    Test start_liveview WebSocket handler (lines 115-126)
+
+    Tests the start_liveview event handler which starts camera streaming
+    and emits liveview_status events. This handler is critical for:
+    1. Initializing camera hardware for live preview
+    2. Providing user feedback on streaming status
+    3. Handling camera initialization failures gracefully
+    """
+
+    def test_start_liveview_success_emits_status_true(self, socketio_app):
+        """Test start_liveview emits liveview_status with streaming=True on success"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Mock successful camera initialization
+        with patch.object(camera_streamer, 'start_streaming', return_value=True):
+            # Create test client and connect
+            client = socketio.test_client(app, namespace='/')
+            client.get_received()  # Clear connection events
+
+            # Emit start_liveview event
+            client.emit('start_liveview')
+
+            # Get response
+            received = client.get_received()
+            status_events = [e for e in received if e['name'] == 'liveview_status']
+
+            # Verify liveview_status event was emitted with streaming=True
+            assert len(status_events) > 0, "Should emit liveview_status event"
+            status_data = status_events[0]['args'][0]
+            assert status_data['streaming'] == True, "streaming should be True on success"
+            assert 'message' in status_data, "Should include success message"
+
+            print("\n✓ start_liveview success emits streaming=True")
+
+            client.disconnect()
+
+    def test_start_liveview_failure_emits_status_false(self, socketio_app):
+        """Test start_liveview emits liveview_status with streaming=False on failure"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Mock failed camera initialization
+        with patch.object(camera_streamer, 'start_streaming', return_value=False):
+            # Create test client and connect
+            client = socketio.test_client(app, namespace='/')
+            client.get_received()  # Clear connection events
+
+            # Emit start_liveview event
+            client.emit('start_liveview')
+
+            # Get response
+            received = client.get_received()
+            status_events = [e for e in received if e['name'] == 'liveview_status']
+
+            # Verify liveview_status event was emitted with streaming=False
+            assert len(status_events) > 0, "Should emit liveview_status event"
+            status_data = status_events[0]['args'][0]
+            assert status_data['streaming'] == False, "streaming should be False on failure"
+            assert 'error' in status_data, "Should include error message"
+
+            print("\n✓ start_liveview failure emits streaming=False with error")
+
+            client.disconnect()
+
+    def test_start_liveview_exception_emits_error(self, socketio_app):
+        """Test start_liveview emits error when exception occurs"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Mock exception during start_streaming
+        with patch.object(camera_streamer, 'start_streaming', side_effect=RuntimeError("Camera hardware error")):
+            # Create test client and connect
+            client = socketio.test_client(app, namespace='/')
+            client.get_received()  # Clear connection events
+
+            # Emit start_liveview event
+            client.emit('start_liveview')
+
+            # Get response
+            received = client.get_received()
+            status_events = [e for e in received if e['name'] == 'liveview_status']
+
+            # Verify liveview_status event was emitted with error
+            assert len(status_events) > 0, "Should emit liveview_status event"
+            status_data = status_events[0]['args'][0]
+            assert status_data['streaming'] == False, "streaming should be False on exception"
+            assert 'error' in status_data, "Should include error message"
+            assert "Camera hardware error" in status_data['error'], "Error should include exception message"
+
+            print("\n✓ start_liveview exception emits error with exception message")
+
+            client.disconnect()
+
+
+class TestStopLiveviewHandler:
+    """
+    Test stop_liveview WebSocket handler (lines 131-138)
+
+    Tests the stop_liveview event handler which stops camera streaming
+    and emits liveview_status events. This handler is critical for:
+    1. Cleaning up camera resources when user stops preview
+    2. Providing user feedback on stop status
+    3. Handling errors gracefully during cleanup
+    """
+
+    def test_stop_liveview_success(self, socketio_app):
+        """Test stop_liveview emits liveview_status with streaming=False on success"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Mock camera streamer stop_streaming method
+        with patch.object(camera_streamer, 'stop_streaming', return_value=None):
+            # Create test client and connect
+            client = socketio.test_client(app, namespace='/')
+            client.get_received()  # Clear connection events
+
+            # Emit stop_liveview event
+            client.emit('stop_liveview')
+
+            # Get response
+            received = client.get_received()
+            status_events = [e for e in received if e['name'] == 'liveview_status']
+
+            # Verify liveview_status event was emitted with streaming=False
+            assert len(status_events) > 0, "Should emit liveview_status event"
+            status_data = status_events[0]['args'][0]
+            assert status_data['streaming'] == False, "streaming should be False after stop"
+            assert 'message' in status_data, "Should include success message"
+
+            print("\n✓ stop_liveview success emits streaming=False")
+
+            client.disconnect()
+
+    def test_stop_liveview_exception_handling(self, socketio_app):
+        """Test stop_liveview handles exceptions and emits error"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Create test client and connect
+        client = socketio.test_client(app, namespace='/')
+        client.get_received()  # Clear connection events
+
+        # Mock exception during stop_streaming
+        with patch.object(camera_streamer, 'stop_streaming', side_effect=RuntimeError("Camera cleanup error")):
+            # Emit stop_liveview event
+            client.emit('stop_liveview')
+
+            # Get response
+            received = client.get_received()
+            status_events = [e for e in received if e['name'] == 'liveview_status']
+
+            # Verify liveview_status event was emitted with error
+            assert len(status_events) > 0, "Should emit liveview_status event"
+            status_data = status_events[0]['args'][0]
+            assert status_data['streaming'] == False, "streaming should be False on exception"
+            assert 'error' in status_data, "Should include error message"
+            assert "Camera cleanup error" in status_data['error'], "Error should include exception message"
+
+            print("\n✓ stop_liveview exception emits error with exception message")
+
+        # Disconnect after patch is cleaned up
+        client.disconnect()
+
+
+class TestDeprecatedHandlers:
+    """
+    Test deprecated WebSocket event handlers (lines 144-145, 150-151, 423-424)
+
+    Tests the deprecated event handlers that provide backward compatibility:
+    - start_preview (deprecated, use start_liveview)
+    - stop_preview (deprecated, use stop_liveview)
+    - update_preview_control (deprecated, use update_liveview_control)
+
+    These handlers delegate to the new handlers while logging deprecation warnings.
+    """
+
+    def test_start_preview_deprecated_calls_start_liveview(self, socketio_app):
+        """Test start_preview deprecated handler delegates to start_liveview"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Mock successful camera initialization
+        with patch.object(camera_streamer, 'start_streaming', return_value=True):
+            # Create test client and connect
+            client = socketio.test_client(app, namespace='/')
+            client.get_received()  # Clear connection events
+
+            # Emit deprecated start_preview event
+            client.emit('start_preview')
+
+            # Get response - should receive liveview_status (from start_liveview handler)
+            received = client.get_received()
+            status_events = [e for e in received if e['name'] == 'liveview_status']
+
+            # Verify delegation worked (emits liveview_status, not preview_status)
+            assert len(status_events) > 0, "Should emit liveview_status event"
+            status_data = status_events[0]['args'][0]
+            assert status_data['streaming'] == True, "streaming should be True"
+
+            print("\n✓ start_preview (deprecated) delegates to start_liveview")
+
+            client.disconnect()
+
+    def test_stop_preview_deprecated_calls_stop_liveview(self, socketio_app):
+        """Test stop_preview deprecated handler delegates to stop_liveview"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Mock camera streamer stop_streaming method
+        with patch.object(camera_streamer, 'stop_streaming', return_value=None):
+            # Create test client and connect
+            client = socketio.test_client(app, namespace='/')
+            client.get_received()  # Clear connection events
+
+            # Emit deprecated stop_preview event
+            client.emit('stop_preview')
+
+            # Get response - should receive liveview_status (from stop_liveview handler)
+            received = client.get_received()
+            status_events = [e for e in received if e['name'] == 'liveview_status']
+
+            # Verify delegation worked
+            assert len(status_events) > 0, "Should emit liveview_status event"
+            status_data = status_events[0]['args'][0]
+            assert status_data['streaming'] == False, "streaming should be False"
+
+            print("\n✓ stop_preview (deprecated) delegates to stop_liveview")
+
+            client.disconnect()
+
+    def test_update_preview_control_deprecated_delegates(self, socketio_app):
+        """Test update_preview_control deprecated handler delegates to update_liveview_control"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Mock successful control update
+        with patch.object(camera_streamer, 'update_control', return_value=True):
+            # Create test client and connect
+            client = socketio.test_client(app, namespace='/')
+            client.get_received()  # Clear connection events
+
+            # Emit deprecated update_preview_control event
+            client.emit('update_preview_control', {'Sharpness': 2.0})
+
+            # Get response - should receive control_updated (from update_liveview_control handler)
+            received = client.get_received()
+            control_events = [e for e in received if e['name'] == 'control_updated']
+
+            # Verify delegation worked
+            assert len(control_events) > 0, "Should emit control_updated event"
+            control_data = control_events[0]['args'][0]
+            assert control_data['success'] == True, "success should be True"
+
+            print("\n✓ update_preview_control (deprecated) delegates to update_liveview_control")
+
+            client.disconnect()
 
 
 class TestWebSocketReloadSettingsEvent:
@@ -430,6 +906,76 @@ class TestWebSocketReloadSettingsRaceConditions:
             pass
 
 
+class TestReloadStreamSettingsHandler:
+    """
+    Test reload_stream_settings WebSocket handler (lines 156-163)
+
+    Tests the reload_stream_settings event handler which reloads camera
+    configuration from liveview_settings.txt. This handler is critical for:
+    1. Applying new settings without restarting the application
+    2. Providing user feedback on reload status
+    3. Handling configuration errors gracefully
+    """
+
+    def test_reload_stream_settings_success(self, socketio_app):
+        """Test reload_stream_settings emits settings_reloaded with success=True"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Mock successful settings reload
+        with patch.object(camera_streamer, 'load_stream_settings', return_value=None):
+            # Create test client and connect
+            client = socketio.test_client(app, namespace='/')
+            client.get_received()  # Clear connection events
+
+            # Emit reload_stream_settings event
+            client.emit('reload_stream_settings')
+
+            # Get response
+            received = client.get_received()
+            reload_events = [e for e in received if e['name'] == 'settings_reloaded']
+
+            # Verify settings_reloaded event was emitted with success=True
+            assert len(reload_events) > 0, "Should emit settings_reloaded event"
+            reload_data = reload_events[0]['args'][0]
+            assert reload_data['success'] == True, "success should be True on successful reload"
+            assert 'message' in reload_data, "Should include success message"
+
+            print("\n✓ reload_stream_settings success emits success=True")
+
+            client.disconnect()
+
+    def test_reload_stream_settings_exception(self, socketio_app):
+        """Test reload_stream_settings handles exceptions and emits error"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Create test client and connect
+        client = socketio.test_client(app, namespace='/')
+        client.get_received()  # Clear connection events
+
+        # Mock exception during load_stream_settings
+        with patch.object(camera_streamer, 'load_stream_settings', side_effect=IOError("Config file not found")):
+            # Emit reload_stream_settings event
+            client.emit('reload_stream_settings')
+
+            # Get response
+            received = client.get_received()
+            reload_events = [e for e in received if e['name'] == 'settings_reloaded']
+
+            # Verify settings_reloaded event was emitted with error
+            assert len(reload_events) > 0, "Should emit settings_reloaded event"
+            reload_data = reload_events[0]['args'][0]
+            assert reload_data['success'] == False, "success should be False on exception"
+            assert 'error' in reload_data, "Should include error message"
+            assert "Config file not found" in reload_data['error'], "Error should include exception message"
+
+            print("\n✓ reload_stream_settings exception emits error with exception message")
+
+        # Disconnect after patch is cleaned up
+        client.disconnect()
+
+
 class TestWebSocketMetadataEvent:
     """Test get_metadata → metadata_update event"""
 
@@ -510,6 +1056,369 @@ class TestWebSocketMetadataEvent:
             assert field in metadata
 
         print(f"\n✓ Metadata structure validated: {list(metadata.keys())}")
+
+
+class TestGetMetadataFallbacks:
+    """
+    Test get_metadata fallback handling for edge cases and exceptions (Phase 3)
+
+    This test class covers exception paths in handle_get_metadata where various
+    metadata retrieval operations fail and fallback to safe defaults:
+    - Lines 200-209: capture_metadata() fails, fallback to capture_request()
+    - Lines 274-276: get_actual_zoom_center() fails, fallback to (0.5, 0.5)
+    - Lines 295-298: calculate_scaler_crop() fails, fallback to symmetric fractions
+    - Lines 354-356: General exception handling with error response
+
+    These tests ensure the metadata handler gracefully degrades when camera
+    operations fail, preventing UI breakage during initialization or errors.
+    """
+
+    def test_get_metadata_capture_metadata_fallback(self, socketio_app):
+        """Test fallback to capture_request when capture_metadata fails (lines 200-209)"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Mock camera streaming with capture_metadata() failure
+        camera_streamer.streaming = True
+        camera_streamer.camera = Mock()
+
+        # Create a mock request object with metadata
+        mock_request = Mock()
+        mock_request.get_metadata = Mock(return_value={
+            'ExposureTime': 10000,
+            'AnalogueGain': 2.5,
+            'LensPosition': 5.0,
+            'AfState': 2,  # Success
+            'ColourTemperature': 5500,
+            'DigitalGain': 1.0,
+            'FocusFoM': 1000,
+            'SensorTimestamp': 123456789,
+            'ColourGains': (1.5, 2.0),
+            'FrameDuration': 33333,
+            'SensorBlackLevel': 64,
+            'SensorTemperature': 35.5,
+            'ScalerCrop': (0, 0, 1920, 1080),
+            'AeLocked': False,
+            'AwbLocked': False,
+            'Lux': 100.0,
+            'Saturation': 1.0,
+            'Contrast': 1.0,
+            'Sharpness': 1.0,
+            'Brightness': 0.0
+        })
+
+        # capture_metadata() raises exception, forcing fallback
+        camera_streamer.camera.capture_metadata = Mock(side_effect=RuntimeError("capture_metadata failed"))
+        camera_streamer.camera.capture_request = Mock(return_value=mock_request)
+
+        # Mock other methods for successful path
+        camera_streamer.get_actual_zoom_center = Mock(return_value={'x': 0.5, 'y': 0.5})
+        camera_streamer.calculate_scaler_crop = Mock(return_value=(0, 0, 1920, 1080))
+        camera_streamer.camera.camera_properties = {'ScalerCropMaximum': (0, 0, 1920, 1080)}
+        camera_streamer.zoom_level = 1.0
+
+        # Create test client and connect
+        client = socketio.test_client(app, namespace='/')
+        client.get_received()  # Clear connection events
+
+        # Emit get_metadata event
+        client.emit('get_metadata')
+
+        # Get response
+        received = client.get_received()
+        metadata_events = [e for e in received if e['name'] == 'metadata_update']
+
+        # Verify fallback was triggered and metadata returned
+        assert len(metadata_events) > 0, "Should emit metadata_update event"
+        metadata = metadata_events[0]['args'][0]
+
+        # Verify fallback path was taken (capture_request was called)
+        camera_streamer.camera.capture_request.assert_called_once()
+        mock_request.release.assert_called_once()
+
+        # Verify metadata contains expected fields
+        assert metadata['exposure_time'] == 10000, "Should have exposure_time from fallback"
+        assert metadata['analogue_gain'] == 2.5, "Should have analogue_gain from fallback"
+        assert metadata['af_state'] == 'Success', "Should convert af_state code to string"
+        assert 'error' not in metadata, "Should not have error field on successful fallback"
+
+        print("\n✓ get_metadata fallback: capture_metadata() fails → capture_request() succeeds")
+
+        client.disconnect()
+
+    def test_get_metadata_zoom_center_fallback(self, socketio_app):
+        """Test fallback to (0.5, 0.5) when get_actual_zoom_center fails (lines 274-276)"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Mock camera streaming
+        camera_streamer.streaming = True
+        camera_streamer.camera = Mock()
+        camera_streamer.camera.capture_metadata = Mock(return_value={
+            'ExposureTime': 10000,
+            'AnalogueGain': 2.5,
+            'LensPosition': 5.0,
+            'AfState': 2,
+            'ColourTemperature': 5500,
+            'DigitalGain': 1.0,
+            'FocusFoM': 1000,
+            'SensorTimestamp': 123456789,
+            'ColourGains': (1.5, 2.0),
+            'FrameDuration': 33333,
+            'SensorBlackLevel': 64,
+            'SensorTemperature': 35.5,
+            'ScalerCrop': (0, 0, 1920, 1080),
+            'AeLocked': False,
+            'AwbLocked': False,
+            'Lux': 100.0,
+            'Saturation': 1.0,
+            'Contrast': 1.0,
+            'Sharpness': 1.0,
+            'Brightness': 0.0
+        })
+
+        # get_actual_zoom_center() raises exception, forcing fallback
+        camera_streamer.get_actual_zoom_center = Mock(side_effect=RuntimeError("zoom center calculation failed"))
+
+        # Mock successful crop calculation
+        camera_streamer.calculate_scaler_crop = Mock(return_value=(0, 0, 1920, 1080))
+        camera_streamer.camera.camera_properties = {'ScalerCropMaximum': (0, 0, 1920, 1080)}
+        camera_streamer.zoom_level = 2.0
+
+        # Create test client and connect
+        client = socketio.test_client(app, namespace='/')
+        client.get_received()  # Clear connection events
+
+        # Emit get_metadata event
+        client.emit('get_metadata')
+
+        # Get response
+        received = client.get_received()
+        metadata_events = [e for e in received if e['name'] == 'metadata_update']
+
+        # Verify fallback to center coordinates
+        assert len(metadata_events) > 0, "Should emit metadata_update event"
+        metadata = metadata_events[0]['args'][0]
+
+        assert metadata['actual_zoom_center_x'] == 0.5, "Should fallback to center x=0.5"
+        assert metadata['actual_zoom_center_y'] == 0.5, "Should fallback to center y=0.5"
+        assert 'error' not in metadata, "Should not have error field on partial fallback"
+
+        print("\n✓ get_metadata fallback: get_actual_zoom_center() fails → (0.5, 0.5)")
+
+        client.disconnect()
+
+    def test_get_metadata_crop_fraction_fallback(self, socketio_app):
+        """Test fallback crop fractions when calculate_scaler_crop fails (lines 295-298)"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Mock camera streaming
+        camera_streamer.streaming = True
+        camera_streamer.camera = Mock()
+        camera_streamer.camera.capture_metadata = Mock(return_value={
+            'ExposureTime': 10000,
+            'AnalogueGain': 2.5,
+            'LensPosition': 5.0,
+            'AfState': 2,
+            'ColourTemperature': 5500,
+            'DigitalGain': 1.0,
+            'FocusFoM': 1000,
+            'SensorTimestamp': 123456789,
+            'ColourGains': (1.5, 2.0),
+            'FrameDuration': 33333,
+            'SensorBlackLevel': 64,
+            'SensorTemperature': 35.5,
+            'ScalerCrop': (0, 0, 1920, 1080),
+            'AeLocked': False,
+            'AwbLocked': False,
+            'Lux': 100.0,
+            'Saturation': 1.0,
+            'Contrast': 1.0,
+            'Sharpness': 1.0,
+            'Brightness': 0.0
+        })
+
+        # Mock successful zoom center
+        camera_streamer.get_actual_zoom_center = Mock(return_value={'x': 0.5, 'y': 0.5})
+
+        # calculate_scaler_crop() raises exception, forcing fallback
+        camera_streamer.calculate_scaler_crop = Mock(side_effect=RuntimeError("crop calculation failed"))
+        camera_streamer.zoom_level = 3.0
+
+        # Create test client and connect
+        client = socketio.test_client(app, namespace='/')
+        client.get_received()  # Clear connection events
+
+        # Emit get_metadata event
+        client.emit('get_metadata')
+
+        # Get response
+        received = client.get_received()
+        metadata_events = [e for e in received if e['name'] == 'metadata_update']
+
+        # Verify fallback to symmetric crop fractions
+        assert len(metadata_events) > 0, "Should emit metadata_update event"
+        metadata = metadata_events[0]['args'][0]
+
+        # Expected: 1.0 / zoom_level = 1.0 / 3.0 ≈ 0.3333
+        expected_fraction = round(1.0 / 3.0, 4)
+        assert metadata['crop_fraction_x'] == expected_fraction, f"Should fallback to 1.0/zoom_level={expected_fraction}"
+        assert metadata['crop_fraction_y'] == expected_fraction, f"Should fallback to 1.0/zoom_level={expected_fraction}"
+        assert 'error' not in metadata, "Should not have error field on partial fallback"
+
+        print(f"\n✓ get_metadata fallback: calculate_scaler_crop() fails → (1.0/zoom, 1.0/zoom) = ({expected_fraction}, {expected_fraction})")
+
+        client.disconnect()
+
+    def test_get_metadata_general_exception_handling(self, socketio_app):
+        """Test general exception handling in metadata fetch (lines 354-356)"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Mock camera streaming but with catastrophic failure
+        camera_streamer.streaming = True
+        camera_streamer.camera = Mock()
+
+        # Both capture methods fail completely
+        camera_streamer.camera.capture_metadata = Mock(side_effect=RuntimeError("metadata failed"))
+        mock_request = Mock()
+        mock_request.get_metadata = Mock(side_effect=RuntimeError("request failed"))
+        camera_streamer.camera.capture_request = Mock(return_value=mock_request)
+
+        # Create test client and connect
+        client = socketio.test_client(app, namespace='/')
+        client.get_received()  # Clear connection events
+
+        # Emit get_metadata event
+        client.emit('get_metadata')
+
+        # Get response
+        received = client.get_received()
+        metadata_events = [e for e in received if e['name'] == 'metadata_update']
+
+        # Verify error response structure
+        assert len(metadata_events) > 0, "Should emit metadata_update event"
+        metadata = metadata_events[0]['args'][0]
+
+        # Should have error field
+        assert 'error' in metadata, "Should include error field"
+        assert isinstance(metadata['error'], str), "Error should be string"
+
+        # Should have all default/safe values
+        assert metadata['exposure_time'] == 0, "Should have default exposure_time"
+        assert metadata['analogue_gain'] == 0, "Should have default analogue_gain"
+        assert metadata['af_state'] == 'Error', "Should have 'Error' af_state"
+        assert metadata['actual_zoom_center_x'] == 0.5, "Should have default zoom center x"
+        assert metadata['actual_zoom_center_y'] == 0.5, "Should have default zoom center y"
+
+        print("\n✓ get_metadata exception: complete failure → error response with safe defaults")
+
+        client.disconnect()
+
+
+class TestUpdateLiveviewControlHandler:
+    """
+    Test update_liveview_control WebSocket handler (lines 390-414)
+
+    Tests the update_liveview_control event handler which updates camera controls
+    in real-time without restarting the stream. This handler is critical for:
+    1. Validating input data format
+    2. Applying controls to the camera
+    3. Providing feedback on control update status
+    """
+
+    def test_update_liveview_control_invalid_data_format(self, socketio_app):
+        """Test update_liveview_control rejects non-dict data with error"""
+        socketio, app = socketio_app
+
+        # Create test client and connect
+        client = socketio.test_client(app, namespace='/')
+        client.get_received()  # Clear connection events
+
+        # Emit update_liveview_control with invalid data (not a dict)
+        client.emit('update_liveview_control', "invalid string data")
+
+        # Get response
+        received = client.get_received()
+        control_events = [e for e in received if e['name'] == 'control_updated']
+
+        # Verify control_updated event was emitted with error
+        assert len(control_events) > 0, "Should emit control_updated event"
+        response = control_events[0]['args'][0]
+        assert response['success'] == False, "success should be False for invalid data"
+        assert 'error' in response, "Should include error message"
+        assert 'Invalid data format' in response['error'], "Error should mention invalid format"
+
+        print("\n✓ Invalid data format rejected with error")
+
+        client.disconnect()
+
+    def test_update_liveview_control_success(self, socketio_app):
+        """Test update_liveview_control applies control and emits success"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Mock camera streaming with successful control update
+        camera_streamer.streaming = True
+        camera_streamer.camera = Mock()
+        with patch.object(camera_streamer, 'update_control', return_value=True):
+            # Create test client and connect
+            client = socketio.test_client(app, namespace='/')
+            client.get_received()  # Clear connection events
+
+            # Emit update_liveview_control with valid control data
+            control_data = {'Sharpness': 2.5}
+            client.emit('update_liveview_control', control_data)
+
+            # Get response
+            received = client.get_received()
+            control_events = [e for e in received if e['name'] == 'control_updated']
+
+            # Verify control_updated event was emitted with success
+            assert len(control_events) > 0, "Should emit control_updated event"
+            response = control_events[0]['args'][0]
+            assert response['success'] == True, "success should be True"
+            assert response['control'] == control_data, "Should echo back control data"
+            assert 'message' in response, "Should include success message"
+            assert 'Sharpness' in response['message'], "Message should mention control name"
+
+            print(f"\n✓ Control update success: {control_data}")
+
+            client.disconnect()
+
+    def test_update_liveview_control_camera_not_streaming(self, socketio_app):
+        """Test update_liveview_control fails gracefully when camera not streaming"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Mock camera not streaming
+        camera_streamer.streaming = False
+        camera_streamer.camera = None
+        with patch.object(camera_streamer, 'update_control', return_value=False):
+            # Create test client and connect
+            client = socketio.test_client(app, namespace='/')
+            client.get_received()  # Clear connection events
+
+            # Emit update_liveview_control
+            control_data = {'Sharpness': 2.5}
+            client.emit('update_liveview_control', control_data)
+
+            # Get response
+            received = client.get_received()
+            control_events = [e for e in received if e['name'] == 'control_updated']
+
+            # Verify control_updated event was emitted with error
+            assert len(control_events) > 0, "Should emit control_updated event"
+            response = control_events[0]['args'][0]
+            assert response['success'] == False, "success should be False when not streaming"
+            assert 'error' in response, "Should include error message"
+            assert 'not streaming' in response['error'].lower() or 'failed' in response['error'].lower(), \
+                "Error should mention camera not streaming or update failed"
+
+            print("\n✓ Control update fails gracefully when camera not streaming")
+
+            client.disconnect()
 
 
 class TestWebSocketUpdatePreviewControl:
@@ -1213,6 +2122,50 @@ class TestWebSocketCoordinateTransformations:
         client.disconnect()
         print("\n✓ set_zoom handler: returns error when camera not streaming")
 
+
+class TestSetZoomExceptions:
+    """
+    Test set_zoom exception handling (Phase 3)
+
+    This test class covers exception handling in handle_set_zoom where the
+    set_zoom operation raises an exception (lines 469-471). This ensures
+    graceful error handling when zoom operations fail unexpectedly.
+    """
+
+    def test_set_zoom_exception_handling(self, socketio_app):
+        """Test set_zoom handles exceptions gracefully (lines 469-471)"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Create test client and connect
+        client = socketio.test_client(app, namespace='/')
+        client.get_received()  # Clear connection events
+
+        # Mock exception during set_zoom
+        with patch.object(camera_streamer, 'set_zoom', side_effect=RuntimeError("Zoom control failed")):
+            # Emit set_zoom event
+            client.emit('set_zoom', {'zoom_level': 2.0})
+
+            # Get response
+            received = client.get_received()
+            zoom_events = [e for e in received if e['name'] == 'zoom_updated']
+
+            # Verify error response with exception message
+            assert len(zoom_events) > 0, "Should emit zoom_updated event"
+            zoom_data = zoom_events[0]['args'][0]
+            assert zoom_data['success'] == False, "success should be False on exception"
+            assert 'error' in zoom_data, "Should include error message"
+            assert "Zoom control failed" in zoom_data['error'], "Error should include exception message"
+
+            print("\n✓ set_zoom exception emits error with exception message")
+
+        # Disconnect after patch is cleaned up
+        client.disconnect()
+
+
+class TestWebSocketAfWindowHandlers:
+    """Test set_af_window WebSocket handler (originally part of TestWebSocketCoordinateTransformations)"""
+
     def test_handle_set_af_window_success(self):
         """Test set_af_window handler sets AF window"""
         from flask import Flask
@@ -1299,6 +2252,112 @@ class TestWebSocketCoordinateTransformations:
 
         client.disconnect()
         print("\n✓ set_af_window handler: clears window with None values")
+
+
+class TestSetAfWindowErrors:
+    """
+    Test set_af_window error handling (lines 494-498, 523-530)
+
+    Tests error handling for the set_af_window WebSocket handler:
+    1. Invalid data format (non-dict data)
+    2. Camera not streaming
+    3. Exception handling during AF window setting
+
+    These tests complete coverage of the set_af_window handler's error paths.
+    """
+
+    def test_set_af_window_invalid_data_format(self, socketio_app):
+        """Test set_af_window rejects non-dict data"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Create test client and connect
+        client = socketio.test_client(app, namespace='/')
+        client.get_received()  # Clear connection events
+
+        # Emit invalid data (string instead of dict)
+        client.emit('set_af_window', "not a dict")
+
+        # Get response
+        received = client.get_received()
+        af_events = [e for e in received if e['name'] == 'af_window_updated']
+
+        # Verify error response
+        assert len(af_events) > 0, "Should emit af_window_updated event"
+        af_data = af_events[0]['args'][0]
+        assert af_data['success'] == False, "success should be False for invalid data"
+        assert 'error' in af_data, "Should include error message"
+        assert 'Invalid data format' in af_data['error'], "Error should mention invalid data format"
+
+        print("\n✓ set_af_window rejects non-dict data with error message")
+
+        client.disconnect()
+
+    def test_set_af_window_camera_not_streaming(self, socketio_app):
+        """Test set_af_window when camera not streaming"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Mock camera not streaming
+        with patch.object(camera_streamer, 'set_af_window', return_value=False):
+            # Create test client and connect
+            client = socketio.test_client(app, namespace='/')
+            client.get_received()  # Clear connection events
+
+            # Emit set_af_window event
+            client.emit('set_af_window', {'x': 0.5, 'y': 0.5, 'window_size': 0.2})
+
+            # Get response
+            received = client.get_received()
+            af_events = [e for e in received if e['name'] == 'af_window_updated']
+
+            # Verify error response
+            assert len(af_events) > 0, "Should emit af_window_updated event"
+            af_data = af_events[0]['args'][0]
+            assert af_data['success'] == False, "success should be False when not streaming"
+            assert 'error' in af_data, "Should include error message"
+
+            print("\n✓ set_af_window returns error when camera not streaming")
+
+            client.disconnect()
+
+    def test_set_af_window_exception_handling(self, socketio_app):
+        """Test set_af_window handles exceptions gracefully"""
+        socketio, app = socketio_app
+        camera_streamer = app.config.get('CAMERA_STREAMER')
+
+        # Create test client and connect
+        client = socketio.test_client(app, namespace='/')
+        client.get_received()  # Clear connection events
+
+        # Mock exception during set_af_window
+        with patch.object(camera_streamer, 'set_af_window', side_effect=RuntimeError("AF control failed")):
+            # Emit set_af_window event
+            client.emit('set_af_window', {'x': 0.5, 'y': 0.5})
+
+            # Get response
+            received = client.get_received()
+            af_events = [e for e in received if e['name'] == 'af_window_updated']
+
+            # Verify error response with exception message
+            assert len(af_events) > 0, "Should emit af_window_updated event"
+            af_data = af_events[0]['args'][0]
+            assert af_data['success'] == False, "success should be False on exception"
+            assert 'error' in af_data, "Should include error message"
+            assert "AF control failed" in af_data['error'], "Error should include exception message"
+
+            print("\n✓ set_af_window exception emits error with exception message")
+
+        # Disconnect after patch is cleaned up
+        client.disconnect()
+
+
+class TestWebSocketPreviewEventsPhase3:
+    """
+    Phase 3: Edge Case Tests
+
+    Tests edge cases and complex scenarios for WebSocket handlers.
+    """
 
     # ========================================
     # Phase 3: Edge Case Tests

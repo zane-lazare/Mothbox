@@ -2333,3 +2333,97 @@ def patch_cv2_for_focus_peaking(mock_opencv):
                     yield
 
     return patcher
+
+
+# ============================================================================
+# WebSocket Handler Testing Fixtures (Phase 1)
+# ============================================================================
+
+@pytest.fixture
+def mock_config_cors(monkeypatch):
+    """
+    Factory fixture for mocking config.CORS_ORIGINS
+
+    Allows tests to configure CORS_ORIGINS to test origin validation logic.
+
+    Usage:
+        def test_cors(mock_config_cors):
+            mock_config_cors(['http://localhost:3000'])
+            # Test with configured CORS origins
+
+    Args:
+        cors_origins: str or list - CORS origins ('*' for wildcard, list for specific origins, None for production mode)
+
+    Returns:
+        function: Call with cors_origins to configure mock
+
+    Related: Phase 1 - Origin validation security tests
+    """
+    def set_cors_origins(cors_origins):
+        """Set CORS_ORIGINS in config module"""
+        import sys
+        if 'config' in sys.modules:
+            # Patch the module-level get_config function
+            from unittest.mock import MagicMock
+            mock_config = MagicMock()
+            mock_config.CORS_ORIGINS = cors_origins
+
+            original_get_config = sys.modules['config'].get_config
+
+            def mock_get_config():
+                return mock_config
+
+            monkeypatch.setattr('config.get_config', mock_get_config)
+
+            # Also patch in websocket_handlers if already loaded
+            if 'websocket_handlers' in sys.modules:
+                monkeypatch.setattr('websocket_handlers.get_config', mock_get_config)
+
+        return cors_origins
+
+    return set_cors_origins
+
+
+@pytest.fixture
+def mock_request_origin(monkeypatch):
+    """
+    Factory fixture for mocking Flask request headers (Origin, Host, is_secure)
+
+    Allows tests to simulate requests from different origins to test CORS validation.
+
+    Usage:
+        def test_origin(mock_request_origin):
+            mock_request_origin(origin='http://evil.com', host='localhost:5000', is_secure=False)
+            # Test with mocked request headers
+
+    Args:
+        origin: str - Origin header value (None for no Origin header)
+        host: str - Host header value
+        is_secure: bool - Whether request is HTTPS
+
+    Returns:
+        function: Call with parameters to configure mock request
+
+    Related: Phase 1 - Origin validation security tests
+    """
+    def set_request_headers(origin=None, host='localhost:5000', is_secure=False, remote_addr='127.0.0.1'):
+        """Set Flask request headers"""
+        from unittest.mock import MagicMock
+        import sys
+
+        # Create mock request
+        mock_request = MagicMock()
+        mock_request.headers.get.side_effect = lambda key, default=None: {
+            'Origin': origin,
+            'Host': host
+        }.get(key, default)
+        mock_request.is_secure = is_secure
+        mock_request.remote_addr = remote_addr
+
+        # Patch flask.request
+        if 'flask' in sys.modules:
+            monkeypatch.setattr('flask.request', mock_request)
+
+        return mock_request
+
+    return set_request_headers
