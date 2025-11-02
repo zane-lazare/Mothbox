@@ -2132,9 +2132,10 @@ def mock_picamera2_for_streamer():
             if self._simulate_busy:
                 self._simulate_busy = False
                 raise RuntimeError("Camera is busy")
-            if self.started:
-                raise RuntimeError("Camera already started")
-            self.started = True
+            # Make start() idempotent like real Picamera2
+            # Real Picamera2 handles being started twice gracefully
+            if not self.started:
+                self.started = True
 
         def stop(self):
             self.started = False

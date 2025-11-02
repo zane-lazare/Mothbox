@@ -560,7 +560,7 @@ class TestWebSocketUpdatePreviewControl:
 
         # Camera controls should fail when not streaming
         result = camera_streamer.update_control({'Sharpness': 2.5})
-        assert result == True  # Returns True but doesn't apply (no camera available)
+        assert result == False  # Returns False when camera not ready
 
         print("\n✓ Control update behavior correct when not streaming")
 
