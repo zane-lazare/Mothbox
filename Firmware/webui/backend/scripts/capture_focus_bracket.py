@@ -106,7 +106,7 @@ def load_camera_settings():
         if(found==0):
             files=os.listdir(path) #don't look for files recursively, only if new settings in top level
             if "camera_settings.csv" in files:
-                file_path = os.path.join(root, "camera_settings.csv")
+                file_path = os.path.join(path, "camera_settings.csv")
                 print(f"Found settings on external media: {file_path}")
                 found=1
                 break
@@ -205,7 +205,7 @@ def calculate_focus_positions(start, end, steps):
 def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focus_end,
                            focus_settle_delay, flash_delay_before, flash_delay_after,
                            lock_colour_gains, colour_gain_red, colour_gain_blue,
-                           onlyflash, computerName):
+                           onlyflash, computerName, gpio_handler):
     """
     Capture multiple photos at different focus positions (focus bracketing)
 
@@ -223,6 +223,7 @@ def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focu
         colour_gain_blue: Blue channel gain value
         onlyflash: Whether flash is always on
         computerName: Name of the computer for file naming
+        gpio_handler: GPIOHandler instance for flash control
     """
     now = datetime.now()
     timestamp = now.strftime("%Y_%m_%d__%H_%M_%S")
@@ -279,7 +280,7 @@ def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focu
         time.sleep(focus_settle_delay / 1000.0)
 
         # Turn on flash
-        flashOn()
+        gpio_handler.flash_on()
 
         # Wait for flash to reach full brightness (convert ms to seconds)
         if flash_delay_before > 0:
@@ -296,7 +297,7 @@ def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focu
 
         # Turn off flash (unless in always-on mode)
         if not onlyflash:
-            flashOff()
+            gpio_handler.flash_off()
 
         capture_time = time.time() - start_time
         print(f"Picture capture time: {capture_time:.2f}s")
@@ -313,9 +314,109 @@ def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focu
         print(f"✓ Captured focus bracket {step_num}/{num_steps} at {focus_pos:.2f} diopters\n")
 
 
-def main():
-    """Main execution function - only runs when script is executed directly"""
+class GPIOHandler:
+    """
+    Wrapper for GPIO operations with relay pin management.
+
+    This class encapsulates all GPIO interactions and makes the relay pins
+    explicit dependencies instead of relying on scoping.
+
+    Args:
+        gpio_module: The RPi.GPIO module (or mock for testing)
+        relay_ch1: GPIO pin number for relay channel 1
+        relay_ch2: GPIO pin number for relay channel 2
+        relay_ch3: GPIO pin number for relay channel 3
+    """
+    def __init__(self, gpio_module, relay_ch1, relay_ch2, relay_ch3):
+        self.gpio = gpio_module
+        self.relay_ch1 = relay_ch1
+        self.relay_ch2 = relay_ch2
+        self.relay_ch3 = relay_ch3
+
+    def setup(self):
+        """Initialize GPIO pins for output"""
+        self.gpio.setwarnings(False)
+        self.gpio.setmode(self.gpio.BCM)
+        self.gpio.setup(self.relay_ch1, self.gpio.OUT)
+        self.gpio.setup(self.relay_ch2, self.gpio.OUT)
+        self.gpio.setup(self.relay_ch3, self.gpio.OUT)
+
+    def flash_on(self):
+        """Turn flash on by setting relay channels LOW"""
+        self.gpio.output(self.relay_ch3, self.gpio.LOW)
+        self.gpio.output(self.relay_ch2, self.gpio.LOW)
+        print("Flash On\n")
+
+    def flash_off(self):
+        """Turn flash off by setting relay channel 2 HIGH"""
+        self.gpio.output(self.relay_ch2, self.gpio.HIGH)
+        print("Flash Off\n")
+
+
+def _detect_platform():
+    """
+    Detect platform and extract computer name.
+
+    Extracted as a separate function for easier testing.
+
+    Returns:
+        tuple: (system_name, computer_name)
+    """
+    if platform.system() == "Windows":
+        return "Windows", platform.uname().node
+    else:
+        return "Linux", os.uname()[1]
+
+
+def main(gpio_handler_factory=None, camera_factory=None, settings_loader=None, quit_func=None):
+    """
+    Main execution function with dependency injection for testability.
+
+    Args:
+        gpio_handler_factory: Callable() -> GPIOHandler instance
+                             Default: Creates real GPIOHandler with RPi.GPIO
+        camera_factory: Callable() -> Picamera2 instance
+                       Default: Picamera2 constructor
+        settings_loader: Callable() -> dict of camera settings
+                        Default: load_camera_settings function
+        quit_func: Callable() -> None to exit program
+                  Default: built-in quit() function
+
+    Returns:
+        None (calls quit_func at end)
+    """
     global computerName
+
+    # ============================================================================
+    # Dependency Injection - Create default dependencies if not provided
+    # ============================================================================
+
+    if gpio_handler_factory is None:
+        # Create default GPIO handler factory
+        import RPi.GPIO as GPIO_module
+        pins = get_gpio_pins()
+        gpio_handler_factory = lambda: GPIOHandler(
+            GPIO_module,
+            pins['Relay_Ch1'],
+            pins['Relay_Ch2'],
+            pins['Relay_Ch3']
+        )
+
+    if camera_factory is None:
+        # Use real Picamera2
+        camera_factory = Picamera2
+
+    if settings_loader is None:
+        # Use real settings loader
+        settings_loader = load_camera_settings
+
+    if quit_func is None:
+        # Use built-in quit
+        quit_func = quit
+
+    # ============================================================================
+    # Main Execution
+    # ============================================================================
 
     print("----------------- STARTING TAKEPHOTO FOCUS BRACKET -------------------")
     now = datetime.now()
@@ -323,37 +424,23 @@ def main():
 
     print(f"Current time: {formatted_time}")
 
-    # ============================================================================
-    # System Detection & GPIO Setup
-    # ============================================================================
+    # System Detection
+    system, computerName = _detect_platform()
+    print(computerName)
 
-    if platform.system() == "Windows":
-        print(platform.uname().node)
-    else:
-        computerName = os.uname()[1]
-        print(os.uname()[1])   # doesn't work on windows
-
-    # Load GPIO pins from configuration
-    pins = get_gpio_pins()
-    Relay_Ch1 = pins['Relay_Ch1']
-    Relay_Ch2 = pins['Relay_Ch2']
-    Relay_Ch3 = pins['Relay_Ch3']
-
-    GPIO.setwarnings(False)
-    GPIO.setmode(GPIO.BCM)
-
-    GPIO.setup(Relay_Ch1,GPIO.OUT)
-    GPIO.setup(Relay_Ch2,GPIO.OUT)
-    GPIO.setup(Relay_Ch3,GPIO.OUT)
-
+    # GPIO Setup
+    gpio_handler = gpio_handler_factory()
+    gpio_handler.setup()
     print("Setup The Relay Module is [success]")
 
+    # Load configuration
     control_values = get_control_values(str(CONTROLS_FILE))
     onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
     if(onlyflash):
         print("operating in always on flash mode")
 
-    picam2 = Picamera2()
+    # Camera initialization
+    picam2 = camera_factory()
 
     capture_main = {"size": (9000, 6000), "format": "RGB888"}
     capture_config = picam2.create_still_configuration(main=capture_main)
@@ -364,7 +451,7 @@ def main():
     print(picam2.camera_controls["AnalogueGain"])
     min_gain, max_gain, default_gain = picam2.camera_controls["AnalogueGain"]
     '''
-    camera_settings = load_camera_settings()
+    camera_settings = settings_loader()
 
     # Extract focus bracketing settings (using module-level defaults)
     _num_steps = int(camera_settings.pop("FocusBracket", num_steps))
@@ -454,11 +541,11 @@ def main():
     takePhoto_FocusBracket(picam2, camera_settings, _num_steps, _focus_start, _focus_end,
                           _focus_settle_delay, _flash_delay_before, _flash_delay_after,
                           _lock_colour_gains, _colour_gain_red, _colour_gain_blue,
-                          onlyflash, computerName)
+                          onlyflash, computerName, gpio_handler)
 
     picam2.stop()
 
-    quit()
+    quit_func()
 
 
 if __name__ == "__main__":
