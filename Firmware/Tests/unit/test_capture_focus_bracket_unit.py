@@ -120,11 +120,11 @@ class TestLoadCameraSettings:
 
         # Mock os.path.join to return our test file path when building /media path
         original_join = os_module.path.join
-        def mock_join(path, filename):
+        def mock_join(path, *args):
             """Mock path joining to return test CSV for /media/camera_settings.csv"""
-            if path == "/media" and filename == "camera_settings.csv":
+            if len(args) == 1 and path == "/media" and args[0] == "camera_settings.csv":
                 return str(external_csv)
-            return original_join(path, filename)
+            return original_join(path, *args)
 
         # Patch os functions
         monkeypatch.setattr('os.listdir', mock_listdir)
@@ -388,10 +388,10 @@ class TestLoadCameraSettings:
 
         # Mock os.path.join to return our external test file
         original_join = os_module.path.join
-        def mock_join(path, filename):
-            if path == "/media" and filename == "camera_settings.csv":
+        def mock_join(path, *args):
+            if len(args) == 1 and path == "/media" and args[0] == "camera_settings.csv":
                 return str(external_csv)
-            return original_join(path, filename)
+            return original_join(path, *args)
 
         monkeypatch.setattr('os.listdir', mock_listdir)
         monkeypatch.setattr('os.path.join', mock_join)
