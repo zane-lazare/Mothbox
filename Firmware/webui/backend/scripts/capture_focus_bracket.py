@@ -150,6 +150,16 @@ def load_camera_settings():
                         value = int(value)
                     except ValueError:
                         raise ValueError(f"Invalid value for ExposureTime: {value}")
+                elif setting == "FocusBracket":
+                    try:
+                        value = int(value)
+                    except ValueError:
+                        raise ValueError(f"Invalid value for FocusBracket: {value}")
+                elif setting in ["FocusBracket_Start", "FocusBracket_End", "FocusBracket_ColorGainRed", "FocusBracket_ColorGainBlue"]:
+                    try:
+                        value = float(value)
+                    except ValueError:
+                        raise ValueError(f"Invalid value for {setting}: {value}")
                 else:
                     print(f"Warning: Unknown setting: {setting}. Ignoring.")
 
