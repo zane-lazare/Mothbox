@@ -236,7 +236,7 @@ def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focu
         gpio_handler: GPIOHandler instance for flash control
     """
     now = datetime.now()
-    timestamp = now.strftime("%Y_%m_%d__%H_%M_%S")
+    timestamp = now.strftime("%Y_%m_%d__%H_%M_%S_%f")
 
     # Apply camera settings
     if camera_settings:

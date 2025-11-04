@@ -533,7 +533,7 @@ FocusBracket_ColorGainBlue,1.8,Blue
 class TestExternalMediaIntegration:
     """External media detection and loading tests"""
 
-    def test_external_media_csv_priority(self, integration_env, mock_external_media, monkeypatch):
+    def test_external_media_csv_priority(self, integration_env, mock_external_media, mock_camera_hardware, monkeypatch):
         """
         Test that external media CSV takes priority over internal
 
@@ -598,7 +598,7 @@ FocusBracket_End,8.0,Internal
         assert settings['FocusBracket'] == 3, "Should load from internal (3)"
         assert settings['FocusBracket_Start'] == 2.0, "Should use internal start"
 
-    def test_multiple_external_drives_first_wins(self, tmp_path, integration_env, monkeypatch):
+    def test_multiple_external_drives_first_wins(self, tmp_path, integration_env, mock_camera_hardware, monkeypatch):
         """
         Test behavior when multiple external drives exist
 
@@ -626,18 +626,27 @@ FocusBracket,5,First USB
 FocusBracket,9,Second USB
 """)
 
-        # Mock listdir to return both drives
+        # Mock listdir to return both drives (directory names only, not full paths)
         def mock_listdir(path):
             path_str = str(path)
             if path_str == "/media":
-                return [str(usb0), str(usb1)]
+                return ["camera_settings.csv"]  # Script expects CSV directly in /media
             elif str(usb0) in path_str:
                 return ["camera_settings.csv"]
             elif str(usb1) in path_str:
                 return ["camera_settings.csv"]
             return []
 
+        # Mock os.path.join to redirect /media paths to our test directories
+        original_join = os.path.join
+        def mock_join(path, *args):
+            if path == "/media" and len(args) == 1 and args[0] == "camera_settings.csv":
+                # Return first USB drive's CSV
+                return str(usb0_csv)
+            return original_join(path, *args)
+
         monkeypatch.setattr('os.listdir', mock_listdir)
+        monkeypatch.setattr('os.path.join', mock_join)
 
         import webui.backend.scripts.capture_focus_bracket as focus_module
         monkeypatch.setattr(focus_module, 'CAMERA_SETTINGS_FILE', env['camera_settings'])
