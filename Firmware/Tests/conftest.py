@@ -327,7 +327,7 @@ def socketio_app():
 
 
 # ============================================================================
-# Test Isolation Fixtures (Issue #46 Phase 2)
+# Test Isolation Fixtures (Issue #46)
 # ============================================================================
 
 @pytest.fixture
@@ -373,7 +373,7 @@ def patch_path_constant_everywhere(monkeypatch, constant_name, temp_path):
         patch_path_constant_everywhere(monkeypatch, 'LIVEVIEW_SETTINGS_FILE', temp_file)
         # Now routes.config.LIVEVIEW_SETTINGS_FILE points to temp_file
 
-    Related: Issue #13 Phase 1 - Path constant patching (73 affected tests)
+    Related: Issue #13 - Path constant patching (73 affected tests)
     """
     import sys
     import mothbox_paths
@@ -451,7 +451,7 @@ def temp_webui_settings(tmp_path, monkeypatch):
                 f.write("sharpness=2.0\\n")
             # ... test code ...
 
-    Related: Issue #13 Phase 1 - Path constant patching fix
+    Related: Issue #13 - Path constant patching fix
     """
     import mothbox_paths
 
@@ -485,7 +485,7 @@ def temp_camera_settings(tmp_path, monkeypatch):
                 f.write("ExposureTime,500\\n")
             # ... test code ...
 
-    Related: Issue #13 Phase 1 - Path constant patching fix
+    Related: Issue #13 - Path constant patching fix
     """
     import mothbox_paths
 
@@ -518,7 +518,7 @@ def temp_liveview_settings(tmp_path, monkeypatch):
                 f.write("sharpness=1.5\\n")
             # ... test code ...
 
-    Related: Issue #78 Phase 2I - Test capture workflows
+    Related: Issue #78 - Test capture workflows
     """
     import mothbox_paths
 
@@ -651,7 +651,7 @@ def af_window_test_positions():
 
 
 # ============================================================================
-# Module-Level Instance Mocking Fixtures (Issue #78 Phase 2C/2D)
+# Module-Level Instance Mocking Fixtures (Issue #78)
 # ============================================================================
 
 @pytest.fixture
@@ -696,7 +696,7 @@ def mock_picamera2():
     Pattern: This uses sys.modules injection (similar to RPi.GPIO mock) because
     Picamera2 is imported dynamically inside route functions with try/except.
 
-    Related: Issue #78 Phase 2D - Camera testing infrastructure
+    Related: Issue #78 - Camera testing infrastructure
     """
     from unittest.mock import MagicMock, Mock
     import sys
@@ -882,7 +882,7 @@ def mock_pi_version(monkeypatch, tmp_path):
     Returns:
         function: Call with '4' or '5' to set Pi version
 
-    Related: Issue #78 Phase 2D - Camera testing infrastructure
+    Related: Issue #78 - Camera testing infrastructure
     """
     from pathlib import Path
 
@@ -971,7 +971,7 @@ def mock_subprocess_run():
         stderr: str - Optional custom stderr
         timeout: bool - If True, raises TimeoutExpired
 
-    Related: Issue #78 Phase 2D - Camera testing infrastructure
+    Related: Issue #78 - Camera testing infrastructure
     """
     from unittest.mock import MagicMock
     import subprocess
@@ -1059,7 +1059,7 @@ def mock_camera_streamer(app):
         - streaming: bool - Whether streaming is active
         - release_count: int - Number of times release_camera() called
 
-    Related: Issue #78 Phase 2D - Camera testing infrastructure
+    Related: Issue #78 - Camera testing infrastructure
     """
     from unittest.mock import MagicMock
     from contextlib import contextmanager
@@ -1138,7 +1138,7 @@ def temp_photos_dir(tmp_path, monkeypatch):
     Returns:
         Path: Temporary photos directory
 
-    Related: Issue #78 Phase 2D - Camera testing infrastructure
+    Related: Issue #78 - Camera testing infrastructure
     """
     # Create temporary photos directory
     photos_dir = tmp_path / "photos"
@@ -1180,7 +1180,7 @@ def mock_socketio_emit(app, monkeypatch):
         - call_args_list: List of all emit() calls
         - emit_history: List of (event, data) tuples
 
-    Related: Issue #78 Phase 2D - Camera testing infrastructure
+    Related: Issue #78 - Camera testing infrastructure
     """
     from unittest.mock import MagicMock
 
@@ -1232,7 +1232,7 @@ def mock_preset_manager(monkeypatch):
     patched before import. Similar to how we mock RPi.GPIO via sys.modules,
     but simpler since we just replace the instance attribute.
 
-    Related: Issue #78 Phase 2C - Preset route testing
+    Related: Issue #78 - Preset route testing
     """
     from unittest.mock import MagicMock
 
@@ -1542,7 +1542,7 @@ def temp_controls_file(tmp_path, monkeypatch):
             temp_controls_file.write_text("Relay_Ch1=5\\n")
             # Test code using patched CONTROLS_FILE...
 
-    Related: Issue #13 Phase 1 - Path constant patching fix
+    Related: Issue #13 - Path constant patching fix
     """
     import mothbox_paths
 
@@ -1570,7 +1570,7 @@ def controls_file_factory(tmp_path):
             config2 = controls_file_factory("Relay_Ch1=10\\n")
             # Compare behaviors...
 
-    Related: Issue #13 Phase 1 (hardware configuration testing)
+    Related: Issue #13 (hardware configuration testing)
     """
     def _create_controls(content: str) -> Path:
         """Create a controls file with the given content"""
@@ -1595,7 +1595,7 @@ def assert_gpio_pins_equal():
             expected = {'Relay_Ch1': 5, 'Relay_Ch2': 19, 'Relay_Ch3': 9}
             assert_gpio_pins_equal(actual, expected, "5.x firmware pins")
 
-    Related: Issue #13 Phase 1 (hardware configuration testing)
+    Related: Issue #13 (hardware configuration testing)
     """
     def _assert_equal(actual, expected, message=""):
         """Compare two GPIO pin dictionaries with detailed error messages"""
@@ -2338,7 +2338,7 @@ def patch_cv2_for_focus_peaking(mock_opencv):
 
 
 # ============================================================================
-# WebSocket Handler Testing Fixtures (Phase 1)
+# WebSocket Handler Testing Fixtures
 # ============================================================================
 
 @pytest.fixture
@@ -2359,7 +2359,7 @@ def mock_config_cors(monkeypatch):
     Returns:
         function: Call with cors_origins to configure mock
 
-    Related: Phase 1 - Origin validation security tests
+    Related: Origin validation security tests
     """
     def set_cors_origins(cors_origins):
         """Set CORS_ORIGINS in config module"""
@@ -2406,7 +2406,7 @@ def mock_request_origin(monkeypatch):
     Returns:
         function: Call with parameters to configure mock request
 
-    Related: Phase 1 - Origin validation security tests
+    Related: Origin validation security tests
     """
     def set_request_headers(origin=None, host='localhost:5000', is_secure=False, remote_addr='127.0.0.1'):
         """Set Flask request headers"""

@@ -21,7 +21,7 @@ diverges, document why and maintain bash source references.
 
 Module: Tests/integration/installer_helpers.py
 Related: install_mothbox.sh, mothbox_paths.py, routes/config.py
-Issue: #13 Phase 2 - Installer Integration Tests
+Issue: #13  - Installer Integration Tests
 """
 
 from pathlib import Path

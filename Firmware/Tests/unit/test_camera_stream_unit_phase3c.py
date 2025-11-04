@@ -1,7 +1,7 @@
 """
-Phase 3C: LiveViewStreamer Unit Tests - Advanced Configuration & Lifecycle
+LiveViewStreamer Unit Tests - Advanced Configuration & Lifecycle
 
-This test file implements Phase 3C of the LiveViewStreamer test enhancement plan
+This test file implements comprehensive LiveViewStreamer testing
 (Issue #78), focusing on settings loading, camera initialization, AF window
 coordinate transformations, control application, encoder selection, and resource
 management.
@@ -15,7 +15,7 @@ Test Classes:
     6. TestResourceManagement (9 tests) - Camera lifecycle and threading
 
 Related Issues:
-    - Issue #78: LiveView streamer test coverage improvement (Phase 3C)
+    - Issue #78: LiveView streamer test coverage improvement
     - Issue #52: Zoom coordinate rounding fix (AF window uses same pattern)
 """
 
@@ -37,7 +37,7 @@ class TestSettingsLoading:
     type conversion (integers, floats, booleans), tuple parsing (colour gains),
     and comprehensive validation of all setting categories.
 
-    Related: Issue #78 Phase 3C - Settings loading tests
+    Related: Issue #78 - Settings loading tests
     """
 
     # ------------------------------------------------------------------------
@@ -288,7 +288,7 @@ class TestCameraInitialization:
     Tests successful initialization, fallback behavior, sensor mode selection,
     ISP tuning file loading, control application, and sensor resolution capture.
 
-    Related: Issue #78 Phase 3C - Camera initialization tests
+    Related: Issue #78 - Camera initialization tests
     """
 
     # ------------------------------------------------------------------------
@@ -574,7 +574,7 @@ class TestAFWindowCoordinateTransformation:
     ScalerCropMaximum offset application, bounds clamping, even dimension
     enforcement, and independence from zoom level.
 
-    Related: Issue #78 Phase 3C - AF window coordinate testing
+    Related: Issue #78 - AF window coordinate testing
     Related: Issue #52 - Zoom coordinate rounding fix (AF window uses same pattern)
     """
 

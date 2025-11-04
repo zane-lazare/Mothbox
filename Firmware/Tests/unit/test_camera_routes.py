@@ -1,5 +1,5 @@
 """
-Unit tests for Camera control routes (Issue #78 Phase 2E-2I)
+Unit tests for Camera control routes (Issue #78)
 
 Tests all camera endpoints with comprehensive mocking for CI/CD compatibility.
 Focus areas: Picamera2 integration, subprocess workflows, stream coordination.

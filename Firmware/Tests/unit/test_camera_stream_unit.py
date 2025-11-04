@@ -9,7 +9,7 @@ Hardware tests are in test_camera_stream_encoding.py (marked @pytest.mark.hardwa
 
 Coverage Target: 85%+ (liveview_stream.py is 1736 lines, 26 methods)
 
-Test Classes (Phase 3):
+Test Classes :
 1. TestSettingsLoading (15 tests) - Settings file parsing and validation
 2. TestCameraInitialization (13 tests) - Camera hardware initialization
 3. TestStreamingLifecycle (8 tests) - Start/stop streaming, locking

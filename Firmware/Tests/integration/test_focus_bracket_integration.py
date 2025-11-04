@@ -1,5 +1,5 @@
 """
-Integration tests for Focus Bracket End-to-End Workflows - Phase 3
+Integration tests for Focus Bracket End-to-End Workflows - 
 
 Tests complete workflows from settings files to captured images, including:
 - End-to-end capture workflows (settings → script → images)
@@ -13,7 +13,7 @@ Tests complete workflows from settings files to captured images, including:
 These tests use mocked hardware (no real camera required) and verify
 integration between multiple components.
 
-Related: Issue #13 Phase 3 - Focus Bracket Integration Testing
+Related: Issue #13  - Focus Bracket Integration Testing
 """
 
 import os

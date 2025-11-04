@@ -1,7 +1,7 @@
 """
-Integration Tests: Frontend Integration (Phase 3)
+Integration Tests: Frontend Integration
 
-Tests that verify frontend UI properly integrates with Phase 2.2 backend features:
+Tests that verify frontend UI properly integrates with backend features:
 - Camera page controls update preview stream settings
 - Interactive buttons trigger correct backend endpoints
 - Settings copy functionality works end-to-end
@@ -24,7 +24,7 @@ from pathlib import Path
 
 @pytest.mark.photo
 class TestCameraPageIntegration:
-    """Test Camera page UI integration with backend (Phase 3)"""
+    """Test Camera page UI integration with backend"""
 
     def test_preview_settings_update_via_api(self, client):
         """Test that camera page can update preview settings"""
@@ -130,7 +130,7 @@ class TestCameraPageIntegration:
 
 @pytest.mark.photo
 class TestSettingsCopyIntegration:
-    """Test Settings page copy functionality (Phase 3)"""
+    """Test Settings page copy functionality"""
 
     def test_copy_preview_to_capture_button(self, client):
         """Test copy preview → capture button"""
@@ -195,7 +195,7 @@ class TestSettingsCopyIntegration:
 
 @pytest.mark.photo
 class TestMetadataDisplay:
-    """Test real-time metadata display (Phase 3)"""
+    """Test real-time metadata display"""
 
     def test_settings_endpoint_returns_metadata(self, client):
         """Test that camera/settings endpoint returns metadata for display"""
@@ -215,7 +215,7 @@ class TestMetadataDisplay:
 
 @pytest.mark.photo
 class TestEndToEndWorkflow:
-    """Test complete frontend workflows (Phase 3)"""
+    """Test complete frontend workflows ()"""
 
     def test_settings_adjustment_workflow(self, client):
         """Test complete workflow: adjust settings → test capture → apply to production"""
@@ -280,7 +280,7 @@ class TestEndToEndWorkflow:
 
 @pytest.mark.photo
 class TestErrorHandling:
-    """Test UI error handling (Phase 3)"""
+    """Test UI error handling ()"""
 
     def test_invalid_settings_rejected(self, client):
         """Test that UI validation catches invalid settings"""

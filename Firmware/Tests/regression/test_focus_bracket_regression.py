@@ -15,7 +15,7 @@ in the Mothbox focus bracket capture system. Each test should:
 Regression tests should NEVER be removed, even if code is refactored.
 They serve as permanent documentation and verification of historical bugs.
 
-Related: Issue #13 Phase 4 - Focus bracket regression testing
+Related: Issue #13 4 - Focus bracket regression testing
 """
 
 import pytest
@@ -78,7 +78,7 @@ class TestHistoricalBugs:
         TEST VERIFIES:
         External media CSV detection works without NameError crash.
 
-        Related: Issue #13 Phase 0 - Critical bug fix
+        Related: Issue #13 0 - Critical bug fix
         """
         # Create external camera_settings.csv
         external_csv = tmp_path / "camera_settings.csv"
@@ -142,7 +142,7 @@ class TestHistoricalBugs:
         Color gains are correctly formatted as (red, blue) tuple when
         lock_colour_gains is enabled.
 
-        Related: Issue #13 Phase 4 - Preventive regression test
+        Related: Issue #13 4 - Preventive regression test
         """
         # Mock build_picamera_controls to inspect colour_gains format
         colour_gains_calls = []
@@ -245,7 +245,7 @@ class TestHistoricalBugs:
         request.release() is called for every capture_request() call,
         ensuring proper resource cleanup.
 
-        Related: Issue #13 Phase 4 - Memory leak prevention
+        Related: Issue #13 4 - Memory leak prevention
         """
         # Setup environment
         photos_dir = tmp_path / "photos"

@@ -1,5 +1,5 @@
 """
-Unit Tests: Settings Copy Functionality (Phase 3)
+Unit Tests: Settings Copy Functionality 
 
 Tests the logic for copying settings between preview and capture configurations.
 Verifies that compatible settings are copied correctly and incompatible settings

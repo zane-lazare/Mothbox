@@ -9,7 +9,7 @@ All tests are marked with @pytest.mark.hardware and skip in CI.
 
 For comprehensive unit tests with mocking, see test_camera_stream_unit.py.
 
-Related: Issue #78 - Camera Backend Testing (Phase 1)
+Related: Issue #78 - Camera Backend Testing 
 """
 import pytest
 import numpy as np

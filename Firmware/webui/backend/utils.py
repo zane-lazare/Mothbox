@@ -208,7 +208,7 @@ ALLOWED_CAMERA_SETTINGS: Dict[str, Callable[[Any], bool]] = {
     # Noise reduction controls
     'NoiseReductionMode': lambda v: _validate_noise_reduction_mode(v),  # 0=Off, 1=Fast, 2=High Quality
 
-    # ISP features (Phase: ISP Tuning)
+    # ISP features
     'LensShadingEnable': lambda v: str(v).lower() in ['true', 'false'],
     'DefectCorrectionEnable': lambda v: str(v).lower() in ['true', 'false'],
     'UseCustomTuning': lambda v: str(v).lower() in ['true', 'false'],

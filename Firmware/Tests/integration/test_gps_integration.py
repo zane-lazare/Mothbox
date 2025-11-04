@@ -27,7 +27,7 @@ def client():
 
 
 # Note: temp_controls_file fixture now provided by conftest.py
-# with proper patching for all imported modules (Issue #13 Phase 1)
+# with proper patching for all imported modules (Issue #13 )
 
 
 @pytest.fixture

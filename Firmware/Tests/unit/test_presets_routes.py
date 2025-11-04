@@ -1,5 +1,5 @@
 """
-Unit tests for preset management routes (Issue #78 Phase 2C)
+Unit tests for preset management routes (Issue #78)
 
 Tests all preset endpoints with comprehensive mocking for CI/CD compatibility.
 Focus areas: preset CRUD operations, validation, workflow compatibility, file I/O.

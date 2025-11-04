@@ -1948,7 +1948,7 @@ export default function Camera() {
                     </p>
                   </div>
 
-                  {/* ISP Features (Phase: ISP Tuning) */}
+                  {/* ISP Features */}
 
                   {/* Zoom Slider */}
                   <div className="pt-2 mt-2 border-t border-white/20">

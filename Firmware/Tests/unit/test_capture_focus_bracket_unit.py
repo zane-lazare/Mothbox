@@ -4,17 +4,17 @@ os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
 """
 Unit tests for capture_focus_bracket.py
 
-Phase 0: Critical bug fix and regression test
+ Critical bug fix and regression test
 - Tests load_camera_settings() function
 - Regression test for line 109 bug (undefined 'root' variable)
 
-Phase 1: Quick Wins - Core Function Testing
+ Quick Wins - Core Function Testing
 - CSV parsing tests (invalid values, empty CSV, external media priority, malformed CSV)
 - GPIO flash control tests (flashOn/flashOff, state tracking, GPIO unavailable)
 - Helper function tests (get_control_values, whitespace, special chars)
 - calculate_focus_positions edge cases (floating point precision, tiny steps)
 
-Phase 2: Core Capture Logic Testing
+ Core Capture Logic Testing
 - takePhoto_FocusBracket() comprehensive tests (20 tests)
   * Basic capture tests (1, 3, 5, 10 step brackets)
   * Focus control tests (position sequencing, reverse range, settle delays)
@@ -32,7 +32,7 @@ Phase 2: Core Capture Logic Testing
   * Camera initialization
   * End-to-end workflow
 
-Phase 4: Advanced Testing & Regression Suite
+ Advanced Testing & Regression Suite
 - Edge case tests (9 tests)
   * Boundary focus values (0.0 and 10.0 diopters)
   * Zero and maximum timing delays
@@ -94,7 +94,7 @@ class TestLoadCameraSettings:
         The bug would cause a NameError: name 'root' is not defined when
         camera_settings.csv is found in /media or /mnt directories.
 
-        Related: Issue #13 Phase 0 - Critical bug fix
+        Related: Issue #13 0 - Critical bug fix
         """
         # Create external camera_settings.csv directly in /media path
         # (the function checks /media and /mnt directly, not subdirectories)
@@ -883,7 +883,7 @@ class TestCalculateFocusPositions:
 
 
 # ============================================================================
-# Phase 2: Core Capture Logic Testing - takePhoto_FocusBracket() and main()
+#  Core Capture Logic Testing - takePhoto_FocusBracket() and main()
 # ============================================================================
 
 
@@ -1086,7 +1086,7 @@ def setup_main_environment(tmp_path, monkeypatch, mock_picamera2, mock_gpio):
 
 class TestTakePhotoFocusBracket:
     """
-    Phase 2: Test takePhoto_FocusBracket() function
+     Test takePhoto_FocusBracket() function
 
     Tests the main capture logic including focus positioning, flash control,
     file operations, and camera lifecycle management.
@@ -1691,7 +1691,7 @@ class TestTakePhotoFocusBracket:
 
 class TestMain:
     """
-    Phase 2: Test main() function
+     Test main() function
 
     Tests the main execution flow including GPIO initialization, settings loading,
     configuration extraction, validation, and camera initialization.
@@ -1702,7 +1702,7 @@ class TestMain:
     3. Integration nature - main() ties together many components
     4. quit() call at end makes test cleanup tricky
 
-    These tests are marked as skip for Phase 2. They can be implemented in Phase 3
+    These tests are marked as skip for Capture testing. They can be implemented in Phase 3
     by refactoring main() to be more testable (dependency injection, extractable functions).
     """
 
@@ -2179,19 +2179,19 @@ class TestMain:
 
 
 # ============================================================================
-# Phase 4: Edge Cases & Error Handling
+#  Edge Cases & Error Handling
 # ============================================================================
 
 
 class TestEdgeCases:
     """
-    Phase 4: Edge case and boundary condition tests
+     Edge case and boundary condition tests
 
     Tests unusual but valid inputs, boundary values, and extreme configurations.
     These tests ensure the system behaves correctly at the limits of its
     expected operating range.
 
-    Related: Issue #13 Phase 4 - Edge case testing
+    Related: Issue #13 4 - Edge case testing
     """
 
     def test_focus_bracket_boundary_focus_minimum(self, mock_picamera2, mock_sleep, mock_gpio_handler, setup_photos_dir, monkeypatch):
@@ -2498,12 +2498,12 @@ class TestEdgeCases:
 
 class TestErrorHandling:
     """
-    Phase 4: Error conditions and recovery tests
+     Error conditions and recovery tests
 
     Tests error scenarios, exception handling, and resource cleanup.
     Ensures the system fails gracefully and doesn't leak resources.
 
-    Related: Issue #13 Phase 4 - Error handling testing
+    Related: Issue #13 4 - Error handling testing
     """
 
     def test_focus_bracket_file_save_error_handling(self, mock_picamera2, mock_sleep, mock_gpio_handler, setup_photos_dir):

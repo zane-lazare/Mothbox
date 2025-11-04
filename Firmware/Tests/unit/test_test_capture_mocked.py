@@ -1,5 +1,5 @@
 """
-Unit tests for test capture endpoint - Mocked tests (Phase 2)
+Unit tests for test capture endpoint - Mocked tests 
 
 Tests the /api/camera/test-capture-liveview endpoint logic without hardware.
 These tests run in CI using mocked picamera2 and complement the hardware tests.
@@ -15,7 +15,7 @@ These tests verify:
 
 Complements hardware tests in test_test_capture.py (run on Raspberry Pi).
 
-Related: Issue #13, PR #77 - Phase 2 optional mocked tests
+Related: Issue #13, PR #77 - 2 optional mocked tests
 
 Run with: pytest Tests/unit/test_test_capture_mocked.py -v
 """
@@ -45,7 +45,7 @@ class TestTestCaptureEndpointMocked:
     Complements hardware tests (run on Raspberry Pi).
     Tests run automatically in CI without camera hardware.
 
-    Related: Issue #13, PR #77 - Phase 2 optional mocked tests
+    Related: Issue #13, PR #77 - 2 optional mocked tests
     """
 
     def test_endpoint_returns_error_when_picamera2_unavailable(self):

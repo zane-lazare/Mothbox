@@ -5,7 +5,7 @@ Tests that all camera backend mocking fixtures work correctly before
 being used in comprehensive unit tests. Validates imports, return types,
 array shapes, and mock behavior.
 
-Related: Issue #78 - Camera Backend Testing (Phase 1)
+Related: Issue #78 - Camera Backend Testing 
 """
 
 import pytest

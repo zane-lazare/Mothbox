@@ -145,7 +145,7 @@ class LiveViewStreamer:
         self._af_window_active = False  # True when AF window is set
         self._af_window_coords = None  # Stores (x, y, w, h) in pixel coordinates relative to ScalerCropMaximum
 
-        # ISP feature toggles (Phase: ISP Tuning)
+        # ISP feature toggles
         # Note: Lens shading changes require camera restart - no runtime control available
         self.lens_shading_enable = True
         self.defect_correction_enable = True
@@ -219,7 +219,7 @@ class LiveViewStreamer:
                     self.colour_gains = (float(settings['colour_gains_red']),
                                         float(settings['colour_gains_blue']))
 
-                # ISP settings (Phase: ISP Tuning)
+                # ISP settings
                 if 'lens_shading_enable' in settings:
                     self.lens_shading_enable = settings['lens_shading_enable'].lower() == 'true'
                 if 'defect_correction_enable' in settings:
@@ -259,7 +259,7 @@ class LiveViewStreamer:
             if self.camera is not None:
                 self.release_camera()
 
-            # Get ISP tuning file path if custom tuning is enabled (Phase: ISP Tuning)
+            # Get ISP tuning file path if custom tuning is enabled
             # Pass path as STRING to avoid temp file creation/deletion issues
             tuning_path = None
             if ISP_TUNING_AVAILABLE and self.use_custom_tuning:
@@ -425,7 +425,7 @@ class LiveViewStreamer:
             # CRITICAL: Must be called after configure() as configure() resets controls to defaults
             applied_controls = self._apply_camera_controls()
 
-            # Apply ISP controls (Phase: ISP Tuning)
+            # Apply ISP controls
             # Must be done after camera.start() as ISP controls require running camera
             # Note: Lens shading changes require camera restart - LensShadingMapMode not available at runtime
             if ISP_TUNING_AVAILABLE:

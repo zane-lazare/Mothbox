@@ -1060,7 +1060,7 @@ class TestWebSocketMetadataEvent:
 
 class TestGetMetadataFallbacks:
     """
-    Test get_metadata fallback handling for edge cases and exceptions (Phase 3)
+    Test get_metadata fallback handling for edge cases and exceptions 
 
     This test class covers exception paths in handle_get_metadata where various
     metadata retrieval operations fail and fallback to safe defaults:
@@ -1949,7 +1949,7 @@ class TestWebSocketCoordinateTransformations:
         print("\n✓ Fallback coordinates when camera not ready: (0.5, 0.5), (1.0, 1.0)")
 
     # ========================================
-    # Phase 2: Handler Integration Tests
+    #  Handler Integration Tests
     # ========================================
 
     def test_handle_set_zoom_success_level_only(self):
@@ -2125,7 +2125,7 @@ class TestWebSocketCoordinateTransformations:
 
 class TestSetZoomExceptions:
     """
-    Test set_zoom exception handling (Phase 3)
+    Test set_zoom exception handling 
 
     This test class covers exception handling in handle_set_zoom where the
     set_zoom operation raises an exception (lines 469-471). This ensures
@@ -2354,13 +2354,13 @@ class TestSetAfWindowErrors:
 
 class TestWebSocketPreviewEventsPhase3:
     """
-    Phase 3: Edge Case Tests
+     Edge Case Tests
 
     Tests edge cases and complex scenarios for WebSocket handlers.
     """
 
     # ========================================
-    # Phase 3: Edge Case Tests
+    #  Edge Case Tests
     # ========================================
 
     def test_metadata_2x_zoom_centered(self):
@@ -2804,7 +2804,7 @@ class TestWebSocketPreviewEventsPhase3:
         print("\n✓ ScalerCrop missing fallback: crop_fraction=(0.5, 0.5) symmetric fallback")
 
     # ========================================
-    # Phase 4: Frontend Integration Tests
+    #  Frontend Integration Tests
     # ========================================
 
     def test_coordinate_round_trip_transformation(self):

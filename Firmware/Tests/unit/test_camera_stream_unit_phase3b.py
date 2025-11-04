@@ -1,7 +1,7 @@
 """
-Phase 3B Tests for LiveViewStreamer - Streaming Lifecycle, Zoom, and Focus Peaking
+LiveViewStreamer Tests - Streaming Lifecycle, Zoom, and Focus Peaking
 
-This file contains test classes for Phase 3B of Issue #78 (Camera Backend Testing).
+This file contains test classes for Issue #78 (Camera Backend Testing).
 Tests cover streaming lifecycle, digital zoom calculations, and focus peaking algorithms.
 
 Test Classes:

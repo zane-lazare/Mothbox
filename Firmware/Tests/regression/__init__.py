@@ -11,5 +11,5 @@ Each test should:
 3. Verify the fix prevents regression
 4. Include the date the bug was fixed
 
-Related: Issue #13 Phase 4 - Focus bracket regression testing
+Related: Issue #13 4 - Focus bracket regression testing
 """
