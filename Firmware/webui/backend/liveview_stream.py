@@ -513,17 +513,41 @@ class LiveViewStreamer:
         self.camera.set_controls(controls_dict)
 
         # Re-apply AF window if active (ensures window persists after configure/reinit)
-        if self._af_window_active and self._af_window_coords:
-            # AfWindows expects list of tuples in sensor pixel coordinates
-            self.camera.set_controls({
-                "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
-                "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples in pixels
-            })
+        self._reapply_af_window_if_active()
 
         # Small delay to allow controls to settle
         time.sleep(0.05)
 
         return controls_dict
+
+    def _reapply_af_window_if_active(self):
+        """
+        Re-apply AF window controls if an AF window is currently active.
+
+        This helper ensures AF window persistence across control updates.
+        Should be called after any set_controls() call that might interfere
+        with AF window settings.
+
+        Called by:
+        - _apply_camera_controls() - after camera initialization
+        - update_control() - after control updates
+        - set_zoom() - after zoom changes
+        - set_manual_focus_mode() - after AF mode changes
+
+        Returns:
+            bool: True if AF window was re-applied, False if not active
+        """
+        if self._af_window_active and self._af_window_coords:
+            try:
+                self.camera.set_controls({
+                    "AfMetering": 1,  # Windows mode
+                    "AfWindows": [self._af_window_coords]
+                })
+                return True
+            except Exception as e:
+                print(f"⚠ Error re-applying AF window: {e}")
+                return False
+        return False
 
     def start_streaming(self):
         """Start streaming camera frames"""
@@ -998,12 +1022,7 @@ class LiveViewStreamer:
                 self.camera.set_controls(camera_controls)
 
                 # Re-apply AF window if active (preserve window when other controls change)
-                if self._af_window_active and self._af_window_coords:
-                    # AfWindows expects list of tuples in sensor pixel coordinates
-                    self.camera.set_controls({
-                        "AfMetering": 1,  # Windows mode (0-1 range, not 0-2!)
-                        "AfWindows": [self._af_window_coords]  # List of (x, y, w, h) tuples in pixels
-                    })
+                self._reapply_af_window_if_active()
 
                 print(f"Updated camera controls: {camera_controls}")
             except Exception as e:
@@ -1426,6 +1445,12 @@ class LiveViewStreamer:
         # Apply ScalerCrop control
         try:
             self.camera.set_controls({"ScalerCrop": scaler_crop})
+
+            # Re-apply AF window if active (preserve window when zoom changes)
+            # AF window coordinates are in full sensor space (ScalerCropMaximum),
+            # so they remain valid regardless of zoom level (ScalerCrop)
+            self._reapply_af_window_if_active()
+
             print(f"✓ Zoom applied: {self.zoom_level:.2f}x at ({self.zoom_center_x:.2f}, {self.zoom_center_y:.2f})")
             print(f"  ScalerCrop: {scaler_crop}")
             return True
@@ -1674,6 +1699,12 @@ class LiveViewStreamer:
             try:
                 af_mode_to_use = self._af_mode_override if self._af_mode_override is not None else self.af_mode
                 self.camera.set_controls({"AfMode": af_mode_to_use})
+
+                # Re-apply AF window if active (preserve window state)
+                # Note: AF window has no effect in manual focus mode (AfMode=0),
+                # but we preserve it so it's ready when switching back to continuous AF
+                self._reapply_af_window_if_active()
+
                 print(f"✓ Applied AF mode change immediately: AfMode {af_mode_to_use}")
                 return True
             except Exception as e:

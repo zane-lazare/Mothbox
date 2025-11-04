@@ -2045,14 +2045,41 @@ def mock_picamera2_for_streamer():
     Simulates camera initialization, configuration, streaming,
     and control application without requiring hardware.
 
-    Usage:
-        def test_camera_init(mock_picamera2_for_streamer):
-            with patch('liveview_stream.Picamera2', return_value=mock_picamera2_for_streamer):
-                streamer = LiveViewStreamer(mock_socketio())
-                assert streamer.initialize_camera() == True
+    Architecture:
+    - Custom class for properties and state tracking
+    - MagicMock methods for test-level configuration
 
-    Related: Issue #78 - LiveView streamer testing
+    Usage - Default behavior:
+        def test_with_defaults(mock_picamera2_for_streamer):
+            mock_cam = mock_picamera2_for_streamer
+            frame = mock_cam.capture_array()  # Returns default 768x1024 array
+
+    Usage - Override return values:
+        def test_with_override(mock_picamera2_for_streamer):
+            mock_cam = mock_picamera2_for_streamer
+            mock_cam.camera_configuration.return_value = {
+                'raw': {'size': (4056, 3040)},
+                'main': {'size': (1920, 1080)}
+            }
+            config = mock_cam.camera_configuration()  # Returns override
+
+    Usage - Simulate errors:
+        def test_error_handling(mock_picamera2_for_streamer):
+            mock_cam = mock_picamera2_for_streamer
+            mock_cam.stop.side_effect = RuntimeError("Stop failed")
+            # Test error recovery...
+
+    Usage - Verify calls:
+        def test_call_verification(mock_picamera2_for_streamer):
+            mock_cam = mock_picamera2_for_streamer
+            mock_cam.start_recording(encoder, output)
+            mock_cam.start_recording.assert_called_once()
+
+    Related: Issue #78 - LiveView streamer testing, Issue #13 Phase 1
     """
+    from unittest.mock import MagicMock
+    import numpy as np
+
     class MockPicamera2:
         def __init__(self, camera_num=0, tuning=None):
             self.camera_num = camera_num
@@ -2072,15 +2099,11 @@ def mock_picamera2_for_streamer():
             self._simulate_busy = False
             self._simulate_already_started = False
 
-        @property
-        def camera_properties(self):
-            """Camera properties including ScalerCropMaximum"""
-            return {
-                'ScalerCropMaximum': self.scaler_crop_maximum,
-                'Model': 'Arducam 64MP',
-                'UnitCellSize': (1120, 1120),  # 1.12µm pixels
-                'PixelArraySize': (9248, 6944)
-            }
+            # Internal storage for camera_properties (can be overridden by tests)
+            self._camera_properties = None
+
+            # Configure methods as MagicMocks with default behaviors
+            self._setup_mock_methods()
 
         @property
         def state(self):
@@ -2115,85 +2138,151 @@ def mock_picamera2_for_streamer():
                 'NoiseReductionMode': (0, 4, 0)
             }
 
-        def create_video_configuration(self, main=None, raw=None, encode=None):
-            # If raw is None, use a default raw size to match real Picamera2 behavior
-            if raw is None:
-                raw = {'size': (2304, 1736)}  # Default 4:3 mode
-            return {'main': main, 'raw': raw, 'encode': encode}
-
-        def configure(self, config):
-            self.config = config
-
-        def camera_configuration(self):
-            return self.config
-
-        def start(self):
-            if self._simulate_already_started:
-                self._simulate_already_started = False
-                raise RuntimeError("Camera already started")
-            if self._simulate_busy:
-                self._simulate_busy = False
-                raise RuntimeError("Camera is busy")
-            # Make start() idempotent like real Picamera2
-            # Real Picamera2 handles being started twice gracefully
-            if not self.started:
-                self.started = True
-
-        def stop(self):
-            self.started = False
-
-        def start_recording(self, encoder, output):
-            self.streaming = True
-
-        def stop_recording(self):
-            self.streaming = False
-
-        def capture_array(self):
-            import numpy as np
-            return np.zeros((768, 1024, 3), dtype=np.uint8)
-
-        def capture_metadata(self):
+        @property
+        def camera_properties(self):
+            """Camera properties including ScalerCropMaximum"""
+            # If test has overridden _camera_properties, use that
+            if self._camera_properties is not None:
+                return self._camera_properties
+            # Otherwise, return dynamic properties based on scaler_crop_maximum
             return {
-                'AfState': 2,  # Focused
-                'ExposureTime': 500,
-                'AnalogueGain': 8.0,
-                'LensPosition': 1.5
+                'ScalerCropMaximum': self.scaler_crop_maximum,
+                'Model': 'Arducam 64MP',
+                'UnitCellSize': (1120, 1120),  # 1.12µm pixels
+                'PixelArraySize': (9248, 6944)
             }
 
-        def capture_request(self):
-            class MockRequest:
-                def get_metadata(self):
-                    return {
-                        'AfState': 2,
-                        'ExposureTime': 500
-                    }
-                def release(self):
-                    pass
-            return MockRequest()
+        @camera_properties.setter
+        def camera_properties(self, value):
+            """Allow tests to override camera_properties"""
+            self._camera_properties = value
 
-        def set_controls(self, controls):
-            """
-            Set camera controls with state validation
+        def _setup_mock_methods(self):
+            """Configure all methods as MagicMocks with default behaviors"""
 
-            Args:
-                controls: Dict of control_name: value
+            # ----------------------------------------------------------------
+            # Configuration methods
+            # ----------------------------------------------------------------
+            def default_create_video_configuration(main=None, raw=None, encode=None):
+                if raw is None:
+                    raw = {'size': (2304, 1736)}  # Default 4:3 mode
+                return {'main': main, 'raw': raw, 'encode': encode}
 
-            Raises:
-                RuntimeError: If camera not in correct state
-            """
-            if self.state == 'stopped':
-                raise RuntimeError("Camera not started")
+            self.create_video_configuration = MagicMock(
+                side_effect=default_create_video_configuration
+            )
 
-            # Track control history
-            self.control_history.append(controls.copy())
+            def default_configure(config):
+                self.config = config
 
-            # Update current controls
-            self.current_controls.update(controls)
-            self.controls.update(controls)
+            self.configure = MagicMock(side_effect=default_configure)
 
-        def close(self):
-            self.started = False
-            self.streaming = False
+            # camera_configuration: Use a property-like approach
+            # Note: Tests can override by setting both side_effect=None and return_value
+            # or by updating self.config via configure()
+            self.camera_configuration = MagicMock()
+            # Wraps approach: call underlying function but allow override
+            self._orig_camera_configuration = lambda: self.config
+
+            def _camera_configuration_wrapper():
+                return self.config
+
+            # Use side_effect so it dynamically returns self.config
+            self.camera_configuration.side_effect = _camera_configuration_wrapper
+
+            # ----------------------------------------------------------------
+            # Lifecycle methods
+            # ----------------------------------------------------------------
+            def default_start():
+                if self._simulate_already_started:
+                    self._simulate_already_started = False
+                    raise RuntimeError("Camera already started")
+                if self._simulate_busy:
+                    self._simulate_busy = False
+                    raise RuntimeError("Camera is busy")
+                if not self.started:
+                    self.started = True
+
+            self.start = MagicMock(side_effect=default_start)
+
+            def default_stop():
+                self.started = False
+
+            self.stop = MagicMock(side_effect=default_stop)
+
+            def default_close():
+                self.started = False
+                self.streaming = False
+
+            self.close = MagicMock(side_effect=default_close)
+
+            # ----------------------------------------------------------------
+            # Recording methods
+            # ----------------------------------------------------------------
+            def default_start_recording(encoder, output):
+                self.streaming = True
+
+            self.start_recording = MagicMock(
+                side_effect=default_start_recording
+            )
+
+            def default_stop_recording():
+                self.streaming = False
+
+            self.stop_recording = MagicMock(
+                side_effect=default_stop_recording
+            )
+
+            # ----------------------------------------------------------------
+            # Capture methods
+            # ----------------------------------------------------------------
+            def default_capture_array():
+                return np.zeros((768, 1024, 3), dtype=np.uint8)
+
+            self.capture_array = MagicMock(
+                side_effect=default_capture_array
+            )
+
+            def default_capture_metadata():
+                return {
+                    'AfState': 2,  # Focused
+                    'ExposureTime': 500,
+                    'AnalogueGain': 8.0,
+                    'LensPosition': 1.5
+                }
+
+            self.capture_metadata = MagicMock(
+                side_effect=default_capture_metadata
+            )
+
+            def default_capture_request():
+                class MockRequest:
+                    def get_metadata(self):
+                        return {
+                            'AfState': 2,
+                            'ExposureTime': 500
+                        }
+                    def release(self):
+                        pass
+                return MockRequest()
+
+            self.capture_request = MagicMock(
+                side_effect=default_capture_request
+            )
+
+            # ----------------------------------------------------------------
+            # Control methods
+            # ----------------------------------------------------------------
+            def default_set_controls(controls):
+                if self.state == 'stopped':
+                    raise RuntimeError("Camera not started")
+                self.control_history.append(controls.copy())
+                self.current_controls.update(controls)
+                self.controls.update(controls)
+
+            self.set_controls = MagicMock(
+                side_effect=default_set_controls
+            )
 
         def simulate_camera_busy_error(self):
             """Make next operation raise 'camera busy' error"""

@@ -193,6 +193,8 @@ class TestHardwareMJPEGIntegration:
         streamer.sensor_resolution = None
 
         # Mock camera configuration response
+        # Clear side_effect first so return_value takes effect
+        mock_picamera2_for_streamer.camera_configuration.side_effect = None
         mock_picamera2_for_streamer.camera_configuration.return_value = {
             'raw': {'size': (4056, 3040)},
             'main': {'size': (1920, 1080)}
@@ -264,6 +266,8 @@ class TestHardwareMJPEGIntegration:
         mock_request.get_metadata.return_value = {
             'AfState': 0  # Idle
         }
+        # Clear side_effect first so return_value takes effect
+        mock_picamera2_for_streamer.capture_request.side_effect = None
         mock_picamera2_for_streamer.capture_request.return_value = mock_request
 
         mock_encoder = MagicMock()
