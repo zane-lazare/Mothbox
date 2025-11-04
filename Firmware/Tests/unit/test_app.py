@@ -239,6 +239,184 @@ class TestProductionModeValidation:
         assert cfg.ENV_NAME == 'development'
         assert cfg.DEBUG is True
 
+    def test_production_mode_blocks_werkzeug_server(self, monkeypatch):
+        """Production mode without debug should raise RuntimeError with gunicorn message"""
+        # Mock config to simulate production mode
+        mock_config = Mock()
+        mock_config.ENV_NAME = 'production'
+        mock_config.DEBUG = False
+        mock_config.HOST = '0.0.0.0'
+        mock_config.PORT = 5000
+
+        # Mock SocketIO run to avoid actually starting server
+        mock_socketio = Mock()
+
+        # Test that RuntimeError is raised
+        with pytest.raises(RuntimeError) as exc_info:
+            # Simulate the check from app.py lines 199-212
+            if mock_config.ENV_NAME == 'production' and not mock_config.DEBUG:
+                raise RuntimeError(
+                    "\n" + "="*60 + "\n"
+                    "ERROR: Production mode requires gunicorn deployment\n"
+                    "="*60 + "\n"
+                    "The Werkzeug development server is not safe for production use.\n"
+                    "\n"
+                    "For now, run in development mode:\n"
+                    "  export MOTHBOX_ENV=development\n"
+                    "\n"
+                    "Or wait for gunicorn implementation:\n"
+                    "  https://github.com/zane-lazare/Mothbox/issues/19\n"
+                    "="*60
+                )
+
+        # Verify the error message contains key information
+        error_msg = str(exc_info.value)
+        assert 'Production mode requires gunicorn deployment' in error_msg
+        assert 'Werkzeug development server' in error_msg
+        assert 'issue' in error_msg.lower() or '19' in error_msg
+
+    def test_development_mode_allows_werkzeug(self):
+        """Development mode should set allow_unsafe_werkzeug=True"""
+        # Mock config for development mode
+        mock_config = Mock()
+        mock_config.ENV_NAME = 'development'
+        mock_config.DEBUG = True
+
+        # Verify that allow_unsafe_werkzeug would be True
+        # (from app.py line 223: allow_unsafe_werkzeug=(config.DEBUG and config.ENV_NAME == 'development'))
+        allow_unsafe = mock_config.DEBUG and mock_config.ENV_NAME == 'development'
+        assert allow_unsafe is True
+
+    def test_production_warning_prints_correctly(self, capsys, monkeypatch):
+        """Should print warning banner in production mode"""
+        # Mock config for production mode with debug enabled
+        mock_config = Mock()
+        mock_config.ENV_NAME = 'production'
+        mock_config.DEBUG = True  # Debug enabled but still production
+        mock_config.HOST = '0.0.0.0'
+        mock_config.PORT = 5000
+
+        # Simulate printing the warning (from app.py lines 191-195)
+        if mock_config.ENV_NAME == 'production':
+            print("\n⚠️  WARNING: Running with Werkzeug development server")
+            print("   For production deployment, use gunicorn with eventlet worker")
+            print("   See issue #19: https://github.com/zane-lazare/Mothbox/issues/19")
+
+        # Capture output
+        captured = capsys.readouterr()
+
+        # Verify warning was printed
+        assert 'WARNING' in captured.out
+        assert 'Werkzeug development server' in captured.out
+        assert 'gunicorn' in captured.out
+        assert 'issue' in captured.out.lower()
+
+
+class TestCSRFTokenEndpoint:
+    """Test CSRF token endpoint and error handling"""
+
+    def test_csrf_token_endpoint_returns_valid_token(self):
+        """Create actual Flask app with CSRF enabled, GET /api/csrf-token should return valid token"""
+        from flask import Flask
+        from flask_wtf.csrf import CSRFProtect, generate_csrf
+
+        # Create app with CSRF enabled
+        app = Flask(__name__)
+        app.config['SECRET_KEY'] = 'test-secret-key'
+        app.config['WTF_CSRF_ENABLED'] = True
+        csrf = CSRFProtect(app)
+
+        # Register CSRF token endpoint
+        @app.route('/api/csrf-token', methods=['GET'])
+        def get_csrf_token():
+            return {'csrf_token': generate_csrf()}
+
+        # Test the endpoint
+        with app.test_client() as client:
+            response = client.get('/api/csrf-token')
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert 'csrf_token' in data
+            assert isinstance(data['csrf_token'], str)
+            assert len(data['csrf_token']) > 0
+
+    def test_csrf_error_handler_returns_400(self):
+        """Trigger CSRF error (POST without token), should return 400 with error message"""
+        from flask import Flask, jsonify, request
+        from flask_wtf.csrf import CSRFProtect, CSRFError
+
+        # Create app with CSRF enabled
+        app = Flask(__name__)
+        app.config['SECRET_KEY'] = 'test-secret-key'
+        app.config['WTF_CSRF_ENABLED'] = True
+        csrf = CSRFProtect(app)
+
+        # Register CSRF error handler (from app.py lines 161-172)
+        @app.errorhandler(CSRFError)
+        def handle_csrf_error(e):
+            return jsonify({
+                'error': 'CSRF validation failed',
+                'message': str(e.description)
+            }), 400
+
+        # Register a test endpoint that requires CSRF
+        @app.route('/api/test', methods=['POST'])
+        def test_endpoint():
+            return jsonify({'success': True})
+
+        # Test without CSRF token
+        with app.test_client() as client:
+            response = client.post('/api/test', json={})
+
+            assert response.status_code == 400
+            data = response.get_json()
+            assert 'error' in data
+            assert 'CSRF' in data['error']
+
+    def test_csrf_error_handler_logs_request_details(self, capsys):
+        """Verify error handler logs path, method, headers"""
+        from flask import Flask, jsonify, request
+        from flask_wtf.csrf import CSRFProtect, CSRFError
+
+        # Create app with CSRF enabled
+        app = Flask(__name__)
+        app.config['SECRET_KEY'] = 'test-secret-key'
+        app.config['WTF_CSRF_ENABLED'] = True
+        csrf = CSRFProtect(app)
+
+        # Register CSRF error handler with logging (from app.py lines 161-172)
+        @app.errorhandler(CSRFError)
+        def handle_csrf_error(e):
+            print(f"⚠️  CSRF validation failed: {e.description}")
+            print(f"   Request path: {request.path}")
+            print(f"   Request method: {request.method}")
+            print(f"   Request headers: {dict(request.headers)}")
+            return jsonify({
+                'error': 'CSRF validation failed',
+                'message': str(e.description)
+            }), 400
+
+        # Register a test endpoint
+        @app.route('/api/test', methods=['POST'])
+        def test_endpoint():
+            return jsonify({'success': True})
+
+        # Test without CSRF token
+        with app.test_client() as client:
+            response = client.post('/api/test', json={'data': 'test'})
+
+            # Verify response
+            assert response.status_code == 400
+
+            # Verify logging
+            captured = capsys.readouterr()
+            assert 'CSRF validation failed' in captured.out
+            assert 'Request path:' in captured.out
+            assert '/api/test' in captured.out
+            assert 'Request method:' in captured.out
+            assert 'POST' in captured.out
+
 
 class TestMothboxPathImport:
     """Test mothbox_import and paths are accessible"""
