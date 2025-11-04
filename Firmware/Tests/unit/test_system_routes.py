@@ -13,13 +13,14 @@ Coverage Target: 85%+ (system.py is 270 lines)
 import pytest
 import json
 import sys
+import os
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, mock_open
 from flask import Flask
 import time
 
-# Mock external dependencies before importing
-sys.modules['config'] = MagicMock()
+# Set test environment before importing modules that use config
+os.environ.setdefault('MOTHBOX_ENV', 'development')
 
 # Import the blueprint and cache functions
 from routes.system import system_bp, _get_cached_photo_count, invalidate_photo_count_cache
