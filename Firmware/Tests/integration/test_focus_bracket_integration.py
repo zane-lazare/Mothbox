@@ -244,33 +244,39 @@ def mock_external_media(tmp_path, monkeypatch):
     """
     Mock external media directory structure
 
-    Creates /media/usb0/camera_settings.csv to test external media priority
+    Creates media directory with camera_settings.csv directly in it to match
+    script expectation that CSV is in /media/ not /media/usb0/
     """
     media_dir = tmp_path / "media"
-    usb_dir = media_dir / "usb0"
-    usb_dir.mkdir(parents=True)
+    media_dir.mkdir(parents=True)
 
-    # Track original listdir
+    # Track original functions
     original_listdir = os.listdir
+    original_join = os.path.join
 
     def mock_listdir(path):
         """Mock listdir to simulate external media mount points"""
         path_str = str(path)
         if path_str == "/media":
-            # Return our mock USB directory
-            return [str(usb_dir)]
-        elif str(usb_dir) in path_str:
-            # Return contents of USB directory
-            return [f.name for f in usb_dir.iterdir()]
+            # Return contents of our mocked media directory
+            return [f.name for f in media_dir.iterdir()]
         # Fall back to original for other paths
         try:
             return original_listdir(path)
         except:
             return []
 
-    monkeypatch.setattr('os.listdir', mock_listdir)
+    def mock_join(path, *args):
+        """Mock os.path.join to redirect /media paths to our temp directory"""
+        if path == "/media":
+            # Redirect to our temp media directory
+            return str(media_dir / "/".join(args))
+        return original_join(path, *args)
 
-    yield usb_dir
+    monkeypatch.setattr('os.listdir', mock_listdir)
+    monkeypatch.setattr('os.path.join', mock_join)
+
+    yield media_dir
 
 
 # ============================================================================
@@ -400,14 +406,20 @@ FocusBracket_ColorGainBlue,1.8,Blue
         env = integration_env
         mocks = mock_camera_hardware
 
+        # Patch mothbox_paths BEFORE importing focus_module to survive reload
+        import mothbox_paths
+        monkeypatch.setattr(mothbox_paths, 'CAMERA_SETTINGS_FILE', env['camera_settings'])
+        monkeypatch.setattr(mothbox_paths, 'PHOTOS_DIR', env['photos_dir'])
+        monkeypatch.setattr(mothbox_paths, 'CONTROLS_FILE', env['controls_file'])
+
+        # Patch picamera2 module BEFORE importing focus_module to survive reload
+        import picamera2
+        monkeypatch.setattr(picamera2, 'Picamera2', lambda: mocks['picamera2'])
+
         import webui.backend.scripts.capture_focus_bracket as focus_module
-        monkeypatch.setattr(focus_module, 'CAMERA_SETTINGS_FILE', env['camera_settings'])
-        monkeypatch.setattr(focus_module, 'PHOTOS_DIR', env['photos_dir'])
-        monkeypatch.setattr(focus_module, 'CONTROLS_FILE', env['controls_file'])
         monkeypatch.setattr(focus_module, 'Relay_Ch1', 26, raising=False)
         monkeypatch.setattr(focus_module, 'Relay_Ch2', 20, raising=False)
         monkeypatch.setattr(focus_module, 'Relay_Ch3', 21, raising=False)
-        monkeypatch.setattr(focus_module, 'Picamera2', lambda: mocks['picamera2'])
 
         import builtins
         monkeypatch.setattr(builtins, 'quit', lambda: None)
@@ -663,14 +675,20 @@ class TestFileSystemIntegration:
         shutil.rmtree(env['photos_dir'])
         assert not env['photos_dir'].exists(), "Photos dir should be deleted"
 
+        # Patch mothbox_paths BEFORE importing focus_module to survive reload
+        import mothbox_paths
+        monkeypatch.setattr(mothbox_paths, 'CAMERA_SETTINGS_FILE', env['camera_settings'])
+        monkeypatch.setattr(mothbox_paths, 'PHOTOS_DIR', env['photos_dir'])
+        monkeypatch.setattr(mothbox_paths, 'CONTROLS_FILE', env['controls_file'])
+
+        # Patch picamera2 module BEFORE importing focus_module to survive reload
+        import picamera2
+        monkeypatch.setattr(picamera2, 'Picamera2', lambda: mocks['picamera2'])
+
         import webui.backend.scripts.capture_focus_bracket as focus_module
-        monkeypatch.setattr(focus_module, 'CAMERA_SETTINGS_FILE', env['camera_settings'])
-        monkeypatch.setattr(focus_module, 'PHOTOS_DIR', env['photos_dir'])
-        monkeypatch.setattr(focus_module, 'CONTROLS_FILE', env['controls_file'])
         monkeypatch.setattr(focus_module, 'Relay_Ch1', 26, raising=False)
         monkeypatch.setattr(focus_module, 'Relay_Ch2', 20, raising=False)
         monkeypatch.setattr(focus_module, 'Relay_Ch3', 21, raising=False)
-        monkeypatch.setattr(focus_module, 'Picamera2', lambda: mocks['picamera2'])
 
         import builtins
         monkeypatch.setattr(builtins, 'quit', lambda: None)
@@ -705,10 +723,18 @@ class TestFileSystemIntegration:
         env = integration_env
         mocks = mock_camera_hardware
 
+        # Patch mothbox_paths BEFORE importing focus_module to survive reload
+        import mothbox_paths
+        monkeypatch.setattr(mothbox_paths, 'CAMERA_SETTINGS_FILE', env['camera_settings'])
+        monkeypatch.setattr(mothbox_paths, 'PHOTOS_DIR', env['photos_dir'])
+        monkeypatch.setattr(mothbox_paths, 'CONTROLS_FILE', env['controls_file'])
+
+        # Patch picamera2 module BEFORE importing focus_module to survive reload
+        import picamera2
+        mock_cam1 = mock_camera_hardware['picamera2']
+        monkeypatch.setattr(picamera2, 'Picamera2', lambda: mock_cam1)
+
         import webui.backend.scripts.capture_focus_bracket as focus_module
-        monkeypatch.setattr(focus_module, 'CAMERA_SETTINGS_FILE', env['camera_settings'])
-        monkeypatch.setattr(focus_module, 'PHOTOS_DIR', env['photos_dir'])
-        monkeypatch.setattr(focus_module, 'CONTROLS_FILE', env['controls_file'])
         monkeypatch.setattr(focus_module, 'Relay_Ch1', 26, raising=False)
         monkeypatch.setattr(focus_module, 'Relay_Ch2', 20, raising=False)
         monkeypatch.setattr(focus_module, 'Relay_Ch3', 21, raising=False)
@@ -720,8 +746,6 @@ class TestFileSystemIntegration:
         monkeypatch.setattr(platform, 'system', lambda: 'Linux')
 
         # Run first capture
-        mock_cam1 = mock_camera_hardware['picamera2']
-        monkeypatch.setattr(focus_module, 'Picamera2', lambda: mock_cam1)
         importlib.reload(focus_module)
 
         try:
@@ -778,7 +802,7 @@ class TestFileSystemIntegration:
                 return MockRequest(self.capture_count)
 
         mock_cam2 = MockPicamera2_2()
-        monkeypatch.setattr(focus_module, 'Picamera2', lambda: mock_cam2)
+        monkeypatch.setattr(picamera2, 'Picamera2', lambda: mock_cam2)
         importlib.reload(focus_module)
 
         try:
