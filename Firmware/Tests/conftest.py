@@ -2154,8 +2154,28 @@ def mock_picamera2_for_streamer():
 
         @camera_properties.setter
         def camera_properties(self, value):
-            """Allow tests to override camera_properties"""
-            self._camera_properties = value
+            """Allow tests to override camera_properties (merges with defaults)
+
+            Args:
+                value: Dict of properties to set. Merges with default properties.
+                       Use None to reset to defaults.
+                       Use {} to explicitly set empty dict (for testing missing properties).
+            """
+            if value is None:
+                # Reset to defaults
+                self._camera_properties = None
+            elif value == {}:
+                # Explicitly set to empty (for testing missing properties)
+                self._camera_properties = {}
+            else:
+                # Merge with defaults
+                defaults = {
+                    'ScalerCropMaximum': self.scaler_crop_maximum,
+                    'Model': 'Arducam 64MP',
+                    'UnitCellSize': (1120, 1120),
+                    'PixelArraySize': (9248, 6944)
+                }
+                self._camera_properties = {**defaults, **value}
 
         def _setup_mock_methods(self):
             """Configure all methods as MagicMocks with default behaviors"""

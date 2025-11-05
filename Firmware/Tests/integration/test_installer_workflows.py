@@ -583,8 +583,8 @@ class TestQuickModeDefaults:
         ]
 
         # Verify all keys present
-        success, missing = validate_controls_content(result['controls_file'], required_keys)
-        assert success, f"Missing keys: {missing}"
+        success, missing, invalid = validate_controls_content(result['controls_file'], required_keys)
+        assert success, f"Missing keys: {missing}, Invalid values: {invalid}"
 
     def test_quick_mode_firmware_version_written(self, tmp_path):
         """
@@ -639,8 +639,8 @@ class TestControlsTxtConfiguration:
             'mux_en_a', 'mux_en_b', 'mux_s0', 'mux_s1', 'mux_s2', 'mux_s3', 'mux_sig',
         ]
 
-        success, missing = validate_controls_content(result['controls_file'], expected_keys)
-        assert success, f"Missing {len(missing)} keys: {missing[:5]}..."
+        success, missing, invalid = validate_controls_content(result['controls_file'], expected_keys)
+        assert success, f"Missing {len(missing)} keys: {missing[:5]}..., Invalid values: {invalid}"
 
     def test_firmware_version_correctly_set(self, tmp_path):
         """
@@ -920,9 +920,10 @@ class TestConfigUpdateOperations:
         nonexistent = tmp_path / "does_not_exist.txt"
         expected_keys = ['key1', 'key2', 'key3']
 
-        success, missing = validate_controls_content(nonexistent, expected_keys)
+        success, missing, invalid = validate_controls_content(nonexistent, expected_keys)
         assert success is False
         assert missing == expected_keys
+        assert invalid == {}
 
     def test_mock_sudo_call_helper(self):
         """
@@ -1055,8 +1056,21 @@ class TestFileLockingAndAtomicity:
             threads.append(t)
 
         # Wait for all threads
-        for t in threads:
+        failed_threads = []
+        for i, t in enumerate(threads):
             t.join(timeout=5)
+            if t.is_alive():
+                failed_threads.append(i)
+
+        # Ensure all threads completed
+        assert len(failed_threads) == 0, (
+            f"Threads {failed_threads} failed to complete within timeout"
+        )
+
+        # Ensure all threads reported results
+        assert len(results) == 5, (
+            f"Expected 5 results but got {len(results)}: {results}"
+        )
 
         # At least one should succeed
         assert len(results) > 0
@@ -1465,8 +1479,8 @@ class TestEndToEndWorkflows:
 
         # Configuration validation
         required_keys = ['softwareversion', 'Relay_Ch1', 'relay_enabled']
-        success, missing = validate_controls_content(
+        success, missing, invalid = validate_controls_content(
             result['controls_file'],
             required_keys
         )
-        assert success, f"Missing required keys: {missing}"
+        assert success, f"Missing required keys: {missing}, Invalid values: {invalid}"

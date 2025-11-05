@@ -317,10 +317,11 @@ def simulate_quick_install(
 
 def validate_controls_content(
     controls_path: Path,
-    expected_keys: List[str]
-) -> Tuple[bool, List[str]]:
+    expected_keys: List[str],
+    validators: Optional[Dict[str, Callable[[str], bool]]] = None
+) -> Tuple[bool, List[str], Dict[str, str]]:
     """
-    Validate controls.txt has all expected keys.
+    Validate controls.txt has all expected keys and optionally validate values.
 
     Helper function for test assertions - not in bash installer.
 
@@ -328,32 +329,58 @@ def validate_controls_content(
     - Quick mode wrote all required keys
     - Firmware migration preserved all keys
     - Config updates didn't delete keys
+    - Values are valid (when validators provided)
 
     Args:
         controls_path: Path to controls.txt
         expected_keys: List of required keys (e.g., ['Relay_Ch1', 'relay_enabled'])
+        validators: Optional dict mapping keys to validator functions.
+                   Each validator takes a string value and returns True if valid.
 
     Returns:
-        Tuple of (success: bool, missing_keys: List[str])
-        - success: True if all keys present
-        - missing_keys: List of keys not found (empty if success)
+        Tuple of (success: bool, missing_keys: List[str], invalid_values: Dict[str, str])
+        - success: True if all keys present and all values valid
+        - missing_keys: List of keys not found (empty if all present)
+        - invalid_values: Dict of {key: value} for keys that failed validation (empty if all valid)
 
     Example:
         >>> controls = Path('/tmp/controls.txt')
         >>> controls.write_text("Relay_Ch1=5\\nrelay_enabled=true\\n")
         >>> validate_controls_content(controls, ['Relay_Ch1', 'relay_enabled'])
-        (True, [])
+        (True, [], {})
 
         >>> validate_controls_content(controls, ['Relay_Ch1', 'Relay_Ch2'])
-        (False, ['Relay_Ch2'])
+        (False, ['Relay_Ch2'], {})
+
+        >>> # With validators
+        >>> validators = {'Relay_Ch1': lambda v: v.isdigit() and 0 <= int(v) <= 27}
+        >>> validate_controls_content(controls, ['Relay_Ch1'], validators)
+        (True, [], {})
+
+        >>> controls.write_text("Relay_Ch1=100\\n")  # Invalid GPIO
+        >>> validate_controls_content(controls, ['Relay_Ch1'], validators)
+        (False, [], {'Relay_Ch1': '100'})
     """
     if not controls_path.exists():
-        return False, expected_keys
+        return False, expected_keys, {}
 
     config = parse_controls_file(controls_path)
     missing_keys = [key for key in expected_keys if key not in config]
 
-    return len(missing_keys) == 0, missing_keys
+    # Validate values if validators provided
+    invalid_values = {}
+    if validators:
+        for key, validator in validators.items():
+            if key in config:
+                try:
+                    if not validator(config[key]):
+                        invalid_values[key] = config[key]
+                except Exception:
+                    # Validator raised exception (e.g., int() on non-numeric)
+                    invalid_values[key] = config[key]
+
+    success = len(missing_keys) == 0 and len(invalid_values) == 0
+    return success, missing_keys, invalid_values
 
 
 def simulate_file_lock_operation(
