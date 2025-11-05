@@ -1,14 +1,13 @@
+import os
 import subprocess
 import time
-import os
 
 LOG_FILE = "voltage_log.csv"
 
+
 def get_voltage():
     """Run vcgencmd and extract EXT5V_V voltage."""
-    result = subprocess.run(
-        ["vcgencmd", "pmic_read_adc"], capture_output=True, text=True
-    )
+    result = subprocess.run(["vcgencmd", "pmic_read_adc"], capture_output=True, text=True)
     for line in result.stdout.splitlines():
         line = line.strip()
         if line.startswith("EXT5V_V"):
@@ -19,6 +18,7 @@ def get_voltage():
             except (IndexError, ValueError):
                 return None
     return None
+
 
 def log_voltage():
     new_file = not os.path.exists(LOG_FILE)
@@ -36,6 +36,7 @@ def log_voltage():
             else:
                 print(f"{timestamp} - Voltage read failed")
             time.sleep(1)
+
 
 if __name__ == "__main__":
     try:

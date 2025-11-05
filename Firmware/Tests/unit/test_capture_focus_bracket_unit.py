@@ -449,9 +449,10 @@ class TestLoadCameraSettings:
 
     def test_load_camera_settings_malformed_csv(self, tmp_path, monkeypatch):
         """
-        Test handling of malformed CSV (missing columns)
+        Test that CSV without DETAILS column works (DETAILS is optional)
 
-        CSV with missing required columns should be handled gracefully.
+        CSV requires SETTING and VALUE columns. DETAILS column is ignored.
+        This verifies backward compatibility with CSVs lacking DETAILS.
         """
         csv_file = tmp_path / "camera_settings.csv"
         csv_file.write_text(
@@ -477,9 +478,9 @@ class TestLoadCameraSettings:
 
         from webui.backend.scripts.capture_focus_bracket import load_camera_settings
 
-        # Should raise KeyError when trying to access missing DETAILS column
-        with pytest.raises(KeyError, match="DETAILS"):
-            load_camera_settings()
+        # Should load successfully without DETAILS column (DETAILS is optional/ignored)
+        settings = load_camera_settings()
+        assert settings['ExposureTime'] == 8000, "Should load CSV without DETAILS column"
 
     def test_load_camera_settings_unknown_setting_warns(self, tmp_path, monkeypatch, capfd):
         """

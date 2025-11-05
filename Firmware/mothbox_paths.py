@@ -44,32 +44,32 @@ Usage:
 
 import os
 import sys
+from contextlib import suppress
 from pathlib import Path
-from typing import Dict, Union, Any
+from typing import Any
 
 # Detect installation type
 # Priority: test mode > marker file > /opt/mothbox exists > env var > legacy path
 installation_marker = Path("/opt/mothbox/.installation_type")
-MOTHBOX_HOME_ENV = os.environ.get('MOTHBOX_HOME')
-MOTHBOX_ENV = os.environ.get('MOTHBOX_ENV', 'production')
+MOTHBOX_HOME_ENV = os.environ.get("MOTHBOX_HOME")
+MOTHBOX_ENV = os.environ.get("MOTHBOX_ENV", "production")
+
 
 # Auto-detect test/CI environment
 def _is_test_environment():
     """Detect if running in test or CI environment."""
     # Check explicit test mode
-    if MOTHBOX_ENV == 'test':
+    if MOTHBOX_ENV == "test":
         return True
 
     # Check for pytest execution
-    if os.environ.get('PYTEST_CURRENT_TEST') or 'pytest' in sys.modules:
+    if os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules:
         return True
 
     # Check for common CI environment variables
-    ci_indicators = ['CI', 'GITHUB_ACTIONS', 'GITLAB_CI', 'JENKINS_HOME', 'CIRCLECI', 'TRAVIS']
-    if any(os.environ.get(var) for var in ci_indicators):
-        return True
+    ci_indicators = ["CI", "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS_HOME", "CIRCLECI", "TRAVIS"]
+    return any(os.environ.get(var) for var in ci_indicators)
 
-    return False
 
 # TEST MODE: Use repository root for testing (CI/CD and local tests)
 if _is_test_environment():
@@ -82,7 +82,10 @@ elif installation_marker.exists():
         _installation_type = installation_marker.read_text().strip()
         MOTHBOX_HOME = Path("/opt/mothbox")
     except (ValueError, OSError, KeyError) as e:
-        print(f"Warning: Failed to detect installation type ({e}), defaulting to production", file=sys.stderr)
+        print(
+            f"Warning: Failed to detect installation type ({e}), defaulting to production",
+            file=sys.stderr,
+        )
         _installation_type = "production"
         MOTHBOX_HOME = Path("/opt/mothbox")
 elif Path("/opt/mothbox").exists() and not MOTHBOX_HOME_ENV:
@@ -132,8 +135,9 @@ PRESET_DIR = CONFIG_DIR / "presets"
 BUILTIN_PRESET_DIR = PRESET_DIR / "built-in"
 USER_PRESET_DIR = PRESET_DIR / "user"
 
+
 # Helper function to parse controls.txt
-def get_control_values(filename: Union[Path, str]) -> Dict[str, str]:
+def get_control_values(filename: Path | str) -> dict[str, str]:
     """
     Reads key-value pairs from the control file.
 
@@ -145,10 +149,10 @@ def get_control_values(filename: Union[Path, str]) -> Dict[str, str]:
     """
     control_values = {}
     try:
-        with open(filename, "r") as file:
+        with open(filename) as file:
             for line in file:
                 line = line.strip()
-                if line and '=' in line and not line.startswith('#'):
+                if line and "=" in line and not line.startswith("#"):
                     key, value = line.split("=", 1)
                     # Strip whitespace from key and value (Issue #13 bug fix)
                     control_values[key.strip()] = value.strip()
@@ -172,17 +176,22 @@ def get_firmware_version() -> str:
     """
     try:
         controls = get_control_values(CONTROLS_FILE)
-        version_string = controls.get('softwareversion', '5.0.0')
+        version_string = controls.get("softwareversion", "5.0.0")
         # Extract major version (first digit before '.')
-        firmware_version = version_string.split('.')[0]
-        if firmware_version in ['4', '5']:
+        firmware_version = version_string.split(".")[0]
+        if firmware_version in ["4", "5"]:
             return firmware_version
         else:
-            print(f"Warning: Unexpected firmware version '{version_string}', defaulting to 5.x", file=sys.stderr)
-            return '5'
+            print(
+                f"Warning: Unexpected firmware version '{version_string}', defaulting to 5.x",
+                file=sys.stderr,
+            )
+            return "5"
     except Exception as e:
-        print(f"Warning: Could not detect firmware version ({e}). Defaulting to 5.x", file=sys.stderr)
-        return '5'
+        print(
+            f"Warning: Could not detect firmware version ({e}). Defaulting to 5.x", file=sys.stderr
+        )
+        return "5"
 
 
 def get_takephoto_script() -> Path:
@@ -200,8 +209,8 @@ def get_takephoto_script() -> Path:
         >>> # Returns: /opt/mothbox/5.x/TakePhoto.py (if firmware 5.x is installed)
     """
     firmware_version = get_firmware_version()
-    takephoto_dir = MOTHBOX_HOME / f'{firmware_version}.x'
-    takephoto_script = takephoto_dir / 'TakePhoto.py'
+    takephoto_dir = MOTHBOX_HOME / f"{firmware_version}.x"
+    takephoto_script = takephoto_dir / "TakePhoto.py"
 
     if not takephoto_script.exists():
         raise FileNotFoundError(
@@ -213,7 +222,7 @@ def get_takephoto_script() -> Path:
     return takephoto_script
 
 
-def _validate_gpio_pin(pin: int, pin_name: str, mode: str = 'BCM') -> int:
+def _validate_gpio_pin(pin: int, pin_name: str, mode: str = "BCM") -> int:
     """
     Validate GPIO pin number for Raspberry Pi.
 
@@ -235,7 +244,7 @@ def _validate_gpio_pin(pin: int, pin_name: str, mode: str = 'BCM') -> int:
     """
     import sys
 
-    if mode == 'BCM':
+    if mode == "BCM":
         # BCM GPIO numbering (Broadcom chip)
         if pin < 0 or pin > 27:
             raise ValueError(
@@ -247,9 +256,9 @@ def _validate_gpio_pin(pin: int, pin_name: str, mode: str = 'BCM') -> int:
             print(
                 f"Warning: {pin_name} uses BCM GPIO {pin}, which is typically "
                 f"reserved for I2C. Ensure this doesn't conflict with hardware.",
-                file=sys.stderr
+                file=sys.stderr,
             )
-    elif mode == 'BOARD':
+    elif mode == "BOARD":
         # Physical pin numbering (1-40 on 40-pin header)
         if pin < 1 or pin > 40:
             raise ValueError(
@@ -264,7 +273,7 @@ def _validate_gpio_pin(pin: int, pin_name: str, mode: str = 'BCM') -> int:
     return pin
 
 
-def get_gpio_pins() -> Dict[str, int]:
+def get_gpio_pins() -> dict[str, int]:
     """
     Load GPIO pin configuration from controls.txt with fallback defaults.
 
@@ -284,18 +293,19 @@ def get_gpio_pins() -> Dict[str, int]:
         pins = get_control_values(CONTROLS_FILE)
         # Parse and validate each pin (BCM mode)
         return {
-            'Relay_Ch1': _validate_gpio_pin(int(pins.get('Relay_Ch1', 26)), 'Relay_Ch1', 'BCM'),
-            'Relay_Ch2': _validate_gpio_pin(int(pins.get('Relay_Ch2', 20)), 'Relay_Ch2', 'BCM'),
-            'Relay_Ch3': _validate_gpio_pin(int(pins.get('Relay_Ch3', 21)), 'Relay_Ch3', 'BCM')
+            "Relay_Ch1": _validate_gpio_pin(int(pins.get("Relay_Ch1", 26)), "Relay_Ch1", "BCM"),
+            "Relay_Ch2": _validate_gpio_pin(int(pins.get("Relay_Ch2", 20)), "Relay_Ch2", "BCM"),
+            "Relay_Ch3": _validate_gpio_pin(int(pins.get("Relay_Ch3", 21)), "Relay_Ch3", "BCM"),
         }
     except (FileNotFoundError, ValueError, KeyError) as e:
         import sys
+
         print(f"Warning: Could not load GPIO configuration ({e}). Using defaults.", file=sys.stderr)
         # Fallback to defaults if file not found or parse error
-        return {'Relay_Ch1': 26, 'Relay_Ch2': 20, 'Relay_Ch3': 21}
+        return {"Relay_Ch1": 26, "Relay_Ch2": 20, "Relay_Ch3": 21}
 
 
-def get_epaper_pins() -> Dict[str, int]:
+def get_epaper_pins() -> dict[str, int]:
     """
     Load e-paper display GPIO pin configuration from controls.txt.
 
@@ -312,25 +322,39 @@ def get_epaper_pins() -> Dict[str, int]:
         config = get_control_values(CONTROLS_FILE)
         # Parse and validate each pin (BCM mode)
         return {
-            'RST_PIN': _validate_gpio_pin(int(config.get('epaper_rst_pin', '17')), 'epaper_rst_pin', 'BCM'),
-            'DC_PIN': _validate_gpio_pin(int(config.get('epaper_dc_pin', '25')), 'epaper_dc_pin', 'BCM'),
-            'CS_PIN': _validate_gpio_pin(int(config.get('epaper_cs_pin', '8')), 'epaper_cs_pin', 'BCM'),
-            'BUSY_PIN': _validate_gpio_pin(int(config.get('epaper_busy_pin', '24')), 'epaper_busy_pin', 'BCM'),
-            'PWR_PIN': _validate_gpio_pin(int(config.get('epaper_pwr_pin', '18')), 'epaper_pwr_pin', 'BCM'),
+            "RST_PIN": _validate_gpio_pin(
+                int(config.get("epaper_rst_pin", "17")), "epaper_rst_pin", "BCM"
+            ),
+            "DC_PIN": _validate_gpio_pin(
+                int(config.get("epaper_dc_pin", "25")), "epaper_dc_pin", "BCM"
+            ),
+            "CS_PIN": _validate_gpio_pin(
+                int(config.get("epaper_cs_pin", "8")), "epaper_cs_pin", "BCM"
+            ),
+            "BUSY_PIN": _validate_gpio_pin(
+                int(config.get("epaper_busy_pin", "24")), "epaper_busy_pin", "BCM"
+            ),
+            "PWR_PIN": _validate_gpio_pin(
+                int(config.get("epaper_pwr_pin", "18")), "epaper_pwr_pin", "BCM"
+            ),
         }
     except (FileNotFoundError, ValueError, KeyError) as e:
         import sys
-        print(f"Warning: Could not load e-paper pin configuration ({e}). Using defaults.", file=sys.stderr)
+
+        print(
+            f"Warning: Could not load e-paper pin configuration ({e}). Using defaults.",
+            file=sys.stderr,
+        )
         return {
-            'RST_PIN': 17,
-            'DC_PIN': 25,
-            'CS_PIN': 8,
-            'BUSY_PIN': 24,
-            'PWR_PIN': 18,
+            "RST_PIN": 17,
+            "DC_PIN": 25,
+            "CS_PIN": 8,
+            "BUSY_PIN": 24,
+            "PWR_PIN": 18,
         }
 
 
-def get_mux_pins() -> Dict[str, int]:
+def get_mux_pins() -> dict[str, int]:
     """
     Load multiplexer GPIO pin configuration from controls.txt.
 
@@ -347,29 +371,33 @@ def get_mux_pins() -> Dict[str, int]:
         config = get_control_values(CONTROLS_FILE)
         # Parse and validate each pin (BOARD mode - physical pin numbers)
         return {
-            'EN_A': _validate_gpio_pin(int(config.get('mux_en_a', '31')), 'mux_en_a', 'BOARD'),
-            'EN_B': _validate_gpio_pin(int(config.get('mux_en_b', '29')), 'mux_en_b', 'BOARD'),
-            'S0': _validate_gpio_pin(int(config.get('mux_s0', '33')), 'mux_s0', 'BOARD'),
-            'S1': _validate_gpio_pin(int(config.get('mux_s1', '13')), 'mux_s1', 'BOARD'),
-            'S2': _validate_gpio_pin(int(config.get('mux_s2', '12')), 'mux_s2', 'BOARD'),
-            'S3': _validate_gpio_pin(int(config.get('mux_s3', '15')), 'mux_s3', 'BOARD'),
-            'SIG': _validate_gpio_pin(int(config.get('mux_sig', '36')), 'mux_sig', 'BOARD'),
+            "EN_A": _validate_gpio_pin(int(config.get("mux_en_a", "31")), "mux_en_a", "BOARD"),
+            "EN_B": _validate_gpio_pin(int(config.get("mux_en_b", "29")), "mux_en_b", "BOARD"),
+            "S0": _validate_gpio_pin(int(config.get("mux_s0", "33")), "mux_s0", "BOARD"),
+            "S1": _validate_gpio_pin(int(config.get("mux_s1", "13")), "mux_s1", "BOARD"),
+            "S2": _validate_gpio_pin(int(config.get("mux_s2", "12")), "mux_s2", "BOARD"),
+            "S3": _validate_gpio_pin(int(config.get("mux_s3", "15")), "mux_s3", "BOARD"),
+            "SIG": _validate_gpio_pin(int(config.get("mux_sig", "36")), "mux_sig", "BOARD"),
         }
     except (FileNotFoundError, ValueError, KeyError) as e:
         import sys
-        print(f"Warning: Could not load multiplexer pin configuration ({e}). Using defaults.", file=sys.stderr)
+
+        print(
+            f"Warning: Could not load multiplexer pin configuration ({e}). Using defaults.",
+            file=sys.stderr,
+        )
         return {
-            'EN_A': 31,
-            'EN_B': 29,
-            'S0': 33,
-            'S1': 13,
-            'S2': 12,
-            'S3': 15,
-            'SIG': 36,
+            "EN_A": 31,
+            "EN_B": 29,
+            "S0": 33,
+            "S1": 13,
+            "S2": 12,
+            "S3": 15,
+            "SIG": 36,
         }
 
 
-def get_hardware_config() -> Dict[str, Any]:
+def get_hardware_config() -> dict[str, Any]:
     """
     Load all hardware module configuration from controls.txt.
 
@@ -390,90 +418,89 @@ def get_hardware_config() -> Dict[str, Any]:
         config = get_control_values(CONTROLS_FILE)
         return {
             # Relay module (already implemented via get_gpio_pins)
-            'relay_enabled': config.get('relay_enabled', 'true').lower() == 'true',
-
+            "relay_enabled": config.get("relay_enabled", "true").lower() == "true",
             # INA260 power sensor
-            'ina260_enabled': config.get('ina260_enabled', 'false').lower() == 'true',
-            'ina260_address': int(config.get('ina260_address', '0x40'), 16),
-
+            "ina260_enabled": config.get("ina260_enabled", "false").lower() == "true",
+            "ina260_address": int(config.get("ina260_address", "0x40"), 16),
             # E-paper display
-            'epaper_enabled': config.get('epaper_enabled', 'false').lower() == 'true',
-            'epaper_rst_pin': int(config.get('epaper_rst_pin', '17')),
-            'epaper_dc_pin': int(config.get('epaper_dc_pin', '25')),
-            'epaper_cs_pin': int(config.get('epaper_cs_pin', '8')),
-            'epaper_busy_pin': int(config.get('epaper_busy_pin', '24')),
-            'epaper_pwr_pin': int(config.get('epaper_pwr_pin', '18')),
-
+            "epaper_enabled": config.get("epaper_enabled", "false").lower() == "true",
+            "epaper_rst_pin": int(config.get("epaper_rst_pin", "17")),
+            "epaper_dc_pin": int(config.get("epaper_dc_pin", "25")),
+            "epaper_cs_pin": int(config.get("epaper_cs_pin", "8")),
+            "epaper_busy_pin": int(config.get("epaper_busy_pin", "24")),
+            "epaper_pwr_pin": int(config.get("epaper_pwr_pin", "18")),
             # GPS module
-            'gps_enabled': config.get('gps_enabled', 'false').lower() == 'true',
-            'gps_device': config.get('gps_device', '/dev/ttyAMA0'),
-            'gps_baudrate': int(config.get('gps_baudrate', '9600')),
-            'gps_timeout': int(config.get('gps_timeout', '60')),  # Legacy/fallback timeout
-
+            "gps_enabled": config.get("gps_enabled", "false").lower() == "true",
+            "gps_device": config.get("gps_device", "/dev/ttyAMA0"),
+            "gps_baudrate": int(config.get("gps_baudrate", "9600")),
+            "gps_timeout": int(config.get("gps_timeout", "60")),  # Legacy/fallback timeout
             # GPS adaptive timeout ranges for different start conditions
-            'gps_timeout_hot': int(config.get('gps_timeout_hot', '15')),          # Hot start (<4 hours)
-            'gps_timeout_warm': int(config.get('gps_timeout_warm', '60')),        # Warm start (4h-6d)
-            'gps_timeout_cold': int(config.get('gps_timeout_cold', '90')),        # Cold start (6-28d)
-            'gps_timeout_almanac': int(config.get('gps_timeout_almanac', '1200')), # Almanac expired (>28d)
-
+            "gps_timeout_hot": int(config.get("gps_timeout_hot", "15")),  # Hot start (<4 hours)
+            "gps_timeout_warm": int(config.get("gps_timeout_warm", "60")),  # Warm start (4h-6d)
+            "gps_timeout_cold": int(config.get("gps_timeout_cold", "90")),  # Cold start (6-28d)
+            "gps_timeout_almanac": int(
+                config.get("gps_timeout_almanac", "1200")
+            ),  # Almanac expired (>28d)
             # Light sensor (optional)
-            'light_sensor_enabled': config.get('light_sensor_enabled', 'false').lower() == 'true',
-            'light_sensor_type': config.get('light_sensor_type', 'LTR303'),  # BH1750 or LTR303
-            'light_sensor_address': int(config.get('light_sensor_address', '0x29'), 16),
-
+            "light_sensor_enabled": config.get("light_sensor_enabled", "false").lower() == "true",
+            "light_sensor_type": config.get("light_sensor_type", "LTR303"),  # BH1750 or LTR303
+            "light_sensor_address": int(config.get("light_sensor_address", "0x29"), 16),
             # PCA9536 GPIO expander (optional)
-            'pca9536_enabled': config.get('pca9536_enabled', 'false').lower() == 'true',
-            'pca9536_address': int(config.get('pca9536_address', '0x21'), 16),
-
+            "pca9536_enabled": config.get("pca9536_enabled", "false").lower() == "true",
+            "pca9536_address": int(config.get("pca9536_address", "0x21"), 16),
             # Multiplexer (optional)
-            'mux_enabled': config.get('mux_enabled', 'false').lower() == 'true',
-            'mux_type': config.get('mux_type', 'i2c'),  # 'gpio' or 'i2c'
-            'mux_address': int(config.get('mux_address', '0x20'), 16),  # I2C address if i2c mode
-            'mux_en_a': int(config.get('mux_en_a', '31')),  # GPIO pins if gpio mode
-            'mux_en_b': int(config.get('mux_en_b', '29')),
-            'mux_s0': int(config.get('mux_s0', '33')),
-            'mux_s1': int(config.get('mux_s1', '13')),
-            'mux_s2': int(config.get('mux_s2', '12')),
-            'mux_s3': int(config.get('mux_s3', '15')),
-            'mux_sig': int(config.get('mux_sig', '36')),
+            "mux_enabled": config.get("mux_enabled", "false").lower() == "true",
+            "mux_type": config.get("mux_type", "i2c"),  # 'gpio' or 'i2c'
+            "mux_address": int(config.get("mux_address", "0x20"), 16),  # I2C address if i2c mode
+            "mux_en_a": int(config.get("mux_en_a", "31")),  # GPIO pins if gpio mode
+            "mux_en_b": int(config.get("mux_en_b", "29")),
+            "mux_s0": int(config.get("mux_s0", "33")),
+            "mux_s1": int(config.get("mux_s1", "13")),
+            "mux_s2": int(config.get("mux_s2", "12")),
+            "mux_s3": int(config.get("mux_s3", "15")),
+            "mux_sig": int(config.get("mux_sig", "36")),
         }
     except (FileNotFoundError, ValueError, KeyError) as e:
         import sys
-        print(f"Warning: Could not load hardware configuration ({e}). Using defaults.", file=sys.stderr)
+
+        print(
+            f"Warning: Could not load hardware configuration ({e}). Using defaults.",
+            file=sys.stderr,
+        )
         # Return defaults for all modules - all disabled by default except relays
         return {
-            'relay_enabled': True,  # Relays are core hardware, enabled by default
-            'ina260_enabled': False,
-            'ina260_address': 0x40,
-            'epaper_enabled': False,
-            'epaper_rst_pin': 17,
-            'epaper_dc_pin': 25,
-            'epaper_cs_pin': 8,
-            'epaper_busy_pin': 24,
-            'epaper_pwr_pin': 18,
-            'gps_enabled': False,
-            'gps_device': '/dev/ttyAMA0',
-            'gps_baudrate': 9600,
-            'gps_timeout': 60,
-            'gps_timeout_hot': 15,
-            'gps_timeout_warm': 60,
-            'gps_timeout_cold': 90,
-            'gps_timeout_almanac': 1200,
-            'light_sensor_enabled': False,
-            'light_sensor_type': 'LTR303',
-            'light_sensor_address': 0x29,
-            'pca9536_enabled': False,
-            'pca9536_address': 0x21,
-            'mux_enabled': False,
-            'mux_type': 'i2c',
-            'mux_address': 0x20,
-            'mux_en_a': 31,
-            'mux_en_b': 29,
-            'mux_s0': 33,
-            'mux_s1': 13,
-            'mux_s2': 12,
-            'mux_s3': 15,
-            'mux_sig': 36,
+            "relay_enabled": True,  # Relays are core hardware, enabled by default
+            "ina260_enabled": False,
+            "ina260_address": 0x40,
+            "epaper_enabled": False,
+            "epaper_rst_pin": 17,
+            "epaper_dc_pin": 25,
+            "epaper_cs_pin": 8,
+            "epaper_busy_pin": 24,
+            "epaper_pwr_pin": 18,
+            "gps_enabled": False,
+            "gps_device": "/dev/ttyAMA0",
+            "gps_baudrate": 9600,
+            "gps_timeout": 60,
+            "gps_timeout_hot": 15,
+            "gps_timeout_warm": 60,
+            "gps_timeout_cold": 90,
+            "gps_timeout_almanac": 1200,
+            "light_sensor_enabled": False,
+            "light_sensor_type": "LTR303",
+            "light_sensor_address": 0x29,
+            "pca9536_enabled": False,
+            "pca9536_address": 0x21,
+            "mux_enabled": False,
+            "mux_type": "i2c",
+            "mux_address": 0x20,
+            "mux_en_a": 31,
+            "mux_en_b": 29,
+            "mux_s0": 33,
+            "mux_s1": 13,
+            "mux_s2": 12,
+            "mux_s3": 15,
+            "mux_sig": 36,
         }
 
 
@@ -499,7 +526,7 @@ def get_script_path(script_name):
         5. Prevents partial directory name matches (/firmware vs /firmware-evil)
     """
     # Security: Prevent obvious path traversal attacks
-    if '..' in script_name or script_name.startswith('/'):
+    if ".." in script_name or script_name.startswith("/"):
         raise ValueError(f"Invalid script name (path traversal attempt): {script_name}")
 
     script_path = FIRMWARE_DIR / script_name
@@ -518,15 +545,15 @@ def get_script_path(script_name):
         resolved_path.relative_to(firmware_base)
     except ValueError:
         raise ValueError(
-            f"Security: Script path resolves outside firmware directory. "
-            f"Script: {script_name}"
-        )
+            f"Security: Script path resolves outside firmware directory. Script: {script_name}"
+        ) from None
     except (OSError, RuntimeError):
         # Handle cases where resolve() fails (e.g., path doesn't exist yet)
         # This is acceptable - we validate at runtime when path exists
         pass
 
     return script_path
+
 
 # Utility function to ensure directories exist
 def ensure_directories():
@@ -544,10 +571,10 @@ def ensure_directories():
     for directory in dirs_to_create:
         directory.mkdir(parents=True, exist_ok=True)
         # Set permissions: owner rwx, group rx, others rx
-        try:
+        # nosec B103 - Standard directory permissions for photo storage
+        with suppress(OSError, PermissionError):
             os.chmod(directory, 0o755)
-        except (OSError, PermissionError):
-            pass  # Skip if we don't have permission
+
 
 # Debug function
 def print_paths():
@@ -568,6 +595,7 @@ def print_paths():
     print(f"  Controls:        {CONTROLS_FILE}")
     print(f"  Wordlist:        {WORDLIST_FILE}")
     print("=" * 60)
+
 
 if __name__ == "__main__":
     # When run directly, print configuration

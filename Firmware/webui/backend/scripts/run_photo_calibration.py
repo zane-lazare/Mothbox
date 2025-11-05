@@ -16,6 +16,7 @@ Exit codes:
     0: Calibration successful
     1: Calibration failed (error details in stderr)
 """
+
 import sys
 from pathlib import Path
 
@@ -37,7 +38,7 @@ print(f"TakePhoto.py path: {TAKEPHOTO_SCRIPT}")
 # Add TakePhoto.py directory to Python path for imports
 sys.path.insert(0, str(TAKEPHOTO_DIR))
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         # Import TakePhoto.py's calibration function
         from TakePhoto import run_calibration
@@ -70,6 +71,7 @@ if __name__ == '__main__':
         print(f"Firmware directory: {TAKEPHOTO_DIR}", file=sys.stderr)
         print("Ensure TakePhoto.py exists and has valid Python syntax", file=sys.stderr)
         import traceback
+
         traceback.print_exc(file=sys.stderr)
         sys.exit(1)
 
@@ -86,5 +88,6 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"Photo calibration error: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc(file=sys.stderr)
         sys.exit(1)

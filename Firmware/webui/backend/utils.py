@@ -7,15 +7,16 @@ eliminating circular import issues and reducing code duplication.
 Created to resolve issue #35: Refactor shared utility module to avoid circular imports
 """
 
-from pathlib import Path
-from typing import Callable, Dict, Any, Optional
 import shutil
+from collections.abc import Callable
 from datetime import datetime
-
+from pathlib import Path
+from typing import Any
 
 # ============================================================================
 # CSV Security
 # ============================================================================
+
 
 def sanitize_csv_value(value):
     """
@@ -52,11 +53,11 @@ def sanitize_csv_value(value):
     str_value = str(value)
 
     # Prevent CSV formula injection by prefixing with single quote if starts with dangerous chars
-    if str_value.startswith(('=', '+', '-', '@', '\t', '\r')):
+    if str_value.startswith(("=", "+", "-", "@", "\t", "\r")):
         str_value = "'" + str_value
 
     # Remove newlines and carriage returns to prevent multi-line injection
-    str_value = str_value.replace('\n', ' ').replace('\r', ' ')
+    str_value = str_value.replace("\n", " ").replace("\r", " ")
 
     # Limit length to prevent DoS
     if len(str_value) > 1000:
@@ -68,6 +69,7 @@ def sanitize_csv_value(value):
 # ============================================================================
 # Camera Settings Validation
 # ============================================================================
+
 
 def _validate_int_enum(v, allowed_values):
     """
@@ -133,8 +135,10 @@ def _validate_exposure_time(v):
     # Try to convert to integer
     try:
         value = int(v)
-    except (ValueError, TypeError):
-        raise ValueError(f"ExposureTime must be integer or digit string, got {type(v).__name__}")
+    except (ValueError, TypeError) as err:
+        raise ValueError(
+            f"ExposureTime must be integer or digit string, got {type(v).__name__}"
+        ) from err
 
     # Check range: must be positive and less than 1 second (1000000µs)
     return 0 < value < 1000000
@@ -165,131 +169,120 @@ def _validate_noise_reduction_mode(v):
         >>> _validate_noise_reduction_mode(3)
         False
     """
-    # Accept integers directly
-    if isinstance(v, int) and v in [0, 1, 2]:
-        return True
-    # Accept digit strings that convert to valid values
-    if isinstance(v, str) and v.isdigit() and int(v) in [0, 1, 2]:
-        return True
-    return False
+    # Accept integers directly or digit strings that convert to valid values
+    return (isinstance(v, int) and v in [0, 1, 2]) or (
+        isinstance(v, str) and v.isdigit() and int(v) in [0, 1, 2]
+    )
 
 
 # Camera settings validation schema (PascalCase picamera2 controls)
 # These map to libcamera controls used when capturing photos
-ALLOWED_CAMERA_SETTINGS: Dict[str, Callable[[Any], bool]] = {
+ALLOWED_CAMERA_SETTINGS: dict[str, Callable[[Any], bool]] = {
     # Image quality controls (practical ranges: 0-4 for sharpness/contrast/saturation)
-    'Sharpness': lambda v: 0.0 <= float(v) <= 4.0,
-    'Brightness': lambda v: -1.0 <= float(v) <= 1.0,
-    'Contrast': lambda v: 0.0 <= float(v) <= 4.0,
-    'Saturation': lambda v: 0.0 <= float(v) <= 4.0,
-
+    "Sharpness": lambda v: 0.0 <= float(v) <= 4.0,
+    "Brightness": lambda v: -1.0 <= float(v) <= 1.0,
+    "Contrast": lambda v: 0.0 <= float(v) <= 4.0,
+    "Saturation": lambda v: 0.0 <= float(v) <= 4.0,
     # Exposure controls
-    'ExposureTime': _validate_exposure_time,  # microseconds
-    'ExposureValue': lambda v: -8.0 <= float(v) <= 8.0,  # EV compensation
-    'AnalogueGain': lambda v: 1.0 <= float(v) <= 16.0,  # ISO gain
-    'AeEnable': lambda v: str(v).lower() in ['true', 'false'],  # Auto exposure
-
+    "ExposureTime": _validate_exposure_time,  # microseconds
+    "ExposureValue": lambda v: -8.0 <= float(v) <= 8.0,  # EV compensation
+    "AnalogueGain": lambda v: 1.0 <= float(v) <= 16.0,  # ISO gain
+    "AeEnable": lambda v: str(v).lower() in ["true", "false"],  # Auto exposure
     # Focus controls
-    'AfMode': lambda v: _validate_int_enum(v, [0, 1, 2]),  # 0=Manual, 1=Auto Single, 2=Continuous
-    'AfSpeed': lambda v: _validate_int_enum(v, [0, 1]),  # 0=Normal, 1=Fast
-    'AfRange': lambda v: _validate_int_enum(v, [0, 1, 2]),  # 0=Normal, 1=Macro, 2=Full
-    'AfMetering': lambda v: _validate_int_enum(v, [0, 1, 2]),  # Metering mode
-    'LensPosition': lambda v: 0.0 <= float(v) <= 10.0,  # Diopters (manual focus)
-
+    "AfMode": lambda v: _validate_int_enum(v, [0, 1, 2]),  # 0=Manual, 1=Auto Single, 2=Continuous
+    "AfSpeed": lambda v: _validate_int_enum(v, [0, 1]),  # 0=Normal, 1=Fast
+    "AfRange": lambda v: _validate_int_enum(v, [0, 1, 2]),  # 0=Normal, 1=Macro, 2=Full
+    "AfMetering": lambda v: _validate_int_enum(v, [0, 1, 2]),  # Metering mode
+    "LensPosition": lambda v: 0.0 <= float(v) <= 10.0,  # Diopters (manual focus)
     # Exposure metering controls
-    'AeMeteringMode': lambda v: int(v) in [0, 1, 2],  # 0=Centre, 1=Spot, 2=Matrix
-
+    "AeMeteringMode": lambda v: int(v) in [0, 1, 2],  # 0=Centre, 1=Spot, 2=Matrix
     # White balance controls
-    'AwbEnable': lambda v: str(v).lower() in ['true', 'false'],
-    'AwbMode': lambda v: 0 <= int(v) <= 7,  # 0=Auto, 1=Incandescent, ..., 7=Custom
-    'ColourGainRed': lambda v: 1.0 <= float(v) <= 4.0,  # Red channel gain
-    'ColourGainBlue': lambda v: 1.0 <= float(v) <= 4.0,  # Blue channel gain
-
+    "AwbEnable": lambda v: str(v).lower() in ["true", "false"],
+    "AwbMode": lambda v: 0 <= int(v) <= 7,  # 0=Auto, 1=Incandescent, ..., 7=Custom
+    "ColourGainRed": lambda v: 1.0 <= float(v) <= 4.0,  # Red channel gain
+    "ColourGainBlue": lambda v: 1.0 <= float(v) <= 4.0,  # Blue channel gain
     # Noise reduction controls
-    'NoiseReductionMode': lambda v: _validate_noise_reduction_mode(v),  # 0=Off, 1=Fast, 2=High Quality
-
+    "NoiseReductionMode": lambda v: _validate_noise_reduction_mode(
+        v
+    ),  # 0=Off, 1=Fast, 2=High Quality
     # ISP features
-    'LensShadingEnable': lambda v: str(v).lower() in ['true', 'false'],
-    'DefectCorrectionEnable': lambda v: str(v).lower() in ['true', 'false'],
-    'UseCustomTuning': lambda v: str(v).lower() in ['true', 'false'],
-
+    "LensShadingEnable": lambda v: str(v).lower() in ["true", "false"],
+    "DefectCorrectionEnable": lambda v: str(v).lower() in ["true", "false"],
+    "UseCustomTuning": lambda v: str(v).lower() in ["true", "false"],
     # HDR/Bracketing
-    'HDR': lambda v: int(v) in [1, 3, 5, 7],  # Number of bracketed exposures
-    'HDR_width': lambda v: 1000 <= int(v) <= 50000,  # Bracket step size (µs)
-
+    "HDR": lambda v: int(v) in [1, 3, 5, 7],  # Number of bracketed exposures
+    "HDR_width": lambda v: 1000 <= int(v) <= 50000,  # Bracket step size (µs)
     # Focus Bracketing
-    'FocusBracket': lambda v: 1 <= int(v) <= 10,  # Number of focus steps
-    'FocusBracket_Start': lambda v: 0.0 <= float(v) <= 10.0,  # Start focus position (diopters)
-    'FocusBracket_End': lambda v: 0.0 <= float(v) <= 10.0,  # End focus position (diopters)
-
+    "FocusBracket": lambda v: 1 <= int(v) <= 10,  # Number of focus steps
+    "FocusBracket_Start": lambda v: 0.0 <= float(v) <= 10.0,  # Start focus position (diopters)
+    "FocusBracket_End": lambda v: 0.0 <= float(v) <= 10.0,  # End focus position (diopters)
     # Focus Bracketing - Advanced Timing Settings
-    'FlashDelay_BeforeCapture': lambda v: 0 <= int(v) <= 500,  # Delay after flash on, before capture (ms)
-    'FlashDelay_AfterCapture': lambda v: 0 <= int(v) <= 500,  # Delay after capture, before flash off (ms)
-    'FocusBracket_SettleDelay': lambda v: 100 <= int(v) <= 2000,  # Lens settle delay between focus changes (ms)
-
+    "FlashDelay_BeforeCapture": lambda v: 0
+    <= int(v)
+    <= 500,  # Delay after flash on, before capture (ms)
+    "FlashDelay_AfterCapture": lambda v: 0
+    <= int(v)
+    <= 500,  # Delay after capture, before flash off (ms)
+    "FocusBracket_SettleDelay": lambda v: 100
+    <= int(v)
+    <= 2000,  # Lens settle delay between focus changes (ms)
     # Focus Bracketing - Color Consistency Settings
-    'FocusBracket_LockColorGains': lambda v: int(v) in [0, 1],  # 0=Use AWB, 1=Lock gains
-    'FocusBracket_ColorGainRed': lambda v: 1.0 <= float(v) <= 4.0,  # Red channel gain
-    'FocusBracket_ColorGainBlue': lambda v: 1.0 <= float(v) <= 4.0,  # Blue channel gain
-
+    "FocusBracket_LockColorGains": lambda v: int(v) in [0, 1],  # 0=Use AWB, 1=Lock gains
+    "FocusBracket_ColorGainRed": lambda v: 1.0 <= float(v) <= 4.0,  # Red channel gain
+    "FocusBracket_ColorGainBlue": lambda v: 1.0 <= float(v) <= 4.0,  # Blue channel gain
     # Auto-calibration
-    'AutoCalibration': lambda v: int(v) in [0, 1],  # 0=Off, 1=On
-    'AutoCalibrationPeriod': lambda v: 1 <= int(v) <= 10000,  # Photos between calibrations
-
+    "AutoCalibration": lambda v: int(v) in [0, 1],  # 0=Off, 1=On
+    "AutoCalibrationPeriod": lambda v: 1 <= int(v) <= 10000,  # Photos between calibrations
     # Image format
-    'ImageFileType': lambda v: int(v) in [0, 1, 2],  # 0=JPEG, 1=PNG, 2=BMP
-    'VerticalFlip': lambda v: int(v) in [0, 1],  # 0=No flip, 1=Flip
-
+    "ImageFileType": lambda v: int(v) in [0, 1, 2],  # 0=JPEG, 1=PNG, 2=BMP
+    "VerticalFlip": lambda v: int(v) in [0, 1],  # 0=No flip, 1=Flip
     # Focus peaking (preview-only overlay)
-    'FocusPeakingEnabled': lambda v: str(v).lower() in ['true', 'false'],
-    'FocusPeakingIntensity': lambda v: 50 <= int(v) <= 200,
-    'FocusPeakingColour': lambda v: str(v).lower() in ['green', 'red', 'yellow', 'cyan', 'magenta'],
-    'FocusPeakingColor': lambda v: str(v).lower() in ['green', 'red', 'yellow', 'cyan', 'magenta'],  # American spelling alias
-    'FocusPeakingAlgorithm': lambda v: str(v).lower() in ['laplacian', 'sobel', 'canny'],
+    "FocusPeakingEnabled": lambda v: str(v).lower() in ["true", "false"],
+    "FocusPeakingIntensity": lambda v: 50 <= int(v) <= 200,
+    "FocusPeakingColour": lambda v: str(v).lower() in ["green", "red", "yellow", "cyan", "magenta"],
+    "FocusPeakingColor": lambda v: str(v).lower()
+    in ["green", "red", "yellow", "cyan", "magenta"],  # American spelling alias
+    "FocusPeakingAlgorithm": lambda v: str(v).lower() in ["laplacian", "sobel", "canny"],
 }
 
 # Liveview settings validation schema (snake_case WebUI settings)
 # These settings control the live preview stream and real-time camera controls
-ALLOWED_LIVEVIEW_SETTINGS: Dict[str, Callable[[Any], bool]] = {
+ALLOWED_LIVEVIEW_SETTINGS: dict[str, Callable[[Any], bool]] = {
     # Boolean controls - Enable/disable features
-    'focus_peaking_enabled': lambda v: str(v).lower() in ['true', 'false'],
-    'awb_enable': lambda v: str(v).lower() in ['true', 'false'],
-    'ae_enable': lambda v: str(v).lower() in ['true', 'false'],
-    'lens_shading_enable': lambda v: str(v).lower() in ['true', 'false'],
-    'defect_correction_enable': lambda v: str(v).lower() in ['true', 'false'],
-    'use_custom_tuning': lambda v: str(v).lower() in ['true', 'false'],
-
+    "focus_peaking_enabled": lambda v: str(v).lower() in ["true", "false"],
+    "awb_enable": lambda v: str(v).lower() in ["true", "false"],
+    "ae_enable": lambda v: str(v).lower() in ["true", "false"],
+    "lens_shading_enable": lambda v: str(v).lower() in ["true", "false"],
+    "defect_correction_enable": lambda v: str(v).lower() in ["true", "false"],
+    "use_custom_tuning": lambda v: str(v).lower() in ["true", "false"],
     # Integer controls - Modes and discrete values
-    'noise_reduction_mode': lambda v: int(v) in [0, 1, 2],  # 0=Off, 1=Fast, 2=High Quality
-    'awb_mode': lambda v: 0 <= int(v) <= 7,  # 0=Auto, 1=Incandescent, ..., 7=Custom
-    'af_mode': lambda v: int(v) in [0, 1, 2],  # 0=Manual, 1=Auto Single, 2=Continuous
-    'af_speed': lambda v: int(v) in [0, 1],  # 0=Normal, 1=Fast
-    'af_range': lambda v: int(v) in [0, 1, 2],  # 0=Normal, 1=Macro, 2=Full
-    'ae_metering_mode': lambda v: int(v) in [0, 1, 2],  # 0=Centre, 1=Spot, 2=Matrix
-
+    "noise_reduction_mode": lambda v: int(v) in [0, 1, 2],  # 0=Off, 1=Fast, 2=High Quality
+    "awb_mode": lambda v: 0 <= int(v) <= 7,  # 0=Auto, 1=Incandescent, ..., 7=Custom
+    "af_mode": lambda v: int(v) in [0, 1, 2],  # 0=Manual, 1=Auto Single, 2=Continuous
+    "af_speed": lambda v: int(v) in [0, 1],  # 0=Normal, 1=Fast
+    "af_range": lambda v: int(v) in [0, 1, 2],  # 0=Normal, 1=Macro, 2=Full
+    "ae_metering_mode": lambda v: int(v) in [0, 1, 2],  # 0=Centre, 1=Spot, 2=Matrix
     # Stream configuration (integers)
-    'stream_width': lambda v: 640 <= int(v) <= 1920,
-    'stream_height': lambda v: 480 <= int(v) <= 1080,
-    'stream_quality': lambda v: 1 <= int(v) <= 100,  # JPEG quality
-    'stream_framerate': lambda v: 1 <= int(v) <= 60,
-
+    "stream_width": lambda v: 640 <= int(v) <= 1920,
+    "stream_height": lambda v: 480 <= int(v) <= 1080,
+    "stream_quality": lambda v: 1 <= int(v) <= 100,  # JPEG quality
+    "stream_framerate": lambda v: 1 <= int(v) <= 60,
     # Float controls - Continuous adjustments
-    'sharpness': lambda v: 0.0 <= float(v) <= 4.0,
-    'brightness': lambda v: -1.0 <= float(v) <= 1.0,
-    'contrast': lambda v: 0.0 <= float(v) <= 4.0,
-    'saturation': lambda v: 0.0 <= float(v) <= 4.0,
-    'analogue_gain': lambda v: 1.0 <= float(v) <= 16.0,  # ISO gain
-    'exposure_value': lambda v: -8.0 <= float(v) <= 8.0,  # EV compensation
-    'lens_position': lambda v: 0.0 <= float(v) <= 10.0,  # Diopters (manual focus)
-
+    "sharpness": lambda v: 0.0 <= float(v) <= 4.0,
+    "brightness": lambda v: -1.0 <= float(v) <= 1.0,
+    "contrast": lambda v: 0.0 <= float(v) <= 4.0,
+    "saturation": lambda v: 0.0 <= float(v) <= 4.0,
+    "analogue_gain": lambda v: 1.0 <= float(v) <= 16.0,  # ISO gain
+    "exposure_value": lambda v: -8.0 <= float(v) <= 8.0,  # EV compensation
+    "lens_position": lambda v: 0.0 <= float(v) <= 10.0,  # Diopters (manual focus)
     # Color gains (floats) - for manual white balance
-    'colour_gains_red': lambda v: 1.0 <= float(v) <= 4.0,
-    'colour_gains_blue': lambda v: 1.0 <= float(v) <= 4.0,
-
+    "colour_gains_red": lambda v: 1.0 <= float(v) <= 4.0,
+    "colour_gains_blue": lambda v: 1.0 <= float(v) <= 4.0,
     # Focus peaking configuration
-    'focus_peaking_intensity': lambda v: 0.0 <= float(v) <= 200.0,
-    'focus_peaking_colour': lambda v: str(v).lower() in ['green', 'red', 'yellow', 'cyan', 'magenta'],
-    'focus_peaking_algorithm': lambda v: str(v).lower() in ['laplacian', 'sobel', 'canny'],
+    "focus_peaking_intensity": lambda v: 0.0 <= float(v) <= 200.0,
+    "focus_peaking_colour": lambda v: str(v).lower()
+    in ["green", "red", "yellow", "cyan", "magenta"],
+    "focus_peaking_algorithm": lambda v: str(v).lower() in ["laplacian", "sobel", "canny"],
 }
 
 
@@ -297,7 +290,8 @@ ALLOWED_LIVEVIEW_SETTINGS: Dict[str, Callable[[Any], bool]] = {
 # File Backup Utilities
 # ============================================================================
 
-def create_backup(file_path: Path, keep: int = 5) -> Optional[Path]:
+
+def create_backup(file_path: Path, keep: int = 5) -> Path | None:
     """
     Create a timestamped backup of a configuration file
 
@@ -322,7 +316,7 @@ def create_backup(file_path: Path, keep: int = 5) -> Optional[Path]:
         return None
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = file_path.with_suffix(f'{file_path.suffix}.backup.{timestamp}')
+    backup_path = file_path.with_suffix(f"{file_path.suffix}.backup.{timestamp}")
 
     try:
         shutil.copy2(file_path, backup_path)
@@ -330,9 +324,7 @@ def create_backup(file_path: Path, keep: int = 5) -> Optional[Path]:
         # Cleanup old backups - keep only the most recent 'keep' backups
         backup_pattern = f"{file_path.name}.backup.*"
         backups = sorted(
-            file_path.parent.glob(backup_pattern),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True
+            file_path.parent.glob(backup_pattern), key=lambda p: p.stat().st_mtime, reverse=True
         )
 
         # Remove old backups beyond the keep limit
@@ -351,6 +343,7 @@ def create_backup(file_path: Path, keep: int = 5) -> Optional[Path]:
 # ============================================================================
 # Path Security Utilities
 # ============================================================================
+
 
 def validate_path_within_directory(path: Path, base_dir: Path) -> Path:
     """
@@ -374,15 +367,13 @@ def validate_path_within_directory(path: Path, base_dir: Path) -> Path:
     Examples:
         >>> # Valid path within directory
         >>> validate_path_within_directory(
-        ...     Path("photos/2025/image.jpg"),
-        ...     Path("/home/mothbox/photos")
+        ...     Path("photos/2025/image.jpg"), Path("/home/mothbox/photos")
         ... )
         Path('/home/mothbox/photos/2025/image.jpg')
 
         >>> # Path traversal attempt - raises ValueError
         >>> validate_path_within_directory(
-        ...     Path("../../../etc/passwd"),
-        ...     Path("/home/mothbox/photos")
+        ...     Path("../../../etc/passwd"), Path("/home/mothbox/photos")
         ... )
         ValueError: Path is outside base directory
 

@@ -13,72 +13,54 @@ subject is challenging with a single image.
 
 # Standard library
 import csv
-import datetime
-from datetime import datetime
 import os
 import platform
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 # Third-party libraries
-import cv2
-from exif import Image as ExifImage
-from PIL import Image as PillowImage
-from PIL import ExifTags
-from picamera2 import Picamera2, Preview
-from libcamera import controls
-import RPi.GPIO as GPIO
+from picamera2 import Picamera2
 
 # Mothbox modules - setup path first
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from mothbox_paths import CONTROLS_FILE, CAMERA_SETTINGS_FILE, PHOTOS_DIR, get_gpio_pins
+from mothbox_paths import CAMERA_SETTINGS_FILE, CONTROLS_FILE, PHOTOS_DIR, get_gpio_pins
 
 # Import camera control mapping
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from camera_control_mapping import build_picamera_controls
-
 
 # ============================================================================
 # Default Configuration (fallback values if not in CSV)
 # ============================================================================
 
 # Focus Bracketing Controls - these are overridden by CSV settings if present
-num_steps = 5        # Number of focus positions to capture
-focus_start = 2.0    # Starting focus position in diopters (farther)
-focus_end = 8.0      # Ending focus position in diopters (closer/macro)
+num_steps = 5  # Number of focus positions to capture
+focus_start = 2.0  # Starting focus position in diopters (farther)
+focus_end = 8.0  # Ending focus position in diopters (closer/macro)
 
 # Flash Timing Controls - overridden by CSV settings if present
-flash_delay_before = 50    # Delay after flash on, before capture (milliseconds)
-flash_delay_after = 0      # Delay after capture, before flash off (milliseconds)
-focus_settle_delay = 500   # Delay for lens to settle after focus change (milliseconds)
+flash_delay_before = 50  # Delay after flash on, before capture (milliseconds)
+flash_delay_after = 0  # Delay after capture, before flash off (milliseconds)
+focus_settle_delay = 500  # Delay for lens to settle after focus change (milliseconds)
 
 # Colour Gains Controls - overridden by CSV settings if present
-lock_colour_gains = 1             # 0=Use AWB, 1=Lock gains for consistency
-colour_gain_red = 2.259439776    # Red channel gain (when locked)
-colour_gain_blue = 1.500129925   # Blue channel gain (when locked)
+lock_colour_gains = 1  # 0=Use AWB, 1=Lock gains for consistency
+colour_gain_red = 2.259439776  # Red channel gain (when locked)
+colour_gain_blue = 1.500129925  # Blue channel gain (when locked)
 
-computerName = "mothboxD"
+computerName = "mothboxD"  # noqa: N816 - legacy Mothbox naming convention
 
 
 def get_control_values(filepath):
     """Reads key-value pairs from the control file."""
     control_values = {}
-    with open(filepath, "r") as file:
+    with open(filepath) as file:
         for line in file:
             key, value = line.strip().split("=")
             control_values[key] = value
     return control_values
-
-
-def flashOn():
-    GPIO.output(Relay_Ch3,GPIO.LOW)
-    GPIO.output(Relay_Ch2,GPIO.LOW)
-    print("Flash On\n")
-
-def flashOff():
-    GPIO.output(Relay_Ch2,GPIO.HIGH)
-    print("Flash Off\n")
 
 
 def load_camera_settings():
@@ -95,71 +77,83 @@ def load_camera_settings():
         ValueError: If an invalid value is encountered in the CSV file.
     """
 
-
-    #first look for any updated CSV files on external media, we will prioritize those
+    # first look for any updated CSV files on external media, we will prioritize those
     external_media_paths = ("/media", "/mnt")  # Common external media mount points
     default_path = str(CAMERA_SETTINGS_FILE)
-    file_path=default_path
+    file_path = default_path
 
     found = 0
     for path in external_media_paths:
-        if(found==0):
-            files=os.listdir(path) #don't look for files recursively, only if new settings in top level
+        if found == 0:
+            files = os.listdir(
+                path
+            )  # don't look for files recursively, only if new settings in top level
             if "camera_settings.csv" in files:
                 file_path = os.path.join(path, "camera_settings.csv")
                 print(f"Found settings on external media: {file_path}")
-                found=1
+                found = 1
                 break
             else:
                 print("No external settings here...")
-                file_path=default_path
+                file_path = default_path
 
-    if(found==0):
-        #redundant but being extra safe
+    if found == 0:
+        # redundant but being extra safe
         print("No external settings, using internal csv")
-        file_path=default_path
-
+        file_path = default_path
 
     try:
         with open(file_path) as csv_file:
             reader = csv.DictReader(csv_file)
             camera_settings = {}
             for row in reader:
-                setting, value, details = row["SETTING"], row["VALUE"], row["DETAILS"]
+                setting, value = row["SETTING"], row["VALUE"]
+                # Note: DETAILS column is ignored
 
                 # Convert data types based on setting name (adjust as needed)
                 if setting == "LensPosition":
                     try:
                         value = float(value)
-                    except ValueError:
-                        raise ValueError(f"Invalid value for LensPosition: {value}")
+                    except ValueError as err:
+                        raise ValueError(f"Invalid value for LensPosition: {value}") from err
                 elif setting == "AnalogueGain":
                     try:
                         value = float(value)
-                    except ValueError:
-                        raise ValueError(f"Invalid value for AnalogueGain: {value}")
+                    except ValueError as err:
+                        raise ValueError(f"Invalid value for AnalogueGain: {value}") from err
                 elif setting == "AeEnable" or setting == "AwbEnable":
                     value = value.lower() == "true"  # Convert to bool (adjust logic if needed)
-                elif setting == "AwbMode" or setting == "AfTrigger" or setting == "AfRange"  or setting == "AfSpeed" or setting == "AfMode":
-                    value=int(value)
-                    #value = getattr(controls.AwbModeEnum, value)  # Access enum value
+                elif (
+                    setting == "AwbMode"
+                    or setting == "AfTrigger"
+                    or setting == "AfRange"
+                    or setting == "AfSpeed"
+                    or setting == "AfMode"
+                ):
+                    value = int(value)
+                    # value = getattr(controls.AwbModeEnum, value)  # Access enum value
                     # Assuming AwbMode is a string representing an enum value
-                    #pass  # No conversion needed for string
+                    # pass  # No conversion needed for string
                 elif setting == "ExposureTime":
                     try:
                         value = int(value)
-                    except ValueError:
-                        raise ValueError(f"Invalid value for ExposureTime: {value}")
+                    except ValueError as err:
+                        raise ValueError(f"Invalid value for ExposureTime: {value}") from err
                 elif setting == "FocusBracket":
                     try:
                         value = int(value)
-                    except ValueError:
-                        raise ValueError(f"Invalid value for FocusBracket: {value}")
-                elif setting in ["FocusBracket_Start", "FocusBracket_End", "FocusBracket_ColorGainRed", "FocusBracket_ColorGainBlue"]:
+                    except ValueError as err:
+                        raise ValueError(f"Invalid value for FocusBracket: {value}") from err
+                elif setting in [
+                    "FocusBracket_Start",
+                    "FocusBracket_End",
+                    "FocusBracket_ColorGainRed",
+                    "FocusBracket_ColorGainBlue",
+                ]:
                     try:
                         value = float(value)
-                    except ValueError:
-                        raise ValueError(f"Invalid value for {setting}: {value}")
+                    except ValueError as err:
+                        raise ValueError(f"Invalid value for {setting}: {value}") from err
                 else:
                     print(f"Warning: Unknown setting: {setting}. Ignoring.")
 
@@ -167,11 +161,9 @@ def load_camera_settings():
 
         return camera_settings
 
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         print(f"Error: CSV file not found: {file_path}")
         return None
-
-
 
 
 def calculate_focus_positions(start, end, steps):
@@ -212,10 +204,22 @@ def calculate_focus_positions(start, end, steps):
     return positions
 
 
-def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focus_end,
-                           focus_settle_delay, flash_delay_before, flash_delay_after,
-                           lock_colour_gains, colour_gain_red, colour_gain_blue,
-                           onlyflash, computerName, gpio_handler):
+def takePhoto_FocusBracket(  # noqa: N802 - legacy Mothbox naming convention
+    picam2,
+    camera_settings,
+    num_steps,
+    focus_start,
+    focus_end,
+    focus_settle_delay,
+    flash_delay_before,
+    flash_delay_after,
+    lock_colour_gains,
+    colour_gain_red,
+    colour_gain_blue,
+    onlyflash,
+    computerName,  # noqa: N803 - legacy Mothbox naming convention
+    gpio_handler,
+):
     """
     Capture multiple photos at different focus positions (focus bracketing)
 
@@ -250,7 +254,7 @@ def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focu
         # This ensures uniform colour when images are combined in stacking software
         cgains = (colour_gain_red, colour_gain_blue)
         # Use centralized mapping
-        picam2.set_controls(build_picamera_controls({'colour_gains': cgains}))
+        picam2.set_controls(build_picamera_controls({"colour_gains": cgains}))
         print(f"Color gains locked at R={colour_gain_red:.3f}, B={colour_gain_blue:.3f}")
     else:
         # Use auto white balance - each image may vary slightly based on lighting
@@ -278,11 +282,13 @@ def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focu
         progress_pct = int((step_num / num_steps) * 100)
 
         # Progress: Starting this focus step
-        print(f"FOCUS_BRACKET_PROGRESS: {progress_pct}% - Step {step_num}/{num_steps}: Setting focus to {focus_pos:.2f} diopters")
+        print(
+            f"FOCUS_BRACKET_PROGRESS: {progress_pct}% - Step {step_num}/{num_steps}: Setting focus to {focus_pos:.2f} diopters"
+        )
 
         # Set focus position (manual mode)
         # Use centralized mapping
-        picam2.set_controls(build_picamera_controls({'lens_position': focus_pos, 'af_mode': 0}))
+        picam2.set_controls(build_picamera_controls({"lens_position": focus_pos, "af_mode": 0}))
         print(f"Focus position set: {focus_pos:.2f} diopters (step {step_num}/{num_steps})")
 
         # Wait for lens to settle after focus change (convert ms to seconds)
@@ -313,14 +319,16 @@ def takePhoto_FocusBracket(picam2, camera_settings, num_steps, focus_start, focu
         print(f"Picture capture time: {capture_time:.2f}s")
 
         # Save the image with focus bracket suffix
-        folderPath = str(PHOTOS_DIR) + "/"
-        filepath = folderPath + f"ManFocus_{computerName}_{timestamp}_FB{i}.jpg"
+        folder_path = str(PHOTOS_DIR) + "/"
+        filepath = folder_path + f"ManFocus_{computerName}_{timestamp}_FB{i}.jpg"
 
         request.save("main", filepath)
         print(f"Image saved to {filepath}")
         request.release()
 
-        print(f"FOCUS_BRACKET_PROGRESS: {progress_pct}% - ✓ Completed step {step_num}/{num_steps} at {focus_pos:.2f} diopters")
+        print(
+            f"FOCUS_BRACKET_PROGRESS: {progress_pct}% - ✓ Completed step {step_num}/{num_steps} at {focus_pos:.2f} diopters"
+        )
         print(f"✓ Captured focus bracket {step_num}/{num_steps} at {focus_pos:.2f} diopters\n")
 
 
@@ -337,6 +345,7 @@ class GPIOHandler:
         relay_ch2: GPIO pin number for relay channel 2
         relay_ch3: GPIO pin number for relay channel 3
     """
+
     def __init__(self, gpio_module, relay_ch1, relay_ch2, relay_ch3):
         self.gpio = gpio_module
         self.relay_ch1 = relay_ch1
@@ -403,14 +412,14 @@ def main(gpio_handler_factory=None, camera_factory=None, settings_loader=None, q
 
     if gpio_handler_factory is None:
         # Create default GPIO handler factory
-        import RPi.GPIO as GPIO_module
+        import RPi.GPIO as GPIO_module  # noqa: N811 - module alias for dependency injection
+
         pins = get_gpio_pins()
-        gpio_handler_factory = lambda: GPIOHandler(
-            GPIO_module,
-            pins['Relay_Ch1'],
-            pins['Relay_Ch2'],
-            pins['Relay_Ch3']
-        )
+
+        def gpio_handler_factory():
+            return GPIOHandler(
+                GPIO_module, pins["Relay_Ch1"], pins["Relay_Ch2"], pins["Relay_Ch3"]
+            )
 
     if camera_factory is None:
         # Use real Picamera2
@@ -446,7 +455,7 @@ def main(gpio_handler_factory=None, camera_factory=None, settings_loader=None, q
     # Load configuration
     control_values = get_control_values(str(CONTROLS_FILE))
     onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
-    if(onlyflash):
+    if onlyflash:
         print("operating in always on flash mode")
 
     # Camera initialization
@@ -456,11 +465,11 @@ def main(gpio_handler_factory=None, camera_factory=None, settings_loader=None, q
     capture_config = picam2.create_still_configuration(main=capture_main)
     picam2.configure(capture_config)
 
-    '''
+    """
     #This is for getting min and max details for certain settings, (See the picam pdf manual)
     print(picam2.camera_controls["AnalogueGain"])
     min_gain, max_gain, default_gain = picam2.camera_controls["AnalogueGain"]
-    '''
+    """
     camera_settings = settings_loader()
 
     # Extract focus bracketing settings (using module-level defaults)
@@ -493,7 +502,7 @@ def main(gpio_handler_factory=None, camera_factory=None, settings_loader=None, q
 
     # Ensure start and end are different for multiple steps
     if _num_steps > 1 and abs(_focus_end - _focus_start) < 0.1:
-        print(f"Warning: FocusBracket_Start and FocusBracket_End are too close. Adjusting...")
+        print("Warning: FocusBracket_Start and FocusBracket_End are too close. Adjusting...")
         _focus_end = _focus_start + 2.0
         if _focus_end > 10.0:
             _focus_end = 10.0
@@ -526,32 +535,44 @@ def main(gpio_handler_factory=None, camera_factory=None, settings_loader=None, q
         print(f"Warning: Invalid FocusBracket_ColorGainBlue, defaulting to {_colour_gain_blue}")
 
     # Log the configuration being used
-    print(f"Focus bracket configuration:")
+    print("Focus bracket configuration:")
     print(f"  Steps: {_num_steps}, Range: {_focus_start} to {_focus_end} diopters")
     print(f"  Flash delays: {_flash_delay_before}ms before, {_flash_delay_after}ms after")
     print(f"  Lens settle delay: {_focus_settle_delay}ms")
     if _lock_colour_gains:
         print(f"  Color gains locked: R={_colour_gain_red:.3f}, B={_colour_gain_blue:.3f}")
     else:
-        print(f"  Using auto white balance (AWB)")
+        print("  Using auto white balance (AWB)")
 
     if camera_settings:
         picam2.set_controls(camera_settings)
 
     picam2.start()
-    time.sleep(.1)
+    time.sleep(0.1)
 
-    print("cam started");
+    print("cam started")
 
     picam2.stop()
     picam2.configure(capture_config)
 
     # Execute focus bracket capture
-    time.sleep(.5)
-    takePhoto_FocusBracket(picam2, camera_settings, _num_steps, _focus_start, _focus_end,
-                          _focus_settle_delay, _flash_delay_before, _flash_delay_after,
-                          _lock_colour_gains, _colour_gain_red, _colour_gain_blue,
-                          onlyflash, computerName, gpio_handler)
+    time.sleep(0.5)
+    takePhoto_FocusBracket(
+        picam2,
+        camera_settings,
+        _num_steps,
+        _focus_start,
+        _focus_end,
+        _focus_settle_delay,
+        _flash_delay_before,
+        _flash_delay_after,
+        _lock_colour_gains,
+        _colour_gain_red,
+        _colour_gain_blue,
+        onlyflash,
+        computerName,
+        gpio_handler,
+    )
 
     picam2.stop()
 

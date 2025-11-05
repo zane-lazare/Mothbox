@@ -1,11 +1,12 @@
 #!/usr/bin/python
 
-from pathlib import Path
 import sys
+from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from mothbox_paths import CONTROLS_FILE
 
-with open(str(CONTROLS_FILE), "r") as file:
+with open(str(CONTROLS_FILE)) as file:
     lines = file.readlines()
 
 with open(str(CONTROLS_FILE), "w") as file:

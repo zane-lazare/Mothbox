@@ -1,26 +1,33 @@
 """
 Live view streaming module for WebSocket camera feed
 """
-import io
-import time
+
 import base64
-from threading import Thread, Event, Lock
+import io
+import sys
+import time
 from contextlib import contextmanager
 from pathlib import Path
-import sys
+from threading import Event, Lock, Thread
 
 # Lazy import PIL - only needed when actually encoding images
 # This allows tests to import this module without PIL installed
 PIL_Image = None
+
+
 def _get_pil_image():
     global PIL_Image
     if PIL_Image is None:
         try:
             from PIL import Image as PIL_Image_module
+
             PIL_Image = PIL_Image_module
-        except ImportError:
-            raise ImportError("PIL/Pillow is required for image encoding but not installed")
+        except ImportError as err:
+            raise ImportError(
+                "PIL/Pillow is required for image encoding but not installed"
+            ) from err
     return PIL_Image
+
 
 # Setup path for mothbox imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -29,7 +36,8 @@ from mothbox_paths import get_control_values
 
 # Import ISP tuning loader
 try:
-    from tuning_loader import get_tuning_path, apply_isp_controls
+    from tuning_loader import apply_isp_controls, get_tuning_path
+
     ISP_TUNING_AVAILABLE = True
 except ImportError:
     ISP_TUNING_AVAILABLE = False
@@ -38,14 +46,15 @@ except ImportError:
 # Import camera control mapping
 from camera_control_mapping import (
     build_picamera_controls,
+    handle_colour_gains,
     normalize_control_key,
-    handle_colour_gains
 )
 
 try:
     from picamera2 import Picamera2
     from picamera2.encoders import MJPEGEncoder
     from picamera2.outputs import FileOutput
+
     PICAMERA_AVAILABLE = True
     HARDWARE_MJPEG_AVAILABLE = True
 except (ImportError, RuntimeError):
@@ -56,6 +65,7 @@ except (ImportError, RuntimeError):
 # Try to import simplejpeg for fast JPEG encoding (5-7x faster than PIL)
 try:
     import simplejpeg
+
     SIMPLEJPEG_AVAILABLE = True
     print("✓ simplejpeg available for fast JPEG encoding")
 except ImportError:
@@ -66,6 +76,7 @@ except ImportError:
 try:
     import cv2
     import numpy as np
+
     CV2_AVAILABLE = True
     print("✓ OpenCV available for focus peaking")
 except ImportError:
@@ -102,8 +113,8 @@ class LiveViewStreamer:
         self.stream_format = DEFAULT_STREAM_FORMAT
         self.frame_delay = DEFAULT_FRAME_DELAY
         self.jpeg_quality = DEFAULT_JPEG_QUALITY
-        self.stream_mode = 'simplejpeg'  # Default: fast software encoding
-        self.sensor_mode = 'auto'  # auto, 4:3, 16:9, full - controls field of view
+        self.stream_mode = "simplejpeg"  # Default: fast software encoding
+        self.sensor_mode = "auto"  # auto, 4:3, 16:9, full - controls field of view
 
         # Image quality controls
         self.sharpness = 1.0
@@ -143,7 +154,9 @@ class LiveViewStreamer:
 
         # AF window state tracking (click-to-focus feature)
         self._af_window_active = False  # True when AF window is set
-        self._af_window_coords = None  # Stores (x, y, w, h) in pixel coordinates relative to ScalerCropMaximum
+        self._af_window_coords = (
+            None  # Stores (x, y, w, h) in pixel coordinates relative to ScalerCropMaximum
+        )
 
         # ISP feature toggles
         # Note: Lens shading changes require camera restart - no runtime control available
@@ -154,97 +167,111 @@ class LiveViewStreamer:
         # Focus peaking controls (preview-only overlay)
         self.focus_peaking_enabled = False
         self.focus_peaking_intensity = 100  # 50-200 range
-        self.focus_peaking_colour = 'green'  # green, red, yellow, cyan, magenta
-        self.focus_peaking_algorithm = 'laplacian'  # laplacian, sobel, canny
+        self.focus_peaking_colour = "green"  # green, red, yellow, cyan, magenta
+        self.focus_peaking_algorithm = "laplacian"  # laplacian, sobel, canny
 
         try:
             if mothbox_paths.LIVEVIEW_SETTINGS_FILE.exists():
                 settings = get_control_values(mothbox_paths.LIVEVIEW_SETTINGS_FILE)
 
                 # Load and validate settings
-                if 'stream_width' in settings:
-                    self.stream_width = int(settings['stream_width'])
-                if 'stream_height' in settings:
-                    self.stream_height = int(settings['stream_height'])
-                if 'frame_rate' in settings:
-                    fps = int(settings['frame_rate'])
+                if "stream_width" in settings:
+                    self.stream_width = int(settings["stream_width"])
+                if "stream_height" in settings:
+                    self.stream_height = int(settings["stream_height"])
+                if "frame_rate" in settings:
+                    fps = int(settings["frame_rate"])
                     self.frame_delay = 1.0 / fps if fps > 0 else DEFAULT_FRAME_DELAY
-                if 'jpeg_quality' in settings:
-                    self.jpeg_quality = int(settings['jpeg_quality'])
-                if 'stream_mode' in settings:
-                    self.stream_mode = settings['stream_mode']
-                if 'sensor_mode' in settings:
-                    self.sensor_mode = settings['sensor_mode']
+                if "jpeg_quality" in settings:
+                    self.jpeg_quality = int(settings["jpeg_quality"])
+                if "stream_mode" in settings:
+                    self.stream_mode = settings["stream_mode"]
+                if "sensor_mode" in settings:
+                    self.sensor_mode = settings["sensor_mode"]
 
                 # Image quality settings
-                if 'sharpness' in settings:
-                    self.sharpness = float(settings['sharpness'])
-                if 'brightness' in settings:
-                    self.brightness = float(settings['brightness'])
-                if 'contrast' in settings:
-                    self.contrast = float(settings['contrast'])
-                if 'saturation' in settings:
-                    self.saturation = float(settings['saturation'])
+                if "sharpness" in settings:
+                    self.sharpness = float(settings["sharpness"])
+                if "brightness" in settings:
+                    self.brightness = float(settings["brightness"])
+                if "contrast" in settings:
+                    self.contrast = float(settings["contrast"])
+                if "saturation" in settings:
+                    self.saturation = float(settings["saturation"])
 
                 # Noise reduction setting
-                if 'noise_reduction_mode' in settings:
-                    self.noise_reduction_mode = int(settings['noise_reduction_mode'])
+                if "noise_reduction_mode" in settings:
+                    self.noise_reduction_mode = int(settings["noise_reduction_mode"])
 
                 # Focus settings
-                if 'af_mode' in settings:
-                    self.af_mode = int(settings['af_mode'])
-                if 'af_speed' in settings:
-                    self.af_speed = int(settings['af_speed'])
-                if 'af_range' in settings:
-                    self.af_range = int(settings['af_range'])
+                if "af_mode" in settings:
+                    self.af_mode = int(settings["af_mode"])
+                if "af_speed" in settings:
+                    self.af_speed = int(settings["af_speed"])
+                if "af_range" in settings:
+                    self.af_range = int(settings["af_range"])
 
                 # Exposure settings
-                if 'ae_enable' in settings:
-                    self.ae_enable = settings['ae_enable'].lower() == 'true'
-                if 'ae_metering_mode' in settings:
-                    self.ae_metering_mode = int(settings['ae_metering_mode'])
-                if 'exposure_time' in settings:
-                    self.exposure_time = int(settings['exposure_time'])
-                if 'analogue_gain' in settings:
-                    self.analogue_gain = float(settings['analogue_gain'])
+                if "ae_enable" in settings:
+                    self.ae_enable = settings["ae_enable"].lower() == "true"
+                if "ae_metering_mode" in settings:
+                    self.ae_metering_mode = int(settings["ae_metering_mode"])
+                if "exposure_time" in settings:
+                    self.exposure_time = int(settings["exposure_time"])
+                if "analogue_gain" in settings:
+                    self.analogue_gain = float(settings["analogue_gain"])
 
                 # White balance settings
-                if 'awb_enable' in settings:
-                    self.awb_enable = settings['awb_enable'].lower() == 'true'
-                if 'awb_mode' in settings:
-                    self.awb_mode = int(settings['awb_mode'])
+                if "awb_enable" in settings:
+                    self.awb_enable = settings["awb_enable"].lower() == "true"
+                if "awb_mode" in settings:
+                    self.awb_mode = int(settings["awb_mode"])
 
                 # Colour gains (load red/blue separately if present)
-                if 'colour_gains_red' in settings and 'colour_gains_blue' in settings:
-                    self.colour_gains = (float(settings['colour_gains_red']),
-                                        float(settings['colour_gains_blue']))
+                if "colour_gains_red" in settings and "colour_gains_blue" in settings:
+                    self.colour_gains = (
+                        float(settings["colour_gains_red"]),
+                        float(settings["colour_gains_blue"]),
+                    )
 
                 # ISP settings
-                if 'lens_shading_enable' in settings:
-                    self.lens_shading_enable = settings['lens_shading_enable'].lower() == 'true'
-                if 'defect_correction_enable' in settings:
-                    self.defect_correction_enable = settings['defect_correction_enable'].lower() == 'true'
-                if 'use_custom_tuning' in settings:
-                    self.use_custom_tuning = settings['use_custom_tuning'].lower() == 'true'
+                if "lens_shading_enable" in settings:
+                    self.lens_shading_enable = settings["lens_shading_enable"].lower() == "true"
+                if "defect_correction_enable" in settings:
+                    self.defect_correction_enable = (
+                        settings["defect_correction_enable"].lower() == "true"
+                    )
+                if "use_custom_tuning" in settings:
+                    self.use_custom_tuning = settings["use_custom_tuning"].lower() == "true"
 
                 # Focus peaking settings
-                if 'focus_peaking_enabled' in settings:
-                    self.focus_peaking_enabled = settings['focus_peaking_enabled'].lower() == 'true'
-                if 'focus_peaking_intensity' in settings:
-                    self.focus_peaking_intensity = int(settings['focus_peaking_intensity'])
-                if 'focus_peaking_colour' in settings:
-                    self.focus_peaking_colour = settings['focus_peaking_colour']
-                if 'focus_peaking_algorithm' in settings:
-                    self.focus_peaking_algorithm = settings['focus_peaking_algorithm']
+                if "focus_peaking_enabled" in settings:
+                    self.focus_peaking_enabled = settings["focus_peaking_enabled"].lower() == "true"
+                if "focus_peaking_intensity" in settings:
+                    self.focus_peaking_intensity = int(settings["focus_peaking_intensity"])
+                if "focus_peaking_colour" in settings:
+                    self.focus_peaking_colour = settings["focus_peaking_colour"]
+                if "focus_peaking_algorithm" in settings:
+                    self.focus_peaking_algorithm = settings["focus_peaking_algorithm"]
 
-                print(f"Stream settings loaded: {self.stream_width}x{self.stream_height}, "
-                      f"FPS: {1/self.frame_delay:.1f}, Quality: {self.jpeg_quality}, Mode: {self.stream_mode}, Sensor: {self.sensor_mode}")
-                print(f"  Image quality: Sharp={self.sharpness}, Bright={self.brightness}, "
-                      f"Contrast={self.contrast}, Sat={self.saturation}")
+                print(
+                    f"Stream settings loaded: {self.stream_width}x{self.stream_height}, "
+                    f"FPS: {1 / self.frame_delay:.1f}, Quality: {self.jpeg_quality}, Mode: {self.stream_mode}, Sensor: {self.sensor_mode}"
+                )
+                print(
+                    f"  Image quality: Sharp={self.sharpness}, Bright={self.brightness}, "
+                    f"Contrast={self.contrast}, Sat={self.saturation}"
+                )
                 print(f"  Focus: Mode={self.af_mode}, Speed={self.af_speed}, Range={self.af_range}")
-                print(f"  White balance: AWB={self.awb_enable}, Mode={self.awb_mode}, ColourGains={self.colour_gains}")
-                print(f"  ISP: LensShading={self.lens_shading_enable}, DefectCorrection={self.defect_correction_enable}, CustomTuning={self.use_custom_tuning}")
-                print(f"  Focus peaking: Enabled={self.focus_peaking_enabled}, Intensity={self.focus_peaking_intensity}, Color={self.focus_peaking_colour}, Algorithm={self.focus_peaking_algorithm}")
+                print(
+                    f"  White balance: AWB={self.awb_enable}, Mode={self.awb_mode}, ColourGains={self.colour_gains}"
+                )
+                print(
+                    f"  ISP: LensShading={self.lens_shading_enable}, DefectCorrection={self.defect_correction_enable}, CustomTuning={self.use_custom_tuning}"
+                )
+                print(
+                    f"  Focus peaking: Enabled={self.focus_peaking_enabled}, Intensity={self.focus_peaking_intensity}, Color={self.focus_peaking_colour}, Algorithm={self.focus_peaking_algorithm}"
+                )
         except Exception as e:
             print(f"Error loading stream settings, using defaults: {e}")
 
@@ -269,7 +296,7 @@ class LiveViewStreamer:
                         print(f"Using custom ISP tuning file: {tuning_path}")
                 except Exception as tuning_error:
                     print(f"Warning: Could not load custom tuning file: {tuning_error}")
-                    print(f"Falling back to libcamera default tuning")
+                    print("Falling back to libcamera default tuning")
             elif ISP_TUNING_AVAILABLE and not self.use_custom_tuning:
                 print("Custom tuning disabled - using libcamera default tuning")
 
@@ -299,12 +326,12 @@ class LiveViewStreamer:
             best_4_3_pixels = 0
 
             for idx, mode in enumerate(sensor_modes):
-                width = mode['size'][0]
-                height = mode['size'][1]
+                width = mode["size"][0]
+                height = mode["size"][1]
                 pixels = width * height
                 aspect = width / height
 
-                print(f"   [{idx}] {width}×{height} ({pixels/1e6:.1f}MP, {aspect:.2f}:1 aspect)")
+                print(f"   [{idx}] {width}×{height} ({pixels / 1e6:.1f}MP, {aspect:.2f}:1 aspect)")
 
                 # Find maximum resolution mode (for "full" mode)
                 if pixels > max_pixels:
@@ -312,15 +339,22 @@ class LiveViewStreamer:
                     max_resolution_mode = mode
 
                 # Find best 4:3 mode (aspect ratio between 1.30 and 1.35)
-                if 1.30 <= aspect <= 1.35:  # 4:3 is 1.333...
-                    if pixels > best_4_3_pixels and pixels < max_pixels * 0.5:  # Not the full sensor
-                        best_4_3_pixels = pixels
-                        best_4_3_mode = mode
+                if (
+                    1.30 <= aspect <= 1.35  # 4:3 is 1.333...
+                    and pixels > best_4_3_pixels
+                    and pixels < max_pixels * 0.5  # Not the full sensor
+                ):
+                    best_4_3_pixels = pixels
+                    best_4_3_mode = mode
 
             if max_resolution_mode:
-                print(f"   → Maximum resolution: {max_resolution_mode['size'][0]}×{max_resolution_mode['size'][1]} ({max_pixels/1e6:.1f}MP)")
+                print(
+                    f"   → Maximum resolution: {max_resolution_mode['size'][0]}×{max_resolution_mode['size'][1]} ({max_pixels / 1e6:.1f}MP)"
+                )
             if best_4_3_mode:
-                print(f"   → Best 4:3 intermediate: {best_4_3_mode['size'][0]}×{best_4_3_mode['size'][1]} ({best_4_3_pixels/1e6:.1f}MP)")
+                print(
+                    f"   → Best 4:3 intermediate: {best_4_3_mode['size'][0]}×{best_4_3_mode['size'][1]} ({best_4_3_pixels / 1e6:.1f}MP)"
+                )
             print()
 
             # Configure camera with video_config for both encoding paths:
@@ -329,49 +363,70 @@ class LiveViewStreamer:
             # Using video_config universally eliminates need to reconfigure between modes.
 
             # Apply sensor mode based on user preference (controls field of view)
-            if self.sensor_mode == '4:3':
+            if self.sensor_mode == "4:3":
                 # Use best available 4:3 sensor mode for wider field of view
                 # Useful when output is 16:9 (1920x1080) but user wants wider vertical coverage
                 if best_4_3_mode:
-                    raw_size = best_4_3_mode['size']
-                    print(f"📷 Sensor mode: Using 4:3 aspect {raw_size[0]}×{raw_size[1]} ({best_4_3_pixels/1e6:.1f}MP) for wider field of view")
+                    raw_size = best_4_3_mode["size"]
+                    print(
+                        f"📷 Sensor mode: Using 4:3 aspect {raw_size[0]}×{raw_size[1]} ({best_4_3_pixels / 1e6:.1f}MP) for wider field of view"
+                    )
                     video_config = self.camera.create_video_configuration(
-                        main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
+                        main={
+                            "size": (self.stream_width, self.stream_height),
+                            "format": self.stream_format,
+                        },
                         raw={"size": raw_size},
-                        encode="main"
+                        encode="main",
                     )
                 else:
                     # Fallback to hardcoded 4:3 if no suitable mode found
-                    print(f"📷 Sensor mode: Using fallback 4:3 aspect (2304x1728) for wider field of view")
-                    video_config = self.camera.create_video_configuration(
-                        main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
-                        raw={"size": (2304, 1728)},
-                        encode="main"
+                    print(
+                        "📷 Sensor mode: Using fallback 4:3 aspect (2304x1728) for wider field of view"
                     )
-            elif self.sensor_mode == 'full':
+                    video_config = self.camera.create_video_configuration(
+                        main={
+                            "size": (self.stream_width, self.stream_height),
+                            "format": self.stream_format,
+                        },
+                        raw={"size": (2304, 1728)},
+                        encode="main",
+                    )
+            elif self.sensor_mode == "full":
                 # Use maximum sensor resolution for widest possible field of view
                 # Most downscaling, highest quality, most processing
                 if max_resolution_mode:
-                    raw_size = max_resolution_mode['size']
-                    print(f"📷 Sensor mode: Using FULL sensor {raw_size[0]}×{raw_size[1]} ({max_pixels/1e6:.1f}MP) for maximum field of view")
+                    raw_size = max_resolution_mode["size"]
+                    print(
+                        f"📷 Sensor mode: Using FULL sensor {raw_size[0]}×{raw_size[1]} ({max_pixels / 1e6:.1f}MP) for maximum field of view"
+                    )
                     video_config = self.camera.create_video_configuration(
-                        main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
+                        main={
+                            "size": (self.stream_width, self.stream_height),
+                            "format": self.stream_format,
+                        },
                         raw={"size": raw_size},
-                        encode="main"
+                        encode="main",
                     )
                 else:
                     print("⚠ Full sensor mode requested but no sensor modes found, using auto")
                     video_config = self.camera.create_video_configuration(
-                        main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
-                        encode="main"
+                        main={
+                            "size": (self.stream_width, self.stream_height),
+                            "format": self.stream_format,
+                        },
+                        encode="main",
                     )
             else:  # 'auto' or '16:9' or unknown
                 # Let libcamera choose sensor mode based on output resolution
                 # For 1920x1080 output, this typically selects 1920x1080 sensor mode (16:9)
-                print(f"📷 Sensor mode: Auto (libcamera will select based on output resolution)")
+                print("📷 Sensor mode: Auto (libcamera will select based on output resolution)")
                 video_config = self.camera.create_video_configuration(
-                    main={"size": (self.stream_width, self.stream_height), "format": self.stream_format},
-                    encode="main"  # Required for encoder support
+                    main={
+                        "size": (self.stream_width, self.stream_height),
+                        "format": self.stream_format,
+                    },
+                    encode="main",  # Required for encoder support
                 )
             self.camera.configure(video_config)
 
@@ -382,44 +437,50 @@ class LiveViewStreamer:
                 self.sensor_resolution = config["raw"]["size"]
                 pixels = self.sensor_resolution[0] * self.sensor_resolution[1]
                 aspect = self.sensor_resolution[0] / self.sensor_resolution[1]
-                print(f"✓ Selected sensor mode: {self.sensor_resolution[0]}×{self.sensor_resolution[1]} ({pixels/1e6:.1f}MP, {aspect:.2f}:1 aspect)")
+                print(
+                    f"✓ Selected sensor mode: {self.sensor_resolution[0]}×{self.sensor_resolution[1]} ({pixels / 1e6:.1f}MP, {aspect:.2f}:1 aspect)"
+                )
                 print(f"  Output resolution: {self.stream_width}×{self.stream_height}")
-                print(f"  ISP downscale factor: {pixels / (self.stream_width * self.stream_height):.1f}x")
+                print(
+                    f"  ISP downscale factor: {pixels / (self.stream_width * self.stream_height):.1f}x"
+                )
             else:
                 # Fallback: use PixelArraySize (may cause issues with AF windows)
-                self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
+                self.sensor_resolution = self.camera.camera_properties["PixelArraySize"]
                 print(f"⚠ Sensor resolution (fallback to PixelArraySize): {self.sensor_resolution}")
 
             # Start camera to apply controls
             self.camera.start()
 
             # DIAGNOSTIC: List all available camera controls to debug AF window support
-            print("\n" + "="*60)
+            print("\n" + "=" * 60)
             print("CAMERA CONTROLS DIAGNOSTIC")
-            print("="*60)
+            print("=" * 60)
             try:
                 controls = self.camera.camera_controls
-                af_controls = {k: v for k, v in controls.items() if 'Af' in k or 'Focus' in k}
+                af_controls = {k: v for k, v in controls.items() if "Af" in k or "Focus" in k}
                 print(f"AF-related controls available: {list(af_controls.keys())}")
 
                 # Check specifically for AfWindows and AfMetering
-                if 'AfWindows' in controls:
+                if "AfWindows" in controls:
                     print(f"  ✓ AfWindows supported: {controls['AfWindows']}")
                 else:
                     print("  ✗ AfWindows NOT available")
 
-                if 'AfMetering' in controls:
+                if "AfMetering" in controls:
                     print(f"  ✓ AfMetering supported: {controls['AfMetering']}")
                 else:
                     print("  ✗ AfMetering NOT available")
 
                 # Get sample metadata to see what's actually reported
                 metadata = self.camera.capture_metadata()
-                af_metadata = {k: v for k, v in metadata.items() if 'Af' in k or 'Focus' in k or 'Lens' in k}
+                af_metadata = {
+                    k: v for k, v in metadata.items() if "Af" in k or "Focus" in k or "Lens" in k
+                }
                 print(f"AF-related metadata keys: {list(af_metadata.keys())}")
             except Exception as diag_err:
                 print(f"Diagnostic failed: {diag_err}")
-            print("="*60 + "\n")
+            print("=" * 60 + "\n")
 
             # Apply camera controls
             # CRITICAL: Must be called after configure() as configure() resets controls to defaults
@@ -430,17 +491,21 @@ class LiveViewStreamer:
             # Note: Lens shading changes require camera restart - LensShadingMapMode not available at runtime
             if ISP_TUNING_AVAILABLE:
                 try:
-                    apply_isp_controls(self.camera,
-                                     lens_shading=self.lens_shading_enable,
-                                     defect_correction=self.defect_correction_enable)
+                    apply_isp_controls(
+                        self.camera,
+                        lens_shading=self.lens_shading_enable,
+                        defect_correction=self.defect_correction_enable,
+                    )
                 except Exception as isp_error:
                     print(f"Warning: Could not apply ISP controls: {isp_error}")
 
             # Log applied controls for debugging
-            print(f"✓ Camera controls applied: AF Mode {applied_controls['AfMode']}, "
-                  f"Speed {applied_controls['AfSpeed']}, Range {applied_controls['AfRange']}, "
-                  f"Sharpness {applied_controls['Sharpness']}, "
-                  f"AWB {'Enabled' if applied_controls['AwbEnable'] else 'Disabled'}")
+            print(
+                f"✓ Camera controls applied: AF Mode {applied_controls['AfMode']}, "
+                f"Speed {applied_controls['AfSpeed']}, Range {applied_controls['AfRange']}, "
+                f"Sharpness {applied_controls['Sharpness']}, "
+                f"AWB {'Enabled' if applied_controls['AwbEnable'] else 'Disabled'}"
+            )
 
             # Stop camera - will be started again by stream_loop
             self.camera.stop()
@@ -464,36 +529,34 @@ class LiveViewStreamer:
             dict: Applied controls for verification logging
         """
         # Use AF mode override if set (e.g., after autofocus button locks focus)
-        af_mode_to_use = self._af_mode_override if self._af_mode_override is not None else self.af_mode
+        af_mode_to_use = (
+            self._af_mode_override if self._af_mode_override is not None else self.af_mode
+        )
 
         # Use centralized mapping from camera_control_mapping.py
         # This eliminates implicit snake_case → PascalCase conversion
         settings = {
             # Focus controls
-            'af_mode': af_mode_to_use,
-            'af_speed': self.af_speed,
-            'af_range': self.af_range,
+            "af_mode": af_mode_to_use,
+            "af_speed": self.af_speed,
+            "af_range": self.af_range,
             # Use Windows mode (1) if AF window is active, otherwise Auto (0)
-            'af_metering': 1 if self._af_window_active else 0,
-
+            "af_metering": 1 if self._af_window_active else 0,
             # Image quality controls
-            'sharpness': self.sharpness,
-            'brightness': self.brightness,
-            'contrast': self.contrast,
-            'saturation': self.saturation,
-
+            "sharpness": self.sharpness,
+            "brightness": self.brightness,
+            "contrast": self.contrast,
+            "saturation": self.saturation,
             # Exposure controls
-            'ae_enable': self.ae_enable,
-            'ae_metering_mode': self.ae_metering_mode,
-
+            "ae_enable": self.ae_enable,
+            "ae_metering_mode": self.ae_metering_mode,
             # Noise reduction control
-            'noise_reduction_mode': self.noise_reduction_mode,
-
+            "noise_reduction_mode": self.noise_reduction_mode,
             # White balance controls
-            'awb_enable': self.awb_enable,
+            "awb_enable": self.awb_enable,
             # ColourGains: Critical for locking colour balance under LED illumination
             # Note: Must be set even with AwbEnable to lock white balance (TakePhoto.py:519)
-            'colour_gains': self.colour_gains,
+            "colour_gains": self.colour_gains,
         }
 
         # Build base controls with PascalCase keys
@@ -501,14 +564,15 @@ class LiveViewStreamer:
 
         # Only set AwbMode if AWB is disabled (manual mode)
         if not self.awb_enable:
-            controls_dict.update(build_picamera_controls({'awb_mode': self.awb_mode}))
+            controls_dict.update(build_picamera_controls({"awb_mode": self.awb_mode}))
 
         # Only set manual exposure values if auto exposure is disabled
         if not self.ae_enable:
-            controls_dict.update(build_picamera_controls({
-                'exposure_time': self.exposure_time,
-                'analogue_gain': self.analogue_gain
-            }))
+            controls_dict.update(
+                build_picamera_controls(
+                    {"exposure_time": self.exposure_time, "analogue_gain": self.analogue_gain}
+                )
+            )
 
         self.camera.set_controls(controls_dict)
 
@@ -539,10 +603,12 @@ class LiveViewStreamer:
         """
         if self._af_window_active and self._af_window_coords:
             try:
-                self.camera.set_controls({
-                    "AfMetering": 1,  # Windows mode
-                    "AfWindows": [self._af_window_coords]
-                })
+                self.camera.set_controls(
+                    {
+                        "AfMetering": 1,  # Windows mode
+                        "AfWindows": [self._af_window_coords],
+                    }
+                )
                 return True
             except Exception as e:
                 print(f"⚠ Error re-applying AF window: {e}")
@@ -644,9 +710,9 @@ class LiveViewStreamer:
         """
         if not HARDWARE_MJPEG_AVAILABLE:
             print("⚠ Hardware MJPEG not available, falling back to software encoding")
-            self.socketio.emit('stream_warning', {
-                'message': 'Hardware MJPEG unavailable, using software fallback'
-            })
+            self.socketio.emit(
+                "stream_warning", {"message": "Hardware MJPEG unavailable, using software fallback"}
+            )
             return self._stream_software_encoding()
 
         # If focus peaking is enabled, use software encoding with overlay
@@ -663,7 +729,7 @@ class LiveViewStreamer:
                         self.sensor_resolution = config["raw"]["size"]
                         print(f"📷 Captured sensor mode resolution: {self.sensor_resolution}")
                     else:
-                        self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
+                        self.sensor_resolution = self.camera.camera_properties["PixelArraySize"]
                         print(f"📷 Captured sensor resolution (fallback): {self.sensor_resolution}")
                 except Exception as e:
                     print(f"⚠ Could not capture sensor resolution: {e}")
@@ -680,13 +746,16 @@ class LiveViewStreamer:
             # Create custom output handler for WebSocket streaming
             class WebSocketOutput(FileOutput):
                 """Custom output that emits MJPEG frames to WebSocket"""
+
                 def __init__(self, socketio, frame_delay):
                     self.socketio = socketio
                     self.frame_delay = frame_delay
                     self.last_emit = 0
                     super().__init__()
 
-                def outputframe(self, frame, keyframe=True, timestamp=None, packet=None, audio=None):
+                def outputframe(
+                    self, frame, keyframe=True, timestamp=None, packet=None, audio=None
+                ):
                     """Called by encoder for each MJPEG frame"""
                     current_time = time.time()
 
@@ -697,12 +766,12 @@ class LiveViewStreamer:
                     self.last_emit = current_time
 
                     # Convert JPEG bytes to base64
-                    img_base64 = base64.b64encode(frame).decode('utf-8')
+                    img_base64 = base64.b64encode(frame).decode("utf-8")
 
                     # Emit to WebSocket
-                    self.socketio.emit('camera_frame', {
-                        'image': f'data:image/jpeg;base64,{img_base64}'
-                    })
+                    self.socketio.emit(
+                        "camera_frame", {"image": f"data:image/jpeg;base64,{img_base64}"}
+                    )
 
             # Create WebSocket output handler
             output = WebSocketOutput(self.socketio, self.frame_delay)
@@ -722,17 +791,24 @@ class LiveViewStreamer:
                     md = request.get_metadata()
                     request.release()
 
-                    af_state = md.get('AfState', 0)
-                    af_state_name = ("Idle", "Scanning", "Focused", "Failed")[af_state] if af_state < 4 else "Unknown"
+                    af_state = md.get("AfState", 0)
+                    af_state_name = (
+                        ("Idle", "Scanning", "Focused", "Failed")[af_state]
+                        if af_state < 4
+                        else "Unknown"
+                    )
 
                     print(f"Self-test: AfState = {af_state_name}")
 
                     # If stuck at Idle, controls may not have been applied
                     if af_state == 0:
                         print("⚠ Warning: Autofocus appears idle. Controls may not be active.")
-                        self.socketio.emit('stream_warning', {
-                            'message': 'Autofocus may not be functioning. Try restarting the stream.'
-                        })
+                        self.socketio.emit(
+                            "stream_warning",
+                            {
+                                "message": "Autofocus may not be functioning. Try restarting the stream."
+                            },
+                        )
                 except Exception as e:
                     print(f"Self-test failed (non-critical): {e}")
 
@@ -743,15 +819,17 @@ class LiveViewStreamer:
         except Exception as e:
             print(f"⚠ Hardware MJPEG encoder failed: {e}")
             print("Falling back to software encoding...")
-            self.socketio.emit('stream_warning', {
-                'message': f'Hardware MJPEG error: {e}. Using software fallback.'
-            })
+            self.socketio.emit(
+                "stream_warning",
+                {"message": f"Hardware MJPEG error: {e}. Using software fallback."},
+            )
 
             # Stop recording if started
             try:
                 self.camera.stop_recording()
-            except:
-                pass
+            except Exception as e:
+                # Recording may not have started or camera may be in invalid state
+                print(f"Note: Error stopping recording during fallback: {e}")
 
             # Fall back to software encoding
             return self._stream_software_encoding()
@@ -787,13 +865,15 @@ class LiveViewStreamer:
                         self.sensor_resolution = config["raw"]["size"]
                         print(f"📷 Captured sensor mode resolution: {self.sensor_resolution}")
                     else:
-                        self.sensor_resolution = self.camera.camera_properties['PixelArraySize']
+                        self.sensor_resolution = self.camera.camera_properties["PixelArraySize"]
                         print(f"📷 Captured sensor resolution (fallback): {self.sensor_resolution}")
                 except Exception as e:
                     print(f"⚠ Could not capture sensor resolution: {e}")
 
             self.camera.start()
-            print(f"✓ Software encoding streaming started (mode: {'simplejpeg' if SIMPLEJPEG_AVAILABLE else 'PIL'})")
+            print(
+                f"✓ Software encoding streaming started (mode: {'simplejpeg' if SIMPLEJPEG_AVAILABLE else 'PIL'})"
+            )
 
             while self.streaming and not self.stop_event.is_set():
                 try:
@@ -803,49 +883,47 @@ class LiveViewStreamer:
                     # Apply focus peaking overlay if enabled (preview only)
                     if self.focus_peaking_enabled and CV2_AVAILABLE:
                         # Route to selected algorithm
-                        if self.focus_peaking_algorithm == 'sobel':
+                        if self.focus_peaking_algorithm == "sobel":
                             frame = self._apply_focus_peaking_sobel(
                                 frame,
                                 threshold=self.focus_peaking_intensity,
-                                color=self.focus_peaking_colour
+                                color=self.focus_peaking_colour,
                             )
-                        elif self.focus_peaking_algorithm == 'canny':
+                        elif self.focus_peaking_algorithm == "canny":
                             frame = self._apply_focus_peaking_canny(
                                 frame,
                                 threshold=self.focus_peaking_intensity,
-                                color=self.focus_peaking_colour
+                                color=self.focus_peaking_colour,
                             )
                         else:  # Default to laplacian
                             frame = self._apply_focus_peaking_laplacian(
                                 frame,
                                 threshold=self.focus_peaking_intensity,
-                                color=self.focus_peaking_colour
+                                color=self.focus_peaking_colour,
                             )
 
                     # Encode as JPEG using fastest available method
                     if SIMPLEJPEG_AVAILABLE:
                         # Fast path: simplejpeg (5-7x faster than PIL)
                         jpeg_bytes = simplejpeg.encode_jpeg(
-                            frame,
-                            quality=self.jpeg_quality,
-                            colorspace='RGB'
+                            frame, quality=self.jpeg_quality, colorspace="RGB"
                         )
                     else:
                         # Fallback path: PIL (slower, remove optimize=True for speed)
-                        Image = _get_pil_image()
+                        Image = _get_pil_image()  # noqa: N806 - matches PIL.Image class name
                         img = Image.fromarray(frame)
                         buffer = io.BytesIO()
-                        img.save(buffer, format='JPEG', quality=self.jpeg_quality)
+                        img.save(buffer, format="JPEG", quality=self.jpeg_quality)
                         buffer.seek(0)
                         jpeg_bytes = buffer.read()
 
                     # Convert to base64
-                    img_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
+                    img_base64 = base64.b64encode(jpeg_bytes).decode("utf-8")
 
                     # Emit to all connected clients
-                    self.socketio.emit('camera_frame', {
-                        'image': f'data:image/jpeg;base64,{img_base64}'
-                    })
+                    self.socketio.emit(
+                        "camera_frame", {"image": f"data:image/jpeg;base64,{img_base64}"}
+                    )
 
                     # Limit frame rate
                     time.sleep(self.frame_delay)
@@ -874,7 +952,7 @@ class LiveViewStreamer:
         """
         try:
             # Route to appropriate encoder based on configuration
-            if self.stream_mode == 'mjpeg_hardware':
+            if self.stream_mode == "mjpeg_hardware":
                 print(f"Attempting hardware MJPEG mode (configured: {self.stream_mode})")
                 self._stream_hardware_mjpeg()
             else:
@@ -926,16 +1004,14 @@ class LiveViewStreamer:
             # Encode as JPEG using same method as streaming
             if SIMPLEJPEG_AVAILABLE:
                 jpeg_bytes = simplejpeg.encode_jpeg(
-                    frame,
-                    quality=self.jpeg_quality,
-                    colorspace='RGB'
+                    frame, quality=self.jpeg_quality, colorspace="RGB"
                 )
             else:
                 # Fallback to PIL
-                Image = _get_pil_image()
+                Image = _get_pil_image()  # noqa: N806 - matches PIL.Image class name
                 img = Image.fromarray(frame)
                 buffer = io.BytesIO()
-                img.save(buffer, format='JPEG', quality=self.jpeg_quality)
+                img.save(buffer, format="JPEG", quality=self.jpeg_quality)
                 buffer.seek(0)
                 jpeg_bytes = buffer.read()
 
@@ -977,24 +1053,26 @@ class LiveViewStreamer:
             # Normalize key to PascalCase for consistent handling
             normalized_key = normalize_control_key(key)
 
-            if normalized_key == 'FocusPeakingEnabled':
-                self.focus_peaking_enabled = value if isinstance(value, bool) else str(value).lower() == 'true'
+            if normalized_key == "FocusPeakingEnabled":
+                self.focus_peaking_enabled = (
+                    value if isinstance(value, bool) else str(value).lower() == "true"
+                )
                 focus_peaking_controls[key] = value
-            elif normalized_key == 'FocusPeakingIntensity':
+            elif normalized_key == "FocusPeakingIntensity":
                 self.focus_peaking_intensity = int(value)
                 focus_peaking_controls[key] = value
-            elif normalized_key == 'FocusPeakingColour':
+            elif normalized_key == "FocusPeakingColour":
                 self.focus_peaking_colour = str(value)
                 focus_peaking_controls[key] = value
-            elif normalized_key == 'FocusPeakingAlgorithm':
+            elif normalized_key == "FocusPeakingAlgorithm":
                 self.focus_peaking_algorithm = str(value)
                 focus_peaking_controls[key] = value
-            elif normalized_key == 'ColourGainRed':
+            elif normalized_key == "ColourGainRed":
                 # Handle both PascalCase (camera settings) and snake_case (liveview settings)
                 colour_gain_red = float(value)
                 # Store for persistence
                 self.colour_gains = (colour_gain_red, self.colour_gains[1])
-            elif normalized_key == 'ColourGainBlue':
+            elif normalized_key == "ColourGainBlue":
                 # Handle both PascalCase (camera settings) and snake_case (liveview settings)
                 colour_gain_blue = float(value)
                 # Store for persistence
@@ -1005,17 +1083,19 @@ class LiveViewStreamer:
 
         # If colour gains were updated, add them to camera controls using helper
         if colour_gain_red is not None or colour_gain_blue is not None:
-            camera_controls.update(handle_colour_gains(
-                red=colour_gain_red,
-                blue=colour_gain_blue,
-                current=self.colour_gains
-            ))
+            camera_controls.update(
+                handle_colour_gains(
+                    red=colour_gain_red, blue=colour_gain_blue, current=self.colour_gains
+                )
+            )
 
         # Apply camera controls if any
         if camera_controls:
             # Return False if camera is not available for camera-specific controls
             if not self.camera or not self.streaming:
-                print(f"Cannot update camera controls - camera not ready (camera={self.camera is not None}, streaming={self.streaming})")
+                print(
+                    f"Cannot update camera controls - camera not ready (camera={self.camera is not None}, streaming={self.streaming})"
+                )
                 return False
 
             try:
@@ -1035,7 +1115,7 @@ class LiveViewStreamer:
 
         return True
 
-    def _apply_focus_peaking_laplacian(self, frame, threshold=100, color='green'):
+    def _apply_focus_peaking_laplacian(self, frame, threshold=100, color="green"):
         """
         Apply focus peaking overlay using Laplacian edge detection
 
@@ -1055,11 +1135,11 @@ class LiveViewStreamer:
 
         # Color mapping (RGB format - picamera2 BGR888 is actually RGB)
         colour_map = {
-            'green': (0, 255, 0),
-            'red': (255, 0, 0),       # RGB not BGR
-            'yellow': (255, 255, 0),  # RGB not BGR
-            'cyan': (0, 255, 255),    # RGB not BGR
-            'magenta': (255, 0, 255)
+            "green": (0, 255, 0),
+            "red": (255, 0, 0),  # RGB not BGR
+            "yellow": (255, 255, 0),  # RGB not BGR
+            "cyan": (0, 255, 255),  # RGB not BGR
+            "magenta": (255, 0, 255),
         }
         overlay_colour = colour_map.get(color, (0, 255, 0))  # Default to green
 
@@ -1087,7 +1167,7 @@ class LiveViewStreamer:
 
         return result
 
-    def _apply_focus_peaking_sobel(self, frame, threshold=100, color='green'):
+    def _apply_focus_peaking_sobel(self, frame, threshold=100, color="green"):
         """
         Apply focus peaking overlay using Sobel edge detection
 
@@ -1107,11 +1187,11 @@ class LiveViewStreamer:
 
         # Color mapping (RGB format - picamera2 BGR888 is actually RGB)
         colour_map = {
-            'green': (0, 255, 0),
-            'red': (255, 0, 0),       # RGB not BGR
-            'yellow': (255, 255, 0),  # RGB not BGR
-            'cyan': (0, 255, 255),    # RGB not BGR
-            'magenta': (255, 0, 255)
+            "green": (0, 255, 0),
+            "red": (255, 0, 0),  # RGB not BGR
+            "yellow": (255, 255, 0),  # RGB not BGR
+            "cyan": (0, 255, 255),  # RGB not BGR
+            "magenta": (255, 0, 255),
         }
         overlay_colour = colour_map.get(color, (0, 255, 0))  # Default to green
 
@@ -1142,7 +1222,7 @@ class LiveViewStreamer:
 
         return result
 
-    def _apply_focus_peaking_canny(self, frame, threshold=100, color='green'):
+    def _apply_focus_peaking_canny(self, frame, threshold=100, color="green"):
         """
         Apply focus peaking overlay using Canny edge detection
 
@@ -1162,11 +1242,11 @@ class LiveViewStreamer:
 
         # Color mapping (RGB format - picamera2 BGR888 is actually RGB)
         colour_map = {
-            'green': (0, 255, 0),
-            'red': (255, 0, 0),       # RGB not BGR
-            'yellow': (255, 255, 0),  # RGB not BGR
-            'cyan': (0, 255, 255),    # RGB not BGR
-            'magenta': (255, 0, 255)
+            "green": (0, 255, 0),
+            "red": (255, 0, 0),  # RGB not BGR
+            "yellow": (255, 255, 0),  # RGB not BGR
+            "cyan": (0, 255, 255),  # RGB not BGR
+            "magenta": (255, 0, 255),
         }
         overlay_colour = colour_map.get(color, (0, 255, 0))  # Default to green
 
@@ -1248,7 +1328,7 @@ class LiveViewStreamer:
 
         # Get full sensor coordinate system from ScalerCropMaximum
         # ScalerCrop coordinates MUST be in this coordinate space
-        scaler_crop_max = self.camera.camera_properties.get('ScalerCropMaximum')
+        scaler_crop_max = self.camera.camera_properties.get("ScalerCropMaximum")
         if not scaler_crop_max:
             print("⚠ Cannot calculate ScalerCrop - ScalerCropMaximum not available")
             return None
@@ -1365,13 +1445,13 @@ class LiveViewStreamer:
             - Actual center: (0.68, 0.28) - shifted due to boundary clamping
         """
         # Default to requested center (graceful fallback)
-        fallback = {'x': self.zoom_center_x, 'y': self.zoom_center_y}
+        fallback = {"x": self.zoom_center_x, "y": self.zoom_center_y}
 
         if not self.camera or not self.streaming:
             return fallback
 
         # Get ScalerCropMaximum for coordinate space
-        scaler_crop_max = self.camera.camera_properties.get('ScalerCropMaximum')
+        scaler_crop_max = self.camera.camera_properties.get("ScalerCropMaximum")
         if not scaler_crop_max:
             return fallback
 
@@ -1395,16 +1475,15 @@ class LiveViewStreamer:
 
         # Normalize to 0-1 range relative to active area
         actual_center_x_normalized = actual_center_x_rel / sensor_width if sensor_width > 0 else 0.5
-        actual_center_y_normalized = actual_center_y_rel / sensor_height if sensor_height > 0 else 0.5
+        actual_center_y_normalized = (
+            actual_center_y_rel / sensor_height if sensor_height > 0 else 0.5
+        )
 
         # Clamp to valid range (should already be valid, but defensive programming)
         actual_center_x_normalized = max(0.0, min(1.0, actual_center_x_normalized))
         actual_center_y_normalized = max(0.0, min(1.0, actual_center_y_normalized))
 
-        return {
-            'x': actual_center_x_normalized,
-            'y': actual_center_y_normalized
-        }
+        return {"x": actual_center_x_normalized, "y": actual_center_y_normalized}
 
     def set_zoom(self, zoom_level, center_x=None, center_y=None):
         """
@@ -1451,7 +1530,9 @@ class LiveViewStreamer:
             # so they remain valid regardless of zoom level (ScalerCrop)
             self._reapply_af_window_if_active()
 
-            print(f"✓ Zoom applied: {self.zoom_level:.2f}x at ({self.zoom_center_x:.2f}, {self.zoom_center_y:.2f})")
+            print(
+                f"✓ Zoom applied: {self.zoom_level:.2f}x at ({self.zoom_center_x:.2f}, {self.zoom_center_y:.2f})"
+            )
             print(f"  ScalerCrop: {scaler_crop}")
             return True
         except Exception as e:
@@ -1494,9 +1575,11 @@ class LiveViewStreamer:
                 # IMPORTANT: Don't set AfWindows to empty list - causes libcamera assertion failure!
                 # Setting AfMetering to Auto (0) is sufficient to reset to full-frame AF
                 # libcamera will automatically ignore any previously set AfWindows
-                self.camera.set_controls({
-                    "AfMetering": 0  # Auto metering - resets to full frame AF
-                })
+                self.camera.set_controls(
+                    {
+                        "AfMetering": 0  # Auto metering - resets to full frame AF
+                    }
+                )
                 # Clear stored state
                 self._af_window_active = False
                 self._af_window_coords = None
@@ -1508,7 +1591,7 @@ class LiveViewStreamer:
             # ScalerCropMaximum format: (x_offset, y_offset, width, height)
             # For full sensor: (0, 0, 9152, 6944) on Arducam 64MP
             # For sensor modes: (offset_x, offset_y, active_width, active_height)
-            scaler_crop_max = self.camera.camera_properties.get('ScalerCropMaximum')
+            scaler_crop_max = self.camera.camera_properties.get("ScalerCropMaximum")
             if not scaler_crop_max:
                 print("⚠ Cannot set AF window - ScalerCropMaximum not available")
                 return False
@@ -1558,26 +1641,36 @@ class LiveViewStreamer:
             # AfWindows expects (x, y, width, height) in sensor pixel coordinates
             # referenced against ScalerCropMaximum (NOT normalized 0-65535!)
             # For Arducam 64MP: center 20% window would be ~(3660, 2777, 1830, 1388) in pixels
-            self._af_window_coords = (window_x_pixels, window_y_pixels, window_w_pixels, window_h_pixels)
+            self._af_window_coords = (
+                window_x_pixels,
+                window_y_pixels,
+                window_w_pixels,
+                window_h_pixels,
+            )
             self._af_window_active = True
 
             print(f"✓ AF window calculated: center=({x:.2f}, {y:.2f}) normalized")
-            print(f"  ScalerCropMaximum: {scaler_crop_max} (offset={x_offset},{y_offset}, size={sensor_width}x{sensor_height})")
+            print(
+                f"  ScalerCropMaximum: {scaler_crop_max} (offset={x_offset},{y_offset}, size={sensor_width}x{sensor_height})"
+            )
             print(f"  Position in active area: ({window_x_rel}, {window_y_rel})")
-            print(f"  Position in full sensor: ({window_x_pixels}, {window_y_pixels}) [with offset added]")
+            print(
+                f"  Position in full sensor: ({window_x_pixels}, {window_y_pixels}) [with offset added]"
+            )
             print(f"  Window size: {window_w_pixels}x{window_h_pixels}")
             print(f"  Full window coordinates: {self._af_window_coords}")
 
             # Apply controls in separate steps to verify each one
             # Step 1: Set AfMetering to Windows mode
             try:
-                print(f"  → Setting AfMetering to Windows mode (1)...")
+                print("  → Setting AfMetering to Windows mode (1)...")
                 self.camera.set_controls({"AfMetering": 1})
                 time.sleep(0.05)  # Let control settle
-                print(f"  ✓ AfMetering set successfully")
+                print("  ✓ AfMetering set successfully")
             except Exception as e:
                 print(f"  ❌ ERROR setting AfMetering: {e}")
                 import traceback
+
                 traceback.print_exc()
                 return False
 
@@ -1585,14 +1678,15 @@ class LiveViewStreamer:
             try:
                 print(f"  → Setting AfWindows: {self._af_window_coords}...")
                 self.camera.set_controls({"AfWindows": [self._af_window_coords]})
-                print(f"  ✓ AfWindows set successfully")
+                print("  ✓ AfWindows set successfully")
             except Exception as e:
                 print(f"  ❌ ERROR setting AfWindows: {e}")
                 import traceback
+
                 traceback.print_exc()
                 return False
 
-            print(f"✓ AF window controls applied successfully")
+            print("✓ AF window controls applied successfully")
 
             # DIAGNOSTIC: Verify controls were actually applied
             try:
@@ -1600,43 +1694,52 @@ class LiveViewStreamer:
                 metadata = self.camera.capture_metadata()
 
                 # Check what AF-related metadata is available
-                af_state = metadata.get('AfState', 'N/A')
-                af_pause_state = metadata.get('AfPauseState', 'N/A')
-                lens_pos = metadata.get('LensPosition', 'N/A')
-                focus_fom = metadata.get('FocusFoM', 'N/A')
+                af_state = metadata.get("AfState", "N/A")
+                af_pause_state = metadata.get("AfPauseState", "N/A")
+                lens_pos = metadata.get("LensPosition", "N/A")
+                focus_fom = metadata.get("FocusFoM", "N/A")
 
                 # CRITICAL: Check if AfMetering is actually being applied
                 # If AfMetering isn't in metadata, the hardware may not support window mode
                 # OR it might be a write-only control (driver limitation)
-                af_metering = metadata.get('AfMetering', 'N/A')
+                af_metering = metadata.get("AfMetering", "N/A")
 
                 # Decode AfState: 0=Idle, 1=Scanning, 2=Focused, 3=Failed
-                af_state_name = {0: 'Idle', 1: 'Scanning', 2: 'Focused', 3: 'Failed'}.get(af_state, af_state)
+                af_state_name = {0: "Idle", 1: "Scanning", 2: "Focused", 3: "Failed"}.get(
+                    af_state, af_state
+                )
                 # Decode AfPauseState: 0=Running, 1=Pausing, 2=Paused
-                af_pause_name = {0: 'Running', 1: 'Pausing', 2: 'Paused'}.get(af_pause_state, af_pause_state)
+                af_pause_name = {0: "Running", 1: "Pausing", 2: "Paused"}.get(
+                    af_pause_state, af_pause_state
+                )
                 # Decode AfMetering: 0=Auto (full-frame), 1=Windows mode
-                af_metering_name = {0: 'Auto/FullFrame', 1: 'Windows'}.get(af_metering, af_metering)
+                af_metering_name = {0: "Auto/FullFrame", 1: "Windows"}.get(af_metering, af_metering)
 
-                print(f"🔍 DIAGNOSTIC: AfState={af_state_name} ({af_state}), AfPauseState={af_pause_name} ({af_pause_state})")
-                print(f"🔍 DIAGNOSTIC: AfMetering={af_metering_name} ({af_metering}) ← Should be 'Windows (1)'!")
+                print(
+                    f"🔍 DIAGNOSTIC: AfState={af_state_name} ({af_state}), AfPauseState={af_pause_name} ({af_pause_state})"
+                )
+                print(
+                    f"🔍 DIAGNOSTIC: AfMetering={af_metering_name} ({af_metering}) ← Should be 'Windows (1)'!"
+                )
                 print(f"🔍 DIAGNOSTIC: LensPosition={lens_pos}, FocusFoM={focus_fom}")
 
-                if af_metering == 'N/A':
-                    print(f"⚠️  AfMetering not in metadata - may be write-only control")
-                    print(f"ℹ️  To check for driver errors: dmesg | grep -i 'libcamera\\|pisp\\|af'")
+                if af_metering == "N/A":
+                    print("⚠️  AfMetering not in metadata - may be write-only control")
+                    print("ℹ️  To check for driver errors: dmesg | grep -i 'libcamera\\|pisp\\|af'")
                 elif af_metering != 1:
                     print(f"❌ WARNING: AfMetering is {af_metering}, not 1 (Windows mode)!")
-                    print(f"   This means windowed AF is NOT active - camera is using full-frame AF")
-                    print(f"ℹ️  Possible causes:")
-                    print(f"   - Driver/hardware limitation in this sensor mode")
-                    print(f"   - Window coordinates rejected (check dmesg)")
-                    print(f"   - AfMetering being overridden by another control")
+                    print("   This means windowed AF is NOT active - camera is using full-frame AF")
+                    print("ℹ️  Possible causes:")
+                    print("   - Driver/hardware limitation in this sensor mode")
+                    print("   - Window coordinates rejected (check dmesg)")
+                    print("   - AfMetering being overridden by another control")
                 else:
-                    print(f"✓ AfMetering = Windows mode - windowed AF should be active!")
+                    print("✓ AfMetering = Windows mode - windowed AF should be active!")
 
             except Exception as diag_error:
                 print(f"⚠️  Diagnostic read failed: {diag_error}")
                 import traceback
+
                 traceback.print_exc()
 
             return True
@@ -1644,6 +1747,7 @@ class LiveViewStreamer:
         except Exception as e:
             print(f"⚠ Error setting AF window: {e}")
             import traceback
+
             traceback.print_exc()
             return False
 
@@ -1697,7 +1801,9 @@ class LiveViewStreamer:
         # If camera is active, apply the change immediately
         if self.camera and self.streaming:
             try:
-                af_mode_to_use = self._af_mode_override if self._af_mode_override is not None else self.af_mode
+                af_mode_to_use = (
+                    self._af_mode_override if self._af_mode_override is not None else self.af_mode
+                )
                 self.camera.set_controls({"AfMode": af_mode_to_use})
 
                 # Re-apply AF window if active (preserve window state)
@@ -1748,7 +1854,7 @@ class LiveViewStreamer:
 
                 # Check if camera is started before trying to stop
                 try:
-                    if hasattr(self.camera, 'started') and self.camera.started:
+                    if hasattr(self.camera, "started") and self.camera.started:
                         self.camera.stop()
                 except Exception as e:
                     print(f"⚠️  Note: Camera stop failed (may already be stopped): {e}")

@@ -27,7 +27,7 @@ def detect_pi_model():
         RuntimeError: If model cannot be determined or is unsupported
     """
     try:
-        with open("/proc/cpuinfo", "r") as f:
+        with open("/proc/cpuinfo") as f:
             for line in f:
                 if line.startswith("Model"):
                     model = line.split(":")[1].strip()
@@ -42,10 +42,10 @@ def detect_pi_model():
             # If we get here, no Model line was found
             raise RuntimeError("Could not find Model information in /proc/cpuinfo")
 
-    except FileNotFoundError:
-        raise RuntimeError("/proc/cpuinfo not found - are you running on Linux?")
+    except FileNotFoundError as e:
+        raise RuntimeError("/proc/cpuinfo not found - are you running on Linux?") from e
     except Exception as e:
-        raise RuntimeError(f"Error reading /proc/cpuinfo: {e}")
+        raise RuntimeError(f"Error reading /proc/cpuinfo: {e}") from e
 
 
 if __name__ == "__main__":
