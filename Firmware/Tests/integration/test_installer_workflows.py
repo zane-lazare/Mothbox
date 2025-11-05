@@ -39,8 +39,8 @@ Module: Tests/integration/test_installer_workflows.py
 import pytest
 from pathlib import Path
 
-# Mark all tests in this module as NOT requiring hardware
-# (overrides conftest.py auto-marking of integration/ tests)
+# Integration tests for installer workflows (no hardware required)
+# Note: conftest.py automatically excludes installer tests from hardware marking
 pytestmark = pytest.mark.integration
 from unittest.mock import patch, MagicMock, call
 import subprocess
