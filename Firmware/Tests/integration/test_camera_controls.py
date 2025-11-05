@@ -1,5 +1,5 @@
 """
-Integration Tests: Camera Controls (Phase 2.2)
+Integration Tests: Camera Controls ()
 
 Tests interactive camera features that require real hardware:
 - Autofocus trigger endpoint
@@ -7,7 +7,7 @@ Tests interactive camera features that require real hardware:
 - Settings copy endpoint
 
 These tests interact with actual picamera2 hardware and verify
-end-to-end functionality of Phase 2.2 interactive features.
+end-to-end functionality of  interactive features.
 
 Run with: pytest Tests/integration/test_camera_controls.py -v -s
 
@@ -25,7 +25,7 @@ import time
 
 @pytest.mark.both
 class TestAutofocusEndpoint:
-    """Test POST /camera/autofocus endpoint (Phase 2.2)"""
+    """Test POST /camera/autofocus endpoint ()"""
 
     def test_autofocus_trigger_success(self, client):
         """Test successful autofocus operation"""
@@ -91,7 +91,7 @@ class TestAutofocusEndpoint:
 
 @pytest.mark.both
 class TestSettingsCopyEndpoint:
-    """Test POST /config/copy-settings endpoint (Phase 2.2)"""
+    """Test POST /config/copy-settings endpoint ()"""
 
     def test_copy_preview_to_capture(self, client):
         """Test copying settings from preview to capture"""
@@ -178,7 +178,7 @@ class TestSettingsCopyEndpoint:
 
 @pytest.mark.stream
 class TestEndToEndWorkflow:
-    """Test complete stream workflow (Phase 2.2)"""
+    """Test complete stream workflow ()"""
 
     def test_stream_optimization_workflow(self, client, stream_ready):
         """Test complete stream workflow: autofocus → copy settings"""

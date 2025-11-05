@@ -75,6 +75,13 @@ case "$TEST_TYPE" in
         pytest Tests/integration/test_stream_performance.py -v -s
         ;;
 
+    "installer"|"installer-integration")
+        echo "🚀 Running Installer Integration tests (Issue #13 Phase 2)..."
+        echo ""
+        echo "Testing install_mothbox.sh workflows (Python equivalents + mocks)"
+        pytest Tests/integration/test_installer_workflows.py -v
+        ;;
+
     "controls")
         # Phase 2: Test camera controls validation
         echo "🚀 Testing Phase 2 camera controls validation..."
@@ -330,6 +337,45 @@ case "$TEST_TYPE" in
         pytest Tests/unit/test_websocket_handlers.py Tests/integration/test_websocket_integration.py Tests/integration/test_test_capture_workflows.py Tests/integration/test_end_to_end_workflows.py -v -s
         ;;
 
+    "ci"|"github-actions")
+        # CI/CD mode - simulates GitHub Actions workflow locally
+        # Matches .github/workflows/test.yml behavior
+        echo "🚀 Running CI/CD test suite (GitHub Actions simulation)..."
+        echo ""
+        echo "This mode simulates the GitHub Actions workflow locally."
+        echo "It runs the same tests that will run in CI/CD."
+        echo ""
+
+        # Unit tests with coverage
+        echo "=== Unit Tests with Coverage ==="
+        pytest Tests/unit/ \
+            --cov=mothbox_paths \
+            --cov=webui/backend \
+            --cov-report=xml \
+            --cov-report=term \
+            --cov-report=html \
+            -v \
+            --tb=short
+
+        echo ""
+        echo "=== Integration Tests (non-hardware) ==="
+        pytest Tests/integration/ \
+            -v \
+            -m "not hardware" \
+            --tb=short
+
+        echo ""
+        echo "=== Coverage Threshold Check (85%) ==="
+        pip3 install --break-system-packages -q coverage 2>&1 | grep -v "already satisfied" || true
+        coverage report --fail-under=85
+
+        echo ""
+        echo "✅ CI/CD test suite complete!"
+        echo ""
+        echo "📊 Coverage report: file://$(pwd)/htmlcov/index.html"
+        echo "📄 Coverage XML: $(pwd)/coverage.xml"
+        ;;
+
     "all")
         echo "🚀 Running full test suite..."
         echo ""
@@ -397,6 +443,8 @@ case "$TEST_TYPE" in
         echo "  quick         - Run single most important test (encoding speed)"
         echo "  unit          - Run all unit tests"
         echo "  integration   - Run integration/performance tests"
+        echo "  ci            - Run CI/CD test suite (simulates GitHub Actions)"
+        echo "  github-actions - Same as ci"
         echo "  all           - Run full automated test suite (default)"
         echo "  manual        - Show manual verification checklist"
         echo "  help          - Show this help message"
@@ -418,6 +466,7 @@ case "$TEST_TYPE" in
         echo "  ./run_tests.sh presets          # Test settings presets"
         echo "  ./run_tests.sh photo-calibration # Test photo calibration (Issue #45)"
         echo "  ./run_tests.sh stream-calibration # Test stream calibration (Issue #45)"
+        echo "  ./run_tests.sh ci               # Simulate GitHub Actions CI/CD locally"
         echo "  ./run_tests.sh quick            # Quick performance check"
         echo "  ./run_tests.sh manual           # Show manual test steps"
         exit 0

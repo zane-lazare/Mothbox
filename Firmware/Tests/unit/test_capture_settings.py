@@ -84,16 +84,24 @@ class TestCaptureSettingsValidation:
         from routes.camera import ALLOWED_CAMERA_SETTINGS
 
         print(f"\n📷 Testing ExposureTime validation:")
-        # ExposureTime: 1-999999 microseconds
-        for exp_time in ['100', '499', '7000', '50000', '200000']:
+        # ExposureTime: 1-999999 microseconds (must be integer)
+        for exp_time in [100, 499, 7000, 50000, 200000]:
             assert ALLOWED_CAMERA_SETTINGS['ExposureTime'](exp_time), \
                 f"Should accept ExposureTime={exp_time}µs"
             print(f"   {exp_time}µs: ✓")
 
-        for invalid in ['0', '-100', '1000000', 'abc']:
+        # Test numeric out of range values
+        for invalid in [0, -100, 1000000]:
             assert not ALLOWED_CAMERA_SETTINGS['ExposureTime'](invalid), \
                 f"Should reject ExposureTime={invalid}"
             print(f"   {invalid}: ✗ (correctly rejected)")
+
+        # Test invalid type raises exception
+        try:
+            ALLOWED_CAMERA_SETTINGS['ExposureTime']('abc')
+            assert False, "Should raise ValueError for invalid type"
+        except ValueError:
+            print(f"   'abc': ✗ (correctly raised ValueError)")
 
         print(f"\n📊 Testing AnalogueGain (ISO) validation:")
         # AnalogueGain: 1.0-16.0
@@ -279,16 +287,16 @@ class TestImageQualityControls:
     """Test image quality controls in capture settings"""
 
     def test_sharpness_range(self):
-        """Test Sharpness 0.0-16.0 for capture"""
+        """Test Sharpness 0.0-4.0 for capture (picamera2 typical range)"""
         from routes.camera import ALLOWED_CAMERA_SETTINGS
 
         print(f"\n🔪 Testing Sharpness validation:")
-        for sharpness in [0.0, 1.0, 1.5, 8.0, 16.0]:
+        for sharpness in [0.0, 1.0, 1.5, 3.0, 4.0]:
             assert ALLOWED_CAMERA_SETTINGS['Sharpness'](sharpness), \
                 f"Should accept Sharpness={sharpness}"
             print(f"   {sharpness}: ✓")
 
-        for invalid in [-0.1, 16.1]:
+        for invalid in [-0.1, 4.1, 8.0, 16.0]:
             assert not ALLOWED_CAMERA_SETTINGS['Sharpness'](invalid), \
                 f"Should reject Sharpness={invalid}"
             print(f"   {invalid}: ✗ (correctly rejected)")
@@ -298,25 +306,37 @@ class TestImageQualityControls:
         from routes.camera import ALLOWED_CAMERA_SETTINGS
 
         print(f"\n☀️  Testing Brightness validation:")
-        # Brightness: -1.0 to 1.0
+        # Brightness: -1.0 to 1.0 (only Brightness can be negative)
         for brightness in [-1.0, -0.5, 0.0, 0.5, 1.0]:
             assert ALLOWED_CAMERA_SETTINGS['Brightness'](brightness), \
                 f"Should accept Brightness={brightness}"
             print(f"   {brightness:+.1f}: ✓")
 
         print(f"\n📊 Testing Contrast validation:")
-        # Contrast: -1.0 to 1.0
-        for contrast in [-1.0, 0.0, 0.5, 1.0]:
+        # Contrast: 0.0 to 4.0 (picamera2 typical range)
+        for contrast in [0.0, 1.0, 2.0, 4.0]:
             assert ALLOWED_CAMERA_SETTINGS['Contrast'](contrast), \
                 f"Should accept Contrast={contrast}"
-            print(f"   {contrast:+.1f}: ✓")
+            print(f"   {contrast}: ✓")
+
+        # Negative contrast should be rejected
+        for invalid in [-1.0, -0.5, 4.1]:
+            assert not ALLOWED_CAMERA_SETTINGS['Contrast'](invalid), \
+                f"Should reject Contrast={invalid}"
+            print(f"   {invalid}: ✗ (correctly rejected)")
 
         print(f"\n🎨 Testing Saturation validation:")
-        # Saturation: -1.0 to 1.0
-        for saturation in [-1.0, 0.0, 0.5, 1.0]:
+        # Saturation: 0.0 to 4.0 (picamera2 typical range)
+        for saturation in [0.0, 1.0, 2.0, 4.0]:
             assert ALLOWED_CAMERA_SETTINGS['Saturation'](saturation), \
                 f"Should accept Saturation={saturation}"
-            print(f"   {saturation:+.1f}: ✓")
+            print(f"   {saturation}: ✓")
+
+        # Negative saturation should be rejected
+        for invalid in [-1.0, -0.5, 4.1]:
+            assert not ALLOWED_CAMERA_SETTINGS['Saturation'](invalid), \
+                f"Should reject Saturation={invalid}"
+            print(f"   {invalid}: ✗ (correctly rejected)")
 
 
 class TestComprehensiveValidation:

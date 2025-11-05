@@ -23,6 +23,9 @@ import time
 # Setup path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
+# Import for hardware availability checks
+from liveview_stream import PICAMERA_AVAILABLE
+
 
 @pytest.mark.stream
 class TestEncoderFallback:
@@ -37,10 +40,11 @@ class TestEncoderFallback:
         except ImportError:
             pytest.skip("simplejpeg not installed in test environment")
 
-    @patch('camera_stream.SIMPLEJPEG_AVAILABLE', False)
+    @pytest.mark.skipif(not PICAMERA_AVAILABLE, reason="picamera2 not available (Pi hardware only)")
+    @patch('liveview_stream.SIMPLEJPEG_AVAILABLE', False)
     def test_pil_fallback_when_simplejpeg_unavailable(self, camera_streamer_func):
         """Verify PIL is used when simplejpeg is unavailable"""
-        from camera_stream import SIMPLEJPEG_AVAILABLE
+        from liveview_stream import SIMPLEJPEG_AVAILABLE
 
         print("\n📊 Testing PIL fallback when simplejpeg unavailable...")
 
@@ -70,14 +74,15 @@ class TestEncoderFallback:
         finally:
             camera_streamer_func.camera.stop()
 
+    @pytest.mark.skipif(not PICAMERA_AVAILABLE, reason="picamera2 not available (Pi hardware only)")
     def test_encoding_method_selection(self, camera_streamer_func):
         """Verify correct encoding method is selected based on availability"""
-        import camera_stream
+        import liveview_stream
 
         print("\n📊 Testing encoding method selection...")
 
         # Check what's available
-        has_simplejpeg = camera_stream.SIMPLEJPEG_AVAILABLE
+        has_simplejpeg = liveview_stream.SIMPLEJPEG_AVAILABLE
         has_pil = True  # PIL is always available
 
         print(f"   simplejpeg available: {has_simplejpeg}")
@@ -141,10 +146,38 @@ class TestStreamModeValidation:
     """Test stream mode configuration and validation"""
 
     def test_default_stream_mode(self, camera_streamer_func):
-        """Verify default stream mode is simplejpeg"""
+        """Verify default stream mode when using empty config (hardcoded default)"""
         print("\n📊 Testing default stream mode...")
+        # With empty config, should use hardcoded default
         assert camera_streamer_func.stream_mode == 'simplejpeg'
         print(f"✓ Default stream mode: {camera_streamer_func.stream_mode}")
+
+    def test_hardcoded_default_stream_mode(self, monkeypatch):
+        """Verify hardcoded default when config file doesn't exist"""
+        from liveview_stream import LiveViewStreamer
+        from pathlib import Path
+
+        print("\n📊 Testing hardcoded default stream mode...")
+
+        # Create streamer with config file disabled by patching Path.exists
+        original_exists = Path.exists
+        def mock_exists(self):
+            # Return False for liveview_settings.txt, True for others
+            if 'liveview_settings.txt' in str(self):
+                return False
+            return original_exists(self)
+
+        monkeypatch.setattr(Path, 'exists', mock_exists)
+
+        class MockSocketIO:
+            def emit(self, event, data, **kwargs):
+                pass
+
+        streamer = LiveViewStreamer(MockSocketIO())
+
+        # Should use hardcoded default
+        assert streamer.stream_mode == 'simplejpeg'
+        print(f"✓ Hardcoded default stream mode: {streamer.stream_mode}")
 
     def test_hardware_mjpeg_mode_selection(self, camera_streamer_func):
         """Verify hardware MJPEG mode can be set"""
@@ -394,6 +427,7 @@ class TestEncodingErrorHandling:
 class TestResourceCleanup:
     """Test resource cleanup on encoding failures"""
 
+    @pytest.mark.skipif(not PICAMERA_AVAILABLE, reason="picamera2 not available (Pi hardware only)")
     def test_cleanup_after_encoding_error(self, camera_streamer_func):
         """Verify resources are cleaned up after encoding errors"""
         print("\n📊 Testing resource cleanup after encoding error...")
@@ -422,6 +456,7 @@ class TestResourceCleanup:
         assert camera_streamer_func.camera is None, "Camera not cleaned up after error"
         print("✓ Resources cleaned up successfully after error")
 
+    @pytest.mark.skipif(not PICAMERA_AVAILABLE, reason="picamera2 not available (Pi hardware only)")
     def test_multiple_cleanup_calls(self, camera_streamer_func):
         """Verify cleanup can be called multiple times safely"""
         print("\n📊 Testing multiple cleanup calls...")
@@ -452,7 +487,7 @@ class TestResourceCleanup:
 class TestHardwareMJPEGMode:
     """Test hardware MJPEG mode validation and fallback"""
 
-    @patch('camera_stream.HARDWARE_MJPEG_AVAILABLE', False)
+    @patch('liveview_stream.HARDWARE_MJPEG_AVAILABLE', False)
     def test_hardware_mjpeg_unavailable_fallback(self, camera_streamer_func):
         """Verify fallback when hardware MJPEG is unavailable"""
         print("\n📊 Testing hardware MJPEG unavailable fallback...")
@@ -461,7 +496,7 @@ class TestHardwareMJPEGMode:
         camera_streamer_func.stream_mode = 'mjpeg_hardware'
 
         # Verify HARDWARE_MJPEG_AVAILABLE is False
-        from camera_stream import HARDWARE_MJPEG_AVAILABLE
+        from liveview_stream import HARDWARE_MJPEG_AVAILABLE
         assert HARDWARE_MJPEG_AVAILABLE is False
 
         print("✓ Hardware MJPEG marked unavailable, will fall back to software")

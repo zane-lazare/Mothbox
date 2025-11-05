@@ -236,13 +236,50 @@ class TestPresetAPIEndpoints:
     """Test preset API routes"""
 
     def setup_method(self):
-        """Setup Flask test client"""
+        """Setup Flask test client with test presets"""
         from flask import Flask
         from routes.presets import presets_bp
+        import tempfile
+        import shutil
+        from unittest.mock import patch
+
+        # Create temporary preset directories
+        self.test_dir = Path(tempfile.mkdtemp())
+        self.builtin_dir = self.test_dir / 'built-in'
+        self.user_dir = self.test_dir / 'user'
+        self.builtin_dir.mkdir(parents=True)
+        self.user_dir.mkdir(parents=True)
+
+        # Create test built-in preset
+        test_preset = {
+            'name': 'daylight',
+            'display_name': 'Daylight Mode',
+            'description': 'Optimized for daylight photography',
+            'category': 'built-in',
+            'version': '1.0',
+            'workflow': 'both',
+            'settings': {
+                'camera': {'ExposureTime': 5000, 'AnalogueGain': 2.0},
+                'liveview': {'sharpness': 1.5}
+            }
+        }
+        with open(self.builtin_dir / 'daylight.json', 'w') as f:
+            json.dump(test_preset, f)
+
+        # Patch the preset manager to use our test directories
+        from preset_manager import PresetManager
+        self.patcher = patch('routes.presets.preset_manager', PresetManager(self.builtin_dir, self.user_dir))
+        self.patcher.start()
 
         self.app = Flask(__name__)
         self.app.register_blueprint(presets_bp, url_prefix='/presets')
         self.client = self.app.test_client()
+
+    def teardown_method(self):
+        """Clean up temporary directories and patches"""
+        import shutil
+        self.patcher.stop()
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_list_presets_endpoint(self):
         """GET /presets should return preset list"""

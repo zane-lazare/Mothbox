@@ -1,13 +1,14 @@
 #!/usr/bin/python
-from gps import *
-import time
-from datetime import datetime
 import os
 import select
-from timezonefinder import TimezoneFinder
-from zoneinfo import ZoneInfo
-from pathlib import Path
 import sys
+import time
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from gps import *
+from timezonefinder import TimezoneFinder
 
 # Add parent directory to path to import mothbox_paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -16,7 +17,7 @@ from mothbox_paths import CONTROLS_FILE, get_hardware_config
 # Load hardware configuration
 hw_config = get_hardware_config()
 
-if not hw_config['gps_enabled']:
+if not hw_config["gps_enabled"]:
     print("GPS disabled in configuration")
     sys.exit(0)
 
@@ -26,12 +27,12 @@ latitude = None
 longitude = None
 start_time = time.time()
 tf = TimezoneFinder()
-timeout = hw_config['gps_timeout']
+timeout = hw_config["gps_timeout"]
 
 start_time = time.time()
 tf = TimezoneFinder()
 
-'''
+"""
 #This might be mysticism, the GPS might just need a good view of the sky
 #It seems that (at least for a USB gps) if the GPS has been disconnected and reconnected, gpsmon has to run before it can get timings and stuff
 import signal
@@ -54,24 +55,25 @@ except subprocess.TimeoutExpired:
     proc.kill()
 
 print("gpsmon terminated")
-'''
-
+"""
 
 
 def get_control_values(filepath):
     """Reads key-value pairs from the control file."""
     control_values = {}
-    with open(filepath, "r") as file:
+    with open(filepath) as file:
         for line in file:
             key, value = line.strip().split("=")
             control_values[key] = value
     return control_values
 
+
 control_values_fpath = str(CONTROLS_FILE)
 control_values = get_control_values(control_values_fpath)
 
+
 def set_GPStime(filepath, gpstime):
-    with open(filepath, "r") as file:
+    with open(filepath) as file:
         lines = file.readlines()
 
     with open(filepath, "w") as file:
@@ -79,12 +81,13 @@ def set_GPStime(filepath, gpstime):
             print(line)
             if line.startswith("gpstime"):
                 file.write("gpstime=" + str(gpstime) + "\n")  # Replace with False
-                #print("set gpstime " + str(gpstime))
+                # print("set gpstime " + str(gpstime))
             else:
                 file.write(line)  # Keep other lines unchanged
-                
+
+
 def set_UTCoff(filepath, UTC):
-    with open(filepath, "r") as file:
+    with open(filepath) as file:
         lines = file.readlines()
 
     with open(filepath, "w") as file:
@@ -92,11 +95,13 @@ def set_UTCoff(filepath, UTC):
             print(line)
             if line.startswith("UTCoff"):
                 file.write("UTCoff=" + str(UTC) + "\n")  # Replace with False
-                #print("set UTCoff" + str(UTC))    
+                # print("set UTCoff" + str(UTC))
             else:
                 file.write(line)  # Keep other lines unchanged
-def set_GPS(filepath, lat,lon):
-    with open(filepath, "r") as file:
+
+
+def set_GPS(filepath, lat, lon):
+    with open(filepath) as file:
         lines = file.readlines()
 
     with open(filepath, "w") as file:
@@ -104,12 +109,13 @@ def set_GPS(filepath, lat,lon):
             print(line)
             if line.startswith("lat"):
                 file.write("lat=" + str(lat) + "\n")  # Replace with False
-                #print("set lat" + str(lat))
+                # print("set lat" + str(lat))
             elif line.startswith("lon"):
                 file.write("lon=" + str(lon) + "\n")  # Replace with False
-                #print("set lon" + str(lon)) 
+                # print("set lon" + str(lon))
             else:
                 file.write(line)  # Keep other lines unchanged
+
 
 print("startingGPS")
 got_gps_fix = False
@@ -119,23 +125,33 @@ try:
         # Check if there's data from gpsd (timeout = 1 second)
         if select.select([gpsd.sock], [], [], 1)[0]:
             report = gpsd.next()
-            if report['class'] == 'TPV':
+            if report["class"] == "TPV":
                 got_gps_fix = True
-                latitude = getattr(report, 'lat', None)
-                longitude = getattr(report, 'lon', None)
-                UTCtime = getattr(report, 'time', '')
-                print(latitude, "\t",
-                      longitude, "\t",
-                      UTCtime, "\t",
-                      getattr(report, 'alt', 'nan'), "\t\t",
-                      getattr(report, 'epv', 'nan'), "\t",
-                      getattr(report, 'ept', 'nan'), "\t",
-                      getattr(report, 'speed', 'nan'), "\t",
-                      getattr(report, 'climb', 'nan'), "\t")
+                latitude = getattr(report, "lat", None)
+                longitude = getattr(report, "lon", None)
+                UTCtime = getattr(report, "time", "")
+                print(
+                    latitude,
+                    "\t",
+                    longitude,
+                    "\t",
+                    UTCtime,
+                    "\t",
+                    getattr(report, "alt", "nan"),
+                    "\t\t",
+                    getattr(report, "epv", "nan"),
+                    "\t",
+                    getattr(report, "ept", "nan"),
+                    "\t",
+                    getattr(report, "speed", "nan"),
+                    "\t",
+                    getattr(report, "climb", "nan"),
+                    "\t",
+                )
         else:
             print("Waiting for GPS data...")
         time.sleep(1)
-    print("Finished Looking for GPS. GPS device found = "+str(got_gps_fix))
+    print("Finished Looking for GPS. GPS device found = " + str(got_gps_fix))
     if UTCtime:
         try:
             dt = datetime.strptime(UTCtime, "%Y-%m-%dT%H:%M:%S.%fZ")
@@ -146,9 +162,9 @@ try:
 
         # Set system UTC time
         formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S")
-        os.system(f"sudo date -u -s \"{formatted_time}\"")
+        os.system(f'sudo date -u -s "{formatted_time}"')  # nosec B605 - GPS time from hardware, validated by strptime
         print("sync HW clock with system clock")
-        os.system("sudo hwclock -w")
+        os.system("sudo hwclock -w")  # nosec B605 - Hardcoded system command
         print("System UTC time set.")
         set_GPStime(str(CONTROLS_FILE), epoch_time)
 
@@ -157,15 +173,16 @@ try:
             timezone = tf.timezone_at(lat=latitude, lng=longitude)
             if timezone:
                 print("Setting system timezone to:", timezone)
-                os.system(f"sudo timedatectl set-timezone {timezone}")
-                
+                os.system(f"sudo timedatectl set-timezone {timezone}")  # nosec B605 - Timezone from timezonefinder library lookup
+
                 # Now calculate the UTC offset
                 from zoneinfo import ZoneInfo
+
                 local_time = datetime.now(ZoneInfo(timezone))
                 utc_offset_hours = int(local_time.utcoffset().total_seconds() // 3600)
                 print("UTC Offset (hours):", utc_offset_hours)
                 set_GPS(str(CONTROLS_FILE), latitude, longitude)
-                set_UTCoff(str(CONTROLS_FILE),utc_offset_hours)
+                set_UTCoff(str(CONTROLS_FILE), utc_offset_hours)
             else:
                 print("Could not determine timezone from coordinates.")
                 set_GPS(str(CONTROLS_FILE), "n/a", "n/a")
@@ -173,7 +190,6 @@ try:
     else:
         print("No UTC time received before timeout")
         set_GPS(str(CONTROLS_FILE), "n/a", "n/a")
-
 
 
 except (KeyboardInterrupt, SystemExit):

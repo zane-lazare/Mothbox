@@ -13,7 +13,7 @@ from pathlib import Path
 # Add webui/backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
-from camera_stream import CameraStreamer
+from liveview_stream import LiveViewStreamer
 
 # Skip all tests if not on hardware
 pytest.importorskip("picamera2")

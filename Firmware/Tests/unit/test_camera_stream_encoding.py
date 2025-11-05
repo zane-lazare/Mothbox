@@ -1,23 +1,53 @@
 """
-Unit tests for camera streaming module
+Hardware encoding tests for camera streaming module
 
 RUN ON RASPBERRY PI ONLY - requires simplejpeg and numpy
+
+These tests verify hardware-specific encoding functionality including
+simplejpeg JPEG encoding performance, quality, and edge cases.
+All tests are marked with @pytest.mark.hardware and skip in CI.
+
+For comprehensive unit tests with mocking, see test_camera_stream_unit.py.
+
+Related: Issue #78 - Camera Backend Testing 
 """
 import pytest
 import numpy as np
 import time
 import io
 import base64
-import simplejpeg
-from PIL import Image
+
+# Import PIL conditionally - only available on Raspberry Pi
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+    Image = None  # Allow test collection to succeed
+
+# Import simplejpeg conditionally - only available on Raspberry Pi
+try:
+    import simplejpeg
+    SIMPLEJPEG_AVAILABLE = True
+except ImportError:
+    SIMPLEJPEG_AVAILABLE = False
+    simplejpeg = None  # Allow test collection to succeed
 
 
+@pytest.mark.hardware
+@pytest.mark.skipif(not SIMPLEJPEG_AVAILABLE, reason="simplejpeg not available (Pi hardware only)")
 class TestSimpleJPEGEncoding:
-    """Test simplejpeg encoding performance vs PIL"""
+    """Test simplejpeg encoding performance vs PIL
+
+    Marked with @pytest.mark.hardware because:
+    - Requires simplejpeg (compiled ARM extension, Pi-only)
+    - Tests will auto-skip in CI (no Pi hardware)
+    - Tests run on actual Raspberry Pi hardware
+    """
 
     def test_simplejpeg_available(self):
         """Verify simplejpeg is installed"""
-        import simplejpeg
+        assert simplejpeg is not None
         assert simplejpeg.__version__ == '1.8.1'
         print(f"\n✓ simplejpeg version: {simplejpeg.__version__}")
 
@@ -110,6 +140,8 @@ class TestSimpleJPEGEncoding:
         assert elapsed_ms < 50, f"Encoding took {elapsed_ms:.1f}ms (target: <50ms for WebSocket overhead)"
 
 
+@pytest.mark.hardware
+@pytest.mark.skipif(not SIMPLEJPEG_AVAILABLE, reason="simplejpeg not available (Pi hardware only)")
 class TestQualitySettings:
     """Test JPEG quality range"""
 
@@ -160,6 +192,8 @@ class TestQualitySettings:
             f"Expected ≥20% size reduction, got {size_reduction:.1f}%"
 
 
+@pytest.mark.hardware
+@pytest.mark.skipif(not SIMPLEJPEG_AVAILABLE or not PIL_AVAILABLE, reason="simplejpeg/PIL not available (Pi hardware only)")
 class TestErrorConditions:
     """Test error handling and edge cases (Feature Set 1 enhancement)"""
 

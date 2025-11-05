@@ -169,21 +169,21 @@ class TestPresetTypeNormalization:
         """Test that actual string fields remain as strings"""
         settings = {
             'camera': {
-                'FocusPeakingColor': 'green',
+                'FocusPeakingColour': 'green',
                 'FocusPeakingAlgorithm': 'laplacian'
             },
             'liveview': {
-                'focus_peaking_color': 'RED',
+                'focus_peaking_colour': 'RED',
                 'focus_peaking_algorithm': 'SOBEL'
             }
         }
 
         normalized = preset_manager._normalize_setting_types(settings)
 
-        assert isinstance(normalized['camera']['FocusPeakingColor'], str)
-        assert normalized['camera']['FocusPeakingColor'] == 'green'
-        assert isinstance(normalized['liveview']['focus_peaking_color'], str)
-        assert normalized['liveview']['focus_peaking_color'] == 'red'  # Lowercased
+        assert isinstance(normalized['camera']['FocusPeakingColour'], str)
+        assert normalized['camera']['FocusPeakingColour'] == 'green'
+        assert isinstance(normalized['liveview']['focus_peaking_colour'], str)
+        assert normalized['liveview']['focus_peaking_colour'] == 'red'  # Lowercased
         assert isinstance(normalized['liveview']['focus_peaking_algorithm'], str)
         assert normalized['liveview']['focus_peaking_algorithm'] == 'sobel'  # Lowercased
 
@@ -471,7 +471,7 @@ class TestPresetTypeNormalization:
         assert result_float == 1.5
 
         # String fields
-        result_str = preset_manager._convert_value_type('focus_peaking_color', 'RED', 'liveview')
+        result_str = preset_manager._convert_value_type('focus_peaking_colour', 'RED', 'liveview')
         assert isinstance(result_str, str)
         assert result_str == 'red'  # Lowercased
 
@@ -534,7 +534,7 @@ class TestPresetTypeNormalization:
 
     def test_derive_type_from_validator_patterns(self, preset_manager):
         """Test type derivation from various validator patterns"""
-        from routes.camera import ALLOWED_CAMERA_SETTINGS, ALLOWED_LIVEVIEW_SETTINGS
+        from utils import ALLOWED_CAMERA_SETTINGS, ALLOWED_LIVEVIEW_SETTINGS
 
         # Test boolean pattern derivation
         bool_type = preset_manager._derive_type_from_validator(

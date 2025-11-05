@@ -16,6 +16,9 @@ python-socketio==5.11.0
 
 # Image quality analysis
 scipy>=1.9.0  # For Laplacian edge detection in image quality tests
+Pillow>=9.0.0  # Image processing (required by test_camera_stream.py)
+numpy>=1.20.0  # Numerical operations (required by test_camera_stream.py)
+opencv-python-headless>=4.5.0  # Computer vision operations (required by liveview_stream.py for focus peaking)
 
 # Performance monitoring (Feature Set 1: Stream Stability tests)
 psutil>=5.9.0  # For memory usage monitoring in long-running tests

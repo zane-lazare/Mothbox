@@ -1,15 +1,17 @@
-from picamera2 import Picamera2, Preview
 from time import sleep
+
+from picamera2 import Picamera2
+
 picam0 = Picamera2(0)
 picam1 = Picamera2(1)
 
-capture_main = {"size": (3840, 2160),"format": "RGB888"}
+capture_main = {"size": (3840, 2160), "format": "RGB888"}
 capture_config = picam0.create_still_configuration(main=capture_main)
 capture_config1 = picam1.create_still_configuration(main=capture_main)
 
 
-#picam0.start_preview(Preview.QTGL)
-#picam1.start_preview(Preview.QTGL)
+# picam0.start_preview(Preview.QTGL)
+# picam1.start_preview(Preview.QTGL)
 picam0.configure(capture_config)
 picam1.configure(capture_config1)
 

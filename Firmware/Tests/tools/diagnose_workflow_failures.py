@@ -84,7 +84,7 @@ def analyze_camera_routes():
     print(f"Analyzing: routes/camera.py - Camera Operation Delays")
     print(f"{'='*70}")
 
-    routes_file = Path(__file__).parent.parent / 'webui' / 'backend' / 'routes' / 'camera.py'
+    routes_file = Path(__file__).parent.parent.parent / 'webui' / 'backend' / 'routes' / 'camera.py'
 
     if not routes_file.exists():
         print("❌ routes/camera.py not found")

@@ -1,15 +1,16 @@
 #!/usr/bin/python3
 
-from pathlib import Path
 import sys
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import CONTROLS_FILE, get_script_path
+from pathlib import Path
 
-#GPIO
-import RPi.GPIO as GPIO
-import time
+sys.path.insert(0, str(Path(__file__).parent.parent))
 import datetime
 from datetime import datetime
+
+# GPIO
+import RPi.GPIO as GPIO
+
+from mothbox_paths import CONTROLS_FILE
 
 print("----------------- STARTING Scheduler!-------------------")
 now = datetime.now()
@@ -18,28 +19,29 @@ formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")  # Adjust the format as neede
 print(f"Current time: {formatted_time}")
 
 global onlyflash
-onlyflash=False
+onlyflash = False
 
 # Load GPIO pins from configuration
 pins = get_gpio_pins()
-Relay_Ch1 = pins['Relay_Ch1']
-Relay_Ch2 = pins['Relay_Ch2']
-Relay_Ch3 = pins['Relay_Ch3']
+Relay_Ch1 = pins["Relay_Ch1"]
+Relay_Ch2 = pins["Relay_Ch2"]
+Relay_Ch3 = pins["Relay_Ch3"]
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
 
-GPIO.setup(Relay_Ch1,GPIO.OUT)
-GPIO.setup(Relay_Ch2,GPIO.OUT)
+GPIO.setup(Relay_Ch1, GPIO.OUT)
+GPIO.setup(Relay_Ch2, GPIO.OUT)
 
-GPIO.setup(Relay_Ch3,GPIO.OUT)
+GPIO.setup(Relay_Ch3, GPIO.OUT)
 
 print("Setup The Relay Module is [success]")
+
 
 def get_control_values(filename):
     """Reads key-value pairs from the control file."""
     control_values = {}
-    with open(filename, "r") as file:
+    with open(filename) as file:
         for line in file:
             key, value = line.strip().split("=")
             control_values[key] = value
@@ -47,24 +49,25 @@ def get_control_values(filename):
 
 
 def AttractOn():
-    GPIO.output(Relay_Ch3,GPIO.LOW)
-    if(onlyflash):
-        GPIO.output(Relay_Ch2,GPIO.LOW)
+    GPIO.output(Relay_Ch3, GPIO.LOW)
+    if onlyflash:
+        GPIO.output(Relay_Ch2, GPIO.LOW)
         print("Always Flash mode is on")
     else:
-        GPIO.output(Relay_Ch2,GPIO.HIGH)
+        GPIO.output(Relay_Ch2, GPIO.HIGH)
 
-    GPIO.output(Relay_Ch1,GPIO.LOW)
+    GPIO.output(Relay_Ch1, GPIO.LOW)
     print("Attract Lights On\n")
-    
+
+
 def AttractOff():
-    GPIO.output(Relay_Ch1,GPIO.HIGH)
-    if(onlyflash):
-        GPIO.output(Relay_Ch2,GPIO.HIGH)
+    GPIO.output(Relay_Ch1, GPIO.HIGH)
+    if onlyflash:
+        GPIO.output(Relay_Ch2, GPIO.HIGH)
         print("Always Flash mode is on")
     else:
-        GPIO.output(Relay_Ch2,GPIO.HIGH)
-    GPIO.output(Relay_Ch3,GPIO.HIGH)
+        GPIO.output(Relay_Ch2, GPIO.HIGH)
+    GPIO.output(Relay_Ch3, GPIO.HIGH)
 
     print("Attract Lights Off\n")
 
@@ -72,5 +75,4 @@ def AttractOff():
 control_values = get_control_values(str(CONTROLS_FILE))
 onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
 AttractOn()
-#AttractOff()
-
+# AttractOff()

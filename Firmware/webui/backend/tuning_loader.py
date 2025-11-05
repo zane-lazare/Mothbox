@@ -16,15 +16,15 @@ with the PiSP hardware. It requires camera calibration and tuning file configura
 """
 
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 # Add parent directory to path for mothbox_paths import
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import ISP_TUNING_DIR, ISP_DEFAULT_TUNING_FILE
-
 # Import camera control mapping
 from camera_control_mapping import SNAKE_TO_PASCAL
+
+from mothbox_paths import ISP_DEFAULT_TUNING_FILE, ISP_TUNING_DIR
 
 # Tuning directory from centralized path configuration
 TUNING_DIR = ISP_TUNING_DIR
@@ -43,16 +43,17 @@ def get_camera_model():
     """
     try:
         from picamera2 import Picamera2
+
         camera_info = Picamera2.global_camera_info()
         if camera_info:
             # Extract model from first camera
-            model = camera_info[0].get('Model', 'unknown')
+            model = camera_info[0].get("Model", "unknown")
             print(f"Detected camera model: {model}")
             return model
     except Exception as e:
         print(f"Warning: Could not detect camera model: {e}")
 
-    return 'unknown'
+    return "unknown"
 
 
 def load_tuning_file(camera_model=None):
@@ -70,7 +71,7 @@ def load_tuning_file(camera_model=None):
         2. camera_isp_tuning.json (fallback)
 
     Example:
-        >>> tuning = load_tuning_file('imx708')
+        >>> tuning = load_tuning_file("imx708")
         >>> if tuning:
         ...     print(f"Loaded tuning version {tuning['version']}")
     """
@@ -139,7 +140,7 @@ def apply_isp_controls(camera, lens_shading=True, defect_correction=True):
     # Mode 0 = Off, Mode 1 = On
     # Note: Not available on some cameras (e.g., ov64a40) - always on via tuning file
     # Use centralized mapping
-    lens_shading_control = SNAKE_TO_PASCAL['lens_shading_map_mode']
+    lens_shading_control = SNAKE_TO_PASCAL["lens_shading_map_mode"]
     if lens_shading_control in available_controls:
         try:
             camera.set_controls({lens_shading_control: 1 if lens_shading else 0})
@@ -154,11 +155,13 @@ def apply_isp_controls(camera, lens_shading=True, defect_correction=True):
     # Mode 0 = Off, Mode 1 = Fast, Mode 2 = HighQuality
     # We use Fast (1) for better performance
     # Use centralized mapping
-    hot_pixel_control = SNAKE_TO_PASCAL['hot_pixel_mode']
+    hot_pixel_control = SNAKE_TO_PASCAL["hot_pixel_mode"]
     if hot_pixel_control in available_controls:
         try:
             camera.set_controls({hot_pixel_control: 1 if defect_correction else 0})
-            print(f"ISP: Defect pixel correction {'enabled (Fast mode)' if defect_correction else 'disabled'}")
+            print(
+                f"ISP: Defect pixel correction {'enabled (Fast mode)' if defect_correction else 'disabled'}"
+            )
             applied_count += 1
         except Exception as e:
             print(f"Warning: Could not apply {hot_pixel_control}: {e}")
@@ -187,7 +190,7 @@ def get_tuning_path(camera_model=None):
     This is useful for passing to Picamera2 constructor's tuning parameter.
 
     Example:
-        >>> tuning_path = get_tuning_path('imx708')
+        >>> tuning_path = get_tuning_path("imx708")
         >>> if tuning_path:
         ...     picam2 = Picamera2(tuning=Picamera2.load_tuning_file(str(tuning_path)))
     """

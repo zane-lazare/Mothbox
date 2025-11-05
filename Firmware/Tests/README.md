@@ -56,16 +56,24 @@ pytest Tests/unit/test_camera_stream.py::TestSimpleJPEGEncoding::test_encoding_s
 ```
 Tests/
 ├── __init__.py
-├── README.md                    # This file
-├── requirements-test.txt        # Test dependencies
-├── unit/
+├── README.md                     # This file
+├── conftest.py                   # Shared fixtures
+├── requirements-test.txt         # Test dependencies
+├── run_tests.sh                  # Test orchestration script
+├── tools/                        # Diagnostic and utility scripts
+│   └── diagnose_workflow_failures.py  # Analyze camera workflow test patterns
+├── unit/                         # Unit tests (mocked, no hardware)
 │   ├── __init__.py
-│   ├── test_camera_stream.py   # simplejpeg encoding tests
-│   └── test_config_validation.py  # Settings validation tests
-└── integration/
-    ├── __init__.py
-    ├── test_stream_performance.py  # Sustained performance tests
-    └── test_manual_verification.py # Manual WebUI tests
+│   ├── test_camera_stream.py    # simplejpeg encoding tests
+│   ├── test_config_validation.py # Settings validation tests
+│   └── test_mothbox_paths_hardware.py  # Hardware configuration tests (Issue #13)
+├── integration/                  # Integration tests (require hardware)
+│   ├── __init__.py
+│   ├── test_stream_performance.py  # Sustained performance tests
+│   ├── test_camera_state_diagnosis.py  # Camera state diagnostic tests
+│   └── test_manual_verification.py # Manual WebUI tests
+└── regression/                   # Regression tests (permanent bug verification)
+    └── test_focus_bracket_regression.py
 ```
 
 ## Test Categories
@@ -86,6 +94,49 @@ Tests/
 - **Frame rate validation**: 1-30 FPS
 - **Stream mode validation**: simplejpeg/mjpeg_hardware
 - **Settings persistence**: Save and load correctly
+
+#### `test_mothbox_paths_hardware.py` *(NEW - Issue #13 Phase 1)*
+Comprehensive tests for hardware configuration functions in `mothbox_paths.py`:
+
+- **get_control_values()** (12 tests): Configuration file parser
+  - Basic key=value parsing, comment handling, edge cases
+  - Whitespace stripping (bug fix validation)
+  - Unicode support, long lines, malformed input
+
+- **get_gpio_pins()** (13 tests): Relay GPIO pin configuration
+  - Default 4.x firmware pins (26/20/21)
+  - Custom pin configuration from controls.txt
+  - Partial configuration (some keys missing)
+  - GPIO validation (BCM range 0-27)
+  - I2C reserved pin warnings (GPIO 0, 1)
+
+- **get_epaper_pins()** (9 tests): E-paper display pins
+  - Waveshare 2.13" defaults (17/25/8/24/18)
+  - Config key mapping (epaper_*_pin → *_PIN)
+  - Partial and invalid configurations
+
+- **get_mux_pins()** (10 tests): Multiplexer pins
+  - CD74HC4067 defaults (31/29/33/13/12/15/36)
+  - BOARD mode validation (physical pins 1-40)
+  - Distinction from BCM numbering
+
+- **get_hardware_config()** (15 tests): Complete hardware configuration (32 keys)
+  - All 7 hardware modules (relay, INA260, e-paper, GPS, light sensor, PCA9536, mux)
+  - Boolean parsing (case-insensitive)
+  - Hex address parsing (0x40 → 64)
+  - GPS adaptive timeouts (5 timeout keys)
+  - Partial and missing configuration handling
+
+**Coverage**: 97.8% for tested functions (270/276 lines)
+
+**Run**:
+```bash
+# Run all hardware config tests
+pytest Tests/unit/test_mothbox_paths_hardware.py -v
+
+# With coverage report
+pytest Tests/unit/test_mothbox_paths_hardware.py --cov=mothbox_paths --cov-report=term-missing
+```
 
 ### Integration Tests
 
@@ -181,6 +232,40 @@ pip3 install flask flask-socketio
 - Check CPU usage: `top` or `htop`
 - Verify no other processes using camera
 - Check thermal throttling: `vcgencmd measure_temp`
+
+## Diagnostic Tools
+
+### Workflow Failure Analyzer
+
+When camera workflow tests fail intermittently, use the diagnostic tool to analyze test patterns:
+
+```bash
+# Run from the Firmware directory (no hardware required)
+python3 Tests/tools/diagnose_workflow_failures.py
+```
+
+This tool analyzes:
+- Camera operation patterns in test files
+- Sleep delays and timing issues
+- Complex test sequences that may cause camera state conflicts
+- Compares passing vs failing test patterns
+
+The output shows:
+- Number of camera operations per test
+- Operation sequences (test-capture → autofocus → calibrate)
+- Total sleep times and potential timing issues
+- Recommendations for fixing workflow failures
+
+**When to use:**
+- Camera workflow tests fail on hardware
+- "Camera is busy" errors occur
+- Tests pass individually but fail when run together
+- Need to optimize camera release delays
+
+**Related tests:**
+- `Tests/integration/test_camera_state_diagnosis.py` - Hardware diagnostic tests
+- `Tests/integration/test_end_to_end_workflows.py` - Complex workflow tests
+- `Tests/integration/test_test_capture_workflows.py` - Test capture workflows
 
 ## Development Workflow
 
@@ -302,13 +387,151 @@ pytest Tests/integration/test_frontend_integration.py Tests/unit/test_settings_c
 pytest Tests/integration/test_manual_verification.py::TestPhase3ManualVerification -v -s
 ```
 
-## Next Steps
+## CI/CD Integration (Issue #13 Phase 3)
+
+### Overview
+
+Automated testing runs on every push to `main`, `dev`, and `feature/**` branches via GitHub Actions.
+
+**Workflow File**: `.github/workflows/test.yml`
+
+### What Runs in CI/CD
+
+**Backend Tests** (Python 3.13):
+- Unit tests with coverage tracking
+- Integration tests (non-hardware only)
+- Coverage threshold enforcement (85%)
+
+**Frontend Tests** (Node.js 20):
+- Vitest component tests
+- Coverage reports
+
+**Total CI Time**: ~5-8 minutes per run
+
+### Test Badges
+
+[![Tests](https://github.com/zane-lazare/Mothbox/actions/workflows/test.yml/badge.svg)](https://github.com/zane-lazare/Mothbox/actions/workflows/test.yml)
+
+### Running CI Tests Locally
+
+Simulate the GitHub Actions workflow on your local machine:
+
+```bash
+# Run the same tests that run in CI/CD
+./Tests/run_tests.sh ci
+
+# This will:
+# 1. Run unit tests with coverage (mothbox_paths.py, webui/backend)
+# 2. Run integration tests (skipping hardware-dependent tests)
+# 3. Check coverage threshold (must be ≥85%)
+# 4. Generate HTML coverage report
+```
+
+**Coverage Reports**:
+- **HTML**: `Firmware/htmlcov/index.html` (open in browser)
+- **XML**: `Firmware/coverage.xml` (for CI/CD tools)
+- **Terminal**: Displayed after test run
+
+### Hardware vs CI Tests
+
+**Hardware Tests** (marked with `@pytest.mark.hardware`):
+- ✅ **On Raspberry Pi**: All tests run (unit + integration + hardware)
+- ⚠️ **In CI (GitHub Actions)**: Hardware tests automatically skipped
+- 🔧 **Local dev**: Hardware tests skipped on non-Pi systems
+
+**Why Some Tests Are Skipped in CI**:
+- CI runs on `ubuntu-latest` (no camera hardware)
+- Hardware tests require: Picamera2, GPIO pins, sensors
+- Automatic detection via `Tests/conftest.py` pytest hooks
+
+### Coverage Requirements
+
+**Enforced Thresholds**:
+- **New code**: 85% coverage minimum (enforced in CI)
+- **mothbox_paths.py**: 95%+ target
+- **webui/backend**: 85%+ target
+
+**Checking Coverage**:
+```bash
+# Run tests with coverage report
+pytest Tests/unit/ --cov=mothbox_paths --cov=webui/backend --cov-report=term-missing
+
+# Check if coverage meets threshold
+coverage report --fail-under=85
+```
+
+### Workflow Triggers
+
+**Automatic**:
+- Push to `main`, `dev`, or `feature/**` branches
+- Pull requests to `main` or `dev`
+- Only when relevant files change (Python, tests, configs)
+
+**Manual**:
+- Go to Actions tab in GitHub
+- Select "Mothbox Tests" workflow
+- Click "Run workflow"
+
+### Viewing CI Results
+
+**GitHub Actions**:
+1. Go to repository → Actions tab
+2. Click on latest workflow run
+3. View "Backend Tests" and "Frontend Tests" jobs
+4. Download coverage artifacts (available for 7 days)
+
+**Coverage Artifacts**:
+- `coverage-report-python-3.13`: HTML coverage report
+- `coverage-xml-python-3.13`: XML for external tools
+- `frontend-coverage-node-20`: Frontend coverage
+
+### Troubleshooting CI Failures
+
+**Common Issues**:
+
+1. **Coverage below 85%**:
+   ```bash
+   # Run locally to see what's missing
+   ./Tests/run_tests.sh ci
+   # Open htmlcov/index.html to see uncovered lines
+   ```
+
+2. **Hardware test failures in CI**:
+   - Check if test is marked with `@pytest.mark.hardware`
+   - Ensure test uses `-m "not hardware"` filter in CI
+
+3. **Import errors**:
+   - Verify `requirements-test.txt` is up to date
+   - Check Python version compatibility (3.10+)
+
+4. **Test timeouts**:
+   - CI has 2-minute timeout per test (pytest-timeout)
+   - Long-running tests should use `@pytest.mark.timeout(300)`
+
+### Configuration Files
+
+**pytest Configuration**: `Firmware/pyproject.toml`
+- Test discovery patterns
+- Coverage source paths
+- Test markers (hardware, photo, stream, etc.)
+- Excluded paths and lines
+
+**GitHub Actions**: `.github/workflows/test.yml`
+- Python version matrix (3.13)
+- Node.js version (20.x)
+- Coverage threshold (85%)
+- Artifact retention (7 days)
+
+### Next Steps
 
 Completed Phases:
 - **Phase 1.1-1.3**: ✅ Camera stream performance optimizations
 - **Phase 2.1**: ✅ Expanded camera controls
 - **Phase 2.2**: ✅ Interactive features (autofocus, calibration, metadata)
 - **Phase 3**: ✅ Frontend integration tests
+- **Issue #13 Phase 1**: ✅ Hardware configuration tests (mothbox_paths.py)
+- **Issue #13 Phase 2**: ✅ Installer integration tests
+- **Issue #13 Phase 3**: ✅ CI/CD integration with GitHub Actions
 
 Future Phases:
 - **Phase 4**: Advanced features (HDR, presets, profiles)
@@ -317,6 +540,6 @@ See [GitHub Issue #43](https://github.com/user/repo/issues/43) for full implemen
 
 ---
 
-**Last Updated**: 2025-10-12
-**Test Suite Version**: 2.0.0 (Phase 3 Complete)
+**Last Updated**: 2025-10-30
+**Test Suite Version**: 3.0.0 (Issue #13 Phase 3 - CI/CD Integration)
 **Mothbox Version**: 5.x

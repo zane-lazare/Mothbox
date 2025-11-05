@@ -6,17 +6,14 @@ Uses a simple JSON file for persistence.
 """
 
 import json
-import os
-from pathlib import Path
-from typing import Any, Dict, Optional
 import sys
+from pathlib import Path
+from typing import Any
 
 # Setup path to import mothbox_paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
-import mothbox_import  # Sets up sys.path for mothbox
 
 from mothbox_paths import USER_PREFERENCES_FILE
-
 
 # Default preferences structure
 DEFAULT_PREFERENCES = {
@@ -47,12 +44,12 @@ class UserPreferencesManager:
 
             # Write default preferences
             try:
-                with open(self.preferences_file, 'w') as f:
+                with open(self.preferences_file, "w") as f:
                     json.dump(DEFAULT_PREFERENCES, f, indent=2)
-            except IOError as e:
+            except OSError as e:
                 print(f"Warning: Could not create preferences file: {e}")
 
-    def get_preferences(self) -> Dict[str, Any]:
+    def get_preferences(self) -> dict[str, Any]:
         """
         Get all user preferences
 
@@ -60,15 +57,15 @@ class UserPreferencesManager:
             Dict with all preference key-value pairs
         """
         try:
-            with open(self.preferences_file, 'r') as f:
+            with open(self.preferences_file) as f:
                 prefs = json.load(f)
                 # Merge with defaults to handle new preference keys
                 return {**DEFAULT_PREFERENCES, **prefs}
-        except (IOError, json.JSONDecodeError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             print(f"Warning: Could not load preferences, using defaults: {e}")
             return DEFAULT_PREFERENCES.copy()
 
-    def validate_preset_references(self, preset_manager) -> Dict[str, Any]:
+    def validate_preset_references(self, preset_manager) -> dict[str, Any]:
         """
         Validate preset references in preferences and remove references to deleted presets
 
@@ -89,10 +86,10 @@ class UserPreferencesManager:
 
         # Get list of available presets
         available_presets = preset_manager.list_presets()
-        preset_names = {p['name'] for p in available_presets}
+        preset_names = {p["name"] for p in available_presets}
 
         # Check each preset reference
-        for key in ['default_capture_preset', 'default_preview_preset', 'default_liveview_preset']:
+        for key in ["default_capture_preset", "default_preview_preset", "default_liveview_preset"]:
             if key in prefs and prefs[key] is not None:
                 preset_name = prefs[key]
                 if preset_name not in preset_names:
@@ -100,23 +97,21 @@ class UserPreferencesManager:
                     removed.append((key, preset_name))
                     prefs[key] = None
                     cleaned = True
-                    print(f"Warning: Removed invalid preset reference: {key}={preset_name} (preset not found)")
+                    print(
+                        f"Warning: Removed invalid preset reference: {key}={preset_name} (preset not found)"
+                    )
 
         # Save cleaned preferences if any changes were made
         if cleaned:
             try:
-                with open(self.preferences_file, 'w') as f:
+                with open(self.preferences_file, "w") as f:
                     json.dump(prefs, f, indent=2)
-            except IOError as e:
+            except OSError as e:
                 print(f"Error: Could not save cleaned preferences: {e}")
 
-        return {
-            'cleaned': cleaned,
-            'removed_references': removed,
-            'preferences': prefs
-        }
+        return {"cleaned": cleaned, "removed_references": removed, "preferences": prefs}
 
-    def get_preference(self, key: str) -> Optional[Any]:
+    def get_preference(self, key: str) -> Any | None:
         """
         Get specific preference value
 
@@ -153,11 +148,11 @@ class UserPreferencesManager:
             prefs[key] = value
 
             # Write back to file
-            with open(self.preferences_file, 'w') as f:
+            with open(self.preferences_file, "w") as f:
                 json.dump(prefs, f, indent=2)
 
             return True
-        except IOError as e:
+        except OSError as e:
             print(f"Error: Could not save preference: {e}")
             return False
 
@@ -169,10 +164,10 @@ class UserPreferencesManager:
             True if successful, False otherwise
         """
         try:
-            with open(self.preferences_file, 'w') as f:
+            with open(self.preferences_file, "w") as f:
                 json.dump(DEFAULT_PREFERENCES, f, indent=2)
             return True
-        except IOError as e:
+        except OSError as e:
             print(f"Error: Could not reset preferences: {e}")
             return False
 

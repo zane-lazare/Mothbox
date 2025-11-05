@@ -7,8 +7,17 @@ They do NOT require Raspberry Pi hardware or actual camera.
 import pytest
 import time
 import numpy as np
-import simplejpeg
 import base64
+
+# Try to import simplejpeg for fast JPEG encoding
+try:
+    import simplejpeg
+    SIMPLEJPEG_AVAILABLE = True
+except ImportError:
+    SIMPLEJPEG_AVAILABLE = False
+
+# Skip all tests if simplejpeg not available
+pytestmark = pytest.mark.skipif(not SIMPLEJPEG_AVAILABLE, reason="simplejpeg not installed")
 
 
 @pytest.mark.stream

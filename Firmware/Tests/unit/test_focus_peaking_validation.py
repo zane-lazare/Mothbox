@@ -50,8 +50,8 @@ class TestFocusPeakingValidation:
         assert validator(1000) == False
 
     def test_focus_peaking_color_validation(self):
-        """Test FocusPeakingColor options validation"""
-        validator = ALLOWED_CAMERA_SETTINGS['FocusPeakingColor']
+        """Test FocusPeakingColour options validation"""
+        validator = ALLOWED_CAMERA_SETTINGS['FocusPeakingColour']
 
         # Valid colors
         assert validator('green') == True
@@ -107,33 +107,33 @@ class TestFocusPeakingAlgorithm:
 
     def test_laplacian_algorithm_exists(self):
         """Test that Laplacian algorithm method exists"""
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         assert hasattr(streamer, '_apply_focus_peaking_laplacian')
         assert callable(streamer._apply_focus_peaking_laplacian)
 
     def test_sobel_algorithm_exists(self):
         """Test that Sobel algorithm method exists"""
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         assert hasattr(streamer, '_apply_focus_peaking_sobel')
         assert callable(streamer._apply_focus_peaking_sobel)
 
     def test_canny_algorithm_exists(self):
         """Test that Canny algorithm method exists"""
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         assert hasattr(streamer, '_apply_focus_peaking_canny')
         assert callable(streamer._apply_focus_peaking_canny)
@@ -146,26 +146,40 @@ class TestFocusPeakingAlgorithm:
         except ImportError:
             pytest.skip("OpenCV not available")
 
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
+        from unittest.mock import patch
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
-        # Test Laplacian
-        result = streamer._apply_focus_peaking_laplacian(mock_frame, threshold=100, color='green')
-        assert result.shape == mock_frame.shape
-        assert result.dtype == mock_frame.dtype
+        # Mock cv2 methods to return proper numpy arrays instead of MagicMock objects
+        # Dimensions must match mock_frame fixture (100x100x3)
+        mock_gray = np.random.randint(0, 256, (100, 100), dtype=np.uint8)
+        mock_edge_result = np.random.rand(100, 100) * 256  # NumPy 2.x compatible (float64)
+        mock_edge_mask = np.random.randint(0, 2, (100, 100), dtype=np.uint8) * 255
 
-        # Test Sobel
-        result = streamer._apply_focus_peaking_sobel(mock_frame, threshold=100, color='red')
-        assert result.shape == mock_frame.shape
-        assert result.dtype == mock_frame.dtype
+        with patch.object(cv2, 'cvtColor', return_value=mock_gray):
+            with patch.object(cv2, 'Laplacian', return_value=mock_edge_result):
+                with patch.object(cv2, 'Sobel', return_value=mock_edge_result):
+                    with patch.object(cv2, 'Canny', return_value=mock_edge_mask):
+                        with patch.object(cv2, 'getStructuringElement', return_value=np.ones((3, 3), dtype=np.uint8)):
+                            with patch.object(cv2, 'morphologyEx', return_value=mock_edge_mask):
+                                with patch.object(cv2, 'addWeighted', return_value=mock_frame.copy()):
+                                    # Test Laplacian
+                                    result = streamer._apply_focus_peaking_laplacian(mock_frame, threshold=100, color='green')
+                                    assert result.shape == mock_frame.shape
+                                    assert result.dtype == mock_frame.dtype
 
-        # Test Canny
-        result = streamer._apply_focus_peaking_canny(mock_frame, threshold=100, color='yellow')
-        assert result.shape == mock_frame.shape
-        assert result.dtype == mock_frame.dtype
+                                    # Test Sobel
+                                    result = streamer._apply_focus_peaking_sobel(mock_frame, threshold=100, color='red')
+                                    assert result.shape == mock_frame.shape
+                                    assert result.dtype == mock_frame.dtype
+
+                                    # Test Canny
+                                    result = streamer._apply_focus_peaking_canny(mock_frame, threshold=100, color='yellow')
+                                    assert result.shape == mock_frame.shape
+                                    assert result.dtype == mock_frame.dtype
 
     def test_all_color_options(self, mock_frame):
         """Test that all color options work correctly"""
@@ -175,27 +189,43 @@ class TestFocusPeakingAlgorithm:
         except ImportError:
             pytest.skip("OpenCV not available")
 
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
+        from unittest.mock import patch
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         colors = ['green', 'red', 'yellow', 'cyan', 'magenta']
 
-        for color in colors:
-            result = streamer._apply_focus_peaking_laplacian(mock_frame, threshold=100, color=color)
-            assert result.shape == mock_frame.shape
-            # Verify that overlay was applied (result should differ from input)
-            assert not np.array_equal(result, mock_frame)
+        # Mock cv2 methods to return proper numpy arrays
+        # Dimensions must match mock_frame fixture (100x100x3)
+        mock_gray = np.random.randint(0, 256, (100, 100), dtype=np.uint8)
+        mock_edge_result = np.random.rand(100, 100) * 256  # NumPy 2.x compatible (float64)
+        mock_edge_mask = np.random.randint(0, 2, (100, 100), dtype=np.uint8) * 255
+
+        # Create a modified frame to simulate overlay application
+        modified_frame = mock_frame.copy()
+        modified_frame[0, 0] = [255, 0, 0]  # Change one pixel to ensure difference
+
+        with patch.object(cv2, 'cvtColor', return_value=mock_gray):
+            with patch.object(cv2, 'Laplacian', return_value=mock_edge_result):
+                with patch.object(cv2, 'getStructuringElement', return_value=np.ones((3, 3), dtype=np.uint8)):
+                    with patch.object(cv2, 'morphologyEx', return_value=mock_edge_mask):
+                        with patch.object(cv2, 'addWeighted', return_value=modified_frame):
+                            for color in colors:
+                                result = streamer._apply_focus_peaking_laplacian(mock_frame, threshold=100, color=color)
+                                assert result.shape == mock_frame.shape
+                                # Verify that overlay was applied (result should differ from input)
+                                assert not np.array_equal(result, mock_frame)
 
     def test_opencv_unavailable_graceful(self):
         """Test that algorithms gracefully handle OpenCV unavailable"""
-        from webui.backend.camera_stream import CameraStreamer, CV2_AVAILABLE
+        from webui.backend.liveview_stream import LiveViewStreamer, CV2_AVAILABLE
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         if not CV2_AVAILABLE:
             # If OpenCV not available, methods should return frame unmodified
@@ -211,25 +241,25 @@ class TestFocusPeakingSettings:
 
     def test_default_settings(self):
         """Test default focus peaking settings"""
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         # Check defaults
         assert streamer.focus_peaking_enabled == False
         assert streamer.focus_peaking_intensity == 100
-        assert streamer.focus_peaking_color == 'green'
+        assert streamer.focus_peaking_colour == 'green'
         assert streamer.focus_peaking_algorithm == 'laplacian'
 
     def test_update_control_focus_peaking(self):
         """Test updating focus peaking controls"""
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         # Test enabling focus peaking
         result = streamer.update_control({'FocusPeakingEnabled': True})
@@ -242,9 +272,9 @@ class TestFocusPeakingSettings:
         assert streamer.focus_peaking_intensity == 150
 
         # Test color update
-        result = streamer.update_control({'FocusPeakingColor': 'red'})
+        result = streamer.update_control({'FocusPeakingColour': 'red'})
         assert result == True
-        assert streamer.focus_peaking_color == 'red'
+        assert streamer.focus_peaking_colour == 'red'
 
         # Test algorithm update
         result = streamer.update_control({'FocusPeakingAlgorithm': 'sobel'})
@@ -253,22 +283,22 @@ class TestFocusPeakingSettings:
 
     def test_update_multiple_controls(self):
         """Test updating multiple focus peaking controls at once"""
-        from webui.backend.camera_stream import CameraStreamer
+        from webui.backend.liveview_stream import LiveViewStreamer
         from flask_socketio import SocketIO
 
         socketio = SocketIO()
-        streamer = CameraStreamer(socketio)
+        streamer = LiveViewStreamer(socketio)
 
         # Update all settings at once
         result = streamer.update_control({
             'FocusPeakingEnabled': True,
             'FocusPeakingIntensity': 175,
-            'FocusPeakingColor': 'yellow',
+            'FocusPeakingColour': 'yellow',
             'FocusPeakingAlgorithm': 'canny'
         })
 
         assert result == True
         assert streamer.focus_peaking_enabled == True
         assert streamer.focus_peaking_intensity == 175
-        assert streamer.focus_peaking_color == 'yellow'
+        assert streamer.focus_peaking_colour == 'yellow'
         assert streamer.focus_peaking_algorithm == 'canny'

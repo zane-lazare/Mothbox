@@ -26,10 +26,9 @@ Usage:
     register_handlers(socketio, liveview_streamer)
 """
 
-from flask_socketio import emit
-
 # Import camera control mapping
 from camera_control_mapping import from_picamera_metadata
+from flask_socketio import emit
 
 
 def register_handlers(socketio, camera_streamer):
@@ -61,18 +60,18 @@ def register_handlers(socketio, camera_streamer):
         register_handlers(socketio, liveview_streamer)
     """
 
-    @socketio.on('connect')
+    @socketio.on("connect")
     def handle_connect(auth=None):
         """Handle client WebSocket connection with origin validation"""
-        from flask import request
-
         # Get config for CORS validation
         from config import get_config
+        from flask import request
+
         config = get_config()
 
         # Validate Origin header to prevent cross-site WebSocket hijacking
         # This protects against malicious websites attempting to control GPIO hardware
-        origin = request.headers.get('Origin')
+        origin = request.headers.get("Origin")
 
         if origin:
             # Determine allowed origins based on configuration
@@ -82,13 +81,13 @@ def register_handlers(socketio, camera_streamer):
             else:
                 # Production: enforce same-origin policy
                 # Build same-origin URL from request Host header
-                host = request.headers.get('Host')
-                scheme = 'https' if request.is_secure else 'http'
+                host = request.headers.get("Host")
+                scheme = "https" if request.is_secure else "http"
                 allowed_origins = [f"{scheme}://{host}"]
 
             # Check if origin is allowed
             # Special case: '*' means allow all origins (wildcard)
-            if allowed_origins == '*':
+            if allowed_origins == "*":
                 # Wildcard: allow any origin
                 pass
             elif origin not in allowed_origins:
@@ -99,70 +98,78 @@ def register_handlers(socketio, camera_streamer):
 
         # Origin validated (or no origin header - local connections like curl)
         client_ip = request.remote_addr
-        print(f'✓ Client connected from {client_ip}')
-        emit('connected', {'status': 'connected', 'message': 'Successfully connected to Mothbox'})
+        print(f"✓ Client connected from {client_ip}")
+        emit("connected", {"status": "connected", "message": "Successfully connected to Mothbox"})
 
-    @socketio.on('disconnect')
+    @socketio.on("disconnect")
     def handle_disconnect():
         """Handle client WebSocket disconnection"""
-        print('Client disconnected - stopping live view if active')
+        print("Client disconnected - stopping live view if active")
         camera_streamer.stop_streaming()
 
     # New event names
-    @socketio.on('start_liveview')
+    @socketio.on("start_liveview")
     def handle_start_liveview():
         """Start live view streaming"""
-        print('Received start_liveview request')
+        print("Received start_liveview request")
         try:
             success = camera_streamer.start_streaming()
             if success:
-                print('Live view started successfully')
-                emit('liveview_status', {'streaming': True, 'message': 'Live view started'})
+                print("Live view started successfully")
+                emit("liveview_status", {"streaming": True, "message": "Live view started"})
             else:
-                print('Failed to start live view')
-                emit('liveview_status', {'streaming': False, 'error': 'Failed to initialize camera'})
+                print("Failed to start live view")
+                emit(
+                    "liveview_status", {"streaming": False, "error": "Failed to initialize camera"}
+                )
         except Exception as e:
-            print(f'Error starting live view: {e}')
-            emit('liveview_status', {'streaming': False, 'error': str(e)})
+            print(f"Error starting live view: {e}")
+            emit("liveview_status", {"streaming": False, "error": str(e)})
 
-    @socketio.on('stop_liveview')
+    @socketio.on("stop_liveview")
     def handle_stop_liveview():
         """Stop live view streaming"""
-        print('Received stop_liveview request')
+        print("Received stop_liveview request")
         try:
             camera_streamer.stop_streaming()
-            print('Live view stopped')
-            emit('liveview_status', {'streaming': False, 'message': 'Live view stopped'})
+            print("Live view stopped")
+            emit("liveview_status", {"streaming": False, "message": "Live view stopped"})
         except Exception as e:
-            print(f'Error stopping live view: {e}')
-            emit('liveview_status', {'streaming': False, 'error': str(e)})
+            print(f"Error stopping live view: {e}")
+            emit("liveview_status", {"streaming": False, "error": str(e)})
 
     # Deprecated event names (backward compatibility - will be removed in future release)
-    @socketio.on('start_preview')
+    @socketio.on("start_preview")
     def handle_start_preview_deprecated():
         """[DEPRECATED] Use start_liveview instead"""
-        print('⚠️  DEPRECATED: start_preview event - use start_liveview instead')
+        print("⚠️  DEPRECATED: start_preview event - use start_liveview instead")
         handle_start_liveview()
 
-    @socketio.on('stop_preview')
+    @socketio.on("stop_preview")
     def handle_stop_preview_deprecated():
         """[DEPRECATED] Use stop_liveview instead"""
-        print('⚠️  DEPRECATED: stop_preview event - use stop_liveview instead')
+        print("⚠️  DEPRECATED: stop_preview event - use stop_liveview instead")
         handle_stop_liveview()
 
-    @socketio.on('reload_stream_settings')
+    @socketio.on("reload_stream_settings")
     def handle_reload_stream_settings():
         """Reload camera stream settings from config file"""
-        print('Received reload_stream_settings request')
+        print("Received reload_stream_settings request")
         try:
             camera_streamer.load_stream_settings()
-            print('Stream settings reloaded successfully')
-            emit('settings_reloaded', {'success': True, 'message': 'Settings reloaded. Changes will apply to new preview sessions.'})
+            print("Stream settings reloaded successfully")
+            emit(
+                "settings_reloaded",
+                {
+                    "success": True,
+                    "message": "Settings reloaded. Changes will apply to new preview sessions.",
+                },
+            )
         except Exception as e:
-            print(f'Error reloading settings: {e}')
-            emit('settings_reloaded', {'success': False, 'error': str(e)})
+            print(f"Error reloading settings: {e}")
+            emit("settings_reloaded", {"success": False, "error": str(e)})
 
-    @socketio.on('get_metadata')
+    @socketio.on("get_metadata")
     def handle_get_metadata():
         """
         Get current camera metadata
@@ -213,8 +220,12 @@ def register_handlers(socketio, camera_streamer):
                 metadata_snake = from_picamera_metadata(md)
 
                 # Convert AfState code to string (keep existing logic)
-                af_state_code = metadata_snake.get('af_state', 0)
-                af_state = ("Idle", "Scanning", "Success", "Fail")[af_state_code] if af_state_code < 4 else "Unknown"
+                af_state_code = metadata_snake.get("af_state", 0)
+                af_state = (
+                    ("Idle", "Scanning", "Success", "Fail")[af_state_code]
+                    if af_state_code < 4
+                    else "Unknown"
+                )
 
                 # ========================================
                 # Coordinate Transformation System
@@ -273,13 +284,15 @@ def register_handlers(socketio, camera_streamer):
                     actual_zoom_center = camera_streamer.get_actual_zoom_center()
                 except Exception as e:
                     print(f"Warning: Failed to get actual zoom center: {e}")
-                    actual_zoom_center = {'x': 0.5, 'y': 0.5}  # Fallback to center
+                    actual_zoom_center = {"x": 0.5, "y": 0.5}  # Fallback to center
 
                 # Calculate crop fractions for accurate coordinate transformation
                 # These account for aspect ratio preservation (e.g., 4:3 sensor → 16:9 output)
                 try:
                     scaler_crop_result = camera_streamer.calculate_scaler_crop()
-                    scaler_crop_max = camera_streamer.camera.camera_properties.get('ScalerCropMaximum')
+                    scaler_crop_max = camera_streamer.camera.camera_properties.get(
+                        "ScalerCropMaximum"
+                    )
 
                     if scaler_crop_result and scaler_crop_max:
                         _, _, sensor_width, sensor_height = scaler_crop_max
@@ -300,86 +313,100 @@ def register_handlers(socketio, camera_streamer):
                 # Apply rounding to specific fields
                 rounded_metadata = {
                     **metadata_snake,
-                    'af_state': af_state,  # Use converted string
-                    'analogue_gain': round(metadata_snake.get('analogue_gain', 0.0), 2),
-                    'lens_position': round(metadata_snake.get('lens_position', 0.0), 2),
-                    'digital_gain': round(metadata_snake.get('digital_gain', 0.0), 2),
-                    'focus_fom': round(metadata_snake.get('focus_fom', 0), 3) if metadata_snake.get('focus_fom') else 0,  # Figure of Merit - autofocus quality metric (higher = sharper)
-                    'colour_gains': tuple(round(g, 2) for g in metadata_snake.get('colour_gains', (0.0, 0.0))) if metadata_snake.get('colour_gains') else (0.0, 0.0),
-                    'sensor_temperature': round(metadata_snake.get('sensor_temperature', 0), 1) if metadata_snake.get('sensor_temperature') is not None else None,
-                    'saturation': round(metadata_snake.get('saturation', 0.0), 2),
-                    'contrast': round(metadata_snake.get('contrast', 0.0), 2),
-                    'sharpness': round(metadata_snake.get('sharpness', 0.0), 2),
-                    'brightness': round(metadata_snake.get('brightness', 0.0), 2),
+                    "af_state": af_state,  # Use converted string
+                    "analogue_gain": round(metadata_snake.get("analogue_gain", 0.0), 2),
+                    "lens_position": round(metadata_snake.get("lens_position", 0.0), 2),
+                    "digital_gain": round(metadata_snake.get("digital_gain", 0.0), 2),
+                    "focus_fom": round(metadata_snake.get("focus_fom", 0), 3)
+                    if metadata_snake.get("focus_fom")
+                    else 0,  # Figure of Merit - autofocus quality metric (higher = sharper)
+                    "colour_gains": tuple(
+                        round(g, 2) for g in metadata_snake.get("colour_gains", (0.0, 0.0))
+                    )
+                    if metadata_snake.get("colour_gains")
+                    else (0.0, 0.0),
+                    "sensor_temperature": round(metadata_snake.get("sensor_temperature", 0), 1)
+                    if metadata_snake.get("sensor_temperature") is not None
+                    else None,
+                    "saturation": round(metadata_snake.get("saturation", 0.0), 2),
+                    "contrast": round(metadata_snake.get("contrast", 0.0), 2),
+                    "sharpness": round(metadata_snake.get("sharpness", 0.0), 2),
+                    "brightness": round(metadata_snake.get("brightness", 0.0), 2),
                     # Zoom metadata
-                    'actual_zoom_center_x': round(actual_zoom_center['x'], 4),
-                    'actual_zoom_center_y': round(actual_zoom_center['y'], 4),
-                    'crop_fraction_x': round(crop_fraction_x, 4),
-                    'crop_fraction_y': round(crop_fraction_y, 4),
-                    'timestamp': __import__('time').time()
+                    "actual_zoom_center_x": round(actual_zoom_center["x"], 4),
+                    "actual_zoom_center_y": round(actual_zoom_center["y"], 4),
+                    "crop_fraction_x": round(crop_fraction_x, 4),
+                    "crop_fraction_y": round(crop_fraction_y, 4),
+                    "timestamp": __import__("time").time(),
                 }
 
-                emit('metadata_update', rounded_metadata)
+                emit("metadata_update", rounded_metadata)
 
             else:
                 # Camera not active - return unavailable status
-                emit('metadata_update', {
-                    'error': 'Camera not streaming',
-                    'exposure_time': 0,
-                    'analogue_gain': 0,
-                    'lens_position': 0,
-                    'af_state': 'Unavailable',
-                    'colour_temperature': 0,
-                    'digital_gain': 0,
-                    'focus_fom': 0,  # Figure of Merit - autofocus quality/sharpness indicator
-                    'sensor_timestamp': 0,
-                    'colour_gains': (0.0, 0.0),
-                    'frame_duration': 0,
-                    'sensor_black_level': 0,
-                    'sensor_temperature': None,
-                    'scaler_crop': (0, 0, 0, 0),
-                    'ae_locked': False,
-                    'awb_locked': False,
-                    'lux': 0,
-                    'saturation': 0,
-                    'contrast': 0,
-                    'sharpness': 0,
-                    'brightness': 0,
-                    'actual_zoom_center_x': 0.5,
-                    'actual_zoom_center_y': 0.5,
-                    'crop_fraction_x': 1.0,
-                    'crop_fraction_y': 1.0
-                })
+                emit(
+                    "metadata_update",
+                    {
+                        "error": "Camera not streaming",
+                        "exposure_time": 0,
+                        "analogue_gain": 0,
+                        "lens_position": 0,
+                        "af_state": "Unavailable",
+                        "colour_temperature": 0,
+                        "digital_gain": 0,
+                        "focus_fom": 0,  # Figure of Merit - autofocus quality/sharpness indicator
+                        "sensor_timestamp": 0,
+                        "colour_gains": (0.0, 0.0),
+                        "frame_duration": 0,
+                        "sensor_black_level": 0,
+                        "sensor_temperature": None,
+                        "scaler_crop": (0, 0, 0, 0),
+                        "ae_locked": False,
+                        "awb_locked": False,
+                        "lux": 0,
+                        "saturation": 0,
+                        "contrast": 0,
+                        "sharpness": 0,
+                        "brightness": 0,
+                        "actual_zoom_center_x": 0.5,
+                        "actual_zoom_center_y": 0.5,
+                        "crop_fraction_x": 1.0,
+                        "crop_fraction_y": 1.0,
+                    },
+                )
 
         except Exception as e:
-            print(f'Error getting metadata: {e}')
-            emit('metadata_update', {
-                'error': str(e),
-                'exposure_time': 0,
-                'analogue_gain': 0,
-                'lens_position': 0,
-                'af_state': 'Error',
-                'colour_temperature': 0,
-                'digital_gain': 0,
-                'focus_fom': 0,  # Figure of Merit - autofocus quality/sharpness indicator
-                'sensor_timestamp': 0,
-                'colour_gains': (0.0, 0.0),
-                'frame_duration': 0,
-                'sensor_black_level': 0,
-                'sensor_temperature': None,
-                'scaler_crop': (0, 0, 0, 0),
-                'ae_locked': False,
-                'awb_locked': False,
-                'lux': 0,
-                'saturation': 0,
-                'contrast': 0,
-                'sharpness': 0,
-                'brightness': 0,
-                'actual_zoom_center_x': 0.5,
-                'actual_zoom_center_y': 0.5
-            })
+            print(f"Error getting metadata: {e}")
+            emit(
+                "metadata_update",
+                {
+                    "error": str(e),
+                    "exposure_time": 0,
+                    "analogue_gain": 0,
+                    "lens_position": 0,
+                    "af_state": "Error",
+                    "colour_temperature": 0,
+                    "digital_gain": 0,
+                    "focus_fom": 0,  # Figure of Merit - autofocus quality/sharpness indicator
+                    "sensor_timestamp": 0,
+                    "colour_gains": (0.0, 0.0),
+                    "frame_duration": 0,
+                    "sensor_black_level": 0,
+                    "sensor_temperature": None,
+                    "scaler_crop": (0, 0, 0, 0),
+                    "ae_locked": False,
+                    "awb_locked": False,
+                    "lux": 0,
+                    "saturation": 0,
+                    "contrast": 0,
+                    "sharpness": 0,
+                    "brightness": 0,
+                    "actual_zoom_center_x": 0.5,
+                    "actual_zoom_center_y": 0.5,
+                },
+            )
 
-    @socketio.on('update_liveview_control')
+    @socketio.on("update_liveview_control")
     def handle_update_liveview_control(data):
         """
         Update a single camera control without restarting stream
@@ -389,41 +416,41 @@ def register_handlers(socketio, camera_streamer):
         """
         try:
             if not isinstance(data, dict):
-                emit('control_updated', {
-                    'success': False,
-                    'error': 'Invalid data format - expected dict'
-                })
+                emit(
+                    "control_updated",
+                    {"success": False, "error": "Invalid data format - expected dict"},
+                )
                 return
 
             success = camera_streamer.update_control(data)
 
             if success:
-                emit('control_updated', {
-                    'success': True,
-                    'control': data,
-                    'message': f'Updated {list(data.keys())[0]}'
-                })
+                emit(
+                    "control_updated",
+                    {
+                        "success": True,
+                        "control": data,
+                        "message": f"Updated {list(data.keys())[0]}",
+                    },
+                )
             else:
-                emit('control_updated', {
-                    'success': False,
-                    'error': 'Camera not streaming or control update failed'
-                })
+                emit(
+                    "control_updated",
+                    {"success": False, "error": "Camera not streaming or control update failed"},
+                )
 
         except Exception as e:
-            print(f'Error updating control: {e}')
-            emit('control_updated', {
-                'success': False,
-                'error': str(e)
-            })
+            print(f"Error updating control: {e}")
+            emit("control_updated", {"success": False, "error": str(e)})
 
     # Deprecated event name (backward compatibility)
-    @socketio.on('update_preview_control')
+    @socketio.on("update_preview_control")
     def handle_update_preview_control_deprecated(data):
         """[DEPRECATED] Use update_liveview_control instead"""
-        print('⚠️  DEPRECATED: update_preview_control event - use update_liveview_control instead')
+        print("⚠️  DEPRECATED: update_preview_control event - use update_liveview_control instead")
         handle_update_liveview_control(data)
 
-    @socketio.on('set_zoom')
+    @socketio.on("set_zoom")
     def handle_set_zoom(data):
         """
         Set digital zoom level and optionally reposition zoom center (ROI feature)
@@ -440,40 +467,40 @@ def register_handlers(socketio, camera_streamer):
         """
         try:
             if not isinstance(data, dict):
-                emit('zoom_updated', {
-                    'success': False,
-                    'error': 'Invalid data format - expected dict'
-                })
+                emit(
+                    "zoom_updated",
+                    {"success": False, "error": "Invalid data format - expected dict"},
+                )
                 return
 
-            zoom_level = data.get('zoom_level', 1.0)
-            center_x = data.get('center_x')
-            center_y = data.get('center_y')
+            zoom_level = data.get("zoom_level", 1.0)
+            center_x = data.get("center_x")
+            center_y = data.get("center_y")
 
             success = camera_streamer.set_zoom(zoom_level, center_x, center_y)
 
             if success:
-                emit('zoom_updated', {
-                    'success': True,
-                    'zoom_level': camera_streamer.zoom_level,
-                    'center_x': camera_streamer.zoom_center_x,
-                    'center_y': camera_streamer.zoom_center_y,
-                    'message': f'Zoom set to {camera_streamer.zoom_level:.2f}x'
-                })
+                emit(
+                    "zoom_updated",
+                    {
+                        "success": True,
+                        "zoom_level": camera_streamer.zoom_level,
+                        "center_x": camera_streamer.zoom_center_x,
+                        "center_y": camera_streamer.zoom_center_y,
+                        "message": f"Zoom set to {camera_streamer.zoom_level:.2f}x",
+                    },
+                )
             else:
-                emit('zoom_updated', {
-                    'success': False,
-                    'error': 'Camera not streaming or zoom failed'
-                })
+                emit(
+                    "zoom_updated",
+                    {"success": False, "error": "Camera not streaming or zoom failed"},
+                )
 
         except Exception as e:
-            print(f'Error setting zoom: {e}')
-            emit('zoom_updated', {
-                'success': False,
-                'error': str(e)
-            })
+            print(f"Error setting zoom: {e}")
+            emit("zoom_updated", {"success": False, "error": str(e)})
 
-    @socketio.on('set_af_window')
+    @socketio.on("set_af_window")
     def handle_set_af_window(data):
         """
         Set autofocus window to focus on a specific region (click-to-focus feature)
@@ -491,43 +518,35 @@ def register_handlers(socketio, camera_streamer):
         """
         try:
             if not isinstance(data, dict):
-                emit('af_window_updated', {
-                    'success': False,
-                    'error': 'Invalid data format - expected dict'
-                })
+                emit(
+                    "af_window_updated",
+                    {"success": False, "error": "Invalid data format - expected dict"},
+                )
                 return
 
-            x = data.get('x')
-            y = data.get('y')
-            window_size = data.get('window_size', 0.2)
+            x = data.get("x")
+            y = data.get("y")
+            window_size = data.get("window_size", 0.2)
 
             success = camera_streamer.set_af_window(x, y, window_size)
 
             if success:
                 # Send success response with window coordinates
-                response = {
-                    'success': True,
-                    'x': x,
-                    'y': y,
-                    'window_size': window_size
-                }
+                response = {"success": True, "x": x, "y": y, "window_size": window_size}
 
                 # Add message based on whether window was set or cleared
                 if x is None or y is None:
-                    response['message'] = 'AF window cleared - using auto metering'
+                    response["message"] = "AF window cleared - using auto metering"
                 else:
-                    response['message'] = f'AF window set at ({x:.2f}, {y:.2f})'
+                    response["message"] = f"AF window set at ({x:.2f}, {y:.2f})"
 
-                emit('af_window_updated', response)
+                emit("af_window_updated", response)
             else:
-                emit('af_window_updated', {
-                    'success': False,
-                    'error': 'Camera not streaming or AF window update failed'
-                })
+                emit(
+                    "af_window_updated",
+                    {"success": False, "error": "Camera not streaming or AF window update failed"},
+                )
 
         except Exception as e:
-            print(f'Error setting AF window: {e}')
-            emit('af_window_updated', {
-                'success': False,
-                'error': str(e)
-            })
+            print(f"Error setting AF window: {e}")
+            emit("af_window_updated", {"success": False, "error": str(e)})

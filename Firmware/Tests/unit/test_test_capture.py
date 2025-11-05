@@ -1,10 +1,22 @@
 """
 Unit tests for test capture endpoint (Phase 4.5)
 
-Tests the /api/camera/test-capture endpoint that captures full-resolution
+Tests the /api/camera/test-capture-liveview endpoint that captures full-resolution
 test photos using preview settings without affecting production config.
 
-RUN ON RASPBERRY PI ONLY - tests camera hardware
+HARDWARE REQUIREMENTS:
+- Raspberry Pi (3/4/5)
+- picamera2 installed
+- Camera module connected
+
+These tests are marked with @pytest.mark.hardware and will:
+- Skip automatically in CI (no hardware available)
+- Run on Raspberry Pi before releases
+- Verify real photo capture behavior
+
+Related: Issue #13, PR #77 - Hardware test categorization
+
+Run with: pytest Tests/unit/test_test_capture.py -v
 """
 
 import pytest
@@ -17,9 +29,41 @@ import time
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
 
 
+# =============================================================================
+# Hardware Detection
+# =============================================================================
+
+def can_import_picamera2():
+    """Check if picamera2 is available (indicates Pi hardware)"""
+    try:
+        import picamera2
+        return True
+    except ImportError:
+        return False
+
+
+PICAMERA_AVAILABLE = can_import_picamera2()
+
+
+# =============================================================================
+# Hardware Tests (Require Real Camera)
+# =============================================================================
+
+@pytest.mark.hardware
 @pytest.mark.photo
+@pytest.mark.skipif(not PICAMERA_AVAILABLE, reason="Requires picamera2 and camera hardware")
 class TestTestCaptureEndpoint:
-    """Test test capture endpoint with real hardware"""
+    """Test test capture endpoint with real hardware
+
+    These tests verify actual camera operation:
+    - Real photo capture at full resolution
+    - Actual camera metadata
+    - File I/O with camera
+    - Settings application
+    - Production setting isolation
+
+    Tests skip automatically in CI and run on Raspberry Pi.
+    """
 
     def test_test_capture_endpoint_exists(self):
         """Test that test capture endpoint is registered"""
@@ -30,7 +74,7 @@ class TestTestCaptureEndpoint:
         app.register_blueprint(camera_bp, url_prefix='/api/camera')
 
         with app.test_client() as client:
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
             # Should not return 404
             assert response.status_code != 404
             print(f"\n✓ Test capture endpoint exists")
@@ -49,7 +93,7 @@ class TestTestCaptureEndpoint:
         existing_count = len(list(test_captures_dir.glob("*.jpg"))) if test_captures_dir.exists() else 0
 
         with app.test_client() as client:
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
 
         assert response.status_code == 200
         data = json.loads(response.data)
@@ -78,7 +122,7 @@ class TestTestCaptureEndpoint:
         app.register_blueprint(camera_bp, url_prefix='/api/camera')
 
         with app.test_client() as client:
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
 
         assert response.status_code == 200
         data = json.loads(response.data)
@@ -114,7 +158,7 @@ class TestTestCaptureEndpoint:
         app.register_blueprint(camera_bp, url_prefix='/api/camera')
 
         with app.test_client() as client:
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
 
         assert response.status_code == 200
         data = json.loads(response.data)
@@ -165,7 +209,7 @@ class TestTestCaptureEndpoint:
 
         # Take test capture
         with app.test_client() as client:
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
 
         assert response.status_code == 200
 
@@ -193,7 +237,7 @@ class TestTestCaptureEndpoint:
         app.register_blueprint(camera_bp, url_prefix='/api/camera')
 
         with app.test_client() as client:
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
 
         assert response.status_code == 200
         data = json.loads(response.data)
@@ -244,7 +288,7 @@ class TestTestCaptureErrorRecovery:
             # Multiple rapid requests
             responses = []
             for _ in range(3):
-                response = client.post('/api/camera/test-capture')
+                response = client.post('/api/camera/test-capture-liveview')
                 responses.append(response.status_code)
                 time.sleep(0.2)
 
@@ -284,7 +328,7 @@ class TestTestCaptureCleanup:
         app.register_blueprint(camera_bp, url_prefix='/api/camera')
 
         with app.test_client() as client:
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
 
             if response.status_code == 200:
                 # Check for temp files
@@ -310,7 +354,7 @@ class TestTestCaptureCleanup:
         # Multiple rapid requests may cause errors
         with app.test_client() as client:
             for _ in range(5):
-                client.post('/api/camera/test-capture')
+                client.post('/api/camera/test-capture-liveview')
                 time.sleep(0.1)
 
             # Check for abandoned temp files
@@ -339,7 +383,7 @@ class TestConcurrentCaptureRequests:
 
         def capture():
             with app.test_client() as client:
-                response = client.post('/api/camera/test-capture')
+                response = client.post('/api/camera/test-capture-liveview')
                 return response.status_code
 
         # Submit 3 concurrent requests
@@ -363,7 +407,7 @@ class TestConcurrentCaptureRequests:
 
         with app.test_client() as client:
             for i in range(3):
-                response = client.post('/api/camera/test-capture')
+                response = client.post('/api/camera/test-capture-liveview')
                 if response.status_code == 200:
                     successes += 1
                 time.sleep(1)  # Wait between captures
@@ -395,7 +439,7 @@ class TestInvalidPreviewSettings:
 
         try:
             with app.test_client() as client:
-                response = client.post('/api/camera/test-capture')
+                response = client.post('/api/camera/test-capture-liveview')
 
                 # Should use defaults
                 if response.status_code == 200:
@@ -434,7 +478,7 @@ class TestInvalidPreviewSettings:
             WEBUI_SETTINGS_FILE.write_text("corrupted\ndata")
 
             with app.test_client() as client:
-                response = client.post('/api/camera/test-capture')
+                response = client.post('/api/camera/test-capture-liveview')
 
                 # Should handle gracefully (use defaults or error)
                 assert response.status_code in [200, 500]
@@ -455,7 +499,7 @@ class TestTestCaptureWithoutStreaming:
         """Test capture works when streaming is not active"""
         from routes.camera import camera_bp
         from flask import Flask
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         app = Flask(__name__)
         app.register_blueprint(camera_bp, url_prefix='/api/camera')
@@ -465,13 +509,13 @@ class TestTestCaptureWithoutStreaming:
             def emit(self, event, data, **kwargs):
                 pass
 
-        camera_streamer = CameraStreamer(MockSocketIO())
+        camera_streamer = LiveViewStreamer(MockSocketIO())
         camera_streamer.stop_streaming()  # Ensure stopped
 
         app.config['CAMERA_STREAMER'] = camera_streamer
 
         with app.test_client() as client:
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
 
             # Should work even without streaming
             if response.status_code == 200:
@@ -485,7 +529,7 @@ class TestTestCaptureWithoutStreaming:
         """Test capture properly releases and restarts streaming"""
         from routes.camera import camera_bp
         from flask import Flask
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
 
         app = Flask(__name__)
         app.register_blueprint(camera_bp, url_prefix='/api/camera')
@@ -494,7 +538,7 @@ class TestTestCaptureWithoutStreaming:
             def emit(self, event, data, **kwargs):
                 pass
 
-        camera_streamer = CameraStreamer(MockSocketIO())
+        camera_streamer = LiveViewStreamer(MockSocketIO())
         app.config['CAMERA_STREAMER'] = camera_streamer
 
         # Start streaming
@@ -506,7 +550,7 @@ class TestTestCaptureWithoutStreaming:
 
         # Take capture
         with app.test_client() as client:
-            response = client.post('/api/camera/test-capture')
+            response = client.post('/api/camera/test-capture-liveview')
 
             if response.status_code == 200:
                 # Give time for restart

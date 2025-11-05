@@ -1,7 +1,7 @@
 """
-Integration Tests: Image Quality (Phase 2)
+Integration Tests: Image Quality ()
 
-Tests that Phase 2 camera controls actually affect image quality:
+Tests that  camera controls actually affect image quality:
 - Preview controls affect stream quality
 - Capture controls affect photo quality
 - Settings produce expected visual results
@@ -76,7 +76,7 @@ def analyze_image_brightness(image_bytes):
 
 @pytest.mark.stream
 class TestSharpnessControl:
-    """Test sharpness control affects image quality (Phase 2.1)"""
+    """Test sharpness control affects image quality ()"""
 
     def test_sharpness_increases_edge_detail(self, camera_streamer):
         """Test that higher sharpness increases edge detail"""
@@ -116,7 +116,7 @@ class TestSharpnessControl:
 
 @pytest.mark.stream
 class TestContrastControl:
-    """Test contrast control affects image quality (Phase 2.1)"""
+    """Test contrast control affects image quality ()"""
 
     def test_contrast_increases_tonal_range(self, camera_streamer):
         """Test that higher contrast increases tonal range"""
@@ -155,7 +155,7 @@ class TestContrastControl:
 
 @pytest.mark.stream
 class TestBrightnessControl:
-    """Test brightness control affects image quality (Phase 2.1)"""
+    """Test brightness control affects image quality ()"""
 
     @pytest.mark.skip(reason="Environment-dependent: requires controlled lighting and test targets")
     def test_brightness_changes_exposure(self, camera_streamer):
@@ -198,7 +198,7 @@ class TestBrightnessControl:
 
 @pytest.mark.stream
 class TestFocusControls:
-    """Test focus controls affect image sharpness (Phase 2.1)"""
+    """Test focus controls affect image sharpness ()"""
 
     @pytest.mark.skip(reason="Environment-dependent: requires controlled lighting and test targets")
     def test_continuous_autofocus_produces_sharp_images(self, camera_streamer):
@@ -257,7 +257,7 @@ class TestFocusControls:
 
 @pytest.mark.stream
 class TestWhiteBalanceControls:
-    """Test white balance controls affect color (Phase 2.1)"""
+    """Test white balance controls affect color ()"""
 
     @pytest.mark.skip(reason="Environment-dependent: requires controlled lighting and test targets")
     def test_white_balance_modes(self, camera_streamer):
@@ -313,7 +313,7 @@ class TestWhiteBalanceControls:
 
 @pytest.mark.stream
 class TestCombinedControls:
-    """Test multiple controls working together (Phase 2.1)"""
+    """Test multiple controls working together ()"""
 
     @pytest.mark.skip(reason="Environment-dependent: requires controlled lighting and test targets")
     def test_optimized_settings_produce_quality_image(self, camera_streamer):
@@ -355,7 +355,7 @@ class TestCombinedControls:
 
 @pytest.mark.stream
 class TestSettingsPersistence:
-    """Test that settings changes persist correctly (Phase 2.1)"""
+    """Test that settings changes persist correctly ()"""
 
     def test_preview_settings_update_takes_effect(self, client, camera_streamer):
         """Test that updating preview settings via API affects camera"""

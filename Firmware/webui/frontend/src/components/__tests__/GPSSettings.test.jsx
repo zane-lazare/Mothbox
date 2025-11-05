@@ -18,7 +18,8 @@ vi.mock('react-hot-toast', () => ({
   default: {
     success: vi.fn(),
     error: vi.fn(),
-    loading: vi.fn(),
+    loading: vi.fn(() => 'toast-id'),
+    dismiss: vi.fn(),
   },
 }))
 
@@ -30,6 +31,10 @@ describe('GPSSettings', () => {
     device: '/dev/ttyAMA0',
     baudrate: 9600,
     timeout: 10,
+    timeout_hot: 15,
+    timeout_warm: 60,
+    timeout_cold: 90,
+    timeout_almanac: 1200,
   }
 
   const mockGPSStatus = {
@@ -89,7 +94,7 @@ describe('GPSSettings', () => {
       expect(screen.getByText(/Current GPS Status/i)).toBeInTheDocument()
     })
 
-    expect(screen.getByText(/GPS Fix Acquired/i)).toBeInTheDocument()
+    expect(screen.getByText(/GPS Fix/i)).toBeInTheDocument()
     expect(screen.getByText(/37.7749/)).toBeInTheDocument()
     expect(screen.getByText(/-122.4194/)).toBeInTheDocument()
   })
@@ -110,11 +115,11 @@ describe('GPSSettings', () => {
     renderComponent()
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/GPS Device Path/i)).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: /GPS Device Path/i })).toBeInTheDocument()
     })
 
-    expect(screen.getByLabelText(/Baud Rate/i)).toBeInTheDocument()
-    expect(screen.getByText(/Sync Timeout:/i)).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /Baud Rate/i })).toBeInTheDocument()
+    expect(screen.getByText(/Advanced Timeout Configuration/i)).toBeInTheDocument()
   })
 
   it('hides configuration fields when GPS is disabled', async () => {
@@ -129,7 +134,7 @@ describe('GPSSettings', () => {
     })
 
     // Configuration fields should not be present
-    expect(screen.queryByLabelText(/GPS Device Path/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /GPS Device Path/i })).not.toBeInTheDocument()
   })
 
   it('toggles GPS enabled state', async () => {
@@ -152,10 +157,10 @@ describe('GPSSettings', () => {
     renderComponent()
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/GPS Device Path/i)).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: /GPS Device Path/i })).toBeInTheDocument()
     })
 
-    const input = screen.getByLabelText(/GPS Device Path/i)
+    const input = screen.getByRole('textbox', { name: /GPS Device Path/i })
     expect(input).toHaveValue('/dev/ttyAMA0')
 
     await user.clear(input)
@@ -168,10 +173,10 @@ describe('GPSSettings', () => {
     renderComponent()
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/Baud Rate/i)).toBeInTheDocument()
+      expect(screen.getByRole('combobox', { name: /Baud Rate/i })).toBeInTheDocument()
     })
 
-    const select = screen.getByLabelText(/Baud Rate/i)
+    const select = screen.getByRole('combobox', { name: /Baud Rate/i })
     expect(select).toHaveValue('9600')
 
     await user.selectOptions(select, '115200')
@@ -192,24 +197,35 @@ describe('GPSSettings', () => {
     await user.click(saveButton)
 
     await waitFor(() => {
-      expect(api.updateGpsConfig).toHaveBeenCalledWith({
+      expect(api.updateGpsConfig).toHaveBeenCalled()
+      const callArgs = api.updateGpsConfig.mock.calls[0][0]
+      expect(callArgs).toEqual({
         gps_enabled: true,
         gps_device: '/dev/ttyAMA0',
         gps_baudrate: 9600,
         gps_timeout: 10,
+        gps_timeout_hot: 15,
+        gps_timeout_warm: 60,
+        gps_timeout_cold: 90,
+        gps_timeout_almanac: 1200,
       })
     })
   })
 
   it('syncs GPS when sync button clicked', async () => {
     const user = userEvent.setup()
-    api.syncGps.mockResolvedValue({
-      data: {
-        success: true,
-        latitude: 37.7749,
-        longitude: -122.4194,
-      },
-    })
+
+    // Create a promise that won't resolve immediately to allow us to see the "Syncing..." state
+    let resolveSyncGps
+    api.syncGps.mockImplementation(() => new Promise((resolve) => {
+      resolveSyncGps = () => resolve({
+        data: {
+          success: true,
+          latitude: 37.7749,
+          longitude: -122.4194,
+        },
+      })
+    }))
 
     renderComponent()
 
@@ -221,10 +237,18 @@ describe('GPSSettings', () => {
     await user.click(syncButton)
 
     // Button should show "Syncing..." while operation is in progress
-    expect(screen.getByText(/Syncing.../i)).toBeInTheDocument()
-
     await waitFor(() => {
-      expect(api.syncGps).toHaveBeenCalled()
+      expect(screen.getByText(/Syncing.../i)).toBeInTheDocument()
+    })
+
+    expect(api.syncGps).toHaveBeenCalled()
+
+    // Resolve the promise to complete the sync
+    resolveSyncGps()
+
+    // Wait for sync to complete and button to return to normal state
+    await waitFor(() => {
+      expect(screen.getByText(/🛰️ Sync GPS Now/i)).toBeInTheDocument()
     })
   })
 
@@ -236,7 +260,7 @@ describe('GPSSettings', () => {
     })
 
     expect(screen.getByText(/Connect NEO-M8N TX → Pi GPIO15/i)).toBeInTheDocument()
-    expect(screen.getByText(/Install gpsd/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Install gpsd/i).length).toBeGreaterThan(0)
   })
 
   it('collapses and expands when title is clicked', async () => {
@@ -252,14 +276,14 @@ describe('GPSSettings', () => {
     await user.click(title)
 
     // Configuration should be hidden
-    expect(screen.queryByLabelText(/GPS Device Path/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /GPS Device Path/i })).not.toBeInTheDocument()
 
     // Click again to expand
     await user.click(title)
 
     // Configuration should be visible again
     await waitFor(() => {
-      expect(screen.getByLabelText(/GPS Device Path/i)).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: /GPS Device Path/i })).toBeInTheDocument()
     })
   })
 })

@@ -1,18 +1,15 @@
 #!/usr/bin/python3
-#For MothboxPCB
+# For MothboxPCB
 
-from pathlib import Path
 import sys
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import (
-    CONTROLS_FILE,
-    get_script_path,
-    get_gpio_pins
-)
+from pathlib import Path
 
-import time
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from datetime import datetime
+
 import RPi.GPIO as GPIO
+
+from mothbox_paths import get_gpio_pins
 
 print("----------------- STARTING Scheduler!-------------------")
 now = datetime.now()
@@ -21,28 +18,29 @@ formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")  # Adjust the format as neede
 print(f"Current time: {formatted_time}")
 
 global onlyflash
-onlyflash=False
+onlyflash = False
 
 # Load GPIO pins from configuration
 pins = get_gpio_pins()
-Relay_Ch1 = pins['Relay_Ch1']
-Relay_Ch2 = pins['Relay_Ch2']
-Relay_Ch3 = pins['Relay_Ch3']
+Relay_Ch1 = pins["Relay_Ch1"]
+Relay_Ch2 = pins["Relay_Ch2"]
+Relay_Ch3 = pins["Relay_Ch3"]
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BOARD)
 
-#GPIO.setup(Relay_Ch1,GPIO.OUT)
-GPIO.setup(Relay_Ch2,GPIO.OUT)
+# GPIO.setup(Relay_Ch1,GPIO.OUT)
+GPIO.setup(Relay_Ch2, GPIO.OUT)
 
-#GPIO.setup(Relay_Ch3,GPIO.OUT)
+# GPIO.setup(Relay_Ch3,GPIO.OUT)
 
 print("Setup The Relay Module is [success]")
+
 
 def get_control_values(filename):
     """Reads key-value pairs from the control file."""
     control_values = {}
-    with open(filename, "r") as file:
+    with open(filename) as file:
         for line in file:
             key, value = line.strip().split("=")
             control_values[key] = value
@@ -50,17 +48,14 @@ def get_control_values(filename):
 
 
 def FlashOn():
-    
-    GPIO.output(Relay_Ch2,GPIO.LOW)
+    GPIO.output(Relay_Ch2, GPIO.LOW)
     print("Flash Lights On\n")
-    
-def FlashOff():
 
-    GPIO.output(Relay_Ch2,GPIO.HIGH)
+
+def FlashOff():
+    GPIO.output(Relay_Ch2, GPIO.HIGH)
 
     print("Flash Lights Off\n")
 
 
 FlashOn()
-
-

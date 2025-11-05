@@ -1,11 +1,10 @@
 """
-import os
-os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
-
 Unit tests for AeMeteringMode validation
 
 Tests that AeMeteringMode values are properly validated in camera.py
 """
+import os
+os.environ['MOTHBOX_ENV'] = 'development'  # Must be set before importing config
 import pytest
 import sys
 from pathlib import Path
@@ -98,35 +97,35 @@ class TestMeteringSettingsLoading:
 
     def test_metering_mode_loads_from_settings(self, mock_socketio, temp_webui_settings):
         """CameraStreamer should load ae_metering_mode from settings file"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
         from mothbox_paths import WEBUI_SETTINGS_FILE
 
         # Write test settings with specific metering mode
         with open(WEBUI_SETTINGS_FILE, 'w') as f:
             f.write("ae_metering_mode=1\n")  # Spot mode
 
-        streamer = CameraStreamer(mock_socketio)
+        streamer = LiveViewStreamer(mock_socketio)
 
         assert streamer.ae_metering_mode == 1, \
             "ae_metering_mode should be loaded from settings file"
 
     def test_metering_mode_defaults_to_centre_weighted(self, mock_socketio, temp_webui_settings):
         """CameraStreamer should default to Centre-Weighted (0) if not specified"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
         from mothbox_paths import WEBUI_SETTINGS_FILE
 
         # Write settings without metering mode
         with open(WEBUI_SETTINGS_FILE, 'w') as f:
             f.write("sharpness=1.0\n")
 
-        streamer = CameraStreamer(mock_socketio)
+        streamer = LiveViewStreamer(mock_socketio)
 
         assert streamer.ae_metering_mode == 0, \
             "ae_metering_mode should default to 0 (Centre-Weighted)"
 
     def test_all_metering_modes_valid(self, mock_socketio, temp_webui_settings):
         """All metering modes (0, 1, 2) should be accepted"""
-        from camera_stream import CameraStreamer
+        from liveview_stream import LiveViewStreamer
         from mothbox_paths import WEBUI_SETTINGS_FILE
 
         metering_modes = {
@@ -140,7 +139,7 @@ class TestMeteringSettingsLoading:
             with open(WEBUI_SETTINGS_FILE, 'w') as f:
                 f.write(f"ae_metering_mode={mode_value}\n")
 
-            streamer = CameraStreamer(mock_socketio)
+            streamer = LiveViewStreamer(mock_socketio)
 
             assert streamer.ae_metering_mode == mode_value, \
                 f"{mode_name} mode ({mode_value}) should be loaded correctly"
