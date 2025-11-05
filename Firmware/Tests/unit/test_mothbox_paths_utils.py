@@ -47,7 +47,7 @@ class TestDirectoryCreation:
         assert test_isp.exists()
 
     def test_ensure_directories_sets_permissions(self, tmp_path, monkeypatch):
-        """Created dirs should have 0o755 permissions"""
+        """Created dirs should have 0o750 permissions (owner+group, no world)"""
         import mothbox_paths
 
         # Patch path constants
@@ -60,10 +60,10 @@ class TestDirectoryCreation:
         # Call ensure_directories()
         mothbox_paths.ensure_directories()
 
-        # Verify permissions (0o755 = rwxr-xr-x)
+        # Verify permissions (0o750 = rwxr-x---, owner+group only, no world access)
         stat_info = test_config.stat()
         permissions = stat_info.st_mode & 0o777
-        assert permissions == 0o755
+        assert permissions == 0o750
 
     def test_ensure_directories_handles_permission_errors(self, tmp_path, monkeypatch):
         """Mock chmod to raise PermissionError, should not crash"""
