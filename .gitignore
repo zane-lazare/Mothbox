@@ -21,6 +21,18 @@ coverage_annotated/
 test_debug.py
 Firmware/photos/
 
+# Runtime configuration files (user/application-generated)
+camera_settings.csv
+liveview_settings.txt
+user_preferences.json
+
+# Development planning documents
+COVERAGE_CHECKLIST.md
+COVERAGE_IMPROVEMENT_GUIDE.md
+
+# Security scanning
+bandit-baseline.json
+
 # IDE
 .vscode/
 .idea/
