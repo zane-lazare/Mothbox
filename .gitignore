@@ -16,6 +16,9 @@ htmlcov/
 .tox/
 coverage_annotated/
 
+# Frontend coverage
+coverage/
+
 # Temporary test files
 *.backup.*
 test_debug.py

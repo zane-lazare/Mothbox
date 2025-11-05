@@ -59,15 +59,21 @@ Tests/
 ├── README.md                     # This file
 ├── conftest.py                   # Shared fixtures
 ├── requirements-test.txt         # Test dependencies
-├── unit/
+├── run_tests.sh                  # Test orchestration script
+├── tools/                        # Diagnostic and utility scripts
+│   └── diagnose_workflow_failures.py  # Analyze camera workflow test patterns
+├── unit/                         # Unit tests (mocked, no hardware)
 │   ├── __init__.py
 │   ├── test_camera_stream.py    # simplejpeg encoding tests
 │   ├── test_config_validation.py # Settings validation tests
 │   └── test_mothbox_paths_hardware.py  # Hardware configuration tests (Issue #13)
-└── integration/
-    ├── __init__.py
-    ├── test_stream_performance.py  # Sustained performance tests
-    └── test_manual_verification.py # Manual WebUI tests
+├── integration/                  # Integration tests (require hardware)
+│   ├── __init__.py
+│   ├── test_stream_performance.py  # Sustained performance tests
+│   ├── test_camera_state_diagnosis.py  # Camera state diagnostic tests
+│   └── test_manual_verification.py # Manual WebUI tests
+└── regression/                   # Regression tests (permanent bug verification)
+    └── test_focus_bracket_regression.py
 ```
 
 ## Test Categories
@@ -226,6 +232,40 @@ pip3 install flask flask-socketio
 - Check CPU usage: `top` or `htop`
 - Verify no other processes using camera
 - Check thermal throttling: `vcgencmd measure_temp`
+
+## Diagnostic Tools
+
+### Workflow Failure Analyzer
+
+When camera workflow tests fail intermittently, use the diagnostic tool to analyze test patterns:
+
+```bash
+# Run from the Firmware directory (no hardware required)
+python3 Tests/tools/diagnose_workflow_failures.py
+```
+
+This tool analyzes:
+- Camera operation patterns in test files
+- Sleep delays and timing issues
+- Complex test sequences that may cause camera state conflicts
+- Compares passing vs failing test patterns
+
+The output shows:
+- Number of camera operations per test
+- Operation sequences (test-capture → autofocus → calibrate)
+- Total sleep times and potential timing issues
+- Recommendations for fixing workflow failures
+
+**When to use:**
+- Camera workflow tests fail on hardware
+- "Camera is busy" errors occur
+- Tests pass individually but fail when run together
+- Need to optimize camera release delays
+
+**Related tests:**
+- `Tests/integration/test_camera_state_diagnosis.py` - Hardware diagnostic tests
+- `Tests/integration/test_end_to_end_workflows.py` - Complex workflow tests
+- `Tests/integration/test_test_capture_workflows.py` - Test capture workflows
 
 ## Development Workflow
 
