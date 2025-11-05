@@ -506,7 +506,7 @@ def create_dated_folder(base_path):
     folder_path = os.path.join(base_path, date_str)
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
-    os.chmod(folder_path, 0o755)  # nosec B103 - Standard directory permissions for photo storage
+    os.chmod(folder_path, 0o750)  # nosec B103 - Group access for webui service
     return folder_path + "/"
 
 
@@ -591,7 +591,7 @@ def takePhoto_Manual():
         folderPath = str(PHOTOS_DIR) + "/"
         if not os.path.exists(folderPath):
             os.makedirs(folderPath)
-        os.chmod(folderPath, 0o755)  # nosec B103 - Standard directory permissions for photo storage
+        os.chmod(folderPath, 0o750)  # nosec B103 - Group access for webui service
 
         folderPath = create_dated_folder(folderPath)
 

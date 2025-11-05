@@ -570,10 +570,10 @@ def ensure_directories():
 
     for directory in dirs_to_create:
         directory.mkdir(parents=True, exist_ok=True)
-        # Set permissions: owner rwx, group rx, others rx
-        # nosec B103 - Standard directory permissions for photo storage
+        # Set permissions: owner rwx, group rx, no world access (single-user device)
+        # Group access required for webui service (runs as gpio group)
         with suppress(OSError, PermissionError):
-            os.chmod(directory, 0o755)
+            os.chmod(directory, 0o750)  # nosec B103
 
 
 # Debug function

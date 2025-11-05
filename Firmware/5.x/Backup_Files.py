@@ -188,7 +188,7 @@ def move_folder_contents(source_folder, destination_folder):
         elif os.path.isdir(source_path):
             # Create destination directory if it doesn't exist
             os.makedirs(destination_path, exist_ok=True)
-            os.chmod(destination_path, 0o755)  # nosec B103 - Standard directory permissions for backup storage
+            os.chmod(destination_path, 0o750)  # nosec B103 - Group access for webui service
             # Recursively move contents of subfolders
             move_folder_contents(source_path, destination_path)
         else:
@@ -205,7 +205,7 @@ def move_photos_to_backup(source_folder, target_folder):
     """
     if not os.path.exists(target_folder):
         os.makedirs(target_folder)
-    os.chmod(target_folder, 0o755)  # nosec B103 - Standard directory permissions for backup storage
+    os.chmod(target_folder, 0o750)  # nosec B103 - Group access for webui service
     # Move all contents (files and subfolders)
     try:
         shutil.move(source_folder, target_folder)
@@ -214,7 +214,7 @@ def move_photos_to_backup(source_folder, target_folder):
         # recreate the empty photos folder
         if not os.path.exists(source_folder):
             os.makedirs(source_folder)
-        os.chmod(source_folder, 0o755)  # nosec B103 - Standard directory permissions for backup storage
+        os.chmod(source_folder, 0o750)  # nosec B103 - Group access for webui service
     except OSError as e:
         print("Error moving contents:", e)
 
@@ -229,7 +229,7 @@ def copy_photos_to_backup(source_folder, target_folder):
     """
     if not os.path.exists(target_folder):
         os.makedirs(target_folder)
-    os.chmod(target_folder, 0o755)  # nosec B103 - Standard directory permissions for backup storage
+    os.chmod(target_folder, 0o750)  # nosec B103 - Group access for webui service
 
     for item in os.listdir(source_folder):
         source_path = os.path.join(source_folder, item)
