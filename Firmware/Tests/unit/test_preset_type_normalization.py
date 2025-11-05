@@ -534,7 +534,7 @@ class TestPresetTypeNormalization:
 
     def test_derive_type_from_validator_patterns(self, preset_manager):
         """Test type derivation from various validator patterns"""
-        from routes.camera import ALLOWED_CAMERA_SETTINGS, ALLOWED_LIVEVIEW_SETTINGS
+        from utils import ALLOWED_CAMERA_SETTINGS, ALLOWED_LIVEVIEW_SETTINGS
 
         # Test boolean pattern derivation
         bool_type = preset_manager._derive_type_from_validator(

@@ -157,7 +157,7 @@ class TestTestCaptureEndpointMocked:
         app = Flask(__name__)
         app.register_blueprint(camera_bp, url_prefix='/api/camera')
 
-        with patch('routes.camera.LIVEVIEW_SETTINGS_FILE', test_settings):
+        with patch('mothbox_paths.LIVEVIEW_SETTINGS_FILE', test_settings):
             with patch('routes.camera.PHOTOS_DIR', tmp_path):
                 # Call will fail, but shouldn't create settings file
                 with app.test_client() as client:
@@ -188,7 +188,7 @@ class TestTestCaptureEndpointMocked:
         mock_streamer = MagicMock()
         app.config['CAMERA_STREAMER'] = mock_streamer
 
-        with patch('routes.camera.LIVEVIEW_SETTINGS_FILE', settings_file):
+        with patch('mothbox_paths.LIVEVIEW_SETTINGS_FILE', settings_file):
             with patch('routes.camera.PHOTOS_DIR', tmp_path):
                 with app.test_client() as client:
                     response = client.post('/api/camera/test-capture-liveview')
