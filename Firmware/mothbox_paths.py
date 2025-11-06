@@ -116,6 +116,8 @@ else:
 
 # Common subdirectories
 PHOTOS_DIR = DATA_DIR / "photos"
+CACHE_DIR = DATA_DIR / "cache"
+THUMBNAIL_CACHE_DIR = CACHE_DIR / "thumbnails"
 
 # Configuration files
 CAMERA_SETTINGS_FILE = CONFIG_DIR / "camera_settings.csv"  # Photo capture settings

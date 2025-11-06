@@ -96,6 +96,52 @@ signal.signal(signal.SIGTERM, _signal_handler)
 signal.signal(signal.SIGINT, _signal_handler)
 print("✓ Registered signal handlers for graceful shutdown")
 
+# Initialize thumbnail cache
+from services.thumbnail_cache import ThumbnailCache
+
+from mothbox_paths import PHOTOS_DIR, THUMBNAIL_CACHE_DIR
+
+try:
+    # TODO: Read configuration from controls.txt (max_size_mb, sizes)
+    # For now, use defaults: max_size_mb=500, sizes=[64, 128, 256]
+    thumbnail_cache = ThumbnailCache(
+        cache_dir=THUMBNAIL_CACHE_DIR,
+        max_size_mb=500,
+        sizes=[64, 128, 256]
+    )
+    app.config['THUMBNAIL_CACHE'] = thumbnail_cache
+    print(f"✓ Thumbnail cache initialized: {THUMBNAIL_CACHE_DIR}")
+except Exception as e:
+    print(f"⚠️  Failed to initialize thumbnail cache: {e}")
+    app.config['THUMBNAIL_CACHE'] = None
+    thumbnail_cache = None
+
+# Initialize cache warmer (Issue #134 - Phase 3)
+from services.cache_warmer import CacheWarmer
+
+if thumbnail_cache:
+    try:
+        cache_warmer = CacheWarmer(
+            thumbnail_cache=thumbnail_cache,
+            photos_dir=PHOTOS_DIR
+        )
+        app.config['CACHE_WARMER'] = cache_warmer
+
+        # Warm recent photos on startup (non-blocking)
+        cache_warmer.warm_recent(count=50, background=True)
+
+        # Start background monitoring for auto-warming
+        cache_warmer.start_background_warming()
+
+        print("✓ Cache warmer initialized and startup warming triggered")
+
+    except Exception as e:
+        print(f"⚠️  Failed to initialize cache warmer: {e}")
+        app.config['CACHE_WARMER'] = None
+else:
+    app.config['CACHE_WARMER'] = None
+    print("⚠️  Cache warmer not initialized (thumbnail cache unavailable)")
+
 # Import route blueprints
 from routes.camera import camera_bp
 from routes.config import config_bp
@@ -220,3 +266,8 @@ if __name__ == "__main__":
     finally:
         # Cleanup camera on shutdown
         camera_streamer.cleanup()
+
+        # Stop cache warmer background thread
+        cache_warmer = app.config.get('CACHE_WARMER')
+        if cache_warmer:
+            cache_warmer.stop_background_warming()
