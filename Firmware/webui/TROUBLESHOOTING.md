@@ -6,6 +6,7 @@ This guide helps diagnose and fix common issues with the Mothbox Web UI.
 - [WebSocket Connection Errors](#websocket-connection-errors)
 - [GPIO Control Failures (400 Errors)](#gpio-control-failures-400-errors)
 - [CSRF Token Issues](#csrf-token-issues)
+- [HDR Mode Issues](#hdr-mode-issues)
 - [Service Not Starting](#service-not-starting)
 - [Permission Errors](#permission-errors)
 
@@ -173,6 +174,141 @@ fetch(url, {
 
 **3. Token Expiration:**
 CSRF tokens don't expire in the Web UI (configured for single-user devices), but if you clear cookies, fetch a new token.
+
+---
+
+## HDR Mode Issues
+
+### Symptom 1: HDR Capture Returns Error
+```
+TakePhoto_HDR.py not found at /opt/mothbox/5.x/scripts/TakePhoto_HDR.py
+```
+
+### Cause
+The HDR script is missing or not in the expected location.
+
+### Solution: Verify Script Exists
+
+Check if the HDR script exists for your Pi version:
+```bash
+# For Pi 5
+ls -la ~/Mothbox/5.x/scripts/TakePhoto_HDR.py
+
+# For Pi 4
+ls -la ~/Mothbox/4.x/scripts/TakePhoto_HDR.py
+```
+
+If missing, the script may not have been deployed. Check git status:
+```bash
+cd ~/Mothbox
+git status
+git pull origin main
+```
+
+### Symptom 2: HDR Indicator Shows Wrong Value
+
+The Camera page HDR indicator doesn't match your settings.
+
+### Cause
+Settings not properly saved to camera_settings.csv or cache issue.
+
+### Solution: Verify Settings File
+
+Check the actual values in camera_settings.csv:
+```bash
+grep -E "^HDR" ~/Mothbox/camera_settings.csv
+```
+
+Should show:
+```
+HDR,5,Number of bracketed exposures
+HDR_width,7000,Bracket step size in microseconds
+```
+
+If incorrect, edit via Settings page in Web UI or manually:
+```bash
+nano ~/Mothbox/camera_settings.csv
+```
+
+Then restart the WebUI:
+```bash
+sudo systemctl restart mothbox-webui
+```
+
+### Symptom 3: Invalid HDR Values Logged
+
+Console shows warnings like:
+```
+⚠️  Invalid HDR count 9, must be 1, 3, 5, or 7. Defaulting to 1.
+⚠️  Invalid HDR_width 100µs, must be 1000-50000. Defaulting to 7000.
+```
+
+### Cause
+HDR settings have invalid values outside allowed ranges.
+
+### Solution: Fix Configuration
+
+Valid HDR settings:
+- **HDR count**: Must be exactly `1` (off), `3`, `5`, or `7`
+- **HDR_width**: Must be between `1000` and `50000` microseconds (1ms - 50ms)
+
+Edit camera_settings.csv:
+```bash
+nano ~/Mothbox/camera_settings.csv
+```
+
+Change to valid values:
+```csv
+HDR,5,Number of bracketed exposures
+HDR_width,7000,Bracket step size in microseconds
+```
+
+The WebUI will automatically fallback to defaults for invalid values, but fixing the file prevents warnings.
+
+### Symptom 4: HDR Captures Taking Too Long
+
+HDR captures with 7 exposures timeout or take excessive time.
+
+### Cause
+More exposures = longer capture time. Each exposure requires camera stabilization and file I/O.
+
+### Solution: Reduce Exposure Count
+
+For faster captures, use fewer exposures:
+- **Quick HDR**: 3 exposures (~5-8 seconds)
+- **Balanced HDR**: 5 exposures (~8-12 seconds)
+- **Maximum HDR**: 7 exposures (~12-18 seconds)
+
+Edit via Settings page → Camera Settings → HDR section, or directly:
+```bash
+nano ~/Mothbox/camera_settings.csv
+```
+
+Change HDR value:
+```csv
+HDR,3,Number of bracketed exposures (reduced for speed)
+```
+
+### Verify HDR is Working
+
+Check Web UI logs during capture:
+```bash
+sudo journalctl -u mothbox-webui -f
+```
+
+Should see:
+```
+✓ HDR mode enabled: 5 exposures with 7000µs bracket width
+📸 HDR mode enabled: 5 exposures, 7000µs bracket width
+Looking for TakePhoto_HDR.py at: /opt/mothbox/5.x/scripts/TakePhoto_HDR.py
+Running: python3 /opt/mothbox/5.x/scripts/TakePhoto_HDR.py
+```
+
+NOT:
+```
+✓ Single exposure mode (HDR=1)
+Looking for TakePhoto.py at: /opt/mothbox/5.x/scripts/TakePhoto.py
+```
 
 ---
 

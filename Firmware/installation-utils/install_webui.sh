@@ -164,6 +164,16 @@ if [ ! -d "$WEBUI_FRONTEND_DIR/node_modules" ]; then
     exit 1
 fi
 
+# Fix execute permissions on npm binaries (npm doesn't always set +x)
+echo "Setting execute permissions on npm binaries..."
+find "$WEBUI_FRONTEND_DIR/node_modules/.bin" -type l 2>/dev/null | while read -r link; do
+    target=$(readlink -f "$link")
+    if [ -f "$target" ]; then
+        chmod +x "$target" 2>/dev/null || true
+    fi
+done
+echo -e "${GREEN}✓ npm binary permissions set${NC}"
+
 echo "Building production frontend..."
 if sudo -u $MOTHBOX_USER npm run build; then
     echo -e "${GREEN}✓ Frontend built successfully${NC}"
@@ -185,6 +195,38 @@ else
 fi
 echo ""
 
+# Setup preset system
+echo -e "${BLUE}Setting up preset system...${NC}"
+PRESET_DIR="/etc/mothbox/presets"
+BUILTIN_PRESET_SOURCE="$SCRIPT_DIR/../webui/backend/presets_builtin"
+
+# Create preset directories
+sudo mkdir -p "$PRESET_DIR/built-in"
+sudo mkdir -p "$PRESET_DIR/user"
+
+# Copy built-in presets if source exists
+if [ -d "$BUILTIN_PRESET_SOURCE" ]; then
+    echo "Copying built-in presets..."
+    sudo cp -r "$BUILTIN_PRESET_SOURCE"/*.json "$PRESET_DIR/built-in/" 2>/dev/null || true
+
+    # Set ownership to webui user
+    sudo chown -R $MOTHBOX_USER:$MOTHBOX_USER "$PRESET_DIR"
+
+    # Set permissions (built-in readable, user dir writable)
+    sudo chmod 755 "$PRESET_DIR"
+    sudo chmod 755 "$PRESET_DIR/built-in"
+    sudo chmod 644 "$PRESET_DIR/built-in"/*.json 2>/dev/null || true
+    sudo chmod 775 "$PRESET_DIR/user"
+
+    PRESET_COUNT=$(ls -1 "$PRESET_DIR/built-in"/*.json 2>/dev/null | wc -l)
+    echo -e "${GREEN}✓ Preset system initialized ($PRESET_COUNT built-in presets)${NC}"
+    echo -e "${GREEN}  Built-in presets: Daylight, Night, Macro, High Speed, Balanced${NC}"
+else
+    echo -e "${YELLOW}Warning: Built-in presets not found at $BUILTIN_PRESET_SOURCE${NC}"
+    echo -e "${YELLOW}Preset directories created, but no built-in presets installed${NC}"
+fi
+echo ""
+
 # Install systemd service
 echo -e "${BLUE}Installing systemd service...${NC}"
 SERVICE_TEMPLATE="$SCRIPT_DIR/mothbox-webui.service.template"
@@ -193,11 +235,13 @@ if [ ! -f "$SERVICE_TEMPLATE" ]; then
     echo -e "${YELLOW}Warning: mothbox-webui.service.template not found, skipping service installation${NC}"
 else
     # Validate systemd template variables to prevent injection
-    if [[ "$MOTHBOX_HOME" =~ [;$\`\(\)\|&<>\n] ]]; then
+    # Use variable for regex to avoid bash interpreting special chars
+    INVALID_CHARS_PATTERN='[;$`()|&<>\n]'
+    if [[ "$MOTHBOX_HOME" =~ $INVALID_CHARS_PATTERN ]]; then
         echo -e "${RED}Error: MOTHBOX_HOME contains invalid characters${NC}"
         exit 1
     fi
-    if [[ "$MOTHBOX_USER" =~ [;$\`\(\)\|&<>\n] ]]; then
+    if [[ "$MOTHBOX_USER" =~ $INVALID_CHARS_PATTERN ]]; then
         echo -e "${RED}Error: MOTHBOX_USER contains invalid characters${NC}"
         exit 1
     fi

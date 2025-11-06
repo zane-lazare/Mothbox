@@ -1,0 +1,218 @@
+#!/bin/bash
+# ==============================================================================
+# Mothbox GPS Hardware Configuration
+# ==============================================================================
+#
+# Configures UART and gpsd for GPS modules (NEO-M8N, NEO-6M, etc.)
+# This script is called by install_mothbox.sh when GPS is enabled.
+#
+# Requirements:
+#   - GPS_DEVICE environment variable (e.g., /dev/ttyAMA0)
+#   - GPS_BAUDRATE environment variable (e.g., 9600)
+#   - gpsd and gpsd-clients packages installed
+#
+# ==============================================================================
+
+set -e  # Exit on error
+
+# Color codes
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}Configuring GPS hardware...${NC}"
+echo ""
+
+# Check required environment variables
+if [ -z "$GPS_DEVICE" ]; then
+    echo -e "${RED}Error: GPS_DEVICE not set${NC}"
+    exit 1
+fi
+
+if [ -z "$GPS_BAUDRATE" ]; then
+    echo -e "${YELLOW}Warning: GPS_BAUDRATE not set, using default 9600${NC}"
+    GPS_BAUDRATE=9600
+fi
+
+# Detect boot configuration location (newer Pi OS uses /boot/firmware)
+if [ -d "/boot/firmware" ]; then
+    BOOT_DIR="/boot/firmware"
+elif [ -d "/boot" ]; then
+    BOOT_DIR="/boot"
+else
+    echo -e "${RED}Error: Cannot find boot directory${NC}"
+    exit 1
+fi
+
+echo -e "${BLUE}Boot directory: $BOOT_DIR${NC}"
+echo -e "${BLUE}GPS device: $GPS_DEVICE${NC}"
+echo -e "${BLUE}GPS baudrate: $GPS_BAUDRATE${NC}"
+echo ""
+
+# UART Configuration (only needed for /dev/ttyAMA0)
+if [ "$GPS_DEVICE" = "/dev/ttyAMA0" ] || [ "$GPS_DEVICE" = "/dev/serial0" ]; then
+    echo -e "${BLUE}Configuring UART for GPS...${NC}"
+
+    # Backup config.txt if not already backed up
+    CONFIG_FILE="$BOOT_DIR/config.txt"
+    if [ ! -f "$CONFIG_FILE.mothbox_backup" ]; then
+        echo "  Creating backup: $CONFIG_FILE.mothbox_backup"
+        sudo cp "$CONFIG_FILE" "$CONFIG_FILE.mothbox_backup"
+        echo -e "${GREEN}  ✓ Config file backed up${NC}"
+    fi
+
+    # Enable UART if not already enabled
+    if ! grep -q "^enable_uart=1" "$CONFIG_FILE" 2>/dev/null; then
+        echo "  Enabling UART..."
+        echo "enable_uart=1" | sudo tee -a "$CONFIG_FILE" > /dev/null
+        echo -e "${GREEN}  ✓ UART enabled${NC}"
+    else
+        echo -e "${GREEN}  ✓ UART already enabled${NC}"
+    fi
+
+    # Detect Raspberry Pi model for Pi 5-specific overlays
+    PI_MODEL=$(cat /proc/device-tree/model 2>/dev/null || echo "Unknown")
+    if [[ "$PI_MODEL" == *"Raspberry Pi 5"* ]]; then
+        IS_PI5=true
+        echo -e "${BLUE}  Detected: Raspberry Pi 5${NC}"
+    else
+        IS_PI5=false
+    fi
+
+    # Disable Bluetooth to free up UART0 (on Pi 3/4/5)
+    if [ "$IS_PI5" = true ]; then
+        # Pi 5 uses disable-bt-pi5 overlay
+        if ! grep -q "^dtoverlay=disable-bt" "$CONFIG_FILE" 2>/dev/null; then
+            echo "  Disabling Bluetooth (frees UART0 for GPS)..."
+            echo "dtoverlay=disable-bt-pi5" | sudo tee -a "$CONFIG_FILE" > /dev/null
+            echo -e "${GREEN}  ✓ Bluetooth disabled (Pi 5)${NC}"
+            echo -e "${YELLOW}  Note: Bluetooth will not be available after reboot${NC}"
+        else
+            # Update existing disable-bt to disable-bt-pi5
+            if grep -q "^dtoverlay=disable-bt$" "$CONFIG_FILE" 2>/dev/null; then
+                echo "  Updating Bluetooth overlay for Pi 5..."
+                sudo sed -i 's/^dtoverlay=disable-bt$/dtoverlay=disable-bt-pi5/' "$CONFIG_FILE"
+                echo -e "${GREEN}  ✓ Bluetooth overlay updated for Pi 5${NC}"
+            else
+                echo -e "${GREEN}  ✓ Bluetooth already disabled${NC}"
+            fi
+        fi
+
+        # Pi 5 requires uart0-pi5 overlay
+        if ! grep -q "^dtoverlay=uart0-pi5" "$CONFIG_FILE" 2>/dev/null; then
+            echo "  Enabling UART0 overlay for Pi 5..."
+            echo "dtoverlay=uart0-pi5" | sudo tee -a "$CONFIG_FILE" > /dev/null
+            echo -e "${GREEN}  ✓ UART0 overlay enabled (Pi 5)${NC}"
+        else
+            echo -e "${GREEN}  ✓ UART0 overlay already enabled${NC}"
+        fi
+    else
+        # Pi 3/4 uses standard disable-bt overlay
+        if ! grep -q "^dtoverlay=disable-bt" "$CONFIG_FILE" 2>/dev/null; then
+            echo "  Disabling Bluetooth (frees UART0 for GPS)..."
+            echo "dtoverlay=disable-bt" | sudo tee -a "$CONFIG_FILE" > /dev/null
+            echo -e "${GREEN}  ✓ Bluetooth disabled${NC}"
+            echo -e "${YELLOW}  Note: Bluetooth will not be available after reboot${NC}"
+        else
+            echo -e "${GREEN}  ✓ Bluetooth already disabled${NC}"
+        fi
+    fi
+
+    # Configure cmdline.txt (remove serial console)
+    CMDLINE_FILE="$BOOT_DIR/cmdline.txt"
+    if [ -f "$CMDLINE_FILE" ]; then
+        if ! [ -f "$CMDLINE_FILE.mothbox_backup" ]; then
+            echo "  Creating backup: $CMDLINE_FILE.mothbox_backup"
+            sudo cp "$CMDLINE_FILE" "$CMDLINE_FILE.mothbox_backup"
+        fi
+
+        # Check if serial console is present
+        if grep -q "console=serial0" "$CMDLINE_FILE" || grep -q "console=ttyAMA0" "$CMDLINE_FILE"; then
+            echo "  Removing serial console from boot command line..."
+            sudo sed -i 's/console=serial0,[0-9]\+ //g' "$CMDLINE_FILE"
+            sudo sed -i 's/console=ttyAMA0,[0-9]\+ //g' "$CMDLINE_FILE"
+            echo -e "${GREEN}  ✓ Serial console removed${NC}"
+        else
+            echo -e "${GREEN}  ✓ Serial console not present${NC}"
+        fi
+    fi
+
+    echo -e "${GREEN}✓ UART configuration complete${NC}"
+    echo -e "${YELLOW}⚠ Reboot required for UART changes to take effect${NC}"
+    echo ""
+fi
+
+# Configure gpsd
+echo -e "${BLUE}Configuring gpsd daemon...${NC}"
+
+GPSD_CONFIG="/etc/default/gpsd"
+
+# Backup gpsd config if not already backed up
+if [ -f "$GPSD_CONFIG" ] && [ ! -f "$GPSD_CONFIG.mothbox_backup" ]; then
+    echo "  Creating backup: $GPSD_CONFIG.mothbox_backup"
+    sudo cp "$GPSD_CONFIG" "$GPSD_CONFIG.mothbox_backup"
+fi
+
+# Configure gpsd
+sudo tee "$GPSD_CONFIG" > /dev/null <<EOF
+# Mothbox GPS Configuration
+# Automatically generated by install_mothbox.sh
+
+# Start gpsd automatically
+START_DAEMON="true"
+
+# GPS device(s)
+DEVICES="$GPS_DEVICE"
+
+# gpsd options
+# -n: Don't wait for client to connect
+# -s: Set GPS speed/baudrate (configures the GPS module)
+GPSD_OPTIONS="-n -s ${GPS_BAUDRATE}"
+
+# Listen on all interfaces (for Web UI access)
+GPSD_SOCKET="/var/run/gpsd.sock"
+EOF
+
+echo -e "${GREEN}  ✓ gpsd configuration written${NC}"
+
+# Stop gpsd service (will be started after reboot)
+echo "  Stopping gpsd service (will auto-start on reboot)..."
+sudo systemctl stop gpsd.socket 2>/dev/null || true
+sudo systemctl stop gpsd 2>/dev/null || true
+
+# Enable gpsd to start on boot
+echo "  Enabling gpsd service..."
+sudo systemctl enable gpsd
+
+echo -e "${GREEN}✓ gpsd configured and enabled${NC}"
+echo ""
+
+# Summary
+echo -e "${GREEN}================================================================================${NC}"
+echo -e "${GREEN}GPS Hardware Configuration Complete${NC}"
+echo -e "${GREEN}================================================================================${NC}"
+echo ""
+echo -e "${BLUE}Configuration Summary:${NC}"
+echo "  GPS Device:    $GPS_DEVICE"
+echo "  Baudrate:      $GPS_BAUDRATE"
+if [ "$GPS_DEVICE" = "/dev/ttyAMA0" ] || [ "$GPS_DEVICE" = "/dev/serial0" ]; then
+    echo "  GPIO Pins:     GPIO 14 (TX), GPIO 15 (RX)"
+    echo "  UART:          Enabled"
+    echo "  Bluetooth:     Disabled (to free UART)"
+fi
+echo "  gpsd:          Configured and enabled"
+echo ""
+
+if [ "$GPS_DEVICE" = "/dev/ttyAMA0" ] || [ "$GPS_DEVICE" = "/dev/serial0" ]; then
+    echo -e "${YELLOW}⚠ IMPORTANT: Reboot required for UART changes to take effect${NC}"
+    echo ""
+    echo -e "${BLUE}After reboot, test GPS with:${NC}"
+else
+    echo -e "${BLUE}Test GPS with:${NC}"
+fi
+echo "  1. cat $GPS_DEVICE          # Should show NMEA sentences"
+echo "  2. gpspipe -r               # Shows raw GPS data via gpsd"
+echo "  3. cgps                     # Interactive GPS status"
+echo ""

@@ -206,9 +206,44 @@ await fetch('/api/gpio/control', {
 - `GET /api/system/power` - Get power metrics from INA260
 
 ### Camera
-- `POST /api/camera/capture` - Trigger photo capture **[Requires CSRF]**
+- `POST /api/camera/capture` - Trigger photo capture (automatically uses HDR if configured) **[Requires CSRF]**
 - `GET /api/camera/settings` - Get camera settings
 - `POST /api/camera/settings` - Update camera settings **[Requires CSRF]**
+- `POST /api/camera/autofocus` - Trigger autofocus cycle **[Requires CSRF]**
+- `POST /api/camera/calibrate` - Auto-calibrate camera settings **[Requires CSRF]**
+
+#### HDR (High Dynamic Range) Mode
+
+HDR mode captures multiple exposures with automatic exposure bracketing for enhanced dynamic range. When enabled, captures use `TakePhoto_HDR.py` instead of `TakePhoto.py`.
+
+**Configuration:**
+- Set `HDR` in camera_settings.csv to number of exposures: `1` (off), `3`, `5`, or `7`
+- Set `HDR_width` to bracket step size in microseconds (default: 7000µs = 7ms)
+- View current HDR status in the Camera page (shows purple badge when active)
+
+**Example:**
+```csv
+SETTING,VALUE,DETAILS
+HDR,5,Number of bracketed exposures
+HDR_width,7000,Bracket step size in microseconds
+```
+
+**Capture Response:**
+```json
+{
+  "success": true,
+  "hdr_mode": true,
+  "hdr_count": 5,
+  "hdr_width": 7000,
+  "script_used": "TakePhoto_HDR.py",
+  "message": "HDR capture complete: 5 exposures with 7000µs bracket width",
+  "latest_photo": "2025-01-15/IMG_001.jpg"
+}
+```
+
+**Web UI Indicators:**
+- Camera page shows HDR status indicator with current configuration
+- Capture success toast displays HDR details (e.g., "HDR capture complete: 5 exposures with 7000µs bracket width")
 
 ### Gallery
 - `GET /api/gallery/photos` - List all photos

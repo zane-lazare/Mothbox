@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getCronJobs, getSchedulerStatus, addCronJob, deleteCronJob } from '../utils/api'
+import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState } from 'react'
 
 export default function Scheduler() {
@@ -12,19 +13,19 @@ export default function Scheduler() {
   })
 
   const { data: jobs, isLoading: jobsLoading } = useQuery({
-    queryKey: ['cron-jobs'],
+    queryKey: QUERY_KEYS.CRON_JOBS,
     queryFn: () => getCronJobs().then(res => res.data.jobs),
   })
 
   const { data: status } = useQuery({
-    queryKey: ['scheduler-status'],
+    queryKey: QUERY_KEYS.SCHEDULER_STATUS,
     queryFn: () => getSchedulerStatus().then(res => res.data),
   })
 
   const addMutation = useMutation({
     mutationFn: addCronJob,
     onSuccess: () => {
-      queryClient.invalidateQueries(['cron-jobs'])
+      queryClient.invalidateQueries(QUERY_KEYS.CRON_JOBS)
       setShowAddForm(false)
       setNewJob({ command: '', schedule: '', comment: '' })
     },
@@ -33,7 +34,7 @@ export default function Scheduler() {
   const deleteMutation = useMutation({
     mutationFn: deleteCronJob,
     onSuccess: () => {
-      queryClient.invalidateQueries(['cron-jobs'])
+      queryClient.invalidateQueries(QUERY_KEYS.CRON_JOBS)
     },
   })
 

@@ -1,23 +1,63 @@
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
 
-*.pyc
-*.pyc
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+coverage_annotated/
+
+# Frontend coverage
+coverage/
+
+# Temporary test files
+*.backup.*
+test_debug.py
+Firmware/photos/
+
+# Runtime configuration files (user/application-generated)
+camera_settings.csv
+liveview_settings.txt
+user_preferences.json
+
+# Development planning documents
+COVERAGE_CHECKLIST.md
+COVERAGE_IMPROVEMENT_GUIDE.md
+
+# Security scanning
+bandit-baseline.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# AI
 AI/__pycache__/Mothbot_ConvertDatasettoCSV.cpython-311.pyc
 /AI/__pycache__
 AI/utility_scripts/RemoveAccents_FTP.py
-/Hardware/PCB/Andy_PCB_5.0.0/MothBox/MothBo-backups
-/Hardware/PCB/Andy_PCB_5.0.1/MothBox/MothBox-backups
-*.pyc
-/AI/__pycache__
-/AI/__pycache__
-/Hardware/PCB/AndyMothbeam_forMBv5.0.1/Mothbeam_UV_365_395_405/Mothbeam-backups
-/Hardware/PCB/AndyMothbeam_forMBv5.0.1/Mothbeam_UV_365_395_405/Mothbeam-backups
-/Hardware/PCB/AndyMothbeam_forMBv5.0.1/Mothbeam/Mothbeam-backups
-/Hardware/PCB/Andy_PCB_5.0.1/MothBox/MothBox-backups
 AI/SpeciesList_CountryIndonesia_TaxaInsecta_doi.org10.15468dl.8p8wua.pt
 AI/SpeciesList_CountryPanamaCostaRica_TaxaInsecta_doi.org10.15468dl.epzeza.pt
-/Hardware/PCB/Andy_PCB_5.0.0/MothBox/MothBox-backups
-/Hardware/PCB/Andy_PCB_5.0.0/MothBox/MothBox-backups
-/Hardware/PCB/Andy_PCB_5.0.2/MothBox/MothBox5.0.2-backups
 AI/SpeciesList_CountryPanamaCostaRica_TaxaInsecta_doi.org10.15468dl.6nxkw6.pt
 AI/Donald_specieslist_doi.org10.15468dl.6nxkw6.pt
 AI/Donald_specieslist_doi.org10.15468dl.6nxkw6.csv
+
+# Hardware
+/Hardware/PCB/Andy_PCB_5.0.0/MothBox/MothBo-backups
+/Hardware/PCB/Andy_PCB_5.0.0/MothBox/MothBox-backups
+/Hardware/PCB/Andy_PCB_5.0.1/MothBox/MothBox-backups
+/Hardware/PCB/Andy_PCB_5.0.2/MothBox/MothBox5.0.2-backups
+/Hardware/PCB/AndyMothbeam_forMBv5.0.1/Mothbeam_UV_365_395_405/Mothbeam-backups
+/Hardware/PCB/AndyMothbeam_forMBv5.0.1/Mothbeam/Mothbeam-backups

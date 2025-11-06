@@ -27,6 +27,7 @@
 #   ./Firmware/update_mothbox.sh --branch <name>    # Pull from specific branch
 #   ./Firmware/update_mothbox.sh --force            # Reprocess current state
 #   ./Firmware/update_mothbox.sh --verify           # Check installation health
+#   ./Firmware/update_mothbox.sh --rebuild          # Force clean frontend rebuild
 #
 # ==============================================================================
 
@@ -61,6 +62,9 @@ BACKUP_BEFORE_UPDATE="false"
 FORCE_UPDATE="false"
 VERIFY_ONLY="false"
 SKIP_FILE_COPY="false"
+FORCE_FRONTEND_REBUILD="false"
+FIX_PERMISSIONS="false"
+DEBUG_MODE="false"
 
 # Installation location variables (will be detected)
 MOTHBOX_HOME=""
@@ -100,6 +104,18 @@ while [[ $# -gt 0 ]]; do
             SKIP_FILE_COPY="true"
             shift
             ;;
+        --rebuild)
+            FORCE_FRONTEND_REBUILD="true"
+            shift
+            ;;
+        --fix-permissions)
+            FIX_PERMISSIONS="true"
+            shift
+            ;;
+        --debug)
+            DEBUG_MODE="true"
+            shift
+            ;;
         --help|-h)
             echo "Mothbox Update Script"
             echo ""
@@ -113,6 +129,9 @@ while [[ $# -gt 0 ]]; do
             echo "  --force, -f       Force reprocess updates even if no git changes"
             echo "  --verify          Check installation status without updating"
             echo "  --skip-copy       Skip copying files to installation (for testing)"
+            echo "  --rebuild         Force clean rebuild of frontend (clears Vite cache)"
+            echo "  --fix-permissions Fix repository ownership issues before updating"
+            echo "  --debug           Enable verbose diagnostic output for troubleshooting"
             echo "  --help, -h        Show this help message"
             exit 0
             ;;
@@ -221,6 +240,158 @@ set_last_update_commit() {
     sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$tracker_file"
 }
 
+# Verify file sync status between repo and installation
+verify_file_sync() {
+    # Use rsync dry-run with checksums to detect file drift
+    # Returns 0 if sync needed, 1 if already in sync
+
+    local files_differ=false
+    local sync_check_file="/tmp/mothbox_sync_check_$$"
+    local debug_file="/tmp/mothbox_sync_debug_$$"
+
+    # Debug: Show sync configuration
+    if [ "$DEBUG_MODE" = "true" ]; then
+        echo -e "${CYAN}[DEBUG] File sync check: ${FIRMWARE_VERSION}.x (excluding ${exclude_firmware:-none})${NC}" >&2
+    fi
+
+    # Determine which firmware version to exclude
+    local exclude_firmware
+    if [ "$FIRMWARE_VERSION" = "4" ]; then
+        exclude_firmware="5.x"
+    else
+        exclude_firmware="4.x"
+    fi
+
+    # Check the entire Firmware directory (matching rsync copy behavior)
+    local source="$MOTHBOX_ROOT/Firmware/"
+    local dest="$MOTHBOX_HOME/"
+
+    if [ ! -e "$source" ]; then
+        [ "$DEBUG_MODE" = "true" ] && echo -e "${RED}[DEBUG] Source directory not found: $source${NC}" >&2
+        return 1
+    fi
+
+    # Debug mode shows detailed rsync output below
+
+    # Run rsync dry-run with checksums to detect differences
+    # Use same exclusions as actual sync operation
+    local rsync_output_file="/tmp/mothbox_rsync_output_$$"
+    local rsync_err_file="/tmp/mothbox_rsync_err_$$"
+
+    if [ "$INSTALL_TYPE" = "production" ]; then
+        if [ "$DEBUG_MODE" = "true" ]; then
+            # Debug mode: capture full output including errors
+            sudo rsync --dry-run --checksum --itemize-changes --archive \
+                  --exclude='.git' --exclude='__pycache__' --exclude='node_modules' \
+                  --exclude='*.pyc' --exclude='.DS_Store' --exclude='.gitignore' --exclude='.github' \
+                  --exclude='install_mothbox.sh' --exclude='uninstall_mothbox.sh' \
+                  --exclude='installation-utils' --exclude='migrate_*.py' \
+                  --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
+                  --exclude='*.md' \
+                  --exclude='Tests' \
+                  --exclude="$exclude_firmware" \
+                  "$source" "$dest" > "$rsync_output_file" 2> "$rsync_err_file"
+            local rsync_exit=$?
+
+            # Filter and save differences
+            grep -E '^[^.]' "$rsync_output_file" >> "$sync_check_file"
+            local diff_count=$(grep -E '^[^.]' "$rsync_output_file" | wc -l)
+
+            echo -e "${CYAN}[DEBUG] Rsync check complete: $diff_count file(s) differ${NC}" >&2
+            if [ "$diff_count" -gt 0 ] && [ "$diff_count" -le 10 ]; then
+                echo -e "${CYAN}[DEBUG] Changed files:${NC}" >&2
+                grep -E '^[^.]' "$rsync_output_file" | sed 's/^/  /' >&2
+            elif [ "$diff_count" -gt 10 ]; then
+                echo -e "${CYAN}[DEBUG] First 10 changed files:${NC}" >&2
+                grep -E '^[^.]' "$rsync_output_file" | head -10 | sed 's/^/  /' >&2
+                echo "  ... and $(($diff_count - 10)) more" >&2
+            fi
+
+            if [ -s "$rsync_err_file" ]; then
+                echo -e "${RED}[DEBUG] Rsync errors:${NC}" >&2
+                cat "$rsync_err_file" | sed 's/^/  /' >&2
+            fi
+            echo "" >&2
+        else
+            # Normal mode: suppress errors
+            sudo rsync --dry-run --checksum --itemize-changes --archive \
+                  --exclude='.git' --exclude='__pycache__' --exclude='node_modules' \
+                  --exclude='*.pyc' --exclude='.DS_Store' --exclude='.gitignore' --exclude='.github' \
+                  --exclude='install_mothbox.sh' --exclude='uninstall_mothbox.sh' \
+                  --exclude='installation-utils' --exclude='migrate_*.py' \
+                  --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
+                  --exclude='*.md' \
+                  --exclude='Tests' \
+                  --exclude="$exclude_firmware" \
+                  "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
+        fi
+    else
+        if [ "$DEBUG_MODE" = "true" ]; then
+            rsync --dry-run --checksum --itemize-changes --archive \
+                  --exclude='.git' --exclude='__pycache__' --exclude='node_modules' \
+                  --exclude='*.pyc' --exclude='.DS_Store' --exclude='.gitignore' --exclude='.github' \
+                  --exclude='install_mothbox.sh' --exclude='uninstall_mothbox.sh' \
+                  --exclude='installation-utils' --exclude='migrate_*.py' \
+                  --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
+                  --exclude='*.md' \
+                  --exclude='Tests' \
+                  --exclude="$exclude_firmware" \
+                  "$source" "$dest" > "$rsync_output_file" 2> "$rsync_err_file"
+            local rsync_exit=$?
+
+            # Filter and save differences
+            grep -E '^[^.]' "$rsync_output_file" >> "$sync_check_file"
+            local diff_count=$(grep -E '^[^.]' "$rsync_output_file" | wc -l)
+
+            echo -e "${CYAN}[DEBUG] Rsync check complete: $diff_count file(s) differ${NC}" >&2
+            if [ "$diff_count" -gt 0 ] && [ "$diff_count" -le 10 ]; then
+                echo -e "${CYAN}[DEBUG] Changed files:${NC}" >&2
+                grep -E '^[^.]' "$rsync_output_file" | sed 's/^/  /' >&2
+            elif [ "$diff_count" -gt 10 ]; then
+                echo -e "${CYAN}[DEBUG] First 10 changed files:${NC}" >&2
+                grep -E '^[^.]' "$rsync_output_file" | head -10 | sed 's/^/  /' >&2
+                echo "  ... and $(($diff_count - 10)) more" >&2
+            fi
+
+            if [ -s "$rsync_err_file" ]; then
+                echo -e "${RED}[DEBUG] Rsync errors:${NC}" >&2
+                cat "$rsync_err_file" | sed 's/^/  /' >&2
+            fi
+            echo "" >&2
+        else
+            rsync --dry-run --checksum --itemize-changes --archive \
+                  --exclude='.git' --exclude='__pycache__' --exclude='node_modules' \
+                  --exclude='*.pyc' --exclude='.DS_Store' --exclude='.gitignore' --exclude='.github' \
+                  --exclude='install_mothbox.sh' --exclude='uninstall_mothbox.sh' \
+                  --exclude='installation-utils' --exclude='migrate_*.py' \
+                  --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
+                  --exclude='*.md' \
+                  --exclude='Tests' \
+                  --exclude="$exclude_firmware" \
+                  "$source" "$dest" 2>/dev/null | grep -E '^[^.]' >> "$sync_check_file"
+        fi
+    fi
+
+    rm -f "$rsync_output_file" "$rsync_err_file"
+
+    # Check if any files differ
+    if [ -s "$sync_check_file" ]; then
+        files_differ=true
+        echo -e "${YELLOW}Files out of sync detected:${NC}" >&2
+        head -20 "$sync_check_file" | sed 's/^/  /' >&2
+        local total=$(wc -l < "$sync_check_file")
+        [ "$total" -gt 20 ] && echo "  ... and $(($total - 20)) more files" >&2
+    fi
+
+    # Clean up temp files (kept in debug mode for inspection)
+    if [ "$DEBUG_MODE" != "true" ]; then
+        rm -f "$sync_check_file"
+    fi
+
+    # Return 0 if sync needed, 1 if in sync
+    [ "$files_differ" = true ] && return 0 || return 1
+}
+
 # Verify build and dependency status
 verify_installation() {
     local issues=0
@@ -290,6 +461,74 @@ verify_installation() {
     fi
 }
 
+# Check if git repository has permission issues
+check_repo_permissions() {
+    local repo_path="$1"
+    local current_user="${2:-$USER}"
+
+    # Check if repo has files owned by other users (especially root)
+    if [ -d "$repo_path/.git" ]; then
+        local root_owned=$(find "$repo_path" -user root 2>/dev/null | wc -l)
+        local write_test_dir="$repo_path/.git"
+
+        # Try to create a test file to verify write permissions
+        if ! touch "$write_test_dir/.permission_test" 2>/dev/null; then
+            echo -e "${RED}Error: Cannot write to git repository${NC}"
+            echo -e "${YELLOW}Repository path: $repo_path${NC}"
+            echo ""
+            echo "This usually happens when the repository has files owned by root"
+            echo "from previous sudo operations."
+            echo ""
+            echo "To fix, run:"
+            echo -e "${CYAN}  sudo chown -R $current_user:$current_user $(realpath $repo_path)${NC}"
+            echo ""
+            return 1
+        else
+            rm -f "$write_test_dir/.permission_test" 2>/dev/null
+        fi
+
+        if [ "$root_owned" -gt 0 ]; then
+            echo -e "${YELLOW}Warning: Found $root_owned files owned by root in repository${NC}"
+            echo "This may cause issues with git operations"
+            echo ""
+            echo "To fix ownership, run:"
+            echo -e "${CYAN}  sudo chown -R $current_user:$current_user $(realpath $repo_path)${NC}"
+            echo ""
+
+            if [ "$AUTO_YES" = "false" ]; then
+                read -p "Continue anyway? [y/N] " -n 1 -r
+                echo
+                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                    return 1
+                fi
+            fi
+        fi
+    fi
+
+    return 0
+}
+
+# Fix repository permissions
+fix_repo_permissions() {
+    local repo_path="$1"
+    local target_user="${2:-$USER}"
+
+    echo -e "${BLUE}Fixing repository permissions...${NC}"
+    echo -e "${CYAN}Repository:${NC} $repo_path"
+    echo -e "${CYAN}Target owner:${NC} $target_user"
+    echo ""
+
+    sudo chown -R "$target_user:$target_user" "$repo_path"
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Repository permissions fixed${NC}"
+        return 0
+    else
+        echo -e "${RED}✗ Failed to fix permissions${NC}"
+        return 1
+    fi
+}
+
 echo -e "${BLUE}================================================================================${NC}"
 echo -e "${BLUE}Mothbox Update${NC}"
 echo -e "${BLUE}================================================================================${NC}"
@@ -343,16 +582,69 @@ fi
 
 cd "$MOTHBOX_ROOT"
 
-# Check for uncommitted changes
+# Handle --fix-permissions mode
+if [ "$FIX_PERMISSIONS" = "true" ]; then
+    fix_repo_permissions "$MOTHBOX_ROOT" "$MOTHBOX_USER"
+    exit $?
+fi
+
+# Check repository permissions before git operations
+echo -e "${BLUE}Checking repository permissions...${NC}"
+if ! check_repo_permissions "$MOTHBOX_ROOT" "$MOTHBOX_USER"; then
+    echo -e "${RED}Repository permission check failed${NC}"
+    echo ""
+    echo "You can fix this by running:"
+    echo -e "${CYAN}  $0 --fix-permissions${NC}"
+    echo ""
+    exit 1
+fi
+echo -e "${GREEN}✓ Repository permissions OK${NC}"
+echo ""
+
+# Check for uncommitted changes and untracked files
+HAS_UNCOMMITTED=false
+HAS_UNTRACKED=false
+STASH_NEEDED=false
+
 if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-    echo -e "${YELLOW}Warning: You have uncommitted changes in your working directory${NC}"
+    HAS_UNCOMMITTED=true
+fi
+
+# Check for untracked files (excluding common directories)
+if [ -n "$(git ls-files --others --exclude-standard)" ]; then
+    HAS_UNTRACKED=true
+fi
+
+if [ "$HAS_UNCOMMITTED" = "true" ] || [ "$HAS_UNTRACKED" = "true" ]; then
+    echo -e "${YELLOW}Warning: You have local changes in your working directory${NC}"
+
+    if [ "$HAS_UNCOMMITTED" = "true" ]; then
+        echo -e "${YELLOW}  • Modified files that haven't been committed${NC}"
+    fi
+    if [ "$HAS_UNTRACKED" = "true" ]; then
+        echo -e "${YELLOW}  • Untracked files${NC}"
+    fi
+
+    echo ""
+    echo "To update successfully, we need to temporarily save your changes."
+    echo "Your changes will be stashed and can be restored later if needed."
+    echo ""
+
     if [ "$AUTO_YES" = "false" ] && [ "$DRY_RUN" = "false" ]; then
-        read -p "Continue anyway? These changes may be lost. [y/N] " -n 1 -r
+        read -p "Stash local changes and continue with update? [y/N] " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             echo -e "${RED}Update cancelled${NC}"
+            echo ""
+            echo "To update manually:"
+            echo "  1. Commit your changes: git add . && git commit -m 'local changes'"
+            echo "  2. Or stash them: git stash --include-untracked"
+            echo "  3. Then run: $0"
             exit 1
         fi
+        STASH_NEEDED=true
+    elif [ "$AUTO_YES" = "true" ]; then
+        STASH_NEEDED=true
     fi
 fi
 
@@ -429,8 +721,56 @@ if [ "$NEED_GIT_PULL" = "true" ]; then
     if [ "$DRY_RUN" = "true" ]; then
         echo -e "${YELLOW}[DRY RUN] Would run: git pull origin $TARGET_BRANCH${NC}"
     else
+        # Stash local changes if needed
+        if [ "$STASH_NEEDED" = "true" ]; then
+            echo -e "${BLUE}Stashing local changes...${NC}"
+            STASH_NAME="mothbox-update-$(date +%Y%m%d-%H%M%S)"
+
+            # Stash both tracked and untracked files
+            if git stash push --include-untracked -m "$STASH_NAME" 2>&1; then
+                echo -e "${GREEN}✓ Local changes stashed as '$STASH_NAME'${NC}"
+                echo ""
+                echo "To restore your changes later, run:"
+                echo -e "${CYAN}  git stash list${NC}  (to see stashed changes)"
+                echo -e "${CYAN}  git stash pop${NC}   (to restore the most recent stash)"
+                echo ""
+            else
+                echo -e "${YELLOW}Warning: Failed to stash some changes${NC}"
+                echo "Attempting to continue with update..."
+                echo ""
+            fi
+        fi
+
         echo -e "${BLUE}Pulling updates from git...${NC}"
-        git pull origin "$TARGET_BRANCH"
+
+        # Try git pull with error handling
+        if ! git pull origin "$TARGET_BRANCH" 2>&1 | tee /tmp/mothbox_git_pull.log; then
+            # Git pull failed - check if it's a permission issue
+            if grep -q "Permission denied" /tmp/mothbox_git_pull.log || grep -q "unable to create file" /tmp/mothbox_git_pull.log; then
+                echo -e "${RED}✗ Git pull failed due to permission issues${NC}"
+                echo ""
+                echo "This usually happens when files in the repository are owned by root"
+                echo "or another user, preventing git from creating/updating files."
+                echo ""
+                echo "To fix this, run:"
+                echo -e "${CYAN}  $0 --fix-permissions${NC}"
+                echo ""
+                echo "Or manually:"
+                echo -e "${CYAN}  sudo chown -R $MOTHBOX_USER:$MOTHBOX_USER $(realpath $MOTHBOX_ROOT)${NC}"
+                echo -e "${CYAN}  $0${NC}"
+                echo ""
+                rm -f /tmp/mothbox_git_pull.log
+                exit 1
+            else
+                # Other git error
+                echo -e "${RED}✗ Git pull failed${NC}"
+                echo "Check the error message above for details"
+                rm -f /tmp/mothbox_git_pull.log
+                exit 1
+            fi
+        fi
+
+        rm -f /tmp/mothbox_git_pull.log
         echo -e "${GREEN}✓ Git updates pulled${NC}"
 
         # Update COMPARE_COMMIT to new HEAD after pull
@@ -439,8 +779,28 @@ if [ "$NEED_GIT_PULL" = "true" ]; then
     fi
 fi
 
+# For production installs, always check file sync status
+FILES_NEED_SYNC=false
+if [ "$INSTALL_TYPE" = "production" ]; then
+    echo -e "${BLUE}Checking file sync status...${NC}"
+    if verify_file_sync; then
+        FILES_NEED_SYNC=true
+        echo -e "${YELLOW}⚠ Files need synchronization${NC}"
+    else
+        echo -e "${GREEN}✓ Files in sync${NC}"
+    fi
+    echo ""
+fi
+
 # Check if processing is needed (now comparing against pulled code)
-if [ "$BASE_COMMIT" = "$COMPARE_COMMIT" ] && [ "$FORCE_UPDATE" = "false" ]; then
+GIT_HAS_CHANGES=false
+if [ "$BASE_COMMIT" != "$COMPARE_COMMIT" ]; then
+    GIT_HAS_CHANGES=true
+fi
+
+# Early exit if nothing to do
+if [ "$GIT_HAS_CHANGES" = "false" ] && [ "$FILES_NEED_SYNC" = "false" ] && \
+   [ "$FORCE_UPDATE" = "false" ] && [ "$FORCE_FRONTEND_REBUILD" = "false" ]; then
     echo -e "${GREEN}✓ No updates to process!${NC}"
     echo ""
 
@@ -450,38 +810,62 @@ if [ "$BASE_COMMIT" = "$COMPARE_COMMIT" ] && [ "$FORCE_UPDATE" = "false" ]; then
     exit 0
 fi
 
-echo ""
+# If production and files need sync but no git changes, do sync-only
+if [ "$INSTALL_TYPE" = "production" ] && [ "$FILES_NEED_SYNC" = "true" ] && [ "$GIT_HAS_CHANGES" = "false" ]; then
+    echo -e "${BLUE}Syncing files (no git changes, but files out of sync)...${NC}"
+    echo ""
+    # Will proceed to file sync section below, then exit early
+fi
 
-# Show what will be updated (changes between base and current)
-echo -e "${BLUE}Changes to process:${NC}"
-git --no-pager diff --name-status "$BASE_COMMIT..$COMPARE_COMMIT" | head -20
-echo ""
-
-TOTAL_CHANGES=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | wc -l)
-if [ "$TOTAL_CHANGES" -gt 20 ]; then
-    echo -e "${CYAN}... and $(($TOTAL_CHANGES - 20)) more files${NC}"
+# If only rebuild requested (no git changes), skip to rebuild section
+if [ "$GIT_HAS_CHANGES" = "false" ] && [ "$FORCE_FRONTEND_REBUILD" = "true" ]; then
+    echo -e "${YELLOW}No git changes, but --rebuild requested${NC}"
     echo ""
 fi
 
-# Categorize changes
-FIRMWARE_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/.*\.py$' | wc -l)
-WEBUI_BACKEND_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/backend/' | wc -l)
-WEBUI_FRONTEND_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/frontend/' | wc -l)
-# Also rebuild frontend if backend config or dependencies changed (may affect CSRF, CORS, API behavior)
-BACKEND_CONFIG_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/backend/(config\.py|requirements\.txt)$' | wc -l)
-INSTALLER_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/install.*\.sh$|^Firmware/installation-utils/' | wc -l)
-SERVICE_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '\.service\.template$' | wc -l)
-CONFIG_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E 'controls\.txt$|camera_settings\.csv$|schedule_settings\.csv$|wordlist\.csv$' | wc -l)
+# Show what will be updated (changes between base and current)
+if [ "$GIT_HAS_CHANGES" = "true" ]; then
+    echo ""
+    echo -e "${BLUE}Changes to process:${NC}"
+    git --no-pager diff --name-status "$BASE_COMMIT..$COMPARE_COMMIT" | head -20
+    echo ""
+fi
 
-echo -e "${CYAN}Components affected:${NC}"
-[ "$FIRMWARE_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Firmware Python scripts ($FIRMWARE_CHANGED files)"
-[ "$WEBUI_BACKEND_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Web UI backend ($WEBUI_BACKEND_CHANGED files)"
-[ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Web UI frontend ($WEBUI_FRONTEND_CHANGED files)"
-[ "$BACKEND_CONFIG_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Backend config/dependencies ($BACKEND_CONFIG_CHANGED files) - requires frontend rebuild"
-[ "$SERVICE_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Systemd service files ($SERVICE_CHANGED files)"
-[ "$INSTALLER_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Installer scripts ($INSTALLER_CHANGED files)"
-[ "$CONFIG_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Configuration files ($CONFIG_CHANGED files)"
-echo ""
+# Categorize changes (only if git has changes)
+FIRMWARE_CHANGED=0
+WEBUI_BACKEND_CHANGED=0
+WEBUI_FRONTEND_CHANGED=0
+BACKEND_CONFIG_CHANGED=0
+INSTALLER_CHANGED=0
+SERVICE_CHANGED=0
+CONFIG_CHANGED=0
+
+if [ "$GIT_HAS_CHANGES" = "true" ]; then
+    TOTAL_CHANGES=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | wc -l)
+    if [ "$TOTAL_CHANGES" -gt 20 ]; then
+        echo -e "${CYAN}... and $(($TOTAL_CHANGES - 20)) more files${NC}"
+        echo ""
+    fi
+
+    FIRMWARE_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/.*\.py$' | wc -l)
+    WEBUI_BACKEND_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/backend/' | wc -l)
+    WEBUI_FRONTEND_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/frontend/' | wc -l)
+    # Also rebuild frontend if backend config or dependencies changed (may affect CSRF, CORS, API behavior)
+    BACKEND_CONFIG_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/webui/backend/(config\.py|requirements\.txt)$' | wc -l)
+    INSTALLER_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '^Firmware/install.*\.sh$|^Firmware/installation-utils/' | wc -l)
+    SERVICE_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '\.service\.template$' | wc -l)
+    CONFIG_CHANGED=$(git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E 'controls\.txt$|camera_settings\.csv$|schedule_settings\.csv$|wordlist\.csv$' | wc -l)
+
+    echo -e "${CYAN}Components affected:${NC}"
+    [ "$FIRMWARE_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Firmware Python scripts ($FIRMWARE_CHANGED files)"
+    [ "$WEBUI_BACKEND_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Web UI backend ($WEBUI_BACKEND_CHANGED files)"
+    [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Web UI frontend ($WEBUI_FRONTEND_CHANGED files)"
+    [ "$BACKEND_CONFIG_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Backend config/dependencies ($BACKEND_CONFIG_CHANGED files) - requires frontend rebuild"
+    [ "$SERVICE_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Systemd service files ($SERVICE_CHANGED files)"
+    [ "$INSTALLER_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Installer scripts ($INSTALLER_CHANGED files)"
+    [ "$CONFIG_CHANGED" -gt 0 ] && echo -e "  ${YELLOW}•${NC} Configuration files ($CONFIG_CHANGED files)"
+    echo ""
+fi
 
 # Confirm update
 if [ "$AUTO_YES" = "false" ] && [ "$DRY_RUN" = "false" ]; then
@@ -517,27 +901,26 @@ fi
 if [ "$INSTALL_TYPE" = "production" ] && [ "$SKIP_FILE_COPY" = "false" ]; then
     echo -e "${BLUE}Syncing files to installation directory...${NC}"
 
-    # Copy firmware-version-specific files to root of installation
-    echo "Copying ${FIRMWARE_VERSION}.x firmware files..."
-    sudo rsync -av \
-        --exclude='__pycache__' --exclude='*.pyc' \
-        --exclude='node_modules' --exclude='.DS_Store' \
-        "$MOTHBOX_ROOT/Firmware/${FIRMWARE_VERSION}.x/" "$MOTHBOX_HOME/"
-
-    # Copy common files (mothbox_paths.py, etc.)
-    echo "Copying common files..."
-    sudo rsync -av \
-        --exclude='__pycache__' --exclude='*.pyc' \
-        "$MOTHBOX_ROOT/Firmware/mothbox_paths.py" "$MOTHBOX_HOME/"
-
-    # Copy Web UI (if it exists)
-    if [ -d "$MOTHBOX_ROOT/Firmware/webui" ]; then
-        echo "Copying Web UI..."
-        sudo rsync -av \
-            --exclude='__pycache__' --exclude='*.pyc' \
-            --exclude='node_modules' --exclude='.DS_Store' \
-            "$MOTHBOX_ROOT/Firmware/webui/" "$MOTHBOX_HOME/webui/"
+    # Determine which firmware version to exclude (sync only installed version)
+    if [ "$FIRMWARE_VERSION" = "4" ]; then
+        EXCLUDE_FIRMWARE="5.x"
+    else
+        EXCLUDE_FIRMWARE="4.x"
     fi
+
+    # Copy entire Firmware directory structure (matching installer behavior)
+    # This preserves the X.x subdirectory structure that mothbox_paths.py expects
+    echo "Syncing firmware files (${FIRMWARE_VERSION}.x)..."
+    sudo rsync -av --checksum \
+        --exclude='.git' --exclude='__pycache__' --exclude='node_modules' \
+        --exclude='*.pyc' --exclude='.DS_Store' --exclude='.gitignore' --exclude='.github' \
+        --exclude='install_mothbox.sh' --exclude='uninstall_mothbox.sh' \
+        --exclude='installation-utils' --exclude='migrate_*.py' \
+        --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
+        --exclude='*.md' \
+        --exclude='Tests' \
+        --exclude="$EXCLUDE_FIRMWARE" \
+        "$MOTHBOX_ROOT/Firmware/" "$MOTHBOX_HOME/"
 
     # Note: We do NOT copy update_mothbox.sh to installation directory
     # The update script must always be run from the source git repository
@@ -551,12 +934,44 @@ if [ "$INSTALL_TYPE" = "production" ] && [ "$SKIP_FILE_COPY" = "false" ]; then
     # Set proper ownership
     sudo chown -R $MOTHBOX_USER:$MOTHBOX_USER "$MOTHBOX_HOME"
 
+    # Also fix config directory ownership for production installs
+    # Config files must be writable by webui service (runs as pi:gpio)
+    if [ "$INSTALL_TYPE" = "production" ]; then
+        echo "Setting config directory permissions..."
+        sudo chown -R $MOTHBOX_USER:gpio "$CONFIG_DIR"
+    fi
+
     echo -e "${GREEN}✓ Files synced to $MOTHBOX_HOME${NC}"
+    echo ""
+
+    # Sync built-in presets to config directory
+    echo "Syncing built-in presets..."
+    BUILTIN_PRESET_SOURCE="$MOTHBOX_ROOT/Firmware/webui/backend/presets_builtin"
+    PRESET_DIR="$CONFIG_DIR/presets"
+
+    if [ -d "$BUILTIN_PRESET_SOURCE" ]; then
+        sudo mkdir -p "$PRESET_DIR/built-in"
+        sudo cp -f "$BUILTIN_PRESET_SOURCE"/*.json "$PRESET_DIR/built-in/"
+        sudo chown -R "$MOTHBOX_USER:gpio" "$PRESET_DIR"
+        sudo chmod -R 644 "$PRESET_DIR/built-in"/*.json
+        echo -e "${GREEN}✓ Built-in presets synced${NC}"
+    else
+        echo -e "${YELLOW}⚠ Built-in preset source not found: $BUILTIN_PRESET_SOURCE${NC}"
+    fi
     echo ""
 elif [ "$INSTALL_TYPE" = "legacy" ]; then
     # For legacy installs, git repo IS the installation - no copying needed
     echo -e "${CYAN}Legacy install detected - files already in place${NC}"
     echo ""
+fi
+
+# If we only needed file sync (no git changes), exit here
+if [ "$GIT_HAS_CHANGES" = "false" ] && [ "$FILES_NEED_SYNC" = "true" ]; then
+    echo -e "${GREEN}✓ File sync complete, no other updates needed${NC}"
+    echo ""
+    verify_installation
+    set_last_update_commit "$COMPARE_COMMIT"
+    exit 0
 fi
 
 # Update components based on what changed
@@ -565,7 +980,7 @@ UPDATES_PERFORMED=0
 # Update firmware Python scripts permissions
 if [ "$FIRMWARE_CHANGED" -gt 0 ]; then
     echo -e "${BLUE}Updating firmware script permissions...${NC}"
-    find "$MOTHBOX_HOME" -name "*.py" -exec chmod +x {} \;
+    find "$MOTHBOX_HOME" -name "*.py" -exec chmod +x {} +
     echo -e "${GREEN}✓ Firmware permissions updated${NC}"
     UPDATES_PERFORMED=$((UPDATES_PERFORMED + 1))
     echo ""
@@ -596,12 +1011,14 @@ if [ "$WEBUI_BACKEND_CHANGED" -gt 0 ]; then
     echo ""
 fi
 
-# Rebuild Web UI frontend if frontend files OR critical backend config changed
-if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] || [ "$BACKEND_CONFIG_CHANGED" -gt 0 ]; then
+# Rebuild Web UI frontend if frontend files OR critical backend config changed OR --rebuild flag
+if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] || [ "$BACKEND_CONFIG_CHANGED" -gt 0 ] || [ "$FORCE_FRONTEND_REBUILD" = "true" ]; then
     echo -e "${BLUE}Rebuilding Web UI frontend...${NC}"
 
     # Explain why we're rebuilding
-    if [ "$BACKEND_CONFIG_CHANGED" -gt 0 ] && [ "$WEBUI_FRONTEND_CHANGED" -eq 0 ]; then
+    if [ "$FORCE_FRONTEND_REBUILD" = "true" ]; then
+        echo "Force rebuild requested - performing clean build"
+    elif [ "$BACKEND_CONFIG_CHANGED" -gt 0 ] && [ "$WEBUI_FRONTEND_CHANGED" -eq 0 ]; then
         echo "Backend configuration changed - rebuilding frontend to ensure compatibility"
     fi
 
@@ -610,17 +1027,42 @@ if [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] || [ "$BACKEND_CONFIG_CHANGED" -gt 0 ]; t
 
         # Check if we need to install/reinstall npm dependencies
         # Install if: node_modules missing OR package.json/package-lock.json changed
+        NPM_INSTALLED=false
         if [ ! -d "node_modules" ]; then
             echo "Installing npm dependencies (node_modules not found)..."
             sudo -u "$MOTHBOX_USER" npm install
+            NPM_INSTALLED=true
         elif git -C "$MOTHBOX_ROOT" diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" 2>/dev/null | grep -q "webui/frontend/package"; then
             echo "Reinstalling npm dependencies (package files changed)..."
             sudo -u "$MOTHBOX_USER" npm install
+            NPM_INSTALLED=true
+        fi
+
+        # Fix execute permissions on npm binaries after install
+        if [ "$NPM_INSTALLED" = true ]; then
+            echo "Setting execute permissions on npm binaries..."
+            find node_modules/.bin -type l 2>/dev/null | while read -r link; do
+                target=$(readlink -f "$link")
+                if [ -f "$target" ]; then
+                    chmod +x "$target" 2>/dev/null || true
+                fi
+            done
         fi
 
         # Clean build to avoid Vite caching issues with incremental builds
-        echo "Cleaning previous build artifacts..."
+        echo "Cleaning previous build artifacts and Vite cache..."
         rm -rf dist
+        rm -rf node_modules/.vite
+
+        # Always ensure npm binaries are executable before build (in case permissions were lost)
+        if [ -d "node_modules/.bin" ]; then
+            find node_modules/.bin -type l 2>/dev/null | while read -r link; do
+                target=$(readlink -f "$link")
+                if [ -f "$target" ] && [ ! -x "$target" ]; then
+                    chmod +x "$target" 2>/dev/null || true
+                fi
+            done
+        fi
 
         echo "Building production frontend..."
         sudo -u "$MOTHBOX_USER" npm run build
@@ -643,6 +1085,16 @@ if [ "$INSTALL_TYPE" = "production" ] && [ -d "$MOTHBOX_HOME/webui/frontend" ]; 
         echo "This enables frontend rebuilds for development/testing"
         cd "$MOTHBOX_HOME/webui/frontend"
         sudo -u "$MOTHBOX_USER" npm install
+
+        # Fix execute permissions on npm binaries
+        echo "Setting execute permissions on npm binaries..."
+        find node_modules/.bin -type l 2>/dev/null | while read -r link; do
+            target=$(readlink -f "$link")
+            if [ -f "$target" ]; then
+                chmod +x "$target" 2>/dev/null || true
+            fi
+        done
+
         echo -e "${GREEN}✓ npm dependencies installed${NC}"
         cd "$MOTHBOX_ROOT"
         echo ""

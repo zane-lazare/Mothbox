@@ -1,28 +1,25 @@
 #!/usr/bin/python3
 
-'''
+"""
 This is a special script to debug mothboxes with which will
 -Stop cron
 -Stop the internet from going off
 -Turning off the bright UV
 -stop the mothbox from shutting down
-'''
+"""
 
-from pathlib import Path
 import sys
+from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import CONTROLS_FILE, get_script_path
-
-import subprocess
-
-
-#GPIO
-import RPi.GPIO as GPIO
-import time
 import datetime
+import subprocess
 from datetime import datetime
 
+# GPIO
+import RPi.GPIO as GPIO
 
+from mothbox_paths import CONTROLS_FILE, get_script_path
 
 now = datetime.now()
 formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")  # Adjust the format as needed
@@ -39,8 +36,8 @@ def stop_cron():
     except subprocess.CalledProcessError as error:
         print("Error stopping cron service:", error)
 
-stop_cron()
 
+stop_cron()
 
 
 print("----------------- ATTRACT OFF-------------------")
@@ -49,44 +46,43 @@ print("----------------- ATTRACT OFF-------------------")
 from mothbox_paths import get_gpio_pins
 
 pins = get_gpio_pins()
-Relay_Ch1 = pins['Relay_Ch1']
-Relay_Ch2 = pins['Relay_Ch2']
-Relay_Ch3 = pins['Relay_Ch3']
+Relay_Ch1 = pins["Relay_Ch1"]
+Relay_Ch2 = pins["Relay_Ch2"]
+Relay_Ch3 = pins["Relay_Ch3"]
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
 
-GPIO.setup(Relay_Ch1,GPIO.OUT)
-GPIO.setup(Relay_Ch2,GPIO.OUT)
+GPIO.setup(Relay_Ch1, GPIO.OUT)
+GPIO.setup(Relay_Ch2, GPIO.OUT)
 
-GPIO.setup(Relay_Ch3,GPIO.OUT)
+GPIO.setup(Relay_Ch3, GPIO.OUT)
 
 print("Setup The Relay Module is [success]")
 
 
-
 def AttractOn():
-    GPIO.output(Relay_Ch3,GPIO.LOW)
-    if(onlyflash):
-        GPIO.output(Relay_Ch2,GPIO.LOW)
+    GPIO.output(Relay_Ch3, GPIO.LOW)
+    if onlyflash:
+        GPIO.output(Relay_Ch2, GPIO.LOW)
         print("Always Flash mode is on")
     else:
-        GPIO.output(Relay_Ch2,GPIO.HIGH)
+        GPIO.output(Relay_Ch2, GPIO.HIGH)
 
-    GPIO.output(Relay_Ch1,GPIO.LOW)
+    GPIO.output(Relay_Ch1, GPIO.LOW)
     print("Attract Lights On\n")
-    
-def AttractOff():
-    GPIO.output(Relay_Ch1,GPIO.HIGH)
 
-    GPIO.output(Relay_Ch2,GPIO.HIGH)
-    GPIO.output(Relay_Ch3,GPIO.HIGH)
+
+def AttractOff():
+    GPIO.output(Relay_Ch1, GPIO.HIGH)
+
+    GPIO.output(Relay_Ch2, GPIO.HIGH)
+    GPIO.output(Relay_Ch3, GPIO.HIGH)
 
     print("Attract Lights Off\n")
 
 
-
-#AttractOn()
+# AttractOn()
 AttractOff()
 
 
@@ -107,7 +103,7 @@ print("WIFI Script execution completed!")
 print("----------------- KEEP PI ON INDEFINITLEY-------------------")
 
 
-with open(str(CONTROLS_FILE), "r") as file:
+with open(str(CONTROLS_FILE)) as file:
     lines = file.readlines()
 
 with open(str(CONTROLS_FILE), "w") as file:

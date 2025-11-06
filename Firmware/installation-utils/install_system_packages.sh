@@ -30,6 +30,8 @@ sudo apt-get install -y \
     python3-rpi-lgpio \
     python3-pil \
     git \
-    i2c-tools
+    i2c-tools \
+    gpsd \
+    gpsd-clients
 
 echo -e "${GREEN}✓ System packages installed successfully${NC}"

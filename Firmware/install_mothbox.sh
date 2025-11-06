@@ -192,7 +192,9 @@ if [ "$INTERACTIVE_MODE" = "true" ]; then
             # Remove trailing slashes for consistency
             CUSTOM_PATH="${CUSTOM_PATH%/}"
             # Check for dangerous characters
-            if [[ "$CUSTOM_PATH" =~ [[:space:]\;\$\`\(\)\|&\<\>] ]]; then
+            # Use variable for regex to avoid bash interpreting special chars
+            INVALID_PATH_CHARS='[[:space:];$`()|&<>]'
+            if [[ "$CUSTOM_PATH" =~ $INVALID_PATH_CHARS ]]; then
                 echo -e "${RED}Error: Custom path contains invalid characters${NC}"
                 exit 1
             fi
@@ -246,7 +248,9 @@ if [ "$INTERACTIVE_MODE" = "false" ]; then
             # Remove trailing slashes for consistency
             CUSTOM_PATH="${CUSTOM_PATH%/}"
             # Check for dangerous characters
-            if [[ "$CUSTOM_PATH" =~ [[:space:]\;\$\`\(\)\|&\<\>] ]]; then
+            # Use variable for regex to avoid bash interpreting special chars
+            INVALID_PATH_CHARS='[[:space:];$`()|&<>]'
+            if [[ "$CUSTOM_PATH" =~ $INVALID_PATH_CHARS ]]; then
                 echo -e "${RED}Error: Custom path contains invalid characters${NC}"
                 exit 1
             fi
@@ -527,15 +531,24 @@ else
     echo ""
 
     # GPS Module Configuration
-    echo -e "${YELLOW}GPS Module${NC}"
+    echo -e "${YELLOW}GPS Module (NEO-M8N or compatible)${NC}"
+    echo "  Hardware connection:"
+    echo "    - GPIO 14 (TX) → GPS RX"
+    echo "    - GPIO 15 (RX) → GPS TX"
+    echo "    - 3.3V → GPS VCC"
+    echo "    - GND → GPS GND"
+    echo ""
+    echo -e "${YELLOW}  ⚠ Note: UART mode disables Bluetooth on Pi 3/4/5${NC}"
+    echo "  (Bluetooth conflicts with UART0 on these models)"
+    echo ""
     read -p "Configure GPS module? (Y/n): " CONFIGURE_GPS
     CONFIGURE_GPS=${CONFIGURE_GPS:-Y}
 
     if [[ "$CONFIGURE_GPS" =~ ^[Yy]$ ]]; then
         GPS_ENABLED="true"
         echo "  GPS device options:"
-        echo "    1) /dev/ttyAMA0 (UART - GPIO pins 14/15)"
-        echo "    2) /dev/ttyUSB0 (USB GPS module)"
+        echo "    1) /dev/ttyAMA0 (UART - GPIO pins 14/15, disables Bluetooth)"
+        echo "    2) /dev/ttyUSB0 (USB GPS module, Bluetooth unaffected)"
         echo "    3) Custom device path"
         read -p "  Select GPS device [1]: " GPS_DEVICE_CHOICE
         GPS_DEVICE_CHOICE=${GPS_DEVICE_CHOICE:-1}
@@ -727,11 +740,19 @@ echo ""
 "$SCRIPT_DIR/installation-utils/configure_camera.sh"
 echo ""
 
+# Configure GPS hardware (if enabled)
+if [ "$GPS_ENABLED" = "true" ]; then
+    export GPS_DEVICE
+    export GPS_BAUDRATE
+    "$SCRIPT_DIR/installation-utils/configure_gps.sh"
+fi
+
 echo -e "${BLUE}Creating directories...${NC}"
 
 # Create directories
 sudo mkdir -p "$MOTHBOX_HOME"
 sudo mkdir -p "$CONFIG_DIR"
+sudo mkdir -p "$CONFIG_DIR/isp_tuning"
 sudo mkdir -p "$DATA_DIR/photos"
 
 # Set ownership to Mothbox user
@@ -744,15 +765,15 @@ fi
 # Regular files: 644 (rw-r--r--)
 # Scripts (.py, .sh): 755 (rwxr-xr-x)
 echo "Setting file permissions..."
-find "$MOTHBOX_HOME" -type d -exec sudo chmod 755 {} \;
-find "$MOTHBOX_HOME" -type f -exec sudo chmod 644 {} \;
-find "$MOTHBOX_HOME" -type f \( -name "*.py" -o -name "*.sh" \) -exec sudo chmod 755 {} \;
+find "$MOTHBOX_HOME" -type d -exec sudo chmod 755 {} +
+find "$MOTHBOX_HOME" -type f -exec sudo chmod 644 {} +
+find "$MOTHBOX_HOME" -type f \( -name "*.py" -o -name "*.sh" \) -exec sudo chmod 755 {} +
 
-find "$CONFIG_DIR" -type d -exec sudo chmod 755 {} \;
-find "$CONFIG_DIR" -type f -exec sudo chmod 644 {} \;
+find "$CONFIG_DIR" -type d -exec sudo chmod 755 {} +
+find "$CONFIG_DIR" -type f -exec sudo chmod 644 {} +
 
-find "$DATA_DIR" -type d -exec sudo chmod 755 {} \;
-find "$DATA_DIR" -type f -exec sudo chmod 644 {} \;
+find "$DATA_DIR" -type d -exec sudo chmod 755 {} +
+find "$DATA_DIR" -type f -exec sudo chmod 644 {} +
 
 echo -e "${GREEN}✓ Directories created and permissions set${NC}"
 
@@ -824,6 +845,7 @@ if command -v rsync &> /dev/null; then
         --exclude='installation-utils' --exclude='migrate_*.py' \
         --exclude='INSTALLATION.md' --exclude='HARDWARE_CONFIG_REMAINING.md' \
         --exclude='*.md' \
+        --exclude='Tests' \
         --exclude="$EXCLUDE_FIRMWARE" \
         "$SCRIPT_DIR/" "$MOTHBOX_HOME/"
     echo -e "${GREEN}✓ Firmware files copied (${FIRMWARE_VERSION}.x only, excluding dev artifacts)${NC}"
@@ -861,6 +883,36 @@ if [ -f "$CONFIG_DIR/controls.txt" ]; then
     echo -e "${GREEN}✓ Firmware version set to ${FIRMWARE_VERSION}.0.0${NC}"
 fi
 
+# Copy ISP tuning file (camera ISP configuration for Picamera2)
+echo -e "${BLUE}Setting up ISP tuning configuration...${NC}"
+ISP_SOURCE="$SCRIPT_DIR/isp_tuning/camera_isp_tuning.json"
+if [ -f "$ISP_SOURCE" ]; then
+    sudo install -o $MOTHBOX_USER -g $MOTHBOX_USER -m 644 \
+        "$ISP_SOURCE" "$CONFIG_DIR/isp_tuning/camera_isp_tuning.json"
+    echo -e "${GREEN}  ✓ Copied camera_isp_tuning.json${NC}"
+else
+    echo -e "${YELLOW}  ⚠ Warning: ISP tuning file not found at $ISP_SOURCE${NC}"
+fi
+
+# Copy libcamera tuning file (autofocus retrigger configuration for OV64A40)
+echo -e "${BLUE}Setting up libcamera tuning configuration...${NC}"
+LIBCAMERA_TUNING_SOURCE="$SCRIPT_DIR/webui/libcamera_tuning/ov64a40_mothbox.json"
+LIBCAMERA_TUNING_DEST="/usr/share/libcamera/ipa/rpi/pisp/ov64a40.json"
+if [ -f "$LIBCAMERA_TUNING_SOURCE" ]; then
+    # Backup original if it exists and backup doesn't already exist
+    if [ -f "$LIBCAMERA_TUNING_DEST" ] && [ ! -f "${LIBCAMERA_TUNING_DEST}.orig" ]; then
+        sudo cp "$LIBCAMERA_TUNING_DEST" "${LIBCAMERA_TUNING_DEST}.orig"
+        echo -e "${GREEN}  ✓ Backed up original ov64a40.json${NC}"
+    fi
+
+    # Install custom tuning file
+    sudo install -o root -g root -m 644 \
+        "$LIBCAMERA_TUNING_SOURCE" "$LIBCAMERA_TUNING_DEST"
+    echo -e "${GREEN}  ✓ Installed custom OV64A40 tuning file (AF retrigger enabled)${NC}"
+else
+    echo -e "${YELLOW}  ⚠ Warning: Custom libcamera tuning file not found at $LIBCAMERA_TUNING_SOURCE${NC}"
+fi
+
 echo -e "${GREEN}✓ Configuration files set up at $CONFIG_DIR${NC}"
 
 # Create installation type marker file for reliable detection
@@ -886,6 +938,25 @@ update_controls_atomic() {
 
     ) 200>"$lockfile"
 }
+
+# Helper function to update or add a config line in controls.txt
+# Usage: update_or_add_config "key" "value" "$CONTROLS_FILE"
+update_or_add_config() {
+    local key="$1"
+    local value="$2"
+    local file="$3"
+
+    if grep -q "^${key}=" "$file" 2>/dev/null; then
+        # Update existing line
+        sudo sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+    else
+        # Add new line
+        echo "${key}=${value}" | sudo tee -a "$file" > /dev/null
+    fi
+}
+
+# Export function so it's available in subshells (needed for update_controls_atomic)
+export -f update_or_add_config
 
 # Write GPIO configuration to controls.txt
 echo -e "${BLUE}Configuring GPIO pins...${NC}"
@@ -933,7 +1004,7 @@ echo -e "${GREEN}✓ Configuration values validated${NC}"
 
 # Append GPIO configuration if not already present
 if ! grep -q "^Relay_Ch1=" "$CONTROLS_FILE" 2>/dev/null; then
-    update_controls_atomic sh -c "
+    update_controls_atomic bash -c "
         echo 'Relay_Ch1=$RELAY_CH1' | sudo tee -a '$CONTROLS_FILE' > /dev/null
         echo 'Relay_Ch2=$RELAY_CH2' | sudo tee -a '$CONTROLS_FILE' > /dev/null
         echo 'Relay_Ch3=$RELAY_CH3' | sudo tee -a '$CONTROLS_FILE' > /dev/null
@@ -941,7 +1012,7 @@ if ! grep -q "^Relay_Ch1=" "$CONTROLS_FILE" 2>/dev/null; then
     echo -e "${GREEN}✓ GPIO configuration written to controls.txt${NC}"
 else
     # Update existing GPIO configuration with file locking
-    update_controls_atomic sh -c "
+    update_controls_atomic bash -c "
         sudo sed -i 's/^Relay_Ch1=.*/Relay_Ch1=$RELAY_CH1/' '$CONTROLS_FILE'
         sudo sed -i 's/^Relay_Ch2=.*/Relay_Ch2=$RELAY_CH2/' '$CONTROLS_FILE'
         sudo sed -i 's/^Relay_Ch3=.*/Relay_Ch3=$RELAY_CH3/' '$CONTROLS_FILE'
@@ -951,63 +1022,39 @@ fi
 
 # Write hardware module configuration
 echo -e "${BLUE}Configuring hardware modules...${NC}"
-if ! grep -q "^relay_enabled=" "$CONTROLS_FILE" 2>/dev/null; then
-    update_controls_atomic sh -c "
-        echo 'relay_enabled=$RELAY_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'ina260_enabled=$INA260_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'ina260_address=$INA260_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'epaper_enabled=$EPAPER_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'epaper_rst_pin=$EPAPER_RST' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'epaper_dc_pin=$EPAPER_DC' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'epaper_cs_pin=$EPAPER_CS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'epaper_busy_pin=$EPAPER_BUSY' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'epaper_pwr_pin=$EPAPER_PWR' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'gps_enabled=$GPS_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'gps_device=$GPS_DEVICE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'gps_baudrate=$GPS_BAUDRATE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'gps_timeout=$GPS_TIMEOUT' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'light_sensor_enabled=$LIGHT_SENSOR_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'light_sensor_type=$LIGHT_SENSOR_TYPE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'light_sensor_address=$LIGHT_SENSOR_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'pca9536_enabled=$PCA9536_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'pca9536_address=$PCA9536_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'mux_enabled=$MUX_ENABLED' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'mux_type=$MUX_TYPE' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-        echo 'mux_address=$MUX_ADDRESS' | sudo tee -a '$CONTROLS_FILE' > /dev/null
-    "
-    echo -e "${GREEN}✓ Hardware module configuration written to controls.txt${NC}"
-else
-    # Update existing hardware configuration with file locking
-    update_controls_atomic sh -c "
-        sudo sed -i 's/^relay_enabled=.*/relay_enabled=$RELAY_ENABLED/' '$CONTROLS_FILE'
-        sudo sed -i 's/^ina260_enabled=.*/ina260_enabled=$INA260_ENABLED/' '$CONTROLS_FILE'
-        sudo sed -i 's/^ina260_address=.*/ina260_address=$INA260_ADDRESS/' '$CONTROLS_FILE'
-        sudo sed -i 's/^epaper_enabled=.*/epaper_enabled=$EPAPER_ENABLED/' '$CONTROLS_FILE'
-        sudo sed -i 's/^epaper_rst_pin=.*/epaper_rst_pin=$EPAPER_RST/' '$CONTROLS_FILE'
-        sudo sed -i 's/^epaper_dc_pin=.*/epaper_dc_pin=$EPAPER_DC/' '$CONTROLS_FILE'
-        sudo sed -i 's/^epaper_cs_pin=.*/epaper_cs_pin=$EPAPER_CS/' '$CONTROLS_FILE'
-        sudo sed -i 's/^epaper_busy_pin=.*/epaper_busy_pin=$EPAPER_BUSY/' '$CONTROLS_FILE'
-        sudo sed -i 's/^epaper_pwr_pin=.*/epaper_pwr_pin=$EPAPER_PWR/' '$CONTROLS_FILE'
-        sudo sed -i 's/^gps_enabled=.*/gps_enabled=$GPS_ENABLED/' '$CONTROLS_FILE'
-        sudo sed -i 's|^gps_device=.*|gps_device=$GPS_DEVICE|' '$CONTROLS_FILE'
-        sudo sed -i 's/^gps_baudrate=.*/gps_baudrate=$GPS_BAUDRATE/' '$CONTROLS_FILE'
-        sudo sed -i 's/^gps_timeout=.*/gps_timeout=$GPS_TIMEOUT/' '$CONTROLS_FILE'
-        sudo sed -i 's/^light_sensor_enabled=.*/light_sensor_enabled=$LIGHT_SENSOR_ENABLED/' '$CONTROLS_FILE'
-        sudo sed -i 's/^light_sensor_type=.*/light_sensor_type=$LIGHT_SENSOR_TYPE/' '$CONTROLS_FILE'
-        sudo sed -i 's/^light_sensor_address=.*/light_sensor_address=$LIGHT_SENSOR_ADDRESS/' '$CONTROLS_FILE'
-        sudo sed -i 's/^pca9536_enabled=.*/pca9536_enabled=$PCA9536_ENABLED/' '$CONTROLS_FILE'
-        sudo sed -i 's/^pca9536_address=.*/pca9536_address=$PCA9536_ADDRESS/' '$CONTROLS_FILE'
-        sudo sed -i 's/^mux_enabled=.*/mux_enabled=$MUX_ENABLED/' '$CONTROLS_FILE'
-        sudo sed -i 's/^mux_type=.*/mux_type=$MUX_TYPE/' '$CONTROLS_FILE'
-        sudo sed -i 's/^mux_address=.*/mux_address=$MUX_ADDRESS/' '$CONTROLS_FILE'
-    "
-    echo -e "${GREEN}✓ Hardware module configuration updated in controls.txt${NC}"
-fi
+
+# Use update_or_add_config to handle both new installations and updates
+# This ensures GPS config is added even to existing installations
+update_controls_atomic bash -c "
+    update_or_add_config 'relay_enabled' '$RELAY_ENABLED' '$CONTROLS_FILE'
+    update_or_add_config 'ina260_enabled' '$INA260_ENABLED' '$CONTROLS_FILE'
+    update_or_add_config 'ina260_address' '$INA260_ADDRESS' '$CONTROLS_FILE'
+    update_or_add_config 'epaper_enabled' '$EPAPER_ENABLED' '$CONTROLS_FILE'
+    update_or_add_config 'epaper_rst_pin' '$EPAPER_RST' '$CONTROLS_FILE'
+    update_or_add_config 'epaper_dc_pin' '$EPAPER_DC' '$CONTROLS_FILE'
+    update_or_add_config 'epaper_cs_pin' '$EPAPER_CS' '$CONTROLS_FILE'
+    update_or_add_config 'epaper_busy_pin' '$EPAPER_BUSY' '$CONTROLS_FILE'
+    update_or_add_config 'epaper_pwr_pin' '$EPAPER_PWR' '$CONTROLS_FILE'
+    update_or_add_config 'gps_enabled' '$GPS_ENABLED' '$CONTROLS_FILE'
+    update_or_add_config 'gps_device' '$GPS_DEVICE' '$CONTROLS_FILE'
+    update_or_add_config 'gps_baudrate' '$GPS_BAUDRATE' '$CONTROLS_FILE'
+    update_or_add_config 'gps_timeout' '$GPS_TIMEOUT' '$CONTROLS_FILE'
+    update_or_add_config 'light_sensor_enabled' '$LIGHT_SENSOR_ENABLED' '$CONTROLS_FILE'
+    update_or_add_config 'light_sensor_type' '$LIGHT_SENSOR_TYPE' '$CONTROLS_FILE'
+    update_or_add_config 'light_sensor_address' '$LIGHT_SENSOR_ADDRESS' '$CONTROLS_FILE'
+    update_or_add_config 'pca9536_enabled' '$PCA9536_ENABLED' '$CONTROLS_FILE'
+    update_or_add_config 'pca9536_address' '$PCA9536_ADDRESS' '$CONTROLS_FILE'
+    update_or_add_config 'mux_enabled' '$MUX_ENABLED' '$CONTROLS_FILE'
+    update_or_add_config 'mux_type' '$MUX_TYPE' '$CONTROLS_FILE'
+    update_or_add_config 'mux_address' '$MUX_ADDRESS' '$CONTROLS_FILE'
+"
+
+echo -e "${GREEN}✓ Hardware module configuration written/updated in controls.txt${NC}"
 echo ""
 
 # Set execute permissions on Python scripts
 echo -e "${BLUE}Setting script permissions...${NC}"
-find "$MOTHBOX_HOME" -name "*.py" -exec sudo chmod +x {} \;
+find "$MOTHBOX_HOME" -name "*.py" -exec sudo chmod +x {} +
 echo -e "${GREEN}✓ Script permissions set${NC}"
 
 # Optional: Install Web UI
@@ -1121,6 +1168,51 @@ else
     echo -e "${YELLOW}  ⚠ Firmware version may not match installation${NC}"
 fi
 
+# Check GPS configuration (if enabled)
+if [ "$GPS_ENABLED" = "true" ]; then
+    echo -e "${BLUE}Checking GPS configuration...${NC}"
+
+    # Check gpsd is installed
+    if command -v gpsd &> /dev/null; then
+        echo -e "${GREEN}  ✓ gpsd installed${NC}"
+    else
+        echo -e "${RED}  ✗ gpsd not installed!${NC}"
+        VALIDATION_ERRORS=$((VALIDATION_ERRORS+1))
+    fi
+
+    # Check UART is enabled (for /dev/ttyAMA0)
+    if [ "$GPS_DEVICE" = "/dev/ttyAMA0" ] || [ "$GPS_DEVICE" = "/dev/serial0" ]; then
+        if grep -q "^enable_uart=1" /boot/firmware/config.txt 2>/dev/null || \
+           grep -q "^enable_uart=1" /boot/config.txt 2>/dev/null; then
+            echo -e "${GREEN}  ✓ UART enabled in boot config${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ UART not enabled in boot config${NC}"
+        fi
+
+        # Check Bluetooth is disabled
+        if grep -q "^dtoverlay=disable-bt" /boot/firmware/config.txt 2>/dev/null || \
+           grep -q "^dtoverlay=disable-bt" /boot/config.txt 2>/dev/null; then
+            echo -e "${GREEN}  ✓ Bluetooth disabled (UART freed)${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ Bluetooth not disabled${NC}"
+        fi
+    fi
+
+    # Check GPS device exists (may not exist until reboot)
+    if [ -e "$GPS_DEVICE" ]; then
+        echo -e "${GREEN}  ✓ GPS device $GPS_DEVICE exists${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ GPS device $GPS_DEVICE not found (reboot required if using UART)${NC}"
+    fi
+
+    # Check gpsd configuration
+    if [ -f "/etc/default/gpsd" ] && grep -q "DEVICES=\"$GPS_DEVICE\"" /etc/default/gpsd; then
+        echo -e "${GREEN}  ✓ gpsd configured for $GPS_DEVICE${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ gpsd configuration may be incomplete${NC}"
+    fi
+fi
+
 echo ""
 if [ $VALIDATION_ERRORS -gt 0 ]; then
     echo -e "${RED}Installation completed with $VALIDATION_ERRORS validation errors!${NC}"
@@ -1147,7 +1239,15 @@ echo ""
 echo -e "${BLUE}Hardware Modules:${NC}"
 echo "  INA260 Power Sensor:  $INA260_ENABLED (address: $INA260_ADDRESS)"
 echo "  E-Paper Display:      $EPAPER_ENABLED"
-echo "  GPS Module:           $GPS_ENABLED (device: $GPS_DEVICE)"
+if [ "$GPS_ENABLED" = "true" ]; then
+    echo "  GPS Module:           $GPS_ENABLED (device: $GPS_DEVICE @ ${GPS_BAUDRATE} baud)"
+    if [ "$GPS_DEVICE" = "/dev/ttyAMA0" ] || [ "$GPS_DEVICE" = "/dev/serial0" ]; then
+        echo "                        GPIO 14 (TX), GPIO 15 (RX)"
+        echo "                        Bluetooth disabled (UART conflict)"
+    fi
+else
+    echo "  GPS Module:           $GPS_ENABLED"
+fi
 if [ "$LIGHT_SENSOR_ENABLED" = "true" ]; then
     echo "  Light Sensor:         $LIGHT_SENSOR_ENABLED ($LIGHT_SENSOR_TYPE at $LIGHT_SENSOR_ADDRESS)"
 fi
@@ -1158,11 +1258,39 @@ if [ "$MUX_ENABLED" = "true" ]; then
     echo "  Multiplexer:          $MUX_ENABLED ($MUX_TYPE mode)"
 fi
 echo ""
+
+# GPS-specific next steps (if enabled and using UART)
+if [ "$GPS_ENABLED" = "true" ]; then
+    if [ "$GPS_DEVICE" = "/dev/ttyAMA0" ] || [ "$GPS_DEVICE" = "/dev/serial0" ]; then
+        echo -e "${YELLOW}⚠ GPS UART Configuration Applied - REBOOT REQUIRED${NC}"
+        echo ""
+        echo -e "${BLUE}After reboot, test GPS hardware:${NC}"
+        echo "  1. cat $GPS_DEVICE                  # Should show NMEA sentences"
+        echo "  2. gpspipe -r                        # Shows raw GPS data via gpsd"
+        echo "  3. cgps                              # Interactive GPS status viewer"
+        echo "  4. python3 $MOTHBOX_HOME/${FIRMWARE_VERSION}.x/GPS.py  # Run GPS sync script"
+        echo "  5. View GPS status in Web UI:       http://<pi-ip>:5000/settings"
+        echo ""
+        echo -e "${BLUE}GPS Troubleshooting:${NC}"
+        echo "  • No NMEA data: Check wiring (TX↔RX, 3.3V, GND)"
+        echo "  • No fix: Move to location with clear sky view (outdoor)"
+        echo "  • Cold start: First fix may take 30-60 seconds"
+        echo ""
+    fi
+fi
+
 echo -e "${YELLOW}Next Steps:${NC}"
 echo "1. Review and edit configuration files in: $CONFIG_DIR"
-echo "2. Update your crontab to point to: $MOTHBOX_HOME"
-echo "3. Test the installation by running: python3 $MOTHBOX_HOME/mothbox_paths.py"
-echo "4. Test photo capture: python3 $MOTHBOX_HOME/${FIRMWARE_VERSION}.x/TakePhoto.py"
+if [ "$GPS_ENABLED" = "true" ] && [[ "$GPS_DEVICE" =~ ^/dev/ttyAMA0|/dev/serial0$ ]]; then
+    echo "2. REBOOT to apply UART configuration: sudo reboot"
+    echo "3. Update your crontab to point to: $MOTHBOX_HOME"
+    echo "4. Test the installation by running: python3 $MOTHBOX_HOME/mothbox_paths.py"
+    echo "5. Test photo capture: python3 $MOTHBOX_HOME/${FIRMWARE_VERSION}.x/TakePhoto.py"
+else
+    echo "2. Update your crontab to point to: $MOTHBOX_HOME"
+    echo "3. Test the installation by running: python3 $MOTHBOX_HOME/mothbox_paths.py"
+    echo "4. Test photo capture: python3 $MOTHBOX_HOME/${FIRMWARE_VERSION}.x/TakePhoto.py"
+fi
 echo ""
 
 if [ "$INSTALL_TYPE" = "custom" ]; then
