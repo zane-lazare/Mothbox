@@ -9,6 +9,7 @@ from flask import Blueprint, current_app, jsonify, request, send_file
 # Setup path to import mothbox_paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from services.photo_service import PaginationError, PhotoService
 from services.thumbnail_cache import ThumbnailError
 
 from mothbox_paths import PHOTOS_DIR
@@ -242,3 +243,105 @@ def cache_warm_cancel(task_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
+
+@gallery_bp.route("/photos/paginated", methods=["GET"])
+def list_photos_paginated():
+    """
+    List photos with pagination, sorting, and filtering support
+
+    Query Parameters:
+        limit (int): Maximum photos per page (1-500, default: 50)
+        offset (int): Number of photos to skip (>=0, default: 0)
+        sort (str): Sort order - date_desc, date_asc, filename_asc, filename_desc
+                   (default: date_desc)
+        start_date (str): Filter photos on/after this date (ISO format: YYYY-MM-DD)
+        end_date (str): Filter photos on/before this date (ISO format: YYYY-MM-DD)
+
+    Returns:
+        JSON response with photos array and pagination metadata:
+        {
+            "photos": [...],
+            "pagination": {
+                "total": int,
+                "limit": int,
+                "offset": int,
+                "has_next": bool,
+                "has_previous": bool
+            }
+        }
+
+    Error Responses:
+        400: Invalid parameters (limit/offset out of range, invalid sort/date)
+        500: Internal server error
+    """
+    try:
+        # Extract query parameters with defaults
+        # Note: type=int returns default if conversion fails, but we validate explicitly
+        limit_str = request.args.get('limit')
+        offset_str = request.args.get('offset')
+
+        # Parse and validate limit
+        if limit_str is not None:
+            try:
+                limit = int(limit_str)
+            except ValueError:
+                return jsonify({"error": f"Limit must be an integer, got '{limit_str}'"}), 400
+        else:
+            limit = 50
+
+        # Parse and validate offset
+        if offset_str is not None:
+            try:
+                offset = int(offset_str)
+            except ValueError:
+                return jsonify({"error": f"Offset must be an integer, got '{offset_str}'"}), 400
+        else:
+            offset = 0
+
+        sort = request.args.get('sort', 'date_desc')
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
+
+        # Parse date strings if provided
+        start_date = None
+        end_date = None
+
+        if start_date_str:
+            try:
+                start_date = datetime.fromisoformat(start_date_str)
+            except (ValueError, TypeError):
+                return (
+                    jsonify(
+                        {"error": f"Invalid start_date format: '{start_date_str}'. Use ISO format (YYYY-MM-DD)"}
+                    ),
+                    400,
+                )
+
+        if end_date_str:
+            try:
+                end_date = datetime.fromisoformat(end_date_str)
+            except (ValueError, TypeError):
+                return (
+                    jsonify(
+                        {"error": f"Invalid end_date format: '{end_date_str}'. Use ISO format (YYYY-MM-DD)"}
+                    ),
+                    400,
+                )
+
+        # Create photo service and get paginated results
+        photo_service = PhotoService(PHOTOS_DIR)
+        result = photo_service.list_photos(
+            limit=limit,
+            offset=offset,
+            sort=sort,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        return jsonify(result)
+
+    except PaginationError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
