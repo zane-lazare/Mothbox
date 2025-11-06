@@ -161,9 +161,8 @@ class ThumbnailCache:
         cache_path = self._get_cache_path(photo_path, size)
         lock_path = cache_path.parent / f".{cache_path.name}.lock"
 
-        # Acquire lock
-        lock_path.touch()
-        with open(lock_path) as lock_file:
+        # Acquire lock (open in append mode to create atomically if missing)
+        with open(lock_path, 'a') as lock_file:
             try:
                 # Exclusive lock (blocks until available)
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
