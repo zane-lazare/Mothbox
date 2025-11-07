@@ -38,14 +38,6 @@ def temp_cache_dir(tmp_path):
     return cache_dir
 
 
-@pytest.fixture
-def temp_photos_dir(tmp_path):
-    """Temporary photos directory with sample images"""
-    photos_dir = tmp_path / "photos"
-    photos_dir.mkdir()
-    return photos_dir
-
-
 @pytest.fixture(autouse=True)
 def reset_cache_warmer_imports():
     """

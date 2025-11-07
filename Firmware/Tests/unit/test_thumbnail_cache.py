@@ -26,7 +26,7 @@ import threading
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, mock_open
 from datetime import datetime, timedelta
-from PIL import Image, ImageDraw
+# PIL imported locally in fixtures/tests to avoid module-level caching (Issue #143)
 from io import BytesIO
 
 
@@ -50,14 +50,6 @@ def temp_cache_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(mothbox_paths, 'THUMBNAIL_CACHE_DIR', cache_dir)
 
     return cache_dir
-
-
-@pytest.fixture
-def temp_photos_dir(tmp_path):
-    """Temporary photos directory with sample images"""
-    photos_dir = tmp_path / "photos"
-    photos_dir.mkdir()
-    return photos_dir
 
 
 @pytest.fixture(autouse=True)
@@ -92,6 +84,8 @@ def reset_thumbnail_cache_imports():
 @pytest.fixture
 def sample_photo(temp_photos_dir):
     """Create a valid sample JPEG photo"""
+    from PIL import Image  # Import inside fixture to avoid module-level caching
+
     photo_path = temp_photos_dir / "sample.jpg"
 
     # Create a real JPEG image with PIL
@@ -104,6 +98,7 @@ def sample_photo(temp_photos_dir):
 @pytest.fixture
 def multiple_photos(temp_photos_dir):
     """Create multiple sample photos"""
+    from PIL import Image
     photos = []
 
     for i in range(5):
@@ -207,6 +202,7 @@ class TestCacheHitMissScenarios:
 
     def test_cache_miss_generates_thumbnail(self, thumbnail_cache, sample_photo):
         """Cache miss generates thumbnail and caches it"""
+        from PIL import Image
         result = thumbnail_cache.get_thumbnail(sample_photo, size=128)
 
         assert result.exists()
@@ -305,6 +301,7 @@ class TestMultiResolutionGeneration:
 
     def test_64px_thumbnail_generation(self, thumbnail_cache, sample_photo):
         """64px thumbnail generated with correct dimensions"""
+        from PIL import Image
         result = thumbnail_cache.get_thumbnail(sample_photo, size=64)
 
         img = Image.open(result)
@@ -312,6 +309,7 @@ class TestMultiResolutionGeneration:
 
     def test_128px_thumbnail_generation(self, thumbnail_cache, sample_photo):
         """128px thumbnail generated with correct dimensions"""
+        from PIL import Image
         result = thumbnail_cache.get_thumbnail(sample_photo, size=128)
 
         img = Image.open(result)
@@ -319,6 +317,7 @@ class TestMultiResolutionGeneration:
 
     def test_256px_thumbnail_generation(self, thumbnail_cache, sample_photo):
         """256px thumbnail generated with correct dimensions"""
+        from PIL import Image
         result = thumbnail_cache.get_thumbnail(sample_photo, size=256)
 
         img = Image.open(result)
@@ -326,6 +325,7 @@ class TestMultiResolutionGeneration:
 
     def test_jpeg_quality_is_85(self, thumbnail_cache, sample_photo):
         """Thumbnails saved with JPEG quality 85"""
+        from PIL import Image
         result = thumbnail_cache.get_thumbnail(sample_photo, size=128)
 
         # Open and verify it's a valid JPEG
@@ -334,6 +334,7 @@ class TestMultiResolutionGeneration:
 
     def test_aspect_ratio_preservation(self, temp_photos_dir, thumbnail_cache):
         """Thumbnail generation preserves aspect ratio"""
+        from PIL import Image
         # Create wide image (landscape)
         photo_path = temp_photos_dir / "wide.jpg"
         img = Image.new('RGB', (1600, 900), color='blue')
@@ -354,6 +355,7 @@ class TestMultiResolutionGeneration:
 
     def test_custom_size_support(self, temp_cache_dir, sample_photo):
         """Cache supports custom configured sizes"""
+        from PIL import Image
         from services.thumbnail_cache import ThumbnailCache
 
         cache = ThumbnailCache(cache_dir=temp_cache_dir, sizes=[32, 512])
@@ -624,6 +626,7 @@ class TestErrorHandling:
 
     def test_corrupt_image_generates_placeholder(self, thumbnail_cache, corrupt_photo):
         """Corrupt image source generates placeholder thumbnail"""
+        from PIL import Image
         result = thumbnail_cache.get_thumbnail(corrupt_photo, size=128)
 
         assert result.exists()
@@ -634,6 +637,7 @@ class TestErrorHandling:
 
     def test_placeholder_image_properties(self, thumbnail_cache, corrupt_photo):
         """Placeholder image has correct properties (gray with "?")"""
+        from PIL import Image
         result = thumbnail_cache.get_thumbnail(corrupt_photo, size=128)
 
         img = Image.open(result)
@@ -712,6 +716,7 @@ class TestErrorHandling:
 
     def test_disk_full_scenario(self, thumbnail_cache, sample_photo, monkeypatch):
         """Disk full scenario handled gracefully"""
+        from PIL import Image
         # Mock disk full error
         original_save = Image.Image.save
 
@@ -851,6 +856,7 @@ class TestCachePaths:
 
     def test_hash_collision_handling(self, thumbnail_cache, temp_photos_dir):
         """Hash collision handled gracefully (rare but possible)"""
+        from PIL import Image
         # This is a hypothetical test - MD5 collisions extremely rare
         # Implementation should handle gracefully if it ever occurs
 
@@ -993,6 +999,7 @@ class TestSecurity:
 
     def test_symlink_handling(self, thumbnail_cache, temp_photos_dir, tmp_path):
         """Symlink handling prevents escaping photos directory"""
+        from PIL import Image
         # Create symlink to external file
         external_file = tmp_path / "external.jpg"
         img = Image.new('RGB', (100, 100), color='green')
