@@ -417,6 +417,10 @@ def patch_path_constant_everywhere(monkeypatch, constant_name, temp_path):
         'SCHEDULE_SETTINGS_FILE': [
             'routes.config',  # Issue #78 - Schedule settings
         ],
+        'PHOTOS_DIR': [
+            'routes.camera',  # Issue #134 - Thumbnail cache testing
+            'routes.gallery',  # Issue #134 - Thumbnail cache testing
+        ],
     }
 
     # Step 3: Get list of modules to patch for this constant
@@ -2037,7 +2041,7 @@ def mock_isp_tuning(monkeypatch, tmp_path):
     yield mock_loader
 
 
-@pytest.fixture
+@pytest.fixture(scope='function')
 def mock_picamera2_for_streamer():
     """
     Comprehensive Picamera2 mock for LiveViewStreamer tests.
@@ -2048,6 +2052,7 @@ def mock_picamera2_for_streamer():
     Architecture:
     - Custom class for properties and state tracking
     - MagicMock methods for test-level configuration
+    - Function-scoped: Each test gets a fresh instance
 
     Usage - Default behavior:
         def test_with_defaults(mock_picamera2_for_streamer):
@@ -2403,6 +2408,32 @@ def clear_gps_cache(request):
                 _gps_status_cache['timestamp'] = 0
         except (ImportError, KeyError):
             pass
+
+
+@pytest.fixture(autouse=True)
+def reset_pil_imports(request):
+    """
+    Reset PIL module imports after each test to prevent mock pollution (Issue #143).
+
+    Some tests (test_gallery_routes.py) use patch.dict(sys.modules, {'PIL': ...})
+    to mock PIL for testing. However, when patch.dict() exits its context, it
+    doesn't fully restore PIL submodules that were already imported (like PIL.Image).
+
+    This fixture ensures PIL is fully reset after each test, preventing mocked PIL
+    from leaking into subsequent tests that need the real PIL (e.g., sample_photos fixture).
+
+    NOTE: We do NOT reset services.* modules here because they are imported at module level
+    by routes/gallery.py, and resetting them would cause exception type mismatches.
+
+    See: https://github.com/zane-lazare/Mothbox/pull/143
+    """
+    yield
+
+    # AFTER test: Force complete PIL reset
+    # Remove ALL PIL modules from sys.modules to force fresh import
+    pil_modules_to_remove = [key for key in sys.modules.keys() if key == 'PIL' or key.startswith('PIL.')]
+    for key in pil_modules_to_remove:
+        del sys.modules[key]
 
 
 def pytest_runtest_teardown(item, nextitem):

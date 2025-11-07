@@ -96,6 +96,59 @@ signal.signal(signal.SIGTERM, _signal_handler)
 signal.signal(signal.SIGINT, _signal_handler)
 print("✓ Registered signal handlers for graceful shutdown")
 
+# Initialize thumbnail cache
+from services.thumbnail_cache import ThumbnailCache
+
+from mothbox_paths import PHOTOS_DIR, THUMBNAIL_CACHE_DIR
+
+try:
+    # TODO: Read configuration from controls.txt (max_size_mb, sizes)
+    # For now, use defaults: max_size_mb=500, sizes=[64, 128, 256]
+    thumbnail_cache = ThumbnailCache(
+        cache_dir=THUMBNAIL_CACHE_DIR,
+        max_size_mb=500,
+        sizes=[64, 128, 256]
+    )
+    app.config['THUMBNAIL_CACHE'] = thumbnail_cache
+
+    # Register cleanup handler to flush statistics on shutdown
+    atexit.register(thumbnail_cache.close)
+    print(f"✓ Thumbnail cache initialized: {THUMBNAIL_CACHE_DIR}")
+    print("✓ Registered thumbnail cache cleanup handler")
+except Exception as e:
+    print(f"⚠️  Failed to initialize thumbnail cache: {e}")
+    app.config['THUMBNAIL_CACHE'] = None
+    thumbnail_cache = None
+
+# Initialize cache warmer (Issue #134 - Phase 3)
+from services.cache_warmer import CacheWarmer
+
+if thumbnail_cache:
+    try:
+        cache_warmer = CacheWarmer(
+            thumbnail_cache=thumbnail_cache,
+            photos_dir=PHOTOS_DIR
+        )
+        app.config['CACHE_WARMER'] = cache_warmer
+
+        # Warm recent photos on startup (non-blocking)
+        cache_warmer.warm_recent(count=50, background=True)
+
+        # Start background monitoring for auto-warming
+        cache_warmer.start_background_warming()
+
+        # Register cleanup handler for cache warmer
+        atexit.register(cache_warmer.stop_background_warming)
+        print("✓ Cache warmer initialized and startup warming triggered")
+        print("✓ Registered cache warmer cleanup handler")
+
+    except Exception as e:
+        print(f"⚠️  Failed to initialize cache warmer: {e}")
+        app.config['CACHE_WARMER'] = None
+else:
+    app.config['CACHE_WARMER'] = None
+    print("⚠️  Cache warmer not initialized (thumbnail cache unavailable)")
+
 # Import route blueprints
 from routes.camera import camera_bp
 from routes.config import config_bp
@@ -206,17 +259,14 @@ if __name__ == "__main__":
             "=" * 60
         )
 
-    try:
-        # Run development server
-        # Require BOTH debug mode AND development environment for werkzeug
-        # This prevents accidental unsafe werkzeug in production even if DEBUG is misconfigured
-        socketio.run(
-            app,
-            host=config.HOST,
-            port=config.PORT,
-            debug=config.DEBUG,
-            allow_unsafe_werkzeug=(config.DEBUG and config.ENV_NAME == "development"),
-        )
-    finally:
-        # Cleanup camera on shutdown
-        camera_streamer.cleanup()
+    # Run development server
+    # Require BOTH debug mode AND development environment for werkzeug
+    # This prevents accidental unsafe werkzeug in production even if DEBUG is misconfigured
+    # Cleanup handled by atexit handlers registered during initialization
+    socketio.run(
+        app,
+        host=config.HOST,
+        port=config.PORT,
+        debug=config.DEBUG,
+        allow_unsafe_werkzeug=(config.DEBUG and config.ENV_NAME == "development"),
+    )
