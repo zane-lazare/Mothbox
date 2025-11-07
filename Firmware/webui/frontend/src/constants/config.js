@@ -11,9 +11,10 @@
  * Gallery component configuration
  *
  * @property {number} PAGE_SIZE - Number of photos to load per page in infinite scroll
- *   - Should be a multiple of grid column counts for clean layout
- *   - Current: 12 = 6 rows mobile (2 cols), 3 rows medium (4 cols), 2 rows large (6 cols)
- *   - Alternative: 24 for faster scrolling (12/6/4 rows respectively)
+ *   - Original spec from Issue #136: 9 photos per page for faster initial load
+ *   - Current: 9 = 4.5 rows mobile (2 cols), 2.25 rows medium (4 cols), 1.5 rows large (6 cols)
+ *   - Note: Partial rows are acceptable; prioritizes faster loading over perfect grid alignment
+ *   - Alternative: 12 for cleaner grid (6/3/2 rows), 24 for faster scrolling (12/6/4 rows)
  *
  * @property {number} SKELETON_COUNT - Number of skeleton loaders to show while fetching
  *   - Should match PAGE_SIZE for consistent visual experience
@@ -33,8 +34,8 @@
  *   - GRID_GAP: Spacing between grid items (Tailwind class)
  */
 export const GALLERY_CONFIG = {
-  PAGE_SIZE: 12,
-  SKELETON_COUNT: 12,
+  PAGE_SIZE: 9,
+  SKELETON_COUNT: 9,
   GRID_COLUMNS: {
     mobile: 2, // default
     medium: 4, // md: 768px+
@@ -75,4 +76,37 @@ export const TOAST_CONFIG = {
   DEFAULT_DURATION: 4000, // 4 seconds
   ERROR_DURATION: 6000, // 6 seconds
   SUCCESS_DURATION: 3000, // 3 seconds
+}
+
+/**
+ * Gallery user-facing messages
+ *
+ * Centralized message strings for the Gallery component to eliminate duplication
+ * and provide a single source of truth for all user-facing text.
+ *
+ * @property {Object} LOADING - Loading state messages
+ *   - INITIAL: Displayed when first loading the gallery
+ *   - MORE: Displayed when loading additional photos during infinite scroll
+ *
+ * @property {Object} ERROR - Error state messages
+ *   - INITIAL: Prefix for initial gallery load errors
+ *   - PAGINATION: Prefix for errors when loading more photos
+ *   - FALLBACK: Default error message when error.message is unavailable
+ *     Note: Uses "An unexpected error occurred" for consistency with ErrorBoundary
+ *
+ * @property {string} EMPTY - Message shown when no photos exist in the gallery
+ * @property {string} END - Message shown when all photos have been loaded (end of infinite scroll)
+ */
+export const GALLERY_MESSAGES = {
+  LOADING: {
+    INITIAL: 'Loading gallery...',
+    MORE: 'Loading more photos...',
+  },
+  ERROR: {
+    INITIAL: 'Error loading photos',
+    PAGINATION: 'Error loading more photos',
+    FALLBACK: 'An unexpected error occurred',
+  },
+  EMPTY: 'No photos yet',
+  END: 'No more photos to load',
 }

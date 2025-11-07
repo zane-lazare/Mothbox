@@ -6,16 +6,23 @@ import PropTypes from 'prop-types'
 export default function CollapsibleCard({ id, title, isCollapsed, onToggle, children, className = "settings-card" }) {
   return (
     <div className={className}>
-      <div
-        className="flex justify-between items-center cursor-pointer select-none"
+      <button
+        className="w-full flex justify-between items-center cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded px-2 py-1 -mx-2 -my-1"
         onClick={() => onToggle(id)}
+        aria-expanded={!isCollapsed}
+        aria-controls={`collapsible-content-${id}`}
+        type="button"
       >
         <h4 className="settings-card-title mb-0">{title}</h4>
-        <span className="text-gray-500 text-sm">
+        <span className="text-gray-500 text-sm" aria-hidden="true">
           {isCollapsed ? '▶' : '▼'}
         </span>
-      </div>
-      {!isCollapsed && <div className="mt-2">{children}</div>}
+      </button>
+      {!isCollapsed && (
+        <div id={`collapsible-content-${id}`} className="mt-2">
+          {children}
+        </div>
+      )}
     </div>
   )
 }

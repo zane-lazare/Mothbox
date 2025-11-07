@@ -38,6 +38,7 @@ export function useInfiniteScroll({
 }) {
   const observerRef = useRef(null)
   const elementRef = useRef(null)
+  const callbackRef = useRef(null)
 
   // Memoize the intersection callback
   const handleIntersection = useCallback(
@@ -55,16 +56,32 @@ export function useInfiniteScroll({
     [hasMore, isLoading, onLoadMore]
   )
 
-  // Set up intersection observer
+  // Performance Optimization: Store latest callback in ref to prevent observer recreation
+  // When handleIntersection changes (due to prop updates like hasMore/isLoading),
+  // we update callbackRef.current instead of recreating the IntersectionObserver.
+  // This avoids expensive DOM operations while keeping behavior up-to-date.
   useEffect(() => {
-    // Create observer instance
+    callbackRef.current = handleIntersection
+  }, [handleIntersection])
+
+  // Set up IntersectionObserver - only recreates if threshold/rootMargin change
+  // Note: handleIntersection is intentionally NOT in dependencies.
+  // The observer uses a stable wrapper callback that reads from callbackRef.current,
+  // allowing behavior updates without expensive observer recreation.
+  useEffect(() => {
     const options = {
       root: null, // Use viewport as root
       rootMargin,
       threshold,
     }
 
-    observerRef.current = new IntersectionObserver(handleIntersection, options)
+    // Stable wrapper callback - always calls the latest behavior via ref indirection
+    // This prevents observer recreation when hasMore, isLoading, or onLoadMore change
+    observerRef.current = new IntersectionObserver((entries) => {
+      if (callbackRef.current) {
+        callbackRef.current(entries)
+      }
+    }, options)
 
     // If we already have an element attached, observe it
     if (elementRef.current) {
@@ -77,7 +94,7 @@ export function useInfiniteScroll({
         observerRef.current.disconnect()
       }
     }
-  }, [handleIntersection, rootMargin, threshold])
+  }, [rootMargin, threshold])
 
   // Ref callback to attach to sentinel element
   const setElement = useCallback((element) => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatTimestamp } from '../helpers'
+import { formatTimestamp, formatErrorMessage } from '../helpers'
 
 describe('formatTimestamp', () => {
   it('returns "Never" for zero timestamp', () => {
@@ -34,5 +34,45 @@ describe('formatTimestamp', () => {
     const result = formatTimestamp(timestamp)
     expect(result).toContain('2033')
     expect(result).not.toBe('Never')
+  })
+})
+
+describe('formatErrorMessage', () => {
+  it('formats error with message', () => {
+    const error = new Error('Network timeout')
+    const result = formatErrorMessage(error, 'Error loading photos')
+    expect(result).toBe('Error loading photos: Network timeout')
+  })
+
+  it('uses fallback for error without message', () => {
+    const result = formatErrorMessage({}, 'Error loading photos')
+    expect(result).toBe('Error loading photos: An unexpected error occurred')
+  })
+
+  it('uses fallback for null error', () => {
+    const result = formatErrorMessage(null, 'Error loading photos')
+    expect(result).toBe('Error loading photos: An unexpected error occurred')
+  })
+
+  it('uses fallback for undefined error', () => {
+    const result = formatErrorMessage(undefined, 'Error loading photos')
+    expect(result).toBe('Error loading photos: An unexpected error occurred')
+  })
+
+  it('uses custom fallback when provided', () => {
+    const result = formatErrorMessage(null, 'Failed to save', 'Unknown error')
+    expect(result).toBe('Failed to save: Unknown error')
+  })
+
+  it('handles error object with empty string message', () => {
+    const error = { message: '' }
+    const result = formatErrorMessage(error, 'Error loading photos')
+    expect(result).toBe('Error loading photos: An unexpected error occurred')
+  })
+
+  it('handles different prefix messages', () => {
+    const error = new Error('Connection refused')
+    const result = formatErrorMessage(error, 'Error loading more photos')
+    expect(result).toBe('Error loading more photos: Connection refused')
   })
 })
