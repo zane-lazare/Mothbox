@@ -4,7 +4,8 @@ import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState, useEffect } from 'react'
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 import PhotoSkeleton from '../components/PhotoSkeleton'
-import { GALLERY_CONFIG } from '../constants/config'
+import { GALLERY_CONFIG, GALLERY_MESSAGES } from '../constants/config'
+import { formatErrorMessage } from '../utils/helpers'
 
 export default function Gallery() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
@@ -18,6 +19,7 @@ export default function Gallery() {
     isLoading,
     isError,
     error,
+    refetch,
   } = useInfiniteQuery({
     queryKey: QUERY_KEYS.PHOTOS_INFINITE,
     queryFn: ({ pageParam = 0 }) =>
@@ -47,26 +49,36 @@ export default function Gallery() {
   // Escape key handler for lightbox
   useEffect(() => {
     const handleEscape = (e) => {
-      if (e.key === 'Escape' && selectedPhoto) {
+      if (e.key === 'Escape') {
         setSelectedPhoto(null)
       }
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [selectedPhoto])
+  }, []) // Empty deps - setSelectedPhoto is stable, no re-registration needed
 
   // Flatten all pages into single photo array
   const photos = data?.pages.flatMap((page) => page.photos) ?? []
 
   if (isLoading) {
-    return <div className="text-center py-12">Loading gallery...</div>
+    return <div className="text-center py-12">{GALLERY_MESSAGES.LOADING.INITIAL}</div>
   }
 
   // Only show full error screen if initial load failed (no photos loaded)
   if (isError && photos.length === 0) {
     return (
-      <div className="text-center py-12 text-red-600">
-        Error loading photos: {error?.message || 'Unknown error'}
+      <div className="text-center py-12">
+        <div className="text-red-600 mb-4">
+          {formatErrorMessage(error, GALLERY_MESSAGES.ERROR.INITIAL, GALLERY_MESSAGES.ERROR.FALLBACK)}
+        </div>
+        <button
+          onClick={() => refetch()}
+          disabled={isLoading}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          aria-label="Retry loading photos"
+        >
+          {isLoading ? 'Retrying...' : 'Retry'}
+        </button>
       </div>
     )
   }
@@ -77,15 +89,15 @@ export default function Gallery() {
 
       {/* Screen reader announcements for loading states */}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
-        {isLoading && 'Loading gallery...'}
-        {isError && photos.length === 0 && `Error loading photos: ${error?.message || 'Unknown error'}`}
-        {isError && photos.length > 0 && `Error loading more photos: ${error?.message || 'Unknown error'}`}
-        {!hasNextPage && photos.length > 0 && !isError && 'No more photos to load'}
-        {isFetchingNextPage && 'Loading more photos...'}
+        {isLoading && GALLERY_MESSAGES.LOADING.INITIAL}
+        {isError && photos.length === 0 && formatErrorMessage(error, GALLERY_MESSAGES.ERROR.INITIAL, GALLERY_MESSAGES.ERROR.FALLBACK)}
+        {isError && photos.length > 0 && formatErrorMessage(error, GALLERY_MESSAGES.ERROR.PAGINATION, GALLERY_MESSAGES.ERROR.FALLBACK)}
+        {!hasNextPage && photos.length > 0 && !isError && GALLERY_MESSAGES.END}
+        {isFetchingNextPage && GALLERY_MESSAGES.LOADING.MORE}
       </div>
 
       {photos.length === 0 && (
-        <div className="text-center py-12 text-gray-500">No photos yet</div>
+        <div className="text-center py-12 text-gray-500">{GALLERY_MESSAGES.EMPTY}</div>
       )}
 
       {/* Photo Grid */}
@@ -120,8 +132,18 @@ export default function Gallery() {
 
       {/* Pagination error message (shows error but keeps photos visible) */}
       {isError && photos.length > 0 && (
-        <div className="text-center py-4 text-red-600">
-          Error loading more photos: {error?.message || 'Unknown error'}
+        <div className="text-center py-4">
+          <div className="text-red-600 mb-2">
+            {formatErrorMessage(error, GALLERY_MESSAGES.ERROR.PAGINATION, GALLERY_MESSAGES.ERROR.FALLBACK)}
+          </div>
+          <button
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-label="Retry loading more photos"
+          >
+            {isFetchingNextPage ? 'Retrying...' : 'Try Again'}
+          </button>
         </div>
       )}
 
@@ -131,7 +153,7 @@ export default function Gallery() {
       {/* End of photos indicator */}
       {!hasNextPage && photos.length > 0 && !isError && (
         <div className="text-center py-8 text-gray-500">
-          No more photos to load
+          {GALLERY_MESSAGES.END}
         </div>
       )}
 
