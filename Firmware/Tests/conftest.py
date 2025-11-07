@@ -2041,7 +2041,7 @@ def mock_isp_tuning(monkeypatch, tmp_path):
     yield mock_loader
 
 
-@pytest.fixture
+@pytest.fixture(scope='function')
 def mock_picamera2_for_streamer():
     """
     Comprehensive Picamera2 mock for LiveViewStreamer tests.
@@ -2052,6 +2052,7 @@ def mock_picamera2_for_streamer():
     Architecture:
     - Custom class for properties and state tracking
     - MagicMock methods for test-level configuration
+    - Function-scoped: Each test gets a fresh instance
 
     Usage - Default behavior:
         def test_with_defaults(mock_picamera2_for_streamer):
