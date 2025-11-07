@@ -46,6 +46,30 @@ def temp_photos_dir(tmp_path):
     return photos_dir
 
 
+@pytest.fixture(autouse=True)
+def reset_cache_warmer_imports():
+    """
+    Reset cache_warmer module imports before each test to prevent pollution.
+
+    Ensures fresh imports when running in full test suite to avoid cached
+    imports with stale path values from other test files.
+    """
+    import sys
+    modules_to_reset = [
+        'services.cache_warmer',
+        'services.thumbnail_cache',
+    ]
+    for module in modules_to_reset:
+        if module in sys.modules:
+            del sys.modules[module]
+
+    yield
+
+    for module in modules_to_reset:
+        if module in sys.modules:
+            del sys.modules[module]
+
+
 @pytest.fixture
 def sample_photos(temp_photos_dir):
     """Create multiple sample photos with staggered timestamps"""

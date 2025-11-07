@@ -60,6 +60,35 @@ def temp_photos_dir(tmp_path):
     return photos_dir
 
 
+@pytest.fixture(autouse=True)
+def reset_thumbnail_cache_imports():
+    """
+    Reset thumbnail_cache module imports before each test to prevent pollution.
+
+    When tests run in full suite, other test files may import services.thumbnail_cache
+    before this test file's fixtures have a chance to monkeypatch mothbox_paths.
+    This causes cached imports with wrong path values.
+
+    This fixture ensures fresh imports for each test in this file.
+    """
+    import sys
+    # Remove thumbnail_cache related modules from cache
+    modules_to_reset = [
+        'services.thumbnail_cache',
+        'services.cache_warmer',
+    ]
+    for module in modules_to_reset:
+        if module in sys.modules:
+            del sys.modules[module]
+
+    yield
+
+    # Cleanup after test (optional, but ensures no leakage)
+    for module in modules_to_reset:
+        if module in sys.modules:
+            del sys.modules[module]
+
+
 @pytest.fixture
 def sample_photo(temp_photos_dir):
     """Create a valid sample JPEG photo"""
