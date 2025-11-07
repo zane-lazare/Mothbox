@@ -1,0 +1,99 @@
+import { useEffect, useRef, useCallback } from 'react'
+
+/**
+ * useInfiniteScroll - Custom hook for implementing infinite scroll with Intersection Observer
+ *
+ * This hook sets up an intersection observer that triggers a callback when a sentinel element
+ * enters the viewport, enabling automatic loading of more content as the user scrolls.
+ *
+ * @param {Object} options - Configuration options
+ * @param {Function} options.onLoadMore - Callback to load more data when sentinel is visible
+ * @param {boolean} options.hasMore - Whether more data is available to load
+ * @param {boolean} options.isLoading - Whether data is currently being loaded
+ * @param {number} [options.threshold=0.5] - Intersection threshold (0.0 to 1.0)
+ * @param {string} [options.rootMargin='100px'] - Root margin for intersection observer
+ *
+ * @returns {Function} - Ref callback to attach to the sentinel element
+ *
+ * @example
+ * const sentinelRef = useInfiniteScroll({
+ *   onLoadMore: fetchNextPage,
+ *   hasMore: hasNextPage,
+ *   isLoading: isFetchingNextPage,
+ * })
+ *
+ * return (
+ *   <div>
+ *     {items.map(item => <Item key={item.id} {...item} />)}
+ *     <div ref={sentinelRef} />
+ *   </div>
+ * )
+ */
+export function useInfiniteScroll({
+  onLoadMore,
+  hasMore,
+  isLoading,
+  threshold = 0.5,
+  rootMargin = '100px',
+}) {
+  const observerRef = useRef(null)
+  const elementRef = useRef(null)
+
+  // Memoize the intersection callback
+  const handleIntersection = useCallback(
+    (entries) => {
+      const [entry] = entries
+
+      // Only trigger load if:
+      // 1. Element is intersecting
+      // 2. More data is available
+      // 3. Not currently loading
+      if (entry.isIntersecting && hasMore && !isLoading) {
+        onLoadMore()
+      }
+    },
+    [hasMore, isLoading, onLoadMore]
+  )
+
+  // Set up intersection observer
+  useEffect(() => {
+    // Create observer instance
+    const options = {
+      root: null, // Use viewport as root
+      rootMargin,
+      threshold,
+    }
+
+    observerRef.current = new IntersectionObserver(handleIntersection, options)
+
+    // If we already have an element attached, observe it
+    if (elementRef.current) {
+      observerRef.current.observe(elementRef.current)
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+      }
+    }
+  }, [handleIntersection, rootMargin, threshold])
+
+  // Ref callback to attach to sentinel element
+  const setElement = useCallback((element) => {
+    // Unobserve old element if it exists
+    if (elementRef.current && observerRef.current) {
+      observerRef.current.unobserve(elementRef.current)
+    }
+
+    // Store new element reference
+    elementRef.current = element
+
+    // Observe new element if it exists
+    if (element && observerRef.current) {
+      observerRef.current.observe(element)
+    }
+  }, [])
+
+  return setElement
+}

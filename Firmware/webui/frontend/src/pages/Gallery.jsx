@@ -1,31 +1,73 @@
-import { useQuery } from '@tanstack/react-query'
-import { getPhotos, getThumbnailUrl, getPhotoUrl } from '../utils/api'
+import { useInfiniteQuery } from '@tanstack/react-query'
+import { getPhotosPaginated, getThumbnailUrl, getPhotoUrl } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState } from 'react'
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
+import PhotoSkeleton from '../components/PhotoSkeleton'
 
 export default function Gallery() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
 
-  const { data: photos, isLoading } = useQuery({
-    queryKey: QUERY_KEYS.PHOTOS,
-    queryFn: () => getPhotos().then(res => res.data.photos),
+  // Infinite query for paginated photos
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isError,
+    error,
+  } = useInfiniteQuery({
+    queryKey: QUERY_KEYS.PHOTOS_INFINITE,
+    queryFn: ({ pageParam = 0 }) =>
+      getPhotosPaginated({
+        limit: 9,
+        offset: pageParam,
+        sort: 'date_desc',
+      }).then((res) => res.data),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => {
+      if (lastPage.pagination.has_next) {
+        return lastPage.pagination.offset + lastPage.pagination.limit
+      }
+      return undefined
+    },
   })
+
+  // Set up infinite scroll sentinel
+  const sentinelRef = useInfiniteScroll({
+    onLoadMore: fetchNextPage,
+    hasMore: hasNextPage,
+    isLoading: isFetchingNextPage,
+  })
+
+  // Flatten all pages into single photo array
+  const photos = data?.pages.flatMap((page) => page.photos) ?? []
 
   if (isLoading) {
     return <div className="text-center py-12">Loading gallery...</div>
+  }
+
+  // Only show full error screen if initial load failed (no photos loaded)
+  if (isError && photos.length === 0) {
+    return (
+      <div className="text-center py-12 text-red-600">
+        Error loading photos: {error?.message || 'Unknown error'}
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">Photo Gallery</h2>
 
-      {photos && photos.length === 0 && (
+      {photos.length === 0 && (
         <div className="text-center py-12 text-gray-500">No photos yet</div>
       )}
 
       {/* Photo Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {photos?.map((photo) => (
+        {photos.map((photo) => (
           <div
             key={photo.path}
             className="cursor-pointer group relative"
@@ -43,7 +85,30 @@ export default function Gallery() {
             </div>
           </div>
         ))}
+
+        {/* Skeleton loading cards while fetching next page */}
+        {isFetchingNextPage &&
+          Array.from({ length: 9 }).map((_, i) => (
+            <PhotoSkeleton key={`skeleton-${i}`} />
+          ))}
       </div>
+
+      {/* Pagination error message (shows error but keeps photos visible) */}
+      {isError && photos.length > 0 && (
+        <div className="text-center py-4 text-red-600">
+          Error loading more photos: {error?.message || 'Unknown error'}
+        </div>
+      )}
+
+      {/* Infinite scroll sentinel */}
+      <div ref={sentinelRef} className="h-20" />
+
+      {/* End of photos indicator */}
+      {!hasNextPage && photos.length > 0 && !isError && (
+        <div className="text-center py-8 text-gray-500">
+          No more photos to load
+        </div>
+      )}
 
       {/* Lightbox Modal */}
       {selectedPhoto && (

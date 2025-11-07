@@ -37,6 +37,7 @@
 export const QUERY_KEYS = {
   // Collections (simple plural nouns)
   PHOTOS: ['photos'],
+  PHOTOS_INFINITE: ['photos', 'infinite'],
   PRESETS: ['presets'],
   PREFERENCES: ['preferences'],
   CONTROLS: ['controls'],
