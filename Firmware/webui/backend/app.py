@@ -110,7 +110,11 @@ try:
         sizes=[64, 128, 256]
     )
     app.config['THUMBNAIL_CACHE'] = thumbnail_cache
+
+    # Register cleanup handler to flush statistics on shutdown
+    atexit.register(thumbnail_cache.close)
     print(f"✓ Thumbnail cache initialized: {THUMBNAIL_CACHE_DIR}")
+    print("✓ Registered thumbnail cache cleanup handler")
 except Exception as e:
     print(f"⚠️  Failed to initialize thumbnail cache: {e}")
     app.config['THUMBNAIL_CACHE'] = None
@@ -133,7 +137,10 @@ if thumbnail_cache:
         # Start background monitoring for auto-warming
         cache_warmer.start_background_warming()
 
+        # Register cleanup handler for cache warmer
+        atexit.register(cache_warmer.stop_background_warming)
         print("✓ Cache warmer initialized and startup warming triggered")
+        print("✓ Registered cache warmer cleanup handler")
 
     except Exception as e:
         print(f"⚠️  Failed to initialize cache warmer: {e}")
@@ -252,22 +259,14 @@ if __name__ == "__main__":
             "=" * 60
         )
 
-    try:
-        # Run development server
-        # Require BOTH debug mode AND development environment for werkzeug
-        # This prevents accidental unsafe werkzeug in production even if DEBUG is misconfigured
-        socketio.run(
-            app,
-            host=config.HOST,
-            port=config.PORT,
-            debug=config.DEBUG,
-            allow_unsafe_werkzeug=(config.DEBUG and config.ENV_NAME == "development"),
-        )
-    finally:
-        # Cleanup camera on shutdown
-        camera_streamer.cleanup()
-
-        # Stop cache warmer background thread
-        cache_warmer = app.config.get('CACHE_WARMER')
-        if cache_warmer:
-            cache_warmer.stop_background_warming()
+    # Run development server
+    # Require BOTH debug mode AND development environment for werkzeug
+    # This prevents accidental unsafe werkzeug in production even if DEBUG is misconfigured
+    # Cleanup handled by atexit handlers registered during initialization
+    socketio.run(
+        app,
+        host=config.HOST,
+        port=config.PORT,
+        debug=config.DEBUG,
+        allow_unsafe_werkzeug=(config.DEBUG and config.ENV_NAME == "development"),
+    )

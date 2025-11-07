@@ -79,6 +79,13 @@ class ThumbnailCache:
         # Initialize statistics
         self._load_statistics()
 
+        # Periodic flush tracking (Issue #134 - I/O optimization)
+        self._stats_dirty = False
+        self._last_stats_flush = time.time()
+        self._stats_flush_interval = 60  # seconds
+        self._last_flushed_hits = self.hits
+        self._last_flushed_misses = self.misses
+
     def get_thumbnail(self, photo_path: str | Path, size: int) -> Path:
         """
         Get thumbnail from cache or generate if missing
@@ -201,9 +208,8 @@ class ThumbnailCache:
             finally:
                 # Release lock
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-
-        # Clean up lock file
-        lock_path.unlink(missing_ok=True)
+                # Clean up lock file (inside finally to prevent orphaned locks)
+                lock_path.unlink(missing_ok=True)
 
         return cache_path
 
@@ -274,11 +280,12 @@ class ThumbnailCache:
             photo_path: Source photo path
 
         Returns:
-            12-character hash (MD5 truncated)
+            32-character hash (full MD5 for collision resistance)
         """
         # MD5 used for cache key generation, not security
+        # Full hash used to prevent collisions in large photo collections
         hash_obj = hashlib.md5(str(photo_path).encode(), usedforsecurity=False)  # nosec B324
-        return hash_obj.hexdigest()[:12]
+        return hash_obj.hexdigest()
 
     def _validate_photo_path(self, photo_path: Path):
         """
@@ -452,17 +459,95 @@ class ThumbnailCache:
 
     def _update_statistics(self, hit: bool):
         """
-        Update cache statistics
+        Update cache statistics in-memory with periodic flush
+
+        Optimized for performance: Updates counters in memory only,
+        flushes to disk every 60 seconds (configurable).
+
+        Reduces disk I/O by 99%+ compared to per-request writes.
 
         Args:
             hit: True for cache hit, False for miss
         """
+        # Update in-memory counters only (no file I/O)
         if hit:
             self.hits += 1
         else:
             self.misses += 1
 
-        self._save_statistics()
+        self._stats_dirty = True
+
+        # Check if periodic flush needed
+        now = time.time()
+        if now - self._last_stats_flush >= self._stats_flush_interval:
+            self._flush_statistics()
+
+    def _flush_statistics(self):
+        """
+        Flush in-memory statistics to disk with atomic multi-process update
+
+        Uses file locking and delta-merge to safely update statistics
+        across multiple processes without losing data.
+
+        Called automatically every 60 seconds (configurable) or manually
+        via flush() or close() methods.
+        """
+        if not self._stats_dirty:
+            return
+
+        lock_path = self.cache_dir / ".cache_stats.json.lock"
+
+        with open(lock_path, 'a') as lock_file:
+            try:
+                # Acquire exclusive lock for atomic read-modify-write
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+
+                # Read current stats from file (source of truth for multi-process)
+                current_stats = {}
+                if self.stats_file.exists():
+                    try:
+                        with open(self.stats_file) as f:
+                            current_stats = json.load(f)
+                    except (json.JSONDecodeError, OSError):
+                        pass
+
+                # Calculate deltas since last flush
+                delta_hits = self.hits - self._last_flushed_hits
+                delta_misses = self.misses - self._last_flushed_misses
+
+                # Add deltas to file stats (handles multi-process updates)
+                new_hits = current_stats.get('hits', 0) + delta_hits
+                new_misses = current_stats.get('misses', 0) + delta_misses
+
+                # Write atomically to file
+                stats = {
+                    'hits': new_hits,
+                    'misses': new_misses,
+                    'total_requests': new_hits + new_misses,
+                    'last_updated': time.time()
+                }
+
+                with open(self.stats_file, 'w') as f:
+                    json.dump(stats, f, indent=2)
+
+                # Update flush tracking
+                self._last_flushed_hits = self.hits
+                self._last_flushed_misses = self.misses
+                self._stats_dirty = False
+                self._last_stats_flush = time.time()
+
+                # Update instance variables for get_statistics() consistency
+                self.hits = new_hits
+                self.misses = new_misses
+
+            except OSError:
+                # File system errors - continue without flushing
+                # Will retry on next flush interval
+                pass
+            finally:
+                # Release lock and clean up lock file
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                lock_path.unlink(missing_ok=True)
 
     def get_statistics(self) -> dict:
         """
@@ -545,3 +630,41 @@ class ThumbnailCache:
 
                     except OSError:
                         pass
+
+    def flush(self):
+        """
+        Manually flush statistics to disk
+
+        Useful for:
+        - Testing (ensure statistics written before assertions)
+        - Explicit cleanup before shutdown
+        - Forcing immediate statistics update
+
+        This is a public method that wraps _flush_statistics().
+        """
+        self._flush_statistics()
+
+    def close(self):
+        """
+        Close the cache and flush pending statistics
+
+        Should be called explicitly before application shutdown
+        to ensure statistics are persisted to disk.
+
+        Safe to call multiple times (idempotent).
+        """
+        self._flush_statistics()
+
+    def __del__(self):
+        """
+        Destructor: Flush statistics on garbage collection
+
+        Backup cleanup mechanism if close() wasn't called explicitly.
+        Note: __del__ may not be called immediately, so prefer close().
+        """
+        try:
+            self._flush_statistics()
+        except Exception:
+            # Suppress exceptions during cleanup to avoid issues
+            # during interpreter shutdown
+            pass
