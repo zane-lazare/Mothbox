@@ -15,8 +15,10 @@ from datetime import datetime
 from flask import Flask
 from io import BytesIO
 
-# Import the blueprint
+# Import the blueprint and exception class at module level to ensure same instance
+# as used by gallery.py (prevents exception type mismatch in full test suite)
 from routes.gallery import gallery_bp
+from services.thumbnail_cache import ThumbnailError
 
 
 # ============================================================================
@@ -489,7 +491,7 @@ class TestThumbnailCacheIntegration:
     def test_thumbnail_invalid_size_parameter(self, gallery_app, sample_photos, temp_photos_dir):
         """GET /thumbnail/<path>?size=999 returns error for invalid size"""
         from unittest.mock import MagicMock
-        from services.thumbnail_cache import ThumbnailError
+        # ThumbnailError imported at module level to match gallery.py's import timing
 
         photo_path = sample_photos[0].relative_to(temp_photos_dir)
 

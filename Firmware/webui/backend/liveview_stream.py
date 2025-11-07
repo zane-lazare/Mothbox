@@ -1827,11 +1827,11 @@ class LiveViewStreamer:
         - Waits for stream thread to fully stop before closing camera
         - Forces camera to None even on error to prevent state pollution
         - Increased timeout for camera close operation
+        - Idempotent: Safe to call multiple times
 
         Called by:
         - atexit handler (registered in app.py)
         - Signal handlers (SIGTERM/SIGINT in app.py)
-        - Finally block (app.py main)
         - Test fixtures (conftest.py)
         """
         print("Cleaning up camera resources...")

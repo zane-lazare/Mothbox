@@ -26,7 +26,7 @@ import threading
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, mock_open
 from datetime import datetime, timedelta
-from PIL import Image, ImageDraw
+# PIL imported locally in fixtures/tests to avoid module-level caching (Issue #143)
 from io import BytesIO
 
 
@@ -52,17 +52,40 @@ def temp_cache_dir(tmp_path, monkeypatch):
     return cache_dir
 
 
-@pytest.fixture
-def temp_photos_dir(tmp_path):
-    """Temporary photos directory with sample images"""
-    photos_dir = tmp_path / "photos"
-    photos_dir.mkdir()
-    return photos_dir
+@pytest.fixture(autouse=True)
+def reset_thumbnail_cache_imports():
+    """
+    Reset thumbnail_cache module imports before each test to prevent pollution.
+
+    When tests run in full suite, other test files may import services.thumbnail_cache
+    before this test file's fixtures have a chance to monkeypatch mothbox_paths.
+    This causes cached imports with wrong path values.
+
+    This fixture ensures fresh imports for each test in this file.
+    """
+    import sys
+    # Remove thumbnail_cache related modules from cache
+    modules_to_reset = [
+        'services.thumbnail_cache',
+        'services.cache_warmer',
+    ]
+    for module in modules_to_reset:
+        if module in sys.modules:
+            del sys.modules[module]
+
+    yield
+
+    # Cleanup after test (optional, but ensures no leakage)
+    for module in modules_to_reset:
+        if module in sys.modules:
+            del sys.modules[module]
 
 
 @pytest.fixture
 def sample_photo(temp_photos_dir):
     """Create a valid sample JPEG photo"""
+    from PIL import Image  # Import inside fixture to avoid module-level caching
+
     photo_path = temp_photos_dir / "sample.jpg"
 
     # Create a real JPEG image with PIL
@@ -75,6 +98,7 @@ def sample_photo(temp_photos_dir):
 @pytest.fixture
 def multiple_photos(temp_photos_dir):
     """Create multiple sample photos"""
+    from PIL import Image
     photos = []
 
     for i in range(5):
@@ -178,6 +202,7 @@ class TestCacheHitMissScenarios:
 
     def test_cache_miss_generates_thumbnail(self, thumbnail_cache, sample_photo):
         """Cache miss generates thumbnail and caches it"""
+        from PIL import Image
         result = thumbnail_cache.get_thumbnail(sample_photo, size=128)
 
         assert result.exists()
@@ -276,6 +301,7 @@ class TestMultiResolutionGeneration:
 
     def test_64px_thumbnail_generation(self, thumbnail_cache, sample_photo):
         """64px thumbnail generated with correct dimensions"""
+        from PIL import Image
         result = thumbnail_cache.get_thumbnail(sample_photo, size=64)
 
         img = Image.open(result)
@@ -283,6 +309,7 @@ class TestMultiResolutionGeneration:
 
     def test_128px_thumbnail_generation(self, thumbnail_cache, sample_photo):
         """128px thumbnail generated with correct dimensions"""
+        from PIL import Image
         result = thumbnail_cache.get_thumbnail(sample_photo, size=128)
 
         img = Image.open(result)
@@ -290,6 +317,7 @@ class TestMultiResolutionGeneration:
 
     def test_256px_thumbnail_generation(self, thumbnail_cache, sample_photo):
         """256px thumbnail generated with correct dimensions"""
+        from PIL import Image
         result = thumbnail_cache.get_thumbnail(sample_photo, size=256)
 
         img = Image.open(result)
@@ -297,6 +325,7 @@ class TestMultiResolutionGeneration:
 
     def test_jpeg_quality_is_85(self, thumbnail_cache, sample_photo):
         """Thumbnails saved with JPEG quality 85"""
+        from PIL import Image
         result = thumbnail_cache.get_thumbnail(sample_photo, size=128)
 
         # Open and verify it's a valid JPEG
@@ -305,6 +334,7 @@ class TestMultiResolutionGeneration:
 
     def test_aspect_ratio_preservation(self, temp_photos_dir, thumbnail_cache):
         """Thumbnail generation preserves aspect ratio"""
+        from PIL import Image
         # Create wide image (landscape)
         photo_path = temp_photos_dir / "wide.jpg"
         img = Image.new('RGB', (1600, 900), color='blue')
@@ -325,6 +355,7 @@ class TestMultiResolutionGeneration:
 
     def test_custom_size_support(self, temp_cache_dir, sample_photo):
         """Cache supports custom configured sizes"""
+        from PIL import Image
         from services.thumbnail_cache import ThumbnailCache
 
         cache = ThumbnailCache(cache_dir=temp_cache_dir, sizes=[32, 512])
@@ -595,6 +626,7 @@ class TestErrorHandling:
 
     def test_corrupt_image_generates_placeholder(self, thumbnail_cache, corrupt_photo):
         """Corrupt image source generates placeholder thumbnail"""
+        from PIL import Image
         result = thumbnail_cache.get_thumbnail(corrupt_photo, size=128)
 
         assert result.exists()
@@ -605,6 +637,7 @@ class TestErrorHandling:
 
     def test_placeholder_image_properties(self, thumbnail_cache, corrupt_photo):
         """Placeholder image has correct properties (gray with "?")"""
+        from PIL import Image
         result = thumbnail_cache.get_thumbnail(corrupt_photo, size=128)
 
         img = Image.open(result)
@@ -683,6 +716,7 @@ class TestErrorHandling:
 
     def test_disk_full_scenario(self, thumbnail_cache, sample_photo, monkeypatch):
         """Disk full scenario handled gracefully"""
+        from PIL import Image
         # Mock disk full error
         original_save = Image.Image.save
 
@@ -768,6 +802,9 @@ class TestStatisticsTracking:
         """Statistics persist to JSON file"""
         thumbnail_cache.get_thumbnail(sample_photo, size=128)
 
+        # Flush statistics to disk (periodic flush optimization)
+        thumbnail_cache.flush()
+
         stats_file = thumbnail_cache.cache_dir / "cache_stats.json"
         assert stats_file.exists()
 
@@ -778,6 +815,179 @@ class TestStatisticsTracking:
         assert 'hits' in data
         assert 'misses' in data
         assert 'total_requests' in data
+
+
+# ============================================================================
+# Test Statistics Periodic Flush
+# ============================================================================
+
+class TestStatisticsPeriodicFlush:
+    """Tests for periodic statistics flush optimization (Issue #134 - I/O optimization)"""
+
+    def test_no_immediate_flush_on_request(self, thumbnail_cache, sample_photo):
+        """Statistics not flushed to disk immediately (60s interval)"""
+        # Generate thumbnail
+        thumbnail_cache.get_thumbnail(sample_photo, size=128)
+
+        # Statistics file should NOT exist yet (no flush within 60s)
+        stats_file = thumbnail_cache.cache_dir / "cache_stats.json"
+
+        # NOTE: File might exist from cache initialization
+        # So we check that the miss count is NOT in the file yet
+        if stats_file.exists():
+            with open(stats_file) as f:
+                data = json.load(f)
+            # Should be 0 (from initialization) not 1 (from miss above)
+            assert data.get('misses', 0) == 0
+        else:
+            # File doesn't exist yet - expected for first request
+            assert not stats_file.exists()
+
+        # In-memory statistics should be updated
+        stats = thumbnail_cache.get_statistics()
+        assert stats['misses'] == 1
+
+    def test_flush_triggered_after_interval(self, thumbnail_cache, sample_photo):
+        """Statistics flush after 60-second interval"""
+        # Generate thumbnail
+        thumbnail_cache.get_thumbnail(sample_photo, size=128)
+
+        # Simulate passage of time by modifying _last_stats_flush
+        thumbnail_cache._last_stats_flush = time.time() - 61  # 61 seconds ago
+
+        # Next request should trigger flush
+        thumbnail_cache.get_thumbnail(sample_photo, size=256)
+
+        # Statistics should be flushed to disk
+        stats_file = thumbnail_cache.cache_dir / "cache_stats.json"
+        assert stats_file.exists()
+
+        with open(stats_file) as f:
+            data = json.load(f)
+
+        # Should have both the miss and hit recorded
+        assert data['total_requests'] >= 2
+
+    def test_manual_flush_writes_immediately(self, thumbnail_cache, sample_photo):
+        """Manual flush() writes statistics immediately"""
+        # Generate thumbnail
+        thumbnail_cache.get_thumbnail(sample_photo, size=128)
+
+        # Manually flush
+        thumbnail_cache.flush()
+
+        # Statistics should be on disk
+        stats_file = thumbnail_cache.cache_dir / "cache_stats.json"
+        assert stats_file.exists()
+
+        with open(stats_file) as f:
+            data = json.load(f)
+
+        assert data['misses'] == 1
+        assert data['total_requests'] == 1
+
+    def test_multi_process_delta_merge(self, thumbnail_cache, temp_cache_dir, sample_photo):
+        """Statistics merge correctly across multiple cache instances"""
+        from services.thumbnail_cache import ThumbnailCache
+
+        # Instance 1: Generate 3 thumbnails
+        cache1 = ThumbnailCache(cache_dir=temp_cache_dir, sizes=[64, 128, 256])
+        cache1.get_thumbnail(sample_photo, size=64)
+        cache1.get_thumbnail(sample_photo, size=128)
+        cache1.get_thumbnail(sample_photo, size=256)
+        cache1.flush()
+
+        # Instance 2: Generate 2 more thumbnails (same photo, so hits)
+        cache2 = ThumbnailCache(cache_dir=temp_cache_dir, sizes=[64, 128, 256])
+        cache2.get_thumbnail(sample_photo, size=64)
+        cache2.get_thumbnail(sample_photo, size=128)
+        cache2.flush()
+
+        # Check stats file
+        stats_file = temp_cache_dir / "cache_stats.json"
+        with open(stats_file) as f:
+            data = json.load(f)
+
+        # Should have 3 misses (cache1) + 2 hits (cache2) = 5 total
+        assert data['total_requests'] == 5
+        assert data['hits'] == 2
+        assert data['misses'] == 3
+
+    def test_flush_on_close(self, temp_cache_dir, sample_photo):
+        """close() triggers statistics flush"""
+        from services.thumbnail_cache import ThumbnailCache
+
+        cache = ThumbnailCache(cache_dir=temp_cache_dir, sizes=[64, 128, 256])
+        cache.get_thumbnail(sample_photo, size=128)
+
+        # Close should flush
+        cache.close()
+
+        # Statistics should be on disk
+        stats_file = temp_cache_dir / "cache_stats.json"
+        assert stats_file.exists()
+
+        with open(stats_file) as f:
+            data = json.load(f)
+
+        assert data['misses'] == 1
+
+    def test_flush_on_del(self, temp_cache_dir, sample_photo):
+        """__del__() triggers statistics flush on garbage collection"""
+        from services.thumbnail_cache import ThumbnailCache
+
+        cache = ThumbnailCache(cache_dir=temp_cache_dir, sizes=[64, 128, 256])
+        cache.get_thumbnail(sample_photo, size=128)
+
+        # Delete instance (triggers __del__)
+        del cache
+
+        # Statistics should be on disk
+        stats_file = temp_cache_dir / "cache_stats.json"
+        assert stats_file.exists()
+
+        with open(stats_file) as f:
+            data = json.load(f)
+
+        assert data['misses'] == 1
+
+    def test_flush_interval_configurable(self, temp_cache_dir, sample_photo):
+        """Flush interval is configurable via _stats_flush_interval"""
+        from services.thumbnail_cache import ThumbnailCache
+
+        cache = ThumbnailCache(cache_dir=temp_cache_dir, sizes=[64, 128, 256])
+        cache._stats_flush_interval = 5  # 5 seconds instead of 60
+
+        # Generate thumbnail
+        cache.get_thumbnail(sample_photo, size=128)
+
+        # Simulate 6 seconds passing
+        cache._last_stats_flush = time.time() - 6
+
+        # Next request should trigger flush
+        cache.get_thumbnail(sample_photo, size=256)
+
+        # Verify flush happened
+        stats_file = temp_cache_dir / "cache_stats.json"
+        assert stats_file.exists()
+
+        with open(stats_file) as f:
+            data = json.load(f)
+
+        assert data['total_requests'] >= 2
+
+    def test_dirty_flag_management(self, thumbnail_cache, sample_photo):
+        """_stats_dirty flag managed correctly"""
+        # Initially not dirty
+        assert not thumbnail_cache._stats_dirty
+
+        # After request, should be dirty
+        thumbnail_cache.get_thumbnail(sample_photo, size=128)
+        assert thumbnail_cache._stats_dirty
+
+        # After flush, should not be dirty
+        thumbnail_cache.flush()
+        assert not thumbnail_cache._stats_dirty
 
 
 # ============================================================================
@@ -793,7 +1003,7 @@ class TestCachePaths:
         hash2 = thumbnail_cache._get_hash(sample_photo)
 
         assert hash1 == hash2
-        assert len(hash1) == 12  # MD5 truncated to 12 chars
+        assert len(hash1) == 32  # Full MD5 hash for collision resistance
 
     def test_cache_file_path_structure(self, thumbnail_cache, sample_photo):
         """Cache file path follows correct structure: {size}/{hash}.jpg"""
@@ -802,7 +1012,7 @@ class TestCachePaths:
         assert result.parent.parent == thumbnail_cache.cache_dir
         assert result.parent.name == "128"
         assert result.suffix == ".jpg"
-        assert len(result.stem) == 12  # Hash length
+        assert len(result.stem) == 32  # Full MD5 hash length
 
     def test_path_traversal_prevention(self, thumbnail_cache, temp_photos_dir):
         """Path traversal attacks blocked in photo_path"""
@@ -822,6 +1032,7 @@ class TestCachePaths:
 
     def test_hash_collision_handling(self, thumbnail_cache, temp_photos_dir):
         """Hash collision handled gracefully (rare but possible)"""
+        from PIL import Image
         # This is a hypothetical test - MD5 collisions extremely rare
         # Implementation should handle gracefully if it ever occurs
 
@@ -964,6 +1175,7 @@ class TestSecurity:
 
     def test_symlink_handling(self, thumbnail_cache, temp_photos_dir, tmp_path):
         """Symlink handling prevents escaping photos directory"""
+        from PIL import Image
         # Create symlink to external file
         external_file = tmp_path / "external.jpg"
         img = Image.new('RGB', (100, 100), color='green')

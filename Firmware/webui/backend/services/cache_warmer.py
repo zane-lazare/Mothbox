@@ -441,7 +441,7 @@ class CacheWarmer:
         # Find photos modified after timestamp
         for photo_path in self.photos_dir.rglob("*.jpg"):
             try:
-                if photo_path.is_file() and photo_path.stat().st_mtime > since:
+                if photo_path.is_file() and photo_path.stat().st_mtime >= since:
                     new_photos.append(photo_path)
             except (OSError, PermissionError):
                 continue
