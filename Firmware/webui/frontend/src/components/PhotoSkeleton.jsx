@@ -1,15 +1,20 @@
+import { GALLERY_CONFIG } from '../constants/config'
+
 /**
  * PhotoSkeleton - Skeleton loading component for photo cards
  *
  * Displays an animated placeholder while photos are loading in the gallery.
  * Matches the dimensions and layout of actual photo cards for smooth transitions.
  */
-export default function PhotoSkeleton() {
+export default function PhotoSkeleton({ ...props }) {
   return (
     <div
       data-testid="photo-skeleton"
-      className="relative rounded-lg overflow-hidden bg-gray-200 animate-pulse"
-      style={{ height: '8rem' }} // h-32 equivalent
+      className={`relative rounded-lg overflow-hidden bg-gray-200 animate-pulse ${GALLERY_CONFIG.LAYOUT.PHOTO_HEIGHT}`}
+      role="status"
+      aria-busy="true"
+      aria-label="Loading photo..."
+      {...props}
     >
       {/* Skeleton image placeholder */}
       <div className="w-full h-full bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-shimmer" />

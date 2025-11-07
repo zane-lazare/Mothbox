@@ -1,9 +1,10 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { getPhotosPaginated, getThumbnailUrl, getPhotoUrl } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 import PhotoSkeleton from '../components/PhotoSkeleton'
+import { GALLERY_CONFIG } from '../constants/config'
 
 export default function Gallery() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
@@ -21,7 +22,7 @@ export default function Gallery() {
     queryKey: QUERY_KEYS.PHOTOS_INFINITE,
     queryFn: ({ pageParam = 0 }) =>
       getPhotosPaginated({
-        limit: 9,
+        limit: GALLERY_CONFIG.PAGE_SIZE,
         offset: pageParam,
         sort: 'date_desc',
       }).then((res) => res.data),
@@ -39,7 +40,20 @@ export default function Gallery() {
     onLoadMore: fetchNextPage,
     hasMore: hasNextPage,
     isLoading: isFetchingNextPage,
+    threshold: GALLERY_CONFIG.INFINITE_SCROLL.THRESHOLD,
+    rootMargin: GALLERY_CONFIG.INFINITE_SCROLL.ROOT_MARGIN,
   })
+
+  // Escape key handler for lightbox
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && selectedPhoto) {
+        setSelectedPhoto(null)
+      }
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [selectedPhoto])
 
   // Flatten all pages into single photo array
   const photos = data?.pages.flatMap((page) => page.photos) ?? []
@@ -61,35 +75,46 @@ export default function Gallery() {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">Photo Gallery</h2>
 
+      {/* Screen reader announcements for loading states */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {isLoading && 'Loading gallery...'}
+        {isError && photos.length === 0 && `Error loading photos: ${error?.message || 'Unknown error'}`}
+        {isError && photos.length > 0 && `Error loading more photos: ${error?.message || 'Unknown error'}`}
+        {!hasNextPage && photos.length > 0 && !isError && 'No more photos to load'}
+        {isFetchingNextPage && 'Loading more photos...'}
+      </div>
+
       {photos.length === 0 && (
         <div className="text-center py-12 text-gray-500">No photos yet</div>
       )}
 
       {/* Photo Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      <div className={`grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
         {photos.map((photo) => (
-          <div
+          <button
             key={photo.path}
-            className="cursor-pointer group relative"
+            className="cursor-pointer group relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg"
             onClick={() => setSelectedPhoto(photo)}
+            aria-label={`View photo: ${photo.filename}, taken on ${new Date(photo.date).toLocaleString()}`}
           >
             <img
               src={getThumbnailUrl(photo.path)}
               alt={photo.filename}
-              className="w-full h-32 object-cover rounded-lg shadow hover:shadow-lg transition-shadow"
+              loading="lazy"
+              className={`w-full ${GALLERY_CONFIG.LAYOUT.PHOTO_HEIGHT} object-cover rounded-lg shadow hover:shadow-lg transition-shadow`}
             />
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
-              <span className="text-white opacity-0 group-hover:opacity-100 text-sm">
+            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 group-focus:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
+              <span className="text-white opacity-0 group-hover:opacity-100 group-focus:opacity-100 text-sm">
                 View
               </span>
             </div>
-          </div>
+          </button>
         ))}
 
         {/* Skeleton loading cards while fetching next page */}
         {isFetchingNextPage &&
-          Array.from({ length: 9 }).map((_, i) => (
-            <PhotoSkeleton key={`skeleton-${i}`} />
+          Array.from({ length: GALLERY_CONFIG.SKELETON_COUNT }).map((_, i) => (
+            <PhotoSkeleton key={`skeleton-${i}`} aria-hidden="true" />
           ))}
       </div>
 
@@ -101,7 +126,7 @@ export default function Gallery() {
       )}
 
       {/* Infinite scroll sentinel */}
-      <div ref={sentinelRef} className="h-20" />
+      <div ref={sentinelRef} className={GALLERY_CONFIG.INFINITE_SCROLL.SENTINEL_HEIGHT} />
 
       {/* End of photos indicator */}
       {!hasNextPage && photos.length > 0 && !isError && (
@@ -114,22 +139,50 @@ export default function Gallery() {
       {selectedPhoto && (
         <div
           className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="lightbox-title"
           onClick={() => setSelectedPhoto(null)}
         >
-          <div className="max-w-6xl max-h-full">
+          <div className="relative max-w-6xl max-h-full">
+            {/* Close button */}
+            <button
+              onClick={() => setSelectedPhoto(null)}
+              className="absolute top-2 right-2 z-10 bg-white rounded-full p-2 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-lg"
+              aria-label="Close lightbox"
+            >
+              <svg
+                className="w-6 h-6 text-gray-800"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+
             <img
               src={getPhotoUrl(selectedPhoto.path)}
               alt={selectedPhoto.filename}
+              loading="eager"
               className="max-w-full max-h-screen object-contain"
               onClick={(e) => e.stopPropagation()}
             />
             <div className="text-white text-center mt-4">
-              <p className="font-semibold">{selectedPhoto.filename}</p>
-              <p className="text-sm text-gray-300">
-                {new Date(selectedPhoto.date).toLocaleString()}
+              <h2 id="lightbox-title" className="font-semibold text-lg">
+                {selectedPhoto.filename}
+              </h2>
+              <p className="text-sm text-gray-300" aria-label="Photo date">
+                Taken: {new Date(selectedPhoto.date).toLocaleString()}
               </p>
-              <p className="text-xs text-gray-400">
-                {(selectedPhoto.size / 1024 / 1024).toFixed(2)} MB
+              <p className="text-xs text-gray-400" aria-label="File size">
+                Size: {(selectedPhoto.size / 1024 / 1024).toFixed(2)} MB
               </p>
             </div>
           </div>

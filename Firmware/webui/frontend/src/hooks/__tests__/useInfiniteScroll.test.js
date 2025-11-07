@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { useInfiniteScroll } from '../useInfiniteScroll'
+import { GALLERY_CONFIG } from '../../constants/config'
 
 describe('useInfiniteScroll', () => {
   let observeMock
@@ -47,8 +48,8 @@ describe('useInfiniteScroll', () => {
     expect(IntersectionObserverMock).toHaveBeenCalledWith(
       expect.any(Function),
       expect.objectContaining({
-        threshold: 0.5,
-        rootMargin: '100px',
+        threshold: GALLERY_CONFIG.INFINITE_SCROLL.THRESHOLD,
+        rootMargin: GALLERY_CONFIG.INFINITE_SCROLL.ROOT_MARGIN,
       })
     )
   })
@@ -153,20 +154,45 @@ describe('useInfiniteScroll', () => {
     expect(() => result.current(null)).not.toThrow()
   })
 
-  it('recreates observer when dependencies change', () => {
+  it('does not recreate observer when state dependencies change', () => {
+    const onLoadMore = vi.fn()
+    const { rerender } = renderHook(
+      ({ hasMore, isLoading }) => useInfiniteScroll({ onLoadMore, hasMore, isLoading }),
+      { initialProps: { hasMore: true, isLoading: false } }
+    )
+
+    expect(IntersectionObserverMock).toHaveBeenCalledTimes(1)
+
+    // Change hasMore - observer should NOT be recreated (uses ref-based callback)
+    rerender({ hasMore: false, isLoading: false })
+    expect(IntersectionObserverMock).toHaveBeenCalledTimes(1)
+
+    // Change isLoading - observer should NOT be recreated
+    rerender({ hasMore: false, isLoading: true })
+    expect(IntersectionObserverMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('updates callback behavior without recreating observer', () => {
     const onLoadMore = vi.fn()
     const { rerender } = renderHook(
       ({ hasMore }) => useInfiniteScroll({ onLoadMore, hasMore, isLoading: false }),
       { initialProps: { hasMore: true } }
     )
 
-    expect(IntersectionObserverMock).toHaveBeenCalledTimes(1)
+    // Initial state: hasMore=true, should trigger onLoadMore
+    observerCallback([{ isIntersecting: true }])
+    expect(onLoadMore).toHaveBeenCalledTimes(1)
 
-    // Change hasMore (causes effect to re-run due to handleIntersection dependency)
+    // Change to hasMore=false
     rerender({ hasMore: false })
 
-    // Observer gets recreated because handleIntersection callback changed
-    expect(IntersectionObserverMock).toHaveBeenCalledTimes(2)
+    // Observer not recreated, but behavior updated via ref
+    expect(IntersectionObserverMock).toHaveBeenCalledTimes(1)
+
+    // Should NOT trigger onLoadMore anymore (hasMore is false)
+    onLoadMore.mockClear()
+    observerCallback([{ isIntersecting: true }])
+    expect(onLoadMore).not.toHaveBeenCalled()
   })
 
   it('prevents multiple simultaneous onLoadMore calls', () => {
