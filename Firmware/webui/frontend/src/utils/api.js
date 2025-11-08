@@ -86,6 +86,7 @@ export const testCapturePhoto = () => api.post('/camera/test-capture-photo')
 
 // Gallery APIs
 export const getPhotos = () => api.get('/gallery/photos')
+export const getPhotosPaginated = (params) => api.get('/gallery/photos/paginated', { params })
 export const getPhotoUrl = (path) => `${API_BASE_URL}/gallery/photo/${path}`
 export const getThumbnailUrl = (path) => `${API_BASE_URL}/gallery/thumbnail/${path}`
 
