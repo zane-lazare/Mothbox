@@ -11,18 +11,19 @@
  * Gallery component configuration
  *
  * @property {number} PAGE_SIZE - Number of photos to load per page in infinite scroll
- *   - Original spec from Issue #136: 9 photos per page for faster initial load
- *   - Current: 9 = 4.5 rows mobile (2 cols), 2.25 rows medium (4 cols), 1.5 rows large (6 cols)
- *   - Note: Partial rows are acceptable; prioritizes faster loading over perfect grid alignment
- *   - Alternative: 12 for cleaner grid (6/3/2 rows), 24 for faster scrolling (12/6/4 rows)
+ *   - Set to 24 for adaptive 2-3 screen loads across all device sizes
+ *   - Desktop (4 cols): 6 rows, Medium (3 cols): 8 rows, Mobile (2 cols): 12 rows
+ *   - Guarantees infinite scroll sentinel enters viewport for automatic next page load
+ *   - Thumbnail payload: 24 × ~32KB = ~768KB (acceptable for high-quality 256px thumbnails)
  *
  * @property {number} SKELETON_COUNT - Number of skeleton loaders to show while fetching
  *   - Should match PAGE_SIZE for consistent visual experience
  *
  * @property {Object} GRID_COLUMNS - Responsive grid configuration (matches Tailwind breakpoints)
- *   - mobile: 2 columns (default, <768px)
- *   - medium: 4 columns (md breakpoint, ≥768px)
- *   - large: 6 columns (lg breakpoint, ≥1024px)
+ *   - mobile: 2 columns (portrait, <640px)
+ *   - small: 3 columns (landscape phones, ≥640px)
+ *   - medium: 3 columns (tablets, ≥768px)
+ *   - large: 4 columns (desktop, ≥1024px) - reduced from 6 for larger thumbnail display
  *
  * @property {Object} INFINITE_SCROLL - Infinite scroll behavior configuration
  *   - THRESHOLD: IntersectionObserver threshold (0.0-1.0) - when to trigger loading
@@ -30,16 +31,21 @@
  *   - SENTINEL_HEIGHT: Height of scroll sentinel element (Tailwind class)
  *
  * @property {Object} LAYOUT - Visual layout configuration
- *   - PHOTO_HEIGHT: Photo card height (Tailwind class)
+ *   - PHOTO_HEIGHT: Photo card height (Tailwind class) - h-64 = 256px for high-quality display
  *   - GRID_GAP: Spacing between grid items (Tailwind class)
+ *
+ * @property {Object} THUMBNAIL - Thumbnail sizing configuration
+ *   - SIZE: Backend thumbnail size (256px for high quality, already cached)
+ *   - ASPECT_RATIO: Expected ratio for Mothbox camera (9152x6944 = ~1.318:1)
  */
 export const GALLERY_CONFIG = {
-  PAGE_SIZE: 9,
-  SKELETON_COUNT: 9,
+  PAGE_SIZE: 24,
+  SKELETON_COUNT: 24,
   GRID_COLUMNS: {
-    mobile: 2, // default
-    medium: 4, // md: 768px+
-    large: 6, // lg: 1024px+
+    mobile: 2, // portrait phones (<640px)
+    small: 3, // landscape phones (≥640px)
+    medium: 3, // tablets (≥768px)
+    large: 4, // desktop (≥1024px)
   },
   INFINITE_SCROLL: {
     THRESHOLD: 0.5, // Trigger when 50% of sentinel is visible
@@ -47,11 +53,11 @@ export const GALLERY_CONFIG = {
     SENTINEL_HEIGHT: 'h-20', // 5rem = 80px
   },
   LAYOUT: {
-    PHOTO_HEIGHT: 'h-32', // 8rem = 128px
+    PHOTO_HEIGHT: 'h-64', // 16rem = 256px (high-quality display)
     GRID_GAP: 'gap-4', // 1rem = 16px
   },
   THUMBNAIL: {
-    SIZE: 128, // Backend thumbnail size to request (matches PHOTO_HEIGHT h-32 = 128px)
+    SIZE: 256, // Backend thumbnail size (256px high quality, already cached)
     ASPECT_RATIO: 4 / 3, // Expected aspect ratio for Mothbox camera (9152x6944 = ~1.318:1)
   },
 }

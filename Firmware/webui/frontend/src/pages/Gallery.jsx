@@ -101,7 +101,7 @@ export default function Gallery() {
       )}
 
       {/* Photo Grid */}
-      <div className={`grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
+      <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
         {photos.map((photo) => (
           <button
             key={photo.path}
