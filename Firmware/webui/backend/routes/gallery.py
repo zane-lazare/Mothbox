@@ -80,9 +80,17 @@ def get_thumbnail(photo_path):
         if thumbnail_cache:
             # Use cache service
             try:
-                thumbnail_path = thumbnail_cache.get_thumbnail(PHOTOS_DIR / photo_path, size)
+                full_photo_path = PHOTOS_DIR / photo_path
+                # DEBUG: Log the exact path being requested
+                current_app.logger.info(f"Thumbnail request: photo_path={photo_path}")
+                current_app.logger.info(f"  PHOTOS_DIR={PHOTOS_DIR}")
+                current_app.logger.info(f"  Full path={full_photo_path}")
+                current_app.logger.info(f"  Exists={full_photo_path.exists()}")
+
+                thumbnail_path = thumbnail_cache.get_thumbnail(full_photo_path, size)
                 return send_file(thumbnail_path, mimetype="image/jpeg")
             except ThumbnailError as e:
+                current_app.logger.error(f"ThumbnailError: {e}")
                 return jsonify({"error": str(e)}), 400
         else:
             # Fallback to original behavior if cache not available
