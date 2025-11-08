@@ -81,12 +81,6 @@ def get_thumbnail(photo_path):
             # Use cache service
             try:
                 full_photo_path = PHOTOS_DIR / photo_path
-                # DEBUG: Log the exact path being requested
-                current_app.logger.info(f"Thumbnail request: photo_path={photo_path}")
-                current_app.logger.info(f"  PHOTOS_DIR={PHOTOS_DIR}")
-                current_app.logger.info(f"  Full path={full_photo_path}")
-                current_app.logger.info(f"  Exists={full_photo_path.exists()}")
-
                 thumbnail_path = thumbnail_cache.get_thumbnail(full_photo_path, size)
                 return send_file(thumbnail_path, mimetype="image/jpeg")
             except ThumbnailError as e:
