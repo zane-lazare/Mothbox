@@ -113,6 +113,11 @@ export default function Gallery() {
               src={getThumbnailUrl(photo.path)}
               alt={photo.filename}
               loading="lazy"
+              onError={(e) => {
+                // Fallback to gray placeholder on error (rate limit, missing file, etc.)
+                e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23e5e7eb" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="%239ca3af" font-size="14"%3EImage Error%3C/text%3E%3C/svg%3E';
+                e.target.onerror = null; // Prevent infinite loop
+              }}
               className={`w-full ${GALLERY_CONFIG.LAYOUT.PHOTO_HEIGHT} object-cover rounded-lg shadow hover:shadow-lg transition-shadow`}
             />
             <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 group-focus:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
