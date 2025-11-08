@@ -122,8 +122,8 @@ export default function Gallery() {
               }}
               className={`w-full ${GALLERY_CONFIG.LAYOUT.PHOTO_HEIGHT} object-cover rounded-lg shadow hover:shadow-lg transition-shadow`}
             />
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 group-focus:bg-opacity-30 transition-all rounded-lg flex items-center justify-center pointer-events-none">
-              <span className="text-white opacity-0 group-hover:opacity-100 group-focus:opacity-100 text-sm pointer-events-none">
+            <div className="absolute inset-0 bg-transparent group-hover:bg-black/30 group-focus:bg-black/30 transition-all rounded-lg flex items-center justify-center pointer-events-none">
+              <span className="text-white opacity-0 group-hover:opacity-100 group-focus:opacity-100 text-sm">
                 View
               </span>
             </div>
