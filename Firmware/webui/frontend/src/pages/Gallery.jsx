@@ -105,7 +105,7 @@ export default function Gallery() {
         {photos.map((photo) => (
           <button
             key={photo.path}
-            className="cursor-pointer group relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg"
+            className="bg-transparent cursor-pointer group relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg"
             onClick={() => setSelectedPhoto(photo)}
             aria-label={`View photo: ${photo.filename}, taken on ${new Date(photo.date).toLocaleString()}`}
           >
