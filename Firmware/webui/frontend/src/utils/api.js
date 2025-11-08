@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { getCsrfToken, clearCsrfToken, fetchCsrfToken } from './csrf'
+import { GALLERY_CONFIG } from '../constants/config'
 
 // Use current window location for API calls, or fall back to env variable
 // This ensures the UI works whether accessed via localhost, IP, or hostname
@@ -88,7 +89,7 @@ export const testCapturePhoto = () => api.post('/camera/test-capture-photo')
 export const getPhotos = () => api.get('/gallery/photos')
 export const getPhotosPaginated = (params) => api.get('/gallery/photos/paginated', { params })
 export const getPhotoUrl = (path) => `${API_BASE_URL}/gallery/photo/${path}`
-export const getThumbnailUrl = (path) => `${API_BASE_URL}/gallery/thumbnail/${path}`
+export const getThumbnailUrl = (path) => `${API_BASE_URL}/gallery/thumbnail/${path}?size=${GALLERY_CONFIG.THUMBNAIL.SIZE}`
 
 // Config APIs
 export const getControls = () => api.get('/config/controls')

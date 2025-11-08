@@ -50,6 +50,10 @@ export const GALLERY_CONFIG = {
     PHOTO_HEIGHT: 'h-32', // 8rem = 128px
     GRID_GAP: 'gap-4', // 1rem = 16px
   },
+  THUMBNAIL: {
+    SIZE: 128, // Backend thumbnail size to request (matches PHOTO_HEIGHT h-32 = 128px)
+    ASPECT_RATIO: 4 / 3, // Expected aspect ratio for Mothbox camera (9152x6944 = ~1.318:1)
+  },
 }
 
 /**

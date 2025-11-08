@@ -105,22 +105,24 @@ export default function Gallery() {
         {photos.map((photo) => (
           <button
             key={photo.path}
-            className="bg-transparent cursor-pointer group relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg"
+            className="cursor-pointer group relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg"
             onClick={() => setSelectedPhoto(photo)}
             aria-label={`View photo: ${photo.filename}, taken on ${new Date(photo.date).toLocaleString()}`}
           >
             <img
               src={getThumbnailUrl(photo.path)}
               alt={photo.filename}
+              width={Math.round(GALLERY_CONFIG.THUMBNAIL.SIZE * GALLERY_CONFIG.THUMBNAIL.ASPECT_RATIO)}
+              height={GALLERY_CONFIG.THUMBNAIL.SIZE}
               loading="lazy"
               onError={(e) => {
                 // Fallback to gray placeholder on error (rate limit, missing file, etc.)
                 e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23e5e7eb" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="%239ca3af" font-size="14"%3EImage Error%3C/text%3E%3C/svg%3E';
                 e.target.onerror = null; // Prevent infinite loop
               }}
-              className={`relative z-0 w-full ${GALLERY_CONFIG.LAYOUT.PHOTO_HEIGHT} object-cover rounded-lg shadow hover:shadow-lg transition-shadow`}
+              className={`w-full ${GALLERY_CONFIG.LAYOUT.PHOTO_HEIGHT} object-cover rounded-lg shadow hover:shadow-lg transition-shadow`}
             />
-            <div className="absolute inset-0 z-10 bg-black bg-opacity-0 group-hover:bg-opacity-30 group-focus:bg-opacity-30 transition-all rounded-lg flex items-center justify-center pointer-events-none">
+            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 group-focus:bg-opacity-30 transition-all rounded-lg flex items-center justify-center pointer-events-none">
               <span className="text-white opacity-0 group-hover:opacity-100 group-focus:opacity-100 text-sm pointer-events-none">
                 View
               </span>
