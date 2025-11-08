@@ -3,12 +3,16 @@ import { getPhotosPaginated, getThumbnailUrl, getPhotoUrl } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState, useEffect } from 'react'
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
+import { useViewMode } from '../hooks/useViewMode'
 import PhotoSkeleton from '../components/PhotoSkeleton'
+import PhotoListItem from '../components/PhotoListItem'
+import ViewModeToggle from '../components/ViewModeToggle'
 import { GALLERY_CONFIG, GALLERY_MESSAGES } from '../constants/config'
 import { formatErrorMessage } from '../utils/helpers'
 
 export default function Gallery() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
+  const { viewMode, setViewMode, isLoading: isLoadingPreference } = useViewMode()
 
   // Infinite query for paginated photos
   const {
@@ -85,7 +89,15 @@ export default function Gallery() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Photo Gallery</h2>
+      {/* Header with title and view mode toggle */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-900">Photo Gallery</h2>
+        <ViewModeToggle
+          currentView={viewMode}
+          onViewChange={setViewMode}
+          isLoading={isLoadingPreference}
+        />
+      </div>
 
       {/* Screen reader announcements for loading states */}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
@@ -100,8 +112,10 @@ export default function Gallery() {
         <div className="text-center py-12 text-gray-500">{GALLERY_MESSAGES.EMPTY}</div>
       )}
 
-      {/* Photo Grid */}
-      <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
+      {/* Conditional rendering: Grid view or List view */}
+      {viewMode === 'grid' ? (
+        /* Photo Grid */
+        <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
         {photos.map((photo) => (
           <button
             key={photo.path}
@@ -130,12 +144,20 @@ export default function Gallery() {
           </button>
         ))}
 
-        {/* Skeleton loading cards while fetching next page */}
-        {isFetchingNextPage &&
-          Array.from({ length: GALLERY_CONFIG.SKELETON_COUNT }).map((_, i) => (
-            <PhotoSkeleton key={`skeleton-${i}`} aria-hidden="true" />
+          {/* Skeleton loading cards while fetching next page */}
+          {isFetchingNextPage &&
+            Array.from({ length: GALLERY_CONFIG.SKELETON_COUNT }).map((_, i) => (
+              <PhotoSkeleton key={`skeleton-${i}`} aria-hidden="true" />
+            ))}
+        </div>
+      ) : (
+        /* Photo List */
+        <div className="flex flex-col gap-4">
+          {photos.map((photo) => (
+            <PhotoListItem key={photo.path} photo={photo} onClick={setSelectedPhoto} />
           ))}
-      </div>
+        </div>
+      )}
 
       {/* Pagination error message (shows error but keeps photos visible) */}
       {isError && photos.length > 0 && (
