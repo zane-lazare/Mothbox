@@ -20,8 +20,8 @@ from flask_wtf.csrf import CSRFError, CSRFProtect
 
 config = get_config()
 
-# Setup path to import mothbox_paths
-sys.path.insert(0, str(Path(__file__).parent))
+# Setup path to import mothbox modules
+import mothbox_import  # Sets up sys.path for mothbox_paths import
 
 
 app = Flask(__name__, static_folder="../frontend/dist")

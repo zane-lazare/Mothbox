@@ -30,7 +30,7 @@ def _get_pil_image():
 
 
 # Setup path for mothbox imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+import mothbox_import  # Sets up sys.path for mothbox_paths import
 import mothbox_paths
 from mothbox_paths import get_control_values
 

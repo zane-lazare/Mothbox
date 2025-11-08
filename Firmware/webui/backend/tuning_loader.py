@@ -19,11 +19,11 @@ import json
 import sys
 from pathlib import Path
 
-# Add parent directory to path for mothbox_paths import
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Setup path for mothbox imports
+import mothbox_import  # Sets up sys.path for mothbox_paths import
+
 # Import camera control mapping
 from camera_control_mapping import SNAKE_TO_PASCAL
-
 from mothbox_paths import ISP_DEFAULT_TUNING_FILE, ISP_TUNING_DIR
 
 # Tuning directory from centralized path configuration

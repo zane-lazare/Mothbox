@@ -10,7 +10,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 
 # Setup path to import mothbox_paths
-sys.path.insert(0, str(Path(__file__).parent.parent))
+import mothbox_import  # Sets up sys.path for mothbox_paths import
 
 from mothbox_paths import CONTROLS_FILE, get_control_values, get_hardware_config, get_script_path
 

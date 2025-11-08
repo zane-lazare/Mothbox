@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Any
 
 # Import validation schemas for type normalization
-sys.path.insert(0, str(Path(__file__).parent))
 from utils import ALLOWED_CAMERA_SETTINGS, ALLOWED_LIVEVIEW_SETTINGS
 
 # Setup logging
