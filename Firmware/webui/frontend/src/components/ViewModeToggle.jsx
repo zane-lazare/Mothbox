@@ -43,12 +43,13 @@ export default function ViewModeToggle({ currentView, onViewChange, isLoading = 
   const inactiveClasses = 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
 
   return (
-    <div
-      role="group"
-      aria-label="View mode toggle"
-      className="flex gap-2 p-1 bg-gray-100 rounded-lg"
-    >
-      {/* Grid View Button */}
+    <>
+      <div
+        role="group"
+        aria-label="View mode toggle"
+        className="flex gap-2 p-1 bg-gray-100 rounded-lg"
+      >
+        {/* Grid View Button */}
       <button
         type="button"
         aria-label="Grid view"
@@ -101,6 +102,12 @@ export default function ViewModeToggle({ currentView, onViewChange, isLoading = 
           />
         </svg>
       </button>
-    </div>
+      </div>
+
+      {/* Screen reader announcement for loading state */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {isLoading && 'Saving view preference...'}
+      </div>
+    </>
   )
 }

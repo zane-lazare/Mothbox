@@ -1,4 +1,5 @@
 import { getThumbnailUrl } from '../utils/api'
+import { formatDate, formatSize, getMothFallbackIcon } from '../utils/helpers'
 
 /**
  * PhotoListItem Component
@@ -15,42 +16,6 @@ import { getThumbnailUrl } from '../utils/api'
  * @param {Function} props.onClick - Click handler for viewing photo
  */
 export default function PhotoListItem({ photo, onClick }) {
-  /**
-   * Format date for display
-   * @param {string} isoDate - ISO date string
-   * @returns {string} Formatted date
-   */
-  const formatDate = (isoDate) => {
-    try {
-      const date = new Date(isoDate)
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    } catch {
-      return isoDate
-    }
-  }
-
-  /**
-   * Format file size for display
-   * @param {number} bytes - File size in bytes
-   * @returns {string} Formatted size (e.g., "1.5 MB")
-   */
-  const formatSize = (bytes) => {
-    if (!bytes) return null
-
-    const kb = bytes / 1024
-    if (kb < 1024) {
-      return `${kb.toFixed(1)} KB`
-    }
-
-    const mb = kb / 1024
-    return `${mb.toFixed(1)} MB`
-  }
 
   return (
     <button
@@ -65,9 +30,8 @@ export default function PhotoListItem({ photo, onClick }) {
         alt={photo.filename}
         loading="lazy"
         onError={(e) => {
-          // Fallback to gray placeholder on error
-          e.target.src =
-            'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="150"%3E%3Crect fill="%23e5e7eb" width="200" height="150"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="%239ca3af" font-size="14"%3EImage Error%3C/text%3E%3C/svg%3E'
+          // Fallback to moth icon on error
+          e.target.src = getMothFallbackIcon()
           e.target.onerror = null // Prevent infinite loop
         }}
         className="w-48 h-32 object-cover rounded flex-shrink-0"

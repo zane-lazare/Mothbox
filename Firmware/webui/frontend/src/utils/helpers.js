@@ -44,3 +44,92 @@ export const formatErrorMessage = (error, prefix, fallback = 'An unexpected erro
   const errorDetail = error?.message || fallback
   return `${prefix}: ${errorDetail}`
 }
+
+/**
+ * Format an ISO date string for display
+ *
+ * Converts an ISO 8601 date string to a localized date/time string with
+ * a short month format. Returns the original string if parsing fails.
+ *
+ * @param {string} isoDate - ISO date string (e.g., "2024-03-15T14:30:00Z")
+ * @returns {string} Formatted date string (e.g., "Mar 15, 2024, 02:30 PM")
+ *
+ * @example
+ * formatDate('2024-03-15T14:30:00Z')
+ * // Returns: "Mar 15, 2024, 02:30 PM"
+ */
+export const formatDate = (isoDate) => {
+  try {
+    const date = new Date(isoDate)
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return isoDate
+  }
+}
+
+/**
+ * Format file size in bytes to human-readable format
+ *
+ * Converts a byte count to KB or MB based on size, returning null
+ * for invalid/missing values.
+ *
+ * @param {number} bytes - File size in bytes
+ * @returns {string|null} Formatted size (e.g., "1.5 MB", "512.3 KB") or null if bytes is falsy
+ *
+ * @example
+ * formatSize(1536000)  // Returns: "1.5 MB"
+ * formatSize(512000)   // Returns: "500.0 KB"
+ * formatSize(0)        // Returns: null
+ */
+export const formatSize = (bytes) => {
+  if (!bytes) return null
+
+  const kb = bytes / 1024
+  if (kb < 1024) {
+    return `${kb.toFixed(1)} KB`
+  }
+
+  const mb = kb / 1024
+  return `${mb.toFixed(1)} MB`
+}
+
+/**
+ * Get moth icon fallback image as data URI
+ *
+ * Returns a data URI containing an SVG moth icon for use as a fallback
+ * when photo thumbnails fail to load. This is thematically appropriate
+ * for the Mothbox insect photography system.
+ *
+ * @returns {string} Data URI string containing the moth SVG
+ *
+ * @example
+ * <img src={url} onError={(e) => { e.target.src = getMothFallbackIcon() }} />
+ */
+export const getMothFallbackIcon = () => {
+  // SVG moth icon with wings, body, antennae, and "Image Unavailable" text
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+    <rect fill="#e5e7eb" width="200" height="200"/>
+    <g transform="translate(100, 100)">
+      <ellipse cx="-35" cy="0" rx="30" ry="40" fill="#9ca3af" opacity="0.7" transform="rotate(-15 -35 0)"/>
+      <ellipse cx="35" cy="0" rx="30" ry="40" fill="#9ca3af" opacity="0.7" transform="rotate(15 35 0)"/>
+      <circle cx="-35" cy="-5" r="6" fill="#6b7280" opacity="0.5"/>
+      <circle cx="-35" cy="8" r="4" fill="#6b7280" opacity="0.5"/>
+      <circle cx="35" cy="-5" r="6" fill="#6b7280" opacity="0.5"/>
+      <circle cx="35" cy="8" r="4" fill="#6b7280" opacity="0.5"/>
+      <ellipse cx="0" cy="0" rx="8" ry="25" fill="#6b7280"/>
+      <circle cx="0" cy="-22" r="6" fill="#6b7280"/>
+      <path d="M -2,-26 Q -8,-35 -10,-42" stroke="#6b7280" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <path d="M 2,-26 Q 8,-35 10,-42" stroke="#6b7280" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    </g>
+    <text x="50%" y="85%" text-anchor="middle" fill="#6b7280" font-size="12" font-family="system-ui, -apple-system, sans-serif">Image Unavailable</text>
+  </svg>`
+
+  // Encode as data URI
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
