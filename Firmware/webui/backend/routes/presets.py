@@ -1,14 +1,9 @@
 """Preset management endpoints"""
 
 import csv
-import sys
-from pathlib import Path
-
-from flask import Blueprint, jsonify, request
 
 # Setup path to import mothbox_paths
-import mothbox_import  # Sets up sys.path for mothbox_paths import
-
+from flask import Blueprint, jsonify, request
 from preset_manager import PresetManager
 
 # Import validation from utils

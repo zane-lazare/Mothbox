@@ -1,14 +1,10 @@
 """Photo gallery endpoints"""
 
-import sys
 from datetime import datetime
-from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request, send_file
 
 # Setup path to import mothbox_paths
-import mothbox_import  # Sets up sys.path for mothbox_paths import
-
 from services.photo_service import PaginationError, PhotoService
 from services.thumbnail_cache import ThumbnailError
 

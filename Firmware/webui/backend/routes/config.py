@@ -2,17 +2,12 @@
 
 import csv
 import shutil
-import sys
 from contextlib import suppress
-from pathlib import Path
-
-from flask import Blueprint, jsonify, request
 
 # Setup path to import mothbox_paths
-import mothbox_import  # Sets up sys.path for mothbox_paths import
-
 # Import camera control mapping
 from camera_control_mapping import SNAKE_TO_PASCAL, convert_to_settings_file
+from flask import Blueprint, jsonify, request
 
 # Import shared utilities
 from utils import ALLOWED_CAMERA_SETTINGS, create_backup, sanitize_csv_value

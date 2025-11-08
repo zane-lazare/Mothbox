@@ -13,7 +13,6 @@ import fcntl
 import json
 import logging
 import re
-import sys
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path

@@ -1,16 +1,12 @@
 """Camera control endpoints"""
 
 import subprocess
-import sys
 from pathlib import Path
 
-from flask import Blueprint, current_app, jsonify, request
-
 # Setup path to import mothbox_paths
-import mothbox_import  # Sets up sys.path for mothbox_paths import
-
 # Import camera control mapping
 from camera_control_mapping import build_picamera_controls, convert_from_settings_file
+from flask import Blueprint, current_app, jsonify, request
 
 # Import shared utilities
 from utils import ALLOWED_CAMERA_SETTINGS, sanitize_csv_value

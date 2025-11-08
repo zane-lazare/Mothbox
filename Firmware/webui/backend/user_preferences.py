@@ -6,13 +6,10 @@ Uses a simple JSON file for persistence.
 """
 
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
 # Setup path to import mothbox_paths
-import mothbox_import  # Sets up sys.path for mothbox_paths import
-
 from mothbox_paths import USER_PREFERENCES_FILE
 
 # Default preferences structure
