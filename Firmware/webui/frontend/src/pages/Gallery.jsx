@@ -9,7 +9,7 @@ import PhotoGridItem from '../components/PhotoGridItem'
 import PhotoListItem from '../components/PhotoListItem'
 import ViewModeToggle from '../components/ViewModeToggle'
 import { GALLERY_CONFIG, GALLERY_MESSAGES } from '../constants/config'
-import { formatErrorMessage } from '../utils/helpers'
+import { formatErrorMessage, formatSize } from '../utils/helpers'
 
 export default function Gallery() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
@@ -60,7 +60,7 @@ export default function Gallery() {
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, []) // Empty deps - setSelectedPhoto is stable, no re-registration needed
+  }, []) // setSelectedPhoto is guaranteed stable by React (setState from useState)
 
   // Flatten all pages into single photo array
   const photos = data?.pages.flatMap((page) => page.photos) ?? []
@@ -210,7 +210,7 @@ export default function Gallery() {
                 Taken: {new Date(selectedPhoto.date).toLocaleString()}
               </p>
               <p className="text-xs text-gray-400" aria-label="File size">
-                Size: {(selectedPhoto.size / 1024 / 1024).toFixed(2)} MB
+                Size: {formatSize(selectedPhoto.size)}
               </p>
             </div>
           </div>

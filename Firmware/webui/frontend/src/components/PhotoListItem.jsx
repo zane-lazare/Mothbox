@@ -16,7 +16,6 @@ import { formatDate, formatSize, getMothFallbackIcon } from '../utils/helpers'
  * @param {Function} props.onClick - Click handler for viewing photo
  */
 export default function PhotoListItem({ photo, onClick }) {
-
   return (
     <button
       type="button"
