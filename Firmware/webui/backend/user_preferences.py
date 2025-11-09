@@ -17,6 +17,7 @@ DEFAULT_PREFERENCES = {
     "default_capture_preset": None,  # Photo workflow default
     "default_preview_preset": None,  # Video workflow default
     "default_liveview_preset": None,  # Live view workflow default
+    "gallery_view_mode": "grid",  # Gallery view mode: 'grid' or 'list'
 }
 
 
