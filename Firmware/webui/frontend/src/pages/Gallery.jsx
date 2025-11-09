@@ -1,7 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { getPhotosPaginated, getThumbnailUrl, getPhotoUrl } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 import { useViewMode } from '../hooks/useViewMode'
 import PhotoSkeleton from '../components/PhotoSkeleton'
@@ -10,10 +10,16 @@ import PhotoListItem from '../components/PhotoListItem'
 import ViewModeToggle from '../components/ViewModeToggle'
 import { GALLERY_CONFIG, GALLERY_MESSAGES } from '../constants/config'
 import { formatErrorMessage, formatSize } from '../utils/helpers'
+import toast from 'react-hot-toast'
 
 export default function Gallery() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const { viewMode, setViewMode, isLoading: isLoadingPreference } = useViewMode()
+
+  // State tracking for toast notifications (prevent duplicates)
+  const [hasShownInitialErrorToast, setHasShownInitialErrorToast] = useState(false)
+  const [hasShownEndToast, setHasShownEndToast] = useState(false)
+  const prevPaginationError = useRef(null)
 
   // Infinite query for paginated photos
   const {
@@ -64,6 +70,54 @@ export default function Gallery() {
 
   // Flatten all pages into single photo array
   const photos = data?.pages.flatMap((page) => page.photos) ?? []
+
+  // Toast notifications for error states
+  useEffect(() => {
+    // Initial load error toast
+    if (isError && photos.length === 0 && !hasShownInitialErrorToast) {
+      toast.error(
+        formatErrorMessage(error, GALLERY_MESSAGES.ERROR.INITIAL, GALLERY_MESSAGES.ERROR.FALLBACK),
+        { duration: 6000 }
+      )
+      setHasShownInitialErrorToast(true)
+    }
+
+    // Reset flag when error clears
+    if (!isError) {
+      setHasShownInitialErrorToast(false)
+    }
+  }, [isError, photos.length, error, hasShownInitialErrorToast])
+
+  // Toast notification for pagination errors
+  useEffect(() => {
+    if (isError && photos.length > 0) {
+      // Only show toast if this is a new error (prevent duplicates)
+      const errorMessage = error?.message || 'Unknown error'
+      if (prevPaginationError.current !== errorMessage) {
+        toast.error(
+          formatErrorMessage(error, GALLERY_MESSAGES.ERROR.PAGINATION, GALLERY_MESSAGES.ERROR.FALLBACK),
+          { duration: 6000 }
+        )
+        prevPaginationError.current = errorMessage
+      }
+    } else {
+      // Clear on success
+      prevPaginationError.current = null
+    }
+  }, [isError, photos.length, error])
+
+  // Toast notification when all photos loaded
+  useEffect(() => {
+    if (!hasNextPage && photos.length > 0 && !isError && !hasShownEndToast) {
+      toast.success('All photos loaded', { duration: 3000 })
+      setHasShownEndToast(true)
+    }
+
+    // Reset if user navigates away and back (has more pages again)
+    if (hasNextPage) {
+      setHasShownEndToast(false)
+    }
+  }, [hasNextPage, photos.length, isError, hasShownEndToast])
 
   if (isLoading) {
     return <div className="text-center py-12">{GALLERY_MESSAGES.LOADING.INITIAL}</div>
