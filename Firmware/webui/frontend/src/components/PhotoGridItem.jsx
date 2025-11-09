@@ -1,6 +1,6 @@
 import { getThumbnailUrl } from '../utils/api'
-import { getMothFallbackIcon } from '../utils/helpers'
 import { GALLERY_CONFIG } from '../constants/config'
+import ProgressiveImage from './ProgressiveImage'
 
 /**
  * PhotoGridItem Component
@@ -23,17 +23,9 @@ export default function PhotoGridItem({ photo, onClick }) {
       onClick={() => onClick(photo)}
       aria-label={`View photo: ${photo.filename}, taken on ${new Date(photo.date).toLocaleString()}`}
     >
-      <img
+      <ProgressiveImage
         src={getThumbnailUrl(photo.path)}
         alt={photo.filename}
-        width={Math.round(GALLERY_CONFIG.THUMBNAIL.SIZE * GALLERY_CONFIG.THUMBNAIL.ASPECT_RATIO)}
-        height={GALLERY_CONFIG.THUMBNAIL.SIZE}
-        loading="lazy"
-        onError={(e) => {
-          // Fallback to moth icon on error (rate limit, missing file, etc.)
-          e.target.src = getMothFallbackIcon()
-          e.target.onerror = null // Prevent infinite loop
-        }}
         className={`w-full ${GALLERY_CONFIG.LAYOUT.PHOTO_HEIGHT} object-cover rounded-lg shadow hover:shadow-lg transition-shadow`}
       />
       <div className="absolute inset-0 bg-transparent group-hover:bg-black/30 group-focus:bg-black/30 transition-all rounded-lg flex items-center justify-center pointer-events-none">

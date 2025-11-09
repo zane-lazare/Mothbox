@@ -2,12 +2,14 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { getPhotosPaginated, getThumbnailUrl, getPhotoUrl } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 import { useViewMode } from '../hooks/useViewMode'
 import PhotoSkeleton from '../components/PhotoSkeleton'
 import PhotoGridItem from '../components/PhotoGridItem'
 import PhotoListItem from '../components/PhotoListItem'
 import ViewModeToggle from '../components/ViewModeToggle'
+import EmptyStateMessage from '../components/EmptyStateMessage'
 import { GALLERY_CONFIG, GALLERY_MESSAGES } from '../constants/config'
 import { formatErrorMessage, formatSize } from '../utils/helpers'
 import toast from 'react-hot-toast'
@@ -15,6 +17,7 @@ import toast from 'react-hot-toast'
 export default function Gallery() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const { viewMode, setViewMode, isLoading: isLoadingPreference } = useViewMode()
+  const navigate = useNavigate()
 
   // State tracking for toast notifications (prevent duplicates)
   const [hasShownInitialErrorToast, setHasShownInitialErrorToast] = useState(false)
@@ -164,7 +167,7 @@ export default function Gallery() {
       </div>
 
       {photos.length === 0 && (
-        <div className="text-center py-12 text-gray-500">{GALLERY_MESSAGES.EMPTY}</div>
+        <EmptyStateMessage variant="first-time" onCtaClick={() => navigate('/camera')} />
       )}
 
       {/* Conditional rendering: Grid view or List view */}
