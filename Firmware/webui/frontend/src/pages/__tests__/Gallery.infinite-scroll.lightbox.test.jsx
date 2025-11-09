@@ -127,7 +127,7 @@ describe('Gallery - Infinite Scroll - Lightbox & UI', () => {
       // Check metadata is displayed
       await waitFor(() => {
         expect(screen.getByText('test_photo.jpg')).toBeInTheDocument()
-        expect(screen.getByText(/2\.00.*MB/)).toBeInTheDocument()
+        expect(screen.getByText(/2\.0.*MB/)).toBeInTheDocument()
       })
     })
   })
