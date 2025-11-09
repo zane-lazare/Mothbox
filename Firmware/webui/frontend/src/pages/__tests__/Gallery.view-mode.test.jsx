@@ -208,9 +208,9 @@ describe('Gallery - View Mode Integration', () => {
 
       const { container } = renderGallery()
 
-      await waitFor(() => {
-        expect(screen.getByText('photo-1.jpg')).toBeInTheDocument()
-      })
+      // Wait for photos to load (grid view shows filename in alt attribute, not text)
+      const photo = await screen.findByAltText('photo-1.jpg')
+      expect(photo).toBeInTheDocument()
 
       // Check for grid container class
       const gridContainer = container.querySelector('.grid')
@@ -229,8 +229,9 @@ describe('Gallery - View Mode Integration', () => {
 
       renderGallery()
 
+      // Wait for images to load
       await waitFor(() => {
-        const images = screen.getAllByRole('img')
+        const images = screen.queryAllByRole('img')
         expect(images.length).toBeGreaterThan(0)
         // All images should use thumbnail URLs
         images.forEach((img) => {
@@ -252,9 +253,9 @@ describe('Gallery - View Mode Integration', () => {
 
       const { container } = renderGallery()
 
-      await waitFor(() => {
-        expect(screen.getByText('photo-1.jpg')).toBeInTheDocument()
-      })
+      // Wait for photos to load
+      const photo = await screen.findByText('photo-1.jpg')
+      expect(photo).toBeInTheDocument()
 
       // List view should NOT have grid class
       const gridContainer = container.querySelector('.grid.grid-cols-2')
@@ -272,16 +273,17 @@ describe('Gallery - View Mode Integration', () => {
 
       renderGallery()
 
-      await waitFor(() => {
-        // Filename
-        expect(screen.getByText('photo-1.jpg')).toBeInTheDocument()
+      // Wait for filename to appear
+      const filename = await screen.findByText('photo-1.jpg')
+      expect(filename).toBeInTheDocument()
 
-        // Date (formatted)
-        expect(screen.getByText(/Jan.*2025/)).toBeInTheDocument()
+      // Date (formatted) - use findAllByText for multiple matches
+      const dates = await screen.findAllByText(/Jan.*2025/)
+      expect(dates.length).toBeGreaterThan(0)
 
-        // File size
-        expect(screen.getByText(/MB/i)).toBeInTheDocument()
-      })
+      // File size
+      const sizes = await screen.findAllByText(/MB/i)
+      expect(sizes.length).toBeGreaterThan(0)
     })
   })
 
@@ -299,17 +301,18 @@ describe('Gallery - View Mode Integration', () => {
 
       renderGallery()
 
-      await waitFor(() => {
-        expect(screen.getByText('photo-1.jpg')).toBeInTheDocument()
-      })
+      // Wait for photos to load (grid view shows filename in alt attribute)
+      await screen.findByAltText('photo-1.jpg')
 
       // Click first photo
-      const photoButtons = screen.getAllByRole('button', { name: /view photo/i })
+      const photoButtons = await screen.findAllByRole('button', { name: /view photo/i })
       await user.click(photoButtons[0])
 
       // Lightbox should open
       await waitFor(() => {
-        const lightboxImage = screen.getByRole('img', { name: /photo-.*\.jpg/i })
+        const images = screen.queryAllByRole('img', { name: /photo-.*\.jpg/i })
+        const lightboxImage = images.find(img => img.src.includes('/photo/'))
+        expect(lightboxImage).toBeDefined()
         expect(lightboxImage.src).toContain('/photo/') // Full photo, not thumbnail
       })
     })
@@ -327,17 +330,18 @@ describe('Gallery - View Mode Integration', () => {
 
       renderGallery()
 
-      await waitFor(() => {
-        expect(screen.getByText('photo-1.jpg')).toBeInTheDocument()
-      })
+      // Wait for photos to load
+      await screen.findByText('photo-1.jpg')
 
       // Click first photo
-      const photoButtons = screen.getAllByRole('button', { name: /view photo/i })
+      const photoButtons = await screen.findAllByRole('button', { name: /view photo/i })
       await user.click(photoButtons[0])
 
       // Lightbox should open
       await waitFor(() => {
-        const lightboxImage = screen.getByRole('img', { name: /photo-.*\.jpg/i })
+        const images = screen.queryAllByRole('img', { name: /photo-.*\.jpg/i })
+        const lightboxImage = images.find(img => img.src.includes('/photo/'))
+        expect(lightboxImage).toBeDefined()
         expect(lightboxImage.src).toContain('/photo/') // Full photo, not thumbnail
       })
     })
@@ -362,9 +366,8 @@ describe('Gallery - View Mode Integration', () => {
 
       renderGallery()
 
-      await waitFor(() => {
-        expect(screen.getByText('photo-1.jpg')).toBeInTheDocument()
-      })
+      // Wait for photos to load (grid view shows filename in alt attribute)
+      await screen.findByAltText('photo-1.jpg')
 
       // Verify sentinel element exists (for infinite scroll)
       await waitFor(() => {
@@ -390,13 +393,15 @@ describe('Gallery - View Mode Integration', () => {
 
       renderGallery()
 
-      await waitFor(() => {
-        expect(screen.getByText('photo-1.jpg')).toBeInTheDocument()
-      })
-
-      // Verify sentinel element exists
+      // Wait for initial page load and verify infinite scroll setup
       await waitFor(() => {
         expect(api.getPhotosPaginated).toHaveBeenCalledTimes(1)
+      })
+
+      // Verify list view renders photos (just check for photo buttons)
+      await waitFor(() => {
+        const photos = screen.queryAllByRole('button', { name: /view photo/i })
+        expect(photos.length).toBeGreaterThan(0)
       })
     })
   })
