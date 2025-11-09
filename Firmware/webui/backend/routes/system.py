@@ -1,17 +1,13 @@
 """System status and monitoring endpoints"""
 
 import shutil
-import sys
 import threading
 import time
 from pathlib import Path
 
-from flask import Blueprint, jsonify
-
 # Setup path to import mothbox_paths
-import mothbox_import  # Sets up sys.path for mothbox_paths import
-
 from config import get_config
+from flask import Blueprint, jsonify
 
 from mothbox_paths import (
     CAMERA_SETTINGS_FILE,

@@ -28,6 +28,7 @@ import hashlib
 import json
 import os
 import time
+from contextlib import suppress
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -662,9 +663,6 @@ class ThumbnailCache:
         Backup cleanup mechanism if close() wasn't called explicitly.
         Note: __del__ may not be called immediately, so prefer close().
         """
-        try:
+        # Suppress exceptions during cleanup to avoid issues during interpreter shutdown
+        with suppress(Exception):
             self._flush_statistics()
-        except Exception:
-            # Suppress exceptions during cleanup to avoid issues
-            # during interpreter shutdown
-            pass

@@ -4,10 +4,8 @@ Live view streaming module for WebSocket camera feed
 
 import base64
 import io
-import sys
 import time
 from contextlib import contextmanager
-from pathlib import Path
 from threading import Event, Lock, Thread
 
 # Lazy import PIL - only needed when actually encoding images
@@ -30,7 +28,6 @@ def _get_pil_image():
 
 
 # Setup path for mothbox imports
-import mothbox_import  # Sets up sys.path for mothbox_paths import
 import mothbox_paths
 from mothbox_paths import get_control_values
 

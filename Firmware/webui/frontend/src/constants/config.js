@@ -89,6 +89,24 @@ export const TOAST_CONFIG = {
 }
 
 /**
+ * View mode configuration for gallery
+ *
+ * @property {Object} VIEW_MODES - Available gallery view modes
+ * @property {string} VIEW_MODES.GRID - Grid view mode (multi-column thumbnail grid)
+ * @property {string} VIEW_MODES.LIST - List view mode (single-column with metadata)
+ * @property {string} DEFAULT_VIEW - Default view mode when no preference set
+ * @property {string} STORAGE_KEY - localStorage/backend preference key for view mode
+ */
+export const VIEW_CONFIG = {
+  VIEW_MODES: {
+    GRID: 'grid',
+    LIST: 'list',
+  },
+  DEFAULT_VIEW: 'grid',
+  STORAGE_KEY: 'gallery_view_mode',
+}
+
+/**
  * Gallery user-facing messages
  *
  * Centralized message strings for the Gallery component to eliminate duplication

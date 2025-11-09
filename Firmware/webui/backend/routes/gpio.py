@@ -2,13 +2,9 @@
 
 import fcntl
 import json
-import sys
-from pathlib import Path
-
-from flask import Blueprint, jsonify, request
 
 # Setup path to import mothbox_paths
-import mothbox_import  # Sets up sys.path for mothbox_paths import
+from flask import Blueprint, jsonify, request
 
 from mothbox_paths import CONTROLS_FILE, DATA_DIR, get_gpio_pins
 

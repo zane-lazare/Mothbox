@@ -664,26 +664,31 @@ class TestAFWindowCoordinateTransformation:
             with patch('liveview_stream.Picamera2', return_value=mock_picamera2_for_streamer, create=True):
                 streamer = camera_streamer_func
                 assert streamer.initialize_camera()
-                streamer.start_streaming()
 
-                # Get baseline AF window at zoom=1.0
-                controls_baseline = {}
-                streamer.camera.set_controls = lambda c: controls_baseline.update(c)
-                streamer.set_af_window(0.5, 0.5, window_size=0.2)
-                baseline_window = controls_baseline['AfWindows'][0]
+                # Mock _stream_loop to prevent race conditions with background thread
+                with patch.object(streamer, '_stream_loop'):
+                    streamer.start_streaming()
+                    # Manually set camera state since we mocked the stream loop
+                    mock_picamera2_for_streamer.started = True
 
-                # Apply zoom
-                streamer.set_zoom(2.0, center_x=0.5, center_y=0.5)
+                    # Get baseline AF window at zoom=1.0
+                    controls_baseline = {}
+                    streamer.camera.set_controls = lambda c: controls_baseline.update(c)
+                    streamer.set_af_window(0.5, 0.5, window_size=0.2)
+                    baseline_window = controls_baseline['AfWindows'][0]
 
-                # Set AF window at same normalized position
-                controls_zoomed = {}
-                streamer.camera.set_controls = lambda c: controls_zoomed.update(c)
-                streamer.set_af_window(0.5, 0.5, window_size=0.2)
-                zoomed_window = controls_zoomed['AfWindows'][0]
+                    # Apply zoom
+                    streamer.set_zoom(2.0, center_x=0.5, center_y=0.5)
 
-                # AF window coordinates should be IDENTICAL (both use ScalerCropMaximum)
-                assert baseline_window == zoomed_window, \
-                    f"AF window should be zoom-independent: baseline={baseline_window}, zoomed={zoomed_window}"
+                    # Set AF window at same normalized position
+                    controls_zoomed = {}
+                    streamer.camera.set_controls = lambda c: controls_zoomed.update(c)
+                    streamer.set_af_window(0.5, 0.5, window_size=0.2)
+                    zoomed_window = controls_zoomed['AfWindows'][0]
+
+                    # AF window coordinates should be IDENTICAL (both use ScalerCropMaximum)
+                    assert baseline_window == zoomed_window, \
+                        f"AF window should be zoom-independent: baseline={baseline_window}, zoomed={zoomed_window}"
 
     def test_af_window_even_dimensions_enforced(self, camera_streamer_func):
         """Test AF window dimensions and offsets are always even"""
@@ -833,21 +838,26 @@ class TestAFWindowCoordinateTransformation:
             with patch('liveview_stream.Picamera2', return_value=mock_picamera2_for_streamer, create=True):
                 streamer = camera_streamer_func
                 assert streamer.initialize_camera()
-                streamer.start_streaming()
 
-                # Set AF window
-                streamer.set_af_window(0.5, 0.5, window_size=0.2)
-                initial_controls = streamer.camera.control_history[-1]
-                assert 'AfWindows' in initial_controls
+                # Mock _stream_loop to prevent race conditions with background thread
+                with patch.object(streamer, '_stream_loop'):
+                    streamer.start_streaming()
+                    # Manually set camera state since we mocked the stream loop
+                    mock_picamera2_for_streamer.started = True
 
-                # Update unrelated control
-                streamer.update_control({'Sharpness': 2.0})
+                    # Set AF window
+                    streamer.set_af_window(0.5, 0.5, window_size=0.2)
+                    initial_controls = streamer.camera.control_history[-1]
+                    assert 'AfWindows' in initial_controls
 
-                # Verify AF window was re-applied
-                final_controls = streamer.camera.control_history[-1]
-                assert 'AfWindows' in final_controls, "AF window should be re-applied"
-                assert final_controls['AfWindows'] == initial_controls['AfWindows'], \
-                    "AF window coordinates should be unchanged"
+                    # Update unrelated control
+                    streamer.update_control({'Sharpness': 2.0})
+
+                    # Verify AF window was re-applied
+                    final_controls = streamer.camera.control_history[-1]
+                    assert 'AfWindows' in final_controls, "AF window should be re-applied"
+                    assert final_controls['AfWindows'] == initial_controls['AfWindows'], \
+                        "AF window coordinates should be unchanged"
 
     def test_clear_af_window_resets_metering(self, camera_streamer_func):
         """Test clear_af_window() sets AfMetering=0 without AfWindows"""

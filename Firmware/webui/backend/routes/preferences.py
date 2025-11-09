@@ -1,13 +1,9 @@
 """User preferences API endpoints"""
 
-import sys
-from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 
 # Setup path to import mothbox modules
-import mothbox_import  # Sets up sys.path for mothbox_paths import
-
 from preset_manager import PresetManager
 from user_preferences import preferences_manager
 

@@ -3,12 +3,17 @@ import { getPhotosPaginated, getThumbnailUrl, getPhotoUrl } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState, useEffect } from 'react'
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
+import { useViewMode } from '../hooks/useViewMode'
 import PhotoSkeleton from '../components/PhotoSkeleton'
+import PhotoGridItem from '../components/PhotoGridItem'
+import PhotoListItem from '../components/PhotoListItem'
+import ViewModeToggle from '../components/ViewModeToggle'
 import { GALLERY_CONFIG, GALLERY_MESSAGES } from '../constants/config'
-import { formatErrorMessage } from '../utils/helpers'
+import { formatErrorMessage, formatSize } from '../utils/helpers'
 
 export default function Gallery() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
+  const { viewMode, setViewMode, isLoading: isLoadingPreference } = useViewMode()
 
   // Infinite query for paginated photos
   const {
@@ -55,7 +60,7 @@ export default function Gallery() {
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, []) // Empty deps - setSelectedPhoto is stable, no re-registration needed
+  }, []) // setSelectedPhoto is guaranteed stable by React (setState from useState)
 
   // Flatten all pages into single photo array
   const photos = data?.pages.flatMap((page) => page.photos) ?? []
@@ -85,7 +90,15 @@ export default function Gallery() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Photo Gallery</h2>
+      {/* Header with title and view mode toggle */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-900">Photo Gallery</h2>
+        <ViewModeToggle
+          currentView={viewMode}
+          onViewChange={setViewMode}
+          isLoading={isLoadingPreference}
+        />
+      </div>
 
       {/* Screen reader announcements for loading states */}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
@@ -100,42 +113,28 @@ export default function Gallery() {
         <div className="text-center py-12 text-gray-500">{GALLERY_MESSAGES.EMPTY}</div>
       )}
 
-      {/* Photo Grid */}
-      <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
-        {photos.map((photo) => (
-          <button
-            key={photo.path}
-            className="cursor-pointer group relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg"
-            onClick={() => setSelectedPhoto(photo)}
-            aria-label={`View photo: ${photo.filename}, taken on ${new Date(photo.date).toLocaleString()}`}
-          >
-            <img
-              src={getThumbnailUrl(photo.path)}
-              alt={photo.filename}
-              width={Math.round(GALLERY_CONFIG.THUMBNAIL.SIZE * GALLERY_CONFIG.THUMBNAIL.ASPECT_RATIO)}
-              height={GALLERY_CONFIG.THUMBNAIL.SIZE}
-              loading="lazy"
-              onError={(e) => {
-                // Fallback to gray placeholder on error (rate limit, missing file, etc.)
-                e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23e5e7eb" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="%239ca3af" font-size="14"%3EImage Error%3C/text%3E%3C/svg%3E';
-                e.target.onerror = null; // Prevent infinite loop
-              }}
-              className={`w-full ${GALLERY_CONFIG.LAYOUT.PHOTO_HEIGHT} object-cover rounded-lg shadow hover:shadow-lg transition-shadow`}
-            />
-            <div className="absolute inset-0 bg-transparent group-hover:bg-black/30 group-focus:bg-black/30 transition-all rounded-lg flex items-center justify-center pointer-events-none">
-              <span className="text-white opacity-0 group-hover:opacity-100 group-focus:opacity-100 text-sm">
-                View
-              </span>
-            </div>
-          </button>
-        ))}
-
-        {/* Skeleton loading cards while fetching next page */}
-        {isFetchingNextPage &&
-          Array.from({ length: GALLERY_CONFIG.SKELETON_COUNT }).map((_, i) => (
-            <PhotoSkeleton key={`skeleton-${i}`} aria-hidden="true" />
+      {/* Conditional rendering: Grid view or List view */}
+      {viewMode === 'grid' ? (
+        /* Photo Grid */
+        <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
+          {photos.map((photo) => (
+            <PhotoGridItem key={photo.path} photo={photo} onClick={setSelectedPhoto} />
           ))}
-      </div>
+
+          {/* Skeleton loading cards while fetching next page */}
+          {isFetchingNextPage &&
+            Array.from({ length: GALLERY_CONFIG.SKELETON_COUNT }).map((_, i) => (
+              <PhotoSkeleton key={`skeleton-${i}`} aria-hidden="true" />
+            ))}
+        </div>
+      ) : (
+        /* Photo List */
+        <div className="flex flex-col gap-4">
+          {photos.map((photo) => (
+            <PhotoListItem key={photo.path} photo={photo} onClick={setSelectedPhoto} />
+          ))}
+        </div>
+      )}
 
       {/* Pagination error message (shows error but keeps photos visible) */}
       {isError && photos.length > 0 && (
@@ -211,7 +210,7 @@ export default function Gallery() {
                 Taken: {new Date(selectedPhoto.date).toLocaleString()}
               </p>
               <p className="text-xs text-gray-400" aria-label="File size">
-                Size: {(selectedPhoto.size / 1024 / 1024).toFixed(2)} MB
+                Size: {formatSize(selectedPhoto.size)}
               </p>
             </div>
           </div>
