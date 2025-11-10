@@ -14,6 +14,7 @@ import MothIcon from './MothIcon'
  * @param {Function} [props.onLoad] - Optional callback when image loads successfully
  * @param {Function} [props.onError] - Optional callback when image fails to load
  * @param {boolean} [props.showFilenameOnError=false] - Show filename when image fails
+ * @param {number} [props.iconSize=200] - Size of moth icon in error fallback (px)
  */
 export default function ProgressiveImage({
   src,
@@ -22,6 +23,7 @@ export default function ProgressiveImage({
   onLoad,
   onError,
   showFilenameOnError = false,
+  iconSize = 200,
 }) {
   const [isLoaded, setIsLoaded] = useState(false)
   const [hasError, setHasError] = useState(false)
@@ -51,8 +53,8 @@ export default function ProgressiveImage({
 
       {/* Broken image fallback - moth icon */}
       {hasError && (
-        <div className="flex flex-col items-center justify-center bg-gray-100 aspect-square">
-          <MothIcon size={200} />
+        <div className={`flex flex-col items-center justify-center bg-gray-100 ${className}`}>
+          <MothIcon size={iconSize} />
           {showFilenameOnError && (
             <div className="text-xs text-gray-600 mt-2 px-2 text-center break-all">
               {alt}

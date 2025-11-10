@@ -49,7 +49,7 @@ export default function EmptyStateMessage({
       className={`flex flex-col items-center justify-center py-12 px-4 text-center ${className}`}
     >
       {/* Moth Icon */}
-      <div className="mb-6" aria-label="moth icon">
+      <div className="mb-6">
         <MothIcon size={config.iconSize} className={config.iconOpacity} />
       </div>
 

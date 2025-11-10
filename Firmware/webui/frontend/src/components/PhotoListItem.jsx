@@ -29,6 +29,7 @@ export default function PhotoListItem({ photo, onClick }) {
         src={getThumbnailUrl(photo.path)}
         alt={photo.filename}
         className="w-48 h-32 object-cover rounded flex-shrink-0"
+        iconSize={80}
       />
 
       {/* Metadata */}

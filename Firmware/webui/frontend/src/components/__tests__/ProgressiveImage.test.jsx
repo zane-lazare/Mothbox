@@ -99,6 +99,26 @@ describe('ProgressiveImage', () => {
         expect(screen.getByText(/test.jpg/i)).toBeInTheDocument()
       })
     })
+
+    it('applies className to error fallback container', async () => {
+      const { container } = render(
+        <ProgressiveImage
+          src="/broken.jpg"
+          alt="Broken image"
+          className="w-48 h-32 rounded"
+        />
+      )
+
+      const img = screen.getByRole('img', { name: /Broken image/i })
+      fireEvent.error(img)
+
+      await waitFor(() => {
+        const fallbackContainer = container.querySelector('.bg-gray-100')
+        expect(fallbackContainer).toHaveClass('w-48')
+        expect(fallbackContainer).toHaveClass('h-32')
+        expect(fallbackContainer).toHaveClass('rounded')
+      })
+    })
   })
 
   describe('Progressive Loading Animations', () => {
@@ -179,6 +199,32 @@ describe('ProgressiveImage', () => {
       const img = screen.getByRole('img', { name: /Test image/i })
       expect(img).toHaveClass('rounded-lg')
       expect(img).toHaveClass('transition-opacity')
+    })
+
+    it('accepts custom icon size for error fallback', async () => {
+      render(<ProgressiveImage src="/broken.jpg" alt="Test" iconSize={80} />)
+
+      const img = screen.getByRole('img', { name: /Test/i })
+      fireEvent.error(img)
+
+      await waitFor(() => {
+        const mothIcon = screen.getByRole('img', { name: /moth icon/i })
+        expect(mothIcon).toHaveAttribute('width', '80')
+        expect(mothIcon).toHaveAttribute('height', '80')
+      })
+    })
+
+    it('uses default icon size of 200px when not specified', async () => {
+      render(<ProgressiveImage src="/broken.jpg" alt="Test" />)
+
+      const img = screen.getByRole('img', { name: /Test/i })
+      fireEvent.error(img)
+
+      await waitFor(() => {
+        const mothIcon = screen.getByRole('img', { name: /moth icon/i })
+        expect(mothIcon).toHaveAttribute('width', '200')
+        expect(mothIcon).toHaveAttribute('height', '200')
+      })
     })
   })
 })
