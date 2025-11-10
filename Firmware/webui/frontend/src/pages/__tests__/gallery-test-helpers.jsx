@@ -1,8 +1,21 @@
 import { vi } from 'vitest'
 import { render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter } from 'react-router-dom'
 import Gallery from '../Gallery'
 import { GALLERY_CONFIG } from '../../constants/config'
+
+// Mock navigation function (shared across all Gallery tests)
+export const mockNavigate = vi.fn()
+
+// Mock react-router-dom globally for all Gallery tests
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom')
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  }
+})
 
 /**
  * Creates mock photo data for testing
@@ -65,16 +78,18 @@ export const setupIntersectionObserver = () => {
 }
 
 /**
- * Renders Gallery component wrapped in QueryClientProvider
+ * Renders Gallery component wrapped in QueryClientProvider and BrowserRouter
  * @param {QueryClient} queryClient - The QueryClient instance to use
  * @param {Object} props - Optional props to pass to Gallery component
  * @returns {Object} Render result from @testing-library/react
  */
 export const renderGallery = (queryClient, props = {}) => {
   return render(
-    <QueryClientProvider client={queryClient}>
-      <Gallery {...props} />
-    </QueryClientProvider>
+    <BrowserRouter>
+      <QueryClientProvider client={queryClient}>
+        <Gallery {...props} />
+      </QueryClientProvider>
+    </BrowserRouter>
   )
 }
 

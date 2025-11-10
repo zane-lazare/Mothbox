@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter } from 'react-router-dom'
 import Gallery from '../Gallery'
 import * as api from '../../utils/api'
+import { mockNavigate } from './gallery-test-helpers.jsx'
 
 // Mock API module
 vi.mock('../../utils/api', () => ({
@@ -59,9 +61,11 @@ describe('Gallery - View Mode Integration', () => {
 
   const renderGallery = () => {
     return render(
-      <QueryClientProvider client={queryClient}>
-        <Gallery />
-      </QueryClientProvider>
+      <BrowserRouter>
+        <QueryClientProvider client={queryClient}>
+          <Gallery />
+        </QueryClientProvider>
+      </BrowserRouter>
     )
   }
 

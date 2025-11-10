@@ -9,6 +9,17 @@ import {
   setupIntersectionObserver,
   renderGallery,
 } from './gallery-test-helpers.jsx'
+import toast from 'react-hot-toast'
+
+// Mock react-hot-toast
+vi.mock('react-hot-toast', () => ({
+  default: {
+    success: vi.fn(),
+    error: vi.fn(),
+    loading: vi.fn(() => 'toast-id'),
+    dismiss: vi.fn(),
+  },
+}))
 
 // Mock the API module
 vi.mock('../../utils/api', () => ({
@@ -130,5 +141,113 @@ describe('Gallery - Infinite Scroll - Error Handling', () => {
       expect(screen.queryByText(/error/i)).not.toBeInTheDocument()
     })
 
+  })
+
+  describe('Toast Notifications', () => {
+    beforeEach(() => {
+      // Clear toast mock calls before each test
+      toast.success.mockClear()
+      toast.error.mockClear()
+      toast.loading.mockClear()
+      toast.dismiss.mockClear()
+    })
+
+    it('shows error toast when initial load fails', async () => {
+      api.getPhotosPaginated.mockRejectedValue(new Error('Network error'))
+
+      renderGallery(queryClient)
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringContaining('Error'),
+          expect.objectContaining({ duration: 6000 })
+        )
+      })
+    })
+
+    it('shows error toast when pagination fails', async () => {
+      // First page succeeds
+      api.getPhotosPaginated.mockResolvedValueOnce({
+        data: {
+          photos: createMockPhotos(1, GALLERY_CONFIG.PAGE_SIZE),
+          pagination: { limit: GALLERY_CONFIG.PAGE_SIZE, offset: 0, total: GALLERY_CONFIG.PAGE_SIZE * 2, has_next: true, has_previous: false },
+        },
+      })
+
+      // Second page fails
+      api.getPhotosPaginated.mockRejectedValueOnce(new Error('Network error'))
+
+      renderGallery(queryClient)
+
+      await waitFor(() => {
+        expect(screen.getAllByRole('img')).toHaveLength(GALLERY_CONFIG.PAGE_SIZE)
+      })
+
+      // Clear initial toast calls
+      toast.error.mockClear()
+
+      // Trigger next page load
+      const observerCallback = getObserverCallback()
+      observerCallback([{ isIntersecting: true }])
+
+      // Should show pagination error toast
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringContaining('Error'),
+          expect.objectContaining({ duration: 6000 })
+        )
+      })
+    })
+
+    it('shows both toast and inline error for pagination failures', async () => {
+      // First page succeeds
+      api.getPhotosPaginated.mockResolvedValueOnce({
+        data: {
+          photos: createMockPhotos(1, GALLERY_CONFIG.PAGE_SIZE),
+          pagination: { limit: GALLERY_CONFIG.PAGE_SIZE, offset: 0, total: GALLERY_CONFIG.PAGE_SIZE * 2, has_next: true, has_previous: false },
+        },
+      })
+
+      // Second page fails
+      api.getPhotosPaginated.mockRejectedValueOnce(new Error('Network error'))
+
+      renderGallery(queryClient)
+
+      await waitFor(() => {
+        expect(screen.getAllByRole('img')).toHaveLength(GALLERY_CONFIG.PAGE_SIZE)
+      })
+
+      // Trigger pagination failure
+      const observerCallback = getObserverCallback()
+      observerCallback([{ isIntersecting: true }])
+
+      await waitFor(() => {
+        // Toast should be shown
+        expect(toast.error).toHaveBeenCalled()
+
+        // Inline error should still be visible
+        const errorMessages = screen.getAllByText(/error.*loading.*photos/i)
+        expect(errorMessages.length).toBeGreaterThan(0)
+      })
+    })
+
+    it('does not show duplicate toasts for the same error', async () => {
+      api.getPhotosPaginated.mockRejectedValue(new Error('Network error'))
+
+      renderGallery(queryClient)
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalled()
+      })
+
+      // Get initial call count
+      const initialCallCount = toast.error.mock.calls.length
+
+      // Wait a bit more to ensure no duplicate toasts
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Should not have been called again
+      expect(toast.error).toHaveBeenCalledTimes(initialCallCount)
+    })
   })
 })

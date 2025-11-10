@@ -1,5 +1,6 @@
 import { getThumbnailUrl } from '../utils/api'
-import { formatDate, formatSize, getMothFallbackIcon } from '../utils/helpers'
+import { formatDate, formatSize } from '../utils/helpers'
+import ProgressiveImage from './ProgressiveImage'
 
 /**
  * PhotoListItem Component
@@ -24,16 +25,11 @@ export default function PhotoListItem({ photo, onClick }) {
       className="flex gap-4 p-4 bg-white rounded-lg shadow hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-blue-500 text-left w-full"
     >
       {/* Thumbnail */}
-      <img
+      <ProgressiveImage
         src={getThumbnailUrl(photo.path)}
         alt={photo.filename}
-        loading="lazy"
-        onError={(e) => {
-          // Fallback to moth icon on error
-          e.target.src = getMothFallbackIcon()
-          e.target.onerror = null // Prevent infinite loop
-        }}
         className="w-48 h-32 object-cover rounded flex-shrink-0"
+        iconSize={80}
       />
 
       {/* Metadata */}

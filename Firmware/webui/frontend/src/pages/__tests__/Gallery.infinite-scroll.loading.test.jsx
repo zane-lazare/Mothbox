@@ -8,6 +8,17 @@ import {
   setupIntersectionObserver,
   renderGallery,
 } from './gallery-test-helpers.jsx'
+import toast from 'react-hot-toast'
+
+// Mock react-hot-toast
+vi.mock('react-hot-toast', () => ({
+  default: {
+    success: vi.fn(),
+    error: vi.fn(),
+    loading: vi.fn(() => 'toast-id'),
+    dismiss: vi.fn(),
+  },
+}))
 
 // Mock the API module
 vi.mock('../../utils/api', () => ({
@@ -332,6 +343,123 @@ describe('Gallery - Infinite Scroll - Loading & Pagination', () => {
       unmount()
 
       expect(observerMocks.disconnectMock).toHaveBeenCalled()
+    })
+  })
+
+  describe('Toast Notifications - End of Photos', () => {
+    beforeEach(() => {
+      // Clear toast mock calls before each test
+      toast.success.mockClear()
+      toast.error.mockClear()
+      toast.loading.mockClear()
+      toast.dismiss.mockClear()
+    })
+
+    it('shows success toast when all photos are loaded', async () => {
+      api.getPhotosPaginated.mockResolvedValue({
+        data: {
+          photos: createMockPhotos(1, GALLERY_CONFIG.PAGE_SIZE),
+          pagination: {
+            limit: GALLERY_CONFIG.PAGE_SIZE,
+            offset: 0,
+            total: GALLERY_CONFIG.PAGE_SIZE,
+            has_next: false,
+            has_previous: false,
+          },
+        },
+      })
+
+      renderGallery(queryClient)
+
+      await waitFor(() => {
+        expect(toast.success).toHaveBeenCalledWith(
+          'All photos loaded',
+          expect.objectContaining({ duration: 3000 })
+        )
+      })
+    })
+
+    it('shows success toast only once when reaching end', async () => {
+      // First page with more available
+      api.getPhotosPaginated.mockResolvedValueOnce({
+        data: {
+          photos: createMockPhotos(1, GALLERY_CONFIG.PAGE_SIZE),
+          pagination: {
+            limit: GALLERY_CONFIG.PAGE_SIZE,
+            offset: 0,
+            total: GALLERY_CONFIG.PAGE_SIZE * 2,
+            has_next: true,
+            has_previous: false,
+          },
+        },
+      })
+
+      // Second page (final)
+      api.getPhotosPaginated.mockResolvedValueOnce({
+        data: {
+          photos: createMockPhotos(GALLERY_CONFIG.PAGE_SIZE + 1, GALLERY_CONFIG.PAGE_SIZE),
+          pagination: {
+            limit: GALLERY_CONFIG.PAGE_SIZE,
+            offset: GALLERY_CONFIG.PAGE_SIZE,
+            total: GALLERY_CONFIG.PAGE_SIZE * 2,
+            has_next: false,
+            has_previous: true,
+          },
+        },
+      })
+
+      renderGallery(queryClient)
+
+      // Wait for first page
+      await waitFor(() => {
+        expect(screen.getAllByRole('img')).toHaveLength(GALLERY_CONFIG.PAGE_SIZE)
+      })
+
+      // Trigger second page
+      observerCallback = getObserverCallback()
+      observerCallback([{ isIntersecting: true }])
+
+      // Wait for second page
+      await waitFor(() => {
+        expect(screen.getAllByRole('img')).toHaveLength(GALLERY_CONFIG.PAGE_SIZE * 2)
+      })
+
+      // Should show success toast exactly once
+      await waitFor(() => {
+        expect(toast.success).toHaveBeenCalledTimes(1)
+        expect(toast.success).toHaveBeenCalledWith(
+          'All photos loaded',
+          expect.objectContaining({ duration: 3000 })
+        )
+      })
+
+      // Wait a bit more and verify no duplicate toasts
+      await new Promise(resolve => setTimeout(resolve, 100))
+      expect(toast.success).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not show success toast when photos list is empty', async () => {
+      api.getPhotosPaginated.mockResolvedValue({
+        data: {
+          photos: [],
+          pagination: {
+            limit: GALLERY_CONFIG.PAGE_SIZE,
+            offset: 0,
+            total: 0,
+            has_next: false,
+            has_previous: false,
+          },
+        },
+      })
+
+      renderGallery(queryClient)
+
+      await waitFor(() => {
+        expect(screen.getByText(/No photos yet/i)).toBeInTheDocument()
+      })
+
+      // Should not show success toast for empty gallery
+      expect(toast.success).not.toHaveBeenCalled()
     })
   })
 })
