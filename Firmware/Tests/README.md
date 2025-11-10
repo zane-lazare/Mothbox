@@ -44,11 +44,17 @@ pytest Tests/integration/test_manual_verification.py -v -s
 ### Performance Benchmarks
 
 ```bash
-# Run performance tests with detailed output
+# Run camera stream performance tests
 pytest Tests/integration/test_stream_performance.py -v -s
 
 # Run encoding speed comparison
 pytest Tests/unit/test_camera_stream.py::TestSimpleJPEGEncoding::test_encoding_speed_comparison -v -s
+
+# Run gallery performance tests (Issue #139 - Phase 1)
+pytest Tests/performance/test_gallery_performance.py -v -s -m performance
+
+# Run all performance tests
+pytest -m performance -v -s
 ```
 
 ## Test Structure
@@ -71,7 +77,12 @@ Tests/
 │   ├── __init__.py
 │   ├── test_stream_performance.py  # Sustained performance tests
 │   ├── test_camera_state_diagnosis.py  # Camera state diagnostic tests
+│   ├── test_gallery_pagination.py  # Gallery pagination with performance benchmarks
 │   └── test_manual_verification.py # Manual WebUI tests
+├── performance/                  # Performance benchmarks (Issue #139)
+│   ├── __init__.py
+│   ├── test_gallery_performance.py  # Gallery Phase 1 performance validation
+│   └── GALLERY_PERFORMANCE_RESULTS.md  # Performance test results documentation
 └── regression/                   # Regression tests (permanent bug verification)
     └── test_focus_bracket_regression.py
 ```
@@ -153,6 +164,53 @@ pytest Tests/unit/test_mothbox_paths_hardware.py --cov=mothbox_paths --cov-repor
 - **Performance comparison**: Q=85 vs Q=95
 - **Resolution testing**: Test all presets
 - **Stream mode switching**: Test mode changes
+
+#### `test_gallery_pagination.py`
+- **Basic pagination**: Page through 100 photos with various limits
+- **Sorting**: Test all 4 sort orders (date_desc, date_asc, filename_asc, filename_desc)
+- **Filtering**: Date range filtering
+- **Edge cases**: Empty directories, single photos, mixed files
+- **Performance benchmarks** (5 tests): <200ms target for pagination queries
+
+### Performance Tests (Issue #139)
+
+#### `test_gallery_performance.py`
+Validates Phase 1 success criteria for gallery enhancement deployment.
+
+**Test Classes**:
+
+1. **TestGalleryLoadPerformance** (4 tests):
+   - Initial load (50 photos): <500ms
+   - Cold cache load (500 photos): <2000ms (**Phase 1 Success Criterion**)
+   - Pagination performance: <200ms per page
+   - Large dataset performance: Consistent across 500 photos
+
+2. **TestCachePerformance** (5 tests):
+   - Cache hit ratio: >80% after warmup (**Phase 1 Success Criterion**)
+   - Cache warmup time: 100 photos in <60s
+   - Cache miss + generation: <200ms
+   - Statistics accuracy: Hit/miss tracking validation
+   - Concurrent cache access: <300ms average with 5 threads
+
+3. **TestEndToEndWorkflows** (4 tests):
+   - Complete gallery load workflow
+   - Infinite scroll through 500 photos
+   - View mode toggle performance: <100ms
+   - Concurrent user access: 5 simultaneous users
+
+**Run**:
+```bash
+# Run all gallery performance tests
+pytest Tests/performance/test_gallery_performance.py -v -s -m performance
+
+# Run specific test class
+pytest Tests/performance/test_gallery_performance.py::TestCachePerformance -v -s
+
+# View detailed results
+cat Tests/performance/GALLERY_PERFORMANCE_RESULTS.md
+```
+
+**Note**: These tests create 500 real JPEG photos (~30-45 seconds setup time). Run on Pi hardware for accurate results.
 
 ## Success Criteria
 
