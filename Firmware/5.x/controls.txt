@@ -21,3 +21,41 @@ Relay_Ch3=9
 relay_enabled=true
 flash_duration_ms=100
 jpeg_quality=96
+
+# ============================================================================
+# Gallery Thumbnail Cache Configuration (Issue #139 - Phase 1)
+# ============================================================================
+# These settings control the thumbnail caching system for the photo gallery.
+# The cache improves gallery performance by storing pre-generated thumbnails
+# at multiple resolutions. See docs/gallery-testing.md for detailed documentation.
+
+# Maximum cache size in megabytes (default: 500)
+# The cache will use LRU (Least Recently Used) eviction when this limit is reached.
+# Larger values improve hit rate but consume more disk space.
+# Recommended: 500MB for typical deployments, 1000MB for heavy usage
+cache_max_size_mb=500
+
+# Supported thumbnail sizes in pixels (comma-separated, default: 64,128,256)
+# These resolutions will be generated and cached on-demand.
+# Smaller sizes load faster but have lower quality. Larger sizes are higher quality
+# but take longer to generate and consume more disk space.
+# Phase 1 sizes: 64px (mobile thumbnails), 128px (grid view), 256px (list view)
+cache_sizes=64,128,256
+
+# JPEG quality for thumbnails (1-100, default: 85)
+# Higher quality = larger files and slower generation, lower quality = faster generation.
+# Quality 85 provides optimal balance: visually similar to quality 95 but 5-7x faster.
+# Recommended: 85 for balanced performance, 90 for higher quality, 75 for faster generation
+thumbnail_quality=85
+
+# Enable automatic cache warming on startup (true/false, default: false)
+# When enabled, thumbnails are pre-generated in the background for recent photos.
+# This improves initial page load performance but increases startup time.
+# Recommended: false for manual triggering via API, true for unattended operation
+cache_warm_on_startup=false
+
+# Number of recent photos to warm on startup (default: 100)
+# Only used when cache_warm_on_startup=true.
+# Larger values improve cache hit rate but increase startup time.
+# Guideline: 100 photos ≈ 60 seconds warmup time on Pi 4
+cache_warm_count=100

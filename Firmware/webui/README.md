@@ -246,9 +246,46 @@ HDR_width,7000,Bracket step size in microseconds
 - Capture success toast displays HDR details (e.g., "HDR capture complete: 5 exposures with 7000µs bracket width")
 
 ### Gallery
-- `GET /api/gallery/photos` - List all photos
+
+The gallery system provides high-performance photo browsing with thumbnail caching, pagination, and infinite scroll. Full API documentation: [docs/api/gallery.md](../docs/api/gallery.md)
+
+#### Photo Listing
+- `GET /api/gallery/photos` - List all photos (legacy endpoint)
+- `GET /api/gallery/photos/paginated` - List photos with pagination **(Recommended)**
+  - Query params: `limit` (1-500, default: 50), `offset` (>=0, default: 0), `sort` (date_desc, date_asc, filename_asc, filename_desc), `start_date` (ISO format), `end_date` (ISO format)
+  - Returns: `{"photos": [...], "pagination": {...}}`
+
+#### Photo Serving
 - `GET /api/gallery/photo/<path>` - Get full-size photo
-- `GET /api/gallery/thumbnail/<path>` - Get photo thumbnail
+- `GET /api/gallery/thumbnail/<path>?size=<size>` - Get photo thumbnail (sizes: 64, 128, 256)
+
+#### Cache Management
+- `GET /api/gallery/cache/stats` - Get cache statistics (hit ratio, size, etc.)
+- `POST /api/gallery/cache/invalidate` - Manually invalidate cache **[Requires CSRF]**
+  - Body: `{"photo_path": "optional/path.jpg", "size": 128}` (both optional)
+
+#### Cache Warming (Background)
+- `POST /api/gallery/cache/warm` - Trigger cache warming **[Requires CSRF]**
+  - Body: `{"count": 100, "sizes": [64, 128, 256], "background": true}`
+  - Returns: `{"task_id": "uuid", "status": "started", "message": "..."}`
+- `GET /api/gallery/cache/warm/status` - Get summary of all warming tasks
+- `GET /api/gallery/cache/warm/status/<task_id>` - Get specific task status
+- `POST /api/gallery/cache/warm/cancel/<task_id>` - Cancel running task **[Requires CSRF]**
+
+**Quick Example: Paginated Gallery**
+```bash
+# Get first page (50 photos, newest first)
+curl http://localhost:5000/api/gallery/photos/paginated
+
+# Get second page with custom limit
+curl "http://localhost:5000/api/gallery/photos/paginated?limit=25&offset=25"
+
+# Filter by date range
+curl "http://localhost:5000/api/gallery/photos/paginated?start_date=2024-11-01&end_date=2024-11-30"
+
+# Get cache statistics
+curl http://localhost:5000/api/gallery/cache/stats
+```
 
 ### Config
 - `GET /api/config/controls` - Get controls.txt configuration
@@ -279,13 +316,51 @@ The backend integrates with Mothbox's existing Python infrastructure using the `
 
 ## Roadmap
 
-- [ ] WebSocket live camera preview
-- [ ] User authentication
-- [ ] Photo filtering and search
-- [ ] Batch photo operations
-- [ ] Export/backup functionality
-- [ ] Mobile-responsive optimizations
+**Phase 1: Performance Foundation (Completed ✅)**
+- [x] Thumbnail caching service with LRU eviction
+- [x] Pagination API with sorting and filtering
+- [x] Infinite scroll with progressive image loading
+- [x] Grid/List view toggle with backend persistence
+- [x] Loading states and empty states
+- [x] Performance tests and benchmarks
+
+**Phase 2: Enhanced Photo Viewer & Metadata (Weeks 4-6)**
+- [ ] GPS EXIF embedding in photos
+- [ ] Metadata parser for EXIF tags
+- [ ] Adaptive lightbox with zoom/pan
+- [ ] Metadata display panel
+- [ ] Virtualized gallery for 10,000+ photos
+
+**Phase 3: Series Grouping & Map View (Weeks 7-9)**
+- [ ] HDR and focus bracket series detection
+- [ ] Stacked card UI for series
+- [ ] Leaflet map integration
+- [ ] Location clustering (10m tolerance)
+- [ ] Map-lightbox integration
+
+**Phase 4: Tagging, Search & Filtering (Weeks 10-13)**
+- [ ] JSON sidecar metadata system
+- [ ] Tag autocomplete with fuzzy matching
+- [ ] Quick-tag dropdown
+- [ ] Full-text search (SQLite FTS5)
+- [ ] Advanced filter drawer
+- [ ] Bulk tagging operations
+
+**Phase 5: Export System (Weeks 14-18)**
+- [ ] Darwin Core CSV export
+- [ ] iNaturalist export with XMP tags
+- [ ] JSON/CSV exporters
+- [ ] ZIP optimization for large exports
+- [ ] Export presets and templates
+
+**Security & Production (Ongoing - Issue #19)**
+- [ ] User authentication system
+- [ ] Configurable network binding
+- [ ] Production WSGI server (gunicorn)
+- [ ] Rate limiting and throttling
 - [ ] Dark mode support
+
+**See [GALLERY_ROADMAP.md](../GALLERY_ROADMAP.md) for detailed timeline and dependencies.**
 
 ## Contributing
 
