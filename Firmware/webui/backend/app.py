@@ -21,7 +21,11 @@ from flask_wtf.csrf import CSRFError, CSRFProtect
 config = get_config()
 
 # Setup path to import mothbox modules
-
+# mothbox_paths.py is in the Firmware root directory, two levels up from this file
+# This works for all installation types: production (/opt/mothbox), legacy, custom, and dev
+backend_dir = Path(__file__).resolve().parent
+firmware_root = backend_dir.parent.parent  # webui/backend -> webui -> Firmware (or /opt/mothbox)
+sys.path.insert(0, str(firmware_root))
 
 app = Flask(__name__, static_folder="../frontend/dist")
 
