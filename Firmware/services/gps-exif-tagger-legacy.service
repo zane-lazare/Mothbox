@@ -36,5 +36,27 @@ CPUQuota=25%
 NoNewPrivileges=true
 PrivateTmp=true
 
+# Filesystem protection
+ProtectSystem=strict
+ReadWritePaths=/home/pi/Desktop/Mothbox/Firmware/photos
+ReadOnlyPaths=/home/pi/Desktop/Mothbox/Firmware
+
+# Additional security layers
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictNamespaces=true
+
+# Capability restrictions
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# System call filtering
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+SystemCallErrorNumber=EPERM
+
 [Install]
 WantedBy=multi-user.target

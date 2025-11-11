@@ -63,6 +63,38 @@ Core scripts in each version:
 
 **Always import paths from this module** - never construct paths manually.
 
+### GPS EXIF Service (Optional Systemd Service)
+
+**Background service** for automatic GPS EXIF embedding:
+- **Purpose**: Watches photos directory and automatically embeds GPS coordinates into new photos
+- **Implementation**: `gps_exif_tagger.py --mode immediate --watch --interval 10`
+- **Service files**: `services/gps-exif-tagger.service` (production), `services/gps-exif-tagger-legacy.service` (legacy)
+- **Installation**: Via `install_mothbox.sh --with-gps-exif-service` or manual systemctl
+- **Resource limits**: 256MB memory max, 25% CPU quota
+- **Security**: Strict systemd hardening (ProtectSystem=strict, NoNewPrivileges, capability restrictions)
+
+**Management commands**:
+```bash
+# Start/stop/restart service
+sudo systemctl start gps-exif-tagger.service
+sudo systemctl stop gps-exif-tagger.service
+sudo systemctl restart gps-exif-tagger.service
+
+# View logs
+sudo journalctl -u gps-exif-tagger.service -f
+
+# Check status and resource usage
+sudo systemctl status gps-exif-tagger.service
+```
+
+**Testing**: Manual test procedures in `Tests/manual/gps_exif_service/`:
+- `test_installation.sh`: Verify service installation and configuration
+- `test_monitoring.sh`: Monitor service operation and logs
+- `test_resource_limits.sh`: Validate memory/CPU limits
+- `MANUAL_TEST_PROCEDURES.md`: Detailed step-by-step test procedures
+
+**Documentation**: See `docs/GPS_EXIF_SERVICE.md` for complete setup, troubleshooting, and configuration guide.
+
 ### Camera System
 
 Two camera workflows:
@@ -334,12 +366,15 @@ def ws_connect():
 
 - `mothbox_paths.py`: **Path resolution and hardware config** (276 lines, 97.8% coverage)
 - `install_mothbox.sh`: Installation script with Pi detection and firmware selection
+- `gps_exif_tagger.py`: Main GPS EXIF embedding tool (CLI and watch mode)
+- `gps_exif/`: GPS EXIF library (coordinate conversion, EXIF embedding, verification)
 - `webui/backend/app.py`: Flask app initialization, CSRF, CORS, SocketIO setup
 - `webui/backend/liveview_stream.py`: Camera streaming engine (2500+ lines)
 - `webui/backend/routes/camera.py`: Camera control API (1270+ lines)
 - `pyproject.toml`: pytest, coverage, bandit, and ruff configuration
 - `Tests/README.md`: Comprehensive testing documentation
-- `TESTING_PROCEDURE.md`: Manual hardware testing procedures
+- `Tests/manual/gps_exif_service/`: GPS EXIF service manual testing procedures
+- `docs/GPS_EXIF_SERVICE.md`: GPS EXIF service setup and troubleshooting guide
 
 ## Development Workflow
 

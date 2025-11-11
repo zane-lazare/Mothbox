@@ -25,6 +25,7 @@
 #   --path /custom/path                 Path for custom installation
 #   --quick                             Skip interactive prompts, use defaults
 #   --with-webui                        Install Web UI (Node.js + Flask + React)
+#   --with-gps-exif-service             Install GPS EXIF tagger systemd service
 #   --env [development|production]      Web UI environment (default: development)
 #
 # Examples:
@@ -33,6 +34,7 @@
 #   ./install_mothbox.sh --type legacy --quick          # CLI: quick legacy install
 #   ./install_mothbox.sh --type production --with-webui # CLI: production + webui (dev mode)
 #   ./install_mothbox.sh --with-webui --env production  # CLI: webui in production mode
+#   ./install_mothbox.sh --type production --with-gps-exif-service # CLI: with GPS service
 #   ./install_mothbox.sh --type custom --path /srv/mothbox
 #
 # ==============================================================================
@@ -94,6 +96,7 @@ INSTALL_TYPE="legacy"
 CUSTOM_PATH=""
 QUICK_MODE="false"
 INSTALL_WEBUI_FLAG="false"
+INSTALL_GPS_EXIF_SERVICE_FLAG="false"
 MOTHBOX_ENV="development"  # Default environment for Web UI
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -130,6 +133,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --with-webui)
             INSTALL_WEBUI_FLAG="true"
+            shift
+            ;;
+        --with-gps-exif-service)
+            INSTALL_GPS_EXIF_SERVICE_FLAG="true"
             shift
             ;;
         --env)
@@ -1123,6 +1130,78 @@ if [ "$INSTALL_WEBUI_FLAG" = "true" ] || [ "$INTERACTIVE_MODE" = "true" ]; then
     fi
 fi
 
+# Optional: Install GPS EXIF Tagger Service
+if [ "$INSTALL_GPS_EXIF_SERVICE_FLAG" = "true" ] || [ "$INTERACTIVE_MODE" = "true" ]; then
+    echo ""
+    echo -e "${BLUE}================================================================================${NC}"
+    echo -e "${BLUE}GPS EXIF Tagger Service Installation (Optional)${NC}"
+    echo -e "${BLUE}================================================================================${NC}"
+    echo ""
+
+    # Only prompt in interactive mode or if flag not set
+    INSTALL_GPS_EXIF_SERVICE="n"
+    if [ "$INSTALL_GPS_EXIF_SERVICE_FLAG" = "true" ]; then
+        INSTALL_GPS_EXIF_SERVICE="y"
+    elif [ "$INTERACTIVE_MODE" = "true" ]; then
+        echo -e "The GPS EXIF Tagger Service automatically embeds GPS coordinates into photos:"
+        echo "  - Watches for new photos in real-time"
+        echo "  - Adds GPS EXIF metadata to images"
+        echo "  - Runs as a systemd background service"
+        echo "  - Requires GPS hardware and gpsd service"
+        echo ""
+        echo -e "${YELLOW}Do you want to install the GPS EXIF Tagger Service?${NC}"
+        echo "(Recommended if you have GPS hardware installed)"
+        read -p "(y/N) " -n 1 -r
+        echo
+        INSTALL_GPS_EXIF_SERVICE=$REPLY
+    fi
+
+    if [[ $INSTALL_GPS_EXIF_SERVICE =~ ^[Yy]$ ]]; then
+        echo ""
+        echo -e "${BLUE}Installing GPS EXIF Tagger Service...${NC}"
+
+        # Determine which service file to use based on installation type
+        if [ "$INSTALL_TYPE" = "production" ]; then
+            SERVICE_FILE="gps-exif-tagger.service"
+            SERVICE_SOURCE="$SCRIPT_DIR/services/$SERVICE_FILE"
+        else
+            # Legacy or custom installations use legacy service
+            SERVICE_FILE="gps-exif-tagger-legacy.service"
+            SERVICE_SOURCE="$SCRIPT_DIR/services/$SERVICE_FILE"
+        fi
+
+        # Check if service file exists
+        if [ ! -f "$SERVICE_SOURCE" ]; then
+            echo -e "${RED}Error: Service file not found: $SERVICE_SOURCE${NC}"
+            echo "Skipping GPS EXIF service installation"
+        else
+            # Copy service file to systemd directory
+            echo "Installing systemd service file..."
+            sudo cp "$SERVICE_SOURCE" /etc/systemd/system/
+
+            # Reload systemd to recognize new service
+            echo "Reloading systemd daemon..."
+            sudo systemctl daemon-reload
+
+            # Enable service to start on boot
+            echo "Enabling GPS EXIF Tagger service..."
+            sudo systemctl enable "$SERVICE_FILE"
+
+            echo -e "${GREEN}✓ GPS EXIF Tagger Service installed successfully${NC}"
+            echo ""
+            echo -e "${BLUE}Service Management Commands:${NC}"
+            echo "  Start:   sudo systemctl start $SERVICE_FILE"
+            echo "  Stop:    sudo systemctl stop $SERVICE_FILE"
+            echo "  Status:  sudo systemctl status $SERVICE_FILE"
+            echo "  Logs:    sudo journalctl -u $SERVICE_FILE -f"
+            echo ""
+            echo -e "${YELLOW}Note: Service is enabled but not started automatically.${NC}"
+            echo -e "${YELLOW}Start the service manually after verifying GPS hardware works.${NC}"
+            echo ""
+        fi
+    fi
+fi
+
 # Post-install validation
 echo ""
 echo -e "${BLUE}================================================================================${NC}"
@@ -1256,6 +1335,23 @@ if [ "$PCA9536_ENABLED" = "true" ]; then
 fi
 if [ "$MUX_ENABLED" = "true" ]; then
     echo "  Multiplexer:          $MUX_ENABLED ($MUX_TYPE mode)"
+fi
+echo ""
+
+# Show installed services
+echo -e "${BLUE}Installed Services:${NC}"
+if [[ $INSTALL_GPS_EXIF_SERVICE =~ ^[Yy]$ ]]; then
+    # Determine which service was installed
+    if [ "$INSTALL_TYPE" = "production" ]; then
+        SERVICE_INSTALLED="gps-exif-tagger.service"
+    else
+        SERVICE_INSTALLED="gps-exif-tagger-legacy.service"
+    fi
+    echo "  GPS EXIF Tagger:      Installed (enabled, not started)"
+    echo "                        Service: $SERVICE_INSTALLED"
+    echo "                        Start: sudo systemctl start $SERVICE_INSTALLED"
+else
+    echo "  GPS EXIF Tagger:      Not installed"
 fi
 echo ""
 
