@@ -350,8 +350,128 @@ def embed_gps_exif(
         - Validates JPEG integrity after write
         - Original file preserved if backup=True
     """
-    # TODO: Implement for Day 3
-    pass
+    # Import dependencies
+    try:
+        from PIL import Image
+    except ImportError:
+        return {
+            'success': False,
+            'skipped': False,
+            'error': "PIL library required for GPS EXIF embedding",
+            'gps_embedded': False,
+            'original_had_gps': False,
+            'backup_path': None
+        }
+
+    if piexif is None:
+        return {
+            'success': False,
+            'skipped': False,
+            'error': "piexif library required for GPS EXIF embedding",
+            'gps_embedded': False,
+            'original_had_gps': False,
+            'backup_path': None
+        }
+
+    # Initialize result dict
+    result = {
+        'success': False,
+        'skipped': False,
+        'error': None,
+        'gps_embedded': False,
+        'original_had_gps': False,
+        'backup_path': None
+    }
+
+    # Step 1: Validate photo path exists
+    if not photo_path.exists():
+        result['error'] = f"Photo file does not exist: {photo_path}"
+        return result
+
+    # Step 2: Get GPS data (use provided or read from controls.txt)
+    if gps_data is None:
+        gps_data = get_gps_data_from_controls()
+
+    # Step 3: Check if GPS has valid fix
+    if not gps_data.get('has_fix', False):
+        result['skipped'] = True
+        return result
+
+    # Step 4: Try to read existing EXIF from photo
+    try:
+        # Load existing EXIF
+        exif_dict = piexif.load(str(photo_path))
+
+        # Check if photo already has GPS EXIF
+        if exif_dict.get('GPS') and piexif.GPSIFD.GPSLatitude in exif_dict['GPS']:
+            result['original_had_gps'] = True
+
+    except Exception as e:
+        # Handle invalid JPEG or corrupted EXIF
+        result['error'] = f"Failed to read EXIF from photo: {str(e)}"
+        return result
+
+    # Step 5: Build GPS IFD from GPS data
+    try:
+        gps_ifd = build_gps_ifd(gps_data)
+
+        # Check if GPS IFD is empty (should not happen if has_fix=True)
+        if not gps_ifd:
+            result['error'] = "Failed to build GPS IFD (no GPS fix)"
+            result['skipped'] = True
+            return result
+
+    except Exception as e:
+        result['error'] = f"Failed to build GPS IFD: {str(e)}"
+        return result
+
+    # Step 6: Merge GPS IFD with existing EXIF
+    # Preserve all existing EXIF (0th, Exif, 1st), only replace GPS
+    exif_dict['GPS'] = gps_ifd
+
+    # Step 7: Dump EXIF to bytes
+    try:
+        exif_bytes = piexif.dump(exif_dict)
+    except Exception as e:
+        result['error'] = f"Failed to serialize EXIF: {str(e)}"
+        return result
+
+    # Step 8: Create backup if requested
+    if backup and not dry_run:
+        try:
+            backup_path = photo_path.with_suffix(photo_path.suffix + '.bak')
+            import shutil
+            shutil.copy2(photo_path, backup_path)
+            result['backup_path'] = backup_path
+        except Exception as e:
+            result['error'] = f"Failed to create backup: {str(e)}"
+            return result
+
+    # Step 9: Write EXIF back to photo (atomic write)
+    if not dry_run:
+        try:
+            # Open image
+            img = Image.open(photo_path)
+
+            # Write to temporary file first (atomic write pattern)
+            temp_path = photo_path.with_suffix('.jpg.tmp')
+
+            # Save with new EXIF
+            img.save(temp_path, 'JPEG', exif=exif_bytes, quality=95)
+
+            # Atomic rename (replaces original)
+            temp_path.replace(photo_path)
+
+            result['gps_embedded'] = True
+
+        except Exception as e:
+            result['error'] = f"Failed to write EXIF to photo: {str(e)}"
+            return result
+
+    # Step 10: Mark success
+    result['success'] = True
+
+    return result
 
 
 def verify_gps_exif(photo_path: Path) -> Dict[str, Any]:
@@ -380,8 +500,109 @@ def verify_gps_exif(photo_path: Path) -> Dict[str, Any]:
         >>> if info['has_gps']:
         ...     print(f"Photo location: {info['latitude']}, {info['longitude']}")
     """
-    # TODO: Implement for Day 3
-    pass
+    # Initialize result with default values
+    result = {
+        'has_gps': False,
+        'latitude': None,
+        'longitude': None,
+        'timestamp': None,
+        'altitude': None,
+        'satellites': None,
+        'hdop': None,
+        'raw_gps_ifd': None
+    }
+
+    # Check if piexif is available
+    if piexif is None:
+        return result
+
+    # Check if file exists
+    if not photo_path.exists():
+        return result
+
+    # Try to read EXIF from photo
+    try:
+        exif_dict = piexif.load(str(photo_path))
+        gps_ifd = exif_dict.get('GPS', {})
+
+        # Check if GPS IFD has latitude and longitude
+        if not gps_ifd or piexif.GPSIFD.GPSLatitude not in gps_ifd:
+            return result
+
+        # Mark as having GPS
+        result['has_gps'] = True
+        result['raw_gps_ifd'] = gps_ifd
+
+        # Helper function to convert DMS to decimal degrees
+        def dms_to_decimal(dms_tuple, ref):
+            """Convert EXIF DMS format to decimal degrees."""
+            # DMS tuple format: ((degrees, 1), (minutes, 1), (seconds, 100))
+            degrees = dms_tuple[0][0] / dms_tuple[0][1]
+            minutes = dms_tuple[1][0] / dms_tuple[1][1]
+            seconds = dms_tuple[2][0] / dms_tuple[2][1]
+
+            decimal = degrees + (minutes / 60.0) + (seconds / 3600.0)
+
+            # Apply sign based on reference
+            if ref in [b'S', b'W', 'S', 'W']:
+                decimal = -decimal
+
+            return decimal
+
+        # Extract latitude
+        if piexif.GPSIFD.GPSLatitude in gps_ifd:
+            lat_dms = gps_ifd[piexif.GPSIFD.GPSLatitude]
+            lat_ref = gps_ifd.get(piexif.GPSIFD.GPSLatitudeRef, b'N')
+            # Handle both bytes and str
+            if isinstance(lat_ref, bytes):
+                lat_ref = lat_ref.decode('ascii')
+            result['latitude'] = dms_to_decimal(lat_dms, lat_ref)
+
+        # Extract longitude
+        if piexif.GPSIFD.GPSLongitude in gps_ifd:
+            lon_dms = gps_ifd[piexif.GPSIFD.GPSLongitude]
+            lon_ref = gps_ifd.get(piexif.GPSIFD.GPSLongitudeRef, b'E')
+            # Handle both bytes and str
+            if isinstance(lon_ref, bytes):
+                lon_ref = lon_ref.decode('ascii')
+            result['longitude'] = dms_to_decimal(lon_dms, lon_ref)
+
+        # Extract altitude
+        if piexif.GPSIFD.GPSAltitude in gps_ifd:
+            altitude_rational = gps_ifd[piexif.GPSIFD.GPSAltitude]
+            result['altitude'] = altitude_rational[0] / altitude_rational[1]
+
+        # Extract timestamp
+        if piexif.GPSIFD.GPSDateStamp in gps_ifd and piexif.GPSIFD.GPSTimeStamp in gps_ifd:
+            date_str = gps_ifd[piexif.GPSIFD.GPSDateStamp]
+            if isinstance(date_str, bytes):
+                date_str = date_str.decode('ascii')
+
+            time_tuple = gps_ifd[piexif.GPSIFD.GPSTimeStamp]
+            hour = time_tuple[0][0] / time_tuple[0][1]
+            minute = time_tuple[1][0] / time_tuple[1][1]
+            second = time_tuple[2][0] / time_tuple[2][1]
+
+            result['timestamp'] = f"{date_str} {int(hour):02d}:{int(minute):02d}:{int(second):02d}"
+
+        # Extract satellite count
+        if piexif.GPSIFD.GPSSatellites in gps_ifd:
+            satellites = gps_ifd[piexif.GPSIFD.GPSSatellites]
+            if isinstance(satellites, bytes):
+                result['satellites'] = satellites.decode('ascii')
+            else:
+                result['satellites'] = str(satellites)
+
+        # Extract HDOP
+        if piexif.GPSIFD.GPSDOP in gps_ifd:
+            hdop_rational = gps_ifd[piexif.GPSIFD.GPSDOP]
+            result['hdop'] = hdop_rational[0] / hdop_rational[1]
+
+    except Exception:
+        # If any error occurs, return result with has_gps=False
+        pass
+
+    return result
 
 
 def is_already_tagged(photo_path: Path) -> bool:
@@ -404,5 +625,6 @@ def is_already_tagged(photo_path: Path) -> bool:
         >>> if not is_already_tagged(photo):
         ...     embed_gps_exif(photo)
     """
-    # TODO: Implement for Day 3
-    pass
+    # Use verify_gps_exif and check has_gps field
+    gps_info = verify_gps_exif(photo_path)
+    return gps_info['has_gps']
