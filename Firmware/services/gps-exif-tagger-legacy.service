@@ -1,0 +1,40 @@
+[Unit]
+Description=Mothbox GPS EXIF Tagger (Legacy Installation)
+Documentation=https://github.com/Digital-Naturalism-Laboratories/Mothbox
+After=network.target gpsd.service
+Wants=gpsd.service
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+
+# Working directory for legacy installation
+WorkingDirectory=/home/pi/Desktop/Mothbox/Firmware
+
+# Environment variables
+Environment="PYTHONUNBUFFERED=1"
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+
+# Main service command (watch mode with 10 second polling)
+ExecStart=/usr/bin/python3 /home/pi/Desktop/Mothbox/Firmware/gps_exif_tagger.py --mode immediate --watch --interval 10 --verbose
+
+# Restart policy
+Restart=on-failure
+RestartSec=30s
+
+# Logging (systemd journal)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gps-exif-tagger
+
+# Resource limits (prevent runaway resource usage)
+MemoryMax=256M
+CPUQuota=25%
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
