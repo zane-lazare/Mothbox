@@ -354,6 +354,8 @@ def sample_photo(tmp_path):
     try:
         from PIL import Image
         import piexif
+        # Ensure PIL plugins are loaded (fixes test failures when running multiple tests)
+        Image.init()
     except ImportError:
         pytest.skip("PIL and piexif required for photo tests")
 
@@ -877,6 +879,8 @@ def sample_photo_with_exif(tmp_path):
     try:
         from PIL import Image
         import piexif
+        # Ensure PIL plugins are loaded (fixes test failures when running multiple tests)
+        Image.init()
     except ImportError:
         pytest.skip("PIL and piexif required for photo tests")
 

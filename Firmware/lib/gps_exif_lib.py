@@ -353,6 +353,9 @@ def embed_gps_exif(
     # Import dependencies
     try:
         from PIL import Image
+        # Ensure PIL plugins are loaded (fixes test failures when running multiple tests)
+        # See: https://pillow.readthedocs.io/en/stable/handbook/overview.html#plugin-loading
+        Image.init()
     except ImportError:
         return {
             'success': False,

@@ -16,6 +16,10 @@ from pathlib import Path
 from PIL import Image
 import piexif
 
+# Ensure PIL plugins are loaded (fixes test failures when running multiple tests)
+# See: https://pillow.readthedocs.io/en/stable/handbook/overview.html#plugin-loading
+Image.init()
+
 from mothbox_paths import PHOTOS_DIR, CONTROLS_FILE
 from lib.gps_exif_lib import embed_gps_exif, verify_gps_exif, get_gps_data_from_controls
 from gps_exif_tagger import batch_process_directory, process_single_photo, setup_logging
