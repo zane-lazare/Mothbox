@@ -248,25 +248,22 @@ Complete list of all documentation with metadata:
 |----------|----------|-------|--------------|--------|
 | **Project Overview** |
 | CLAUDE.md | `/CLAUDE.md` | ~800 | 2025-11-10 | Current |
-| Gallery Roadmap | `/GALLERY_ROADMAP.md` | ~1200 | 2025-01-06 | Phase 1 Complete |
+| Gallery Roadmap | `planning/GALLERY_ROADMAP.md` | ~1200 | 2025-01-06 | Phase 1 Complete |
 | **Gallery Phase 1** |
-| Gallery Architecture | `docs/gallery-architecture.md` | 960 | 2025-11-10 | Production |
-| Gallery API | `docs/api/gallery.md` | 1218 | 2025-11-10 | Production |
-| Thumbnail Cache Guide | `docs/thumbnail-cache.md` | 1270 | 2025-11-10 | Production |
-| Gallery Developer Guide | `docs/gallery-developer-guide.md` | 2229 | 2025-01-10 | Production |
-| Frontend Components | `docs/frontend-components.md` | 2790 | 2025-11-10 | Production |
-| Gallery Testing | `docs/gallery-testing.md` | 2107 | 2025-11-10 | Production |
+| Gallery Architecture | `architecture/gallery-architecture.md` | 960 | 2025-11-10 | Production |
+| Gallery API | `api/gallery.md` | 1218 | 2025-11-10 | Production |
+| Thumbnail Cache Guide | `architecture/thumbnail-cache.md` | 1270 | 2025-11-10 | Production |
+| Gallery Developer Guide | `guides/gallery-developer-guide.md` | 2229 | 2025-01-10 | Production |
+| Frontend Components | `architecture/frontend-components.md` | 2790 | 2025-11-10 | Production |
+| Gallery Testing | `testing/gallery-testing.md` | 2107 | 2025-11-10 | Production |
 | **Development** |
-| TDD Workflow | `docs/TDD_WORKFLOW.md` | 629 | 2025-11-06 | Current |
+| TDD Workflow | `guides/TDD_WORKFLOW.md` | 629 | 2025-11-06 | Current |
 | Tests README | `/Tests/README.md` | ~500 | 2025-11-06 | Current |
 | **Web UI** |
 | Web UI README | `/webui/README.md` | ~400 | 2025-11-06 | Current |
 | Frontend README | `/webui/frontend/README.md` | ~600 | 2025-11-06 | Current |
 | **Project Management** |
-| Gallery Gantt Chart | `docs/GALLERY_GANTT.md` | 298 | 2025-11-06 | Current |
-| Project Views Setup | `docs/PROJECT_VIEWS_SETUP.md` | 287 | 2025-11-06 | Current |
-| **Issue Analysis** |
-| Issue #137 Bug | `docs/issue-137-backend-persistence-bug.md` | 114 | 2025-11-09 | Resolved |
+| Gallery Gantt Chart | `planning/GALLERY_GANTT.md` | 298 | 2025-11-06 | Current |
 
 ---
 
@@ -362,20 +359,20 @@ When creating or updating documentation:
 - Submit an issue if documentation needs updating
 
 **"I need help with testing"**:
-- Start with [Gallery Testing](gallery-testing.md)
-- Review [TDD Workflow Reference](TDD_WORKFLOW.md)
-- Check [Tests/README.md](../Tests/README.md) for infrastructure details
+- Start with [Gallery Testing](testing/gallery-testing.md)
+- Review [TDD Workflow Reference](guides/TDD_WORKFLOW.md)
+- Check [Tests/README.md](../../../Tests/README.md) for infrastructure details
 
 **"I need help with camera/GPIO"**:
-- See [CLAUDE.md](../CLAUDE.md) sections on:
+- See [CLAUDE.md](../../../CLAUDE.md) sections on:
   - Camera System (photo capture vs. live preview)
   - GPIO Pin Access (using `get_gpio_pins()`)
   - Hardware Configuration (using `get_hardware_config()`)
 
 **"I need help with gallery performance"**:
-- Review [Gallery Architecture](gallery-architecture.md) - Performance Characteristics section
-- Check [Thumbnail Cache Guide](thumbnail-cache.md) - Performance Tuning section
-- See [Gallery Testing](gallery-testing.md) - Performance validation procedures
+- Review [Gallery Architecture](architecture/gallery-architecture.md) - Performance Characteristics section
+- Check [Thumbnail Cache Guide](architecture/thumbnail-cache.md) - Performance Tuning section
+- See [Gallery Testing](testing/gallery-testing.md) - Performance validation procedures
 
 ---
 
@@ -383,7 +380,7 @@ When creating or updating documentation:
 
 This index file should be updated when:
 
-- New documentation is added to `docs/`
+- New documentation is added to `webui/docs/dev/` subdirectories
 - Documentation files are renamed or moved
 - Major documentation updates occur (version changes, restructuring)
 - New project phases begin

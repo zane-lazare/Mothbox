@@ -151,7 +151,7 @@ React Query caches pages → Progressive images load thumbnails
 
 #### 2. Follow TDD Workflow
 
-Reference: `docs/TDD_WORKFLOW.md`
+Reference: `guides/TDD_WORKFLOW.md`
 
 ```bash
 # Step 1: Create test file FIRST

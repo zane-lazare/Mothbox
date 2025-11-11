@@ -947,8 +947,8 @@ mypy==1.7.1               # Static type checker (planned)
 
 ## Related Documentation
 
-- **API Reference**: [`docs/api/gallery.md`](./api/gallery.md) - Complete endpoint documentation
-- **Cache Guide**: [`docs/thumbnail-cache.md`](./thumbnail-cache.md) - Cache operations and tuning
+- **API Reference**: [`api/gallery.md`](../api/gallery.md) - Complete endpoint documentation
+- **Cache Guide**: [`architecture/thumbnail-cache.md`](./thumbnail-cache.md) - Cache operations and tuning
 - **Performance Results**: [`Tests/performance/GALLERY_PERFORMANCE_RESULTS.md`](../Tests/performance/GALLERY_PERFORMANCE_RESULTS.md) - Benchmark data
 - **Testing Guide**: [`TESTING_PROCEDURE.md`](../TESTING_PROCEDURE.md) - Manual testing procedures
 - **Project Roadmap**: [`GALLERY_ROADMAP.md`](../GALLERY_ROADMAP.md) - Phase 1-5 development plan

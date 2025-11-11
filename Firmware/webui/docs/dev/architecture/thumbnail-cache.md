@@ -1258,8 +1258,8 @@ thumbnail_cache = ThumbnailCache(
 
 ## Related Documentation
 
-- **Architecture**: [`docs/gallery-architecture.md`](./gallery-architecture.md) - System design and data flows
-- **API Reference**: [`docs/api/gallery.md`](./api/gallery.md) - Complete endpoint documentation
+- **Architecture**: [`architecture/gallery-architecture.md`](./gallery-architecture.md) - System design and data flows
+- **API Reference**: [`api/gallery.md`](../api/gallery.md) - Complete endpoint documentation
 - **Performance Results**: [`Tests/performance/GALLERY_PERFORMANCE_RESULTS.md`](../Tests/performance/GALLERY_PERFORMANCE_RESULTS.md) - Benchmark data
 - **Testing Guide**: [`TESTING_PROCEDURE.md`](../TESTING_PROCEDURE.md) - Manual testing procedures
 

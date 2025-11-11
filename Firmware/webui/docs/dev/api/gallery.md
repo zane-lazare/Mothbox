@@ -1206,8 +1206,8 @@ const jumpToPage = (pageNum) => {
 
 ## Related Documentation
 
-- **Architecture**: [`docs/gallery-architecture.md`](../gallery-architecture.md) - System design and data flows
-- **Cache Guide**: [`docs/thumbnail-cache.md`](../thumbnail-cache.md) - Cache operations and tuning
+- **Architecture**: [`architecture/gallery-architecture.md`](../architecture/gallery-architecture.md) - System design and data flows
+- **Cache Guide**: [`architecture/thumbnail-cache.md`](../architecture/thumbnail-cache.md) - Cache operations and tuning
 - **Performance Results**: [`Tests/performance/GALLERY_PERFORMANCE_RESULTS.md`](../../Tests/performance/GALLERY_PERFORMANCE_RESULTS.md) - Benchmark data
 - **Testing Guide**: [`TESTING_PROCEDURE.md`](../../TESTING_PROCEDURE.md) - Manual testing procedures
 
