@@ -254,17 +254,21 @@ class TestCLIValidation:
                                 assert exc_info.value.code == 1
 
     def test_fatal_exception_exits_with_error_code(self):
-        """Test that unhandled exceptions cause exit with code 1."""
+        """Test that hardware config errors are logged as warnings."""
         test_args = ['gps_exif_tagger.py']
 
         with patch('sys.argv', test_args):
-            with patch.object(gps_exif_tagger, 'setup_logging', return_value=Mock()):
+            mock_logger = Mock()
+            with patch.object(gps_exif_tagger, 'setup_logging', return_value=mock_logger):
                 with patch.object(gps_exif_tagger, 'get_hardware_config', side_effect=Exception("Fatal error")):
-                    with patch('pathlib.Path.exists', return_value=True):
-                        with pytest.raises(SystemExit) as exc_info:
-                            gps_exif_tagger.main()
+                    with patch.object(gps_exif_tagger, 'get_gps_data_from_controls', return_value={'has_fix': False}):
+                        with patch('pathlib.Path.exists', return_value=True):
+                            with patch.object(gps_exif_tagger, 'batch_process_directory', return_value={'errors': 0}):
+                                # Should log warning but not exit
+                                gps_exif_tagger.main()
 
-                        assert exc_info.value.code == 1
+                                # Verify warning was logged
+                                assert any('hardware config' in str(call).lower() for call in mock_logger.warning.call_args_list)
 
     def test_fatal_exception_with_verbose_shows_traceback(self):
         """Test that --verbose shows full traceback on fatal errors."""

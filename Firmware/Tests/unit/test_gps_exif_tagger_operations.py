@@ -8,11 +8,39 @@ from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, call
 import tempfile
 import time
-from PIL import Image
+import sys
 
 # Import the module under test
 import gps_exif_tagger
 from lib.gps_exif_lib import embed_gps_exif
+
+
+@pytest.fixture(scope="module", autouse=True)
+def ensure_real_pil():
+    """
+    Ensure PIL is not mocked for this test module (Python 3.13 compatibility).
+
+    In Python 3.13, PIL mocks from test_gallery_routes persist across modules
+    despite the reset_pil_imports fixture. Force fresh PIL import at module level.
+    """
+    # Remove any existing PIL modules
+    pil_modules = [key for key in sys.modules.keys() if key == 'PIL' or key.startswith('PIL.')]
+    for key in pil_modules:
+        del sys.modules[key]
+
+    # Re-import PIL.Image globally for this module
+    global Image
+    from PIL import Image
+
+    # Initialize PIL plugins to register file format handlers (.jpg, .png, etc.)
+    Image.init()
+
+    yield
+
+    # Cleanup after module
+    pil_modules = [key for key in sys.modules.keys() if key == 'PIL' or key.startswith('PIL.')]
+    for key in pil_modules:
+        del sys.modules[key]
 
 
 class TestBatchProcessing:
