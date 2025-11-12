@@ -725,3 +725,283 @@ class TestEdgeCases:
             assert gps_data['has_fix'] is False
         finally:
             tmp_path.unlink()
+
+
+class TestDivisionByZeroErrors:
+    """Test error handling for malformed EXIF data with zero denominators."""
+
+    def test_verify_gps_exif_latitude_zero_denominator_degrees(self):
+        """Test verify_gps_exif handles latitude with zero denominator in degrees."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir) / 'test.jpg'
+
+            # Create test photo
+            img = Image.new('RGB', (100, 100), color='blue')
+            img.save(tmp_path)
+
+            # Mock piexif to return malformed GPS data with zero denominator
+            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+                mock_piexif.GPSIFD.GPSLatitude = 2
+                mock_piexif.GPSIFD.GPSLatitudeRef = 1
+                mock_piexif.GPSIFD.GPSLongitude = 4
+                mock_piexif.GPSIFD.GPSLongitudeRef = 3
+
+                # Malformed latitude: degrees denominator is zero
+                malformed_gps_ifd = {
+                    2: ((37, 0), (46, 1), (5920, 100)),  # degrees denominator = 0
+                    1: b'N',
+                    4: ((122, 1), (25, 1), (1164, 100)),
+                    3: b'W'
+                }
+
+                mock_piexif.load.return_value = {'GPS': malformed_gps_ifd}
+
+                # Should catch the error and return error in result
+                result = verify_gps_exif(tmp_path)
+
+                assert result['error'] is not None, "Should return error for zero denominator"
+                assert 'denominator is zero' in result['error'].lower(), \
+                    f"Error message should mention zero denominator: {result['error']}"
+
+    def test_verify_gps_exif_latitude_zero_denominator_minutes(self):
+        """Test verify_gps_exif handles latitude with zero denominator in minutes."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir) / 'test.jpg'
+            img = Image.new('RGB', (100, 100), color='blue')
+            img.save(tmp_path)
+
+            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+                mock_piexif.GPSIFD.GPSLatitude = 2
+                mock_piexif.GPSIFD.GPSLatitudeRef = 1
+                mock_piexif.GPSIFD.GPSLongitude = 4
+                mock_piexif.GPSIFD.GPSLongitudeRef = 3
+
+                # Malformed latitude: minutes denominator is zero
+                malformed_gps_ifd = {
+                    2: ((37, 1), (46, 0), (5920, 100)),  # minutes denominator = 0
+                    1: b'N',
+                    4: ((122, 1), (25, 1), (1164, 100)),
+                    3: b'W'
+                }
+
+                mock_piexif.load.return_value = {'GPS': malformed_gps_ifd}
+
+                result = verify_gps_exif(tmp_path)
+
+                assert result['error'] is not None
+                assert 'denominator is zero' in result['error'].lower()
+
+    def test_verify_gps_exif_latitude_zero_denominator_seconds(self):
+        """Test verify_gps_exif handles latitude with zero denominator in seconds."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir) / 'test.jpg'
+            img = Image.new('RGB', (100, 100), color='blue')
+            img.save(tmp_path)
+
+            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+                mock_piexif.GPSIFD.GPSLatitude = 2
+                mock_piexif.GPSIFD.GPSLatitudeRef = 1
+                mock_piexif.GPSIFD.GPSLongitude = 4
+                mock_piexif.GPSIFD.GPSLongitudeRef = 3
+
+                # Malformed latitude: seconds denominator is zero
+                malformed_gps_ifd = {
+                    2: ((37, 1), (46, 1), (5920, 0)),  # seconds denominator = 0
+                    1: b'N',
+                    4: ((122, 1), (25, 1), (1164, 100)),
+                    3: b'W'
+                }
+
+                mock_piexif.load.return_value = {'GPS': malformed_gps_ifd}
+
+                result = verify_gps_exif(tmp_path)
+
+                assert result['error'] is not None
+                assert 'denominator is zero' in result['error'].lower()
+
+    def test_verify_gps_exif_longitude_zero_denominator(self):
+        """Test verify_gps_exif handles longitude with zero denominator."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir) / 'test.jpg'
+            img = Image.new('RGB', (100, 100), color='blue')
+            img.save(tmp_path)
+
+            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+                mock_piexif.GPSIFD.GPSLatitude = 2
+                mock_piexif.GPSIFD.GPSLatitudeRef = 1
+                mock_piexif.GPSIFD.GPSLongitude = 4
+                mock_piexif.GPSIFD.GPSLongitudeRef = 3
+
+                # Malformed longitude: degrees denominator is zero
+                malformed_gps_ifd = {
+                    2: ((37, 1), (46, 1), (5920, 100)),
+                    1: b'N',
+                    4: ((122, 0), (25, 1), (1164, 100)),  # degrees denominator = 0
+                    3: b'W'
+                }
+
+                mock_piexif.load.return_value = {'GPS': malformed_gps_ifd}
+
+                result = verify_gps_exif(tmp_path)
+
+                assert result['error'] is not None
+                assert 'denominator is zero' in result['error'].lower()
+
+    def test_verify_gps_exif_altitude_zero_denominator(self):
+        """Test verify_gps_exif handles altitude with zero denominator."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir) / 'test.jpg'
+            img = Image.new('RGB', (100, 100), color='blue')
+            img.save(tmp_path)
+
+            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+                mock_piexif.GPSIFD.GPSLatitude = 2
+                mock_piexif.GPSIFD.GPSLatitudeRef = 1
+                mock_piexif.GPSIFD.GPSLongitude = 4
+                mock_piexif.GPSIFD.GPSLongitudeRef = 3
+                mock_piexif.GPSIFD.GPSAltitude = 6
+
+                # Valid coordinates but malformed altitude
+                malformed_gps_ifd = {
+                    2: ((37, 1), (46, 1), (5920, 100)),
+                    1: b'N',
+                    4: ((122, 1), (25, 1), (1164, 100)),
+                    3: b'W',
+                    6: (100, 0)  # altitude denominator = 0
+                }
+
+                mock_piexif.load.return_value = {'GPS': malformed_gps_ifd}
+
+                result = verify_gps_exif(tmp_path)
+
+                assert result['error'] is not None
+                assert 'altitude' in result['error'].lower()
+                assert 'denominator is zero' in result['error'].lower()
+
+    def test_verify_gps_exif_timestamp_zero_denominator_hour(self):
+        """Test verify_gps_exif handles GPS timestamp with zero denominator in hour."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir) / 'test.jpg'
+            img = Image.new('RGB', (100, 100), color='blue')
+            img.save(tmp_path)
+
+            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+                mock_piexif.GPSIFD.GPSLatitude = 2
+                mock_piexif.GPSIFD.GPSLatitudeRef = 1
+                mock_piexif.GPSIFD.GPSLongitude = 4
+                mock_piexif.GPSIFD.GPSLongitudeRef = 3
+                mock_piexif.GPSIFD.GPSDateStamp = 29
+                mock_piexif.GPSIFD.GPSTimeStamp = 7
+
+                # Valid coordinates but malformed timestamp
+                malformed_gps_ifd = {
+                    2: ((37, 1), (46, 1), (5920, 100)),
+                    1: b'N',
+                    4: ((122, 1), (25, 1), (1164, 100)),
+                    3: b'W',
+                    29: b'2025:01:15',
+                    7: ((12, 0), (30, 1), (45, 1))  # hour denominator = 0
+                }
+
+                mock_piexif.load.return_value = {'GPS': malformed_gps_ifd}
+
+                result = verify_gps_exif(tmp_path)
+
+                assert result['error'] is not None
+                assert 'timestamp' in result['error'].lower()
+                assert 'denominator is zero' in result['error'].lower()
+
+    def test_verify_gps_exif_timestamp_zero_denominator_minute(self):
+        """Test verify_gps_exif handles GPS timestamp with zero denominator in minute."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir) / 'test.jpg'
+            img = Image.new('RGB', (100, 100), color='blue')
+            img.save(tmp_path)
+
+            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+                mock_piexif.GPSIFD.GPSLatitude = 2
+                mock_piexif.GPSIFD.GPSLatitudeRef = 1
+                mock_piexif.GPSIFD.GPSLongitude = 4
+                mock_piexif.GPSIFD.GPSLongitudeRef = 3
+                mock_piexif.GPSIFD.GPSDateStamp = 29
+                mock_piexif.GPSIFD.GPSTimeStamp = 7
+
+                malformed_gps_ifd = {
+                    2: ((37, 1), (46, 1), (5920, 100)),
+                    1: b'N',
+                    4: ((122, 1), (25, 1), (1164, 100)),
+                    3: b'W',
+                    29: b'2025:01:15',
+                    7: ((12, 1), (30, 0), (45, 1))  # minute denominator = 0
+                }
+
+                mock_piexif.load.return_value = {'GPS': malformed_gps_ifd}
+
+                result = verify_gps_exif(tmp_path)
+
+                assert result['error'] is not None
+                assert 'timestamp' in result['error'].lower()
+                assert 'denominator is zero' in result['error'].lower()
+
+    def test_verify_gps_exif_timestamp_zero_denominator_second(self):
+        """Test verify_gps_exif handles GPS timestamp with zero denominator in second."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir) / 'test.jpg'
+            img = Image.new('RGB', (100, 100), color='blue')
+            img.save(tmp_path)
+
+            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+                mock_piexif.GPSIFD.GPSLatitude = 2
+                mock_piexif.GPSIFD.GPSLatitudeRef = 1
+                mock_piexif.GPSIFD.GPSLongitude = 4
+                mock_piexif.GPSIFD.GPSLongitudeRef = 3
+                mock_piexif.GPSIFD.GPSDateStamp = 29
+                mock_piexif.GPSIFD.GPSTimeStamp = 7
+
+                malformed_gps_ifd = {
+                    2: ((37, 1), (46, 1), (5920, 100)),
+                    1: b'N',
+                    4: ((122, 1), (25, 1), (1164, 100)),
+                    3: b'W',
+                    29: b'2025:01:15',
+                    7: ((12, 1), (30, 1), (45, 0))  # second denominator = 0
+                }
+
+                mock_piexif.load.return_value = {'GPS': malformed_gps_ifd}
+
+                result = verify_gps_exif(tmp_path)
+
+                assert result['error'] is not None
+                assert 'timestamp' in result['error'].lower()
+                assert 'denominator is zero' in result['error'].lower()
+
+    def test_verify_gps_exif_hdop_zero_denominator(self):
+        """Test verify_gps_exif handles HDOP with zero denominator."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir) / 'test.jpg'
+            img = Image.new('RGB', (100, 100), color='blue')
+            img.save(tmp_path)
+
+            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+                mock_piexif.GPSIFD.GPSLatitude = 2
+                mock_piexif.GPSIFD.GPSLatitudeRef = 1
+                mock_piexif.GPSIFD.GPSLongitude = 4
+                mock_piexif.GPSIFD.GPSLongitudeRef = 3
+                mock_piexif.GPSIFD.GPSDOP = 11
+
+                # Valid coordinates but malformed HDOP
+                malformed_gps_ifd = {
+                    2: ((37, 1), (46, 1), (5920, 100)),
+                    1: b'N',
+                    4: ((122, 1), (25, 1), (1164, 100)),
+                    3: b'W',
+                    11: (120, 0)  # HDOP denominator = 0
+                }
+
+                mock_piexif.load.return_value = {'GPS': malformed_gps_ifd}
+
+                result = verify_gps_exif(tmp_path)
+
+                assert result['error'] is not None
+                assert 'hdop' in result['error'].lower()
+                assert 'denominator is zero' in result['error'].lower()

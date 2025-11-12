@@ -602,6 +602,15 @@ def verify_gps_exif(photo_path: Path) -> Dict[str, Any]:
         def dms_to_decimal(dms_tuple, ref):
             """Convert EXIF DMS format to decimal degrees."""
             # DMS tuple format: ((degrees, 1), (minutes, 1), (seconds, 100))
+
+            # Validate denominators to prevent division by zero
+            # Malformed EXIF data could have zero denominators
+            if dms_tuple[0][1] == 0 or dms_tuple[1][1] == 0 or dms_tuple[2][1] == 0:
+                raise ValueError(
+                    f"Invalid EXIF DMS data: denominator is zero "
+                    f"(degrees={dms_tuple[0]}, minutes={dms_tuple[1]}, seconds={dms_tuple[2]})"
+                )
+
             degrees = dms_tuple[0][0] / dms_tuple[0][1]
             minutes = dms_tuple[1][0] / dms_tuple[1][1]
             seconds = dms_tuple[2][0] / dms_tuple[2][1]
@@ -635,6 +644,8 @@ def verify_gps_exif(photo_path: Path) -> Dict[str, Any]:
         # Extract altitude
         if piexif.GPSIFD.GPSAltitude in gps_ifd:
             altitude_rational = gps_ifd[piexif.GPSIFD.GPSAltitude]
+            if altitude_rational[1] == 0:
+                raise ValueError(f"Invalid EXIF altitude data: denominator is zero ({altitude_rational})")
             result['altitude'] = altitude_rational[0] / altitude_rational[1]
 
         # Extract timestamp
@@ -644,6 +655,12 @@ def verify_gps_exif(photo_path: Path) -> Dict[str, Any]:
                 date_str = date_str.decode('ascii')
 
             time_tuple = gps_ifd[piexif.GPSIFD.GPSTimeStamp]
+            # Validate denominators to prevent division by zero
+            if time_tuple[0][1] == 0 or time_tuple[1][1] == 0 or time_tuple[2][1] == 0:
+                raise ValueError(
+                    f"Invalid EXIF GPS timestamp data: denominator is zero "
+                    f"(hour={time_tuple[0]}, minute={time_tuple[1]}, second={time_tuple[2]})"
+                )
             hour = time_tuple[0][0] / time_tuple[0][1]
             minute = time_tuple[1][0] / time_tuple[1][1]
             second = time_tuple[2][0] / time_tuple[2][1]
@@ -661,6 +678,8 @@ def verify_gps_exif(photo_path: Path) -> Dict[str, Any]:
         # Extract HDOP
         if piexif.GPSIFD.GPSDOP in gps_ifd:
             hdop_rational = gps_ifd[piexif.GPSIFD.GPSDOP]
+            if hdop_rational[1] == 0:
+                raise ValueError(f"Invalid EXIF HDOP data: denominator is zero ({hdop_rational})")
             result['hdop'] = hdop_rational[0] / hdop_rational[1]
 
     except Exception as e:
