@@ -44,7 +44,7 @@ class TestCLIArgumentParsing:
                                 # Mock KeyboardInterrupt to exit watch loop
                                 mock_watch.side_effect = KeyboardInterrupt
 
-                                with pytest.raises(SystemExit):
+                                with pytest.raises(KeyboardInterrupt):
                                     gps_exif_tagger.main()
 
     def test_batch_mode_argument(self):
@@ -74,7 +74,7 @@ class TestCLIArgumentParsing:
                             with patch('pathlib.Path.exists', return_value=True):
                                 mock_watch.side_effect = KeyboardInterrupt
 
-                                with pytest.raises(SystemExit):
+                                with pytest.raises(KeyboardInterrupt):
                                     gps_exif_tagger.main()
 
                                 assert mock_watch.called
@@ -123,7 +123,7 @@ class TestCLIArgumentParsing:
                             with patch('pathlib.Path.exists', return_value=True):
                                 mock_watch.side_effect = KeyboardInterrupt
 
-                                with pytest.raises(SystemExit):
+                                with pytest.raises(KeyboardInterrupt):
                                     gps_exif_tagger.main()
 
                                 # Check interval kwarg
