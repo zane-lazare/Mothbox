@@ -253,6 +253,12 @@ def watch_directory(
                         # (in case we caught it mid-write)
                         time.sleep(0.5)
 
+                        # Check file still exists after sleep
+                        # (could be deleted/renamed during wait)
+                        if not photo_path.exists():
+                            logger.debug(f"Skipping {photo_path.name} (file no longer exists)")
+                            continue
+
                         # Process the photo
                         logger.debug(f"Detected new/modified photo: {photo_path.name}")
                         result = process_single_photo(

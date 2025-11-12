@@ -584,3 +584,67 @@ class TestWatchMode:
 
             # Should search for multiple case variants
             # (Implementation detail - may vary)
+
+    def test_watch_mode_handles_file_deletion_race(self):
+        """Test that watch mode handles files deleted between stat() and processing."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            logger = Mock()
+
+            # Create initial photo
+            photo_path = tmp_path / 'photo.jpg'
+            img = Image.new('RGB', (100, 100), color='yellow')
+            img.save(photo_path)
+
+            # Track processing attempts
+            process_calls = []
+
+            def mock_process(photo, *args, **kwargs):
+                process_calls.append(str(photo))
+                return {'success': True, 'skipped': False}
+
+            # Delete file after initial detection but before processing
+            # (simulate race condition during the 0.5 second sleep)
+            def delete_after_delay():
+                time.sleep(0.3)  # Wait for detection + partial sleep
+                if photo_path.exists():
+                    photo_path.unlink()
+
+            with patch.object(gps_exif_tagger, 'process_single_photo', side_effect=mock_process):
+                import threading
+
+                # Start deletion thread
+                delete_thread = threading.Thread(target=delete_after_delay, daemon=True)
+                delete_thread.start()
+
+                def run_watch():
+                    try:
+                        gps_exif_tagger.watch_directory(
+                            tmp_path,
+                            logger,
+                            pattern='*.jpg',
+                            interval=0.1,
+                            backup=False
+                        )
+                    except KeyboardInterrupt:
+                        pass
+
+                watch_thread = threading.Thread(target=run_watch, daemon=True)
+                watch_thread.start()
+
+                # Wait for detection, deletion, and processing attempt
+                time.sleep(0.8)
+
+                # Stop watch mode
+                watch_thread.join(timeout=0.5)
+                delete_thread.join(timeout=0.1)
+
+            # With fix: process_single_photo() should NOT be called
+            # (file is checked and skipped before processing)
+            assert len(process_calls) == 0, \
+                "Should NOT process file that was deleted during sleep window"
+
+            # Verify logger.debug was called with skip message
+            debug_calls = [str(call) for call in logger.debug.call_args_list]
+            assert any('no longer exists' in str(call).lower() for call in debug_calls), \
+                "Should log that file no longer exists"
