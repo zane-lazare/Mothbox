@@ -46,6 +46,36 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from lib.gps_exif_lib import verify_gps_exif
 
 
+# Module exports
+__all__ = [
+    'extract_timestamp_from_filename',
+    'print_gps_info',
+    'generate_csv_report',
+    'main',
+]
+
+
+# Mothbox filename parsing constants
+MOTHBOX_PREFIX = 'mothbox'                    # Required filename prefix (lowercase)
+FILENAME_YEAR_DIGITS = 4                       # Year component length
+FILENAME_DATE_DIGITS = 2                       # Month/day component length
+FILENAME_TIME_DIGITS = 2                       # Hour/minute/second component length
+
+# Regex pattern for Mothbox filename format
+# Format: mothbox_YYYY_MM_DD__HH_MM_SS[_bracket_N].{jpg|jpeg}
+MOTHBOX_FILENAME_PATTERN = (
+    r'^mothbox_'                               # Prefix (lowercase only)
+    r'(\d{4})_'                                # Year (4 digits)
+    r'(\d{2})_'                                # Month (2 digits)
+    r'(\d{2})__'                               # Day (2 digits) + double underscore
+    r'(\d{2})_'                                # Hour (2 digits)
+    r'(\d{2})_'                                # Minute (2 digits)
+    r'(\d{2})'                                 # Second (2 digits)
+    r'(?:_bracket_\d+)?'                       # Optional: _bracket_N suffix
+    r'\.[jJ][pP][eE]?[gG]$'                    # Extension: .jpg/.JPG/.jpeg/.JPEG
+)
+
+
 def extract_timestamp_from_filename(filename: str | Path) -> datetime | None:
     """
     Extract timestamp from Mothbox photo filename using regex pattern matching.
@@ -94,24 +124,10 @@ def extract_timestamp_from_filename(filename: str | Path) -> datetime | None:
 
     basename = filename.name
 
-    # Regex pattern for Mothbox filename format:
-    # mothbox_YYYY_MM_DD__HH_MM_SS[.jpg|.jpeg|_bracket_N.jpg]
-    #
-    # Pattern breakdown:
-    # ^mothbox_           - Must start with "mothbox_" (lowercase only)
-    # (\d{4})_            - Year (4 digits)
-    # (\d{2})_            - Month (2 digits)
-    # (\d{2})__           - Day (2 digits) followed by double underscore
-    # (\d{2})_            - Hour (2 digits)
-    # (\d{2})_            - Minute (2 digits)
-    # (\d{2})             - Second (2 digits)
-    # (?:_bracket_\d+)?   - Optional: _bracket_N suffix (non-capturing group)
-    # \.[jJ][pP][eE]?[gG]$ - File extension: .jpg, .JPG, .jpeg, .JPEG (case-insensitive)
-    pattern = r'^mothbox_(\d{4})_(\d{2})_(\d{2})__(\d{2})_(\d{2})_(\d{2})(?:_bracket_\d+)?\.[jJ][pP][eE]?[gG]$'
-
-    # Match without re.IGNORECASE to keep "mothbox" lowercase-only
-    # But file extension is case-insensitive via [jJ][pP][eE]?[gG] pattern
-    match = re.match(pattern, basename)
+    # Use module-level constant for filename pattern
+    # Pattern is defined at top of module for easy maintenance
+    # See MOTHBOX_FILENAME_PATTERN constant for pattern details
+    match = re.match(MOTHBOX_FILENAME_PATTERN, basename)
 
     if not match:
         return None

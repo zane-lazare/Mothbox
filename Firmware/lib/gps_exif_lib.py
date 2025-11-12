@@ -37,6 +37,33 @@ except ImportError:
     piexif = None  # Graceful degradation if piexif not available
 
 
+# Module exports
+__all__ = [
+    'get_gps_data_from_controls',
+    'decimal_to_dms',
+    'build_gps_ifd',
+    'embed_gps_exif',
+    'verify_gps_exif',
+    'is_already_tagged',
+]
+
+
+# GPS EXIF constants
+EXIF_GPS_VERSION = (2, 3, 0, 0)  # GPS EXIF version 2.3.0.0 (standard)
+DMS_PRECISION = 100              # Precision for DMS seconds (1/100 second)
+DEFAULT_JPEG_QUALITY = 95        # JPEG quality for re-encoding (preserves quality)
+BACKUP_EXTENSION = '.bak'        # Extension for backup files
+
+# GPS fix mode constants
+GPS_FIX_NONE = 0                 # No GPS fix
+GPS_FIX_2D = 2                   # 2D fix (lat/lon only)
+GPS_FIX_3D = 3                   # 3D fix (lat/lon + altitude)
+
+# Default values for missing GPS data
+DEFAULT_HDOP = 99.99             # Default HDOP (very poor) when not available
+DEFAULT_PDOP = 99.99             # Default PDOP (very poor) when not available
+
+
 def get_gps_data_from_controls(controls_file: Optional[Path] = None) -> Dict[str, Any]:
     """
     Read current GPS data from controls.txt.
@@ -121,9 +148,9 @@ def get_gps_data_from_controls(controls_file: Optional[Path] = None) -> Dict[str
     fix_mode = safe_int(controls.get('gps_fix_mode', '0'), default=0)
     satellites_used = safe_int(controls.get('gps_satellites_used', '0'), default=0)
 
-    # Parse dilution of precision (99.99 = poor/no fix)
-    hdop = safe_float(controls.get('gps_hdop', '99.99'), default=99.99)
-    pdop = safe_float(controls.get('gps_pdop', '99.99'), default=99.99)
+    # Parse dilution of precision (DEFAULT_HDOP/PDOP = poor/no fix)
+    hdop = safe_float(controls.get('gps_hdop', str(DEFAULT_HDOP)), default=DEFAULT_HDOP)
+    pdop = safe_float(controls.get('gps_pdop', str(DEFAULT_PDOP)), default=DEFAULT_PDOP)
 
     # Determine if GPS has valid fix
     # Valid fix requires: non-None coordinates AND fix_mode > 0
@@ -298,7 +325,7 @@ def build_gps_ifd(gps_data: Dict[str, Any]) -> Dict:
     gps_ifd = {}
 
     # Step 4: Add GPS version (EXIF 2.3 standard)
-    gps_ifd[piexif.GPSIFD.GPSVersionID] = (2, 3, 0, 0)
+    gps_ifd[piexif.GPSIFD.GPSVersionID] = EXIF_GPS_VERSION
 
     # Step 5: Convert and add latitude (safe now after validation)
     try:
@@ -514,7 +541,7 @@ def embed_gps_exif(
             img = Image.open(photo_path)
 
             # Save with new EXIF to temporary file first (atomic write pattern)
-            img.save(temp_path, 'JPEG', exif=exif_bytes, quality=95)
+            img.save(temp_path, 'JPEG', exif=exif_bytes, quality=DEFAULT_JPEG_QUALITY)
 
             # Atomic rename (replaces original)
             temp_path.replace(photo_path)

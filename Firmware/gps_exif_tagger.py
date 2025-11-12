@@ -44,6 +44,25 @@ from mothbox_paths import PHOTOS_DIR, get_hardware_config
 from lib.gps_exif_lib import embed_gps_exif, is_already_tagged, get_gps_data_from_controls
 
 
+# Module exports
+__all__ = [
+    'setup_logging',
+    'process_single_photo',
+    'batch_process_directory',
+    'watch_directory',
+    'main',
+]
+
+
+# Default configuration constants
+POLL_INTERVAL_DEFAULT = 10      # Default polling interval in seconds for watch mode
+POLL_INTERVAL_MIN = 1            # Minimum polling interval (prevents CPU spinning)
+PATTERN_DEFAULT = '*.jpg'        # Default file pattern for photo matching
+JPEG_QUALITY_DEFAULT = 95        # JPEG quality for re-encoding (in lib, referenced here for docs)
+LOG_FORMAT = '[%(asctime)s] [%(levelname)s] %(message)s'  # Log message format
+LOG_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'  # Log timestamp format
+
+
 def setup_logging(verbose: bool = False) -> logging.Logger:
     """Configure logging for GPS EXIF tagger.
 
@@ -63,8 +82,8 @@ def setup_logging(verbose: bool = False) -> logging.Logger:
 
     # Create formatter
     formatter = logging.Formatter(
-        '[%(asctime)s] [%(levelname)s] %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        LOG_FORMAT,
+        datefmt=LOG_DATE_FORMAT
     )
     handler.setFormatter(formatter)
 
@@ -236,8 +255,8 @@ def watch_directory(
         ValueError: If interval < 1 (would cause CPU spinning)
     """
     # Validate interval to prevent CPU spinning
-    if interval < 1:
-        raise ValueError(f"Interval must be >= 1 second (got {interval}). "
+    if interval < POLL_INTERVAL_MIN:
+        raise ValueError(f"Interval must be >= {POLL_INTERVAL_MIN} second (got {interval}). "
                         "Use a positive integer to avoid CPU spinning.")
 
     logger.info(f"Starting watch mode on {directory}")
@@ -335,14 +354,14 @@ def main():
     )
     parser.add_argument(
         '--pattern',
-        default='*.jpg',
-        help='File pattern to match (default: *.jpg)'
+        default=PATTERN_DEFAULT,
+        help=f'File pattern to match (default: {PATTERN_DEFAULT})'
     )
     parser.add_argument(
         '--interval',
         type=int,
-        default=10,
-        help='Polling interval in seconds for watch mode (default: 10)'
+        default=POLL_INTERVAL_DEFAULT,
+        help=f'Polling interval in seconds for watch mode (default: {POLL_INTERVAL_DEFAULT})'
     )
     parser.add_argument(
         '--dry-run',
