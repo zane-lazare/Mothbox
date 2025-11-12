@@ -218,7 +218,7 @@ def watch_directory(
         directory: Directory to monitor
         logger: Logger instance for output
         pattern: Glob pattern for photo files
-        interval: Polling interval in seconds
+        interval: Polling interval in seconds (must be >= 1)
         backup: If True, create backups
 
     Implementation:
@@ -227,7 +227,15 @@ def watch_directory(
         - Process new/modified photos
         - Skip photos already tagged
         - Handle filesystem events gracefully
+
+    Raises:
+        ValueError: If interval < 1 (would cause CPU spinning)
     """
+    # Validate interval to prevent CPU spinning
+    if interval < 1:
+        raise ValueError(f"Interval must be >= 1 second (got {interval}). "
+                        "Use a positive integer to avoid CPU spinning.")
+
     logger.info(f"Starting watch mode on {directory}")
     logger.info(f"Polling interval: {interval}s")
     logger.info(f"Pattern: {pattern}")

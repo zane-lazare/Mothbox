@@ -323,6 +323,38 @@ class TestCLIValidation:
                                                if 'Could not read GPS data' in str(call)]
                                 assert len(warning_calls) > 0
 
+    def test_zero_interval_raises_error(self):
+        """Test that --interval 0 raises ValueError (would cause CPU spinning)."""
+        test_args = ['gps_exif_tagger.py', '--watch', '--interval', '0']
+
+        with patch('sys.argv', test_args):
+            with patch.object(gps_exif_tagger, 'setup_logging', return_value=Mock()):
+                with patch.object(gps_exif_tagger, 'get_hardware_config', return_value={'gps_enabled': True}):
+                    with patch.object(gps_exif_tagger, 'get_gps_data_from_controls', return_value={'has_fix': True}):
+                        with patch('pathlib.Path.exists', return_value=True):
+                            with pytest.raises((ValueError, SystemExit)) as exc_info:
+                                gps_exif_tagger.main()
+
+                            # Should raise ValueError with message about interval
+                            if isinstance(exc_info.value, ValueError):
+                                assert 'interval' in str(exc_info.value).lower()
+
+    def test_negative_interval_raises_error(self):
+        """Test that negative --interval raises ValueError."""
+        test_args = ['gps_exif_tagger.py', '--watch', '--interval', '-5']
+
+        with patch('sys.argv', test_args):
+            with patch.object(gps_exif_tagger, 'setup_logging', return_value=Mock()):
+                with patch.object(gps_exif_tagger, 'get_hardware_config', return_value={'gps_enabled': True}):
+                    with patch.object(gps_exif_tagger, 'get_gps_data_from_controls', return_value={'has_fix': True}):
+                        with patch('pathlib.Path.exists', return_value=True):
+                            with pytest.raises((ValueError, SystemExit)) as exc_info:
+                                gps_exif_tagger.main()
+
+                            # Should raise ValueError with message about interval
+                            if isinstance(exc_info.value, ValueError):
+                                assert 'interval' in str(exc_info.value).lower()
+
 
 class TestLogging:
     """Test logging setup and output."""
