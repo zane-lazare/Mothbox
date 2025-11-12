@@ -176,26 +176,36 @@ def decimal_to_dms(decimal: float, is_latitude: bool) -> Tuple[Tuple, str]:
         - Minutes: (minutes, 1) - whole minutes
         - Seconds: (seconds*100, 100) - seconds with 2 decimal places
     """
-    # Step 1: Determine reference (N/S for latitude, E/W for longitude)
+    import math
+
+    # Step 1: Validate input coordinate
+    if decimal is None:
+        raise ValueError("Coordinate cannot be None")
+    if math.isnan(decimal):
+        raise ValueError("Coordinate cannot be NaN")
+    if math.isinf(decimal):
+        raise ValueError("Coordinate cannot be infinity")
+
+    # Step 2: Determine reference (N/S for latitude, E/W for longitude)
     if is_latitude:
         ref = 'N' if decimal >= 0 else 'S'
     else:
         ref = 'E' if decimal >= 0 else 'W'
 
-    # Step 2: Use absolute value for conversion (sign is captured in ref)
+    # Step 3: Use absolute value for conversion (sign is captured in ref)
     decimal_abs = abs(decimal)
 
-    # Step 3: Extract degrees (integer part)
+    # Step 4: Extract degrees (integer part)
     degrees = int(decimal_abs)
 
-    # Step 4: Extract minutes (fractional part * 60)
+    # Step 5: Extract minutes (fractional part * 60)
     minutes_decimal = (decimal_abs - degrees) * 60
     minutes = int(minutes_decimal)
 
-    # Step 5: Extract seconds (remaining fractional minutes * 60)
+    # Step 6: Extract seconds (remaining fractional minutes * 60)
     seconds_decimal = (minutes_decimal - minutes) * 60
 
-    # Step 6: Format as rational tuples per EXIF standard
+    # Step 7: Format as rational tuples per EXIF standard
     # Seconds are multiplied by 100 to preserve 2 decimal places
     seconds_rational = int(round(seconds_decimal * 100))
 
@@ -206,7 +216,7 @@ def decimal_to_dms(decimal: float, is_latitude: bool) -> Tuple[Tuple, str]:
         (seconds_rational, 100)
     )
 
-    # Step 7: Return (dms_tuple, ref_string)
+    # Step 8: Return (dms_tuple, ref_string)
     return (dms_tuple, ref)
 
 
@@ -250,23 +260,45 @@ def build_gps_ifd(gps_data: Dict[str, Any]) -> Dict:
     if piexif is None:
         raise ImportError("piexif library is required for GPS EXIF embedding")
 
-    # Step 2: Initialize GPS IFD dictionary
+    # Step 2: Validate coordinates are present and valid
+    import math
+
+    lat = gps_data.get('latitude')
+    lon = gps_data.get('longitude')
+
+    # Return empty IFD if coordinates missing
+    if lat is None or lon is None:
+        return {}
+
+    # Return empty IFD if NaN or infinity (graceful degradation)
+    if math.isnan(lat) or math.isinf(lat) or math.isnan(lon) or math.isinf(lon):
+        return {}
+
+    # Step 3: Initialize GPS IFD dictionary
     gps_ifd = {}
 
-    # Step 3: Add GPS version (EXIF 2.3 standard)
+    # Step 4: Add GPS version (EXIF 2.3 standard)
     gps_ifd[piexif.GPSIFD.GPSVersionID] = (2, 3, 0, 0)
 
-    # Step 4: Convert and add latitude
-    lat_dms, lat_ref = decimal_to_dms(gps_data['latitude'], is_latitude=True)
+    # Step 5: Convert and add latitude (safe now after validation)
+    try:
+        lat_dms, lat_ref = decimal_to_dms(lat, is_latitude=True)
+    except ValueError:
+        # If conversion fails, return empty IFD
+        return {}
     gps_ifd[piexif.GPSIFD.GPSLatitude] = lat_dms
     gps_ifd[piexif.GPSIFD.GPSLatitudeRef] = lat_ref.encode('ascii')
 
-    # Step 5: Convert and add longitude
-    lon_dms, lon_ref = decimal_to_dms(gps_data['longitude'], is_latitude=False)
+    # Step 6: Convert and add longitude
+    try:
+        lon_dms, lon_ref = decimal_to_dms(lon, is_latitude=False)
+    except ValueError:
+        # If conversion fails, return empty IFD
+        return {}
     gps_ifd[piexif.GPSIFD.GPSLongitude] = lon_dms
     gps_ifd[piexif.GPSIFD.GPSLongitudeRef] = lon_ref.encode('ascii')
 
-    # Step 6: Add altitude if available (3D fix)
+    # Step 7: Add altitude if available (3D fix)
     if gps_data.get('altitude') is not None:
         # Encode altitude as rational (meters * 100, 100) for 2 decimal precision
         altitude_rational = (int(round(gps_data['altitude'] * 100)), 100)
@@ -274,7 +306,7 @@ def build_gps_ifd(gps_data: Dict[str, Any]) -> Dict:
         # AltitudeRef: 0 = above sea level, 1 = below sea level
         gps_ifd[piexif.GPSIFD.GPSAltitudeRef] = 0
 
-    # Step 7: Convert Unix timestamp to EXIF GPS timestamp
+    # Step 8: Convert Unix timestamp to EXIF GPS timestamp
     if gps_data.get('gpstime', 0) > 0:
         utc_time = datetime.fromtimestamp(gps_data['gpstime'], tz=timezone.utc)
 
@@ -289,12 +321,12 @@ def build_gps_ifd(gps_data: Dict[str, Any]) -> Dict:
         date_string = f"{utc_time.year:04d}:{utc_time.month:02d}:{utc_time.day:02d}"
         gps_ifd[piexif.GPSIFD.GPSDateStamp] = date_string.encode('ascii')
 
-    # Step 8: Add HDOP (Dilution of Precision) as rational
+    # Step 9: Add HDOP (Dilution of Precision) as rational
     if gps_data.get('hdop') is not None:
         hdop_rational = (int(round(gps_data['hdop'] * 100)), 100)
         gps_ifd[piexif.GPSIFD.GPSDOP] = hdop_rational
 
-    # Step 9: Add satellite count as ASCII bytes
+    # Step 10: Add satellite count as ASCII bytes
     if gps_data.get('satellites_used', 0) > 0:
         satellites_string = str(gps_data['satellites_used'])
         gps_ifd[piexif.GPSIFD.GPSSatellites] = satellites_string.encode('ascii')
@@ -305,6 +337,7 @@ def build_gps_ifd(gps_data: Dict[str, Any]) -> Dict:
 def embed_gps_exif(
     photo_path: Path,
     gps_data: Optional[Dict[str, Any]] = None,
+    controls_file: Optional[Path] = None,
     backup: bool = False,
     dry_run: bool = False
 ) -> Dict[str, Any]:
@@ -321,6 +354,7 @@ def embed_gps_exif(
     Args:
         photo_path: Path to JPEG photo file
         gps_data: GPS data dict (or None to read from controls.txt)
+        controls_file: Path to controls.txt (or None to use default from mothbox_paths)
         backup: If True, create .bak file before modifying
         dry_run: If True, validate but don't write changes
 
@@ -393,7 +427,7 @@ def embed_gps_exif(
 
     # Step 2: Get GPS data (use provided or read from controls.txt)
     if gps_data is None:
-        gps_data = get_gps_data_from_controls()
+        gps_data = get_gps_data_from_controls(controls_file=controls_file)
 
     # Step 3: Check if GPS has valid fix
     if not gps_data.get('has_fix', False):
@@ -497,6 +531,7 @@ def verify_gps_exif(photo_path: Path) -> Dict[str, Any]:
             - satellites (str or None): Number of satellites
             - hdop (float or None): Horizontal DOP
             - raw_gps_ifd (dict): Raw piexif GPS IFD
+            - error (str or None): Error message if verification failed
 
     Example:
         >>> info = verify_gps_exif(Path('/photos/mothbox_2025_01_15__12_30_00.jpg'))
@@ -512,15 +547,18 @@ def verify_gps_exif(photo_path: Path) -> Dict[str, Any]:
         'altitude': None,
         'satellites': None,
         'hdop': None,
-        'raw_gps_ifd': None
+        'raw_gps_ifd': None,
+        'error': None
     }
 
     # Check if piexif is available
     if piexif is None:
+        result['error'] = "piexif library required for GPS EXIF verification"
         return result
 
     # Check if file exists
     if not photo_path.exists():
+        result['error'] = f"Photo file does not exist: {photo_path}"
         return result
 
     # Try to read EXIF from photo
@@ -601,9 +639,9 @@ def verify_gps_exif(photo_path: Path) -> Dict[str, Any]:
             hdop_rational = gps_ifd[piexif.GPSIFD.GPSDOP]
             result['hdop'] = hdop_rational[0] / hdop_rational[1]
 
-    except Exception:
-        # If any error occurs, return result with has_gps=False
-        pass
+    except Exception as e:
+        # If any error occurs, return result with has_gps=False and error message
+        result['error'] = f"Failed to read EXIF from photo: {str(e)}"
 
     return result
 

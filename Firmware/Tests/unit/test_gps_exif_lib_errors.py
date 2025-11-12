@@ -448,15 +448,15 @@ class TestEdgeCases:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tmp:
             tmp.write("lat=40.7\n")
             tmp.write("lon=-74.0\n")
-            tmp.write("fix=3\n")
-            tmp.write("num_sat=255\n")  # Maximum value for a byte
+            tmp.write("gps_fix_mode=3\n")
+            tmp.write("gps_satellites_used=255\n")  # Maximum value for a byte
             tmp.flush()
             tmp_path = Path(tmp.name)
 
         try:
             gps_data = get_gps_data_from_controls(controls_file=tmp_path)
 
-            assert gps_data['num_sat'] == 255
+            assert gps_data['satellites_used'] == 255
         finally:
             tmp_path.unlink()
 
@@ -500,7 +500,7 @@ class TestEdgeCases:
             tmp.write("# Comment with émojis 🌍\n")
             tmp.write("lat=40.7\n")
             tmp.write("lon=-74.0\n")
-            tmp.write("fix=3\n")
+            tmp.write("gps_fix_mode=3\n")
             tmp.flush()
             tmp_path = Path(tmp.name)
 
