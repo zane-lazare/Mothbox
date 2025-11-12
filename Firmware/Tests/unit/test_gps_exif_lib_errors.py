@@ -291,25 +291,28 @@ class TestEXIFEmbeddingErrors:
             img.save(tmp_path)
 
         try:
+            # Mock piexif.load to return valid EXIF data (Python 3.13 compatibility)
+            mock_exif = {'0th': {}, 'Exif': {}, 'GPS': {}, '1st': {}, 'thumbnail': None}
             # Mock shutil.copy2 to raise PermissionError
-            with patch('shutil.copy2', side_effect=PermissionError("Permission denied")):
-                # Create GPS data
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as controls:
-                    controls.write("lat=40.7\n")
-                    controls.write("lon=-74.0\n")
-                    controls.write("gps_fix_mode=3\n")
-                    controls.flush()
-                    controls_path = Path(controls.name)
+            with patch('lib.gps_exif_lib.piexif.load', return_value=mock_exif):
+                with patch('shutil.copy2', side_effect=PermissionError("Permission denied")):
+                    # Create GPS data
+                    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as controls:
+                        controls.write("lat=40.7\n")
+                        controls.write("lon=-74.0\n")
+                        controls.write("gps_fix_mode=3\n")
+                        controls.flush()
+                        controls_path = Path(controls.name)
 
-                try:
-                    result = embed_gps_exif(tmp_path, controls_file=controls_path, backup=True)
+                    try:
+                        result = embed_gps_exif(tmp_path, controls_file=controls_path, backup=True)
 
-                    # Should fail with backup error
-                    assert not result['success']
-                    assert 'error' in result
-                    assert 'backup' in result['error'].lower()
-                finally:
-                    controls_path.unlink()
+                        # Should fail with backup error
+                        assert not result['success']
+                        assert 'error' in result
+                        assert 'backup' in result['error'].lower()
+                    finally:
+                        controls_path.unlink()
         finally:
             tmp_path.unlink()
 
@@ -354,25 +357,28 @@ class TestEXIFEmbeddingErrors:
             img.save(tmp_path)
 
         try:
+            # Mock piexif.load to return valid EXIF data (Python 3.13 compatibility)
+            mock_exif = {'0th': {}, 'Exif': {}, 'GPS': {}, '1st': {}, 'thumbnail': None}
             # Mock piexif.dump to raise error
-            with patch('lib.gps_exif_lib.piexif.dump', side_effect=ValueError("Invalid EXIF data")):
-                # Create GPS data
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as controls:
-                    controls.write("lat=40.7\n")
-                    controls.write("lon=-74.0\n")
-                    controls.write("gps_fix_mode=3\n")
-                    controls.flush()
-                    controls_path = Path(controls.name)
+            with patch('lib.gps_exif_lib.piexif.load', return_value=mock_exif):
+                with patch('lib.gps_exif_lib.piexif.dump', side_effect=ValueError("Invalid EXIF data")):
+                    # Create GPS data
+                    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as controls:
+                        controls.write("lat=40.7\n")
+                        controls.write("lon=-74.0\n")
+                        controls.write("gps_fix_mode=3\n")
+                        controls.flush()
+                        controls_path = Path(controls.name)
 
-                try:
-                    result = embed_gps_exif(tmp_path, controls_file=controls_path)
+                    try:
+                        result = embed_gps_exif(tmp_path, controls_file=controls_path)
 
-                    # Should fail with serialization error
-                    assert not result['success']
-                    assert 'error' in result
-                    assert 'serialize' in result['error'].lower()
-                finally:
-                    controls_path.unlink()
+                        # Should fail with serialization error
+                        assert not result['success']
+                        assert 'error' in result
+                        assert 'serialize' in result['error'].lower()
+                    finally:
+                        controls_path.unlink()
         finally:
             tmp_path.unlink()
 
