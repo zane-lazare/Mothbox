@@ -207,6 +207,58 @@ class TestCoordinateConversionErrors:
         gps_ifd = build_gps_ifd(gps_data)
         assert isinstance(gps_ifd, dict)
 
+    def test_latitude_out_of_range_positive(self):
+        """Test that latitude > 90 raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid latitude"):
+            decimal_to_dms(91.0, is_latitude=True)
+
+        with pytest.raises(ValueError, match="Invalid latitude"):
+            decimal_to_dms(90.001, is_latitude=True)
+
+    def test_latitude_out_of_range_negative(self):
+        """Test that latitude < -90 raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid latitude"):
+            decimal_to_dms(-91.0, is_latitude=True)
+
+        with pytest.raises(ValueError, match="Invalid latitude"):
+            decimal_to_dms(-90.001, is_latitude=True)
+
+    def test_longitude_out_of_range_positive(self):
+        """Test that longitude > 180 raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid longitude"):
+            decimal_to_dms(181.0, is_latitude=False)
+
+        with pytest.raises(ValueError, match="Invalid longitude"):
+            decimal_to_dms(180.001, is_latitude=False)
+
+    def test_longitude_out_of_range_negative(self):
+        """Test that longitude < -180 raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid longitude"):
+            decimal_to_dms(-181.0, is_latitude=False)
+
+        with pytest.raises(ValueError, match="Invalid longitude"):
+            decimal_to_dms(-180.001, is_latitude=False)
+
+    def test_coordinate_boundary_values_valid(self):
+        """Test that boundary values (±90, ±180) are accepted."""
+        # Latitude boundaries should be valid
+        dms, ref = decimal_to_dms(90.0, is_latitude=True)
+        assert ref == 'N'
+        assert dms[0] == (90, 1)
+
+        dms, ref = decimal_to_dms(-90.0, is_latitude=True)
+        assert ref == 'S'
+        assert dms[0] == (90, 1)
+
+        # Longitude boundaries should be valid
+        dms, ref = decimal_to_dms(180.0, is_latitude=False)
+        assert ref == 'E'
+        assert dms[0] == (180, 1)
+
+        dms, ref = decimal_to_dms(-180.0, is_latitude=False)
+        assert ref == 'W'
+        assert dms[0] == (180, 1)
+
 
 class TestGPSIFDBuildingErrors:
     """Test error handling in GPS IFD building."""

@@ -186,6 +186,14 @@ def decimal_to_dms(decimal: float, is_latitude: bool) -> Tuple[Tuple, str]:
     if math.isinf(decimal):
         raise ValueError("Coordinate cannot be infinity")
 
+    # Step 1a: Validate coordinate range
+    if is_latitude:
+        if not (-90 <= decimal <= 90):
+            raise ValueError(f"Invalid latitude: {decimal} (must be in range [-90, 90])")
+    else:
+        if not (-180 <= decimal <= 180):
+            raise ValueError(f"Invalid longitude: {decimal} (must be in range [-180, 180])")
+
     # Step 2: Determine reference (N/S for latitude, E/W for longitude)
     if is_latitude:
         ref = 'N' if decimal >= 0 else 'S'
