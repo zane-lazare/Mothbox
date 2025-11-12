@@ -161,8 +161,15 @@ def batch_process_directory(
 
     # Handle case-insensitive extensions
     photo_files = []
-    for ext in [pattern, pattern.replace('.jpg', '.JPG'), pattern.replace('.jpg', '.jpeg'), pattern.replace('.jpg', '.JPEG')]:
-        photo_files.extend(sorted(directory.glob(ext)))
+    # Extract extension from pattern (e.g., '*.jpg' -> '.jpg')
+    if '.' in pattern:
+        base_pattern, ext = pattern.rsplit('.', 1)
+        # Add uppercase variant of the SAME extension only
+        for variant in [pattern, f"{base_pattern}.{ext.upper()}"]:
+            photo_files.extend(sorted(directory.glob(variant)))
+    else:
+        # No extension in pattern, use as-is
+        photo_files.extend(sorted(directory.glob(pattern)))
 
     # Remove duplicates
     photo_files = list(set(photo_files))
