@@ -285,6 +285,58 @@ class TestBatchProcessing:
             info_calls = [str(call) for call in logger.info.call_args_list]
             assert any('Summary' in call or 'Total' in call for call in info_calls)
 
+    def test_batch_process_preserves_chronological_order(self):
+        """Test that batch processing preserves chronological file order."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            logger = Mock()
+
+            # Create files with timestamps in specific order
+            # (sorted alphabetically = photo1, photo2, photo3)
+            # We'll create them with specific mtimes to test chronological ordering
+            import time
+
+            photo1 = tmp_path / 'photo1.jpg'
+            photo2 = tmp_path / 'photo2.JPG'  # Different case
+            photo3 = tmp_path / 'photo3.jpg'
+
+            # Create files at different times
+            img = Image.new('RGB', (100, 100), color='red')
+            img.save(photo1)
+            time.sleep(0.01)
+
+            img = Image.new('RGB', (100, 100), color='green')
+            img.save(photo2)
+            time.sleep(0.01)
+
+            img = Image.new('RGB', (100, 100), color='blue')
+            img.save(photo3)
+
+            # Track processing order
+            processed_files = []
+
+            def track_processing(photo_path, *args, **kwargs):
+                processed_files.append(photo_path.name)
+                return {'success': True, 'skipped': False}
+
+            with patch.object(gps_exif_tagger, 'process_single_photo', side_effect=track_processing):
+                gps_exif_tagger.batch_process_directory(
+                    tmp_path,
+                    logger,
+                    pattern='*.jpg',
+                    force=False,
+                    backup=False,
+                    dry_run=False
+                )
+
+            # Verify all 3 files were processed
+            assert len(processed_files) == 3, f"Expected 3 files, got {len(processed_files)}"
+
+            # Verify files were processed in sorted order (alphabetically)
+            # This ensures chronological order is maintained after deduplication
+            assert processed_files == ['photo1.jpg', 'photo2.JPG', 'photo3.jpg'], \
+                f"Files processed out of order: {processed_files}"
+
 
 class TestSinglePhotoProcessing:
     """Test process_single_photo function."""

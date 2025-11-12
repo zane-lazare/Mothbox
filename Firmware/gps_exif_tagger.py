@@ -166,13 +166,17 @@ def batch_process_directory(
         base_pattern, ext = pattern.rsplit('.', 1)
         # Add uppercase variant of the SAME extension only
         for variant in [pattern, f"{base_pattern}.{ext.upper()}"]:
-            photo_files.extend(sorted(directory.glob(variant)))
+            photo_files.extend(directory.glob(variant))
     else:
         # No extension in pattern, use as-is
-        photo_files.extend(sorted(directory.glob(pattern)))
+        photo_files.extend(directory.glob(pattern))
 
-    # Remove duplicates
-    photo_files = list(set(photo_files))
+    # Remove duplicates while preserving order
+    # (dict.fromkeys() maintains insertion order as of Python 3.7+)
+    photo_files = list(dict.fromkeys(photo_files))
+
+    # Sort after deduplication to maintain consistent chronological order
+    photo_files = sorted(photo_files)
 
     stats['total'] = len(photo_files)
     logger.info(f"Found {stats['total']} photo(s)")
