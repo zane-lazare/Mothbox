@@ -337,6 +337,50 @@ class TestBatchProcessing:
             assert processed_files == ['photo1.jpg', 'photo2.JPG', 'photo3.jpg'], \
                 f"Files processed out of order: {processed_files}"
 
+    def test_batch_process_ignores_symlinks(self):
+        """Test that batch processing skips symlinks (security: prevent directory traversal)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            logger = Mock()
+
+            # Create real photo
+            real_photo = tmp_path / 'real.jpg'
+            img = Image.new('RGB', (100, 100), color='blue')
+            img.save(real_photo)
+
+            # Create external directory with photo
+            external_dir = tmp_path / 'external'
+            external_dir.mkdir()
+            external_photo = external_dir / 'external.jpg'
+            img = Image.new('RGB', (100, 100), color='red')
+            img.save(external_photo)
+
+            # Create symlink to external photo
+            symlink_photo = tmp_path / 'symlink.jpg'
+            symlink_photo.symlink_to(external_photo)
+
+            # Track which files were processed
+            processed_files = []
+
+            def track_processing(photo_path, *args, **kwargs):
+                processed_files.append(photo_path.name)
+                return {'success': True, 'skipped': False}
+
+            with patch.object(gps_exif_tagger, 'process_single_photo', side_effect=track_processing):
+                gps_exif_tagger.batch_process_directory(
+                    tmp_path,
+                    logger,
+                    pattern='*.jpg',
+                    force=False,
+                    backup=False,
+                    dry_run=False
+                )
+
+            # Should only process real.jpg, not symlink.jpg
+            assert 'real.jpg' in processed_files, "Real photo should be processed"
+            assert 'symlink.jpg' not in processed_files, "Symlink should be skipped (security)"
+            assert len(processed_files) == 1, f"Expected 1 file, got {len(processed_files)}: {processed_files}"
+
 
 class TestSinglePhotoProcessing:
     """Test process_single_photo function."""
@@ -445,7 +489,7 @@ class TestWatchMode:
                             tmp_path,
                             logger,
                             pattern='*.jpg',
-                            interval=0.1  # Very short interval for testing
+                            interval=1  # Minimum valid interval
                         )
                     except KeyboardInterrupt:
                         pass
@@ -454,15 +498,15 @@ class TestWatchMode:
                 watch_thread.start()
 
                 # Give watch mode time to start
-                time.sleep(0.2)
+                time.sleep(0.5)
 
                 # Create a new photo
                 photo_path = tmp_path / 'new_photo.jpg'
                 img = Image.new('RGB', (100, 100), color='green')
                 img.save(photo_path)
 
-                # Give watch mode time to detect
-                time.sleep(0.5)
+                # Give watch mode time to detect (interval=1s + processing time)
+                time.sleep(2.0)
 
                 # Stop watch mode
                 # (thread will exit on its own as daemon)
@@ -494,7 +538,7 @@ class TestWatchMode:
                             tmp_path,
                             logger,
                             pattern='*.jpg',
-                            interval=0.1
+                            interval=1
                         )
                     except KeyboardInterrupt:
                         pass
@@ -502,14 +546,14 @@ class TestWatchMode:
                 watch_thread = threading.Thread(target=run_watch, daemon=True)
                 watch_thread.start()
 
-                time.sleep(0.2)
+                time.sleep(0.5)
 
                 # Modify the photo (change mtime)
-                time.sleep(0.1)
+                time.sleep(0.5)
                 img2 = Image.new('RGB', (100, 100), color='purple')
                 img2.save(photo_path)
 
-                time.sleep(0.5)
+                time.sleep(2.0)
 
     def test_watch_mode_handles_errors_gracefully(self):
         """Test that watch mode continues after processing errors."""
@@ -540,7 +584,7 @@ class TestWatchMode:
                             tmp_path,
                             logger,
                             pattern='*.jpg',
-                            interval=0.1
+                            interval=1
                         )
                     except KeyboardInterrupt:
                         pass
@@ -548,7 +592,7 @@ class TestWatchMode:
                 watch_thread = threading.Thread(target=run_watch, daemon=True)
                 watch_thread.start()
 
-                time.sleep(0.5)
+                time.sleep(2.0)
 
     def test_watch_mode_respects_polling_interval(self):
         """Test that watch mode respects the polling interval."""
@@ -675,7 +719,7 @@ class TestWatchMode:
                             tmp_path,
                             logger,
                             pattern='*.jpg',
-                            interval=0.1,
+                            interval=1,
                             backup=False
                         )
                     except KeyboardInterrupt:
@@ -684,12 +728,12 @@ class TestWatchMode:
                 watch_thread = threading.Thread(target=run_watch, daemon=True)
                 watch_thread.start()
 
-                # Wait for detection, deletion, and processing attempt
-                time.sleep(0.8)
+                # Wait for detection, deletion, and processing attempt (interval=1s + processing)
+                time.sleep(2.0)
 
                 # Stop watch mode
-                watch_thread.join(timeout=0.5)
-                delete_thread.join(timeout=0.1)
+                watch_thread.join(timeout=1.0)
+                delete_thread.join(timeout=0.5)
 
             # With fix: process_single_photo() should NOT be called
             # (file is checked and skipped before processing)

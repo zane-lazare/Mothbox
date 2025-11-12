@@ -175,6 +175,10 @@ def batch_process_directory(
     # (dict.fromkeys() maintains insertion order as of Python 3.7+)
     photo_files = list(dict.fromkeys(photo_files))
 
+    # Filter out symlinks (security: prevent directory traversal attacks)
+    # Only process regular files within the intended directory
+    photo_files = [f for f in photo_files if not f.is_symlink()]
+
     # Sort after deduplication to maintain consistent chronological order
     photo_files = sorted(photo_files)
 
@@ -249,6 +253,10 @@ def watch_directory(
             photo_files = []
             for ext in [pattern, pattern.replace('.jpg', '.JPG'), pattern.replace('.jpg', '.jpeg'), pattern.replace('.jpg', '.JPEG')]:
                 photo_files.extend(directory.glob(ext))
+
+            # Filter out symlinks (security: prevent directory traversal attacks)
+            # Only process regular files within the intended directory
+            photo_files = [f for f in photo_files if not f.is_symlink()]
 
             # Check each photo
             for photo_path in photo_files:
