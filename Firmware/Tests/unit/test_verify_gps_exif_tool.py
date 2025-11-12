@@ -538,3 +538,194 @@ def test_print_gps_info_with_partial_data(tmp_path, capsys):
     # Should show coordinates
     assert "37.7749" in output
     assert "-122.4194" in output
+
+
+# ============================================================================
+# Test: Robust Filename Parsing (Regex-based)
+# ============================================================================
+
+def test_extract_timestamp_case_insensitive_extension():
+    """Test extracting timestamp with uppercase/mixed-case extensions."""
+    from scripts.verify_gps_exif import extract_timestamp_from_filename
+
+    # Test various case combinations
+    filenames = [
+        "mothbox_2025_01_15__12_30_45.jpg",    # lowercase
+        "mothbox_2025_01_15__12_30_45.JPG",    # uppercase
+        "mothbox_2025_01_15__12_30_45.JpG",    # mixed case
+        "mothbox_2025_01_15__12_30_45.jpeg",   # .jpeg extension
+        "mothbox_2025_01_15__12_30_45.JPEG",   # uppercase .jpeg
+    ]
+
+    for filename in filenames:
+        timestamp = extract_timestamp_from_filename(filename)
+        assert timestamp is not None, f"Failed to parse: {filename}"
+        assert timestamp.year == 2025
+        assert timestamp.month == 1
+        assert timestamp.day == 15
+        assert timestamp.hour == 12
+        assert timestamp.minute == 30
+        assert timestamp.second == 45
+
+
+def test_extract_timestamp_with_multiple_bracket_numbers():
+    """Test extracting timestamp from focus bracket with various bracket numbers."""
+    from scripts.verify_gps_exif import extract_timestamp_from_filename
+
+    # Test bracket numbers 0-99
+    for bracket_num in [0, 1, 5, 10, 25, 99]:
+        filename = f"mothbox_2025_01_15__12_30_45_bracket_{bracket_num}.jpg"
+        timestamp = extract_timestamp_from_filename(filename)
+        assert timestamp is not None, f"Failed to parse bracket_{bracket_num}"
+        assert timestamp.year == 2025
+        assert timestamp.second == 45
+
+
+def test_extract_timestamp_rejects_malformed_filenames():
+    """Test that regex rejects filenames that don't match expected format."""
+    from scripts.verify_gps_exif import extract_timestamp_from_filename
+
+    malformed_filenames = [
+        # Missing components
+        "mothbox_2025_01_15.jpg",                           # Missing time
+        "mothbox_2025_01__12_30_45.jpg",                    # Missing day
+        "mothbox_2025__12_30_45.jpg",                       # Missing month and day
+        # Wrong separators
+        "mothbox-2025-01-15--12-30-45.jpg",                 # Dashes instead of underscores
+        "mothbox_2025-01-15__12-30-45.jpg",                 # Mixed separators
+        "mothbox_2025_01_15_12_30_45.jpg",                  # Single underscore instead of double
+        # Extra underscores in wrong places
+        "mothbox__2025_01_15__12_30_45.jpg",                # Double underscore at start
+        "mothbox_2025_01_15___12_30_45.jpg",                # Triple underscore
+        # Wrong prefix
+        "photo_2025_01_15__12_30_45.jpg",                   # Wrong prefix
+        "MOTHBOX_2025_01_15__12_30_45.jpg",                 # Uppercase prefix (must be lowercase)
+        # Extra suffixes that don't match pattern
+        "mothbox_2025_01_15__12_30_45_extra.jpg",           # Extra suffix (not _bracket_N)
+        "mothbox_2025_01_15__12_30_45_bracket.jpg",         # bracket without number
+        "mothbox_2025_01_15__12_30_45_bracket_X.jpg",       # bracket with non-numeric
+        # Wrong file extensions
+        "mothbox_2025_01_15__12_30_45.png",                 # Wrong extension
+        "mothbox_2025_01_15__12_30_45.txt",                 # Wrong extension
+        "mothbox_2025_01_15__12_30_45",                     # No extension
+        # Completely wrong formats
+        "random_filename.jpg",
+        "2025_01_15.jpg",
+        "",
+    ]
+
+    for filename in malformed_filenames:
+        timestamp = extract_timestamp_from_filename(filename)
+        assert timestamp is None, f"Should reject malformed filename: {filename}"
+
+
+def test_extract_timestamp_validates_date_ranges():
+    """Test that regex extracts values but datetime validation catches invalid ranges."""
+    from scripts.verify_gps_exif import extract_timestamp_from_filename
+
+    invalid_dates = [
+        # Invalid months
+        "mothbox_2025_00_15__12_30_45.jpg",   # Month 0
+        "mothbox_2025_13_15__12_30_45.jpg",   # Month 13
+        # Invalid days
+        "mothbox_2025_01_00__12_30_45.jpg",   # Day 0
+        "mothbox_2025_01_32__12_30_45.jpg",   # Day 32
+        "mothbox_2025_02_30__12_30_45.jpg",   # Feb 30 (doesn't exist)
+        # Invalid hours
+        "mothbox_2025_01_15__24_30_45.jpg",   # Hour 24
+        "mothbox_2025_01_15__99_30_45.jpg",   # Hour 99
+        # Invalid minutes
+        "mothbox_2025_01_15__12_60_45.jpg",   # Minute 60
+        "mothbox_2025_01_15__12_99_45.jpg",   # Minute 99
+        # Invalid seconds
+        "mothbox_2025_01_15__12_30_60.jpg",   # Second 60
+        "mothbox_2025_01_15__12_30_99.jpg",   # Second 99
+    ]
+
+    for filename in invalid_dates:
+        timestamp = extract_timestamp_from_filename(filename)
+        assert timestamp is None, f"Should reject invalid date/time: {filename}"
+
+
+def test_extract_timestamp_with_full_path():
+    """Test extracting timestamp from various full path formats."""
+    from scripts.verify_gps_exif import extract_timestamp_from_filename
+
+    full_paths = [
+        "/var/lib/mothbox/photos/mothbox_2025_01_15__12_30_45.jpg",
+        "/home/pi/Desktop/Mothbox/photos/mothbox_2025_01_15__12_30_45.jpg",
+        "/tmp/test/mothbox_2025_01_15__12_30_45_bracket_3.jpg",
+        "../photos/mothbox_2025_01_15__12_30_45.jpg",  # Relative path
+        "./mothbox_2025_01_15__12_30_45.jpg",  # Current directory
+    ]
+
+    for path in full_paths:
+        timestamp = extract_timestamp_from_filename(path)
+        assert timestamp is not None, f"Failed to parse path: {path}"
+        assert timestamp.year == 2025
+        assert timestamp.month == 1
+        assert timestamp.day == 15
+
+
+def test_extract_timestamp_edge_case_dates():
+    """Test extracting timestamps for edge case valid dates."""
+    from scripts.verify_gps_exif import extract_timestamp_from_filename
+
+    edge_cases = [
+        # Leap year
+        ("mothbox_2024_02_29__12_30_45.jpg", 2024, 2, 29),
+        # End of year
+        ("mothbox_2025_12_31__23_59_59.jpg", 2025, 12, 31),
+        # Start of year
+        ("mothbox_2025_01_01__00_00_00.jpg", 2025, 1, 1),
+        # Noon
+        ("mothbox_2025_06_15__12_00_00.jpg", 2025, 6, 15),
+        # Midnight
+        ("mothbox_2025_06_15__00_00_00.jpg", 2025, 6, 15),
+    ]
+
+    for filename, expected_year, expected_month, expected_day in edge_cases:
+        timestamp = extract_timestamp_from_filename(filename)
+        assert timestamp is not None, f"Failed to parse: {filename}"
+        assert timestamp.year == expected_year
+        assert timestamp.month == expected_month
+        assert timestamp.day == expected_day
+
+
+def test_extract_timestamp_rejects_non_leap_year_feb_29():
+    """Test that Feb 29 is rejected for non-leap years."""
+    from scripts.verify_gps_exif import extract_timestamp_from_filename
+
+    # 2025 is not a leap year, so Feb 29 should be rejected
+    filename = "mothbox_2025_02_29__12_30_45.jpg"
+    timestamp = extract_timestamp_from_filename(filename)
+    assert timestamp is None, "Should reject Feb 29 in non-leap year"
+
+
+def test_extract_timestamp_with_path_object():
+    """Test that Path objects are handled correctly."""
+    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from pathlib import Path
+
+    # Test with Path object
+    path_obj = Path("/photos/mothbox_2025_01_15__12_30_45.jpg")
+    timestamp = extract_timestamp_from_filename(path_obj)
+
+    assert timestamp is not None
+    assert timestamp.year == 2025
+    assert timestamp.month == 1
+    assert timestamp.day == 15
+
+
+def test_extract_timestamp_year_range():
+    """Test extracting timestamps with various year values."""
+    from scripts.verify_gps_exif import extract_timestamp_from_filename
+
+    # Test different year values (4 digits required by regex)
+    years = [2020, 2025, 2030, 2099, 1999, 1900]
+
+    for year in years:
+        filename = f"mothbox_{year}_01_15__12_30_45.jpg"
+        timestamp = extract_timestamp_from_filename(filename)
+        assert timestamp is not None, f"Failed to parse year: {year}"
+        assert timestamp.year == year

@@ -32,6 +32,7 @@ Related:
 
 import argparse
 import csv
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -47,13 +48,19 @@ from lib.gps_exif_lib import verify_gps_exif
 
 def extract_timestamp_from_filename(filename: str | Path) -> datetime | None:
     """
-    Extract timestamp from Mothbox photo filename.
+    Extract timestamp from Mothbox photo filename using regex pattern matching.
 
     Mothbox photos follow the naming convention:
         mothbox_YYYY_MM_DD__HH_MM_SS.jpg
+        mothbox_YYYY_MM_DD__HH_MM_SS_bracket_N.jpg (focus bracketing)
+        mothbox_YYYY_MM_DD__HH_MM_SS.jpeg (alternative extension)
+        mothbox_YYYY_MM_DD__HH_MM_SS.JPG (case variants)
 
-    This function parses the timestamp from the filename for correlation
-    with GPS timestamp in EXIF data.
+    This function uses regex pattern matching for robust parsing that handles:
+    - Optional focus bracket suffixes
+    - Case-insensitive file extensions (.jpg, .JPG, .jpeg, .JPEG)
+    - Extra underscores or unexpected suffixes
+    - Leading/trailing whitespace
 
     Args:
         filename: Photo filename or path (str or Path object)
@@ -68,15 +75,18 @@ def extract_timestamp_from_filename(filename: str | Path) -> datetime | None:
         >>> extract_timestamp_from_filename("/photos/mothbox_2025_01_15__12_30_45_bracket_0.jpg")
         datetime(2025, 1, 15, 12, 30, 45)
 
+        >>> extract_timestamp_from_filename("mothbox_2025_01_15__12_30_45.JPG")
+        datetime(2025, 1, 15, 12, 30, 45)
+
         >>> extract_timestamp_from_filename("invalid.jpg")
         None
 
     Implementation:
+        - Uses regex pattern for robust parsing
         - Handles Path objects and strings
         - Extracts basename from full paths
-        - Supports focus bracket suffixes (_bracket_N)
-        - Validates date/time values
-        - Returns None for invalid formats
+        - Validates date/time component ranges
+        - Returns None for invalid formats (no exceptions raised)
     """
     # Convert to Path object and get basename
     if isinstance(filename, str):
@@ -84,37 +94,45 @@ def extract_timestamp_from_filename(filename: str | Path) -> datetime | None:
 
     basename = filename.name
 
-    # Standard format: mothbox_YYYY_MM_DD__HH_MM_SS.jpg
-    # Focus bracket: mothbox_YYYY_MM_DD__HH_MM_SS_bracket_N.jpg
-    parts = basename.split('_')
+    # Regex pattern for Mothbox filename format:
+    # mothbox_YYYY_MM_DD__HH_MM_SS[.jpg|.jpeg|_bracket_N.jpg]
+    #
+    # Pattern breakdown:
+    # ^mothbox_           - Must start with "mothbox_" (lowercase only)
+    # (\d{4})_            - Year (4 digits)
+    # (\d{2})_            - Month (2 digits)
+    # (\d{2})__           - Day (2 digits) followed by double underscore
+    # (\d{2})_            - Hour (2 digits)
+    # (\d{2})_            - Minute (2 digits)
+    # (\d{2})             - Second (2 digits)
+    # (?:_bracket_\d+)?   - Optional: _bracket_N suffix (non-capturing group)
+    # \.[jJ][pP][eE]?[gG]$ - File extension: .jpg, .JPG, .jpeg, .JPEG (case-insensitive)
+    pattern = r'^mothbox_(\d{4})_(\d{2})_(\d{2})__(\d{2})_(\d{2})_(\d{2})(?:_bracket_\d+)?\.[jJ][pP][eE]?[gG]$'
 
-    # Need at least: ['mothbox', 'YYYY', 'MM', 'DD', '', 'HH', 'MM', 'SS.jpg']
-    if len(parts) < 8 or parts[0] != 'mothbox':
+    # Match without re.IGNORECASE to keep "mothbox" lowercase-only
+    # But file extension is case-insensitive via [jJ][pP][eE]?[gG] pattern
+    match = re.match(pattern, basename)
+
+    if not match:
         return None
 
     try:
-        # Extract date components
-        year = int(parts[1])
-        month = int(parts[2])
-        day = int(parts[3])
+        # Extract captured groups
+        year = int(match.group(1))
+        month = int(match.group(2))
+        day = int(match.group(3))
+        hour = int(match.group(4))
+        minute = int(match.group(5))
+        second = int(match.group(6))
 
-        # parts[4] is empty (from double underscore __)
-
-        # Extract time components
-        hour = int(parts[5])
-        minute = int(parts[6])
-
-        # Handle seconds - may have .jpg or _bracket_N.jpg suffix
-        second_str = parts[7].split('.')[0].split('_')[0]
-        second = int(second_str)
-
-        # Construct datetime and validate
+        # Construct datetime (this validates ranges automatically)
+        # Will raise ValueError if date/time is invalid (e.g., month=13, hour=25)
         timestamp = datetime(year, month, day, hour, minute, second)
 
         return timestamp
 
-    except (ValueError, IndexError):
-        # Invalid date/time values or unexpected format
+    except ValueError:
+        # Invalid date/time values (e.g., Feb 30, hour=25)
         return None
 
 
