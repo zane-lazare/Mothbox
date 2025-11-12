@@ -297,7 +297,7 @@ class TestEXIFEmbeddingErrors:
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as controls:
                     controls.write("lat=40.7\n")
                     controls.write("lon=-74.0\n")
-                    controls.write("fix=3\n")
+                    controls.write("gps_fix_mode=3\n")
                     controls.flush()
                     controls_path = Path(controls.name)
 
@@ -355,12 +355,12 @@ class TestEXIFEmbeddingErrors:
 
         try:
             # Mock piexif.dump to raise error
-            with patch('piexif.dump', side_effect=ValueError("Invalid EXIF data")):
+            with patch('lib.gps_exif_lib.piexif.dump', side_effect=ValueError("Invalid EXIF data")):
                 # Create GPS data
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as controls:
                     controls.write("lat=40.7\n")
                     controls.write("lon=-74.0\n")
-                    controls.write("fix=3\n")
+                    controls.write("gps_fix_mode=3\n")
                     controls.flush()
                     controls_path = Path(controls.name)
 
