@@ -572,6 +572,39 @@ class TestCoordinateConversion:
 
         print("✓ Extreme longitudes (date line) handled correctly")
 
+    def test_seconds_rounding_overflow(self):
+        """
+        Test DMS conversion handles seconds rounding to 60.00 correctly.
+
+        Scenario: Coordinate with fractional seconds near 60 (e.g., 59.999)
+        Expected: Seconds should carry over to minutes (not store 60.00 seconds)
+
+        Bug: 37.78333305... → 37° 46' 59.999'' → rounds to 37° 46' 60.00''
+        Fix: Should produce 37° 47' 0.00'' (carry seconds to minutes)
+        """
+        from lib.gps_exif_lib import decimal_to_dms
+
+        # Act: Test coordinate that produces seconds = 59.999...
+        # 37 + (46/60) + (59.999/3600) = 37.78333305...
+        test_coord = 37 + (46/60) + (59.999/3600)
+        dms, ref = decimal_to_dms(test_coord, is_latitude=True)
+
+        # Assert: Seconds should be < 60 (either 0.00 with minutes+1, or 59.99)
+        seconds_value = dms[2][0] / dms[2][1]
+        assert seconds_value < 60, f"Seconds {seconds_value} should be < 60"
+
+        # Verify the result is valid DMS (either carry-over or truncation)
+        if seconds_value < 1.0:  # Carry-over occurred
+            assert dms[0] == (37, 1), "Degrees should be 37"
+            assert dms[1] == (47, 1), "Minutes should be 47 (carried over)"
+            assert dms[2][0] < 100, "Seconds should be ~0.00 (5999 or less)"
+        else:  # Truncation/clamping
+            assert dms[0] == (37, 1), "Degrees should be 37"
+            assert dms[1] == (46, 1), "Minutes should be 46"
+            assert dms[2][0] <= 5999, "Seconds should be <= 5999 (59.99)"
+
+        print(f"✓ Seconds overflow handled: {dms[0][0]}° {dms[1][0]}' {seconds_value:.2f}''")
+
 
 # ============================================================================
 # Day 3: GPS IFD Building Tests

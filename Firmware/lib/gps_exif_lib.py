@@ -209,6 +209,18 @@ def decimal_to_dms(decimal: float, is_latitude: bool) -> Tuple[Tuple, str]:
     # Seconds are multiplied by 100 to preserve 2 decimal places
     seconds_rational = int(round(seconds_decimal * 100))
 
+    # Step 7a: Handle seconds overflow (rounding 59.999 -> 60.00)
+    # Carry over to minutes if seconds >= 60
+    if seconds_rational >= 6000:  # 60.00 seconds or more
+        minutes += 1
+        seconds_rational = 0
+
+    # Step 7b: Handle minutes overflow (59 minutes + 1 -> 60 minutes)
+    # Carry over to degrees if minutes >= 60
+    if minutes >= 60:
+        degrees += 1
+        minutes = 0
+
     # Build DMS tuple: ((degrees, 1), (minutes, 1), (seconds*100, 100))
     dms_tuple = (
         (degrees, 1),
