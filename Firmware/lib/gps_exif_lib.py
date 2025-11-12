@@ -498,14 +498,14 @@ def embed_gps_exif(
 
     # Step 9: Write EXIF back to photo (atomic write)
     if not dry_run:
+        # Define temp path outside try block for cleanup in finally
+        temp_path = photo_path.with_suffix('.jpg.tmp')
+
         try:
             # Open image
             img = Image.open(photo_path)
 
-            # Write to temporary file first (atomic write pattern)
-            temp_path = photo_path.with_suffix('.jpg.tmp')
-
-            # Save with new EXIF
+            # Save with new EXIF to temporary file first (atomic write pattern)
             img.save(temp_path, 'JPEG', exif=exif_bytes, quality=95)
 
             # Atomic rename (replaces original)
@@ -516,6 +516,10 @@ def embed_gps_exif(
         except Exception as e:
             result['error'] = f"Failed to write EXIF to photo: {str(e)}"
             return result
+
+        finally:
+            # Always cleanup temp file if it exists (even on error)
+            temp_path.unlink(missing_ok=True)
 
     # Step 10: Mark success
     result['success'] = True

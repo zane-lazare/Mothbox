@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch, MagicMock
 from PIL import Image
 import tempfile
 import shutil
+import sys
 
 # Import the module under test
 from lib.gps_exif_lib import (
@@ -18,6 +19,34 @@ from lib.gps_exif_lib import (
     embed_gps_exif,
     verify_gps_exif
 )
+
+
+@pytest.fixture(scope="module", autouse=True)
+def ensure_real_pil():
+    """
+    Ensure PIL is not mocked for this test module (Python 3.13 compatibility).
+
+    In Python 3.13, PIL mocks from test_gallery_routes persist across modules
+    despite the reset_pil_imports fixture. Force fresh PIL import at module level.
+    """
+    # Remove any existing PIL modules
+    pil_modules = [key for key in sys.modules.keys() if key == 'PIL' or key.startswith('PIL.')]
+    for key in pil_modules:
+        del sys.modules[key]
+
+    # Re-import PIL.Image globally for this module
+    global Image
+    from PIL import Image
+
+    # Initialize PIL plugins to register file format handlers (.jpg, .png, etc.)
+    Image.init()
+
+    yield
+
+    # Cleanup after module
+    pil_modules = [key for key in sys.modules.keys() if key == 'PIL' or key.startswith('PIL.')]
+    for key in pil_modules:
+        del sys.modules[key]
 
 
 class TestPiexifImportError:
@@ -381,6 +410,101 @@ class TestEXIFEmbeddingErrors:
                         controls_path.unlink()
         finally:
             tmp_path.unlink()
+
+    def test_embed_gps_exif_temp_file_cleanup_on_save_error(self):
+        """Test that temp files are cleaned up when Image.save() fails."""
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+
+            # Create valid image
+            img = Image.new('RGB', (100, 100), color='cyan')
+            img.save(tmp_path)
+
+        try:
+            # Create GPS data
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as controls:
+                controls.write("lat=40.7\n")
+                controls.write("lon=-74.0\n")
+                controls.write("gps_fix_mode=3\n")
+                controls.flush()
+                controls_path = Path(controls.name)
+
+            try:
+                # Mock PIL.Image to fail during save()
+                from unittest.mock import Mock, patch
+                mock_img = Mock()
+                mock_img.save.side_effect = IOError('Disk full')
+
+                with patch('PIL.Image.open', return_value=mock_img):
+                    result = embed_gps_exif(tmp_path, controls_file=controls_path)
+
+                # Should fail with error
+                assert not result['success']
+                assert 'error' in result
+                assert 'write' in result['error'].lower()
+
+                # Check for orphaned temp files
+                photo_dir = tmp_path.parent
+                temp_files = list(photo_dir.glob('*.jpg.tmp'))
+
+                # Temp file should be cleaned up even on error
+                assert len(temp_files) == 0, f"Orphaned temp file(s) found: {temp_files}"
+            finally:
+                controls_path.unlink()
+        finally:
+            tmp_path.unlink(missing_ok=True)
+            # Cleanup any orphaned temp files
+            for temp_file in tmp_path.parent.glob('*.jpg.tmp'):
+                temp_file.unlink()
+
+    def test_embed_gps_exif_temp_file_cleanup_on_replace_error(self):
+        """Test that temp files are cleaned up when temp_path.replace() fails."""
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+
+            # Create valid image
+            img = Image.new('RGB', (100, 100), color='magenta')
+            img.save(tmp_path)
+
+        try:
+            # Create GPS data
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as controls:
+                controls.write("lat=40.7\n")
+                controls.write("lon=-74.0\n")
+                controls.write("gps_fix_mode=3\n")
+                controls.flush()
+                controls_path = Path(controls.name)
+
+            try:
+                # Mock Path.replace to fail (simulates permission error)
+                from unittest.mock import patch
+
+                original_replace = Path.replace
+                def mock_replace(self, target):
+                    if str(self).endswith('.jpg.tmp'):
+                        raise OSError('Permission denied')
+                    return original_replace(self, target)
+
+                with patch.object(Path, 'replace', mock_replace):
+                    result = embed_gps_exif(tmp_path, controls_file=controls_path)
+
+                # Should fail with error
+                assert not result['success']
+                assert 'error' in result
+
+                # Check for orphaned temp files
+                photo_dir = tmp_path.parent
+                temp_files = list(photo_dir.glob('*.jpg.tmp'))
+
+                # Temp file should be cleaned up even on error
+                assert len(temp_files) == 0, f"Orphaned temp file(s) found: {temp_files}"
+            finally:
+                controls_path.unlink()
+        finally:
+            tmp_path.unlink(missing_ok=True)
+            # Cleanup any orphaned temp files
+            for temp_file in tmp_path.parent.glob('*.jpg.tmp'):
+                temp_file.unlink()
 
 
 class TestEXIFVerificationErrors:
