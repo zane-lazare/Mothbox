@@ -38,11 +38,10 @@ import logging
 import sys
 import time
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
+from lib.gps_exif_lib import embed_gps_exif, get_gps_data_from_controls, is_already_tagged
 from mothbox_paths import PHOTOS_DIR, get_hardware_config
-from lib.gps_exif_lib import embed_gps_exif, is_already_tagged, get_gps_data_from_controls
-
 
 # Module exports
 __all__ = [
@@ -125,7 +124,7 @@ def wait_for_file_stability(photo_path: Path, logger: logging.Logger) -> bool:
         last_mtime = photo_path.stat().st_mtime
 
         # Check stability FILE_STABILITY_CHECKS times
-        for check_num in range(FILE_STABILITY_CHECKS):
+        for _check_num in range(FILE_STABILITY_CHECKS):
             time.sleep(FILE_STABILITY_INTERVAL)
 
             # Re-check mtime
@@ -159,7 +158,7 @@ def process_single_photo(
     force: bool = False,
     backup: bool = False,
     dry_run: bool = False
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Process a single photo for GPS EXIF tagging.
 
     Args:
@@ -207,7 +206,7 @@ def batch_process_directory(
     force: bool = False,
     backup: bool = False,
     dry_run: bool = False
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Process all photos in directory (batch mode).
 
     Args:
@@ -277,7 +276,7 @@ def batch_process_directory(
             stats['error_list'].append((photo_path, result['error']))
 
     # Log summary
-    logger.info(f"Batch processing complete:")
+    logger.info("Batch processing complete:")
     logger.info(f"  Total: {stats['total']}")
     logger.info(f"  Tagged: {stats['tagged']}")
     logger.info(f"  Skipped: {stats['skipped']}")
@@ -383,7 +382,7 @@ def watch_directory(
                             if photo_path in seen_files:
                                 del seen_files[photo_path]
 
-                except (OSError, IOError) as e:
+                except OSError as e:
                     logger.warning(f"Error checking {photo_path}: {e}")
 
             # Sleep until next poll

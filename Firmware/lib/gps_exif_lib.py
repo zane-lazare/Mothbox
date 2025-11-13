@@ -23,12 +23,12 @@ Related:
 - Spec: webui/docs/dev/issues/ISSUE_98_GPS_EXIF_IMPLEMENTATION_SPEC.md
 """
 
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional, Dict, Tuple, Any
-from datetime import datetime, timezone
+from typing import Any
 
 # Import path resolution from mothbox_paths (reuse existing infrastructure)
-from mothbox_paths import get_control_values, CONTROLS_FILE
+from mothbox_paths import CONTROLS_FILE, get_control_values
 
 # Import piexif for EXIF metadata manipulation
 try:
@@ -64,7 +64,7 @@ DEFAULT_HDOP = 99.99             # Default HDOP (very poor) when not available
 DEFAULT_PDOP = 99.99             # Default PDOP (very poor) when not available
 
 
-def get_gps_data_from_controls(controls_file: Optional[Path] = None) -> Dict[str, Any]:
+def get_gps_data_from_controls(controls_file: Path | None = None) -> dict[str, Any]:
     """
     Read current GPS data from controls.txt.
 
@@ -115,7 +115,7 @@ def get_gps_data_from_controls(controls_file: Optional[Path] = None) -> Dict[str
     controls = get_control_values(controls_file)
 
     # Helper to safely parse float or return None
-    def safe_float(value: str, default: Optional[float] = None) -> Optional[float]:
+    def safe_float(value: str, default: float | None = None) -> float | None:
         """Parse float from string, handling 'n/a' and invalid values."""
         if not value or value == 'n/a':
             return default
@@ -172,7 +172,7 @@ def get_gps_data_from_controls(controls_file: Optional[Path] = None) -> Dict[str
     }
 
 
-def decimal_to_dms(decimal: float, is_latitude: bool) -> Tuple[Tuple, str]:
+def decimal_to_dms(decimal: float, is_latitude: bool) -> tuple[tuple, str]:
     """
     Convert decimal degrees to EXIF GPS format (degrees, minutes, seconds).
 
@@ -222,7 +222,7 @@ def decimal_to_dms(decimal: float, is_latitude: bool) -> Tuple[Tuple, str]:
             raise ValueError(f"Invalid longitude: {decimal} (must be in range [-180, 180])")
 
     # Step 2: Determine reference (N/S for latitude, E/W for longitude)
-    if is_latitude:
+    if is_latitude:  # noqa: SIM108  # More readable than nested ternary
         ref = 'N' if decimal >= 0 else 'S'
     else:
         ref = 'E' if decimal >= 0 else 'W'
@@ -267,7 +267,7 @@ def decimal_to_dms(decimal: float, is_latitude: bool) -> Tuple[Tuple, str]:
     return (dms_tuple, ref)
 
 
-def build_gps_ifd(gps_data: Dict[str, Any]) -> Dict:
+def build_gps_ifd(gps_data: dict[str, Any]) -> dict:
     """
     Build piexif GPS IFD dictionary from GPS data.
 
@@ -359,7 +359,7 @@ def build_gps_ifd(gps_data: Dict[str, Any]) -> Dict:
 
     # Step 8: Convert Unix timestamp to EXIF GPS timestamp
     if gps_data.get('gpstime', 0) > 0:
-        utc_time = datetime.fromtimestamp(gps_data['gpstime'], tz=timezone.utc)
+        utc_time = datetime.fromtimestamp(gps_data['gpstime'], tz=UTC)
 
         # GPS TimeStamp: ((hour, 1), (minute, 1), (second, 1))
         gps_ifd[piexif.GPSIFD.GPSTimeStamp] = (
@@ -387,11 +387,11 @@ def build_gps_ifd(gps_data: Dict[str, Any]) -> Dict:
 
 def embed_gps_exif(
     photo_path: Path,
-    gps_data: Optional[Dict[str, Any]] = None,
-    controls_file: Optional[Path] = None,
+    gps_data: dict[str, Any] | None = None,
+    controls_file: Path | None = None,
     backup: bool = False,
     dry_run: bool = False
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Embed GPS EXIF data into a JPEG photo in-place.
 
@@ -563,7 +563,7 @@ def embed_gps_exif(
     return result
 
 
-def verify_gps_exif(photo_path: Path) -> Dict[str, Any]:
+def verify_gps_exif(photo_path: Path) -> dict[str, Any]:
     """
     Read and verify GPS EXIF data from a photo.
 

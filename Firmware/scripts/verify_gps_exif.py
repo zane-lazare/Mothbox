@@ -45,7 +45,6 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # Import GPS EXIF library functions
 from lib.gps_exif_lib import verify_gps_exif
 
-
 # Module exports
 __all__ = [
     'extract_timestamp_from_filename',
