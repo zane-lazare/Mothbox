@@ -570,8 +570,13 @@ def verify_gps_exif(photo_path: Path) -> dict[str, Any]:
     Extracts GPS EXIF tags from a JPEG photo and converts them to a
     human-readable format for verification and display.
 
+    SECURITY NOTE: This is a library function called from both web routes
+    (where paths are pre-validated) and CLI scripts (where paths come from
+    command line args). The exists() check here is for functional validation,
+    not security - callers should validate paths before calling this function.
+
     Args:
-        photo_path: Path to JPEG photo file
+        photo_path: Path to JPEG photo file (should be validated by caller)
 
     Returns:
         dict: GPS EXIF data with keys:
@@ -608,7 +613,8 @@ def verify_gps_exif(photo_path: Path) -> dict[str, Any]:
         result['error'] = "piexif library required for GPS EXIF verification"
         return result
 
-    # Check if file exists
+    # Functional check: verify file exists
+    # Note: Path should be validated by caller for security
     if not photo_path.exists():
         result['error'] = f"Photo file does not exist: {photo_path}"
         return result

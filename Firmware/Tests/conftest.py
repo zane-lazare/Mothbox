@@ -421,6 +421,7 @@ def patch_path_constant_everywhere(monkeypatch, constant_name, temp_path):
         'PHOTOS_DIR': [
             'routes.camera',  # Issue #134 - Thumbnail cache testing
             'routes.gallery',  # Issue #134 - Thumbnail cache testing
+            'routes.metadata',  # Issue #99 - Metadata API testing
         ],
     }
 
@@ -2434,9 +2435,18 @@ def reset_pil_imports(request):
     NOTE: We do NOT reset services.* modules here because they are imported at module level
     by routes/gallery.py, and resetting them would cause exception type mismatches.
 
+    EXCEPTION: Metadata tests (test_metadata_service.py, test_metadata_routes.py) are excluded
+    from PIL reset because they use module-scoped fixtures that need real PIL for photo creation.
+    These tests capture a reference to real PIL.Image at module level (_REAL_PIL_IMAGE) to avoid
+    pollution from gallery test mocking.
+
     See: https://github.com/zane-lazare/Mothbox/pull/143
     """
     yield
+
+    # Skip PIL reset for metadata tests (they need real PIL for module-scoped fixtures)
+    if 'test_metadata' in request.node.nodeid:
+        return
 
     # AFTER test: Force complete PIL reset
     # Remove ALL PIL modules from sys.modules to force fresh import
