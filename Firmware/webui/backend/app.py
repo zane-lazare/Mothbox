@@ -158,6 +158,7 @@ from routes.config import config_bp
 from routes.gallery import gallery_bp
 from routes.gpio import gpio_bp
 from routes.gps import gps_bp
+from routes.metadata import metadata_bp
 from routes.preferences import preferences_bp
 from routes.presets import presets_bp
 from routes.scheduler import scheduler_bp
@@ -176,6 +177,7 @@ app.register_blueprint(scheduler_bp, url_prefix="/api/scheduler")
 app.register_blueprint(presets_bp, url_prefix="/api/presets")
 app.register_blueprint(preferences_bp, url_prefix="/api/preferences")
 app.register_blueprint(gps_bp, url_prefix="/api/gps")
+app.register_blueprint(metadata_bp, url_prefix="/api/metadata")
 
 # Register WebSocket handlers
 from websocket_handlers import register_handlers
