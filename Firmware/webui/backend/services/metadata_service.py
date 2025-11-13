@@ -88,14 +88,60 @@ class MetadataService:
             >>> metadata = service.get_photo_metadata(Path('/photos/photo.jpg'))
             >>> print(f"Camera: {metadata['camera']['make']} {metadata['camera']['model']}")
         """
-        # TODO: Implement metadata extraction
-        return {
-            'camera': {},
-            'location': {},
-            'capture': {},
-            'deployment': {},
-            'file': {}
+        # Initialize result structure with all categories
+        metadata = {
+            'camera': {'make': None, 'model': None, 'lens': None, 'sensor': None},
+            'location': {'latitude': None, 'longitude': None, 'altitude': None,
+                        'gps_timestamp': None, 'satellites': None, 'hdop': None},
+            'capture': {'timestamp': None, 'exposure_time': None, 'f_number': None,
+                       'iso': None, 'focal_length': None, 'white_balance': None, 'flash': None},
+            'deployment': {'mothbox_id': None, 'firmware_version': None,
+                          'series_type': None, 'series_count': None, 'series_index': None},
+            'file': {'path': None, 'filename': None, 'size': None,
+                    'width': None, 'height': None, 'format': None}
         }
+
+        try:
+            # Check if photo exists
+            if not photo_path.exists():
+                metadata['error'] = f"Photo not found: {photo_path}"
+                return metadata
+
+            # Populate basic file info even if image can't be opened
+            metadata['file']['path'] = str(photo_path)
+            metadata['file']['filename'] = photo_path.name
+            if photo_path.exists():
+                metadata['file']['size'] = photo_path.stat().st_size
+
+            # Open image and extract EXIF data
+            try:
+                image = Image.open(photo_path)
+                exif_dict = piexif.load(str(photo_path))
+            except Exception as e:
+                # Handle corrupted images or missing EXIF gracefully
+                try:
+                    image = Image.open(photo_path)
+                    exif_dict = {}
+                except Exception as img_error:
+                    metadata['error'] = f"Failed to open image: {img_error}"
+                    return metadata
+
+            # Extract metadata from each category
+            metadata['camera'] = self._extract_camera_metadata(exif_dict)
+            metadata['capture'] = self._extract_capture_metadata(exif_dict)
+            metadata['location'] = self._extract_location_metadata(photo_path)
+            metadata['deployment'] = self._extract_deployment_metadata(photo_path, exif_dict)
+            metadata['file'] = self._extract_file_metadata(photo_path, image)
+
+            # Close image
+            image.close()
+
+        except PermissionError:
+            metadata['error'] = f"Permission denied: {photo_path}"
+        except Exception as e:
+            metadata['error'] = f"Unexpected error: {e}"
+
+        return metadata
 
     def batch_get_metadata(self, photo_paths: list[Path]) -> list[dict[str, Any]]:
         """
@@ -117,8 +163,21 @@ class MetadataService:
             >>> results = service.batch_get_metadata(photos)
             >>> print(f"Processed {len(results)} photos")
         """
-        # TODO: Implement batch processing
-        return []
+        results = []
+
+        for photo_path in photo_paths:
+            try:
+                metadata = self.get_photo_metadata(photo_path)
+                results.append(metadata)
+            except Exception as e:
+                # Add error entry for failed photo
+                error_entry = {
+                    'error': f"Failed to process {photo_path}: {e}",
+                    'file': {'path': str(photo_path), 'filename': photo_path.name if photo_path else None}
+                }
+                results.append(error_entry)
+
+        return results
 
     # ========================================================================
     # Private Helper Methods
@@ -134,13 +193,42 @@ class MetadataService:
         Returns:
             dict: Camera metadata with keys: make, model, lens, sensor
         """
-        # TODO: Implement camera metadata extraction
-        return {
+        camera = {
             'make': None,
             'model': None,
             'lens': None,
             'sensor': None
         }
+
+        try:
+            # Extract from 0th IFD (Image File Directory)
+            if '0th' in exif_data:
+                ifd = exif_data['0th']
+
+                # Camera make
+                if piexif.ImageIFD.Make in ifd:
+                    camera['make'] = ifd[piexif.ImageIFD.Make].decode('utf-8', errors='ignore').strip()
+
+                # Camera model
+                if piexif.ImageIFD.Model in ifd:
+                    camera['model'] = ifd[piexif.ImageIFD.Model].decode('utf-8', errors='ignore').strip()
+
+            # Extract from Exif IFD
+            if 'Exif' in exif_data:
+                exif_ifd = exif_data['Exif']
+
+                # Lens model
+                if piexif.ExifIFD.LensModel in exif_ifd:
+                    camera['lens'] = exif_ifd[piexif.ExifIFD.LensModel].decode('utf-8', errors='ignore').strip()
+
+                # Sensor type (may not be available in all EXIF data)
+                # We'll leave this as None for now as it's rarely populated
+
+        except Exception:
+            # Gracefully handle any EXIF parsing errors
+            pass
+
+        return camera
 
     def _extract_capture_metadata(self, exif_data: dict) -> dict[str, Any]:
         """
@@ -152,8 +240,7 @@ class MetadataService:
         Returns:
             dict: Capture metadata with timestamp, exposure, ISO, etc.
         """
-        # TODO: Implement capture metadata extraction
-        return {
+        capture = {
             'timestamp': None,
             'exposure_time': None,
             'f_number': None,
@@ -162,6 +249,68 @@ class MetadataService:
             'white_balance': None,
             'flash': None
         }
+
+        try:
+            # Extract from Exif IFD
+            if 'Exif' in exif_data:
+                exif_ifd = exif_data['Exif']
+
+                # Timestamp (DateTimeOriginal)
+                if piexif.ExifIFD.DateTimeOriginal in exif_ifd:
+                    dt_str = exif_ifd[piexif.ExifIFD.DateTimeOriginal].decode('utf-8', errors='ignore')
+                    # Convert EXIF format (YYYY:MM:DD HH:MM:SS) to ISO 8601
+                    try:
+                        dt = datetime.strptime(dt_str, '%Y:%m:%d %H:%M:%S')
+                        capture['timestamp'] = dt.isoformat()
+                    except ValueError:
+                        capture['timestamp'] = dt_str
+
+                # Exposure time
+                if piexif.ExifIFD.ExposureTime in exif_ifd:
+                    exposure = exif_ifd[piexif.ExifIFD.ExposureTime]
+                    if isinstance(exposure, tuple) and len(exposure) == 2:
+                        numerator, denominator = exposure
+                        if denominator != 0:
+                            capture['exposure_time'] = f"{numerator}/{denominator}"
+
+                # F-number (aperture)
+                if piexif.ExifIFD.FNumber in exif_ifd:
+                    f_num = exif_ifd[piexif.ExifIFD.FNumber]
+                    if isinstance(f_num, tuple) and len(f_num) == 2:
+                        numerator, denominator = f_num
+                        if denominator != 0:
+                            f_value = numerator / denominator
+                            capture['f_number'] = f"f/{f_value:.1f}"
+
+                # ISO
+                if piexif.ExifIFD.ISOSpeedRatings in exif_ifd:
+                    capture['iso'] = exif_ifd[piexif.ExifIFD.ISOSpeedRatings]
+
+                # Focal length
+                if piexif.ExifIFD.FocalLength in exif_ifd:
+                    focal = exif_ifd[piexif.ExifIFD.FocalLength]
+                    if isinstance(focal, tuple) and len(focal) == 2:
+                        numerator, denominator = focal
+                        if denominator != 0:
+                            focal_mm = numerator / denominator
+                            capture['focal_length'] = f"{int(focal_mm)}mm"
+
+                # White balance
+                if piexif.ExifIFD.WhiteBalance in exif_ifd:
+                    wb_code = exif_ifd[piexif.ExifIFD.WhiteBalance]
+                    capture['white_balance'] = 'Auto' if wb_code == 0 else 'Manual'
+
+                # Flash
+                if piexif.ExifIFD.Flash in exif_ifd:
+                    flash_code = exif_ifd[piexif.ExifIFD.Flash]
+                    # Flash fired if bit 0 is set
+                    capture['flash'] = bool(flash_code & 0x01)
+
+        except Exception:
+            # Gracefully handle any EXIF parsing errors
+            pass
+
+        return capture
 
     def _extract_location_metadata(self, photo_path: Path) -> dict[str, Any]:
         """
@@ -175,8 +324,7 @@ class MetadataService:
         Returns:
             dict: Location metadata with coordinates, altitude, quality metrics
         """
-        # TODO: Implement GPS metadata extraction via verify_gps_exif()
-        return {
+        location = {
             'latitude': None,
             'longitude': None,
             'altitude': None,
@@ -184,6 +332,32 @@ class MetadataService:
             'satellites': None,
             'hdop': None
         }
+
+        try:
+            # Use existing GPS EXIF library
+            gps_info = verify_gps_exif(photo_path)
+
+            if gps_info.get('has_gps'):
+                location['latitude'] = gps_info.get('latitude')
+                location['longitude'] = gps_info.get('longitude')
+                location['altitude'] = gps_info.get('altitude')
+                location['gps_timestamp'] = gps_info.get('timestamp')
+
+                # Convert satellites from string to int if present
+                satellites_str = gps_info.get('satellites')
+                if satellites_str:
+                    try:
+                        location['satellites'] = int(satellites_str)
+                    except (ValueError, TypeError):
+                        pass
+
+                location['hdop'] = gps_info.get('hdop')
+
+        except Exception:
+            # Gracefully handle GPS extraction errors
+            pass
+
+        return location
 
     def _extract_deployment_metadata(self, photo_path: Path, exif_data: dict) -> dict[str, Any]:
         """
@@ -199,14 +373,39 @@ class MetadataService:
         Returns:
             dict: Deployment metadata with Mothbox ID, firmware, series info
         """
-        # TODO: Implement deployment metadata extraction
-        return {
+        deployment = {
             'mothbox_id': None,
             'firmware_version': None,
             'series_type': None,
             'series_count': None,
             'series_index': None
         }
+
+        try:
+            # Extract Mothbox ID from filename (first part before date)
+            # Example: mothbox_2024_10_15__14_30_00.jpg -> "mothbox"
+            filename = photo_path.stem
+            match = re.match(r'^([a-zA-Z0-9_-]+)_\d{4}_\d{2}_\d{2}', filename)
+            if match:
+                deployment['mothbox_id'] = match.group(1)
+
+            # Extract firmware version from EXIF Software tag
+            if '0th' in exif_data:
+                ifd = exif_data['0th']
+                if piexif.ImageIFD.Software in ifd:
+                    deployment['firmware_version'] = ifd[piexif.ImageIFD.Software].decode('utf-8', errors='ignore').strip()
+
+            # Detect series information
+            series_type, series_count, series_index = self._detect_series_info(photo_path)
+            deployment['series_type'] = series_type
+            deployment['series_count'] = series_count
+            deployment['series_index'] = series_index
+
+        except Exception:
+            # Gracefully handle any parsing errors
+            pass
+
+        return deployment
 
     def _extract_file_metadata(self, photo_path: Path, image: Image.Image) -> dict[str, Any]:
         """
@@ -219,15 +418,31 @@ class MetadataService:
         Returns:
             dict: File metadata with path, size, dimensions, format
         """
-        # TODO: Implement file metadata extraction
-        return {
-            'path': None,
-            'filename': None,
+        file_info = {
+            'path': str(photo_path),
+            'filename': photo_path.name,
             'size': None,
             'width': None,
             'height': None,
             'format': None
         }
+
+        try:
+            # File size
+            if photo_path.exists():
+                file_info['size'] = photo_path.stat().st_size
+
+            # Image dimensions and format
+            if image:
+                file_info['width'] = image.width
+                file_info['height'] = image.height
+                file_info['format'] = image.format
+
+        except Exception:
+            # Gracefully handle any file system errors
+            pass
+
+        return file_info
 
     def _detect_series_info(self, photo_path: Path) -> tuple[Optional[str], Optional[int], Optional[int]]:
         """
@@ -246,5 +461,42 @@ class MetadataService:
                    series_count: Total photos in series or None
                    series_index: 1-indexed position in series or None
         """
-        # TODO: Implement series detection logic
+        try:
+            filename = photo_path.stem
+
+            # Check for focus bracket pattern: *_focus_N
+            focus_match = re.search(r'_focus_(\d+)$', filename)
+            if focus_match:
+                series_index = int(focus_match.group(1))
+
+                # Count total focus bracket files in same directory
+                base_pattern = re.sub(r'_focus_\d+$', '', filename)
+                parent_dir = photo_path.parent
+                series_files = list(parent_dir.glob(f"{base_pattern}_focus_*.jpg"))
+                series_count = len(series_files)
+
+                return 'focus_bracket', series_count, series_index
+
+            # Check for HDR pattern: *_N where N is single digit
+            # Ensure it's not part of timestamp (avoid matching date/time numbers)
+            hdr_match = re.search(r'_(\d)$', filename)
+            if hdr_match:
+                series_index = int(hdr_match.group(1))
+
+                # Count total HDR files in same directory
+                base_pattern = re.sub(r'_\d$', '', filename)
+                parent_dir = photo_path.parent
+                series_files = list(parent_dir.glob(f"{base_pattern}_*.jpg"))
+
+                # Filter to only single-digit suffixes (HDR series)
+                hdr_files = [f for f in series_files if re.search(r'_\d\.jpg$', f.name)]
+                series_count = len(hdr_files)
+
+                if series_count > 1:
+                    return 'hdr', series_count, series_index
+
+        except Exception:
+            # Gracefully handle any pattern matching errors
+            pass
+
         return None, None, None
