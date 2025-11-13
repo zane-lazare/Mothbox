@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CacheEntry:
     """Metadata cache entry"""
+
     photo_path: str
     metadata: Dict[str, Any]
     cached_at: float
@@ -46,13 +47,14 @@ class CacheEntry:
             photo_path=data["photo_path"],
             metadata=data["metadata"],
             cached_at=data["cached_at"],
-            cache_version=data.get("cache_version", "1.0")
+            cache_version=data.get("cache_version", "1.0"),
         )
 
 
 @dataclass
 class CacheStatistics:
     """Cache performance statistics"""
+
     l1_hits: int = 0
     l1_misses: int = 0
     l2_hits: int = 0
@@ -81,7 +83,7 @@ class MetadataCache:
         cache_dir: Path,
         l1_max_size: int = 1000,
         l2_max_size: int = 10000,
-        cache_version: str = "1.0"
+        cache_version: str = "1.0",
     ):
         """
         Initialize metadata cache.
@@ -158,7 +160,7 @@ class MetadataCache:
             photo_path=photo_path,
             metadata=metadata,
             cached_at=time.time(),
-            cache_version=self.cache_version
+            cache_version=self.cache_version,
         )
 
         # Store in L1
@@ -241,7 +243,9 @@ class MetadataCache:
 
             avg_response_time = 0.0
             if self._total_response_times:
-                avg_response_time = sum(self._total_response_times) / len(self._total_response_times)
+                avg_response_time = sum(self._total_response_times) / len(
+                    self._total_response_times
+                )
 
             return CacheStatistics(
                 l1_hits=self._l1_hits,
@@ -251,7 +255,7 @@ class MetadataCache:
                 total_hits=total_hits,
                 total_misses=total_misses,
                 hit_ratio=hit_ratio,
-                avg_response_time_ms=avg_response_time
+                avg_response_time_ms=avg_response_time,
             )
 
     # Private helper methods
@@ -271,7 +275,10 @@ class MetadataCache:
         """Set in L1 with LRU eviction"""
         with self._l1_lock:
             # If cache is full, evict LRU entry
-            if len(self._l1_cache) >= self.l1_max_size and photo_path not in self._l1_cache:
+            if (
+                len(self._l1_cache) >= self.l1_max_size
+                and photo_path not in self._l1_cache
+            ):
                 if self._l1_access_order:
                     lru_key = self._l1_access_order.pop(0)
                     if lru_key in self._l1_cache:
@@ -293,7 +300,7 @@ class MetadataCache:
             return None
 
         try:
-            with open(cache_file, 'r') as f:
+            with open(cache_file, "r") as f:
                 # Acquire shared lock for reading
                 fcntl.flock(f.fileno(), fcntl.LOCK_SH)
                 try:
@@ -317,9 +324,9 @@ class MetadataCache:
 
         try:
             # Write to temp file first for atomicity
-            temp_file = cache_file.with_suffix('.tmp')
+            temp_file = cache_file.with_suffix(".tmp")
 
-            with open(temp_file, 'w') as f:
+            with open(temp_file, "w") as f:
                 # Acquire exclusive lock for writing
                 fcntl.flock(f.fileno(), fcntl.LOCK_EX)
                 try:
