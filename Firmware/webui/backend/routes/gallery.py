@@ -285,9 +285,15 @@ def list_photos_paginated():
         return jsonify(result)
 
     except PaginationError as e:
-        return jsonify({"error": str(e)}), 400
+        # Log full error details server-side (CodeQL security requirement)
+        logger.error(f"Pagination error: {e}", exc_info=True)
+        # Return generic message to user (don't expose internal details)
+        return jsonify({"error": "Invalid pagination parameters"}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        # Log full error details server-side
+        logger.error(f"Unexpected error in list_photos_paginated: {e}", exc_info=True)
+        # Return generic message to user
+        return jsonify({"error": "Internal server error"}), 500
 
 
 # ============================================================================
@@ -389,11 +395,13 @@ def get_photo_metadata(photo_id):
             cache_info["lookup_time_ms"] = round(cache_lookup_time, 2)
 
         except Exception as e:
+            # Log full error details server-side (CodeQL security requirement)
             logger.error(
                 f"Metadata extraction failed for {photo_path}: {e}", exc_info=True
             )
+            # Return generic message to user (don't expose internal details)
             return jsonify(
-                {"success": False, "error": f"Failed to read metadata: {str(e)}"}
+                {"success": False, "error": "Failed to read metadata"}
             ), 500
 
     # 5. Apply category filtering
@@ -498,7 +506,8 @@ def _resolve_photo_path(photo_id: str) -> Optional[Path]:
     """
     Resolve photo ID to absolute path with security checks.
 
-    Protects against path traversal attacks.
+    Protects against path traversal attacks by validating input
+    before performing any file system operations.
 
     Args:
         photo_id: Photo identifier (relative path from PHOTOS_DIR)
@@ -506,14 +515,27 @@ def _resolve_photo_path(photo_id: str) -> Optional[Path]:
     Returns:
         Absolute Path if valid and exists, None otherwise
     """
-    # Path traversal protection
+    # Input validation - BEFORE any Path operations (CodeQL security requirement)
+    if not photo_id:
+        logger.warning("Empty photo_id provided")
+        return None
+
+    # Path traversal protection - block dangerous patterns
     if ".." in photo_id or photo_id.startswith("/"):
         logger.warning(f"Path traversal attempt detected: {photo_id}")
         return None
 
+    # Whitelist validation - only allow safe characters
+    # Allows: letters, numbers, underscore, hyphen, period, forward slash
+    import re
+    if not re.match(r'^[a-zA-Z0-9_\-./]+$', photo_id):
+        logger.warning(f"Photo_id contains invalid characters: {photo_id}")
+        return None
+
+    # Now safe to construct path - input has been validated
     photo_path = PHOTOS_DIR / photo_id
 
-    # Canonical path check (prevents symlink attacks)
+    # Canonical path check (prevents symlink attacks) - defense in depth
     try:
         photo_path = photo_path.resolve()
         photos_dir_resolved = PHOTOS_DIR.resolve()
