@@ -12,7 +12,6 @@ import json
 from pathlib import Path
 from flask import Flask
 from PIL import Image
-import PIL.JpegImagePlugin
 import piexif
 
 

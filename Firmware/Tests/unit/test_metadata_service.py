@@ -21,7 +21,6 @@ from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
 from io import BytesIO
 from PIL import Image
-import PIL.JpegImagePlugin  # Ensure JPEG support is loaded
 import piexif
 
 
