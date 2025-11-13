@@ -348,10 +348,14 @@ def build_gps_ifd(gps_data: Dict[str, Any]) -> Dict:
     # Step 7: Add altitude if available (3D fix)
     if gps_data.get('altitude') is not None:
         # Encode altitude as rational (meters * 100, 100) for 2 decimal precision
-        altitude_rational = (int(round(gps_data['altitude'] * 100)), 100)
+        # EXIF altitude must be absolute value (always positive)
+        altitude_abs = abs(gps_data['altitude'])
+        altitude_rational = (int(round(altitude_abs * 100)), 100)
         gps_ifd[piexif.GPSIFD.GPSAltitude] = altitude_rational
+
         # AltitudeRef: 0 = above sea level, 1 = below sea level
-        gps_ifd[piexif.GPSIFD.GPSAltitudeRef] = 0
+        # Set based on sign of original altitude value
+        gps_ifd[piexif.GPSIFD.GPSAltitudeRef] = 1 if gps_data['altitude'] < 0 else 0
 
     # Step 8: Convert Unix timestamp to EXIF GPS timestamp
     if gps_data.get('gpstime', 0) > 0:
@@ -673,7 +677,12 @@ def verify_gps_exif(photo_path: Path) -> Dict[str, Any]:
             altitude_rational = gps_ifd[piexif.GPSIFD.GPSAltitude]
             if altitude_rational[1] == 0:
                 raise ValueError(f"Invalid EXIF altitude data: denominator is zero ({altitude_rational})")
-            result['altitude'] = altitude_rational[0] / altitude_rational[1]
+            altitude_abs = altitude_rational[0] / altitude_rational[1]
+
+            # Check altitude reference: 0 = above sea level, 1 = below sea level
+            altitude_ref = gps_ifd.get(piexif.GPSIFD.GPSAltitudeRef, 0)
+            # Apply sign based on reference (negative if below sea level)
+            result['altitude'] = -altitude_abs if altitude_ref == 1 else altitude_abs
 
         # Extract timestamp
         if piexif.GPSIFD.GPSDateStamp in gps_ifd and piexif.GPSIFD.GPSTimeStamp in gps_ifd:

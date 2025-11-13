@@ -863,6 +863,99 @@ class TestGPSIFDBuilder:
 
         print("✓ Satellite count encoded correctly")
 
+    def test_altitude_below_sea_level(self):
+        """
+        Test altitude below sea level (negative altitude).
+
+        Scenario: GPS reports negative altitude (below sea level).
+        Expected: GPSAltitude contains absolute value, GPSAltitudeRef = 1.
+
+        EXIF Standard:
+        - GPSAltitude: Always stored as positive rational value
+        - GPSAltitudeRef: 0 = above sea level, 1 = below sea level
+
+        Example locations below sea level:
+        - Dead Sea: -430m
+        - Death Valley: -86m
+        - Amsterdam: -2m
+        """
+        try:
+            import piexif
+        except ImportError:
+            pytest.skip("piexif required for GPS IFD tests")
+
+        from lib.gps_exif_lib import build_gps_ifd
+
+        # Arrange: GPS data with negative altitude (below sea level)
+        gps_data = {
+            'latitude': 31.5,          # Dead Sea coordinates
+            'longitude': 35.5,
+            'gpstime': 1705329000,
+            'altitude': -430.5,         # Dead Sea: 430m below sea level
+            'fix_mode': 3,              # 3D fix required for altitude
+            'satellites_used': 8,
+            'hdop': 1.2,
+            'pdop': 2.1,
+            'has_fix': True
+        }
+
+        # Act: Build GPS IFD
+        gps_ifd = build_gps_ifd(gps_data)
+
+        # Assert: Verify altitude stored as positive with ref=1
+        assert piexif.GPSIFD.GPSAltitude in gps_ifd, "Altitude should be present"
+        altitude_rational = gps_ifd[piexif.GPSIFD.GPSAltitude]
+        altitude_value = altitude_rational[0] / altitude_rational[1]
+
+        # EXIF altitude must be positive (absolute value)
+        assert altitude_value > 0, "EXIF altitude must be stored as positive value"
+        assert altitude_rational == (43050, 100), "Altitude 430.5m as absolute value"
+
+        # Altitude reference indicates below sea level
+        assert piexif.GPSIFD.GPSAltitudeRef in gps_ifd, "Altitude ref should be present"
+        assert gps_ifd[piexif.GPSIFD.GPSAltitudeRef] == 1, "AltitudeRef=1 for below sea level"
+
+        print("✓ Negative altitude (below sea level) encoded correctly")
+
+    def test_altitude_at_sea_level(self):
+        """
+        Test altitude at sea level (zero altitude).
+
+        Scenario: GPS reports altitude = 0.0 (exactly at sea level).
+        Expected: GPSAltitude = (0, 100), GPSAltitudeRef = 0.
+        """
+        try:
+            import piexif
+        except ImportError:
+            pytest.skip("piexif required for GPS IFD tests")
+
+        from lib.gps_exif_lib import build_gps_ifd
+
+        # Arrange: GPS data at sea level
+        gps_data = {
+            'latitude': 40.7128,        # New York Harbor coordinates
+            'longitude': -74.0060,
+            'gpstime': 1705329000,
+            'altitude': 0.0,            # Exactly at sea level
+            'fix_mode': 3,
+            'satellites_used': 8,
+            'hdop': 1.2,
+            'pdop': 2.1,
+            'has_fix': True
+        }
+
+        # Act: Build GPS IFD
+        gps_ifd = build_gps_ifd(gps_data)
+
+        # Assert: Verify sea level altitude encoding
+        assert piexif.GPSIFD.GPSAltitude in gps_ifd, "Altitude should be present"
+        assert gps_ifd[piexif.GPSIFD.GPSAltitude] == (0, 100), "Altitude 0.0m (sea level)"
+
+        assert piexif.GPSIFD.GPSAltitudeRef in gps_ifd, "Altitude ref should be present"
+        assert gps_ifd[piexif.GPSIFD.GPSAltitudeRef] == 0, "AltitudeRef=0 for sea level (>= 0)"
+
+        print("✓ Sea level altitude (0.0m) encoded correctly")
+
     def test_no_gps_fix_returns_empty_ifd(self):
         """
         Test that no GPS fix returns empty IFD.
@@ -1399,6 +1492,89 @@ class TestGPSEXIFVerification:
         assert abs(gps_info['longitude'] - 151.2093) < 0.0001, "Eastern longitude extracted correctly"
 
         print("✓ Coordinates extracted with high precision")
+
+    def test_verify_negative_altitude(self, sample_photo_with_exif):
+        """
+        Test extracting negative altitude (below sea level).
+
+        Scenario: Photo has GPS EXIF with negative altitude.
+        Expected: Altitude extracted as negative value.
+
+        EXIF Standard:
+        - GPSAltitude: Stored as positive rational
+        - GPSAltitudeRef: 1 indicates below sea level
+        - verify_gps_exif should return negative altitude when ref=1
+        """
+        try:
+            import piexif
+        except ImportError:
+            pytest.skip("piexif required for EXIF verification tests")
+
+        from lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
+
+        # Arrange: Embed GPS with negative altitude
+        gps_data = {
+            'latitude': 31.5,          # Dead Sea coordinates
+            'longitude': 35.5,
+            'gpstime': 1705329000,
+            'altitude': -430.5,         # Dead Sea: 430m below sea level
+            'fix_mode': 3,
+            'satellites_used': 8,
+            'hdop': 1.2,
+            'pdop': 2.1,
+            'has_fix': True
+        }
+        embed_gps_exif(sample_photo_with_exif, gps_data=gps_data)
+
+        # Act: Verify GPS EXIF
+        gps_info = verify_gps_exif(sample_photo_with_exif)
+
+        # Assert: Verify negative altitude extracted correctly
+        assert gps_info['has_gps'] is True, "Should detect GPS EXIF"
+        assert gps_info['altitude'] is not None, "Altitude should be extracted"
+        assert gps_info['altitude'] < 0, "Altitude should be negative (below sea level)"
+        assert abs(gps_info['altitude'] - (-430.5)) < 0.01, "Altitude should match original value"
+
+        print("✓ Negative altitude (below sea level) verified correctly")
+
+    def test_verify_positive_altitude(self, sample_photo_with_exif):
+        """
+        Test extracting positive altitude (above sea level).
+
+        Scenario: Photo has GPS EXIF with positive altitude.
+        Expected: Altitude extracted as positive value.
+        """
+        try:
+            import piexif
+        except ImportError:
+            pytest.skip("piexif required for EXIF verification tests")
+
+        from lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
+
+        # Arrange: Embed GPS with positive altitude
+        gps_data = {
+            'latitude': 27.9881,        # Mount Everest base camp
+            'longitude': 86.9250,
+            'gpstime': 1705329000,
+            'altitude': 5364.0,          # Base camp: 5364m above sea level
+            'fix_mode': 3,
+            'satellites_used': 8,
+            'hdop': 1.2,
+            'pdop': 2.1,
+            'has_fix': True
+        }
+        embed_gps_exif(sample_photo_with_exif, gps_data=gps_data)
+
+        # Act: Verify GPS EXIF
+        gps_info = verify_gps_exif(sample_photo_with_exif)
+
+        # Assert: Verify positive altitude extracted correctly
+        assert gps_info['has_gps'] is True, "Should detect GPS EXIF"
+        assert gps_info['altitude'] is not None, "Altitude should be extracted"
+        assert gps_info['altitude'] > 0, "Altitude should be positive (above sea level)"
+        assert abs(gps_info['altitude'] - 5364.0) < 0.01, "Altitude should match original value"
+
+        print("✓ Positive altitude (above sea level) verified correctly")
 
     def test_is_already_tagged_true(self, sample_photo_with_exif):
         """
