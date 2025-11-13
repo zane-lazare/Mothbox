@@ -21,6 +21,30 @@ try:
 except ImportError:
     pass  # JPEG support may not be available in all environments
 
+# Function to get real PIL.Image, bypassing any mocking from gallery tests
+def _get_real_pil_image():
+    """
+    Get real PIL.Image module, bypassing any mocking from gallery tests.
+
+    This prevents gallery test PIL mocking from polluting metadata fixtures.
+    We use __import__ to bypass sys.modules caching and ensure we get the real PIL.
+    """
+    import sys
+    from unittest.mock import MagicMock
+
+    # Check if PIL.Image in sys.modules is a MagicMock (from gallery tests)
+    if 'PIL.Image' in sys.modules:
+        pil_image = sys.modules['PIL.Image']
+        # If it's a MagicMock, remove it and force fresh import
+        if isinstance(pil_image, MagicMock) or hasattr(pil_image, '_mock_name'):
+            del sys.modules['PIL.Image']
+            if 'PIL' in sys.modules and isinstance(sys.modules['PIL'], MagicMock):
+                del sys.modules['PIL']
+
+    # Import fresh PIL
+    from PIL import Image
+    return Image
+
 
 # ============================================================================
 # Fixtures
@@ -82,7 +106,7 @@ def sample_photo_with_exif(temp_photos_dir):
         return photo_path
 
     # Create image with EXIF
-    img = Image.new('RGB', (640, 480), color='red')
+    img = _get_real_pil_image().new('RGB', (640, 480), color='red')
 
     exif_dict = {
         "0th": {
@@ -164,7 +188,7 @@ class TestSinglePhotoMetadata:
 
         # Create photo
         photo_path = nested_dir / "nested_photo.jpg"
-        img = Image.new('RGB', (100, 100))
+        img = _get_real_pil_image().new('RGB', (100, 100))
         img.save(photo_path, "JPEG")
 
         # Request with nested path
@@ -222,7 +246,7 @@ class TestBatchMetadata:
         photos = []
         for i in range(3):
             photo_path = temp_photos_dir / f"photo_{i}.jpg"
-            img = Image.new('RGB', (100, 100))
+            img = _get_real_pil_image().new('RGB', (100, 100))
             img.save(photo_path, "JPEG")
             photos.append(f"photo_{i}.jpg")
 
@@ -258,7 +282,7 @@ class TestBatchMetadata:
         """Test batch processing with mix of valid and invalid photos"""
         # Create 1 valid photo
         valid_photo = temp_photos_dir / "valid.jpg"
-        img = Image.new('RGB', (100, 100))
+        img = _get_real_pil_image().new('RGB', (100, 100))
         img.save(valid_photo, "JPEG")
 
         # Request batch with valid and invalid paths
@@ -341,7 +365,7 @@ class TestBatchMetadata:
         """Test that batch endpoint blocks path traversal"""
         # Create 1 valid photo
         valid_photo = temp_photos_dir / "valid.jpg"
-        img = Image.new('RGB', (100, 100))
+        img = _get_real_pil_image().new('RGB', (100, 100))
         img.save(valid_photo, "JPEG")
 
         # Try to include path traversal in batch
@@ -392,14 +416,14 @@ class TestMetadataRoutesErrorHandling:
         """Test that batch processing continues even if some photos fail"""
         # Create 2 valid photos and 1 corrupted
         valid1 = temp_photos_dir / "valid1.jpg"
-        img1 = Image.new('RGB', (100, 100))
+        img1 = _get_real_pil_image().new('RGB', (100, 100))
         img1.save(valid1, "JPEG")
 
         corrupted = temp_photos_dir / "corrupted.jpg"
         corrupted.write_bytes(b'invalid')
 
         valid2 = temp_photos_dir / "valid2.jpg"
-        img2 = Image.new('RGB', (100, 100))
+        img2 = _get_real_pil_image().new('RGB', (100, 100))
         img2.save(valid2, "JPEG")
 
         photo_paths = ["valid1.jpg", "corrupted.jpg", "valid2.jpg"]
