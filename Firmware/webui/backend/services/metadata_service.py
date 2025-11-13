@@ -42,6 +42,20 @@ from typing import Any, Optional
 from datetime import datetime
 import re
 
+# Defensive: Clear any PIL mock pollution from test suite
+# Gallery tests may mock PIL.Image at module level. This defensive check
+# ensures production code always gets the real PIL module, even in test environments.
+import sys
+from unittest.mock import MagicMock
+
+if 'PIL.Image' in sys.modules:
+    module = sys.modules.get('PIL.Image')
+    if isinstance(module, MagicMock):
+        # Remove mock pollution
+        del sys.modules['PIL.Image']
+        if 'PIL' in sys.modules and isinstance(sys.modules.get('PIL'), MagicMock):
+            del sys.modules['PIL']
+
 # Image processing libraries
 try:
     from PIL import Image

@@ -468,8 +468,8 @@ class TestPaginationSorting:
         data = json.loads(response.data)
 
         assert 'error' in data
-        assert 'sort' in data['error'].lower()
-        # Error message should mention valid sort options
+        # Generic error message for security (CodeQL requirement - don't expose internals)
+        assert data['error'] == 'Invalid pagination parameters'
 
 
 # ============================================================================
@@ -595,7 +595,8 @@ class TestPaginationValidation:
         data = json.loads(response.data)
 
         assert 'error' in data
-        assert 'limit' in data['error'].lower()
+        # Generic error message for security (CodeQL requirement - don't expose internals)
+        assert data['error'] == 'Invalid pagination parameters'
 
     def test_zero_limit_returns_400(self, gallery_client, large_photo_set):
         """
@@ -609,7 +610,8 @@ class TestPaginationValidation:
         data = json.loads(response.data)
 
         assert 'error' in data
-        assert 'limit' in data['error'].lower()
+        # Generic error message for security (CodeQL requirement - don't expose internals)
+        assert data['error'] == 'Invalid pagination parameters'
 
     def test_limit_exceeds_max_returns_400(self, gallery_client, large_photo_set):
         """
@@ -623,7 +625,8 @@ class TestPaginationValidation:
         data = json.loads(response.data)
 
         assert 'error' in data
-        assert 'limit' in data['error'].lower() or 'maximum' in data['error'].lower()
+        # Generic error message for security (CodeQL requirement - don't expose internals)
+        assert data['error'] == 'Invalid pagination parameters'
 
     def test_negative_offset_returns_400(self, gallery_client, large_photo_set):
         """
@@ -637,7 +640,8 @@ class TestPaginationValidation:
         data = json.loads(response.data)
 
         assert 'error' in data
-        assert 'offset' in data['error'].lower()
+        # Generic error message for security (CodeQL requirement - don't expose internals)
+        assert data['error'] == 'Invalid pagination parameters'
 
     def test_invalid_date_format_returns_400(self, gallery_client, dated_photos):
         """

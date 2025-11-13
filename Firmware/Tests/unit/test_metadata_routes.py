@@ -51,6 +51,38 @@ def _get_real_pil_image():
 # ============================================================================
 
 @pytest.fixture(scope="module", autouse=True)
+def cleanup_pil_mocks():
+    """
+    Clear any PIL.Image mocks from sys.modules before metadata tests.
+
+    Gallery tests may mock PIL.Image at module level, which can persist
+    in sys.modules and pollute metadata tests. This fixture ensures we
+    start with a clean slate.
+
+    Autouse ensures it runs before any tests in this module.
+    """
+    import sys
+    from unittest.mock import MagicMock
+
+    # Remove mock pollution from sys.modules
+    pil_modules = ['PIL.Image', 'PIL', 'PIL.ImageDraw', 'PIL.ImageFont', 'PIL.JpegImagePlugin']
+    for module_name in pil_modules:
+        if module_name in sys.modules:
+            module = sys.modules[module_name]
+            if isinstance(module, MagicMock):
+                del sys.modules[module_name]
+
+    yield
+
+    # Cleanup after tests too (prevent pollution of subsequent test modules)
+    for module_name in pil_modules:
+        if module_name in sys.modules:
+            module = sys.modules[module_name]
+            if isinstance(module, MagicMock):
+                del sys.modules[module_name]
+
+
+@pytest.fixture(scope="module", autouse=True)
 def temp_photos_dir(tmp_path_factory):
     """
     Temporary PHOTOS_DIR for metadata route tests (module-scoped, autouse)
