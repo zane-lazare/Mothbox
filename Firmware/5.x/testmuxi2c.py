@@ -1,9 +1,26 @@
 import smbus2
 import time
+from pathlib import Path
+import sys
+
+# Add parent directory to path to import mothbox_paths
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import get_hardware_config
+
+# Load hardware configuration
+hw_config = get_hardware_config()
+
+if not hw_config['mux_enabled']:
+    print("Multiplexer disabled in configuration")
+    quit()
+
+if hw_config['mux_type'] != 'i2c':
+    print(f"This script requires I2C multiplexer, configured type is: {hw_config['mux_type']}")
+    quit()
 
 # I2C setup
 I2C_BUS = 1
-PCA9535_ADDR = 0x20  # Update if needed
+PCA9535_ADDR = hw_config['mux_address']
 
 # Register addresses
 REG_INPUT_PORT_0  = 0x00

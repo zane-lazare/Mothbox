@@ -1,0 +1,95 @@
+[Unit]
+Description=Mothbox GPS EXIF Tagger (Legacy Installation)
+Documentation=https://github.com/Digital-Naturalism-Laboratories/Mothbox
+After=network.target gpsd.service
+Wants=gpsd.service
+
+# Crash loop protection
+# Allow 5 restarts within 10 minutes, then stop attempting
+# This prevents infinite restart loops on persistent failures
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+
+# User/Group configuration (override via systemd drop-in if needed)
+# Default: pi user (standard Raspberry Pi user)
+# To override: sudo systemctl edit gps-exif-tagger.service
+# Then add: [Service] / User=youruser / Group=yourgroup
+User=pi
+Group=pi
+
+# Working directory (configurable via systemd drop-in)
+# Default: /home/pi/Desktop/Mothbox/Firmware (legacy installation)
+# To override: sudo systemctl edit gps-exif-tagger.service
+# Then add: [Service] / WorkingDirectory=/your/path
+WorkingDirectory=/home/pi/Desktop/Mothbox/Firmware
+
+# Environment variables
+Environment="PYTHONUNBUFFERED=1"
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+
+# Mothbox paths (configurable)
+# These can be overridden via systemd drop-in configuration
+# Example: sudo systemctl edit gps-exif-tagger.service
+Environment="MOTHBOX_HOME=/home/pi/Desktop/Mothbox/Firmware"
+Environment="MOTHBOX_PHOTOS_DIR=/home/pi/Desktop/Mothbox/Firmware/photos"
+Environment="MOTHBOX_CONFIG_DIR=/home/pi/Desktop/Mothbox/Firmware"
+Environment="MOTHBOX_USER=pi"
+Environment="MOTHBOX_GROUP=pi"
+
+# Service parameters (configurable)
+Environment="GPS_EXIF_INTERVAL=10"
+Environment="GPS_EXIF_PATTERN=*.jpg"
+
+# Main service command (uses environment variables)
+ExecStart=/usr/bin/python3 ${MOTHBOX_HOME}/gps_exif_tagger.py \
+    --mode immediate \
+    --watch \
+    --directory ${MOTHBOX_PHOTOS_DIR} \
+    --interval ${GPS_EXIF_INTERVAL} \
+    --pattern ${GPS_EXIF_PATTERN} \
+    --verbose
+
+# Restart policy with crash loop protection
+Restart=on-failure
+RestartSec=30s
+
+# Logging (systemd journal)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gps-exif-tagger
+
+# Resource limits (prevent runaway resource usage)
+MemoryMax=256M
+CPUQuota=25%
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Filesystem protection
+ProtectSystem=strict
+ReadWritePaths=/home/pi/Desktop/Mothbox/Firmware/photos
+ReadOnlyPaths=/home/pi/Desktop/Mothbox/Firmware
+
+# Additional security layers
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictNamespaces=true
+
+# Capability restrictions
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# System call filtering
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

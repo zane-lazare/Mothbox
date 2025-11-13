@@ -32,19 +32,35 @@ import logging
 import sys
 import time
 import subprocess
+from pathlib import Path
 
 from ctypes import *
 
 logger = logging.getLogger(__name__)
 
+# Load e-paper GPIO pin configuration
+try:
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent.parent))
+    from mothbox_paths import get_epaper_pins
+    epaper_pins = get_epaper_pins()
+except:
+    # Fallback to defaults if import fails
+    epaper_pins = {
+        'RST_PIN': 17,
+        'DC_PIN': 25,
+        'CS_PIN': 8,
+        'BUSY_PIN': 24,
+        'PWR_PIN': 18,
+    }
+
 
 class RaspberryPi:
-    # Pin definition
-    RST_PIN  = 17
-    DC_PIN   = 25
-    CS_PIN   = 8
-    BUSY_PIN = 24
-    PWR_PIN  = 18
+    # Pin definition - loaded from configuration
+    RST_PIN  = epaper_pins['RST_PIN']
+    DC_PIN   = epaper_pins['DC_PIN']
+    CS_PIN   = epaper_pins['CS_PIN']
+    BUSY_PIN = epaper_pins['BUSY_PIN']
+    PWR_PIN  = epaper_pins['PWR_PIN']
     MOSI_PIN = 10
     SCLK_PIN = 11
 
@@ -166,12 +182,12 @@ class RaspberryPi:
 
 
 class JetsonNano:
-    # Pin definition
-    RST_PIN  = 17
-    DC_PIN   = 25
-    CS_PIN   = 8
-    BUSY_PIN = 24
-    PWR_PIN  = 18
+    # Pin definition - loaded from configuration
+    RST_PIN  = epaper_pins['RST_PIN']
+    DC_PIN   = epaper_pins['DC_PIN']
+    CS_PIN   = epaper_pins['CS_PIN']
+    BUSY_PIN = epaper_pins['BUSY_PIN']
+    PWR_PIN  = epaper_pins['PWR_PIN']
 
     def __init__(self):
         import ctypes
@@ -235,12 +251,12 @@ class JetsonNano:
 
 
 class SunriseX3:
-    # Pin definition
-    RST_PIN  = 17
-    DC_PIN   = 25
-    CS_PIN   = 8
-    BUSY_PIN = 24
-    PWR_PIN  = 18
+    # Pin definition - loaded from configuration
+    RST_PIN  = epaper_pins['RST_PIN']
+    DC_PIN   = epaper_pins['DC_PIN']
+    CS_PIN   = epaper_pins['CS_PIN']
+    BUSY_PIN = epaper_pins['BUSY_PIN']
+    PWR_PIN  = epaper_pins['PWR_PIN']
     Flag     = 0
 
     def __init__(self):

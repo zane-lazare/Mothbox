@@ -134,6 +134,9 @@ class MetadataCache:
             self._record_hit("l1", response_time)
             return entry.metadata
 
+        # L1 miss - record it
+        self._record_l1_miss()
+
         # Try L2 next
         entry = self._get_l2(photo_path)
         if entry:
@@ -143,9 +146,9 @@ class MetadataCache:
             self._record_hit("l2", response_time)
             return entry.metadata
 
-        # Cache miss
+        # L2 miss - record it
         response_time = (time.time() - start_time) * 1000
-        self._record_miss(response_time)
+        self._record_l2_miss(response_time)
         return None
 
     def set(self, photo_path: str, metadata: Dict[str, Any]) -> None:
@@ -231,10 +234,16 @@ class MetadataCache:
 
         Returns:
             CacheStatistics object with hit rates and performance metrics
+
+        Note:
+            - total_hits = L1 hits + L2 hits (data found in cache)
+            - total_misses = L2 misses only (complete cache misses)
+            - hit_ratio = total_hits / (total_hits + total_misses)
+            - L1 misses that become L2 hits are NOT counted as total misses
         """
         with self._stats_lock:
             total_hits = self._l1_hits + self._l2_hits
-            total_misses = self._l1_misses + self._l2_misses
+            total_misses = self._l2_misses  # Only count complete cache misses
             total_requests = total_hits + total_misses
 
             hit_ratio = 0.0
@@ -362,10 +371,14 @@ class MetadataCache:
             if len(self._total_response_times) > 1000:
                 self._total_response_times.pop(0)
 
-    def _record_miss(self, response_time: float) -> None:
-        """Record cache miss statistics"""
+    def _record_l1_miss(self) -> None:
+        """Record L1 cache miss"""
         with self._stats_lock:
             self._l1_misses += 1
+
+    def _record_l2_miss(self, response_time: float) -> None:
+        """Record L2 cache miss (complete cache miss)"""
+        with self._stats_lock:
             self._l2_misses += 1
             self._total_response_times.append(response_time)
             # Keep only last 1000 response times for moving average

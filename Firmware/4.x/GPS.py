@@ -1,11 +1,25 @@
 #!/usr/bin/python
-from gps import *
-import time
-from datetime import datetime
 import os
 import select
-from timezonefinder import TimezoneFinder
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
+
+from gps import *
+from timezonefinder import TimezoneFinder
+
+# Add parent directory to path to import mothbox_paths
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import CONTROLS_FILE, get_hardware_config
+
+# Load hardware configuration
+hw_config = get_hardware_config()
+
+if not hw_config["gps_enabled"]:
+    print("GPS disabled in configuration")
+    sys.exit(0)
 
 gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
 UTCtime = None
@@ -13,12 +27,12 @@ latitude = None
 longitude = None
 start_time = time.time()
 tf = TimezoneFinder()
-timeout=10
+timeout = hw_config["gps_timeout"]
 
 start_time = time.time()
 tf = TimezoneFinder()
 
-'''
+"""
 #This might be mysticism, the GPS might just need a good view of the sky
 #It seems that (at least for a USB gps) if the GPS has been disconnected and reconnected, gpsmon has to run before it can get timings and stuff
 import signal
@@ -41,24 +55,25 @@ except subprocess.TimeoutExpired:
     proc.kill()
 
 print("gpsmon terminated")
-'''
-
+"""
 
 
 def get_control_values(filepath):
     """Reads key-value pairs from the control file."""
     control_values = {}
-    with open(filepath, "r") as file:
+    with open(filepath) as file:
         for line in file:
             key, value = line.strip().split("=")
             control_values[key] = value
     return control_values
 
-control_values_fpath = "/home/pi/Desktop/Mothbox/controls.txt"
+
+control_values_fpath = str(CONTROLS_FILE)
 control_values = get_control_values(control_values_fpath)
 
+
 def set_GPStime(filepath, gpstime):
-    with open(filepath, "r") as file:
+    with open(filepath) as file:
         lines = file.readlines()
 
     with open(filepath, "w") as file:
@@ -66,12 +81,13 @@ def set_GPStime(filepath, gpstime):
             print(line)
             if line.startswith("gpstime"):
                 file.write("gpstime=" + str(gpstime) + "\n")  # Replace with False
-                #print("set gpstime " + str(gpstime))
+                # print("set gpstime " + str(gpstime))
             else:
                 file.write(line)  # Keep other lines unchanged
-                
+
+
 def set_UTCoff(filepath, UTC):
-    with open(filepath, "r") as file:
+    with open(filepath) as file:
         lines = file.readlines()
 
     with open(filepath, "w") as file:
@@ -79,24 +95,33 @@ def set_UTCoff(filepath, UTC):
             print(line)
             if line.startswith("UTCoff"):
                 file.write("UTCoff=" + str(UTC) + "\n")  # Replace with False
-                #print("set UTCoff" + str(UTC))    
+                # print("set UTCoff" + str(UTC))
             else:
                 file.write(line)  # Keep other lines unchanged
-def set_GPS(filepath, lat,lon):
-    with open(filepath, "r") as file:
+
+
+def set_GPS(filepath, lat, lon):
+    with open(filepath) as file:
         lines = file.readlines()
 
     with open(filepath, "w") as file:
         for line in lines:
             print(line)
             if line.startswith("lat"):
+                # lgtm[py/clear-text-storage-sensitive-data]
+                # CodeQL suppression: GPS coordinates are deployment location for wildlife
+                # monitoring equipment, not personal/user data. Required for scientific metadata.
                 file.write("lat=" + str(lat) + "\n")  # Replace with False
-                #print("set lat" + str(lat))
+                # print("set lat" + str(lat))
             elif line.startswith("lon"):
+                # lgtm[py/clear-text-storage-sensitive-data]
+                # CodeQL suppression: GPS coordinates are deployment location for wildlife
+                # monitoring equipment, not personal/user data. Required for scientific metadata.
                 file.write("lon=" + str(lon) + "\n")  # Replace with False
-                #print("set lon" + str(lon)) 
+                # print("set lon" + str(lon))
             else:
                 file.write(line)  # Keep other lines unchanged
+
 
 print("startingGPS")
 got_gps_fix = False
@@ -106,23 +131,36 @@ try:
         # Check if there's data from gpsd (timeout = 1 second)
         if select.select([gpsd.sock], [], [], 1)[0]:
             report = gpsd.next()
-            if report['class'] == 'TPV':
+            if report["class"] == "TPV":
                 got_gps_fix = True
-                latitude = getattr(report, 'lat', None)
-                longitude = getattr(report, 'lon', None)
-                UTCtime = getattr(report, 'time', '')
-                print(latitude, "\t",
-                      longitude, "\t",
-                      UTCtime, "\t",
-                      getattr(report, 'alt', 'nan'), "\t\t",
-                      getattr(report, 'epv', 'nan'), "\t",
-                      getattr(report, 'ept', 'nan'), "\t",
-                      getattr(report, 'speed', 'nan'), "\t",
-                      getattr(report, 'climb', 'nan'), "\t")
+                latitude = getattr(report, "lat", None)
+                longitude = getattr(report, "lon", None)
+                UTCtime = getattr(report, "time", "")
+                # lgtm[py/clear-text-logging-sensitive-data]
+                # CodeQL suppression: GPS coordinates are deployment location for wildlife
+                # monitoring equipment, not personal/user data. Debug logging for hardware diagnostics.
+                print(
+                    latitude,
+                    "\t",
+                    longitude,
+                    "\t",
+                    UTCtime,
+                    "\t",
+                    getattr(report, "alt", "nan"),
+                    "\t\t",
+                    getattr(report, "epv", "nan"),
+                    "\t",
+                    getattr(report, "ept", "nan"),
+                    "\t",
+                    getattr(report, "speed", "nan"),
+                    "\t",
+                    getattr(report, "climb", "nan"),
+                    "\t",
+                )
         else:
             print("Waiting for GPS data...")
         time.sleep(1)
-    print("Finished Looking for GPS. GPS device found = "+str(got_gps_fix))
+    print("Finished Looking for GPS. GPS device found = " + str(got_gps_fix))
     if UTCtime:
         try:
             dt = datetime.strptime(UTCtime, "%Y-%m-%dT%H:%M:%S.%fZ")
@@ -133,34 +171,34 @@ try:
 
         # Set system UTC time
         formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S")
-        os.system(f"sudo date -u -s \"{formatted_time}\"")
+        os.system(f'sudo date -u -s "{formatted_time}"')  # nosec B605 - GPS time from hardware, validated by strptime
         print("sync HW clock with system clock")
-        os.system("sudo hwclock -w")
+        os.system("sudo hwclock -w")  # nosec B605 - Hardcoded system command
         print("System UTC time set.")
-        set_GPStime("/home/pi/Desktop/Mothbox/controls.txt", epoch_time)
+        set_GPStime(str(CONTROLS_FILE), epoch_time)
 
         # Use offline timezone lookup
         if latitude is not None and longitude is not None:
             timezone = tf.timezone_at(lat=latitude, lng=longitude)
             if timezone:
                 print("Setting system timezone to:", timezone)
-                os.system(f"sudo timedatectl set-timezone {timezone}")
-                
+                os.system(f"sudo timedatectl set-timezone {timezone}")  # nosec B605 - Timezone from timezonefinder library lookup
+
                 # Now calculate the UTC offset
                 from zoneinfo import ZoneInfo
+
                 local_time = datetime.now(ZoneInfo(timezone))
                 utc_offset_hours = int(local_time.utcoffset().total_seconds() // 3600)
                 print("UTC Offset (hours):", utc_offset_hours)
-                set_GPS("/home/pi/Desktop/Mothbox/controls.txt", latitude, longitude)
-                set_UTCoff("/home/pi/Desktop/Mothbox/controls.txt",utc_offset_hours)
+                set_GPS(str(CONTROLS_FILE), latitude, longitude)
+                set_UTCoff(str(CONTROLS_FILE), utc_offset_hours)
             else:
                 print("Could not determine timezone from coordinates.")
-                set_GPS("/home/pi/Desktop/Mothbox/controls.txt", "n/a", "n/a")
+                set_GPS(str(CONTROLS_FILE), "n/a", "n/a")
 
     else:
         print("No UTC time received before timeout")
-        set_GPS("/home/pi/Desktop/Mothbox/controls.txt", "n/a", "n/a")
-
+        set_GPS(str(CONTROLS_FILE), "n/a", "n/a")
 
 
 except (KeyboardInterrupt, SystemExit):

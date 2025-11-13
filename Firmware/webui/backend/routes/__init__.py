@@ -1,1 +1,1 @@
-"""Routes package for Mothbox web UI backend."""
+# Routes package

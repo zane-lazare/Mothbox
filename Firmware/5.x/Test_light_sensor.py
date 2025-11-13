@@ -1,8 +1,21 @@
 from smbus2 import SMBus
 import time
+from pathlib import Path
+import sys
+
+# Add parent directory to path to import mothbox_paths
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mothbox_paths import get_hardware_config
+
+# Load hardware configuration
+hw_config = get_hardware_config()
+
+if not hw_config['light_sensor_enabled']:
+    print("Light sensor disabled in configuration")
+    quit()
 
 I2C_BUS = 1
-ADDR = 0x40   # confirmed by scan
+ADDR = hw_config['light_sensor_address']
 ONE_TIME_H_RES_MODE = 0x20  # one-time high res mode (1 lx, ~120 ms)
 
 with SMBus(I2C_BUS) as bus:

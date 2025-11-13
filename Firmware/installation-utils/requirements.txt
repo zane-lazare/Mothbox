@@ -1,0 +1,30 @@
+# Mothbox Core Python Dependencies
+# Install with: pip3 install -r requirements.txt
+
+# Camera support
+picamera2
+
+# Image processing
+opencv-python
+Pillow
+piexif
+
+# Hardware interfaces
+rpi-lgpio
+smbus2
+adafruit-circuitpython-ina260
+
+# System utilities
+psutil
+numpy
+
+# Scheduling
+python-crontab
+schedule
+
+# Web UI (optional - only needed if installing webui)
+# To install webui: run install_webui.sh or use --with-webui flag
+Flask==3.0.0
+Flask-CORS==4.0.0
+Flask-SocketIO==5.3.6
+python-socketio==5.11.0

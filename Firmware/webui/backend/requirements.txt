@@ -1,0 +1,13 @@
+Flask==3.0.0
+Flask-CORS==4.0.0
+Flask-SocketIO==5.3.6
+Flask-WTF==1.2.1
+Flask-Limiter==3.5.0
+python-socketio==5.11.0
+picamera2
+# RPi.GPIO - DO NOT install via pip! Use system package python3-rpi-lgpio instead
+#            pip-installed RPi.GPIO conflicts with rpi-lgpio on Pi 5
+Pillow
+opencv-python
+python-crontab
+timezonefinder==6.5.4

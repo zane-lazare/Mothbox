@@ -1,16 +1,22 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import csv
 import unicodedata
 
+from mothbox_paths import WORDLIST_FILE
+
 # Global variable for the input path
-INPUT_PATH = "/home/pi/Desktop/Mothbox/wordlist.csv"  # Replace <Your_Input_Path> with the path to your CSV file
+INPUT_PATH = str(WORDLIST_FILE)  # Replace <Your_Input_Path> with the path to your CSV file
 
 
 def remove_accents(input_str):
     """
     Removes accent marks from a string and returns the normalized version.
     """
-    normalized = unicodedata.normalize('NFKD', input_str)
-    return ''.join(c for c in normalized if not unicodedata.combining(c))
+    normalized = unicodedata.normalize("NFKD", input_str)
+    return "".join(c for c in normalized if not unicodedata.combining(c))
 
 
 def normalize_csv(input_path):
@@ -22,10 +28,10 @@ def normalize_csv(input_path):
         input_path (str): Path to the input CSV file.
     """
     try:
-        output_path = input_path.replace('.csv', '_normalized.csv')
+        output_path = input_path.replace(".csv", "_normalized.csv")
 
-        with open(input_path, mode='r', encoding='utf-8') as infile:
-            with open(output_path, mode='w', encoding='utf-8', newline='') as outfile:
+        with open(input_path, encoding="utf-8") as infile:
+            with open(output_path, mode="w", encoding="utf-8", newline="") as outfile:
                 reader = csv.reader(infile)
                 writer = csv.writer(outfile)
 
@@ -46,7 +52,7 @@ def main():
     """
     Main function to start the normalization process.
     """
-    if not INPUT_PATH.endswith('.csv'):
+    if not INPUT_PATH.endswith(".csv"):
         print("Error: INPUT_PATH must point to a CSV file.")
         return
 

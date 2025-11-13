@@ -1,0 +1,48 @@
+[Unit]
+Description=Mothbox Web UI Server
+After=network.target
+
+[Service]
+Type=simple
+User=__MOTHBOX_USER__
+Group=gpio
+WorkingDirectory=__MOTHBOX_HOME__/webui/backend
+ExecStart=/usr/bin/python3 __MOTHBOX_HOME__/webui/backend/app.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment="MOTHBOX_HOME=__MOTHBOX_HOME__"
+Environment="MOTHBOX_ENV=__MOTHBOX_ENV__"
+Environment="PYTHONUNBUFFERED=1"
+
+# CORS Configuration for WebSocket and API access
+# Controls which origins can connect to the Web UI from different hosts/ports
+#
+# Flask-SocketIO CORS Format:
+#   - Empty string ("") = same-origin only (most secure)
+#   - Wildcard ("*") = allow all origins (convenient for development)
+#   - Specific origins = comma-separated list (e.g., "http://192.168.1.100:5000,http://otherdomain.com")
+#   - NOTE: Shell-style wildcards like "http://192.168.*.*:*" are NOT supported
+#
+# Production (default): Empty = same-origin only (most secure)
+#   - Only allows connections from the same IP:port serving the frontend
+#   - Use when accessing Web UI directly on the Mothbox (e.g., http://mothbox.local:5000)
+#
+# Development/Testing: "*" = allow all origins
+#   - Allows connections from any device or development server
+#   - Use when developing frontend separately or testing from other devices
+#
+# To change after installation:
+#   1. Edit this line in /etc/systemd/system/mothbox-webui.service
+#   2. Run: sudo systemctl daemon-reload
+#   3. Run: sudo systemctl restart mothbox-webui
+Environment="ALLOWED_ORIGINS=__ALLOWED_ORIGINS__"
+
+# TODO: Switch to gunicorn for production deployment (issue #19)
+# Future: ExecStart=/usr/bin/gunicorn -c __MOTHBOX_HOME__/webui/backend/gunicorn_config.py app:app
+
+[Install]
+WantedBy=multi-user.target
