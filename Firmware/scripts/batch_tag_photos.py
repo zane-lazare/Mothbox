@@ -300,6 +300,10 @@ def batch_tag_directory(
         # Non-recursive glob
         photos = sorted(directory.glob('*.jpg')) + sorted(directory.glob('*.jpeg'))
 
+    # Filter out symlinks (security: prevent directory traversal attacks)
+    # Only process regular files within the intended directory
+    photos = [p for p in photos if not p.is_symlink()]
+
     # Filter by date if specified
     if after is not None or before is not None:
         photos = filter_photos_by_date(photos, after=after, before=before)
@@ -415,10 +419,15 @@ Examples:
     # Parse arguments
     args = parser.parse_args()
 
-    # Validate directory
+    # Validate directory with path traversal protection
     directory = Path(args.directory)
-    if not directory.exists():
-        print(f"❌ Error: Directory does not exist: {directory}", file=sys.stderr)
+
+    # Canonicalize path to resolve symlinks and relative paths
+    # This prevents directory traversal attacks (CWE-22)
+    try:
+        directory = directory.resolve(strict=True)
+    except (OSError, RuntimeError) as e:
+        print(f"❌ Error: Cannot resolve directory path: {e}", file=sys.stderr)
         return 1
 
     if not directory.is_dir():
