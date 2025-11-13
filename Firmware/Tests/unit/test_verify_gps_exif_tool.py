@@ -955,11 +955,14 @@ def test_verify_tool_rejects_symlinks(tmp_path):
     evil_symlink.symlink_to("/etc/passwd")
 
     # Test directory scanning - should filter symlinks
+    # Use PROJECT_ROOT (set by conftest.py) for cwd to work in CI
+    import os
+    project_root = os.environ.get('PROJECT_ROOT', Path(__file__).parent.parent.parent)
     result = subprocess.run(
         [sys.executable, "-m", "scripts.verify_gps_exif", str(tmp_path)],
         capture_output=True,
         text=True,
-        cwd="/home/zane/projects/Mothbox/Firmware"
+        cwd=str(project_root)
     )
 
     # Should only process real_photo.jpg, not symlinks
@@ -984,11 +987,14 @@ def test_verify_tool_rejects_single_symlink(tmp_path):
     symlink_photo.symlink_to(real_photo)
 
     # Try to verify symlink directly
+    # Use PROJECT_ROOT (set by conftest.py) for cwd to work in CI
+    import os
+    project_root = os.environ.get('PROJECT_ROOT', Path(__file__).parent.parent.parent)
     result = subprocess.run(
         [sys.executable, "-m", "scripts.verify_gps_exif", str(symlink_photo)],
         capture_output=True,
         text=True,
-        cwd="/home/zane/projects/Mothbox/Firmware"
+        cwd=str(project_root)
     )
 
     # Should reject with warning

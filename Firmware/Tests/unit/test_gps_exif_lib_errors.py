@@ -319,11 +319,28 @@ class TestEXIFEmbeddingErrors:
         """Test embedding GPS EXIF in non-existent file."""
         nonexistent_file = Path('/nonexistent/photo.jpg')
 
-        result = embed_gps_exif(nonexistent_file)
+        # Provide GPS data so the function attempts to read the file
+        # (without GPS data, function returns early with skipped=True)
+        gps_data = {
+            'latitude': 37.7749,
+            'longitude': -122.4194,
+            'has_fix': True,
+            'fix_mode': 2,
+            'altitude': None,
+            'gpstime': None,
+            'satellites_used': 6,
+            'hdop': 1.2,
+            'pdop': 2.1
+        }
+
+        result = embed_gps_exif(nonexistent_file, gps_data=gps_data)
 
         assert not result['success']
         assert 'error' in result
-        assert 'does not exist' in result['error'].lower()
+        assert result['error'] is not None, "Error message should not be None"
+        # piexif raises FileNotFoundError with message containing "No such file or directory"
+        assert ('does not exist' in result['error'].lower() or
+                'no such file' in result['error'].lower())
 
     def test_embed_gps_exif_invalid_image_file(self):
         """Test embedding GPS EXIF in non-image file."""
