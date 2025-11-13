@@ -44,6 +44,9 @@ bandit-baseline.json
 *~
 .DS_Store
 
+# Claude Code local settings
+.claude/
+
 # AI
 AI/__pycache__/Mothbot_ConvertDatasettoCSV.cpython-311.pyc
 /AI/__pycache__
