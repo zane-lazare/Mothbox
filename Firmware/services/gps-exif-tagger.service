@@ -4,29 +4,55 @@ Documentation=https://github.com/Digital-Naturalism-Laboratories/Mothbox
 After=network.target gpsd.service
 Wants=gpsd.service
 
+# Crash loop protection
+# Allow 5 restarts within 10 minutes, then stop attempting
+# This prevents infinite restart loops on persistent failures
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
 [Service]
 Type=simple
+
+# User/Group configuration (override via systemd drop-in if needed)
+# Default: pi user (standard Raspberry Pi user)
+# To override: sudo systemctl edit gps-exif-tagger.service
+# Then add: [Service] / User=youruser / Group=yourgroup
 User=pi
 Group=pi
 
-# Working directory (adjust based on installation type)
-# Production: /opt/mothbox
-# Legacy: /home/pi/Desktop/Mothbox/Firmware
-# Development: /path/to/your/repo
+# Working directory (configurable via systemd drop-in)
+# Default: /opt/mothbox (production FHS-compliant installation)
+# To override: sudo systemctl edit gps-exif-tagger.service
+# Then add: [Service] / WorkingDirectory=/your/path
 WorkingDirectory=/opt/mothbox
 
 # Environment variables
 Environment="PYTHONUNBUFFERED=1"
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 
-# Main service command (watch mode with 10 second polling)
-# Production installation:
-ExecStart=/usr/bin/python3 /opt/mothbox/gps_exif_tagger.py --mode immediate --watch --interval 10 --verbose
+# Mothbox paths (configurable)
+# These can be overridden via systemd drop-in configuration
+# Example: sudo systemctl edit gps-exif-tagger.service
+Environment="MOTHBOX_HOME=/opt/mothbox"
+Environment="MOTHBOX_PHOTOS_DIR=/var/lib/mothbox/photos"
+Environment="MOTHBOX_CONFIG_DIR=/etc/mothbox"
+Environment="MOTHBOX_USER=pi"
+Environment="MOTHBOX_GROUP=pi"
 
-# For legacy installation, use:
-# ExecStart=/usr/bin/python3 /home/pi/Desktop/Mothbox/Firmware/gps_exif_tagger.py --mode immediate --watch --interval 10 --verbose
+# Service parameters (configurable)
+Environment="GPS_EXIF_INTERVAL=10"
+Environment="GPS_EXIF_PATTERN=*.jpg"
 
-# Restart policy
+# Main service command (uses environment variables)
+ExecStart=/usr/bin/python3 ${MOTHBOX_HOME}/gps_exif_tagger.py \
+    --mode immediate \
+    --watch \
+    --directory ${MOTHBOX_PHOTOS_DIR} \
+    --interval ${GPS_EXIF_INTERVAL} \
+    --pattern ${GPS_EXIF_PATTERN} \
+    --verbose
+
+# Restart policy with crash loop protection
 Restart=on-failure
 RestartSec=30s
 
