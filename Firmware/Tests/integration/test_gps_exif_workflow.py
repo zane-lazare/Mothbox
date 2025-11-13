@@ -381,13 +381,17 @@ gps_hdop=99.99
 class TestErrorHandling:
     """Test error handling in GPS EXIF workflow."""
 
-    def test_missing_photo_file(self, logger):
+    def test_missing_photo_file(self, logger, mock_controls_with_gps):
         """Test handling of missing photo file."""
         # Try to process non-existent photo
+        # Note: mock_controls_with_gps ensures GPS data is available,
+        # so function attempts file operations instead of returning early with skipped=True
         result = process_single_photo(Path("/tmp/nonexistent_photo.jpg"), logger)
         assert result['success'] is False
         assert result['error'] is not None
-        assert "does not exist" in result['error']
+        # piexif raises FileNotFoundError with "No such file or directory"
+        assert ("does not exist" in result['error'] or
+                "no such file" in result['error'].lower())
 
     def test_corrupted_photo_file(self, temp_photos_dir, mock_controls_with_gps, logger):
         """Test handling of corrupted/invalid JPEG."""
