@@ -9,17 +9,22 @@ Endpoints:
 - POST /api/metadata/batch/metadata - Get metadata for multiple photos (batch)
 
 Security:
-- Path traversal protection via resolve() and relative_to()
+- Path traversal protection via validate_photo_path() with multiple security layers
 - CSRF protection (Flask-WTF) applied automatically to all POST endpoints
 - Input validation on photo paths
+- Sanitized error messages (no stack trace exposure)
 """
 
+import logging
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 
 from mothbox_paths import PHOTOS_DIR
+from security_utils import validate_photo_path, sanitize_error_message
 from services.metadata_service import MetadataService
+
+logger = logging.getLogger(__name__)
 
 metadata_bp = Blueprint("metadata", __name__)
 
@@ -56,35 +61,32 @@ def get_photo_metadata(photo_path: str):
         }
     """
     try:
-        # Path traversal protection
-        full_path = (PHOTOS_DIR / photo_path).resolve()
-        photos_dir_resolved = PHOTOS_DIR.resolve()
-
-        # Ensure path is within PHOTOS_DIR (raises ValueError if not)
-        try:
-            full_path.relative_to(photos_dir_resolved)
-        except ValueError:
+        # Path traversal protection with multiple security layers
+        full_path = validate_photo_path(photo_path, PHOTOS_DIR)
+        if full_path is None:
             return jsonify({"error": "Invalid path: Access denied"}), 403
 
         # Check if photo exists
         if not full_path.exists():
-            return jsonify({"error": f"Photo not found: {photo_path}"}), 404
+            return jsonify({"error": "Photo not found"}), 404
 
         # Extract metadata
         metadata = metadata_service.get_photo_metadata(full_path)
 
         # Check if metadata extraction failed
         if 'error' in metadata:
-            return jsonify(metadata), 500
+            return jsonify({"error": "Failed to extract metadata"}), 500
 
         return jsonify(metadata), 200
 
     except (RuntimeError, OSError) as e:
-        # RuntimeError: resolve() failed (e.g., symlink loop)
-        # OSError: File system errors
-        return jsonify({"error": f"File system error: {e}"}), 500
+        # Log full error, return sanitized message
+        error_msg = sanitize_error_message(e, "File system error occurred")
+        return jsonify({"error": error_msg}), 500
     except Exception as e:
-        return jsonify({"error": f"Unexpected error: {e}"}), 500
+        # Log full error, return sanitized message
+        error_msg = sanitize_error_message(e, "Internal server error")
+        return jsonify({"error": error_msg}), 500
 
 
 @metadata_bp.route("/batch/metadata", methods=["POST"])
@@ -147,22 +149,13 @@ def get_batch_metadata():
         if len(photo_paths) == 0:
             return jsonify({"results": [], "total": 0, "successful": 0, "failed": 0}), 200
 
-        # Validate and resolve all paths
+        # Validate and resolve all paths with security checks
         resolved_paths = []
-        photos_dir_resolved = PHOTOS_DIR.resolve()
 
         for photo_path in photo_paths:
-            try:
-                # Path traversal protection
-                full_path = (PHOTOS_DIR / photo_path).resolve()
-
-                # Ensure path is within PHOTOS_DIR
-                full_path.relative_to(photos_dir_resolved)
-
-                resolved_paths.append(full_path)
-            except (ValueError, RuntimeError):
-                # Invalid path - add error entry
-                resolved_paths.append(None)
+            # Path traversal protection with multiple security layers
+            full_path = validate_photo_path(photo_path, PHOTOS_DIR)
+            resolved_paths.append(full_path)
 
         # Extract metadata for all photos (batch processing)
         results = []
@@ -170,7 +163,7 @@ def get_batch_metadata():
             if resolved_path is None:
                 # Path validation failed
                 results.append({
-                    "error": f"Invalid path: {photo_paths[i]}",
+                    "error": "Invalid path",
                     "file": {"path": photo_paths[i]}
                 })
             else:
@@ -189,4 +182,6 @@ def get_batch_metadata():
         }), 200
 
     except Exception as e:
-        return jsonify({"error": f"Batch processing failed: {e}"}), 500
+        # Log full error, return sanitized message
+        error_msg = sanitize_error_message(e, "Batch processing failed")
+        return jsonify({"error": error_msg}), 500

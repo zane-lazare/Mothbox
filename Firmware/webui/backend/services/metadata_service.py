@@ -36,6 +36,7 @@ Related:
 - lib/gps_exif_lib.py: GPS coordinate extraction (reused)
 """
 
+import logging
 from pathlib import Path
 from typing import Any, Optional
 from datetime import datetime
@@ -48,6 +49,8 @@ try:
 except ImportError:
     Image = None
     piexif = None
+
+logger = logging.getLogger(__name__)
 
 # Import GPS EXIF library for coordinate extraction
 from lib.gps_exif_lib import verify_gps_exif
@@ -72,8 +75,12 @@ class MetadataService:
         """
         Extract comprehensive metadata from a single photo.
 
+        SECURITY NOTE: This method expects photo_path to be pre-validated by the
+        caller (routes layer) using validate_photo_path(). The service layer focuses
+        on metadata extraction, not path validation.
+
         Args:
-            photo_path: Path to JPEG photo file
+            photo_path: Path to JPEG photo file (must be validated/resolved)
 
         Returns:
             dict: Structured metadata with 5 categories:
@@ -85,6 +92,7 @@ class MetadataService:
 
         Example:
             >>> service = MetadataService()
+            >>> # Path should be validated first by routes layer
             >>> metadata = service.get_photo_metadata(Path('/photos/photo.jpg'))
             >>> print(f"Camera: {metadata['camera']['make']} {metadata['camera']['model']}")
         """
@@ -102,16 +110,18 @@ class MetadataService:
         }
 
         try:
-            # Check if photo exists
+            # Defensive check: photo_path should be validated by caller
+            # Check if photo exists (safe operation after path validation)
             if not photo_path.exists():
-                metadata['error'] = f"Photo not found: {photo_path}"
+                metadata['error'] = "Photo not found"
                 return metadata
 
             # Populate basic file info even if image can't be opened
+            # These operations are safe because path was validated by caller
             metadata['file']['path'] = str(photo_path)
             metadata['file']['filename'] = photo_path.name
-            if photo_path.exists():
-                metadata['file']['size'] = photo_path.stat().st_size
+            # Redundant exists() check can be removed (already checked above)
+            metadata['file']['size'] = photo_path.stat().st_size
 
             # Open image and extract EXIF data
             try:
@@ -411,8 +421,10 @@ class MetadataService:
         """
         Extract file system and image metadata.
 
+        SECURITY NOTE: photo_path should be pre-validated by caller.
+
         Args:
-            photo_path: Path to photo file
+            photo_path: Path to photo file (pre-validated)
             image: PIL Image object
 
         Returns:
@@ -428,9 +440,13 @@ class MetadataService:
         }
 
         try:
-            # File size
-            if photo_path.exists():
+            # File size (safe after path validation)
+            # photo_path.exists() would be redundant here since we already
+            # opened the image successfully in get_photo_metadata()
+            try:
                 file_info['size'] = photo_path.stat().st_size
+            except OSError as e:
+                logger.warning(f"Failed to get file size: {e}")
 
             # Image dimensions and format
             if image:
@@ -452,8 +468,11 @@ class MetadataService:
         - HDR: mothbox_YYYY_MM_DD__HH_MM_SS_N.jpg (e.g., _1, _2, _3)
         - Focus bracket: mothbox_YYYY_MM_DD__HH_MM_SS_focus_N.jpg
 
+        SECURITY NOTE: photo_path should be pre-validated by caller.
+        The parent directory access is safe because photo_path was validated.
+
         Args:
-            photo_path: Path to photo file
+            photo_path: Path to photo file (pre-validated)
 
         Returns:
             tuple: (series_type, series_count, series_index)
@@ -470,10 +489,15 @@ class MetadataService:
                 series_index = int(focus_match.group(1))
 
                 # Count total focus bracket files in same directory
+                # Safe: photo_path was validated, so parent_dir is also within allowed directory
                 base_pattern = re.sub(r'_focus_\d+$', '', filename)
                 parent_dir = photo_path.parent
-                series_files = list(parent_dir.glob(f"{base_pattern}_focus_*.jpg"))
-                series_count = len(series_files)
+                try:
+                    series_files = list(parent_dir.glob(f"{base_pattern}_focus_*.jpg"))
+                    series_count = len(series_files)
+                except OSError as e:
+                    logger.warning(f"Failed to glob series files: {e}")
+                    series_count = None
 
                 return 'focus_bracket', series_count, series_index
 
@@ -484,13 +508,18 @@ class MetadataService:
                 series_index = int(hdr_match.group(1))
 
                 # Count total HDR files in same directory
+                # Safe: photo_path was validated, so parent_dir is also within allowed directory
                 base_pattern = re.sub(r'_\d$', '', filename)
                 parent_dir = photo_path.parent
-                series_files = list(parent_dir.glob(f"{base_pattern}_*.jpg"))
+                try:
+                    series_files = list(parent_dir.glob(f"{base_pattern}_*.jpg"))
 
-                # Filter to only single-digit suffixes (HDR series)
-                hdr_files = [f for f in series_files if re.search(r'_\d\.jpg$', f.name)]
-                series_count = len(hdr_files)
+                    # Filter to only single-digit suffixes (HDR series)
+                    hdr_files = [f for f in series_files if re.search(r'_\d\.jpg$', f.name)]
+                    series_count = len(hdr_files)
+                except OSError as e:
+                    logger.warning(f"Failed to glob series files: {e}")
+                    series_count = None
 
                 if series_count > 1:
                     return 'hdr', series_count, series_index
