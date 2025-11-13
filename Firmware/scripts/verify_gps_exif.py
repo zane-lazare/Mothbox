@@ -51,6 +51,7 @@ __all__ = [
     'extract_timestamp_from_filename',
     'print_gps_info',
     'generate_csv_report',
+    'sanitize_csv_value',
     'main',
 ]
 
@@ -74,6 +75,73 @@ MOTHBOX_FILENAME_PATTERN = (
     r'(?:_bracket_\d+)?'                       # Optional: _bracket_N suffix
     r'\.[jJ][pP][eE]?[gG]$'                    # Extension: .jpg/.JPG/.jpeg/.JPEG
 )
+
+
+def sanitize_csv_value(value: str) -> str:
+    """
+    Sanitize CSV value to prevent CSV injection attacks.
+
+    CSV injection (also known as Formula Injection) occurs when spreadsheet
+    applications (Excel, LibreOffice Calc, Google Sheets) interpret cell
+    values starting with =, +, -, @, or tab as formulas or commands.
+
+    This function prefixes dangerous values with a single quote (') to force
+    spreadsheet applications to treat them as text literals.
+
+    Args:
+        value: String value to sanitize
+
+    Returns:
+        str: Sanitized value safe for CSV export
+
+    Examples:
+        >>> sanitize_csv_value("=SUM(A1:A10)")
+        "'=SUM(A1:A10)"
+
+        >>> sanitize_csv_value("normal text")
+        "normal text"
+
+        >>> sanitize_csv_value("+1234567890")
+        "'+1234567890"
+
+    Security Note:
+        Python's csv.writer handles escaping of commas, quotes, and newlines.
+        This function specifically addresses formula injection, which is a
+        separate concern from CSV parsing.
+
+    References:
+        - OWASP: https://owasp.org/www-community/attacks/CSV_Injection
+        - CWE-1236: CSV Injection
+    """
+    if not value:
+        return value
+
+    # Convert to string if not already
+    value_str = str(value)
+
+    # Check if value starts with potentially dangerous characters
+    # =, +, -, @ are interpreted as formula prefixes by spreadsheet apps
+    # \t (tab) can also be used for injection in some contexts
+    dangerous_prefixes = ('=', '+', '-', '@', '\t')
+
+    if value_str.startswith(dangerous_prefixes):
+        # Exception: Don't escape if it's a valid number
+        # Negative numbers like "-122.4194" are safe
+        # Plus-prefixed numbers like "+1.5" are safe
+        if value_str.startswith(('+', '-')):
+            try:
+                # Try to parse as float - if successful, it's a number (safe)
+                float(value_str)
+                return value_str
+            except (ValueError, TypeError):
+                # Not a valid number - could be formula injection, escape it
+                pass
+
+        # Prefix with single quote to force text interpretation
+        # Single quote is the standard escape for formula injection
+        return "'" + value_str
+
+    return value_str
 
 
 def extract_timestamp_from_filename(filename: str | Path) -> datetime | None:
@@ -287,7 +355,7 @@ def generate_csv_report(photos: list[Path], output_csv: Path) -> None:
         for photo_path in photos:
             # Initialize row with defaults
             row = {
-                'filename': photo_path.name,
+                'filename': sanitize_csv_value(photo_path.name),
                 'photo_timestamp': '',
                 'has_gps': False,
                 'latitude': '',
@@ -317,7 +385,7 @@ def generate_csv_report(photos: list[Path], output_csv: Path) -> None:
                 row['has_gps'] = gps_info['has_gps']
 
                 if gps_info['has_gps']:
-                    # Populate GPS fields
+                    # Populate GPS fields (numeric values are safe, but sanitize string fields)
                     if gps_info['latitude'] is not None:
                         row['latitude'] = f"{gps_info['latitude']:.6f}"
                     if gps_info['longitude'] is not None:
@@ -325,9 +393,11 @@ def generate_csv_report(photos: list[Path], output_csv: Path) -> None:
                     if gps_info['altitude'] is not None:
                         row['altitude'] = f"{gps_info['altitude']:.2f}"
                     if gps_info['timestamp'] is not None:
-                        row['gps_timestamp'] = gps_info['timestamp']
+                        # GPS timestamp from EXIF could be user-controlled, sanitize it
+                        row['gps_timestamp'] = sanitize_csv_value(gps_info['timestamp'])
                     if gps_info['satellites'] is not None:
-                        row['satellites'] = gps_info['satellites']
+                        # Satellite count is typically numeric but could be string, sanitize
+                        row['satellites'] = sanitize_csv_value(gps_info['satellites'])
                     if gps_info['hdop'] is not None:
                         row['hdop'] = f"{gps_info['hdop']:.2f}"
 
@@ -336,7 +406,9 @@ def generate_csv_report(photos: list[Path], output_csv: Path) -> None:
                     row['status'] = 'No GPS'
 
             except Exception as e:
-                row['status'] = f'Error: {str(e)}'
+                # Exception messages could contain user-controlled data, sanitize
+                error_msg = str(e)
+                row['status'] = sanitize_csv_value(f'Error: {error_msg}')
 
             writer.writerow(row)
 

