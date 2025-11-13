@@ -9,7 +9,7 @@ Endpoints:
 - DELETE /api/gallery/photos/<photo_id>/cache - Clear photo metadata cache
 """
 
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify
 from pathlib import Path
 from typing import Optional
 import time
@@ -40,8 +40,8 @@ from mothbox_paths import DATA_DIR, PHOTOS_DIR
 backend_path = PathlibPath(__file__).parent.parent
 sys.path.insert(0, str(backend_path))
 
-from services.metadata_cache import MetadataCache
-from services.metadata_service import MetadataService
+from services.metadata_cache import MetadataCache  # noqa: E402
+from services.metadata_service import MetadataService  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
