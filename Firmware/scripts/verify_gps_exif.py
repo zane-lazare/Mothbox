@@ -479,10 +479,19 @@ Examples:
         if photo_path.is_dir():
             # Scan directory for JPEG files
             jpeg_files = sorted(photo_path.glob('*.jpg')) + sorted(photo_path.glob('*.jpeg'))
+
+            # Filter out symlinks (security: prevent directory traversal attacks)
+            # Only process regular files within the intended directory
+            jpeg_files = [f for f in jpeg_files if not f.is_symlink()]
+
             photo_paths.extend(jpeg_files)
         elif photo_path.exists():
-            # Single file
-            photo_paths.append(photo_path)
+            # Single file - verify it's not a symlink
+            if not photo_path.is_symlink():
+                photo_paths.append(photo_path)
+            else:
+                # Reject symlinks for security (prevent directory traversal)
+                print(f"⚠️  Skipping symlink: {photo_path}", file=sys.stderr)
         else:
             # Non-existent file (will be handled gracefully later)
             photo_paths.append(photo_path)

@@ -923,3 +923,76 @@ def test_csv_injection_real_world_scenarios(tmp_path):
 
         # Verify the original dangerous content is preserved but escaped
         assert sanitized == "'" + attack, f"Sanitization modified content: {attack}"
+
+
+# ============================================================================
+# Test: Symlink Security Filtering
+# ============================================================================
+
+def test_verify_tool_rejects_symlinks(tmp_path):
+    """
+    Test that verify_gps_exif.py filters out symlinks for security.
+
+    Security rationale:
+    - Symlinks can point outside intended directory (directory traversal)
+    - Symlinks can point to sensitive files (/etc/passwd, /etc/shadow)
+    - Only process regular files within specified directory
+    """
+    from scripts.verify_gps_exif import main
+    import subprocess
+    import sys
+
+    # Create real photo
+    real_photo = tmp_path / "real_photo.jpg"
+    real_photo.write_bytes(b"fake jpeg data")
+
+    # Create symlink to photo (benign but still filtered)
+    symlink_photo = tmp_path / "symlink_photo.jpg"
+    symlink_photo.symlink_to(real_photo)
+
+    # Create symlink to sensitive file (directory traversal attempt)
+    evil_symlink = tmp_path / "evil.jpg"
+    evil_symlink.symlink_to("/etc/passwd")
+
+    # Test directory scanning - should filter symlinks
+    result = subprocess.run(
+        [sys.executable, "-m", "scripts.verify_gps_exif", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        cwd="/home/zane/projects/Mothbox/Firmware"
+    )
+
+    # Should only process real_photo.jpg, not symlinks
+    assert "real_photo.jpg" in result.stdout or "1 photos" in result.stdout
+    assert "/etc/passwd" not in result.stdout, "Should not access evil symlink"
+    assert "evil.jpg" not in result.stdout, "Should not process evil symlink"
+
+    # Verify only 1 photo found (real_photo), not 3 (including symlinks)
+    assert "1 photos" in result.stdout or "1 photo" in result.stdout.lower()
+
+def test_verify_tool_rejects_single_symlink(tmp_path):
+    """Test that single file symlink is rejected with warning."""
+    import subprocess
+    import sys
+
+    # Create real photo
+    real_photo = tmp_path / "real.jpg"
+    real_photo.write_bytes(b"fake jpeg")
+
+    # Create symlink
+    symlink_photo = tmp_path / "link.jpg"
+    symlink_photo.symlink_to(real_photo)
+
+    # Try to verify symlink directly
+    result = subprocess.run(
+        [sys.executable, "-m", "scripts.verify_gps_exif", str(symlink_photo)],
+        capture_output=True,
+        text=True,
+        cwd="/home/zane/projects/Mothbox/Firmware"
+    )
+
+    # Should reject with warning
+    assert "Skipping symlink" in result.stderr or "No photos found" in result.stderr
+
+    # Should not process the file
+    assert result.returncode != 0 or "No photos found" in result.stderr
