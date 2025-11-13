@@ -616,7 +616,7 @@ def verify_gps_exif(photo_path: Path) -> dict[str, Any]:
     # Functional check: verify file exists
     # Note: Path should be validated by caller for security
     if not photo_path.exists():
-        result['error'] = "Photo file does not exist"
+        result['error'] = f"Photo file does not exist: {photo_path}"
         return result
 
     # Try to read EXIF from photo
