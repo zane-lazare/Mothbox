@@ -471,12 +471,9 @@ def embed_gps_exif(
         'backup_path': None
     }
 
-    # Step 1: Validate photo path exists
-    if not photo_path.exists():
-        result['error'] = f"Photo file does not exist: {photo_path}"
-        return result
-
-    # Step 2: Get GPS data (use provided or read from controls.txt)
+    # Step 1: Get GPS data (use provided or read from controls.txt)
+    # Note: Photo existence check removed to avoid TOCTOU race condition
+    # File operations below will catch FileNotFoundError if file doesn't exist
     if gps_data is None:
         gps_data = get_gps_data_from_controls(controls_file=controls_file)
 

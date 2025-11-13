@@ -292,27 +292,32 @@ def watch_directory(
                         # (in case we caught it mid-write)
                         time.sleep(0.5)
 
-                        # Check file still exists after sleep
-                        # (could be deleted/renamed during wait)
-                        if not photo_path.exists():
-                            logger.debug(f"Skipping {photo_path.name} (file no longer exists)")
-                            continue
-
-                        # Process the photo
+                        # Process the photo (use try-except to handle TOCTOU race condition)
+                        # File could be deleted/moved between detection and processing
                         logger.debug(f"Detected new/modified photo: {photo_path.name}")
-                        result = process_single_photo(
-                            photo_path,
-                            logger,
-                            force=False,  # Never force in watch mode
-                            backup=backup,
-                            dry_run=False
-                        )
 
-                        # Log result
-                        if result['success']:
-                            logger.info(f"✓ Tagged {photo_path.name}")
-                        elif result['skipped']:
-                            logger.debug(f"Skipped {photo_path.name}")
+                        try:
+                            result = process_single_photo(
+                                photo_path,
+                                logger,
+                                force=False,  # Never force in watch mode
+                                backup=backup,
+                                dry_run=False
+                            )
+
+                            # Log result
+                            if result['success']:
+                                logger.info(f"✓ Tagged {photo_path.name}")
+                            elif result['skipped']:
+                                logger.debug(f"Skipped {photo_path.name}")
+
+                        except (FileNotFoundError, OSError) as e:
+                            # File was deleted/moved between detection and processing (TOCTOU race)
+                            # This is expected behavior in watch mode - file system is concurrent
+                            logger.debug(f"Skipping {photo_path.name} (file no longer accessible: {e})")
+                            # Remove from tracking since file is gone
+                            if photo_path in seen_files:
+                                del seen_files[photo_path]
 
                 except (OSError, IOError) as e:
                     logger.warning(f"Error checking {photo_path}: {e}")
