@@ -26,46 +26,60 @@ except ImportError:
 # Fixtures
 # ============================================================================
 
-@pytest.fixture
-def temp_photos_dir(tmp_path, monkeypatch):
-    """Temporary PHOTOS_DIR for metadata route tests"""
-    photos_dir = tmp_path / "photos"
-    photos_dir.mkdir()
+@pytest.fixture(scope="module", autouse=True)
+def temp_photos_dir(tmp_path_factory):
+    """
+    Temporary PHOTOS_DIR for metadata route tests (module-scoped, autouse)
 
-    # Patch PHOTOS_DIR in mothbox_paths
+    Creates temporary directory and patches PHOTOS_DIR globally for this test module.
+    """
+    photos_dir = tmp_path_factory.mktemp("photos")
+
+    # Patch PHOTOS_DIR in all relevant modules
     import mothbox_paths
-    monkeypatch.setattr(mothbox_paths, 'PHOTOS_DIR', photos_dir)
-
-    # Also patch in routes.metadata module
     import routes.metadata
-    monkeypatch.setattr(routes.metadata, 'PHOTOS_DIR', photos_dir)
+    import services.metadata_service
 
-    return photos_dir
+    original_mothbox_paths_photos_dir = mothbox_paths.PHOTOS_DIR
+    original_routes_metadata_photos_dir = routes.metadata.PHOTOS_DIR
+
+    mothbox_paths.PHOTOS_DIR = photos_dir
+    routes.metadata.PHOTOS_DIR = photos_dir
+
+    yield photos_dir
+
+    # Restore original values
+    mothbox_paths.PHOTOS_DIR = original_mothbox_paths_photos_dir
+    routes.metadata.PHOTOS_DIR = original_routes_metadata_photos_dir
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def metadata_app(temp_photos_dir):
-    """Flask app with metadata blueprint for testing"""
+    """Flask app with metadata blueprint for testing (module-scoped)"""
     app = Flask(__name__)
     app.config['TESTING'] = True
 
-    # Register blueprint AFTER patching PHOTOS_DIR
+    # Register blueprint
     from routes.metadata import metadata_bp
     app.register_blueprint(metadata_bp, url_prefix='/api/metadata')
 
     return app
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def metadata_client(metadata_app):
-    """Test client for metadata routes"""
+    """Test client for metadata routes (module-scoped)"""
     return metadata_app.test_client()
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def sample_photo_with_exif(temp_photos_dir):
-    """Create a sample JPEG photo with EXIF data"""
+    """Create a sample JPEG photo with EXIF data (module-scoped)"""
     photo_path = temp_photos_dir / "test_photo.jpg"
+
+    # Skip if already exists
+    if photo_path.exists():
+        return photo_path
 
     # Create image with EXIF
     img = Image.new('RGB', (640, 480), color='red')
@@ -83,6 +97,9 @@ def sample_photo_with_exif(temp_photos_dir):
 
     exif_bytes = piexif.dump(exif_dict)
     img.save(photo_path, "JPEG", exif=exif_bytes)
+
+    # Verify file was created
+    assert photo_path.exists(), f"Failed to create photo at {photo_path}"
 
     return photo_path
 

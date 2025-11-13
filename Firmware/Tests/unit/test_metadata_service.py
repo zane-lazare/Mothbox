@@ -35,31 +35,34 @@ except ImportError:
 # Fixtures
 # ============================================================================
 
-@pytest.fixture
-def temp_photos_dir(tmp_path, monkeypatch):
+@pytest.fixture(scope="module")
+def temp_photos_dir(tmp_path_factory):
     """
-    Temporary PHOTOS_DIR for metadata tests
+    Temporary PHOTOS_DIR for metadata tests (module-scoped)
 
-    Creates isolated photo directory and patches mothbox_paths.PHOTOS_DIR
+    Creates isolated photo directory that persists across all tests in module.
+    Uses tmp_path_factory for module-scoped fixtures.
+
+    Note: PHOTOS_DIR patching handled by conftest.py patch_path_constant_everywhere fixture.
     """
-    photos_dir = tmp_path / "photos"
-    photos_dir.mkdir()
-
-    # Patch PHOTOS_DIR in mothbox_paths
-    import mothbox_paths
-    monkeypatch.setattr(mothbox_paths, 'PHOTOS_DIR', photos_dir)
+    photos_dir = tmp_path_factory.mktemp("photos")
 
     return photos_dir
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def sample_photo_with_exif(temp_photos_dir):
     """
-    Create a sample JPEG photo with comprehensive EXIF data
+    Create a sample JPEG photo with comprehensive EXIF data (module-scoped)
 
     Includes camera, capture, and GPS metadata for testing.
+    Module scope ensures photo persists across all tests.
     """
     photo_path = temp_photos_dir / "mothbox_2024_10_15__14_30_00.jpg"
+
+    # Skip creation if photo already exists (for module-scoped fixture)
+    if photo_path.exists():
+        return photo_path
 
     # Create a minimal valid JPEG image
     img = Image.new('RGB', (640, 480), color='red')
@@ -101,29 +104,40 @@ def sample_photo_with_exif(temp_photos_dir):
     exif_bytes = piexif.dump(exif_dict)
     img.save(photo_path, "JPEG", exif=exif_bytes)
 
+    # Verify file was created successfully
+    assert photo_path.exists(), f"Failed to create photo at {photo_path}"
+    assert photo_path.stat().st_size > 0, f"Photo file is empty at {photo_path}"
+
     return photo_path
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def sample_photo_no_exif(temp_photos_dir):
     """
-    Create a sample JPEG photo with NO EXIF data
+    Create a sample JPEG photo with NO EXIF data (module-scoped)
 
     Used for testing graceful degradation and missing metadata handling.
     """
     photo_path = temp_photos_dir / "photo_no_exif.jpg"
 
+    # Skip if already exists
+    if photo_path.exists():
+        return photo_path
+
     # Create minimal JPEG without EXIF
     img = Image.new('RGB', (320, 240), color='blue')
     img.save(photo_path, "JPEG")
 
+    # Verify file was created
+    assert photo_path.exists(), f"Failed to create photo at {photo_path}"
+
     return photo_path
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def sample_hdr_series(temp_photos_dir):
     """
-    Create a series of HDR photos with sequential numbering
+    Create a series of HDR photos with sequential numbering (module-scoped)
 
     Simulates Mothbox HDR capture workflow.
     """
@@ -132,17 +146,22 @@ def sample_hdr_series(temp_photos_dir):
 
     for i in range(1, 4):
         photo_path = temp_photos_dir / f"{base_name}_{i}.jpg"
-        img = Image.new('RGB', (640, 480), color='green')
-        img.save(photo_path, "JPEG")
+
+        # Skip if already exists
+        if not photo_path.exists():
+            img = Image.new('RGB', (640, 480), color='green')
+            img.save(photo_path, "JPEG")
+            assert photo_path.exists(), f"Failed to create HDR photo at {photo_path}"
+
         photos.append(photo_path)
 
     return photos
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def sample_focus_bracket_series(temp_photos_dir):
     """
-    Create a series of focus bracket photos
+    Create a series of focus bracket photos (module-scoped)
 
     Simulates Mothbox focus stacking workflow.
     """
@@ -151,8 +170,13 @@ def sample_focus_bracket_series(temp_photos_dir):
 
     for i in range(1, 6):
         photo_path = temp_photos_dir / f"{base_name}_focus_{i}.jpg"
-        img = Image.new('RGB', (640, 480), color='yellow')
-        img.save(photo_path, "JPEG")
+
+        # Skip if already exists
+        if not photo_path.exists():
+            img = Image.new('RGB', (640, 480), color='yellow')
+            img.save(photo_path, "JPEG")
+            assert photo_path.exists(), f"Failed to create focus bracket photo at {photo_path}"
+
         photos.append(photo_path)
 
     return photos
