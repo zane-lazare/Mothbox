@@ -224,6 +224,39 @@ if [ -f "/etc/systemd/system/mothbox-webui.service" ]; then
     echo -e "${GREEN}✓ Service file removed${NC}"
 fi
 
+# Stop and remove GPS EXIF Tagger systemd service if it exists
+for SERVICE_FILE in gps-exif-tagger.service gps-exif-tagger-legacy.service; do
+    if systemctl is-active --quiet "$SERVICE_FILE" 2>/dev/null; then
+        echo -e "${BLUE}Stopping $SERVICE_FILE...${NC}"
+        sudo systemctl stop "$SERVICE_FILE"
+        echo -e "${GREEN}✓ Service stopped${NC}"
+    fi
+
+    if systemctl is-enabled --quiet "$SERVICE_FILE" 2>/dev/null; then
+        echo -e "${BLUE}Disabling $SERVICE_FILE...${NC}"
+        sudo systemctl disable "$SERVICE_FILE"
+        echo -e "${GREEN}✓ Service disabled${NC}"
+    fi
+
+    if [ -f "/etc/systemd/system/$SERVICE_FILE" ]; then
+        echo -e "${BLUE}Removing systemd service file: $SERVICE_FILE${NC}"
+        sudo rm "/etc/systemd/system/$SERVICE_FILE"
+        echo -e "${GREEN}✓ Service file removed${NC}"
+    fi
+
+    # Remove custom path override drop-in if it exists
+    if [ -d "/etc/systemd/system/${SERVICE_FILE}.d" ]; then
+        echo -e "${BLUE}Removing systemd drop-in overrides: ${SERVICE_FILE}.d/${NC}"
+        sudo rm -rf "/etc/systemd/system/${SERVICE_FILE}.d"
+        echo -e "${GREEN}✓ Drop-in overrides removed${NC}"
+    fi
+done
+
+# Reload systemd after removing GPS EXIF services
+if systemctl list-unit-files | grep -q "gps-exif-tagger"; then
+    sudo systemctl daemon-reload
+fi
+
 # Preserve photos if requested
 PHOTOS_BACKUP=""
 if [[ $PRESERVE_PHOTOS =~ ^[Yy]$ ]] || ([ -z "$PRESERVE_PHOTOS" ] && [ "$PRESERVE_PHOTOS" != "n" ]); then

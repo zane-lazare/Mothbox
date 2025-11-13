@@ -410,6 +410,7 @@ def patch_path_constant_everywhere(monkeypatch, constant_name, temp_path):
             'routes.gps',
             'routes.gpio',
             'routes.system',
+            'lib.gps_exif_lib',  # Issue #98 - GPS EXIF embedding
         ],
         'DATA_DIR': [
             'routes.gpio',  # Issue #78 - GPIO state file
@@ -1388,6 +1389,9 @@ def pytest_collection_modifyitems(config, items):
     - installer workflow tests (use mocks/tmp_path, no actual hardware needed)
     - focus bracket integration tests (use mocks, no hardware)
     - gallery pagination integration tests (filesystem only, no Pi hardware needed)
+    - GPS EXIF workflow tests (use mocks/PIL, no camera/GPIO needed)
+    - GPS EXIF verification workflow tests (use subprocess/PIL, no camera/GPIO needed)
+    - GPS EXIF batch tagging workflow tests (use subprocess/PIL, no camera/GPIO needed)
     """
     for item in items:
         # Mark integration tests (except manual verification and installer) as hardware tests
@@ -1397,8 +1401,11 @@ def pytest_collection_modifyitems(config, items):
         is_installer = 'installer' in fspath_str  # installer_workflows or installer_helpers
         is_focus_bracket_integration = 'test_focus_bracket_integration' in fspath_str  # Uses mocks only
         is_gallery_pagination = 'test_gallery_pagination' in fspath_str  # Filesystem only, no Pi hardware
+        is_gps_exif_workflow = 'test_gps_exif_workflow' in fspath_str  # Uses mocks/PIL, no camera/GPIO
+        is_verification_workflow = 'test_verification_workflow' in fspath_str  # Uses subprocess/PIL, no camera/GPIO
+        is_batch_tagging_workflow = 'test_batch_tagging_workflow' in fspath_str  # Uses subprocess/PIL, no camera/GPIO
 
-        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination:
+        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination and not is_gps_exif_workflow and not is_verification_workflow and not is_batch_tagging_workflow:
             item.add_marker(pytest.mark.hardware)
 
 

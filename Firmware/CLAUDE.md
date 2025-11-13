@@ -63,6 +63,113 @@ Core scripts in each version:
 
 **Always import paths from this module** - never construct paths manually.
 
+### GPS EXIF Tagging System
+
+**Overview**: Automatic GPS coordinate embedding in photo EXIF metadata for geotagging Mothbox captures.
+
+**Architecture**:
+- **Library**: `lib/gps_exif_lib.py` - Core GPS EXIF functionality (196 lines, 85%+ coverage)
+  - `get_gps_data_from_controls()`: Read GPS data from controls.txt
+  - `decimal_to_dms()`: Convert decimal coordinates to EXIF DMS format
+  - `build_gps_ifd()`: Build GPS IFD (Image File Directory) structure
+  - `embed_gps_exif()`: Embed GPS data into photo EXIF (preserves camera metadata)
+  - `verify_gps_exif()`: Verify and extract GPS data from photos
+  - `is_already_tagged()`: Check if photo already has GPS EXIF
+
+- **CLI Tool**: `gps_exif_tagger.py` - Batch and watch mode processing
+  - **Batch mode**: One-time processing of photo directory (default)
+  - **Watch mode**: Continuous monitoring for new photos (`--watch`)
+  - **Options**: `--dry-run`, `--backup`, `--force`, `--pattern`, `--interval`
+  - **Performance**: >10 photos/sec throughput, <500ms per photo
+
+- **Verification Tool**: `scripts/verify_gps_exif.py` - Inspect and verify GPS EXIF
+  - Interactive photo inspection
+  - Batch directory verification
+  - CSV report generation
+  - Timestamp extraction from Mothbox filenames
+
+**Systemd Service** (optional):
+- **Purpose**: Automatically tag new photos as they're captured
+- **Implementation**: `gps_exif_tagger.py --mode immediate --watch --interval 10`
+- **Service files**: `services/gps-exif-tagger.service` (production), `services/gps-exif-tagger-legacy.service` (legacy)
+- **Installation**: Via `install_mothbox.sh --with-gps-exif-service`
+- **Resource limits**: 256MB memory max, 25% CPU quota
+- **Security**: Strict systemd hardening (ProtectSystem=strict, NoNewPrivileges, capability restrictions)
+
+**Usage Examples**:
+```bash
+# Batch process entire photo directory
+python3 gps_exif_tagger.py --directory /var/lib/mothbox/photos
+
+# Watch mode with backup creation
+python3 gps_exif_tagger.py --watch --backup --interval 5
+
+# Dry run to test before modifying files
+python3 gps_exif_tagger.py --dry-run --verbose
+
+# Force re-tag all photos (even if already tagged)
+python3 gps_exif_tagger.py --force --pattern "*.jpg"
+
+# Verify GPS EXIF in photos
+python3 scripts/verify_gps_exif.py /var/lib/mothbox/photos/photo.jpg
+
+# Generate CSV report for all photos
+python3 scripts/verify_gps_exif.py --directory /var/lib/mothbox/photos --csv gps_report.csv
+```
+
+**Service Management**:
+```bash
+# Start/stop/restart service
+sudo systemctl start gps-exif-tagger.service
+sudo systemctl stop gps-exif-tagger.service
+sudo systemctl restart gps-exif-tagger.service
+
+# View live logs
+sudo journalctl -u gps-exif-tagger.service -f
+
+# Check status and resource usage
+sudo systemctl status gps-exif-tagger.service
+```
+
+**GPS Data Source**:
+- Reads from `controls.txt` fields: `lat`, `lon`, `gps_fix_mode`, `alt`, `gpstime`, `gps_satellites_used`, `gps_hdop`, `gps_pdop`
+- Requires `gps_fix_mode > 0` for valid GPS fix
+- Altitude only embedded when `gps_fix_mode = 3` (3D fix)
+- Coordinates stored as EXIF GPS IFD with DMS (Degrees, Minutes, Seconds) rational format
+
+**Testing**:
+- **Unit tests**: 70+ tests covering all functions, error handling, edge cases
+  - `Tests/unit/test_gps_exif_lib.py`: Core library tests (38 tests)
+  - `Tests/unit/test_gps_exif_tagger_cli.py`: CLI argument tests (22 tests)
+  - `Tests/unit/test_gps_exif_lib_errors.py`: Error handling (30+ tests)
+  - `Tests/unit/test_verify_gps_exif_tool.py`: Verification tool tests (20 tests)
+- **Integration tests**: End-to-end workflows and cross-component tests
+  - `Tests/integration/test_gps_exif_workflow.py`: E2E scenarios (11 tests)
+  - `Tests/integration/test_gps_exif_systemd.py`: Service integration (10 tests)
+- **Performance tests**: `Tests/performance/test_gps_exif_performance.py`
+  - Single photo: <500ms, Batch: >10 photos/sec, Memory: <50MB for 1000 photos
+- **Stress tests**: `Tests/stress/test_gps_exif_stress.py`
+  - Large directories (1000+ photos), concurrent access, filesystem edge cases
+- **Manual tests**: `Tests/manual/gps_exif_service/` - Service installation, monitoring, resource limits
+
+**Performance Benchmarks**:
+- Single photo processing: <500ms
+- Batch throughput: >10 photos/sec (tested with 200 photos)
+- Memory usage: <50MB for 100 photos, <10MB for single photo
+- Service latency: <10 seconds from photo creation to GPS tagging
+
+**Documentation**:
+- `docs/GPS_EXIF_SERVICE.md`: Service setup, troubleshooting, configuration
+- `docs/GPS_EXIF_USER_GUIDE.md`: User guide for GPS EXIF functionality
+- `TESTING_PROCEDURE.md`: Manual testing procedures
+
+**Important Notes**:
+- GPS EXIF embedding preserves all existing camera EXIF metadata
+- Photos are modified in-place (use `--backup` for safety)
+- Idempotent: Can safely re-run on already-tagged photos (skips by default)
+- Service auto-restarts on failure with exponential backoff
+- Compatible with all Mothbox photo formats (.jpg, .jpeg, case-insensitive)
+
 ### Camera System
 
 Two camera workflows:
@@ -334,12 +441,15 @@ def ws_connect():
 
 - `mothbox_paths.py`: **Path resolution and hardware config** (276 lines, 97.8% coverage)
 - `install_mothbox.sh`: Installation script with Pi detection and firmware selection
+- `gps_exif_tagger.py`: Main GPS EXIF embedding tool (CLI and watch mode)
+- `gps_exif/`: GPS EXIF library (coordinate conversion, EXIF embedding, verification)
 - `webui/backend/app.py`: Flask app initialization, CSRF, CORS, SocketIO setup
 - `webui/backend/liveview_stream.py`: Camera streaming engine (2500+ lines)
 - `webui/backend/routes/camera.py`: Camera control API (1270+ lines)
 - `pyproject.toml`: pytest, coverage, bandit, and ruff configuration
 - `Tests/README.md`: Comprehensive testing documentation
-- `TESTING_PROCEDURE.md`: Manual hardware testing procedures
+- `Tests/manual/gps_exif_service/`: GPS EXIF service manual testing procedures
+- `docs/GPS_EXIF_SERVICE.md`: GPS EXIF service setup and troubleshooting guide
 
 ## Development Workflow
 
