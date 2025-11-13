@@ -30,14 +30,18 @@ except ImportError:
             return decorator
     limiter = LimiterStub()
 
-from services.metadata_cache import MetadataCache
-from services.metadata_service import MetadataService
-
 # Import mothbox paths
 import sys
 from pathlib import Path as PathlibPath
 sys.path.insert(0, str(PathlibPath(__file__).parent.parent.parent.parent))
 from mothbox_paths import DATA_DIR, PHOTOS_DIR
+
+# Add backend to path for services
+backend_path = PathlibPath(__file__).parent.parent
+sys.path.insert(0, str(backend_path))
+
+from services.metadata_cache import MetadataCache
+from services.metadata_service import MetadataService
 
 logger = logging.getLogger(__name__)
 
