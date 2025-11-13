@@ -23,6 +23,13 @@ from io import BytesIO
 from PIL import Image
 import piexif
 
+# Explicitly register JPEG plugin for PIL (required for img.save(..., "JPEG"))
+# Import after PIL.Image to ensure plugin system is initialized
+try:
+    from PIL import JpegImagePlugin
+except ImportError:
+    pass  # JPEG support may not be available in all environments
+
 
 # ============================================================================
 # Fixtures

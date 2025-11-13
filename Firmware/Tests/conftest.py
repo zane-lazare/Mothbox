@@ -421,6 +421,7 @@ def patch_path_constant_everywhere(monkeypatch, constant_name, temp_path):
         'PHOTOS_DIR': [
             'routes.camera',  # Issue #134 - Thumbnail cache testing
             'routes.gallery',  # Issue #134 - Thumbnail cache testing
+            'routes.metadata',  # Issue #99 - Metadata API testing
         ],
     }
 
