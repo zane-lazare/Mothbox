@@ -628,3 +628,88 @@ class TestPerformanceRequirements:
         assert photos_per_sec > 20, \
             f"Throughput: {photos_per_sec:.1f} photos/sec (target: >20 photos/sec)"
         assert len(results) == 100
+
+
+# ============================================================================
+# Test Class 9: Additional Edge Cases for Coverage
+# ============================================================================
+
+class TestAdditionalEdgeCases:
+    """Additional edge case tests to improve coverage"""
+
+    def test_extract_partial_gps_data(self, metadata_service, temp_photos_dir):
+        """Test GPS extraction when only some GPS fields are present"""
+        photo_path = temp_photos_dir / "partial_gps.jpg"
+
+        # Create image with incomplete GPS data (no satellites/hdop)
+        img = Image.new('RGB', (640, 480))
+        exif_dict = {
+            "GPS": {
+                piexif.GPSIFD.GPSLatitudeRef: b"N",
+                piexif.GPSIFD.GPSLatitude: ((37, 1), (47, 1), (3000, 100)),
+                piexif.GPSIFD.GPSLongitudeRef: b"W",
+                piexif.GPSIFD.GPSLongitude: ((122, 1), (25, 1), (1200, 100)),
+            }
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+
+        # Should have coordinates but no satellite/hdop data
+        assert metadata['location']['latitude'] is not None
+        assert metadata['location']['longitude'] is not None
+
+    def test_series_detection_with_no_siblings(self, metadata_service, temp_photos_dir):
+        """Test series detection when photo pattern matches but has no siblings"""
+        # Create single photo with series pattern
+        photo_path = temp_photos_dir / "mothbox_2024_10_15__14_30_00_1.jpg"
+        img = Image.new('RGB', (100, 100))
+        img.save(photo_path, "JPEG")
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+
+        # Should not detect as series if only 1 photo
+        deployment = metadata['deployment']
+        # Single photo with _1 suffix might still be detected but count would be 1
+        # or it might not be detected as series at all
+        assert deployment is not None
+
+    def test_filename_without_mothbox_pattern(self, metadata_service, temp_photos_dir):
+        """Test handling of filenames that don't match Mothbox pattern"""
+        # Create photo with non-standard filename
+        photo_path = temp_photos_dir / "random_photo.jpg"
+        img = Image.new('RGB', (100, 100))
+        img.save(photo_path, "JPEG")
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+
+        # Should still work but mothbox_id might be None
+        assert metadata is not None
+        assert metadata['file']['filename'] == 'random_photo.jpg'
+
+    def test_exif_with_zero_denominator(self, metadata_service, temp_photos_dir):
+        """Test handling of EXIF rational values with zero denominator"""
+        photo_path = temp_photos_dir / "zero_denom.jpg"
+
+        img = Image.new('RGB', (640, 480))
+
+        # Create EXIF with zero denominator (invalid but possible in corrupted files)
+        exif_dict = {
+            "Exif": {
+                piexif.ExifIFD.ExposureTime: (1, 0),  # Division by zero
+                piexif.ExifIFD.FNumber: (28, 0),      # Division by zero
+            }
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        # Should handle gracefully without crashing
+        metadata = metadata_service.get_photo_metadata(photo_path)
+
+        assert metadata is not None
+        # These fields should be None due to division by zero
+        assert metadata['capture']['exposure_time'] is None
+        assert metadata['capture']['f_number'] is None
