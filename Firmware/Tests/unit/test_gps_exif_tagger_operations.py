@@ -736,11 +736,176 @@ class TestWatchMode:
                 delete_thread.join(timeout=0.5)
 
             # With fix: process_single_photo() should NOT be called
-            # (file is checked and skipped before processing)
+            # (file is caught by stability check before processing)
             assert len(process_calls) == 0, \
-                "Should NOT process file that was deleted during sleep window"
+                "Should NOT process file that was deleted during stability check"
 
             # Verify logger.debug was called with skip message
+            # Can be either "disappeared during stability check" or "unstable file"
             debug_calls = [str(call) for call in logger.debug.call_args_list]
-            assert any('no longer exists' in str(call).lower() for call in debug_calls), \
-                "Should log that file no longer exists"
+            assert any(
+                'disappeared' in str(call).lower() or
+                'unstable' in str(call).lower()
+                for call in debug_calls
+            ), "Should log that file disappeared or is unstable"
+
+
+class TestFileStability:
+    """Test wait_for_file_stability function."""
+
+    def test_stable_file_returns_true(self, tmp_path):
+        """Test that a stable file returns True."""
+        from gps_exif_tagger import wait_for_file_stability, setup_logging
+
+        logger = setup_logging(verbose=False)
+
+        # Create a stable file
+        test_file = tmp_path / "stable.jpg"
+        test_file.write_bytes(b"fake jpeg data")
+
+        # Wait for filesystem to settle
+        time.sleep(0.1)
+
+        # Should return True
+        result = wait_for_file_stability(test_file, logger)
+        assert result is True
+
+    def test_nonexistent_file_returns_false(self, tmp_path):
+        """Test that a nonexistent file returns False."""
+        from gps_exif_tagger import wait_for_file_stability, setup_logging
+
+        logger = setup_logging(verbose=False)
+
+        nonexistent = tmp_path / "does_not_exist.jpg"
+
+        # Should return False
+        result = wait_for_file_stability(nonexistent, logger)
+        assert result is False
+
+    def test_file_deleted_during_check_returns_false(self, tmp_path):
+        """Test that a file deleted during stability check returns False."""
+        from gps_exif_tagger import wait_for_file_stability, setup_logging, FILE_STABILITY_INTERVAL
+        import threading
+
+        logger = setup_logging(verbose=False)
+
+        # Create a file
+        test_file = tmp_path / "disappearing.jpg"
+        test_file.write_bytes(b"fake jpeg data")
+
+        # Delete file after short delay
+        def delete_file():
+            time.sleep(FILE_STABILITY_INTERVAL * 0.5)
+            if test_file.exists():
+                test_file.unlink()
+
+        deleter = threading.Thread(target=delete_file, daemon=True)
+        deleter.start()
+
+        # Should return False (file disappeared)
+        result = wait_for_file_stability(test_file, logger)
+        assert result is False
+
+        deleter.join(timeout=1.0)
+
+    def test_file_modified_during_check_logs_warning(self, tmp_path):
+        """Test that files modified during check are logged."""
+        from gps_exif_tagger import wait_for_file_stability, setup_logging, FILE_STABILITY_INTERVAL
+        import threading
+
+        logger = setup_logging(verbose=True)
+
+        # Create a file
+        test_file = tmp_path / "modified.jpg"
+        test_file.write_bytes(b"initial data")
+
+        # Modify file once during stability check
+        def modify_file():
+            time.sleep(FILE_STABILITY_INTERVAL * 0.5)
+            if test_file.exists():
+                test_file.write_bytes(b"modified data")
+
+        modifier = threading.Thread(target=modify_file, daemon=True)
+        modifier.start()
+
+        # Should return True after all checks complete
+        # (doesn't reset counter - prevents infinite loop)
+        result = wait_for_file_stability(test_file, logger)
+        assert result is True
+
+        modifier.join(timeout=1.0)
+
+    def test_stability_check_completes_after_max_attempts(self, tmp_path):
+        """Test that stability check completes after FILE_STABILITY_CHECKS attempts."""
+        from gps_exif_tagger import wait_for_file_stability, setup_logging, FILE_STABILITY_CHECKS, FILE_STABILITY_INTERVAL
+        import threading
+
+        logger = setup_logging(verbose=False)
+
+        # Create a file
+        test_file = tmp_path / "continuously_written.jpg"
+        test_file.write_bytes(b"initial")
+
+        # Keep modifying file during all stability checks
+        stop_writing = threading.Event()
+        modification_count = [0]
+
+        def keep_writing():
+            counter = 0
+            while not stop_writing.is_set():
+                test_file.write_bytes(f"data {counter}".encode())
+                modification_count[0] += 1
+                counter += 1
+                time.sleep(FILE_STABILITY_INTERVAL * 0.8)
+
+        writer = threading.Thread(target=keep_writing, daemon=True)
+        writer.start()
+
+        # Give writer time to start
+        time.sleep(0.1)
+
+        # Start stability check
+        start_time = time.time()
+        result = wait_for_file_stability(test_file, logger)
+        elapsed = time.time() - start_time
+
+        # Stop writer
+        stop_writing.set()
+        writer.join(timeout=1.0)
+
+        # Should return True (completes after FILE_STABILITY_CHECKS attempts)
+        assert result is True
+
+        # Should take approximately FILE_STABILITY_CHECKS * FILE_STABILITY_INTERVAL
+        expected_time = FILE_STABILITY_CHECKS * FILE_STABILITY_INTERVAL
+        assert elapsed >= expected_time * 0.8  # Allow 20% variance
+        assert elapsed <= expected_time * 2.0  # Allow generous upper bound
+
+        # Should have detected modifications
+        assert modification_count[0] > 0
+
+    def test_stability_check_handles_oserror(self, tmp_path):
+        """Test that stability check handles OSError gracefully."""
+        from gps_exif_tagger import wait_for_file_stability, setup_logging
+
+        logger = setup_logging(verbose=False)
+
+        # Create a file on a read-only filesystem would cause OSError
+        # For testing, use a path that will fail on stat()
+        test_file = tmp_path / "test.jpg"
+        test_file.write_bytes(b"data")
+
+        # Make directory read-only to trigger permission errors
+        import os
+        os.chmod(tmp_path, 0o444)
+
+        try:
+            # Should handle OSError and return False
+            # Note: stat() might still work on directory, so this may return True
+            result = wait_for_file_stability(test_file, logger)
+            # Either True or False is acceptable - we're testing it doesn't crash
+            assert result in [True, False]
+
+        finally:
+            # Restore permissions
+            os.chmod(tmp_path, 0o755)

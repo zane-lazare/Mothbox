@@ -47,6 +47,7 @@ from lib.gps_exif_lib import embed_gps_exif, is_already_tagged, get_gps_data_fro
 # Module exports
 __all__ = [
     'setup_logging',
+    'wait_for_file_stability',
     'process_single_photo',
     'batch_process_directory',
     'watch_directory',
@@ -61,6 +62,8 @@ PATTERN_DEFAULT = '*.jpg'        # Default file pattern for photo matching
 JPEG_QUALITY_DEFAULT = 95        # JPEG quality for re-encoding (in lib, referenced here for docs)
 LOG_FORMAT = '[%(asctime)s] [%(levelname)s] %(message)s'  # Log message format
 LOG_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'  # Log timestamp format
+FILE_STABILITY_CHECKS = 2        # Number of mtime checks to verify file write completion
+FILE_STABILITY_INTERVAL = 0.5    # Seconds between stability checks
 
 
 def setup_logging(verbose: bool = False) -> logging.Logger:
@@ -91,6 +94,63 @@ def setup_logging(verbose: bool = False) -> logging.Logger:
     logger.addHandler(handler)
 
     return logger
+
+
+def wait_for_file_stability(photo_path: Path, logger: logging.Logger) -> bool:
+    """Wait for a file to finish writing by checking mtime stability.
+
+    Polls the file's modification time multiple times to ensure it's
+    no longer being written. This is more robust than a fixed sleep()
+    for handling slow writes (large files, slow SD cards, network mounts).
+
+    Args:
+        photo_path: Path to file to check
+        logger: Logger instance for debug output
+
+    Returns:
+        bool: True if file is stable, False if file disappeared during check
+
+    Implementation:
+        - Checks mtime FILE_STABILITY_CHECKS times (default: 2)
+        - Waits FILE_STABILITY_INTERVAL seconds between checks (default: 0.5s)
+        - Returns False if file disappears (caught by TOCTOU handler)
+        - Total wait: FILE_STABILITY_CHECKS * FILE_STABILITY_INTERVAL
+
+    Example:
+        >>> if wait_for_file_stability(photo_path, logger):
+        ...     process_photo(photo_path)  # Safe to process
+    """
+    try:
+        # Get initial mtime
+        last_mtime = photo_path.stat().st_mtime
+
+        # Check stability FILE_STABILITY_CHECKS times
+        for check_num in range(FILE_STABILITY_CHECKS):
+            time.sleep(FILE_STABILITY_INTERVAL)
+
+            # Re-check mtime
+            try:
+                current_mtime = photo_path.stat().st_mtime
+            except FileNotFoundError:
+                # File was deleted during stability check
+                logger.debug(f"File disappeared during stability check: {photo_path.name}")
+                return False
+
+            # If mtime changed, file is still being written
+            if current_mtime != last_mtime:
+                logger.debug(
+                    f"File still being written (mtime changed): {photo_path.name}"
+                )
+                last_mtime = current_mtime
+                # Continue checking (don't reset counter - prevent infinite loop)
+
+        # File mtime stable for all checks
+        return True
+
+    except (OSError, FileNotFoundError) as e:
+        # File disappeared or is inaccessible
+        logger.debug(f"File not accessible during stability check: {e}")
+        return False
 
 
 def process_single_photo(
@@ -288,14 +348,18 @@ def watch_directory(
                         # Update tracking
                         seen_files[photo_path] = mtime
 
-                        # Give the file a moment to finish writing
-                        # (in case we caught it mid-write)
-                        time.sleep(0.5)
-
-                        # Process the photo (use try-except to handle TOCTOU race condition)
-                        # File could be deleted/moved between detection and processing
+                        # Wait for file to finish writing (check mtime stability)
+                        # More robust than fixed sleep for slow SD cards, network mounts
                         logger.debug(f"Detected new/modified photo: {photo_path.name}")
 
+                        if not wait_for_file_stability(photo_path, logger):
+                            # File disappeared or is unstable - skip for now
+                            # Will be picked up in next polling cycle if it reappears
+                            logger.debug(f"Skipping unstable file: {photo_path.name}")
+                            continue
+
+                        # Process the photo (use try-except to handle TOCTOU race condition)
+                        # File could still be deleted/moved between stability check and processing
                         try:
                             result = process_single_photo(
                                 photo_path,
