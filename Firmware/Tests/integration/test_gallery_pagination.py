@@ -758,7 +758,8 @@ class TestEdgeCasesRealData:
         data = json.loads(response.data)
 
         assert "error" in data
-        assert "500" in data["error"] or "maximum" in data["error"].lower()
+        # Generic error message for security (CodeQL requirement - don't expose internals)
+        assert data['error'] == 'Invalid pagination parameters'
 
         print(f"\n✓ Large limit rejected: Max 500 enforced")
 
