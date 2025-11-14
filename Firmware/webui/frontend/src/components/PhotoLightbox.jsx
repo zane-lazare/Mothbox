@@ -199,13 +199,13 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
     previousFocusRef.current = document.activeElement
     document.body.style.overflow = 'hidden'
 
-    // Focus close button on open
-    const timer = setTimeout(() => {
+    // Focus close button on open (after browser paint)
+    const frameId = requestAnimationFrame(() => {
       closeButtonRef.current?.focus()
-    }, 100)
+    })
 
     return () => {
-      clearTimeout(timer)
+      cancelAnimationFrame(frameId)
       document.body.style.overflow = ''
     }
   }, [photo])
