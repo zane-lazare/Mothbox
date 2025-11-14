@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 
 /**
  * Custom hook for managing touch gestures in the photo lightbox.
@@ -96,6 +96,13 @@ function useTouchGestures({
   const SWIPE_MIN_DISTANCE = 50 // pixels
   const SWIPE_MIN_VELOCITY = 0.3 // pixels per millisecond
   const ZOOM_DOUBLE_TAP = 2.5 // zoom level for double-tap
+
+  // DPI-aware double-tap distance threshold for Retina/high-DPI displays
+  // 15px@1x, 30px@2x, 45px@3x
+  const DOUBLE_TAP_DISTANCE = useMemo(
+    () => (window.devicePixelRatio || 1) * 15,
+    []
+  )
 
   /**
    * Calculate distance between two touch points
@@ -288,7 +295,8 @@ function useTouchGestures({
       )
 
       // Check for double-tap (short tap, minimal movement)
-      if (distance < 10 && duration < 200) {
+      // DPI-aware distance threshold for Retina/high-DPI displays
+      if (distance < DOUBLE_TAP_DISTANCE && duration < 200) {
         const now = Date.now()
         const timeSinceLastTap = now - lastTapTime
 
@@ -362,6 +370,7 @@ function useTouchGestures({
       onNavigate,
       setZoom,
       setPan,
+      DOUBLE_TAP_DISTANCE,
     ]
   )
 
