@@ -230,7 +230,8 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
       if (!hasOtherModals) {
         document.body.style.overflow = ''
       }
-      if (previousFocusRef.current) {
+      // Restore focus to previous element (only if still in DOM)
+      if (previousFocusRef.current && previousFocusRef.current.isConnected) {
         previousFocusRef.current.focus()
         previousFocusRef.current = null
       }
