@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { LIGHTBOX_CONFIG } from '../constants/config'
 import useZoomPan from '../hooks/useZoomPan'
 import useTouchGestures from '../hooks/useTouchGestures'
+import useImagePreload from '../hooks/useImagePreload'
 import { debounce } from '../utils/performance'
 
 /**
@@ -71,6 +72,9 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   const [showZoomIndicator, setShowZoomIndicator] = useState(false)
   const zoomIndicatorTimerRef = useRef(null)
 
+  // Calculate current index for preloading
+  const currentIndex = photo ? photos.findIndex((p) => p.path === photo.path) : -1
+
   // Zoom and pan hook
   const { zoom, pan, setZoom, setPan, handleZoomIn, handleZoomOut, handleWheel, resetZoom } =
     useZoomPan({
@@ -82,6 +86,13 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
       containerWidth: containerDimensions.width,
       containerHeight: containerDimensions.height,
     })
+
+  // Image preloading hook (preloads adjacent images for smooth navigation)
+  useImagePreload({
+    currentPhoto: photo,
+    photos,
+    currentIndex,
+  })
 
   // Track image dimensions when loaded
   useEffect(() => {
@@ -197,7 +208,6 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   }, [photo])
 
   // Navigation logic (must be defined before useEffect that uses it)
-  const currentIndex = photo ? photos.findIndex((p) => p.path === photo.path) : -1
   const hasMultiplePhotos = photos.length > 1
 
   const handleNavigate = useCallback((direction) => {
