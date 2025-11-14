@@ -616,3 +616,378 @@ describe('PhotoLightbox - Navigation Controls', () => {
   // Note: Wrapping behavior is tested implicitly in the wrap tests above
   // Config-based disabling would require mocking, which we'll skip for now
 })
+
+describe('PhotoLightbox - Desktop Zoom & Pan Interaction', () => {
+  const mockPhotos = [
+    {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+    },
+    {
+      path: '2024-11-10/photo_002.jpg',
+      filename: 'photo_002.jpg',
+      date: '2024-11-10T18:31:00Z',
+      size: 5500000,
+      timestamp: 1699639860,
+    },
+  ]
+
+  const mockOnClose = vi.fn()
+  const mockOnNavigate = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    document.body.style.overflow = ''
+  })
+
+  it('renders zoom controls (+/- buttons)', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const zoomInButton = screen.getByLabelText(/zoom in/i)
+    const zoomOutButton = screen.getByLabelText(/zoom out/i)
+
+    expect(zoomInButton).toBeInTheDocument()
+    expect(zoomOutButton).toBeInTheDocument()
+  })
+
+  it('increases zoom when zoom in button clicked', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const image = screen.getByRole('img')
+    const initialTransform = window.getComputedStyle(image).transform
+
+    const zoomInButton = screen.getByLabelText(/zoom in/i)
+    await user.click(zoomInButton)
+
+    // Transform should change (zoom applied)
+    const newTransform = window.getComputedStyle(image).transform
+    expect(newTransform).not.toBe(initialTransform)
+  })
+
+  it('decreases zoom when zoom out button clicked', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // First zoom in
+    const zoomInButton = screen.getByLabelText(/zoom in/i)
+    await user.click(zoomInButton)
+
+    const image = screen.getByRole('img')
+    const zoomedTransform = window.getComputedStyle(image).transform
+
+    // Then zoom out
+    const zoomOutButton = screen.getByLabelText(/zoom out/i)
+    await user.click(zoomOutButton)
+
+    const newTransform = window.getComputedStyle(image).transform
+    expect(newTransform).not.toBe(zoomedTransform)
+  })
+
+  it('zooms in on wheel up (deltaY < 0)', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const image = screen.getByRole('img')
+    const initialTransform = window.getComputedStyle(image).transform
+
+    // Simulate wheel up (zoom in)
+    await user.pointer([
+      { keys: '[MouseLeft]', target: image, coords: { x: 400, y: 300 } },
+    ])
+
+    // Fire wheel event manually (userEvent doesn't support wheel well)
+    const wheelEvent = new WheelEvent('wheel', {
+      deltaY: -100,
+      clientX: 400,
+      clientY: 300,
+      bubbles: true,
+    })
+    image.dispatchEvent(wheelEvent)
+
+    await waitFor(() => {
+      const newTransform = window.getComputedStyle(image).transform
+      expect(newTransform).not.toBe(initialTransform)
+    })
+  })
+
+  it('zooms out on wheel down (deltaY > 0)', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // First zoom in
+    const zoomInButton = screen.getByLabelText(/zoom in/i)
+    await user.click(zoomInButton)
+
+    const image = screen.getByRole('img')
+    const zoomedTransform = window.getComputedStyle(image).transform
+
+    // Simulate wheel down (zoom out)
+    const wheelEvent = new WheelEvent('wheel', {
+      deltaY: 100,
+      clientX: 400,
+      clientY: 300,
+      bubbles: true,
+    })
+    image.dispatchEvent(wheelEvent)
+
+    await waitFor(() => {
+      const newTransform = window.getComputedStyle(image).transform
+      expect(newTransform).not.toBe(zoomedTransform)
+    })
+  })
+
+  it('displays zoom indicator when zooming', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const zoomInButton = screen.getByLabelText(/zoom in/i)
+    await user.click(zoomInButton)
+
+    // Zoom indicator should appear (e.g., "150%" or "1.5x")
+    await waitFor(() => {
+      expect(screen.getByText(/150|1\.5/i)).toBeInTheDocument()
+    })
+  })
+
+  it('renders reset zoom button when zoomed', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const zoomInButton = screen.getByLabelText(/zoom in/i)
+    await user.click(zoomInButton)
+
+    // Reset button should appear
+    await waitFor(() => {
+      const resetButton = screen.getByLabelText(/reset zoom/i)
+      expect(resetButton).toBeInTheDocument()
+    })
+  })
+
+  it('resets zoom to 1.0 when reset button clicked', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Zoom in
+    const zoomInButton = screen.getByLabelText(/zoom in/i)
+    await user.click(zoomInButton)
+    await user.click(zoomInButton)
+
+    // Reset zoom
+    const resetButton = await screen.findByLabelText(/reset zoom/i)
+    await user.click(resetButton)
+
+    // Should show 100% or 1x zoom
+    await waitFor(() => {
+      expect(screen.getByText(/100|1\.0|1x/i)).toBeInTheDocument()
+    })
+  })
+
+  it('changes cursor to grab when zoomed > 1.0', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const image = screen.getByRole('img')
+
+    // Initially default cursor at zoom 1.0
+    expect(window.getComputedStyle(image).cursor).toMatch(/default|auto/)
+
+    // Zoom in
+    const zoomInButton = screen.getByLabelText(/zoom in/i)
+    await user.click(zoomInButton)
+
+    // Cursor should change to grab
+    await waitFor(() => {
+      expect(window.getComputedStyle(image).cursor).toMatch(/grab/)
+    })
+  })
+
+  it('changes cursor to grabbing during drag', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Zoom in first
+    const zoomInButton = screen.getByLabelText(/zoom in/i)
+    await user.click(zoomInButton)
+
+    const image = screen.getByRole('img')
+
+    // Start drag
+    await user.pointer([
+      { keys: '[MouseLeft>]', target: image, coords: { x: 400, y: 300 } },
+    ])
+
+    // Cursor should change to grabbing
+    await waitFor(() => {
+      expect(window.getComputedStyle(image).cursor).toMatch(/grabbing/)
+    })
+
+    // End drag
+    await user.pointer([{ keys: '[/MouseLeft]' }])
+  })
+
+  it('pans image when dragged while zoomed', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Zoom in first
+    const zoomInButton = screen.getByLabelText(/zoom in/i)
+    await user.click(zoomInButton)
+
+    const image = screen.getByRole('img')
+
+    // Simulate drag with fireEvent for better control
+    const mouseDownEvent = new MouseEvent('mousedown', {
+      bubbles: true,
+      clientX: 400,
+      clientY: 300,
+    })
+    image.dispatchEvent(mouseDownEvent)
+
+    // Give time for state to update
+    await waitFor(() => {
+      expect(window.getComputedStyle(image).cursor).toMatch(/grabbing/)
+    })
+
+    // Simulate mouse move
+    const mouseMoveEvent = new MouseEvent('mousemove', {
+      bubbles: true,
+      clientX: 500,
+      clientY: 400,
+    })
+    document.dispatchEvent(mouseMoveEvent)
+
+    // Simulate mouse up
+    const mouseUpEvent = new MouseEvent('mouseup', {
+      bubbles: true,
+    })
+    document.dispatchEvent(mouseUpEvent)
+
+    // Transform should include pan values
+    await waitFor(() => {
+      const transform = window.getComputedStyle(image).transform
+      // Should have non-zero translate values
+      expect(transform).toMatch(/translate\(.+px,\s*.+px\)/)
+    })
+  })
+
+  it('does not pan when zoom is 1.0', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const image = screen.getByRole('img')
+    const initialTransform = window.getComputedStyle(image).transform
+
+    // Try to drag at zoom 1.0
+    await user.pointer([
+      { keys: '[MouseLeft>]', target: image, coords: { x: 400, y: 300 } },
+      { coords: { x: 500, y: 400 } },
+      { keys: '[/MouseLeft]' },
+    ])
+
+    // Transform should not change (no pan at 1.0x)
+    const newTransform = window.getComputedStyle(image).transform
+    expect(newTransform).toBe(initialTransform)
+  })
+})
