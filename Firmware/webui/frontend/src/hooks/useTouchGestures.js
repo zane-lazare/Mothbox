@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback } from 'react'
 
 /**
  * Custom hook for managing touch gestures in the photo lightbox.
@@ -88,9 +88,6 @@ function useTouchGestures({
   const [initialPan, setInitialPan] = useState({ x: 0, y: 0 })
   const [lastTapTime, setLastTapTime] = useState(0)
   const [isPinching, setIsPinching] = useState(false)
-
-  // Use ref for animation frame to avoid stale closures
-  const animationFrameRef = useRef(null)
 
   // Constants
   const MIN_ZOOM = 1.0
@@ -272,12 +269,6 @@ function useTouchGestures({
    */
   const handleTouchEnd = useCallback(
     (event) => {
-      // Cancel any pending animation frame
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current)
-        animationFrameRef.current = null
-      }
-
       if (!touchStartPos) return
 
       const touch = event.changedTouches?.[0]
