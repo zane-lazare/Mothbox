@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { LIGHTBOX_CONFIG } from '../constants/config'
 import useZoomPan from '../hooks/useZoomPan'
 import useTouchGestures from '../hooks/useTouchGestures'
+import { debounce } from '../utils/performance'
 
 /**
  * PhotoLightbox Component
@@ -20,6 +21,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   const previousFocusRef = useRef(null)
   const imageRef = useRef(null)
   const containerRef = useRef(null)
+  const dialogRef = useRef(null)
 
   // Image and container dimensions
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 })
@@ -88,9 +90,15 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
 
     updateContainerDimensions()
 
+    // Debounce resize handler for better performance (300ms delay)
+    const debouncedUpdate = debounce(updateContainerDimensions, 300)
+
     // Update on window resize
-    window.addEventListener('resize', updateContainerDimensions)
-    return () => window.removeEventListener('resize', updateContainerDimensions)
+    window.addEventListener('resize', debouncedUpdate)
+    return () => {
+      window.removeEventListener('resize', debouncedUpdate)
+      debouncedUpdate.cancel()
+    }
   }, [photo])
 
   // Show zoom indicator when zoom changes
@@ -235,6 +243,36 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [photo, onClose, handleNavigate])
 
+  // Focus trap - keep focus within dialog
+  useEffect(() => {
+    if (!photo || !dialogRef.current) return
+
+    const handleTabKey = (e) => {
+      if (e.key !== 'Tab') return
+
+      const focusableElements = dialogRef.current.querySelectorAll(
+        'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+
+      const firstElement = focusableElements[0]
+      const lastElement = focusableElements[focusableElements.length - 1]
+
+      // Shift+Tab on first element: go to last
+      if (e.shiftKey && document.activeElement === firstElement) {
+        e.preventDefault()
+        lastElement.focus()
+      }
+      // Tab on last element: go to first
+      else if (!e.shiftKey && document.activeElement === lastElement) {
+        e.preventDefault()
+        firstElement.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleTabKey)
+    return () => document.removeEventListener('keydown', handleTabKey)
+  }, [photo])
+
   // Don't render if no photo selected (after hooks!)
   if (!photo) {
     return null
@@ -297,6 +335,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
 
   const lightboxContent = (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="lightbox-title"
@@ -312,6 +351,11 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
       {/* Screen reader description */}
       <div id="lightbox-description" className="sr-only">
         Use arrow keys to navigate, +/- to zoom, ESC to close
+      </div>
+
+      {/* Zoom level announcement for screen readers */}
+      <div aria-live="polite" className="sr-only">
+        Zoom level: {Math.round(zoom * 100)}%
       </div>
 
       {/* Close button - touch-friendly sizing */}
@@ -474,10 +518,11 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
           alt={photo.filename}
           className="max-h-full max-w-full object-contain select-none"
           style={{
-            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
             cursor: zoom > 1.0 ? (isPanning ? 'grabbing' : 'grab') : 'default',
             transition: isPanning ? 'none' : 'transform 0.1s ease-out',
             touchAction: zoom > 1.0 ? 'none' : 'pan-y', // Prevent browser gestures when zoomed
+            willChange: zoom > 1.0 ? 'transform' : 'auto', // GPU acceleration hint when zoomed
           }}
           onWheel={handleWheel}
           onMouseDown={handleMouseDown}

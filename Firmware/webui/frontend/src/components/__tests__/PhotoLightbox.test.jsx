@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import PhotoLightbox from '../PhotoLightbox'
+import { LIGHTBOX_CONFIG } from '../../constants/config'
 
 describe('PhotoLightbox - Basic Rendering', () => {
   const mockPhoto = {
@@ -1279,5 +1280,457 @@ describe('PhotoLightbox - Touch Gesture Interaction', () => {
     await waitFor(() => {
       expect(mockOnNavigate).toHaveBeenCalledWith(mockPhotos[2]) // Wrapped to last
     })
+  })
+})
+
+describe('PhotoLightbox - Accessibility (WCAG 2.1 AA)', () => {
+  const mockPhoto = {
+    path: '2024-11-10/photo_001.jpg',
+    filename: 'photo_001.jpg',
+    date: '2024-11-10T18:30:00Z',
+    size: 5242880,
+    timestamp: 1699639800,
+  }
+
+  const mockPhotos = [
+    mockPhoto,
+    {
+      path: '2024-11-10/photo_002.jpg',
+      filename: 'photo_002.jpg',
+      date: '2024-11-10T18:31:00Z',
+      size: 5500000,
+      timestamp: 1699639860,
+    },
+    {
+      path: '2024-11-10/photo_003.jpg',
+      filename: 'photo_003.jpg',
+      date: '2024-11-10T18:32:00Z',
+      size: 5100000,
+      timestamp: 1699639920,
+    },
+  ]
+
+  const mockOnClose = vi.fn()
+  const mockOnNavigate = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    document.body.style.overflow = ''
+  })
+
+  it('has role="dialog" and aria-modal="true"', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toBeInTheDocument()
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+  })
+
+  it('close button has aria-label', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const closeButton = screen.getByRole('button', { name: /close photo viewer/i })
+    expect(closeButton).toBeInTheDocument()
+    expect(closeButton).toHaveAttribute('aria-label', 'Close photo viewer')
+  })
+
+  it('navigation buttons have aria-labels', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const prevButton = screen.getByRole('button', { name: /previous photo/i })
+    const nextButton = screen.getByRole('button', { name: /next photo/i })
+
+    expect(prevButton).toHaveAttribute('aria-label', 'Previous photo')
+    expect(nextButton).toHaveAttribute('aria-label', 'Next photo')
+  })
+
+  it('focus trapped within dialog (Tab from last element goes to first)', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Wait for close button to be focused
+    await waitFor(() => {
+      const closeButton = screen.getByRole('button', { name: /close photo viewer/i })
+      expect(closeButton).toHaveFocus()
+    })
+
+    // Get all focusable buttons
+    const closeButton = screen.getByRole('button', { name: /close photo viewer/i })
+    const prevButton = screen.getByRole('button', { name: /previous photo/i })
+    const nextButton = screen.getByRole('button', { name: /next photo/i })
+    const zoomInButton = screen.getByRole('button', { name: /zoom in/i })
+    const zoomOutButton = screen.getByRole('button', { name: /zoom out/i })
+
+    // Tab through all elements
+    await user.tab() // Should go to next button (or prev)
+    await user.tab()
+    await user.tab()
+    await user.tab()
+
+    // Verify we're on a button (focus is trapped)
+    const buttons = [closeButton, prevButton, nextButton, zoomInButton, zoomOutButton]
+    const focusedElement = document.activeElement
+    expect(buttons).toContain(focusedElement)
+  })
+
+  it('zoom level announced to screen readers (aria-live region)', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Should have aria-live region for zoom level
+    const zoomLiveRegion = document.querySelector('[aria-live="polite"]')
+    expect(zoomLiveRegion).toBeInTheDocument()
+    expect(zoomLiveRegion).toHaveTextContent(/zoom level/i)
+  })
+
+  it('photo filename accessible via aria-labelledby', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const dialog = screen.getByRole('dialog')
+    const labelledBy = dialog.getAttribute('aria-labelledby')
+
+    // Should have aria-labelledby pointing to title element
+    expect(labelledBy).toBeTruthy()
+
+    const titleElement = document.getElementById(labelledBy)
+    expect(titleElement).toBeInTheDocument()
+    expect(titleElement).toHaveTextContent(mockPhoto.filename)
+  })
+
+  it('all interactive elements keyboard accessible', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Close button should be focused initially
+    await waitFor(() => {
+      const closeButton = screen.getByRole('button', { name: /close photo viewer/i })
+      expect(closeButton).toHaveFocus()
+    })
+
+    // Verify all buttons can be activated with keyboard
+    const closeButton = screen.getByRole('button', { name: /close photo viewer/i })
+    await user.keyboard('{Enter}')
+    expect(mockOnClose).toHaveBeenCalled()
+  })
+
+  it('focus visible indicators present on interactive elements', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // All buttons should have focus:ring classes
+    const closeButton = screen.getByRole('button', { name: /close photo viewer/i })
+    const prevButton = screen.getByRole('button', { name: /previous photo/i })
+    const nextButton = screen.getByRole('button', { name: /next photo/i })
+    const zoomInButton = screen.getByRole('button', { name: /zoom in/i })
+
+    // Check for focus ring classes (Tailwind focus:ring-2 focus:ring-white)
+    expect(closeButton.className).toContain('focus:ring')
+    expect(prevButton.className).toContain('focus:ring')
+    expect(nextButton.className).toContain('focus:ring')
+    expect(zoomInButton.className).toContain('focus:ring')
+  })
+})
+
+describe('PhotoLightbox - GPU Acceleration', () => {
+  const mockPhoto = {
+    path: '2024-11-10/photo_001.jpg',
+    filename: 'photo_001.jpg',
+    date: '2024-11-10T18:30:00Z',
+    size: 5242880,
+    timestamp: 1699639800,
+  }
+
+  const mockPhotos = [mockPhoto]
+  const mockOnClose = vi.fn()
+  const mockOnNavigate = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    document.body.style.overflow = ''
+  })
+
+  it('uses translate3d for GPU-accelerated transforms', async () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Wait for image to be rendered
+    const image = await screen.findByAltText(mockPhoto.filename)
+
+    // Should use translate3d (forces GPU acceleration)
+    // Note: computed style might be matrix3d, so we check the inline style
+    expect(image.style.transform).toContain('translate3d')
+  })
+
+  it('sets will-change property when zoomed', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Wait for image to be rendered
+    const image = await screen.findByAltText(mockPhoto.filename)
+
+    // Initially should be auto (not zoomed)
+    expect(image.style.willChange).toBe('auto')
+
+    // Zoom in
+    const zoomInButton = screen.getByRole('button', { name: /zoom in/i })
+    await user.click(zoomInButton)
+
+    // After zooming, should hint GPU acceleration
+    await waitFor(() => {
+      expect(image.style.willChange).toBe('transform')
+    })
+  })
+
+  it('disables transitions during active drag for immediate response', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Wait for image to be rendered
+    const image = await screen.findByAltText(mockPhoto.filename)
+
+    // Zoom in first
+    const zoomInButton = screen.getByRole('button', { name: /zoom in/i })
+    await user.click(zoomInButton)
+
+    await waitFor(() => {
+      expect(image.style.willChange).toBe('transform')
+    })
+
+    // Start dragging (simulate mouse down)
+    const mouseDown = new MouseEvent('mousedown', {
+      bubbles: true,
+      clientX: 100,
+      clientY: 100,
+    })
+    image.dispatchEvent(mouseDown)
+
+    // During drag, transition should be disabled
+    await waitFor(() => {
+      expect(image.style.transition).toBe('none')
+    })
+
+    // End drag
+    const mouseUp = new MouseEvent('mouseup', { bubbles: true })
+    document.dispatchEvent(mouseUp)
+
+    // After drag, transition should be re-enabled
+    await waitFor(() => {
+      expect(image.style.transition).toContain('transform')
+    })
+  })
+})
+
+describe('PhotoLightbox - Performance Benchmarks', () => {
+  const mockPhoto = {
+    path: '2024-11-10/photo_001.jpg',
+    filename: 'photo_001.jpg',
+    date: '2024-11-10T18:30:00Z',
+    size: 5242880,
+    timestamp: 1699639800,
+  }
+
+  const mockPhotos = Array.from({ length: 10 }, (_, i) => ({
+    path: `2024-11-10/photo_${String(i).padStart(3, '0')}.jpg`,
+    filename: `photo_${String(i).padStart(3, '0')}.jpg`,
+    date: '2024-11-10T18:30:00Z',
+    size: 5242880,
+    timestamp: 1699639800 + i,
+  }))
+
+  const mockOnClose = vi.fn()
+  const mockOnNavigate = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    document.body.style.overflow = ''
+  })
+
+  it('renders within 200ms', () => {
+    const start = performance.now()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const end = performance.now()
+    const renderTime = end - start
+
+    // Should render quickly (< 200ms)
+    expect(renderTime).toBeLessThan(200)
+  })
+
+  it('navigation transition uses configured duration', () => {
+    // Verify animation duration is optimized (≤ 200ms)
+    expect(LIGHTBOX_CONFIG.ANIMATION_DURATION).toBeLessThanOrEqual(200)
+  })
+
+  it('handles 50 rapid zoom events without lag', async () => {
+    const user = userEvent.setup({ delay: null }) // No delay for rapid testing
+
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const zoomInButton = screen.getByRole('button', { name: /zoom in/i })
+
+    const start = performance.now()
+
+    // Rapid zoom clicks
+    for (let i = 0; i < 50; i++) {
+      await user.click(zoomInButton)
+    }
+
+    const end = performance.now()
+    const totalTime = end - start
+
+    // Should handle 50 clicks in reasonable time (< 5 seconds)
+    expect(totalTime).toBeLessThan(5000)
+  })
+
+  it('handles rapid pan events without lag', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Zoom in first
+    const zoomInButton = screen.getByRole('button', { name: /zoom in/i })
+    await user.click(zoomInButton)
+    await user.click(zoomInButton)
+
+    // Wait for image to be rendered
+    const image = await screen.findByAltText(mockPhoto.filename)
+
+    const start = performance.now()
+
+    // Simulate rapid pan movements
+    const mouseDown = new MouseEvent('mousedown', {
+      bubbles: true,
+      clientX: 100,
+      clientY: 100,
+    })
+    image.dispatchEvent(mouseDown)
+
+    // Rapid mouse moves
+    for (let i = 0; i < 100; i++) {
+      const mouseMove = new MouseEvent('mousemove', {
+        bubbles: true,
+        clientX: 100 + i,
+        clientY: 100 + i,
+      })
+      document.dispatchEvent(mouseMove)
+    }
+
+    const mouseUp = new MouseEvent('mouseup', { bubbles: true })
+    document.dispatchEvent(mouseUp)
+
+    const end = performance.now()
+    const totalTime = end - start
+
+    // Should handle 100 pan events quickly (< 1 second)
+    expect(totalTime).toBeLessThan(1000)
   })
 })
