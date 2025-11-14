@@ -51,6 +51,9 @@ from services.thumbnail_cache import ThumbnailError
 from services.metadata_cache import MetadataCache
 from services.metadata_service import MetadataService
 
+# Import security utilities
+from security_utils import validate_photo_path
+
 # Import mothbox paths
 from mothbox_paths import DATA_DIR, PHOTOS_DIR
 
@@ -116,29 +119,31 @@ def list_photos():
 def get_photo(photo_path):
     """Serve a specific photo"""
     try:
-        # Use resolve() and relative_to() for robust path traversal protection
-        full_path = (PHOTOS_DIR / photo_path).resolve()
-        photos_dir_resolved = PHOTOS_DIR.resolve()
+        # Validate path with security_utils (CodeQL requirement)
+        full_path = validate_photo_path(photo_path, PHOTOS_DIR)
 
-        # Ensure path is within PHOTOS_DIR (raises ValueError if not)
-        full_path.relative_to(photos_dir_resolved)
+        if full_path is None:
+            return jsonify({"error": "Invalid path"}), 400
 
         if not full_path.exists():
             return jsonify({"error": "Photo not found"}), 404
 
         return send_file(full_path, mimetype="image/jpeg")
-    except (ValueError, RuntimeError):
-        # ValueError: Path is outside PHOTOS_DIR
-        # RuntimeError: resolve() failed (e.g., symlink loop)
-        return jsonify({"error": "Invalid path"}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"Error serving photo {photo_path}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to serve photo"}), 500
 
 
 @gallery_bp.route("/thumbnail/<path:photo_path>", methods=["GET"])
 def get_thumbnail(photo_path):
     """Get thumbnail for a photo (generates if needed) with optional size parameter"""
     try:
+        # Validate path with security_utils (CodeQL requirement)
+        full_photo_path = validate_photo_path(photo_path, PHOTOS_DIR)
+
+        if full_photo_path is None:
+            return jsonify({"error": "Invalid path"}), 400
+
         # Get size from query params (default: 256)
         size = request.args.get('size', 256, type=int)
 
@@ -148,7 +153,6 @@ def get_thumbnail(photo_path):
         if thumbnail_cache:
             # Use cache service
             try:
-                full_photo_path = PHOTOS_DIR / photo_path
                 thumbnail_path = thumbnail_cache.get_thumbnail(full_photo_path, size)
                 return send_file(thumbnail_path, mimetype="image/jpeg")
             except ThumbnailError as e:
@@ -160,12 +164,8 @@ def get_thumbnail(photo_path):
 
             from PIL import Image
 
-            # Use resolve() and relative_to() for robust path traversal protection
-            full_path = (PHOTOS_DIR / photo_path).resolve()
-            photos_dir_resolved = PHOTOS_DIR.resolve()
-
-            # Ensure path is within PHOTOS_DIR (raises ValueError if not)
-            full_path.relative_to(photos_dir_resolved)
+            # Path already validated above via validate_photo_path()
+            full_path = full_photo_path
 
             if not full_path.exists():
                 return jsonify({"error": "Photo not found"}), 404
@@ -506,8 +506,8 @@ def _resolve_photo_path(photo_id: str) -> Optional[Path]:
     """
     Resolve photo ID to absolute path with security checks.
 
-    Protects against path traversal attacks by validating input
-    before performing any file system operations.
+    Protects against path traversal attacks by using validate_photo_path()
+    from security_utils which provides CodeQL-compliant path validation.
 
     Args:
         photo_id: Photo identifier (relative path from PHOTOS_DIR)
@@ -520,32 +520,10 @@ def _resolve_photo_path(photo_id: str) -> Optional[Path]:
         logger.warning("Empty photo_id provided")
         return None
 
-    # Path traversal protection - block dangerous patterns
-    if ".." in photo_id or photo_id.startswith("/"):
-        logger.warning(f"Path traversal attempt detected: {photo_id}")
-        return None
+    # Use security_utils validation (CodeQL-compliant)
+    photo_path = validate_photo_path(photo_id, PHOTOS_DIR)
 
-    # Whitelist validation - only allow safe characters
-    # Allows: letters, numbers, underscore, hyphen, period, forward slash
-    import re
-    if not re.match(r'^[a-zA-Z0-9_\-./]+$', photo_id):
-        logger.warning(f"Photo_id contains invalid characters: {photo_id}")
-        return None
-
-    # Now safe to construct path - input has been validated
-    photo_path = PHOTOS_DIR / photo_id
-
-    # Canonical path check (prevents symlink attacks) - defense in depth
-    try:
-        photo_path = photo_path.resolve()
-        photos_dir_resolved = PHOTOS_DIR.resolve()
-
-        # Ensure path is within PHOTOS_DIR
-        if not str(photo_path).startswith(str(photos_dir_resolved)):
-            logger.warning(f"Photo path outside PHOTOS_DIR: {photo_path}")
-            return None
-    except Exception as e:
-        logger.warning(f"Failed to resolve photo path {photo_id}: {e}")
+    if photo_path is None:
         return None
 
     # Check if file exists and is a regular file
@@ -581,13 +559,19 @@ def cache_invalidate():
 
     # Get optional photo_path from request JSON
     data = request.get_json() or {}
-    photo_path = data.get('photo_path')
+    photo_path_str = data.get('photo_path')
     size = data.get('size')
 
     try:
-        if photo_path:
-            thumbnail_cache.invalidate(PHOTOS_DIR / photo_path, size=size)
-            message = f"Invalidated cache for {photo_path}"
+        if photo_path_str:
+            # Validate path with security_utils (CodeQL requirement)
+            photo_path = validate_photo_path(photo_path_str, PHOTOS_DIR)
+
+            if photo_path is None:
+                return jsonify({"error": "Invalid path"}), 400
+
+            thumbnail_cache.invalidate(photo_path, size=size)
+            message = f"Invalidated cache for {photo_path_str}"
         else:
             thumbnail_cache.invalidate()
             message = "Invalidated entire cache"
@@ -595,7 +579,8 @@ def cache_invalidate():
         return jsonify({"success": True, "message": message})
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        logger.error(f"Cache invalidation error: {e}", exc_info=True)
+        return jsonify({"error": "Cache invalidation failed"}), 400
 
 
 @gallery_bp.route("/cache/warm", methods=["POST"])

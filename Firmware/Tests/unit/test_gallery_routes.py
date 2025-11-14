@@ -726,7 +726,8 @@ class TestThumbnailCacheIntegration:
             assert response.status_code == 400
             data = json.loads(response.data)
             assert 'error' in data
-            assert 'Cache error' in data['error']
+            # Generic error message for security (don't expose internal errors)
+            assert data['error'] == 'Cache invalidation failed'
 
 
 # ============================================================================
