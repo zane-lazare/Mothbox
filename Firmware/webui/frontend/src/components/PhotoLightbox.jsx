@@ -425,6 +425,11 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
     resetZoom()
   }
 
+  // Don't render if no photo selected (after all hooks for Rules of Hooks compliance)
+  if (!photo) {
+    return null
+  }
+
   const lightboxContent = (
     <div
       ref={dialogRef}
@@ -675,11 +680,6 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
       </div>
     </div>
   )
-
-  // Don't render if no photo selected (after all hooks for Rules of Hooks compliance)
-  if (!photo) {
-    return null
-  }
 
   // Render into portal (append to body)
   return createPortal(lightboxContent, document.body)
