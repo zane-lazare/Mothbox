@@ -158,8 +158,8 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
       setIsImageLoading(false)
     }
 
-    // If image already loaded
-    if (currentImageRef.complete) {
+    // If image already loaded (check naturalWidth to ensure dimensions are available)
+    if (currentImageRef.complete && currentImageRef.naturalWidth > 0) {
       handleImageLoad()
     } else {
       currentImageRef.addEventListener('load', handleImageLoad)
