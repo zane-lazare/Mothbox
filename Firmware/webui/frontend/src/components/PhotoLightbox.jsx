@@ -374,11 +374,6 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
     [pan.x, pan.y, zoom]
   )
 
-  // Don't render if no photo selected (after hooks!)
-  if (!photo) {
-    return null
-  }
-
   // Handle backdrop click
   const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget) {
@@ -651,6 +646,11 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
       </div>
     </div>
   )
+
+  // Don't render if no photo selected (after all hooks for Rules of Hooks compliance)
+  if (!photo) {
+    return null
+  }
 
   // Render into portal (append to body)
   return createPortal(lightboxContent, document.body)
