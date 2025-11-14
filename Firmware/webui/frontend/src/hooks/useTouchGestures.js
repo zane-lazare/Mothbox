@@ -327,7 +327,6 @@ function useTouchGestures({
       )
 
       // Check for double-tap (short tap, minimal movement)
-      // DPI-aware distance threshold for Retina/high-DPI displays
       if (distance < DOUBLE_TAP_DISTANCE && duration < 200) {
         const now = Date.now()
         const timeSinceLastTap = now - lastTapTime
