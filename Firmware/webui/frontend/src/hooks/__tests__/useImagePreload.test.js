@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, it, expect, beforeEach } from 'vitest'
 import useImagePreload from '../useImagePreload'
+import { getPhotoUrl } from '../../utils/api'
 
 describe('useImagePreload', () => {
   let mockPhotos
@@ -72,7 +73,7 @@ describe('useImagePreload', () => {
       expect(result.current.isLoading).toBe(false)
     })
 
-    expect(result.current.currentImage).toBe('/api/gallery/photo/photo3.jpg')
+    expect(result.current.currentImage).toBe(getPhotoUrl('photo3.jpg'))
   })
 
   it('preloads next image in background', async () => {
@@ -121,8 +122,8 @@ describe('useImagePreload', () => {
     })
 
     // Should preload current and next
-    expect(imageSources).toContain('/api/gallery/photo/photo3.jpg') // current
-    expect(imageSources).toContain('/api/gallery/photo/photo4.jpg') // next
+    expect(imageSources).toContain(getPhotoUrl('photo3.jpg')) // current
+    expect(imageSources).toContain(getPhotoUrl('photo4.jpg')) // next
   })
 
   it('preloads previous image in background', async () => {
@@ -170,9 +171,9 @@ describe('useImagePreload', () => {
     })
 
     // Should preload previous, current, and next
-    expect(imageSources).toContain('/api/gallery/photo/photo2.jpg') // previous
-    expect(imageSources).toContain('/api/gallery/photo/photo3.jpg') // current
-    expect(imageSources).toContain('/api/gallery/photo/photo4.jpg') // next
+    expect(imageSources).toContain(getPhotoUrl('photo2.jpg')) // previous
+    expect(imageSources).toContain(getPhotoUrl('photo3.jpg')) // current
+    expect(imageSources).toContain(getPhotoUrl('photo4.jpg')) // next
   })
 
   it('updates when currentIndex changes', async () => {
@@ -190,13 +191,13 @@ describe('useImagePreload', () => {
       expect(result.current.isLoading).toBe(false)
     })
 
-    expect(result.current.currentImage).toBe('/api/gallery/photo/photo1.jpg')
+    expect(result.current.currentImage).toBe(getPhotoUrl('photo1.jpg'))
 
     // Change to next photo
     rerender({ currentIndex: 1 })
 
     await waitFor(() => {
-      expect(result.current.currentImage).toBe('/api/gallery/photo/photo2.jpg')
+      expect(result.current.currentImage).toBe(getPhotoUrl('photo2.jpg'))
     })
   })
 
@@ -244,9 +245,9 @@ describe('useImagePreload', () => {
     })
 
     // Should only preload current and next (no previous)
-    expect(imageSources).toContain('/api/gallery/photo/photo1.jpg') // current
-    expect(imageSources).toContain('/api/gallery/photo/photo2.jpg') // next
-    expect(imageSources).not.toContain('/api/gallery/photo/photo0.jpg') // no previous
+    expect(imageSources).toContain(getPhotoUrl('photo1.jpg')) // current
+    expect(imageSources).toContain(getPhotoUrl('photo2.jpg')) // next
+    expect(imageSources).not.toContain(getPhotoUrl('photo0.jpg')) // no previous
   })
 
   it('handles last photo (no next)', async () => {
@@ -293,9 +294,9 @@ describe('useImagePreload', () => {
     })
 
     // Should only preload previous and current (no next)
-    expect(imageSources).toContain('/api/gallery/photo/photo4.jpg') // previous
-    expect(imageSources).toContain('/api/gallery/photo/photo5.jpg') // current
-    expect(imageSources).not.toContain('/api/gallery/photo/photo6.jpg') // no next
+    expect(imageSources).toContain(getPhotoUrl('photo4.jpg')) // previous
+    expect(imageSources).toContain(getPhotoUrl('photo5.jpg')) // current
+    expect(imageSources).not.toContain(getPhotoUrl('photo6.jpg')) // no next
   })
 
   it('cleans up on unmount', () => {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getPhotoUrl } from '../utils/api'
 
 /**
  * Custom hook for progressive image preloading in the photo lightbox.
@@ -54,20 +55,20 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
     const imagesToPreload = []
 
     // Always load current image first
-    const currentUrl = `/api/gallery/photo/${currentPhoto.path}`
+    const currentUrl = getPhotoUrl(currentPhoto.path)
     imagesToPreload.push({ url: currentUrl, priority: 'current' })
 
     // Preload next image
     if (currentIndex < photos.length - 1) {
       const nextPhoto = photos[currentIndex + 1]
-      const nextUrl = `/api/gallery/photo/${nextPhoto.path}`
+      const nextUrl = getPhotoUrl(nextPhoto.path)
       imagesToPreload.push({ url: nextUrl, priority: 'next' })
     }
 
     // Preload previous image
     if (currentIndex > 0) {
       const prevPhoto = photos[currentIndex - 1]
-      const prevUrl = `/api/gallery/photo/${prevPhoto.path}`
+      const prevUrl = getPhotoUrl(prevPhoto.path)
       imagesToPreload.push({ url: prevUrl, priority: 'prev' })
     }
 

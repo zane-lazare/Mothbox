@@ -5,6 +5,7 @@ import useZoomPan from '../hooks/useZoomPan'
 import useTouchGestures from '../hooks/useTouchGestures'
 import useImagePreload from '../hooks/useImagePreload'
 import { debounce } from '../utils/performance'
+import { getPhotoUrl } from '../utils/api'
 
 /**
  * Adaptive Photo Lightbox Component
@@ -605,7 +606,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
         {/* Image */}
         <img
           ref={imageRef}
-          src={`/api/gallery/photo/${photo.path}`}
+          src={getPhotoUrl(photo.path)}
           alt={photo.filename}
           className="max-h-full max-w-full object-contain select-none"
           style={{
