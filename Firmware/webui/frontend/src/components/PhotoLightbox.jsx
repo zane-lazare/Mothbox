@@ -4,7 +4,7 @@ import { LIGHTBOX_CONFIG } from '../constants/config'
 import useZoomPan from '../hooks/useZoomPan'
 import useTouchGestures from '../hooks/useTouchGestures'
 import useImagePreload from '../hooks/useImagePreload'
-import { debounce } from '../utils/performance'
+import { debounce, throttle } from '../utils/performance'
 import { getPhotoUrl } from '../utils/api'
 
 /**
@@ -115,6 +115,10 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
       containerWidth: containerDimensions.width,
       containerHeight: containerDimensions.height,
     })
+
+  // Throttle wheel events to prevent performance issues (wheel can fire 50+ events/sec)
+  // 16ms = ~60fps maximum update rate
+  const throttledHandleWheel = useMemo(() => throttle(handleWheel, 16), [handleWheel])
 
   // Image preloading hook (preloads adjacent images for smooth navigation)
   useImagePreload({
@@ -637,7 +641,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
             willChange: zoom > 1.0 ? 'transform' : 'auto', // GPU acceleration hint when zoomed
             opacity: isImageLoading || imageError ? 0 : 1, // Hide image while loading or on error
           }}
-          onWheel={handleWheel}
+          onWheel={throttledHandleWheel}
           onMouseDown={handleMouseDown}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
