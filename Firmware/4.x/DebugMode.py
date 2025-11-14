@@ -1,24 +1,23 @@
 #!/usr/bin/python3
 
-'''
+"""
 This is a special script to debug mothboxes with which will
 -Stop cron
 -Stop the internet from going off
--Turning off the bright UV 
+-Turning off the bright UV
 -stop the mothbox from shutting down
-'''
+"""
 
+import sys
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
 import subprocess
-
-
-#GPIO
-import RPi.GPIO as GPIO
-import time
-import datetime
 from datetime import datetime
 
+import RPi.GPIO as GPIO
 
+from mothbox_paths import CONTROLS_FILE, get_gpio_pins, get_script_path
 
 now = datetime.now()
 formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")  # Adjust the format as needed
@@ -35,51 +34,58 @@ def stop_cron():
     except subprocess.CalledProcessError as error:
         print("Error stopping cron service:", error)
 
-stop_cron()
 
+stop_cron()
 
 
 print("----------------- ATTRACT OFF-------------------")
 
-
-Relay_Ch1 = 26
-Relay_Ch2 = 20
-Relay_Ch3 = 21
+# Load GPIO pins from configuration
+pins = get_gpio_pins()
+Relay_Ch1 = pins["Relay_Ch1"]
+Relay_Ch2 = pins["Relay_Ch2"]
+Relay_Ch3 = pins["Relay_Ch3"]
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
 
-GPIO.setup(Relay_Ch1,GPIO.OUT)
-GPIO.setup(Relay_Ch2,GPIO.OUT)
+GPIO.setup(Relay_Ch1, GPIO.OUT)
+GPIO.setup(Relay_Ch2, GPIO.OUT)
 
-GPIO.setup(Relay_Ch3,GPIO.OUT)
+GPIO.setup(Relay_Ch3, GPIO.OUT)
 
 print("Setup The Relay Module is [success]")
 
+# Import get_control_values function to read controls.txt
+from mothbox_paths import get_control_values
+
+# Initialize onlyflash from controls.txt before using it
+control_values = get_control_values(str(CONTROLS_FILE))
+onlyflash = control_values.get("OnlyFlash", "False").lower() == "true"
 
 
 def AttractOn():
-    GPIO.output(Relay_Ch3,GPIO.LOW)
-    if(onlyflash):
-        GPIO.output(Relay_Ch2,GPIO.LOW)
+    GPIO.output(Relay_Ch3, GPIO.LOW)
+    if onlyflash:
+        GPIO.output(Relay_Ch2, GPIO.LOW)
         print("Always Flash mode is on")
     else:
-        GPIO.output(Relay_Ch2,GPIO.HIGH)
+        GPIO.output(Relay_Ch2, GPIO.HIGH)
 
-    GPIO.output(Relay_Ch1,GPIO.LOW)
+    GPIO.output(Relay_Ch1, GPIO.LOW)
     print("Attract Lights On\n")
-    
-def AttractOff():
-    GPIO.output(Relay_Ch1,GPIO.HIGH)
 
-    GPIO.output(Relay_Ch2,GPIO.HIGH)
-    GPIO.output(Relay_Ch3,GPIO.HIGH)
+
+def AttractOff():
+    GPIO.output(Relay_Ch1, GPIO.HIGH)
+
+    GPIO.output(Relay_Ch2, GPIO.HIGH)
+    GPIO.output(Relay_Ch3, GPIO.HIGH)
 
     print("Attract Lights Off\n")
 
 
-
-#AttractOn()
+# AttractOn()
 AttractOff()
 
 
@@ -87,7 +93,7 @@ AttractOff()
 print("----------------- KEEP INTERNET ON-------------------")
 
 # Define the path to your script (replace 'path/to/script' with the actual path)
-script_path = "/home/pi/Desktop/Mothbox/scripts/MothPower/stop_lowpower.sh"
+script_path = str(get_script_path("scripts/MothPower/stop_lowpower.sh"))
 
 # Call the script using subprocess.run
 subprocess.run([script_path])
@@ -100,10 +106,10 @@ print("WIFI Script execution completed!")
 print("----------------- KEEP PI ON INDEFINITLEY-------------------")
 
 
-with open("/home/pi/Desktop/Mothbox/controls.txt", "r") as file:
+with open(str(CONTROLS_FILE)) as file:
     lines = file.readlines()
 
-with open("/home/pi/Desktop/Mothbox/controls.txt", "w") as file:
+with open(str(CONTROLS_FILE), "w") as file:
     for line in lines:
         print(line)
         if line.startswith("shutdown_enabled="):

@@ -13,34 +13,36 @@ It also tries to set the EEPROM correctly too! So you don't have to do anything!
 It should work on a Pi4 if it has a pijuice attached and installed
 
 """
-import time
-from time import sleep
+
 import csv
-import time
 import datetime
-from datetime import datetime
-import subprocess
-from subprocess import Popen  # For executing external scripts
 import os
-import numpy as np
+import subprocess
 import sys
-import schedule
 import time
+from datetime import datetime
+from pathlib import Path
 from time import sleep
 
-import crontab
-from crontab import CronTab
+import numpy as np
+import schedule
+
+# Add parent directory to path to import mothbox_paths
+sys.path.insert(0, str(Path(__file__).parent.parent))
 import logging
 import re
+
 import RPi.GPIO as GPIO
+from crontab import CronTab
+
+from mothbox_paths import CONTROLS_FILE, SCHEDULE_SETTINGS_FILE, WORDLIST_FILE, get_script_path
 
 # -----Scheduler Functions-------------------
 
 
 def determinePiModel():
-
     # Check Raspberry Pi model using CPU info
-    cpuinfo = open("/proc/cpuinfo", "r")
+    cpuinfo = open("/proc/cpuinfo")
     model = None  # Initialize model variable outside the loop
     themodel = None
 
@@ -85,10 +87,10 @@ def set_eeprom_settings(settings):
         config_lines.append(f"{key}={value}")
 
     config_content = "\n".join(config_lines)
-    with open("/tmp/eeprom_config.txt", "w") as f:
+    with open("/tmp/eeprom_config.txt", "w") as f:  # nosec B108 - Temporary file for system EEPROM config
         f.write(config_content)
 
-    subprocess.run(["sudo", "rpi-eeprom-config", "--apply", "/tmp/eeprom_config.txt"])
+    subprocess.run(["sudo", "rpi-eeprom-config", "--apply", "/tmp/eeprom_config.txt"])  # nosec B108 - System command with temp config
 
 
 # Function to check for connection to ground
@@ -126,7 +128,7 @@ def read_csv_into_lists(filename, encoding="utf-8"):
         A dictionary where keys are column names (strings) and values are lists of data (strings).
     """
     data = {}
-    with open(filename, "r", newline="", encoding=encoding) as csvfile:
+    with open(filename, newline="", encoding=encoding) as csvfile:
         reader = csv.reader(csvfile)
         # Read header row
         headers = next(reader)
@@ -146,11 +148,11 @@ def get_serial_number():
     This function retrieves the Raspberry Pi's serial number from the CPU info file.
     """
     try:
-        with open("/proc/cpuinfo", "r") as cpuinfo:
+        with open("/proc/cpuinfo") as cpuinfo:
             for line in cpuinfo:
                 if line.startswith("Serial"):
                     return line.split(":")[1].strip()
-    except (IOError, IndexError):
+    except (OSError, IndexError):
         return None
 
 
@@ -170,7 +172,7 @@ def word_to_seed(word, encoding="utf-8"):
 
 
 def set_computerName(filepath, compname):
-    with open(filepath, "r") as file:
+    with open(filepath) as file:
         lines = file.readlines()
 
     with open(filepath, "w") as file:
@@ -181,8 +183,10 @@ def set_computerName(filepath, compname):
                 print("set name " + compname)
             else:
                 file.write(line)  # Keep other lines unchanged
+
+
 def set_UTCinControls(filepath, utcoff):
-    with open(filepath, "r") as file:
+    with open(filepath) as file:
         lines = file.readlines()
 
     with open(filepath, "w") as file:
@@ -196,7 +200,7 @@ def set_UTCinControls(filepath, utcoff):
 
 
 def set_nextWakeinControls(filepath, etime):
-    with open(filepath, "r") as file:
+    with open(filepath) as file:
         lines = file.readlines()
 
     with open(filepath, "w") as file:
@@ -208,8 +212,9 @@ def set_nextWakeinControls(filepath, etime):
             else:
                 file.write(line)  # Keep other lines unchanged
 
-def set_timings(filepath, mins,hours,weekdays,runtimes):
-    with open(filepath, "r") as file:
+
+def set_timings(filepath, mins, hours, weekdays, runtimes):
+    with open(filepath) as file:
         lines = file.readlines()
 
     with open(filepath, "w") as file:
@@ -289,18 +294,14 @@ def find_file(path, filename, depth=1):
         The full path to the file if found, otherwise None.
     """
     for root, dirs, files in os.walk(path):
-        if (
-            filename in files
-            and len(root.split(os.sep)) - len(path.split(os.sep)) <= depth
-        ):
+        if filename in files and len(root.split(os.sep)) - len(path.split(os.sep)) <= depth:
             return os.path.join(root, filename)
         if depth > 1:
             # Prune directories beyond the specified depth
             dirs[:] = [
                 d
                 for d in dirs
-                if len(os.path.join(root, d).split(os.sep)) - len(path.split(os.sep))
-                <= depth
+                if len(os.path.join(root, d).split(os.sep)) - len(path.split(os.sep)) <= depth
             ]
     return None
 
@@ -321,7 +322,7 @@ def load_settings(filename):
     # first look for any updated CSV files on external media, we will prioritize those
 
     external_media_paths = ("/media", "/mnt")  # Common external media mount points
-    default_path = "/home/pi/Desktop/Mothbox/schedule_settings.csv"
+    default_path = str(SCHEDULE_SETTINGS_FILE)
     search_depth = 2  # only want to look in the top directory of an external drive, two levels gets us there while still looking through any media
     found = 0
     for path in external_media_paths:
@@ -381,7 +382,7 @@ def load_settings(filename):
 
         return settings
 
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         print(f"Error: CSV file not found: {filename}")
         return None
 
@@ -392,7 +393,7 @@ def get_control_values(filename):
     filename:  Name of the control file
     """
     control_values = {}
-    with open(filename, "r") as file:
+    with open(filename) as file:
         for line in file:
             key, value = line.strip().split("=")
             control_values[key] = value
@@ -400,7 +401,7 @@ def get_control_values(filename):
 
 
 def schedule_shutdown(minutes):
-    """Schedules the execution of '/home/pi/Desktop/Mothbox/TurnEverythingOff.py' after the specified delay in minutes."""
+    """Schedules the execution of TurnEverythingOff.py after the specified delay in minutes."""
     if rpiModel == 4:
         schedule.every(minutes).minutes.do(run_shutdown_pi4)
     if rpiModel == 5:
@@ -408,10 +409,8 @@ def schedule_shutdown(minutes):
 
     try:
         while True:
-            control_values = get_control_values("/home/pi/Desktop/Mothbox/controls.txt")
-            shutdown_enabled = (
-                control_values.get("shutdown_enabled", "True").lower() == "true"
-            )
+            control_values = get_control_values(str(CONTROLS_FILE))
+            shutdown_enabled = control_values.get("shutdown_enabled", "True").lower() == "true"
             if not shutdown_enabled:
                 print("Shutdown scheduling stopped.")
                 break
@@ -423,9 +422,9 @@ def schedule_shutdown(minutes):
 
 
 def run_shutdown_pi4():
-    """Executes the '/home/pi/Desktop/Mothbox/TurnEverythingOff.py' script."""
+    """Executes the TurnEverythingOff.py script."""
     print("about to launch the shutdown")
-    subprocess.run(["python", "/home/pi/Desktop/Mothbox/TurnEverythingOff.py"])
+    subprocess.run(["python", str(get_script_path("TurnEverythingOff.py"))])
 
 
 def run_shutdown_pi5():
@@ -436,7 +435,7 @@ def run_shutdown_pi5():
     print("but we are running ONE LAST WAKEUP SCHEDULER")
 
     # SCHEDULE WAKEUP AGAIN FOR SECURITY
-    settings = load_settings("/home/pi/Desktop/Mothbox/schedule_settings.csv")
+    settings = load_settings(str(SCHEDULE_SETTINGS_FILE))
     if "runtime" in settings:
         del settings["runtime"]
     if "utc_off" in settings:
@@ -480,41 +479,37 @@ def run_shutdown_pi5():
 
     # GPS check / 10 second delay
     print("Checking GPS (if available) for 10 seconds")
-    process = subprocess.Popen(['python', '/home/pi/Desktop/Mothbox/GPS.py'],
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE)
+    process = subprocess.Popen(
+        ["python", str(get_script_path("GPS.py"))], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
     stdout, stderr = process.communicate()
     if stderr:
-      print(f"Error running script: {stderr.decode()}")
+        print(f"Error running script: {stderr.decode()}")
     else:
-      print(stdout.decode())
+        print(stdout.decode())
 
-
-
-    #Epaper
-    #Update the Epaper screen if it is available 
+    # Epaper
+    # Update the Epaper screen if it is available
     GPIO.cleanup()
 
     print("Updating Epaper display before shutdown (if available)")
-    process = subprocess.Popen(['python', '/home/pi/Desktop/Mothbox/UpdateDisplay.py'],
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE)
+    process = subprocess.Popen(
+        ["python", str(get_script_path("UpdateDisplay.py"))],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     stdout, stderr = process.communicate()
     if stderr:
-      print(f"Error running script: {stderr.decode()}")
+        print(f"Error running script: {stderr.decode()}")
     else:
-      print(stdout.decode())
+        print(stdout.decode())
 
-
-
-
-    #Give it an extra second in case details need to sink in
+    # Give it an extra second in case details need to sink in
     print("shutting down in 3 seconds")
     time.sleep(3)
 
     # subprocess.run(["python", "/home/pi/Desktop/Mothbox/TurnEverythingOff.py"])
     os.system("sudo shutdown -h now")
-
 
 
 def run_shutdown_pi5_FAST():
@@ -523,20 +518,19 @@ def run_shutdown_pi5_FAST():
     """
     print("Fast shutdown!")
     print("but we are running ONE LAST WAKEUP SCHEDULER")
-    #Stop big lights from turning on!
-    debug_script_path = "/home/pi/Desktop/Mothbox/DebugMode.py"
+    # Stop big lights from turning on!
+    debug_script_path = str(get_script_path("DebugMode.py"))
     # Call the script using subprocess.run
     subprocess.run([debug_script_path])
-    
-    
+
     # SCHEDULE WAKEUP AGAIN FOR SECURITY
-    settings = load_settings("/home/pi/Desktop/Mothbox/schedule_settings.csv")
+    settings = load_settings(str(SCHEDULE_SETTINGS_FILE))
     if "runtime" in settings:
         del settings["runtime"]
     if "utc_off" in settings:
         del settings["utc_off"]
 
-    #print(settings)
+    # print(settings)
 
     # don't need to modify the hours to UTC like we do for pijuice
     # Build Cron expression
@@ -560,7 +554,7 @@ def run_shutdown_pi5_FAST():
         + " "
         + str(settings["weekday"])
     )
-    #print(cron_expression)
+    # print(cron_expression)
     next_epoch_time = calculate_next_event(cron_expression)
 
     # Clear existing wakeup alarm (assuming sudo access)
@@ -572,35 +566,32 @@ def run_shutdown_pi5_FAST():
     set_wakeup_alarm(next_epoch_time)
     print("Wakeup Alarms have been set!")
 
-
-
-    #Epaper
-    #Update the Epaper screen if it is available 
+    # Epaper
+    # Update the Epaper screen if it is available
     GPIO.cleanup()
 
     print("Updating Epaper display before shutdown (if available)")
-    process = subprocess.Popen(['python', '/home/pi/Desktop/Mothbox/UpdateDisplay.py'],
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE)
+    process = subprocess.Popen(
+        ["python", str(get_script_path("UpdateDisplay.py"))],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     stdout, stderr = process.communicate()
     if stderr:
-      print(f"Error running script: {stderr.decode()}")
+        print(f"Error running script: {stderr.decode()}")
     else:
-      print(stdout.decode())
-
-
+        print(stdout.decode())
 
     # subprocess.run(["python", "/home/pi/Desktop/Mothbox/TurnEverythingOff.py"])
     os.system("sudo shutdown -h now")
 
 
-
 def enable_shutdown():
     """Enable Shutdown"""
-    with open("/home/pi/Desktop/Mothbox/controls.txt", "r") as file:
+    with open(str(CONTROLS_FILE)) as file:
         lines = file.readlines()
 
-    with open("/home/pi/Desktop/Mothbox/controls.txt", "w") as file:
+    with open(str(CONTROLS_FILE), "w") as file:
         for line in lines:
             # print(line)
             if line.startswith("shutdown_enabled="):
@@ -612,10 +603,10 @@ def enable_shutdown():
 
 def enable_onlyflash():
     """Enable Flash"""
-    with open("/home/pi/Desktop/Mothbox/controls.txt", "r") as file:
+    with open(str(CONTROLS_FILE)) as file:
         lines = file.readlines()
 
-    with open("/home/pi/Desktop/Mothbox/controls.txt", "w") as file:
+    with open(str(CONTROLS_FILE), "w") as file:
         for line in lines:
             # print(line)
             if line.startswith("OnlyFlash="):
@@ -630,9 +621,9 @@ def enable_onlyflash():
 
 
 def stopcron():
-    """Executes the '/home/pi/Desktop/Mothbox/StopCron.py' script."""
+    """Executes the StopCron.py script."""
     print("stopping cron, you need to enable it yourself if needed, or reboot")
-    subprocess.run(["python", "/home/pi/Desktop/Mothbox/StopCron.py"])
+    subprocess.run(["python", str(get_script_path("StopCron.py"))])
 
 
 def add_wifi_credentials(ssid, password):
@@ -720,9 +711,9 @@ def set_wakeup_alarm(epoch_time):
         # Write the epoch time in seconds
         f.write(str(epoch_time))
     logging.info("Set the Wakeup Alarm" + str(epoch_time))
-    #Write to controls here!
-    set_nextWakeinControls("/home/pi/Desktop/Mothbox/controls.txt",epoch_time)
-    
+    # Write to controls here!
+    set_nextWakeinControls(str(CONTROLS_FILE), epoch_time)
+
 
 print("----------------- STARTING Scheduler!-------------------")
 
@@ -759,9 +750,7 @@ if rpiModel == 5:
     desired_settings = {"POWER_OFF_ON_HALT": "1", "WAKE_ON_GPIO": "0"}
     current_settings = check_eeprom_settings()
 
-    if all(
-        current_settings.get(key) == value for key, value in desired_settings.items()
-    ):
+    if all(current_settings.get(key) == value for key, value in desired_settings.items()):
         print("EEPROM settings are already correct.")
     else:
         for key, value in desired_settings.items():
@@ -800,7 +789,7 @@ else:
 
 print("Current Mothbox MODE: ", mode)
 
-if(mode=="OFF"):
+if mode == "OFF":
     run_shutdown_pi5_FAST()
     quit()
 
@@ -809,7 +798,7 @@ if(mode=="OFF"):
 
 # ~~~~~~ Setting the Mothbox's unique name ~~~~~~~~~~~~~~~~~~
 
-filename = "/home/pi/Desktop/Mothbox/wordlist.csv"  # Replace with your actual filename
+filename = str(WORDLIST_FILE)  # Using mothbox_paths module
 data = read_csv_into_lists(filename)
 
 # Access data by category (column name)
@@ -835,46 +824,49 @@ unique_name = generate_unique_name(serial_number, 3)
 print(f"Unique name for device: {unique_name}")
 
 # Change it in controls
-set_computerName("/home/pi/Desktop/Mothbox/controls.txt", unique_name)
+set_computerName(str(CONTROLS_FILE), unique_name)
 
 # ~~~~~~~~~~~~ Figuring out Scheduling Details ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~~~ Pi 5 specific things to change cron-like commands to the next UTC target
 
 
 utc_off = 0  # this is the offsett from UTC time we use to set the alarm
-runtime = (
-    0  # this is how long to run the mothbox in minutes for once we wakeup 0 is forever
-)
+runtime = 0  # this is how long to run the mothbox in minutes for once we wakeup 0 is forever
 onlyflash = 0
 
 # need to add a delay to let the external drives mount!
-#time.sleep(10)
-#Instead of the sleep delay, we will use the GPS 10 second lookup and make use of this time
+# time.sleep(10)
+# Instead of the sleep delay, we will use the GPS 10 second lookup and make use of this time
 
 # GPS check / 10 second delay
 print("Checking GPS (if available) for 10 seconds")
-process = subprocess.Popen(['python', '/home/pi/Desktop/Mothbox/GPS.py'],
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE)
+process = subprocess.Popen(
+    ["python", str(get_script_path("GPS.py"))], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+)
 stdout, stderr = process.communicate()
 if stderr:
-  print(f"Error running script: {stderr.decode()}")
+    print(f"Error running script: {stderr.decode()}")
 else:
-  print(stdout.decode())
+    print(stdout.decode())
 
 
 # ~~~~~~~ Do the Scheduling ~~~~~~~~~~~~~~~~~~~~
-settings = load_settings("/home/pi/Desktop/Mothbox/schedule_settings.csv")
+settings = load_settings(str(SCHEDULE_SETTINGS_FILE))
 print(settings)
-set_timings("/home/pi/Desktop/Mothbox/controls.txt", settings["minute"], settings["hour"],settings["weekday"],settings["runtime"])
-
+set_timings(
+    str(CONTROLS_FILE),
+    settings["minute"],
+    settings["hour"],
+    settings["weekday"],
+    settings["runtime"],
+)
 
 
 if "runtime" in settings:
     del settings["runtime"]
 if "utc_off" in settings:
-    utc_off=settings["utc_off"]
-    set_UTCinControls("/home/pi/Desktop/Mothbox/controls.txt",utc_off)
+    utc_off = settings["utc_off"]
+    set_UTCinControls(str(CONTROLS_FILE), utc_off)
     del settings["utc_off"]
 
 print("printing settings")
@@ -932,20 +924,22 @@ print("Wakeup Alarms have been set!")
 enable_onlyflash()
 
 
-#Update the Epaper screen if it is available
+# Update the Epaper screen if it is available
 GPIO.cleanup()
 print("Updating Epaper display (if available)")
-process = subprocess.Popen(['python', '/home/pi/Desktop/Mothbox/UpdateDisplay.py'],
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE)
+process = subprocess.Popen(
+    ["python", str(get_script_path("UpdateDisplay.py"))],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+)
 stdout, stderr = process.communicate()
 if stderr:
-  print(f"Error running script: {stderr.decode()}")
+    print(f"Error running script: {stderr.decode()}")
 else:
-  print(stdout.decode())
+    print(stdout.decode())
 
 
-#Final Step (No other code past this, this is where it sits and waits until shutdown)
+# Final Step (No other code past this, this is where it sits and waits until shutdown)
 # - prepare shutdown and wait
 # Toggle System MODE, shut down if in OFF/INACTIVE mode
 if mode == "OFF":
@@ -958,7 +952,7 @@ if mode == "OFF":
 elif mode == "DEBUG":
     print("System is in DEBUG mode - keeping power and wifi on and turning cron off")
     # Define the path to your script (replace 'path/to/script' with the actual path)
-    debug_script_path = "/home/pi/Desktop/Mothbox/DebugMode.py"
+    debug_script_path = str(get_script_path("DebugMode.py"))
     # Call the script using subprocess.run
     subprocess.run([debug_script_path])
     # stopcron()
@@ -973,5 +967,3 @@ if runtime > 0 and mode != "DEBUG":
     schedule_shutdown(runtime)
 else:
     print("no shutdown scheduled, will run indefinitely")
-
-

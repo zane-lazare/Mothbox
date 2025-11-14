@@ -1,0 +1,8 @@
+# Pip constraints file for Mothbox
+# Prevents installation of packages that conflict with system dependencies
+# Usage: pip install -c pip-constraints.txt <package>
+
+# RPi.GPIO conflicts with system python3-rpi-lgpio on Raspberry Pi 5
+# The system package provides compatibility via rpi-lgpio backend
+# Never allow pip to install RPi.GPIO - it breaks GPIO functionality
+RPi.GPIO==0.0.0  # Invalid version blocks installation

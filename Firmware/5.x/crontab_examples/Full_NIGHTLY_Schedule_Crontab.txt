@@ -1,3 +1,21 @@
+# ==============================================================================
+# MOTHBOX CRONTAB CONFIGURATION
+# ==============================================================================
+#
+# IMPORTANT: Path Configuration
+# ------------------------------------------------------------------------------
+# This example uses /home/pi/Desktop/Mothbox for backward compatibility.
+#
+# The Mothbox firmware now supports flexible installation locations:
+# - Legacy: /home/pi/Desktop/Mothbox (as shown below)
+# - Production: /opt/mothbox (recommended for new installations)
+# - Custom: Set MOTHBOX_HOME environment variable
+#
+# To use a different location, update the paths below accordingly.
+# The Python scripts will automatically detect the correct paths internally.
+#
+# ==============================================================================
+#
 # Edit this file to introduce tasks to be run by cron.
 # 
 # Each task to run has to be defined through a single line

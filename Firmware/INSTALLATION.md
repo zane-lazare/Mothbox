@@ -1,0 +1,411 @@
+# Mothbox Installation Guide
+
+This guide explains how to install and configure the Mothbox firmware with the new flexible directory structure.
+
+## Installation Types
+
+The Mothbox firmware now supports three installation types:
+
+### 1. Legacy Installation (Default)
+**Location:** `/home/pi/Desktop/Mothbox`
+
+This is the traditional location for backward compatibility with existing installations.
+
+```bash
+./install_mothbox.sh --type legacy
+```
+
+### 2. Production Installation (Recommended)
+**Locations:**
+- Application: `/opt/mothbox`
+- Configuration: `/etc/mothbox`
+- Data: `/var/lib/mothbox`
+
+This follows Linux Filesystem Hierarchy Standard (FHS) and is recommended for new deployments.
+
+```bash
+./install_mothbox.sh --type production
+```
+
+### 3. Custom Installation
+**Location:** User-defined
+
+Useful for development or special deployment scenarios.
+
+```bash
+./install_mothbox.sh --type custom --path /your/custom/path
+export MOTHBOX_HOME=/your/custom/path
+```
+
+## Quick Start
+
+### New Installation
+
+The installation script automatically:
+- Detects your Raspberry Pi model (Pi 4 or Pi 5)
+- Lets you choose firmware version (4.x or 5.x) based on your hardware
+- Installs all system and Python dependencies
+- Sets up directory structure
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/zane-lazare/Mothbox.git
+   cd Mothbox/Firmware
+   ```
+
+2. **Run the installation script:**
+   ```bash
+   chmod +x install_mothbox.sh
+   ./install_mothbox.sh --type production
+   ```
+
+   The script will:
+   - Detect if you have Pi 4 or Pi 5
+   - Prompt you to select firmware version (4.x or 5.x)
+   - Install system packages (python3-picamera2, etc.)
+   - Install Python dependencies (opencv-python, RPi.GPIO, etc.)
+   - Copy selected firmware files
+   - Create directories and set permissions
+
+3. **Configure your Mothbox:**
+   Edit configuration files in `/etc/mothbox/`:
+   - `controls.txt` - System control parameters
+   - `camera_settings.csv` - Camera configuration
+   - `schedule_settings.csv` - Scheduling configuration
+   - `wordlist.csv` - Device naming wordlist
+
+4. **Set up cron jobs:**
+   ```bash
+   crontab -e
+   ```
+   Use the examples in `crontab_examples/` as templates, updating paths as needed.
+
+### Migrating from Legacy Installation
+
+If you have an existing installation at `/home/pi/Desktop/Mothbox`:
+
+1. **Backup your current installation:**
+   ```bash
+   sudo cp -r /home/pi/Desktop/Mothbox /home/pi/Desktop/Mothbox.backup
+   ```
+
+2. **Install to production location:**
+   ```bash
+   cd /home/pi/Desktop/Mothbox/Firmware
+   ./install_mothbox.sh --type production
+   ```
+
+3. **Copy your existing configuration:**
+   ```bash
+   sudo cp /home/pi/Desktop/Mothbox/controls.txt /etc/mothbox/
+   sudo cp /home/pi/Desktop/Mothbox/camera_settings.csv /etc/mothbox/
+   sudo cp /home/pi/Desktop/Mothbox/schedule_settings.csv /etc/mothbox/
+   ```
+
+4. **Update your crontab:**
+   ```bash
+   crontab -e
+   ```
+   Change paths from `/home/pi/Desktop/Mothbox` to `/opt/mothbox`
+
+5. **Test the new installation:**
+   ```bash
+   python3 /opt/mothbox/mothbox_paths.py
+   python3 /opt/mothbox/TakePhoto.py  # Test photo capture
+   ```
+
+6. **Remove old installation** (after confirming everything works):
+   ```bash
+   sudo rm -rf /home/pi/Desktop/Mothbox
+   ```
+
+## Directory Structure
+
+### Production Installation
+```
+/opt/mothbox/              # Application code
+├── firmware/              # Firmware scripts
+│   ├── 4.x/
+│   ├── 5.x/
+│   └── mothbox_paths.py
+└── install_mothbox.sh
+
+/etc/mothbox/              # Configuration
+├── controls.txt
+├── camera_settings.csv
+├── schedule_settings.csv
+└── wordlist.csv
+
+/var/lib/mothbox/          # Data storage
+└── photos/                # Captured photos
+    └── YYYY-MM-DD/        # Date-organized
+```
+
+### Legacy Installation
+```
+/home/pi/Desktop/Mothbox/  # All-in-one directory
+├── Firmware/
+├── photos/
+├── controls.txt
+├── camera_settings.csv
+└── ...
+```
+
+## Configuration
+
+### Path Configuration Module
+
+The `mothbox_paths.py` module automatically detects your installation type:
+
+```python
+from mothbox_paths import (
+    MOTHBOX_HOME,      # Application directory
+    CONFIG_DIR,        # Configuration directory
+    DATA_DIR,          # Data storage directory
+    PHOTOS_DIR,        # Photo output directory
+    CONTROLS_FILE,     # controls.txt location
+    CAMERA_SETTINGS_FILE,  # camera_settings.csv location
+    SCHEDULE_SETTINGS_FILE, # schedule_settings.csv location
+)
+```
+
+You can verify your paths:
+```bash
+python3 /opt/mothbox/mothbox_paths.py
+```
+
+### Environment Variables
+
+For custom installations, set:
+```bash
+export MOTHBOX_HOME=/your/custom/path
+```
+
+Add this to `~/.bashrc` to make it permanent.
+
+## Troubleshooting
+
+### Scripts Can't Find Configuration Files
+
+**Problem:** Scripts report missing `controls.txt` or other config files.
+
+**Solution:**
+1. Check installation type with: `python3 mothbox_paths.py`
+2. Verify files exist in the correct location
+3. For production: check `/etc/mothbox/`
+4. For legacy: check `/home/pi/Desktop/Mothbox/`
+
+### Permission Errors
+
+**Problem:** Can't write to photos directory or config files.
+
+**Solution:**
+```bash
+# For production installation
+sudo chown -R pi:pi /etc/mothbox /var/lib/mothbox /opt/mothbox
+sudo chmod -R 755 /var/lib/mothbox
+```
+
+### Cron Jobs Not Running
+
+**Problem:** Scheduled tasks don't execute.
+
+**Solution:**
+1. Check crontab: `crontab -l`
+2. Verify script paths match installation location
+3. Check cron logs: `grep CRON /var/log/syslog`
+4. Test scripts manually first
+
+## Support
+
+- **Documentation:** See main README.md
+- **Issues:** https://github.com/zane-lazare/Mothbox/issues
+- **Discussions:** Use GitHub Discussions for questions
+
+## Technical Details
+
+### Automatic Dependency Installation
+
+The installation script automatically installs all required dependencies:
+
+**System Packages (via apt):**
+- python3-pip - Python package installer
+- python3-picamera2 - Camera interface library
+- python3-rpi-lgpio - GPIO control library (Pi 4 and Pi 5 compatible)
+- python3-pil - Image processing (Pillow)
+- git - Version control
+- i2c-tools - Hardware communication tools
+
+**Python Packages (via pip):**
+- picamera2 - Advanced camera control
+- opencv-python - Computer vision library
+- rpi-lgpio - GPIO interface (Pi 4 and Pi 5 compatible, drop-in replacement for RPi.GPIO)
+- Pillow - Image manipulation
+- piexif - EXIF metadata handling
+- psutil - System monitoring
+- smbus2 - I2C communication
+- adafruit-circuitpython-ina260 - Power monitoring
+- numpy - Numerical computing
+- python-crontab - Cron job management
+- schedule - Task scheduling
+
+**Note on GPIO Library:** Mothbox uses `rpi-lgpio` instead of the older `RPi.GPIO` library. This provides full compatibility with both Raspberry Pi 4 and Pi 5, as Pi 5 uses a new GPIO architecture (RP1 chip) that requires the modern `lgpio` backend. The `rpi-lgpio` package provides the exact same API as `RPi.GPIO`, so all existing code works without modification.
+
+### Raspberry Pi Model Detection and Firmware Selection
+
+The installation script automatically detects your Pi model:
+- Reads `/proc/cpuinfo` to identify Pi 4 or Pi 5
+- Recommends appropriate firmware version (4.x or 5.x)
+- **Allows you to choose firmware version interactively**
+- Copies correct configuration files
+- Optimizes camera settings for your hardware
+
+**Choosing Firmware Version:**
+
+Both firmware versions (4.x and 5.x) work on both Pi 4 and Pi 5. The difference is in GPIO pin mappings for relay control:
+
+- **4.x firmware:** Uses GPIO pins 26/20/21 for relays (legacy hardware)
+- **5.x firmware:** Uses GPIO pins 5/19/9 for relays (current hardware)
+
+During installation, you'll see:
+```
+Detected: Raspberry Pi 5
+Recommended firmware: 5.x
+
+Firmware versions use different GPIO pin mappings:
+  4.x firmware: Relay pins 26/20/21 (legacy)
+  5.x firmware: Relay pins 5/19/9 (current hardware)
+
+Select firmware version:
+  1) 4.x firmware
+  2) 5.x firmware
+
+Choice [2]:
+```
+
+Choose based on your actual hardware configuration, not just your Pi model.
+
+### Camera Configuration
+
+The installation script automatically configures camera support:
+
+**Arducam OwlSight 64MP (OV64A40 sensor):**
+- Enables I2C interface (required for camera communication)
+- Adds `dtoverlay=ov64a40,cam1` to `/boot/firmware/config.txt`
+- Configured for CAM1 port (closer to USB-C power port)
+- Supports full 64MP resolution (9248x6944) plus multiple video modes
+
+**Camera Ports:**
+- **CAM1** (default) - Closer to USB-C power port, used by OwlSight
+- **CAM0** - Further from USB-C power port
+
+**Alternative Cameras:**
+If using a different camera model, manually edit `/boot/firmware/config.txt`:
+- Pi Camera Module 3: `dtoverlay=imx708`
+- Pi Camera Module 2: `dtoverlay=imx219`
+- Pi HQ Camera: `dtoverlay=imx477`
+
+**Testing Camera:**
+```bash
+# List available cameras
+rpicam-hello --list-cameras
+
+# Test camera capture (5 second preview)
+rpicam-hello --timeout 5000
+```
+
+### Path Detection Logic
+
+The firmware automatically detects installation type in this order:
+
+1. **Environment Variable:** If `MOTHBOX_HOME` is set, use custom paths
+2. **Production Check:** If `/opt/mothbox` exists, use FHS layout
+3. **Legacy Fallback:** Otherwise use `/home/pi/Desktop/Mothbox`
+
+### Backward Compatibility
+
+All existing scripts continue to work without modification. The path detection is transparent to the end user.
+
+### Upgrading
+
+When upgrading firmware:
+
+1. Pull latest changes
+2. Re-run installation script
+3. Review any new configuration options
+4. Restart scheduled tasks if needed
+
+## Uninstallation
+
+The `uninstall_mothbox.sh` script safely removes Mothbox with options to preserve your data.
+
+### Running Uninstallation
+
+```bash
+cd /home/Mothbox/Firmware  # Or your installation directory
+chmod +x uninstall_mothbox.sh
+./uninstall_mothbox.sh
+```
+
+### Uninstallation Features
+
+- **Auto-detection**: Automatically finds your installation (legacy/production/custom)
+- **Configuration backup**: Option to backup config files before removal
+- **Photo preservation**: Option to keep your photos directory
+- **Crontab cleanup**: Guided removal of Mothbox cron jobs
+- **Safety confirmations**: Requires typing "yes" to confirm deletion
+
+### What Gets Removed
+
+- Application files (`/opt/mothbox` or `/home/pi/Desktop/Mothbox`)
+- Configuration files (`/etc/mothbox` for production installations)
+- Data directory (`/var/lib/mothbox` for production installations)
+- Optionally: crontab entries (with your confirmation)
+
+### What Gets Preserved
+
+- **System packages** (python3, git, i2c-tools) - may be used by other software
+- **Python packages** (picamera2, opencv-python, etc.) - may be used by other projects
+- **Photos** (if you choose to preserve them during uninstallation)
+- **Configuration backup** (if you choose to create one)
+
+### Example Uninstallation
+
+```bash
+$ ./uninstall_mothbox.sh
+
+Detected Installation:
+  Type: production
+  Location: /opt/mothbox
+  Configuration: /etc/mothbox
+  Data: /var/lib/mothbox
+
+Do you want to backup configuration files before uninstalling? (y/N) y
+✓ Configuration backed up to: /home/pi/mothbox_backup_20251007_120000
+
+Do you want to preserve the photos directory? (Y/n) y
+
+WARNING: The following will be PERMANENTLY DELETED:
+  ✗ /opt/mothbox (application files)
+  ✗ /etc/mothbox (configuration)
+  ✗ /var/lib/mothbox (data directory structure, photos preserved)
+
+Type 'yes' to confirm uninstallation: yes
+
+✓ Photos preserved in: /home/pi/mothbox_photos
+```
+
+## Best Practices
+
+1. **Use production layout** for new installations
+2. **Backup configs** before major changes
+3. **Test scripts manually** before adding to cron
+4. **Keep firmware updated** via git pull
+5. **Document customizations** in a local README
+
+## See Also
+
+- Main project README
+- Hardware setup guide
+- Camera configuration guide
+- Scheduling documentation
