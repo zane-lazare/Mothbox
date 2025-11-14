@@ -1,26 +1,59 @@
 import { useState, useCallback } from 'react'
 
 /**
- * Custom hook for managing zoom and pan state for image viewer
+ * Custom hook for managing zoom and pan state in the photo lightbox.
  *
- * @param {Object} config - Configuration object
- * @param {number} config.minZoom - Minimum zoom level (default: 1.0)
- * @param {number} config.maxZoom - Maximum zoom level (default: 5.0)
- * @param {number} config.zoomStep - Zoom increment/decrement step (default: 0.5)
- * @param {number} config.imageWidth - Natural width of the image
- * @param {number} config.imageHeight - Natural height of the image
- * @param {number} config.containerWidth - Width of the container element
- * @param {number} config.containerHeight - Height of the container element
+ * Handles desktop interactions (mouse wheel zoom, click-drag pan) with
+ * boundary constraints to prevent over-panning. Automatically resets pan
+ * when zoom returns to 1.0.
  *
- * @returns {Object} Zoom and pan controls
- * @returns {number} zoom - Current zoom level
- * @returns {Object} pan - Current pan position {x, y}
- * @returns {Function} setZoom - Set zoom level (clamped to min/max)
- * @returns {Function} setPan - Set pan position (constrained to boundaries)
- * @returns {Function} handleZoomIn - Increment zoom by zoomStep
- * @returns {Function} handleZoomOut - Decrement zoom by zoomStep
- * @returns {Function} handleWheel - Handle wheel events for zoom
- * @returns {Function} resetZoom - Reset zoom to 1.0 and pan to {0, 0}
+ * @hook
+ * @param {Object} config - Hook configuration
+ * @param {number} config.minZoom - Minimum zoom level (e.g., 1.0 = 100%)
+ * @param {number} config.maxZoom - Maximum zoom level (e.g., 5.0 = 500%)
+ * @param {number} config.zoomStep - Zoom increment/decrement per step (e.g., 0.5 = 50%)
+ * @param {number} config.imageWidth - Natural width of the image in pixels
+ * @param {number} config.imageHeight - Natural height of the image in pixels
+ * @param {number} config.containerWidth - Container width in pixels
+ * @param {number} config.containerHeight - Container height in pixels
+ *
+ * @returns {Object} Zoom and pan state and handlers
+ * @returns {number} returns.zoom - Current zoom level (1.0 = 100%, 2.0 = 200%, etc.)
+ * @returns {Object} returns.pan - Current pan offset {x, y} in pixels
+ * @returns {Function} returns.setZoom - Set zoom level (automatically clamped to min/max)
+ * @returns {Function} returns.setPan - Set pan offset (automatically constrained to boundaries)
+ * @returns {Function} returns.handleZoomIn - Increment zoom by zoomStep
+ * @returns {Function} returns.handleZoomOut - Decrement zoom by zoomStep
+ * @returns {Function} returns.handleWheel - Wheel event handler for cursor-relative zoom
+ * @returns {Function} returns.resetZoom - Reset to 1.0x zoom and {0, 0} pan
+ *
+ * @example
+ * const { zoom, pan, handleZoomIn, handleWheel } = useZoomPan({
+ *   minZoom: 1.0,
+ *   maxZoom: 5.0,
+ *   zoomStep: 0.5,
+ *   imageWidth: 1920,
+ *   imageHeight: 1080,
+ *   containerWidth: 1280,
+ *   containerHeight: 720,
+ * })
+ *
+ * // Apply to image element
+ * <img
+ *   style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
+ *   onWheel={handleWheel}
+ * />
+ *
+ * @algorithm Pan Boundary Calculation
+ * - Scaled dimensions = natural dimensions × zoom
+ * - Max pan offset = (scaled dimension - container dimension) / 2
+ * - Constrained pan = clamp(pan, -maxOffset, maxOffset)
+ *
+ * @algorithm Cursor-Relative Zoom (handleWheel)
+ * 1. Get cursor position relative to image center (-0.5 to 0.5)
+ * 2. Calculate zoom delta from wheel direction
+ * 3. Adjust pan to keep cursor position stable: pan' = pan - cursor × delta × imageSize
+ * 4. Apply boundary constraints to final pan
  */
 function useZoomPan({
   minZoom = 1.0,

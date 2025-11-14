@@ -799,8 +799,10 @@ describe('PhotoLightbox - Desktop Zoom & Pan Interaction', () => {
     await user.click(zoomInButton)
 
     // Zoom indicator should appear (e.g., "150%" or "1.5x")
+    // Note: getAllByText because zoom appears in both visual indicator and screen reader announcement
     await waitFor(() => {
-      expect(screen.getByText(/150|1\.5/i)).toBeInTheDocument()
+      const zoomIndicators = screen.getAllByText(/150|1\.5/i)
+      expect(zoomIndicators.length).toBeGreaterThan(0)
     })
   })
 
@@ -848,8 +850,10 @@ describe('PhotoLightbox - Desktop Zoom & Pan Interaction', () => {
     await user.click(resetButton)
 
     // Should show 100% or 1x zoom
+    // Note: getAllByText because zoom appears in both visual indicator and screen reader announcement
     await waitFor(() => {
-      expect(screen.getByText(/100|1\.0|1x/i)).toBeInTheDocument()
+      const zoomIndicators = screen.getAllByText(/100|1\.0|1x/i)
+      expect(zoomIndicators.length).toBeGreaterThan(0)
     })
   })
 
@@ -960,8 +964,8 @@ describe('PhotoLightbox - Desktop Zoom & Pan Interaction', () => {
     // Transform should include pan values
     await waitFor(() => {
       const transform = window.getComputedStyle(image).transform
-      // Should have non-zero translate values
-      expect(transform).toMatch(/translate\(.+px,\s*.+px\)/)
+      // Should have non-zero translate values (translate3d for GPU acceleration)
+      expect(transform).toMatch(/translate3d\(.+px,\s*.+px,\s*.+\)/)
     })
   })
 
@@ -1195,8 +1199,8 @@ describe('PhotoLightbox - Touch Gesture Interaction', () => {
 
     await waitFor(() => {
       const transform = window.getComputedStyle(image).transform
-      // Should have translate values
-      expect(transform).toMatch(/translate\(.+px,\s*.+px\)/)
+      // Should have translate values (translate3d for GPU acceleration)
+      expect(transform).toMatch(/translate3d\(.+px,\s*.+px,\s*.+\)/)
     })
   })
 

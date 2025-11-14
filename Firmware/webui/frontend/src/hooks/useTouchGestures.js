@@ -1,31 +1,74 @@
 import { useState, useCallback, useRef } from 'react'
 
 /**
- * Custom hook for handling touch gestures on mobile devices
+ * Custom hook for managing touch gestures in the photo lightbox.
  *
- * Provides:
- * - Pinch-to-zoom (two-finger zoom)
- * - Swipe navigation (left/right)
- * - Double-tap zoom toggle
- * - Touch pan when zoomed
+ * Handles mobile interactions: pinch-to-zoom, touch pan, swipe navigation,
+ * and double-tap zoom toggle. All gestures include proper boundary constraints
+ * and conflict prevention (e.g., swipe disabled when zoomed).
  *
- * @param {Object} config - Configuration object
- * @param {React.RefObject} config.imageRef - Reference to the image element
- * @param {number} config.zoom - Current zoom level
- * @param {Function} config.setZoom - Function to update zoom level
- * @param {Object} config.pan - Current pan position {x, y}
- * @param {Function} config.setPan - Function to update pan position
- * @param {Function} config.onNavigate - Callback for swipe navigation (receives 'prev' or 'next')
- * @param {boolean} config.isZoomed - Whether currently zoomed (zoom > 1.0)
- * @param {number} config.imageWidth - Natural width of the image
- * @param {number} config.imageHeight - Natural height of the image
- * @param {number} config.containerWidth - Width of the container
- * @param {number} config.containerHeight - Height of the container
+ * @hook
+ * @param {Object} config - Hook configuration
+ * @param {React.RefObject} config.imageRef - Reference to image element for bounds calculation
+ * @param {number} config.zoom - Current zoom level (from useZoomPan)
+ * @param {Function} config.setZoom - Zoom setter (from useZoomPan)
+ * @param {Object} config.pan - Current pan offset {x, y} (from useZoomPan)
+ * @param {Function} config.setPan - Pan setter (from useZoomPan)
+ * @param {Function} config.onNavigate - Navigation callback: (direction: 'prev' | 'next') => void
+ * @param {boolean} config.isZoomed - True if zoom > 1.0 (disables swipe navigation)
+ * @param {number} config.imageWidth - Natural image width in pixels
+ * @param {number} config.imageHeight - Natural image height in pixels
+ * @param {number} config.containerWidth - Container width in pixels
+ * @param {number} config.containerHeight - Container height in pixels
  *
  * @returns {Object} Touch event handlers
- * @returns {Function} handleTouchStart - Touch start event handler
- * @returns {Function} handleTouchMove - Touch move event handler
- * @returns {Function} handleTouchEnd - Touch end event handler
+ * @returns {Function} returns.handleTouchStart - Touch start event handler
+ * @returns {Function} returns.handleTouchMove - Touch move event handler
+ * @returns {Function} returns.handleTouchEnd - Touch end event handler
+ *
+ * @example
+ * const { handleTouchStart, handleTouchMove, handleTouchEnd } = useTouchGestures({
+ *   imageRef,
+ *   zoom,
+ *   setZoom,
+ *   pan,
+ *   setPan,
+ *   onNavigate: (direction) => console.log('Navigate:', direction),
+ *   isZoomed: zoom > 1.0,
+ *   imageWidth: 1920,
+ *   imageHeight: 1080,
+ *   containerWidth: 1280,
+ *   containerHeight: 720,
+ * })
+ *
+ * <img
+ *   onTouchStart={handleTouchStart}
+ *   onTouchMove={handleTouchMove}
+ *   onTouchEnd={handleTouchEnd}
+ * />
+ *
+ * @gestures
+ * - Pinch-to-zoom: Two-finger pinch in/out (1.0x - 5.0x)
+ * - Touch pan: Single-finger drag when zoomed (boundary-constrained)
+ * - Swipe navigation: Horizontal swipe left/right (≥50px, ≥0.3px/ms velocity)
+ * - Double-tap: Two taps within 300ms (toggles 1.0x ↔ 2.5x zoom)
+ *
+ * @algorithm Pinch Distance
+ * - Distance = √((x2-x1)² + (y2-y1)²)
+ * - Scale = currentDistance / initialDistance
+ * - newZoom = clamp(initialZoom × scale, minZoom, maxZoom)
+ *
+ * @algorithm Swipe Detection
+ * 1. Horizontal movement > vertical movement
+ * 2. Distance ≥ 50px
+ * 3. Velocity ≥ 0.3px/ms
+ * 4. Only when NOT zoomed (isZoomed = false)
+ *
+ * @algorithm Double-Tap
+ * 1. Tap 1: Record timestamp
+ * 2. Tap 2: If within 300ms of tap 1, trigger zoom
+ * 3. Zoom out if currently zoomed, zoom to 2.5x if at 1.0x
+ * 4. Zoom centers on tap position
  */
 function useTouchGestures({
   imageRef,

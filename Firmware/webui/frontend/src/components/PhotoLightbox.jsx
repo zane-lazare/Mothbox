@@ -6,15 +6,47 @@ import useTouchGestures from '../hooks/useTouchGestures'
 import { debounce } from '../utils/performance'
 
 /**
- * PhotoLightbox Component
+ * Adaptive Photo Lightbox Component
  *
- * Full-screen photo viewer with zoom, pan, and navigation capabilities.
+ * Full-screen modal lightbox with zoom, pan, and touch gesture support.
+ * Supports both desktop (mouse/keyboard) and mobile (touch) interactions.
  *
- * @param {Object} props
- * @param {Object|null} props.photo - Photo object to display (null = closed)
- * @param {Array} props.photos - Full array of photos for navigation
+ * @component
+ * @param {Object} props - Component props
+ * @param {Object|null} props.photo - Current photo to display {path, filename, date, size, ...}
+ * @param {Array<Object>} props.photos - Array of all photos for navigation
  * @param {Function} props.onClose - Callback when lightbox closes
- * @param {Function} props.onNavigate - Callback when navigating to different photo
+ * @param {Function} props.onNavigate - Callback when navigating to different photo (photo) => void
+ *
+ * @example
+ * <PhotoLightbox
+ *   photo={selectedPhoto}
+ *   photos={allPhotos}
+ *   onClose={() => setSelectedPhoto(null)}
+ *   onNavigate={setSelectedPhoto}
+ * />
+ *
+ * @features
+ * - Desktop: Mouse wheel zoom, click-drag pan, keyboard navigation (arrows, +/-, ESC)
+ * - Mobile: Pinch-to-zoom, touch pan, swipe navigation, double-tap zoom toggle
+ * - Accessibility: WCAG 2.1 AA compliant, screen reader support, focus trap
+ * - Performance: GPU-accelerated transforms (translate3d), progressive image loading
+ * - Visual feedback: Loading spinner, error messages, zoom indicator
+ *
+ * @accessibility
+ * - Full keyboard navigation support
+ * - Focus trap when open (tab cycles through controls)
+ * - ARIA labels and live regions for screen readers
+ * - Zoom level announcements
+ * - 44px minimum touch targets (WCAG AAA)
+ *
+ * @performance
+ * - GPU-accelerated CSS transforms (60 FPS target)
+ * - Debounced resize handlers (300ms)
+ * - Progressive image preloading (adjacent images)
+ * - Efficient event listeners with cleanup
+ *
+ * @see https://github.com/Digital-Naturalism-Laboratories/Mothbox/issues/101
  */
 function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   const closeButtonRef = useRef(null)
@@ -26,6 +58,10 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   // Image and container dimensions
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 })
   const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 })
+
+  // Loading and error states
+  const [isImageLoading, setIsImageLoading] = useState(true)
+  const [imageError, setImageError] = useState(false)
 
   // Panning state
   const [isPanning, setIsPanning] = useState(false)
@@ -51,13 +87,23 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   useEffect(() => {
     if (!imageRef.current) return
 
+    // Reset states when photo changes
+    setIsImageLoading(true)
+    setImageError(false)
+
     const handleImageLoad = () => {
       if (imageRef.current) {
         setImageDimensions({
           width: imageRef.current.naturalWidth,
           height: imageRef.current.naturalHeight,
         })
+        setIsImageLoading(false)
       }
+    }
+
+    const handleImageError = () => {
+      setImageError(true)
+      setIsImageLoading(false)
     }
 
     // If image already loaded
@@ -65,11 +111,13 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
       handleImageLoad()
     } else {
       imageRef.current.addEventListener('load', handleImageLoad)
+      imageRef.current.addEventListener('error', handleImageError)
     }
 
     return () => {
       if (imageRef.current) {
         imageRef.current.removeEventListener('load', handleImageLoad)
+        imageRef.current.removeEventListener('error', handleImageError)
       }
     }
   }, [photo])
@@ -512,6 +560,40 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
         className="flex h-full w-full items-center justify-center p-4"
         onClick={handleImageClick}
       >
+        {/* Loading spinner */}
+        {isImageLoading && !imageError && (
+          <div
+            className="absolute inset-0 flex items-center justify-center"
+            role="status"
+            aria-label="Loading image"
+          >
+            <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-white"></div>
+          </div>
+        )}
+
+        {/* Error message */}
+        {imageError && (
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center text-white"
+            role="alert"
+          >
+            <svg
+              className="mb-4 h-16 w-16 text-red-400"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p className="text-lg font-semibold">Failed to load image</p>
+            <p className="text-sm text-gray-300 mt-2">{photo.filename}</p>
+          </div>
+        )}
+
+        {/* Image */}
         <img
           ref={imageRef}
           src={`/api/gallery/photo/${photo.path}`}
@@ -523,6 +605,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
             transition: isPanning ? 'none' : 'transform 0.1s ease-out',
             touchAction: zoom > 1.0 ? 'none' : 'pan-y', // Prevent browser gestures when zoomed
             willChange: zoom > 1.0 ? 'transform' : 'auto', // GPU acceleration hint when zoomed
+            opacity: isImageLoading || imageError ? 0 : 1, // Hide image while loading or on error
           }}
           onWheel={handleWheel}
           onMouseDown={handleMouseDown}

@@ -1,16 +1,42 @@
 import { useEffect, useState } from 'react'
 
 /**
- * useImagePreload Hook
+ * Custom hook for progressive image preloading in the photo lightbox.
  *
- * Preloads adjacent images for smoother navigation in the photo lightbox.
- * Loads current image first, then preloads previous and next images in background.
+ * Preloads the current image first (priority), then preloads adjacent images
+ * (previous and next) in the background for smooth navigation. Uses native
+ * Image() API for efficient browser caching.
  *
- * @param {Object} params
- * @param {Object} params.currentPhoto - Current photo object
- * @param {Array} params.photos - Full array of photos
- * @param {number} params.currentIndex - Index of current photo
- * @returns {Object} { currentImage, isLoading }
+ * @hook
+ * @param {Object} config - Hook configuration
+ * @param {Object} config.currentPhoto - Current photo object {path, filename, ...}
+ * @param {Array<Object>} config.photos - Array of all photos
+ * @param {number} config.currentIndex - Current photo index in photos array
+ *
+ * @returns {Object} Preload state
+ * @returns {string|null} returns.currentImage - Current image URL (null while loading)
+ * @returns {boolean} returns.isLoading - True while current image loading
+ *
+ * @example
+ * const { currentImage, isLoading } = useImagePreload({
+ *   currentPhoto: photos[5],
+ *   photos,
+ *   currentIndex: 5,
+ * })
+ *
+ * {isLoading && <Spinner />}
+ * {currentImage && <img src={currentImage} />}
+ *
+ * @strategy Preload Priority
+ * 1. Current image: Loads first, updates isLoading state
+ * 2. Next image: Preloads in background after current loads
+ * 3. Previous image: Preloads in background after current loads
+ *
+ * @performance
+ * - Uses browser's native image cache
+ * - Non-blocking background preloading
+ * - Automatic cleanup on unmount
+ * - Restarts preload sequence when currentPhoto changes
  */
 function useImagePreload({ currentPhoto, photos, currentIndex }) {
   const [isLoading, setIsLoading] = useState(true)
