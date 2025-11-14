@@ -88,17 +88,24 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
         const img = new Image()
         images.push(img)
         img.onload = () => {
-          // Image preloaded successfully
+          if (import.meta.env.DEV) {
+            console.debug(`[ImagePreload] Preloaded ${item.priority} image:`, item.url)
+          }
         }
-        img.onerror = () => {
-          // Image preload failed
+        img.onerror = (e) => {
+          if (import.meta.env.DEV) {
+            console.warn(`[ImagePreload] Failed to preload ${item.priority} image:`, item.url, e)
+          }
         }
         img.src = item.url
       })
     }
 
-    currentImg.onerror = () => {
+    currentImg.onerror = (e) => {
       setIsLoading(false)
+      if (import.meta.env.DEV) {
+        console.error('[ImagePreload] Failed to load current image:', currentUrl, e)
+      }
     }
 
     currentImg.src = currentUrl
