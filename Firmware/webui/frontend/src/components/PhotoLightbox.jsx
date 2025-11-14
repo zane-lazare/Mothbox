@@ -314,6 +314,9 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
         'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       )
 
+      // Early return if no focusable elements found
+      if (focusableElements.length === 0) return
+
       const firstElement = focusableElements[0]
       const lastElement = focusableElements[focusableElements.length - 1]
 
