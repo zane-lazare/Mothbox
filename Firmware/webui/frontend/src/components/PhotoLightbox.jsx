@@ -655,7 +655,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
         <img
           ref={imageRef}
           src={getPhotoUrl(photo.path)}
-          alt={photo.filename}
+          alt={`Photo taken on ${formatDate(photo.date)}`}
           className="max-h-full max-w-full object-contain select-none"
           style={{
             transform: imageTransform,
