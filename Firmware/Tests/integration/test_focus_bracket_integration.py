@@ -85,22 +85,34 @@ AnalogueGain,2.0,ISO 200
     }
 
 
-@pytest.fixture
-def mock_camera_hardware(monkeypatch):
+@pytest.fixture(scope="module", autouse=True)
+def mock_hardware_dependencies():
     """
-    Mock camera hardware (Picamera2, GPIO, cv2) for integration tests
+    Mock hardware dependencies for focus bracket integration tests.
 
-    Returns comprehensive mocks that track all interactions
+    This fixture ensures hardware modules are mocked at module scope with proper
+    cleanup to prevent sys.modules pollution across test files.
+
+    IMPORTANT: Never mock at module level! Module-level mocking pollutes sys.modules
+    across test files and breaks tests that need real modules.
     """
-    # Mock cv2 (opencv) which is imported by capture_focus_bracket
+    # Save original state
+    original_modules = {}
+    modules_to_mock = ['cv2', 'exif', 'PIL', 'PIL.Image', 'PIL.ExifTags', 'libcamera',
+                       'libcamera.controls', 'picamera2', 'picamera2.Picamera2',
+                       'picamera2.Preview', 'RPi', 'RPi.GPIO']
+
+    for module_name in modules_to_mock:
+        if module_name in sys.modules:
+            original_modules[module_name] = sys.modules[module_name]
+
+    # Create mocks
     mock_cv2 = MagicMock()
     sys.modules['cv2'] = mock_cv2
 
-    # Mock exif module
     mock_exif = MagicMock()
     sys.modules['exif'] = mock_exif
 
-    # Mock PIL/Pillow
     mock_pil = MagicMock()
     mock_pil_image = MagicMock()
     mock_pil.ExifTags = {}
@@ -108,16 +120,43 @@ def mock_camera_hardware(monkeypatch):
     sys.modules['PIL.Image'] = mock_pil_image
     sys.modules['PIL.ExifTags'] = mock_pil.ExifTags
 
-    # Mock libcamera
     mock_libcamera = MagicMock()
     mock_libcamera.controls = MagicMock()
     sys.modules['libcamera'] = mock_libcamera
+    sys.modules['libcamera.controls'] = mock_libcamera.controls
 
-    # Mock picamera2
     mock_picamera2_module = MagicMock()
     sys.modules['picamera2'] = mock_picamera2_module
     sys.modules['picamera2.Picamera2'] = mock_picamera2_module.Picamera2
     sys.modules['picamera2.Preview'] = mock_picamera2_module.Preview
+
+    # Mock RPi.GPIO
+    sys.modules['RPi'] = type(sys)('RPi')
+    sys.modules['RPi.GPIO'] = MagicMock()
+
+    yield
+
+    # Restore original state
+    for module_name in modules_to_mock:
+        if module_name in original_modules:
+            sys.modules[module_name] = original_modules[module_name]
+        elif module_name in sys.modules:
+            del sys.modules[module_name]
+
+
+@pytest.fixture
+def mock_camera_hardware(monkeypatch):
+    """
+    Mock camera hardware (Picamera2, GPIO, cv2) for integration tests
+
+    Returns comprehensive mocks that track all interactions
+
+    Note: This fixture provides test-specific mock instances while the module-level
+    fixture handles sys.modules setup.
+    """
+    # Get the already-mocked modules from sys.modules (set by module fixture)
+    mock_cv2 = sys.modules.get('cv2', MagicMock())
+    mock_exif = sys.modules.get('exif', MagicMock())
 
     # Mock Picamera2
     class MockRequest:
@@ -193,8 +232,8 @@ def mock_camera_hardware(monkeypatch):
         def reset(cls):
             cls.outputs.clear()
 
-    # Inject into sys.modules
-    sys.modules['RPi'] = type(sys)('RPi')
+    # Update sys.modules['RPi.GPIO'] with our test-specific mock
+    # (RPi and RPi.GPIO already mocked by module fixture)
     sys.modules['RPi.GPIO'] = MockGPIO
 
     # Mock time.sleep to speed up tests
@@ -213,30 +252,8 @@ def mock_camera_hardware(monkeypatch):
         'sleep_calls': sleep_calls
     }
 
-    # Cleanup
+    # Cleanup test-specific state only (module fixture handles sys.modules)
     MockGPIO.reset()
-    if 'RPi.GPIO' in sys.modules:
-        del sys.modules['RPi.GPIO']
-    if 'RPi' in sys.modules:
-        del sys.modules['RPi']
-    if 'cv2' in sys.modules:
-        del sys.modules['cv2']
-    if 'exif' in sys.modules:
-        del sys.modules['exif']
-    if 'PIL' in sys.modules:
-        del sys.modules['PIL']
-    if 'PIL.Image' in sys.modules:
-        del sys.modules['PIL.Image']
-    if 'PIL.ExifTags' in sys.modules:
-        del sys.modules['PIL.ExifTags']
-    if 'libcamera' in sys.modules:
-        del sys.modules['libcamera']
-    if 'picamera2' in sys.modules:
-        del sys.modules['picamera2']
-    if 'picamera2.Picamera2' in sys.modules:
-        del sys.modules['picamera2.Picamera2']
-    if 'picamera2.Preview' in sys.modules:
-        del sys.modules['picamera2.Preview']
 
 
 @pytest.fixture

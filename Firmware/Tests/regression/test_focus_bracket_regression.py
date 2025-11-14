@@ -24,22 +24,41 @@ import os as os_module  # Import os module for use in tests
 from pathlib import Path
 from unittest.mock import MagicMock
 
-# Mock hardware dependencies before importing capture_focus_bracket
-sys.modules['cv2'] = MagicMock()
-sys.modules['picamera2'] = MagicMock()
-sys.modules['picamera2.picamera2'] = MagicMock()
-sys.modules['RPi'] = MagicMock()
-sys.modules['RPi.GPIO'] = MagicMock()
-sys.modules['PIL'] = MagicMock()
-sys.modules['PIL.Image'] = MagicMock()
-sys.modules['exif'] = MagicMock()
-sys.modules['libcamera'] = MagicMock()
-sys.modules['libcamera.controls'] = MagicMock()
-
 # Add webui backend to path
 FIRMWARE_DIR = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(FIRMWARE_DIR / "webui" / "backend"))
 sys.path.insert(0, str(FIRMWARE_DIR / "webui" / "backend" / "scripts"))
+
+
+@pytest.fixture(scope="module", autouse=True)
+def mock_hardware_dependencies():
+    """
+    Mock hardware dependencies for focus bracket regression tests.
+
+    This fixture ensures hardware modules are mocked at module scope with proper
+    cleanup to prevent sys.modules pollution across test files.
+
+    IMPORTANT: Never mock at module level! Module-level mocking pollutes sys.modules
+    across test files and breaks tests that need real modules.
+    """
+    # Save original state
+    original_modules = {}
+    modules_to_mock = ['cv2', 'picamera2', 'picamera2.picamera2', 'RPi', 'RPi.GPIO',
+                       'PIL', 'PIL.Image', 'exif', 'libcamera', 'libcamera.controls']
+
+    for module_name in modules_to_mock:
+        if module_name in sys.modules:
+            original_modules[module_name] = sys.modules[module_name]
+        sys.modules[module_name] = MagicMock()
+
+    yield
+
+    # Restore original state
+    for module_name in modules_to_mock:
+        if module_name in original_modules:
+            sys.modules[module_name] = original_modules[module_name]
+        elif module_name in sys.modules:
+            del sys.modules[module_name]
 
 
 class TestHistoricalBugs:

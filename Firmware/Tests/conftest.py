@@ -2423,8 +2423,47 @@ def clear_gps_cache(request):
 @pytest.fixture(autouse=True)
 def reset_pil_imports(request):
     """
-    Reset PIL module imports after each test to prevent mock pollution (Issue #143).
+    Reset PIL module imports after each test to prevent mock pollution (Issue #143, #100).
 
+    ANTI-PATTERN WARNING: Module-level sys.modules mocking is FORBIDDEN!
+    =====================================================================
+
+    NEVER do this at module level in test files:
+        # BAD - Pollutes sys.modules across all test files!
+        import sys
+        from unittest.mock import MagicMock
+        sys.modules['PIL'] = MagicMock()  # WRONG!
+
+    ALWAYS use module-scoped fixtures with proper cleanup:
+        # GOOD - Isolated mocking with cleanup
+        @pytest.fixture(scope="module", autouse=True)
+        def mock_hardware_dependencies():
+            original_modules = {}
+            modules_to_mock = ['PIL', 'PIL.Image', 'cv2', 'RPi.GPIO']
+
+            for module_name in modules_to_mock:
+                if module_name in sys.modules:
+                    original_modules[module_name] = sys.modules[module_name]
+                sys.modules[module_name] = MagicMock()
+
+            yield  # Tests run here
+
+            # Restore original state
+            for module_name in modules_to_mock:
+                if module_name in original_modules:
+                    sys.modules[module_name] = original_modules[module_name]
+                elif module_name in sys.modules:
+                    del sys.modules[module_name]
+
+    WHY THIS MATTERS:
+    - Module-level mocking persists across test files (pytest doesn't reset sys.modules)
+    - Tests that need real PIL/hardware modules will break with mocked versions
+    - Leads to confusing test failures and defensive workarounds throughout codebase
+    - The global reset_pil_imports() fixture below is a SAFETY NET, not a substitute
+      for proper fixture-based mocking
+
+    HISTORICAL CONTEXT:
+    This fixture was created to handle PIL mock pollution from gallery tests.
     Some tests (test_gallery_routes.py) use patch.dict(sys.modules, {'PIL': ...})
     to mock PIL for testing. However, when patch.dict() exits its context, it
     doesn't fully restore PIL submodules that were already imported (like PIL.Image).
@@ -2437,10 +2476,10 @@ def reset_pil_imports(request):
 
     EXCEPTION: Metadata tests (test_metadata_service.py, test_metadata_routes.py) are excluded
     from PIL reset because they use module-scoped fixtures that need real PIL for photo creation.
-    These tests capture a reference to real PIL.Image at module level (_REAL_PIL_IMAGE) to avoid
-    pollution from gallery test mocking.
 
-    See: https://github.com/zane-lazare/Mothbox/pull/143
+    See:
+    - https://github.com/zane-lazare/Mothbox/pull/143 (original PIL pollution fix)
+    - Issue #100 (comprehensive test pollution elimination)
     """
     yield
 

@@ -30,65 +30,12 @@ try:
 except ImportError:
     pass  # JPEG support may not be available in all environments
 
-# Function to get real PIL.Image, bypassing any mocking from gallery tests
-def _get_real_pil_image():
-    """
-    Get real PIL.Image module, bypassing any mocking from gallery tests.
-
-    This prevents gallery test PIL mocking from polluting metadata fixtures.
-    We use __import__ to bypass sys.modules caching and ensure we get the real PIL.
-    """
-    import sys
-    from unittest.mock import MagicMock
-
-    # Check if PIL.Image in sys.modules is a MagicMock (from gallery tests)
-    if 'PIL.Image' in sys.modules:
-        pil_image = sys.modules['PIL.Image']
-        # If it's a MagicMock, remove it and force fresh import
-        if isinstance(pil_image, MagicMock) or hasattr(pil_image, '_mock_name'):
-            del sys.modules['PIL.Image']
-            if 'PIL' in sys.modules and isinstance(sys.modules['PIL'], MagicMock):
-                del sys.modules['PIL']
-
-    # Import fresh PIL
-    from PIL import Image
-    return Image
 
 
 # ============================================================================
 # Fixtures
 # ============================================================================
 
-@pytest.fixture(scope="module", autouse=True)
-def cleanup_pil_mocks():
-    """
-    Clear any PIL.Image mocks from sys.modules before metadata tests.
-
-    Gallery tests may mock PIL.Image at module level, which can persist
-    in sys.modules and pollute metadata tests. This fixture ensures we
-    start with a clean slate.
-
-    Autouse ensures it runs before any tests in this module.
-    """
-    import sys
-    from unittest.mock import MagicMock
-
-    # Remove mock pollution from sys.modules
-    pil_modules = ['PIL.Image', 'PIL', 'PIL.ImageDraw', 'PIL.ImageFont', 'PIL.JpegImagePlugin']
-    for module_name in pil_modules:
-        if module_name in sys.modules:
-            module = sys.modules[module_name]
-            if isinstance(module, MagicMock):
-                del sys.modules[module_name]
-
-    yield
-
-    # Cleanup after tests too (prevent pollution of subsequent test modules)
-    for module_name in pil_modules:
-        if module_name in sys.modules:
-            module = sys.modules[module_name]
-            if isinstance(module, MagicMock):
-                del sys.modules[module_name]
 
 @pytest.fixture(scope="module")
 def temp_photos_dir(tmp_path_factory):
@@ -120,7 +67,7 @@ def sample_photo_with_exif(temp_photos_dir):
         return photo_path
 
     # Create a minimal valid JPEG image
-    img = _get_real_pil_image().new('RGB', (640, 480), color='red')
+    img = Image.new('RGB', (640, 480), color='red')
 
     # Build comprehensive EXIF data
     exif_dict = {
@@ -180,7 +127,7 @@ def sample_photo_no_exif(temp_photos_dir):
         return photo_path
 
     # Create minimal JPEG without EXIF
-    img = _get_real_pil_image().new('RGB', (320, 240), color='blue')
+    img = Image.new('RGB', (320, 240), color='blue')
     img.save(photo_path, "JPEG")
 
     # Verify file was created
@@ -204,7 +151,7 @@ def sample_hdr_series(temp_photos_dir):
 
         # Skip if already exists
         if not photo_path.exists():
-            img = _get_real_pil_image().new('RGB', (640, 480), color='green')
+            img = Image.new('RGB', (640, 480), color='green')
             img.save(photo_path, "JPEG")
             assert photo_path.exists(), f"Failed to create HDR photo at {photo_path}"
 
@@ -228,7 +175,7 @@ def sample_focus_bracket_series(temp_photos_dir):
 
         # Skip if already exists
         if not photo_path.exists():
-            img = _get_real_pil_image().new('RGB', (640, 480), color='yellow')
+            img = Image.new('RGB', (640, 480), color='yellow')
             img.save(photo_path, "JPEG")
             assert photo_path.exists(), f"Failed to create focus bracket photo at {photo_path}"
 
@@ -493,7 +440,7 @@ class TestBatchParsing:
         photos = []
         for i in range(50):
             photo_path = temp_photos_dir / f"batch_photo_{i}.jpg"
-            img = _get_real_pil_image().new('RGB', (640, 480), color='red')
+            img = Image.new('RGB', (640, 480), color='red')
             img.save(photo_path, "JPEG")
             photos.append(photo_path)
 
@@ -640,7 +587,7 @@ class TestMetadataServiceErrors:
 
         # Create a photo with no read permissions
         restricted_photo = temp_photos_dir / "restricted.jpg"
-        img = _get_real_pil_image().new('RGB', (100, 100))
+        img = Image.new('RGB', (100, 100))
         img.save(restricted_photo, "JPEG")
 
         # Remove read permissions
@@ -699,7 +646,7 @@ class TestPerformanceRequirements:
         photos = []
         for i in range(100):
             photo_path = temp_photos_dir / f"perf_photo_{i}.jpg"
-            img = _get_real_pil_image().new('RGB', (640, 480), color='blue')
+            img = Image.new('RGB', (640, 480), color='blue')
             img.save(photo_path, "JPEG")
             photos.append(photo_path)
 
@@ -727,7 +674,7 @@ class TestAdditionalEdgeCases:
         photo_path = temp_photos_dir / "partial_gps.jpg"
 
         # Create image with incomplete GPS data (no satellites/hdop)
-        img = _get_real_pil_image().new('RGB', (640, 480))
+        img = Image.new('RGB', (640, 480))
         exif_dict = {
             "GPS": {
                 piexif.GPSIFD.GPSLatitudeRef: b"N",
@@ -750,7 +697,7 @@ class TestAdditionalEdgeCases:
         """Test series detection when photo pattern matches but has no siblings"""
         # Create single photo with series pattern
         photo_path = temp_photos_dir / "mothbox_2024_10_15__14_30_00_1.jpg"
-        img = _get_real_pil_image().new('RGB', (100, 100))
+        img = Image.new('RGB', (100, 100))
         img.save(photo_path, "JPEG")
 
         metadata = metadata_service.get_photo_metadata(photo_path)
@@ -765,7 +712,7 @@ class TestAdditionalEdgeCases:
         """Test handling of filenames that don't match Mothbox pattern"""
         # Create photo with non-standard filename
         photo_path = temp_photos_dir / "random_photo.jpg"
-        img = _get_real_pil_image().new('RGB', (100, 100))
+        img = Image.new('RGB', (100, 100))
         img.save(photo_path, "JPEG")
 
         metadata = metadata_service.get_photo_metadata(photo_path)
@@ -778,7 +725,7 @@ class TestAdditionalEdgeCases:
         """Test handling of EXIF rational values with zero denominator"""
         photo_path = temp_photos_dir / "zero_denom.jpg"
 
-        img = _get_real_pil_image().new('RGB', (640, 480))
+        img = Image.new('RGB', (640, 480))
 
         # Create EXIF with zero denominator (invalid but possible in corrupted files)
         exif_dict = {
