@@ -51,7 +51,9 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
 
     setIsLoading(true)
 
-    // Build list of images to preload
+    // Build list of images to preload (max 3: current + next + prev)
+    // Note: Rapid navigation is handled by cleanup - previous effect cancels
+    // pending loads before starting new ones, preventing request queue buildup
     const imagesToPreload = []
 
     // Always load current image first
