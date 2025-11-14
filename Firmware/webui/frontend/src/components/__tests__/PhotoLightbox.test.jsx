@@ -416,3 +416,203 @@ describe('PhotoLightbox - Animation', () => {
     vi.useRealTimers()
   })
 })
+
+describe('PhotoLightbox - Navigation Controls', () => {
+  const mockPhotos = [
+    {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+    },
+    {
+      path: '2024-11-10/photo_002.jpg',
+      filename: 'photo_002.jpg',
+      date: '2024-11-10T18:31:00Z',
+      size: 5500000,
+      timestamp: 1699639860,
+    },
+    {
+      path: '2024-11-10/photo_003.jpg',
+      filename: 'photo_003.jpg',
+      date: '2024-11-10T18:32:00Z',
+      size: 5100000,
+      timestamp: 1699639920,
+    },
+  ]
+
+  const mockOnClose = vi.fn()
+  const mockOnNavigate = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    document.body.style.overflow = ''
+  })
+
+  it('renders previous/next buttons when multiple photos exist', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[1]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const prevButton = screen.getByLabelText(/previous photo/i)
+    const nextButton = screen.getByLabelText(/next photo/i)
+
+    expect(prevButton).toBeInTheDocument()
+    expect(nextButton).toBeInTheDocument()
+  })
+
+  it('hides navigation buttons when only one photo exists', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={[mockPhotos[0]]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const prevButton = screen.queryByLabelText(/previous photo/i)
+    const nextButton = screen.queryByLabelText(/next photo/i)
+
+    expect(prevButton).not.toBeInTheDocument()
+    expect(nextButton).not.toBeInTheDocument()
+  })
+
+  it('navigates to next photo when next button clicked', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const nextButton = screen.getByLabelText(/next photo/i)
+    await user.click(nextButton)
+
+    expect(mockOnNavigate).toHaveBeenCalledTimes(1)
+    expect(mockOnNavigate).toHaveBeenCalledWith(mockPhotos[1])
+  })
+
+  it('navigates to previous photo when previous button clicked', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[1]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const prevButton = screen.getByLabelText(/previous photo/i)
+    await user.click(prevButton)
+
+    expect(mockOnNavigate).toHaveBeenCalledTimes(1)
+    expect(mockOnNavigate).toHaveBeenCalledWith(mockPhotos[0])
+  })
+
+  it('navigates to next photo on ArrowRight key press', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    await user.keyboard('{ArrowRight}')
+
+    expect(mockOnNavigate).toHaveBeenCalledTimes(1)
+    expect(mockOnNavigate).toHaveBeenCalledWith(mockPhotos[1])
+  })
+
+  it('navigates to previous photo on ArrowLeft key press', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[1]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    await user.keyboard('{ArrowLeft}')
+
+    expect(mockOnNavigate).toHaveBeenCalledTimes(1)
+    expect(mockOnNavigate).toHaveBeenCalledWith(mockPhotos[0])
+  })
+
+  it('wraps to first photo when next pressed on last photo', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[2]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const nextButton = screen.getByLabelText(/next photo/i)
+    await user.click(nextButton)
+
+    expect(mockOnNavigate).toHaveBeenCalledTimes(1)
+    expect(mockOnNavigate).toHaveBeenCalledWith(mockPhotos[0])
+  })
+
+  it('wraps to last photo when previous pressed on first photo', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const prevButton = screen.getByLabelText(/previous photo/i)
+    await user.click(prevButton)
+
+    expect(mockOnNavigate).toHaveBeenCalledTimes(1)
+    expect(mockOnNavigate).toHaveBeenCalledWith(mockPhotos[2])
+  })
+
+  it('displays current photo index (e.g., "2 / 3")', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[1]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Should show "2 / 3" (second photo out of three)
+    expect(screen.getByText(/2\s*\/\s*3/)).toBeInTheDocument()
+  })
+
+  // Note: Wrapping behavior is tested implicitly in the wrap tests above
+  // Config-based disabling would require mocking, which we'll skip for now
+})

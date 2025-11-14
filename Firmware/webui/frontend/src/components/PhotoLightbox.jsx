@@ -53,6 +53,14 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
         case 'Escape':
           onClose()
           break
+        case 'ArrowLeft':
+          e.preventDefault()
+          handleNavigate('prev')
+          break
+        case 'ArrowRight':
+          e.preventDefault()
+          handleNavigate('next')
+          break
         default:
           break
       }
@@ -60,11 +68,36 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [photo, onClose])
+  }, [photo, onClose, photos, onNavigate])
 
   // Don't render if no photo selected (after hooks!)
   if (!photo) {
     return null
+  }
+
+  // Navigation logic
+  const currentIndex = photos.findIndex((p) => p.path === photo.path)
+  const hasMultiplePhotos = photos.length > 1
+
+  const handleNavigate = (direction) => {
+    if (!onNavigate || !hasMultiplePhotos) return
+
+    let newIndex
+    if (direction === 'next') {
+      newIndex = currentIndex + 1
+      if (newIndex >= photos.length) {
+        newIndex = LIGHTBOX_CONFIG.WRAP_NAVIGATION ? 0 : currentIndex
+      }
+    } else {
+      newIndex = currentIndex - 1
+      if (newIndex < 0) {
+        newIndex = LIGHTBOX_CONFIG.WRAP_NAVIGATION ? photos.length - 1 : currentIndex
+      }
+    }
+
+    if (newIndex !== currentIndex) {
+      onNavigate(photos[newIndex])
+    }
   }
 
   // Format file size
@@ -145,6 +178,56 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
           {formatDate(photo.date)} • {formatFileSize(photo.size)}
         </p>
       </div>
+
+      {/* Navigation buttons - only show if multiple photos */}
+      {hasMultiplePhotos && (
+        <>
+          {/* Previous button */}
+          <button
+            type="button"
+            aria-label="Previous photo"
+            onClick={() => handleNavigate('prev')}
+            className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-black bg-opacity-50 p-3 text-white transition-all hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-white"
+          >
+            <svg
+              className="h-6 w-6"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+
+          {/* Next button */}
+          <button
+            type="button"
+            aria-label="Next photo"
+            onClick={() => handleNavigate('next')}
+            className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-black bg-opacity-50 p-3 text-white transition-all hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-white"
+          >
+            <svg
+              className="h-6 w-6"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+
+          {/* Photo counter */}
+          <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-lg bg-black bg-opacity-50 px-3 py-1 text-sm text-white">
+            {currentIndex + 1} / {photos.length}
+          </div>
+        </>
+      )}
 
       {/* Image container */}
       <div
