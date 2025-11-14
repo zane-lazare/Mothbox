@@ -167,6 +167,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
     // Clear existing timer
     if (zoomIndicatorTimerRef.current) {
       clearTimeout(zoomIndicatorTimerRef.current)
+      zoomIndicatorTimerRef.current = null
     }
 
     // Hide after 2 seconds
@@ -177,6 +178,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
     return () => {
       if (zoomIndicatorTimerRef.current) {
         clearTimeout(zoomIndicatorTimerRef.current)
+        zoomIndicatorTimerRef.current = null
       }
     }
   }, [zoom])
