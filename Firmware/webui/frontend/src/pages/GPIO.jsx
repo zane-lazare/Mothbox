@@ -5,7 +5,7 @@ import { QUERY_KEYS } from '../utils/queryKeys'
 export default function GPIO() {
   const queryClient = useQueryClient()
 
-  const { data: gpioStatus, isLoading, isFetching } = useQuery({
+  const { data: gpioStatus, isLoading } = useQuery({
     queryKey: QUERY_KEYS.GPIO_STATUS,
     queryFn: () => getGpioStatus().then(res => res.data),
     refetchInterval: 5000, // Refresh every 5 seconds instead of 2

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getControls, updateControls, getCameraSettings, updateCameraSettings, getSystemInfo, getDiagnosticInfo, getWebuiSettings, updateWebuiSettings, getPresets, getPreset, applyPreset, deletePreset, createPreset, getPreferences, setPreference } from '../utils/api'
+import { getControls, updateControls, getCameraSettings, updateCameraSettings, getSystemInfo, getDiagnosticInfo, getWebuiSettings, updateWebuiSettings, getPresets, applyPreset, deletePreset, createPreset, getPreferences, setPreference } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState, useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
@@ -127,7 +127,7 @@ export default function Settings() {
 
   const applyPresetMutation = useMutation({
     mutationFn: ({ name, applyTo }) => applyPreset(name, applyTo),
-    onSuccess: (response) => {
+    onSuccess: () => {
       queryClient.invalidateQueries(QUERY_KEYS.CAMERA_SETTINGS)
       queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
       // No toast here - let individual handlers control when to show toasts
@@ -231,6 +231,7 @@ export default function Settings() {
         socketRef.current.disconnect()
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Wrapper functions to mark forms as dirty when updated
@@ -385,6 +386,7 @@ export default function Settings() {
         photoPresetInitialized.current = true
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetsData, preferences]) // Wait for BOTH to be ready
 
   useEffect(() => {
@@ -403,6 +405,7 @@ export default function Settings() {
         liveViewPresetInitialized.current = true
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetsData, preferences]) // Wait for BOTH to be ready
 
   // Auto-apply preset handlers - apply immediately when preset selected
@@ -523,13 +526,8 @@ export default function Settings() {
 
   // Handle Save As (new preset creation from modal)
   const handleSavePreset = async (presetData) => {
-    try {
-      await createPresetMutation.mutateAsync(presetData)
-      toast.success(`Preset "${presetData.name}" saved successfully`)
-    } catch (error) {
-      // Error is already handled by mutation's onError, but let's ensure modal closes
-      throw error
-    }
+    await createPresetMutation.mutateAsync(presetData)
+    toast.success(`Preset "${presetData.name}" saved successfully`)
   }
 
   const handleSetDefaultPhotoPreset = () => {

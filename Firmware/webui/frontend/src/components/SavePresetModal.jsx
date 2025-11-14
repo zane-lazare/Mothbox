@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import toast from 'react-hot-toast'
 
 export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, defaultWorkflow = 'both' }) {
   const [presetName, setPresetName] = useState('')
@@ -167,7 +166,7 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, def
                     name="workflow"
                     value="liveview"
                     checked={workflow === 'liveview' || workflow === 'video'}
-                    onChange={(e) => setWorkflow('liveview')}
+                    onChange={() => setWorkflow('liveview')}
                     disabled={isSaving}
                     className="w-4 h-4 text-green-600 focus:ring-green-500 disabled:opacity-50"
                   />

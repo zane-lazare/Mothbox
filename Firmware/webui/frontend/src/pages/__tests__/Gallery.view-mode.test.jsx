@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import Gallery from '../Gallery'
 import * as api from '../../utils/api'
-import { mockNavigate } from './gallery-test-helpers.jsx'
 
 // Mock API module
 vi.mock('../../utils/api', () => ({
@@ -37,7 +36,7 @@ describe('Gallery - View Mode Integration', () => {
 
   // Helper to setup IntersectionObserver mock
   const setupIntersectionObserver = () => {
-    global.IntersectionObserver = vi.fn(() => ({
+    globalThis.IntersectionObserver = vi.fn(() => ({
       observe: vi.fn(),
       unobserve: vi.fn(),
       disconnect: vi.fn(),
