@@ -16,6 +16,7 @@ Thread-safe with statistics tracking.
 
 from typing import Optional, Dict, Any, List
 from pathlib import Path
+from collections import OrderedDict
 import json
 import fcntl
 import time
@@ -102,9 +103,9 @@ class MetadataCache:
         # Create cache directory if it doesn't exist
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-        # L1: In-memory cache (LRU)
-        self._l1_cache: Dict[str, CacheEntry] = {}
-        self._l1_access_order: List[str] = []  # LRU tracking
+        # L1: In-memory cache (LRU using OrderedDict)
+        # OrderedDict maintains insertion order and provides move_to_end() for efficient LRU
+        self._l1_cache: OrderedDict[str, CacheEntry] = OrderedDict()
         self._l1_lock = Lock()
 
         # Statistics tracking
@@ -188,8 +189,6 @@ class MetadataCache:
         with self._l1_lock:
             if photo_path in self._l1_cache:
                 del self._l1_cache[photo_path]
-                if photo_path in self._l1_access_order:
-                    self._l1_access_order.remove(photo_path)
                 removed = True
 
         # Remove from L2
@@ -205,10 +204,9 @@ class MetadataCache:
 
     def clear(self) -> None:
         """Clear entire cache (both L1 and L2)"""
-        # Clear L1
+        # Clear L1 (OrderedDict.clear() removes all entries)
         with self._l1_lock:
             self._l1_cache.clear()
-            self._l1_access_order.clear()
 
         # Clear L2 (delete all cache files)
         try:
@@ -270,36 +268,29 @@ class MetadataCache:
     # Private helper methods
 
     def _get_l1(self, photo_path: str) -> Optional[CacheEntry]:
-        """Get from L1 memory cache"""
+        """Get from L1 memory cache with LRU update"""
         with self._l1_lock:
             if photo_path in self._l1_cache:
-                # Update access order (move to end = most recent)
-                if photo_path in self._l1_access_order:
-                    self._l1_access_order.remove(photo_path)
-                self._l1_access_order.append(photo_path)
+                # Move to end (most recently used) - O(1) with OrderedDict
+                self._l1_cache.move_to_end(photo_path)
                 return self._l1_cache[photo_path]
         return None
 
     def _set_l1(self, photo_path: str, entry: CacheEntry) -> None:
-        """Set in L1 with LRU eviction"""
+        """Set in L1 with LRU eviction using OrderedDict"""
         with self._l1_lock:
-            # If cache is full, evict LRU entry
-            if (
-                len(self._l1_cache) >= self.l1_max_size
-                and photo_path not in self._l1_cache
-            ):
-                if self._l1_access_order:
-                    lru_key = self._l1_access_order.pop(0)
-                    if lru_key in self._l1_cache:
-                        del self._l1_cache[lru_key]
+            # If updating existing entry, move to end (most recent)
+            if photo_path in self._l1_cache:
+                self._l1_cache.move_to_end(photo_path)
+                self._l1_cache[photo_path] = entry
+            else:
+                # Adding new entry - check if eviction needed
+                if len(self._l1_cache) >= self.l1_max_size:
+                    # Evict LRU (first item in OrderedDict)
+                    self._l1_cache.popitem(last=False)
 
-            # Add/update entry
-            self._l1_cache[photo_path] = entry
-
-            # Update access order
-            if photo_path in self._l1_access_order:
-                self._l1_access_order.remove(photo_path)
-            self._l1_access_order.append(photo_path)
+                # Add new entry (automatically goes to end)
+                self._l1_cache[photo_path] = entry
 
     def _get_l2(self, photo_path: str) -> Optional[CacheEntry]:
         """Get from L2 file cache with locking"""

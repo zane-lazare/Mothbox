@@ -157,6 +157,40 @@ class TestMetadataCacheL1Operations:
         result = metadata_cache.get(photo_path)
         assert result["camera"]["iso"] == 200
 
+    def test_l1_cache_no_duplicates_on_update_in_full_cache(self, small_cache, sample_metadata):
+        """
+        Regression test for LRU duplicate bug (Issue #100).
+
+        Verifies that updating an existing key in a full cache doesn't create
+        duplicate entries, which would break LRU semantics and allow cache to
+        grow beyond l1_max_size.
+        """
+        # Fill cache to capacity (3 items)
+        small_cache.set("/photo1.jpg", sample_metadata)
+        small_cache.set("/photo2.jpg", sample_metadata)
+        small_cache.set("/photo3.jpg", sample_metadata)
+
+        # Update photo2 multiple times in a full cache
+        for i in range(5):
+            updated = sample_metadata.copy()
+            updated["camera"]["iso"] = 200 + i
+            small_cache.set("/photo2.jpg", updated)
+
+        # Verify cache size doesn't exceed limit
+        cache_size = len(small_cache._l1_cache)
+        assert cache_size <= small_cache.l1_max_size, \
+            f"Cache size {cache_size} exceeds max size {small_cache.l1_max_size}"
+
+        # Verify LRU ordering is correct (photo2 should be most recent)
+        # Add one more photo to trigger eviction
+        small_cache.set("/photo4.jpg", sample_metadata)
+
+        # photo2 should still be in cache (most recently used)
+        assert small_cache.get("/photo2.jpg") is not None
+
+        # Verify final state
+        assert small_cache.get("/photo2.jpg")["camera"]["iso"] == 204  # Last update
+
 
 class TestMetadataCacheL2Operations:
     """Test file-based cache operations"""
