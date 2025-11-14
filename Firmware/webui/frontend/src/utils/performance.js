@@ -39,8 +39,14 @@
  */
 export function debounce(func, wait) {
   let timeoutId = null
+  let pendingArgs = null
+  let pendingContext = null
 
   const debouncedFunc = function (...args) {
+    // Store context and args
+    pendingContext = this
+    pendingArgs = args
+
     // Clear existing timeout
     if (timeoutId !== null) {
       clearTimeout(timeoutId)
@@ -48,8 +54,11 @@ export function debounce(func, wait) {
 
     // Set new timeout
     timeoutId = setTimeout(() => {
-      func.apply(this, args)
+      func.apply(pendingContext, pendingArgs)
       timeoutId = null
+      // Clear references after execution
+      pendingArgs = null
+      pendingContext = null
     }, wait)
   }
 
@@ -59,6 +68,9 @@ export function debounce(func, wait) {
       clearTimeout(timeoutId)
       timeoutId = null
     }
+    // Clear pending references to help garbage collection
+    pendingArgs = null
+    pendingContext = null
   }
 
   return debouncedFunc
