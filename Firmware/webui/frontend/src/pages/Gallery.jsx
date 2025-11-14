@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { getPhotosPaginated, getThumbnailUrl, getPhotoUrl } from '../utils/api'
+import { getPhotosPaginated, getThumbnailUrl } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -8,10 +8,11 @@ import { useViewMode } from '../hooks/useViewMode'
 import PhotoSkeleton from '../components/PhotoSkeleton'
 import PhotoGridItem from '../components/PhotoGridItem'
 import PhotoListItem from '../components/PhotoListItem'
+import PhotoLightbox from '../components/PhotoLightbox'
 import ViewModeToggle from '../components/ViewModeToggle'
 import EmptyStateMessage from '../components/EmptyStateMessage'
 import { GALLERY_CONFIG, GALLERY_MESSAGES } from '../constants/config'
-import { formatErrorMessage, formatSize } from '../utils/helpers'
+import { formatErrorMessage } from '../utils/helpers'
 import toast from 'react-hot-toast'
 
 export default function Gallery() {
@@ -60,16 +61,7 @@ export default function Gallery() {
     rootMargin: GALLERY_CONFIG.INFINITE_SCROLL.ROOT_MARGIN,
   })
 
-  // Escape key handler for lightbox
-  useEffect(() => {
-    const handleEscape = (e) => {
-      if (e.key === 'Escape') {
-        setSelectedPhoto(null)
-      }
-    }
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, []) // setSelectedPhoto is guaranteed stable by React (setState from useState)
+  // Note: Keyboard handling (Escape, Arrow keys) is now managed by PhotoLightbox component
 
   // Flatten all pages into single photo array
   const photos = data?.pages.flatMap((page) => page.photos) ?? []
@@ -220,59 +212,13 @@ export default function Gallery() {
         </div>
       )}
 
-      {/* Lightbox Modal */}
-      {selectedPhoto && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="lightbox-title"
-          onClick={() => setSelectedPhoto(null)}
-        >
-          <div className="relative max-w-6xl max-h-full">
-            {/* Close button */}
-            <button
-              onClick={() => setSelectedPhoto(null)}
-              className="absolute top-2 right-2 z-10 bg-white rounded-full p-2 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-lg"
-              aria-label="Close lightbox"
-            >
-              <svg
-                className="w-6 h-6 text-gray-800"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-
-            <img
-              src={getPhotoUrl(selectedPhoto.path)}
-              alt={selectedPhoto.filename}
-              loading="eager"
-              className="max-w-full max-h-screen object-contain"
-              onClick={(e) => e.stopPropagation()}
-            />
-            <div className="text-white text-center mt-4">
-              <h2 id="lightbox-title" className="font-semibold text-lg">
-                {selectedPhoto.filename}
-              </h2>
-              <p className="text-sm text-gray-300" aria-label="Photo date">
-                Taken: {new Date(selectedPhoto.date).toLocaleString()}
-              </p>
-              <p className="text-xs text-gray-400" aria-label="File size">
-                Size: {formatSize(selectedPhoto.size)}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Photo Lightbox with Navigation */}
+      <PhotoLightbox
+        photo={selectedPhoto}
+        photos={photos}
+        onClose={() => setSelectedPhoto(null)}
+        onNavigate={(photo) => setSelectedPhoto(photo)}
+      />
     </div>
   )
 }
