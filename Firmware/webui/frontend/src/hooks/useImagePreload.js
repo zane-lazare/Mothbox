@@ -120,8 +120,10 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
       images.forEach((img) => {
         img.onload = null
         img.onerror = null
-        img.src = '' // Cancel any pending loads
+        img.src = '' // Cancel any pending loads and free image data
       })
+      // Clear array to help garbage collection
+      images.length = 0
     }
   }, [currentPhoto, photos, currentIndex])
 
