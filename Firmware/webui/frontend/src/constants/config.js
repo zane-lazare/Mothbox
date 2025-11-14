@@ -138,3 +138,24 @@ export const GALLERY_MESSAGES = {
   EMPTY: 'No photos yet',
   END: 'No more photos to load',
 }
+
+/**
+ * Photo Lightbox Configuration
+ *
+ * Controls behavior of the adaptive photo lightbox component with zoom, pan, and touch gestures.
+ *
+ * @property {number} ANIMATION_DURATION - Duration of lightbox open/close animations (milliseconds)
+ * @property {number} ZOOM_MIN - Minimum zoom level (1.0 = 100%, original size)
+ * @property {number} ZOOM_MAX - Maximum zoom level (5.0 = 500%, 5x magnification)
+ * @property {number} ZOOM_STEP - Zoom increment/decrement step for +/- controls
+ * @property {boolean} KEYBOARD_ENABLED - Enable keyboard shortcuts (arrows, +/-, ESC)
+ * @property {boolean} WRAP_NAVIGATION - Wrap navigation (last photo → first photo)
+ */
+export const LIGHTBOX_CONFIG = {
+  ANIMATION_DURATION: 200, // milliseconds
+  ZOOM_MIN: 1,
+  ZOOM_MAX: 5,
+  ZOOM_STEP: 0.5,
+  KEYBOARD_ENABLED: true,
+  WRAP_NAVIGATION: true, // Wrap to first/last photo
+}
