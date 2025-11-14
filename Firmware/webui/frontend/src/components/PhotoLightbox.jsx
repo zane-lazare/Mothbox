@@ -120,6 +120,13 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   // 16ms = ~60fps maximum update rate
   const throttledHandleWheel = useMemo(() => throttle(handleWheel, 16), [handleWheel])
 
+  // Cleanup throttled wheel handler on unmount
+  useEffect(() => {
+    return () => {
+      throttledHandleWheel.cancel()
+    }
+  }, [throttledHandleWheel])
+
   // Image preloading hook (preloads adjacent images for smooth navigation)
   useImagePreload({
     currentPhoto: photo,
