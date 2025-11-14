@@ -38,7 +38,8 @@ describe('PhotoLightbox - Basic Rendering', () => {
   })
 
   afterEach(() => {
-    document.body.innerHTML = ''
+    // Don't manually clear body - let React Testing Library handle cleanup
+    document.body.style.overflow = ''
   })
 
   it('renders nothing when photo is null', () => {
@@ -93,8 +94,10 @@ describe('PhotoLightbox - Basic Rendering', () => {
       />
     )
 
-    const title = screen.getByText(/photo_001\.jpg/i)
-    expect(title).toBeInTheDocument()
+    // Check that filename appears in metadata area (not screen reader title)
+    const dialog = screen.getByRole('dialog')
+    const metadataArea = within(dialog).getByText('photo_001.jpg')
+    expect(metadataArea).toHaveClass('text-sm', 'font-semibold')
   })
 
   it('displays formatted date and file size', () => {
@@ -186,7 +189,7 @@ describe('PhotoLightbox - Close Behavior', () => {
   })
 
   afterEach(() => {
-    document.body.innerHTML = ''
+    // Don't manually clear body - let React Testing Library handle cleanup
     document.body.style.overflow = ''
   })
 
@@ -335,7 +338,8 @@ describe('PhotoLightbox - Animation', () => {
   })
 
   afterEach(() => {
-    document.body.innerHTML = ''
+    // Don't manually clear body - let React Testing Library handle cleanup
+    document.body.style.overflow = ''
   })
 
   it('applies fade-in animation on mount', () => {

@@ -13,7 +13,7 @@ import { LIGHTBOX_CONFIG } from '../constants/config'
  * @param {Function} props.onClose - Callback when lightbox closes
  * @param {Function} props.onNavigate - Callback when navigating to different photo
  */
-function PhotoLightbox({ photo, photos, onClose, onNavigate }) {
+function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   const closeButtonRef = useRef(null)
   const previousFocusRef = useRef(null)
 
@@ -24,6 +24,7 @@ function PhotoLightbox({ photo, photos, onClose, onNavigate }) {
       document.body.style.overflow = ''
       if (previousFocusRef.current) {
         previousFocusRef.current.focus()
+        previousFocusRef.current = null
       }
       return
     }
