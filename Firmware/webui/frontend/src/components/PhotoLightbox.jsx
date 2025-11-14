@@ -225,8 +225,11 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   // Body scroll lock - runs on every render
   useEffect(() => {
     if (!photo) {
-      // Restore scroll when closed
-      document.body.style.overflow = ''
+      // Restore scroll when closed (only if no other modals are open)
+      const hasOtherModals = document.querySelectorAll('[role="dialog"]:not([aria-hidden="true"])').length > 0
+      if (!hasOtherModals) {
+        document.body.style.overflow = ''
+      }
       if (previousFocusRef.current) {
         previousFocusRef.current.focus()
         previousFocusRef.current = null
@@ -245,7 +248,11 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
 
     return () => {
       cancelAnimationFrame(frameId)
-      document.body.style.overflow = ''
+      // Only restore scroll if no other modals remain open
+      const hasOtherModals = document.querySelectorAll('[role="dialog"]:not([aria-hidden="true"])').length > 0
+      if (!hasOtherModals) {
+        document.body.style.overflow = ''
+      }
     }
   }, [photo])
 
