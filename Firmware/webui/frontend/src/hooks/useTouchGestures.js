@@ -301,7 +301,12 @@ function useTouchGestures({
    */
   const handleTouchEnd = useCallback(
     (event) => {
-      if (!touchStartPos) return
+      if (!touchStartPos) {
+        // Clean up any dirty state before early return (race condition fix)
+        setIsPinching(false)
+        setInitialPinchDistance(null)
+        return
+      }
 
       const touch = event.changedTouches?.[0]
       if (!touch) {
