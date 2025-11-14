@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 
 /**
  * Custom hook for managing touch gestures in the photo lightbox.
@@ -107,6 +107,16 @@ function useTouchGestures({
     () => (window.devicePixelRatio || 1) * 15,
     []
   )
+
+  // Cleanup pending RAF on unmount to prevent state updates after unmount
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current)
+        rafIdRef.current = null
+      }
+    }
+  }, [])
 
   /**
    * Calculate distance between two touch points
