@@ -9,6 +9,7 @@ import PhotoSkeleton from '../components/PhotoSkeleton'
 import PhotoGridItem from '../components/PhotoGridItem'
 import PhotoListItem from '../components/PhotoListItem'
 import PhotoLightbox from '../components/PhotoLightbox'
+import ErrorBoundary from '../components/ErrorBoundary'
 import ViewModeToggle from '../components/ViewModeToggle'
 import EmptyStateMessage from '../components/EmptyStateMessage'
 import { GALLERY_CONFIG, GALLERY_MESSAGES } from '../constants/config'
@@ -212,13 +213,19 @@ export default function Gallery() {
         </div>
       )}
 
-      {/* Photo Lightbox with Navigation */}
-      <PhotoLightbox
-        photo={selectedPhoto}
-        photos={photos}
-        onClose={() => setSelectedPhoto(null)}
-        onNavigate={(photo) => setSelectedPhoto(photo)}
-      />
+      {/* Photo Lightbox with Navigation (wrapped in ErrorBoundary) */}
+      <ErrorBoundary
+        errorTitle="Lightbox Error"
+        errorMessage="An error occurred while displaying the photo. Please try closing and reopening the lightbox."
+        onReset={() => setSelectedPhoto(null)}
+      >
+        <PhotoLightbox
+          photo={selectedPhoto}
+          photos={photos}
+          onClose={() => setSelectedPhoto(null)}
+          onNavigate={(photo) => setSelectedPhoto(photo)}
+        />
+      </ErrorBoundary>
     </div>
   )
 }
