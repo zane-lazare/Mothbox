@@ -94,11 +94,12 @@ function useTouchGestures({
   // RAF throttle for touch move (prevents 60+ updates/sec)
   const rafIdRef = useRef(null)
 
-  // Constants (gesture-specific, not related to zoom limits)
-  const DOUBLE_TAP_THRESHOLD = 300 // ms
-  const SWIPE_MIN_DISTANCE = 50 // pixels
-  const SWIPE_MIN_VELOCITY = 0.3 // pixels per millisecond
-  const ZOOM_DOUBLE_TAP = 2.5 // zoom level for double-tap
+  // Gesture detection thresholds (tuned for reliable touch interaction)
+  const DOUBLE_TAP_THRESHOLD = 300 // ms - max time between taps to register as double-tap
+  const TAP_MAX_DURATION = 200 // ms - max touch duration to distinguish tap from drag
+  const SWIPE_MIN_DISTANCE = 50 // px - min horizontal distance for swipe (prevents accidental swipes)
+  const SWIPE_MIN_VELOCITY = 0.3 // px/ms - min swipe speed (distinguishes swipe from slow drag)
+  const ZOOM_DOUBLE_TAP = 2.5 // zoom level for double-tap zoom-in
 
   // DPI-aware double-tap distance threshold for Retina/high-DPI displays
   // 15px@1x, 30px@2x, 45px@3x
@@ -327,7 +328,7 @@ function useTouchGestures({
       )
 
       // Check for double-tap (short tap, minimal movement)
-      if (distance < DOUBLE_TAP_DISTANCE && duration < 200) {
+      if (distance < DOUBLE_TAP_DISTANCE && duration < TAP_MAX_DURATION) {
         const now = Date.now()
         const timeSinceLastTap = now - lastTapTime
 
