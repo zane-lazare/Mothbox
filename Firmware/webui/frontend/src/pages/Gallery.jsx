@@ -1,7 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { getPhotosPaginated } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 import { useViewMode } from '../hooks/useViewMode'
@@ -64,12 +64,17 @@ export default function Gallery() {
 
   // Note: Keyboard handling (Escape, Arrow keys) is now managed by PhotoLightbox component
 
-  // Flatten all pages into single photo array
-  const photos = data?.pages.flatMap((page) => page.photos) ?? []
+  // Flatten all pages into single photo array (memoized to prevent re-creation on every render)
+  const photos = useMemo(() => data?.pages.flatMap((page) => page.photos) ?? [], [data?.pages])
 
   // Memoized callbacks to prevent unnecessary re-renders
   const handleCloseLightbox = useCallback(() => setSelectedPhoto(null), [])
-  const handleNavigate = useCallback((photo) => setSelectedPhoto(photo), [])
+  const handleNavigate = useCallback((photo) => {
+    // Validate photo exists in current photos array before navigating
+    if (photos.some(p => p.path === photo.path)) {
+      setSelectedPhoto(photo)
+    }
+  }, [photos])
 
   // Toast notifications for error states
   useEffect(() => {
