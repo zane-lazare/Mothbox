@@ -284,8 +284,8 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
     isZoomed: zoom > 1.0,
     imageWidth: imageDimensions.width,
     imageHeight: imageDimensions.height,
-    containerWidth: containerDimensions.width,
-    containerHeight: containerDimensions.height,
+    minZoom: LIGHTBOX_CONFIG.ZOOM_MIN,
+    maxZoom: LIGHTBOX_CONFIG.ZOOM_MAX,
   })
 
   // Handle mouse move for panning

@@ -18,8 +18,8 @@ import { useState, useCallback, useMemo, useRef } from 'react'
  * @param {boolean} config.isZoomed - True if zoom > 1.0 (disables swipe navigation)
  * @param {number} config.imageWidth - Natural image width in pixels
  * @param {number} config.imageHeight - Natural image height in pixels
- * @param {number} config.containerWidth - Container width in pixels
- * @param {number} config.containerHeight - Container height in pixels
+ * @param {number} config.minZoom - Minimum zoom level (e.g., 1.0)
+ * @param {number} config.maxZoom - Maximum zoom level (e.g., 5.0)
  *
  * @returns {Object} Touch event handlers
  * @returns {Function} returns.handleTouchStart - Touch start event handler
@@ -80,6 +80,8 @@ function useTouchGestures({
   isZoomed,
   imageWidth,
   imageHeight,
+  minZoom,
+  maxZoom,
 }) {
   // Touch gesture state
   const [touchStartPos, setTouchStartPos] = useState(null)
@@ -92,9 +94,7 @@ function useTouchGestures({
   // RAF throttle for touch move (prevents 60+ updates/sec)
   const rafIdRef = useRef(null)
 
-  // Constants
-  const MIN_ZOOM = 1.0
-  const MAX_ZOOM = 5.0
+  // Constants (gesture-specific, not related to zoom limits)
   const DOUBLE_TAP_THRESHOLD = 300 // ms
   const SWIPE_MIN_DISTANCE = 50 // pixels
   const SWIPE_MIN_VELOCITY = 0.3 // pixels per millisecond
@@ -238,7 +238,7 @@ function useTouchGestures({
           // Pinch-to-zoom
           const currentDistance = getPinchDistance(touchData[0], touchData[1])
           const scale = currentDistance / initialPinchDistance
-          const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, initialZoom * scale))
+          const newZoom = Math.max(minZoom, Math.min(maxZoom, initialZoom * scale))
 
           // Calculate new pan to keep pinch center stable
           const midpoint = getPinchMidpoint(touchData[0], touchData[1])
@@ -292,6 +292,8 @@ function useTouchGestures({
       getPinchMidpoint,
       setZoom,
       setPan,
+      minZoom,
+      maxZoom,
     ]
   )
 
