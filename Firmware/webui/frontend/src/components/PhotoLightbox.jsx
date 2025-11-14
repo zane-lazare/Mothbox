@@ -56,6 +56,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   const imageRef = useRef(null)
   const containerRef = useRef(null)
   const dialogRef = useRef(null)
+  const panStartRef = useRef({ x: 0, y: 0 })
 
   // Image and container dimensions
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 })
@@ -67,7 +68,6 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
 
   // Panning state
   const [isPanning, setIsPanning] = useState(false)
-  const [panStart, setPanStart] = useState({ x: 0, y: 0 })
 
   // Zoom indicator auto-hide
   const [showZoomIndicator, setShowZoomIndicator] = useState(false)
@@ -251,13 +251,13 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
 
   // Handle mouse move for panning
   const handleMouseMove = useCallback((e) => {
-    if (!isPanning) return
+    if (!isPanning || !panStartRef.current) return
 
     setPan({
-      x: e.clientX - panStart.x,
-      y: e.clientY - panStart.y,
+      x: e.clientX - panStartRef.current.x,
+      y: e.clientY - panStartRef.current.y,
     })
-  }, [isPanning, panStart, setPan])
+  }, [isPanning, setPan])
 
   // Handle mouse up (end panning)
   const handleMouseUp = useCallback(() => {
@@ -374,10 +374,10 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
     if (zoom <= 1.0) return // Only pan when zoomed
 
     setIsPanning(true)
-    setPanStart({
+    panStartRef.current = {
       x: e.clientX - pan.x,
       y: e.clientY - pan.y,
-    })
+    }
   }
 
   // Zoom controls handlers with zoom indicator
