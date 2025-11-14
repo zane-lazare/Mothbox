@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { LIGHTBOX_CONFIG } from '../constants/config'
 import useZoomPan from '../hooks/useZoomPan'
@@ -333,6 +333,12 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
     return () => document.removeEventListener('keydown', handleTabKey)
   }, [photo])
 
+  // Memoized transform string for image positioning
+  const imageTransform = useMemo(
+    () => `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+    [pan.x, pan.y, zoom]
+  )
+
   // Don't render if no photo selected (after hooks!)
   if (!photo) {
     return null
@@ -612,7 +618,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
           alt={photo.filename}
           className="max-h-full max-w-full object-contain select-none"
           style={{
-            transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+            transform: imageTransform,
             cursor: zoom > 1.0 ? (isPanning ? 'grabbing' : 'grab') : 'default',
             transition: isPanning ? 'none' : 'transform 0.1s ease-out',
             touchAction: zoom > 1.0 ? 'none' : 'pan-y', // Prevent browser gestures when zoomed
