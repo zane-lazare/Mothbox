@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef } from 'react'
 
 /**
  * Custom hook for managing touch gestures in the photo lightbox.
@@ -88,6 +88,9 @@ function useTouchGestures({
   const [initialPan, setInitialPan] = useState({ x: 0, y: 0 })
   const [lastTapTime, setLastTapTime] = useState(0)
   const [isPinching, setIsPinching] = useState(false)
+
+  // RAF throttle for touch move (prevents 60+ updates/sec)
+  const rafIdRef = useRef(null)
 
   // Constants
   const MIN_ZOOM = 1.0
@@ -204,53 +207,75 @@ function useTouchGestures({
   /**
    * Handle touch move event
    * Updates zoom for pinch or pan position for single-finger drag
+   * Uses RAF throttling to prevent 60+ updates/sec
    */
   const handleTouchMove = useCallback(
     (event) => {
       const touches = event.touches
 
-      if (touches.length === 2 && isPinching && initialPinchDistance !== null) {
-        // Pinch-to-zoom
+      // Prevent default for pinch-to-zoom and single-finger pan when zoomed
+      if (
+        (touches.length === 2 && isPinching && initialPinchDistance !== null) ||
+        (touches.length === 1 && !isPinching && isZoomed && touchStartPos)
+      ) {
         event.preventDefault()
-
-        const currentDistance = getPinchDistance(touches[0], touches[1])
-        const scale = currentDistance / initialPinchDistance
-        const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, initialZoom * scale))
-
-        // Calculate new pan to keep pinch center stable
-        const midpoint = getPinchMidpoint(touches[0], touches[1])
-        const rect = imageRef.current?.getBoundingClientRect()
-
-        if (rect) {
-          // Get normalized position relative to image (-0.5 to 0.5)
-          const relX = (midpoint.x - rect.left) / rect.width - 0.5
-          const relY = (midpoint.y - rect.top) / rect.height - 0.5
-
-          // Calculate pan adjustment to keep pinch point stable
-          const deltaZoom = newZoom - zoom
-          const newPan = {
-            x: initialPan.x - relX * deltaZoom * imageWidth,
-            y: initialPan.y - relY * deltaZoom * imageHeight,
-          }
-
-          setZoom(newZoom)
-          setPan(newPan)
-        } else {
-          setZoom(newZoom)
-        }
-      } else if (touches.length === 1 && !isPinching && isZoomed && touchStartPos) {
-        // Single-finger pan (only when zoomed)
-        event.preventDefault()
-
-        const touch = touches[0]
-        const deltaX = touch.clientX - touchStartPos.x
-        const deltaY = touch.clientY - touchStartPos.y
-
-        setPan({
-          x: initialPan.x + deltaX,
-          y: initialPan.y + deltaY,
-        })
       }
+
+      // RAF throttle: Skip if frame already scheduled
+      if (rafIdRef.current !== null) {
+        return
+      }
+
+      // Capture touch data before RAF (touches list is reused by browser)
+      const touchData = Array.from(touches).map((t) => ({
+        clientX: t.clientX,
+        clientY: t.clientY,
+      }))
+
+      // Schedule update for next frame
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (touchData.length === 2 && isPinching && initialPinchDistance !== null) {
+          // Pinch-to-zoom
+          const currentDistance = getPinchDistance(touchData[0], touchData[1])
+          const scale = currentDistance / initialPinchDistance
+          const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, initialZoom * scale))
+
+          // Calculate new pan to keep pinch center stable
+          const midpoint = getPinchMidpoint(touchData[0], touchData[1])
+          const rect = imageRef.current?.getBoundingClientRect()
+
+          if (rect) {
+            // Get normalized position relative to image (-0.5 to 0.5)
+            const relX = (midpoint.x - rect.left) / rect.width - 0.5
+            const relY = (midpoint.y - rect.top) / rect.height - 0.5
+
+            // Calculate pan adjustment to keep pinch point stable
+            const deltaZoom = newZoom - zoom
+            const newPan = {
+              x: initialPan.x - relX * deltaZoom * imageWidth,
+              y: initialPan.y - relY * deltaZoom * imageHeight,
+            }
+
+            setZoom(newZoom)
+            setPan(newPan)
+          } else {
+            setZoom(newZoom)
+          }
+        } else if (touchData.length === 1 && !isPinching && isZoomed && touchStartPos) {
+          // Single-finger pan (only when zoomed)
+          const touch = touchData[0]
+          const deltaX = touch.clientX - touchStartPos.x
+          const deltaY = touch.clientY - touchStartPos.y
+
+          setPan({
+            x: initialPan.x + deltaX,
+            y: initialPan.y + deltaY,
+          })
+        }
+
+        // Clear RAF ID after update completes
+        rafIdRef.current = null
+      })
     },
     [
       isPinching,
