@@ -28,6 +28,15 @@ const createMockImageElement = () => {
   return img
 }
 
+// Helper to flush pending requestAnimationFrame callbacks
+const flushRAF = () => {
+  return new Promise(resolve => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(resolve)
+    })
+  })
+}
+
 describe('useTouchGestures - Pinch-to-Zoom Detection', () => {
   let mockProps
 
@@ -96,7 +105,7 @@ describe('useTouchGestures - Pinch-to-Zoom Detection', () => {
     expect(startEvent.preventDefault).toHaveBeenCalled()
   })
 
-  it('pinch-out (increasing distance) zooms in', () => {
+  it('pinch-out (increasing distance) zooms in', async () => {
     const { result } = renderHook(() => useTouchGestures(mockProps))
 
     // Start pinch: two fingers 100px apart
@@ -117,13 +126,16 @@ describe('useTouchGestures - Pinch-to-Zoom Detection', () => {
       result.current.handleTouchMove(moveEvent)
     })
 
+    // Wait for RAF callback to execute
+    await flushRAF()
+
     // Should have zoomed in (zoom > 1.0)
     expect(mockProps.setZoom).toHaveBeenCalled()
     const zoomValue = mockProps.setZoom.mock.calls[0][0]
     expect(zoomValue).toBeGreaterThan(1.0)
   })
 
-  it('pinch-in (decreasing distance) zooms out', () => {
+  it('pinch-in (decreasing distance) zooms out', async () => {
     const propsZoomed = { ...mockProps, zoom: 2.0, isZoomed: true }
     const { result } = renderHook(() => useTouchGestures(propsZoomed))
 
@@ -144,6 +156,9 @@ describe('useTouchGestures - Pinch-to-Zoom Detection', () => {
     act(() => {
       result.current.handleTouchMove(moveEvent)
     })
+
+    // Wait for RAF callback to execute
+    await flushRAF()
 
     // Should have zoomed out (zoom < 2.0)
     expect(propsZoomed.setZoom).toHaveBeenCalled()
@@ -201,7 +216,7 @@ describe('useTouchGestures - Pinch-to-Zoom Detection', () => {
     }
   })
 
-  it('pinch zoom centers on midpoint between fingers', () => {
+  it('pinch zoom centers on midpoint between fingers', async () => {
     const { result } = renderHook(() => useTouchGestures(mockProps))
 
     // Start pinch with midpoint at (150, 150)
@@ -220,6 +235,9 @@ describe('useTouchGestures - Pinch-to-Zoom Detection', () => {
     act(() => {
       result.current.handleTouchMove(moveEvent)
     })
+
+    // Wait for RAF callback to execute
+    await flushRAF()
 
     // Pan should be adjusted to keep midpoint stable
     expect(mockProps.setPan).toHaveBeenCalled()
@@ -621,7 +639,7 @@ describe('useTouchGestures - Touch Pan', () => {
     }
   }
 
-  it('single-finger drag pans when zoomed', () => {
+  it('single-finger drag pans when zoomed', async () => {
     const { result } = renderHook(() => useTouchGestures(mockProps))
 
     // Start touch
@@ -636,11 +654,14 @@ describe('useTouchGestures - Touch Pan', () => {
       result.current.handleTouchMove(moveEvent)
     })
 
+    // Wait for RAF callback to execute
+    await flushRAF()
+
     // Should update pan position
     expect(mockProps.setPan).toHaveBeenCalled()
   })
 
-  it('touch pan respects boundaries', () => {
+  it('touch pan respects boundaries', async () => {
     const { result } = renderHook(() => useTouchGestures(mockProps))
 
     // Start touch
@@ -654,6 +675,9 @@ describe('useTouchGestures - Touch Pan', () => {
     act(() => {
       result.current.handleTouchMove(moveEvent)
     })
+
+    // Wait for RAF callback to execute
+    await flushRAF()
 
     // Pan should be constrained (not allow infinite pan)
     expect(mockProps.setPan).toHaveBeenCalled()
