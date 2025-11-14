@@ -93,6 +93,7 @@ function useTouchGestures({
 
   // RAF throttle for touch move (prevents 60+ updates/sec)
   const rafIdRef = useRef(null)
+  const latestTouchDataRef = useRef(null)
 
   // Gesture detection thresholds (tuned for reliable touch interaction)
   const DOUBLE_TAP_THRESHOLD = 300 // ms - max time between taps to register as double-tap
@@ -218,7 +219,7 @@ function useTouchGestures({
   /**
    * Handle touch move event
    * Updates zoom for pinch or pan position for single-finger drag
-   * Uses RAF throttling to prevent 60+ updates/sec
+   * Uses RAF throttling with queuing to prevent 60+ updates/sec while preserving latest input
    */
   const handleTouchMove = useCallback(
     (event) => {
@@ -232,19 +233,28 @@ function useTouchGestures({
         event.preventDefault()
       }
 
-      // RAF throttle: Skip if frame already scheduled
-      if (rafIdRef.current !== null) {
-        return
-      }
-
       // Capture touch data before RAF (touches list is reused by browser)
       const touchData = Array.from(touches).map((t) => ({
         clientX: t.clientX,
         clientY: t.clientY,
       }))
 
+      // Queue latest touch data (don't drop updates on high-frequency devices)
+      latestTouchDataRef.current = touchData
+
+      // RAF throttle: Schedule frame if not already scheduled
+      if (rafIdRef.current !== null) {
+        return // Update queued, will process on next frame
+      }
+
       // Schedule update for next frame
       rafIdRef.current = requestAnimationFrame(() => {
+        const touchData = latestTouchDataRef.current
+        if (!touchData) {
+          rafIdRef.current = null
+          return
+        }
+
         if (touchData.length === 2 && isPinching && initialPinchDistance !== null) {
           // Pinch-to-zoom
           const currentDistance = getPinchDistance(touchData[0], touchData[1])
