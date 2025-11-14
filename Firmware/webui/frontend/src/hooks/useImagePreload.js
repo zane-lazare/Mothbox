@@ -72,21 +72,26 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
       imagesToPreload.push({ url: prevUrl, priority: 'prev' })
     }
 
-    // Track loaded images
+    // Track loaded images - create ALL images synchronously for proper cleanup
     const images = []
 
-    // Load current image first
+    // Create current image
     const currentImg = new Image()
     images.push(currentImg)
+
+    // Create adjacent images immediately (before onload callback)
+    // This ensures cleanup function has access to all images
+    const adjacentImages = imagesToPreload.slice(1).map(() => new Image())
+    images.push(...adjacentImages)
 
     currentImg.onload = () => {
       setCurrentImage(currentUrl)
       setIsLoading(false)
 
-      // After current loads, preload adjacent images
-      imagesToPreload.slice(1).forEach((item) => {
-        const img = new Image()
-        images.push(img)
+      // After current loads, start preloading adjacent images
+      adjacentImages.forEach((img, index) => {
+        const item = imagesToPreload[index + 1]
+
         img.onload = () => {
           if (import.meta.env.DEV) {
             console.debug(`[ImagePreload] Preloaded ${item.priority} image:`, item.url)
@@ -110,11 +115,12 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
 
     currentImg.src = currentUrl
 
-    // Cleanup function
+    // Cleanup function - now has access to ALL images (including adjacent)
     return () => {
       images.forEach((img) => {
         img.onload = null
         img.onerror = null
+        img.src = '' // Cancel any pending loads
       })
     }
   }, [currentPhoto, photos, currentIndex])
