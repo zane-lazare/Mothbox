@@ -429,22 +429,25 @@ def get_photo_metadata(photo_id):
 @limiter.limit("10 per minute")
 def clear_photo_metadata_cache(photo_id):
     """
-    Clear metadata cache for a specific photo.
+    Clear metadata cache for a specific photo (requires CSRF token).
 
-    TODO: Add CSRF protection (DELETE is state-changing).
-    Note: CSRF protection is handled at the application level by Flask-WTF.
+    Security: CSRF protection enforced by Flask-WTF CSRFProtect.
+    DELETE is a state-changing operation and requires X-CSRFToken header.
 
     Returns:
         JSON response with:
         - success (bool): True if successful
         - message (str): Status message
         - photo_id (str): Photo identifier
+        - was_cached (bool): Whether photo was in cache
 
     Example:
         DELETE /photos/2024-01-15/photo.jpg/cache
+        Headers: X-CSRFToken: <token>
 
     Status Codes:
         200: Success
+        400: CSRF token missing or invalid
         404: Photo not found
     """
     # Resolve photo path
