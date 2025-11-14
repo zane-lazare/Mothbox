@@ -37,15 +37,15 @@ Related:
 """
 
 import logging
-from pathlib import Path
-from typing import Any, Optional
-from datetime import datetime
 import re
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 # Image processing libraries
 try:
-    from PIL import Image
     import piexif
+    from PIL import Image
 except ImportError:
     Image = None
     piexif = None
@@ -69,7 +69,6 @@ class MetadataService:
 
     def __init__(self):
         """Initialize metadata service"""
-        pass
 
     def get_photo_metadata(self, photo_path: Path) -> dict[str, Any]:
         """
@@ -124,32 +123,45 @@ class MetadataService:
             metadata['file']['size'] = photo_path.stat().st_size
 
             # Open image and extract EXIF data
+            # Use context manager to ensure image is always closed, even on error paths
             try:
-                image = Image.open(photo_path)
-                exif_dict = piexif.load(str(photo_path))
-            except Exception as e:
-                # Handle corrupted images or missing EXIF gracefully
-                try:
-                    image = Image.open(photo_path)
-                    exif_dict = {}
-                except Exception as img_error:
-                    metadata['error'] = f"Failed to open image: {img_error}"
-                    return metadata
+                with Image.open(photo_path) as image:
+                    try:
+                        exif_dict = piexif.load(str(photo_path))
+                    except Exception as e:
+                        # Handle corrupted EXIF gracefully (image still valid)
+                        # Log full error details server-side (CodeQL security requirement)
+                        logger.warning(f"Failed to load EXIF data from {photo_path.name}: {e}", exc_info=True)
+                        exif_dict = {}
+                        # Add generic warning flag to metadata (don't expose exception details)
+                        metadata['exif_warning'] = "EXIF parsing failed"
 
-            # Extract metadata from each category
-            metadata['camera'] = self._extract_camera_metadata(exif_dict)
-            metadata['capture'] = self._extract_capture_metadata(exif_dict)
-            metadata['location'] = self._extract_location_metadata(photo_path)
-            metadata['deployment'] = self._extract_deployment_metadata(photo_path, exif_dict)
-            metadata['file'] = self._extract_file_metadata(photo_path, image)
+                    # Extract metadata from each category
+                    metadata['camera'] = self._extract_camera_metadata(exif_dict)
+                    metadata['capture'] = self._extract_capture_metadata(exif_dict)
+                    metadata['location'] = self._extract_location_metadata(photo_path)
+                    metadata['deployment'] = self._extract_deployment_metadata(photo_path, exif_dict)
+                    metadata['file'] = self._extract_file_metadata(photo_path, image)
+                    # Image automatically closed when exiting 'with' block
 
-            # Close image
-            image.close()
+            except Exception as img_error:
+                # Failed to open image file
+                # Log full error details server-side (CodeQL security requirement)
+                logger.error(f"Failed to open image {photo_path}: {img_error}", exc_info=True)
+                # Return generic message to user (don't expose internal details)
+                metadata['error'] = "Failed to open image"
+                return metadata
 
         except PermissionError:
-            metadata['error'] = f"Permission denied: {photo_path}"
+            # Log full error details server-side
+            logger.error(f"Permission denied accessing {photo_path}", exc_info=True)
+            # Return generic message to user
+            metadata['error'] = "Permission denied"
         except Exception as e:
-            metadata['error'] = f"Unexpected error: {e}"
+            # Log full error details server-side
+            logger.error(f"Unexpected error processing {photo_path}: {e}", exc_info=True)
+            # Return generic message to user
+            metadata['error'] = "Failed to read metadata"
 
         return metadata
 
@@ -180,9 +192,11 @@ class MetadataService:
                 metadata = self.get_photo_metadata(photo_path)
                 results.append(metadata)
             except Exception as e:
-                # Add error entry for failed photo
+                # Log full error details server-side (CodeQL security requirement)
+                logger.error(f"Failed to process photo {photo_path}: {e}", exc_info=True)
+                # Add error entry for failed photo with generic message (don't expose internal details)
                 error_entry = {
-                    'error': f"Failed to process {photo_path}: {e}",
+                    'error': "Failed to process photo",
                     'file': {'path': str(photo_path), 'filename': photo_path.name if photo_path else None}
                 }
                 results.append(error_entry)
@@ -193,7 +207,7 @@ class MetadataService:
     # Private Helper Methods
     # ========================================================================
 
-    def _extract_camera_metadata(self, exif_data: dict) -> dict[str, Optional[str]]:
+    def _extract_camera_metadata(self, exif_data: dict) -> dict[str, str | None]:
         """
         Extract camera hardware metadata from EXIF.
 
@@ -460,7 +474,7 @@ class MetadataService:
 
         return file_info
 
-    def _detect_series_info(self, photo_path: Path) -> tuple[Optional[str], Optional[int], Optional[int]]:
+    def _detect_series_info(self, photo_path: Path) -> tuple[str | None, int | None, int | None]:
         """
         Detect if photo is part of a series (HDR or focus bracket).
 

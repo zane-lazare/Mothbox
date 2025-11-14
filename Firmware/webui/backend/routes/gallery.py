@@ -19,11 +19,11 @@ Endpoints:
 - GET /photos/paginated - List photos with pagination
 """
 
+import logging
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
-import time
-import logging
 
 from flask import Blueprint, current_app, jsonify, request, send_file
 
@@ -46,13 +46,12 @@ except ImportError:
     limiter = LimiterStub()
 
 # Import services
-from services.photo_service import PaginationError, PhotoService
-from services.thumbnail_cache import ThumbnailError
-from services.metadata_cache import MetadataCache
-from services.metadata_service import MetadataService
-
 # Import security utilities
 from security_utils import validate_photo_path
+from services.metadata_cache import MetadataCache
+from services.metadata_service import MetadataService
+from services.photo_service import PaginationError, PhotoService
+from services.thumbnail_cache import ThumbnailError
 
 # Import mothbox paths
 from mothbox_paths import DATA_DIR, PHOTOS_DIR
@@ -62,22 +61,39 @@ logger = logging.getLogger(__name__)
 # Blueprint setup (no prefix - will be added by app.py)
 gallery_bp = Blueprint("gallery", __name__)
 
-# Module-level cache instance (singleton)
+# Module-level cache instance (singleton) with thread-safety
 _metadata_cache = None
+_cache_lock = threading.Lock()
 
 
 def get_metadata_cache() -> MetadataCache:
-    """Get or create metadata cache singleton"""
+    """
+    Get or create metadata cache singleton with thread-safe initialization.
+
+    Uses double-checked locking pattern to ensure only one cache instance
+    is created even under concurrent access from multiple threads.
+
+    Returns:
+        MetadataCache: Singleton cache instance
+    """
     global _metadata_cache
-    if _metadata_cache is None:
-        cache_dir = DATA_DIR / "cache" / "metadata"
-        _metadata_cache = MetadataCache(
-            cache_dir=cache_dir,
-            l1_max_size=1000,
-            l2_max_size=10000,
-            cache_version="1.0",
-        )
-    return _metadata_cache
+
+    # First check without lock (fast path for already-initialized case)
+    if _metadata_cache is not None:
+        return _metadata_cache
+
+    # Acquire lock for initialization
+    with _cache_lock:
+        # Second check with lock (only one thread initializes)
+        if _metadata_cache is None:
+            cache_dir = DATA_DIR / "cache" / "metadata"
+            _metadata_cache = MetadataCache(
+                cache_dir=cache_dir,
+                l1_max_size=1000,
+                l2_max_size=10000,
+                cache_version="1.0",
+            )
+        return _metadata_cache
 
 
 # Valid metadata categories
@@ -329,7 +345,7 @@ def get_photo_metadata(photo_id):
     """
     # 1. Parse and validate category filter
     categories_param = request.args.get("categories", "all")
-    requested_categories = set(cat.strip() for cat in categories_param.split(","))
+    requested_categories = {cat.strip() for cat in categories_param.split(",")}
 
     invalid = requested_categories - VALID_CATEGORIES
     if invalid:
@@ -505,7 +521,7 @@ def get_metadata_cache_statistics():
     )
 
 
-def _resolve_photo_path(photo_id: str) -> Optional[Path]:
+def _resolve_photo_path(photo_id: str) -> Path | None:
     """
     Resolve photo ID to absolute path with security checks.
 
@@ -676,6 +692,12 @@ def cache_warm_cancel(task_id):
 
 # For testing: allow resetting the cache singleton
 def _reset_cache():
-    """Reset cache singleton (for testing only)"""
+    """
+    Reset cache singleton (for testing only).
+
+    Thread-safe reset that ensures no concurrent initialization
+    can occur during reset.
+    """
     global _metadata_cache
-    _metadata_cache = None
+    with _cache_lock:
+        _metadata_cache = None

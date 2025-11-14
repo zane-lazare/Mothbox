@@ -14,16 +14,16 @@ Performance targets:
 Thread-safe with statistics tracking.
 """
 
-from typing import Optional, Dict, Any, List
-from pathlib import Path
-from collections import OrderedDict
-import json
 import fcntl
-import time
-from threading import Lock
-from dataclasses import dataclass, asdict
 import hashlib
+import json
 import logging
+import time
+from collections import OrderedDict, deque
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from threading import Lock
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -33,16 +33,16 @@ class CacheEntry:
     """Metadata cache entry"""
 
     photo_path: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
     cached_at: float
     cache_version: str = "1.0"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization"""
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CacheEntry":
+    def from_dict(cls, data: dict[str, Any]) -> "CacheEntry":
         """Create from dictionary"""
         return cls(
             photo_path=data["photo_path"],
@@ -77,6 +77,33 @@ class MetadataCache:
     - L1 hit: <10ms
     - L2 hit: <50ms
     - Overall hit rate: >70%
+
+    Thread Safety:
+    ---------------
+    This class uses three locks to ensure thread-safe operation:
+    - _l1_lock: Protects L1 in-memory cache (OrderedDict)
+    - _l2_lock: Protects L2 file-based cache operations
+    - _stats_lock: Protects statistics counters
+
+    LOCK ACQUISITION ORDER (to prevent deadlocks):
+    -----------------------------------------------
+    If multiple locks must be acquired, always acquire in this order:
+        1. _l1_lock (first)
+        2. _l2_lock (second)
+        3. _stats_lock (last)
+
+    NEVER acquire locks in a different order, as this can cause deadlocks.
+
+    Current lock usage patterns:
+    - get(): _l1_lock → _l2_lock → _stats_lock (cascading as needed)
+    - set(): _l1_lock, _l2_lock (separately, no nesting)
+    - Statistics: _stats_lock only (independent)
+
+    Guidelines for future modifications:
+    - If you need multiple locks, acquire in the order above
+    - Keep lock scope as narrow as possible
+    - Never call external code while holding locks
+    - Document any new lock acquisition patterns
     """
 
     def __init__(
@@ -108,15 +135,21 @@ class MetadataCache:
         self._l1_cache: OrderedDict[str, CacheEntry] = OrderedDict()
         self._l1_lock = Lock()
 
+        # L2: File-based cache lock (protects eviction + file operations)
+        # Prevents race conditions where eviction could delete newly written files
+        self._l2_lock = Lock()
+
         # Statistics tracking
         self._stats_lock = Lock()
         self._l1_hits = 0
         self._l1_misses = 0
         self._l2_hits = 0
         self._l2_misses = 0
-        self._total_response_times: List[float] = []
+        # Use deque with maxlen for O(1) append and automatic eviction
+        # Automatically evicts oldest items when maxlen is reached (no need for pop(0))
+        self._total_response_times: deque[float] = deque(maxlen=1000)
 
-    def get(self, photo_path: str) -> Optional[Dict[str, Any]]:
+    def get(self, photo_path: str) -> dict[str, Any] | None:
         """
         Get metadata from cache (L1 -> L2 -> None).
 
@@ -152,7 +185,7 @@ class MetadataCache:
         self._record_l2_miss(response_time)
         return None
 
-    def set(self, photo_path: str, metadata: Dict[str, Any]) -> None:
+    def set(self, photo_path: str, metadata: dict[str, Any]) -> None:
         """
         Store metadata in both L1 and L2.
 
@@ -267,7 +300,7 @@ class MetadataCache:
 
     # Private helper methods
 
-    def _get_l1(self, photo_path: str) -> Optional[CacheEntry]:
+    def _get_l1(self, photo_path: str) -> CacheEntry | None:
         """Get from L1 memory cache with LRU update"""
         with self._l1_lock:
             if photo_path in self._l1_cache:
@@ -292,67 +325,81 @@ class MetadataCache:
                 # Add new entry (automatically goes to end)
                 self._l1_cache[photo_path] = entry
 
-    def _get_l2(self, photo_path: str) -> Optional[CacheEntry]:
-        """Get from L2 file cache with LRU update"""
+    def _get_l2(self, photo_path: str) -> CacheEntry | None:
+        """
+        Get from L2 file cache with LRU update.
+
+        Thread-safe: Uses _l2_lock to prevent race conditions with eviction.
+        """
         cache_file = self._get_cache_file_path(photo_path)
 
-        if not cache_file.exists():
-            return None
+        # Use L2 lock to prevent eviction from deleting file during read
+        with self._l2_lock:
+            if not cache_file.exists():
+                return None
 
-        try:
-            with open(cache_file, "r") as f:
-                # Acquire shared lock for reading
-                fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+            try:
+                with open(cache_file) as f:
+                    # Acquire shared lock for reading (file-level lock)
+                    fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+                    try:
+                        data = json.load(f)
+                        entry = CacheEntry.from_dict(data)
+                    finally:
+                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+                # Update file mtime for LRU tracking (after releasing file lock)
                 try:
-                    data = json.load(f)
-                    entry = CacheEntry.from_dict(data)
-                finally:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                    cache_file.touch(exist_ok=True)
+                except Exception:
+                    pass  # mtime update failure is non-critical
 
-            # Update file mtime for LRU tracking (after releasing lock)
-            try:
-                cache_file.touch(exist_ok=True)
-            except Exception:
-                pass  # mtime update failure is non-critical
+                return entry
 
-            return entry
-
-        except Exception as e:
-            logger.warning(f"Failed to read L2 cache file {cache_file}: {e}")
-            # Corrupted or invalid cache file - remove it
-            try:
-                cache_file.unlink()
-            except Exception:
-                pass
-            return None
+            except Exception as e:
+                logger.warning(f"Failed to read L2 cache file {cache_file}: {e}")
+                # Corrupted or invalid cache file - remove it
+                try:
+                    cache_file.unlink()
+                except Exception:
+                    pass
+                return None
 
     def _set_l2(self, photo_path: str, entry: CacheEntry) -> None:
-        """Set in L2 file cache with LRU eviction"""
+        """
+        Set in L2 file cache with LRU eviction.
+
+        Thread-safe: Uses _l2_lock to prevent race conditions with eviction
+        and concurrent writes.
+        """
         cache_file = self._get_cache_file_path(photo_path)
 
-        try:
-            # Check if L2 eviction needed (before adding new file)
-            if not cache_file.exists():
-                # Only check size when adding NEW file (not updating existing)
-                self._evict_l2_if_needed()
+        # Use L2 lock to coordinate eviction and file writes
+        with self._l2_lock:
+            try:
+                # Check if L2 eviction needed (before adding new file)
+                if not cache_file.exists():
+                    # Only check size when adding NEW file (not updating existing)
+                    # _evict_l2_if_needed() assumes _l2_lock is already held
+                    self._evict_l2_if_needed()
 
-            # Write to temp file first for atomicity
-            temp_file = cache_file.with_suffix(".tmp")
+                # Write to temp file first for atomicity
+                temp_file = cache_file.with_suffix(".tmp")
 
-            with open(temp_file, "w") as f:
-                # Acquire exclusive lock for writing
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                try:
-                    json.dump(entry.to_dict(), f, indent=2)
-                finally:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                with open(temp_file, "w") as f:
+                    # Acquire exclusive lock for writing (file-level lock)
+                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                    try:
+                        json.dump(entry.to_dict(), f, indent=2)
+                    finally:
+                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
-            # Atomic rename
-            temp_file.replace(cache_file)
+                # Atomic rename
+                temp_file.replace(cache_file)
 
-        except Exception as e:
-            logger.warning(f"Failed to write L2 cache file {cache_file}: {e}")
-            # L2 write failure is non-fatal (cache is optimization)
+            except Exception as e:
+                logger.warning(f"Failed to write L2 cache file {cache_file}: {e}")
+                # L2 write failure is non-fatal (cache is optimization)
 
     def _get_cache_file_path(self, photo_path: str) -> Path:
         """
@@ -369,9 +416,16 @@ class MetadataCache:
 
         Uses LRU eviction based on file modification times (mtime).
         Evicts oldest files first until cache size is below limit.
+
+        Thread-safety: Caller must hold _l2_lock before calling this method.
+        This prevents race conditions where multiple threads could simultaneously:
+        - Read the cache file list
+        - Perform eviction on the same files
+        - Delete newly written files from other threads
         """
         try:
             # Get all cache files (exclude temp files)
+            # Note: _l2_lock must be held by caller to prevent TOCTOU bugs
             cache_files = list(self.cache_dir.glob("*.json"))
             cache_size = len(cache_files)
 
@@ -402,10 +456,8 @@ class MetadataCache:
                 self._l1_hits += 1
             elif level == "l2":
                 self._l2_hits += 1
+            # deque with maxlen automatically evicts oldest when full (atomic)
             self._total_response_times.append(response_time)
-            # Keep only last 1000 response times for moving average
-            if len(self._total_response_times) > 1000:
-                self._total_response_times.pop(0)
 
     def _record_l1_miss(self) -> None:
         """Record L1 cache miss"""
@@ -416,7 +468,5 @@ class MetadataCache:
         """Record L2 cache miss (complete cache miss)"""
         with self._stats_lock:
             self._l2_misses += 1
+            # deque with maxlen automatically evicts oldest when full (atomic)
             self._total_response_times.append(response_time)
-            # Keep only last 1000 response times for moving average
-            if len(self._total_response_times) > 1000:
-                self._total_response_times.pop(0)
