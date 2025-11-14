@@ -50,6 +50,34 @@ import { getPhotoUrl } from '../utils/api'
  *
  * @see https://github.com/Digital-Naturalism-Laboratories/Mothbox/issues/101
  */
+
+/**
+ * Format file size from bytes to human-readable string
+ * @param {number} bytes - File size in bytes
+ * @returns {string} Formatted size (e.g., "1.5 MB")
+ */
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`
+}
+
+/**
+ * Format date string to YYYY-MM-DD
+ * @param {string} dateString - ISO date string
+ * @returns {string} Formatted date or original string if invalid
+ */
+const formatDate = (dateString) => {
+  try {
+    const date = new Date(dateString)
+    return date.toISOString().split('T')[0]
+  } catch {
+    return dateString
+  }
+}
+
 function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   const closeButtonRef = useRef(null)
   const previousFocusRef = useRef(null)
@@ -345,25 +373,6 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   // Don't render if no photo selected (after hooks!)
   if (!photo) {
     return null
-  }
-
-  // Format file size
-  const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`
-  }
-
-  // Format date
-  const formatDate = (dateString) => {
-    try {
-      const date = new Date(dateString)
-      return date.toISOString().split('T')[0]
-    } catch {
-      return dateString
-    }
   }
 
   // Handle backdrop click
