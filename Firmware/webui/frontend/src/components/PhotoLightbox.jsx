@@ -626,6 +626,21 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
             </svg>
             <p className="text-lg font-semibold">Failed to load image</p>
             <p className="text-sm text-gray-300 mt-2">{photo.filename}</p>
+            <button
+              onClick={() => {
+                setImageError(false)
+                setIsImageLoading(true)
+                // Force image reload by updating src
+                if (imageRef.current) {
+                  const currentSrc = imageRef.current.src
+                  imageRef.current.src = ''
+                  imageRef.current.src = currentSrc
+                }
+              }}
+              className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+            >
+              Retry
+            </button>
           </div>
         )}
 
