@@ -8,12 +8,11 @@ path traversal attacks with multiple layers of security checks.
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
-def validate_photo_path(photo_path_str: str, base_dir: Path) -> Optional[Path]:
+def validate_photo_path(photo_path_str: str, base_dir: Path) -> Path | None:
     """
     Validate and resolve photo path with explicit security checks.
 

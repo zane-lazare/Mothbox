@@ -72,7 +72,6 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
     }
 
     // Track loaded images
-    let loadedCount = 0
     const images = []
 
     // Load current image first
@@ -82,17 +81,16 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
     currentImg.onload = () => {
       setCurrentImage(currentUrl)
       setIsLoading(false)
-      loadedCount++
 
       // After current loads, preload adjacent images
       imagesToPreload.slice(1).forEach((item) => {
         const img = new Image()
         images.push(img)
         img.onload = () => {
-          loadedCount++
+          // Image preloaded successfully
         }
         img.onerror = () => {
-          loadedCount++
+          // Image preload failed
         }
         img.src = item.url
       })
@@ -100,7 +98,6 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
 
     currentImg.onerror = () => {
       setIsLoading(false)
-      loadedCount++
     }
 
     currentImg.src = currentUrl

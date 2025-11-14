@@ -16,13 +16,12 @@ Security:
 """
 
 import logging
-from pathlib import Path
 
 from flask import Blueprint, jsonify, request
+from security_utils import sanitize_error_message, validate_photo_path
+from services.metadata_service import MetadataService
 
 from mothbox_paths import PHOTOS_DIR
-from security_utils import validate_photo_path, sanitize_error_message
-from services.metadata_service import MetadataService
 
 logger = logging.getLogger(__name__)
 

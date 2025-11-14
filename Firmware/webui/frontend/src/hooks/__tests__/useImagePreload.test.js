@@ -1,5 +1,5 @@
 import { renderHook, waitFor } from '@testing-library/react'
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import useImagePreload from '../useImagePreload'
 
 describe('useImagePreload', () => {
@@ -16,7 +16,7 @@ describe('useImagePreload', () => {
     ]
 
     // Mock Image constructor
-    global.Image = class {
+    globalThis.Image = class {
       constructor() {
         this._src = ''
         this._onload = null
@@ -79,7 +79,7 @@ describe('useImagePreload', () => {
     const imageSources = []
 
     // Override Image to capture all created images
-    global.Image = class {
+    globalThis.Image = class {
       constructor() {
         this._src = ''
       }
@@ -129,7 +129,7 @@ describe('useImagePreload', () => {
     const imageSources = []
 
     // Override Image to capture all created images
-    global.Image = class {
+    globalThis.Image = class {
       constructor() {
         this._src = ''
       }
@@ -203,7 +203,7 @@ describe('useImagePreload', () => {
   it('handles first photo (no previous)', async () => {
     const imageSources = []
 
-    global.Image = class {
+    globalThis.Image = class {
       constructor() {
         this._src = ''
       }
@@ -252,7 +252,7 @@ describe('useImagePreload', () => {
   it('handles last photo (no next)', async () => {
     const imageSources = []
 
-    global.Image = class {
+    globalThis.Image = class {
       constructor() {
         this._src = ''
       }

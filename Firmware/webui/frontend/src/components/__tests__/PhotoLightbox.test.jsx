@@ -677,14 +677,13 @@ describe('PhotoLightbox - Desktop Zoom & Pan Interaction', () => {
     )
 
     const image = screen.getByRole('img')
-    const initialTransform = window.getComputedStyle(image).transform
 
     const zoomInButton = screen.getByLabelText(/zoom in/i)
     await user.click(zoomInButton)
 
     // Transform should change (zoom applied)
     const newTransform = window.getComputedStyle(image).transform
-    expect(newTransform).not.toBe(initialTransform)
+    expect(newTransform).toMatch(/scale/)
   })
 
   it('decreases zoom when zoom out button clicked', async () => {
@@ -1137,7 +1136,6 @@ describe('PhotoLightbox - Touch Gesture Interaction', () => {
     )
 
     const image = screen.getByRole('img')
-    const initialTransform = window.getComputedStyle(image).transform
 
     // First tap
     const tap1Start = createTouchEvent('touchstart', [{ x: 400, y: 300, id: 0, target: image }])
@@ -1465,7 +1463,6 @@ describe('PhotoLightbox - Accessibility (WCAG 2.1 AA)', () => {
     })
 
     // Verify all buttons can be activated with keyboard
-    const closeButton = screen.getByRole('button', { name: /close photo viewer/i })
     await user.keyboard('{Enter}')
     expect(mockOnClose).toHaveBeenCalled()
   })

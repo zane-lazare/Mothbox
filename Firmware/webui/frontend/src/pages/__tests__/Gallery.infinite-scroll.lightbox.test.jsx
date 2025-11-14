@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import * as api from '../../utils/api'
 import { GALLERY_CONFIG } from '../../constants/config'
@@ -19,11 +19,10 @@ vi.mock('../../utils/api', () => ({
 
 describe('Gallery - Infinite Scroll - Lightbox & UI', () => {
   let queryClient
-  let observerMocks
 
   beforeEach(() => {
     queryClient = createTestQueryClient()
-    observerMocks = setupIntersectionObserver()
+    setupIntersectionObserver()
     vi.clearAllMocks()
   })
 

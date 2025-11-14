@@ -413,7 +413,7 @@ describe('Gallery + PhotoLightbox Integration', () => {
       })
     )
 
-    const { rerender } = renderGallery(queryClient)
+    renderGallery(queryClient)
 
     // Wait for photos to load
     await waitFor(() => {

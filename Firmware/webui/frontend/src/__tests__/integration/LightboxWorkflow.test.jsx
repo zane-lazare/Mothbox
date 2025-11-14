@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import PhotoLightbox from '../../components/PhotoLightbox'
 import { LIGHTBOX_CONFIG } from '../../constants/config'
@@ -475,8 +475,6 @@ describe('LightboxWorkflow Integration Tests', () => {
       externalButton.textContent = 'External Button'
       document.body.appendChild(externalButton)
       externalButton.focus()
-
-      const initialActiveElement = document.activeElement
 
       render(
         <PhotoLightbox

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import useZoomPan from '../useZoomPan'
 
@@ -506,8 +506,6 @@ describe('useZoomPan - Boundary Calculations', () => {
       result.current.setZoom(2.0)
       result.current.setPan({ x: 500, y: 400 })
     })
-
-    const panAtZoom2 = { ...result.current.pan }
 
     // Increase zoom to 3.0 (boundaries expand)
     act(() => {

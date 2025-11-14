@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { LIGHTBOX_CONFIG } from '../constants/config'
 import useZoomPan from '../hooks/useZoomPan'
@@ -85,17 +85,18 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
 
   // Track image dimensions when loaded
   useEffect(() => {
-    if (!imageRef.current) return
+    const currentImageRef = imageRef.current
+    if (!currentImageRef) return
 
     // Reset states when photo changes
     setIsImageLoading(true)
     setImageError(false)
 
     const handleImageLoad = () => {
-      if (imageRef.current) {
+      if (currentImageRef) {
         setImageDimensions({
-          width: imageRef.current.naturalWidth,
-          height: imageRef.current.naturalHeight,
+          width: currentImageRef.naturalWidth,
+          height: currentImageRef.naturalHeight,
         })
         setIsImageLoading(false)
       }
@@ -107,18 +108,16 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
     }
 
     // If image already loaded
-    if (imageRef.current.complete) {
+    if (currentImageRef.complete) {
       handleImageLoad()
     } else {
-      imageRef.current.addEventListener('load', handleImageLoad)
-      imageRef.current.addEventListener('error', handleImageError)
+      currentImageRef.addEventListener('load', handleImageLoad)
+      currentImageRef.addEventListener('error', handleImageError)
     }
 
     return () => {
-      if (imageRef.current) {
-        imageRef.current.removeEventListener('load', handleImageLoad)
-        imageRef.current.removeEventListener('error', handleImageError)
-      }
+      currentImageRef.removeEventListener('load', handleImageLoad)
+      currentImageRef.removeEventListener('error', handleImageError)
     }
   }, [photo])
 
@@ -201,7 +200,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   const currentIndex = photo ? photos.findIndex((p) => p.path === photo.path) : -1
   const hasMultiplePhotos = photos.length > 1
 
-  const handleNavigate = (direction) => {
+  const handleNavigate = useCallback((direction) => {
     if (!photo || !onNavigate || !hasMultiplePhotos) return
 
     let newIndex
@@ -220,7 +219,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
     if (newIndex !== currentIndex) {
       onNavigate(photos[newIndex])
     }
-  }
+  }, [photo, onNavigate, hasMultiplePhotos, currentIndex, photos])
 
   // Touch gestures hook for mobile support
   const { handleTouchStart, handleTouchMove, handleTouchEnd } = useTouchGestures({
@@ -238,19 +237,19 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   })
 
   // Handle mouse move for panning
-  const handleMouseMove = (e) => {
+  const handleMouseMove = useCallback((e) => {
     if (!isPanning) return
 
     setPan({
       x: e.clientX - panStart.x,
       y: e.clientY - panStart.y,
     })
-  }
+  }, [isPanning, panStart, setPan])
 
   // Handle mouse up (end panning)
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
     setIsPanning(false)
-  }
+  }, [])
 
   // Add global mouse event listeners for panning
   useEffect(() => {
@@ -263,7 +262,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isPanning, panStart, pan, setPan])
+  }, [isPanning, handleMouseMove, handleMouseUp])
 
   // Keyboard navigation - runs on every render
   useEffect(() => {

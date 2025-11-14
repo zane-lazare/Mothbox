@@ -80,8 +80,6 @@ function useTouchGestures({
   isZoomed,
   imageWidth,
   imageHeight,
-  containerWidth,
-  containerHeight,
 }) {
   // Touch gesture state
   const [touchStartPos, setTouchStartPos] = useState(null)
