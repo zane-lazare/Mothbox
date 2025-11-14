@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { LIGHTBOX_CONFIG } from '../constants/config'
 import useZoomPan from '../hooks/useZoomPan'
+import useTouchGestures from '../hooks/useTouchGestures'
 
 /**
  * PhotoLightbox Component
@@ -165,6 +166,21 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
     }
   }
 
+  // Touch gestures hook for mobile support
+  const { handleTouchStart, handleTouchMove, handleTouchEnd } = useTouchGestures({
+    imageRef,
+    zoom,
+    setZoom,
+    pan,
+    setPan,
+    onNavigate: handleNavigate,
+    isZoomed: zoom > 1.0,
+    imageWidth: imageDimensions.width,
+    imageHeight: imageDimensions.height,
+    containerWidth: containerDimensions.width,
+    containerHeight: containerDimensions.height,
+  })
+
   // Handle mouse move for panning
   const handleMouseMove = (e) => {
     if (!isPanning) return
@@ -298,16 +314,16 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
         Use arrow keys to navigate, +/- to zoom, ESC to close
       </div>
 
-      {/* Close button */}
+      {/* Close button - touch-friendly sizing */}
       <button
         ref={closeButtonRef}
         type="button"
         aria-label="Close photo viewer"
         onClick={onClose}
-        className="absolute top-4 right-4 z-10 rounded-lg bg-black bg-opacity-50 p-2 text-white transition-all hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-white"
+        className="absolute top-4 right-4 z-10 rounded-lg bg-black bg-opacity-50 p-2 text-white transition-all hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-white md:p-2 min-h-[44px] min-w-[44px] flex items-center justify-center"
       >
         <svg
-          className="h-6 w-6"
+          className="h-6 w-6 md:h-6 md:w-6"
           fill="none"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -330,15 +346,15 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
       {/* Navigation buttons - only show if multiple photos */}
       {hasMultiplePhotos && (
         <>
-          {/* Previous button */}
+          {/* Previous button - touch-friendly */}
           <button
             type="button"
             aria-label="Previous photo"
             onClick={() => handleNavigate('prev')}
-            className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-black bg-opacity-50 p-3 text-white transition-all hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-white"
+            className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-black bg-opacity-50 p-3 text-white transition-all hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-white min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             <svg
-              className="h-6 w-6"
+              className="h-6 w-6 md:h-6 md:w-6"
               fill="none"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -350,15 +366,15 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
             </svg>
           </button>
 
-          {/* Next button */}
+          {/* Next button - touch-friendly */}
           <button
             type="button"
             aria-label="Next photo"
             onClick={() => handleNavigate('next')}
-            className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-black bg-opacity-50 p-3 text-white transition-all hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-white"
+            className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-black bg-opacity-50 p-3 text-white transition-all hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-white min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             <svg
-              className="h-6 w-6"
+              className="h-6 w-6 md:h-6 md:w-6"
               fill="none"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -377,17 +393,17 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
         </>
       )}
 
-      {/* Zoom controls */}
-      <div className="absolute top-20 right-4 z-10 flex flex-col gap-2">
+      {/* Zoom controls - mobile: bottom-right, desktop: top-right */}
+      <div className="absolute bottom-4 right-4 md:top-20 md:bottom-auto z-10 flex flex-col gap-2">
         <button
           type="button"
           aria-label="Zoom in"
           onClick={handleZoomInClick}
           disabled={zoom >= LIGHTBOX_CONFIG.ZOOM_MAX}
-          className="rounded-lg bg-black bg-opacity-50 p-2 text-white transition-all hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-30"
+          className="rounded-lg bg-black bg-opacity-50 p-2 text-white transition-all hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-30 min-h-[44px] min-w-[44px] flex items-center justify-center"
         >
           <svg
-            className="h-6 w-6"
+            className="h-6 w-6 md:h-6 md:w-6"
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -403,10 +419,10 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
           aria-label="Zoom out"
           onClick={handleZoomOutClick}
           disabled={zoom <= LIGHTBOX_CONFIG.ZOOM_MIN}
-          className="rounded-lg bg-black bg-opacity-50 p-2 text-white transition-all hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-30"
+          className="rounded-lg bg-black bg-opacity-50 p-2 text-white transition-all hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-30 min-h-[44px] min-w-[44px] flex items-center justify-center"
         >
           <svg
-            className="h-6 w-6"
+            className="h-6 w-6 md:h-6 md:w-6"
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -422,10 +438,10 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
             type="button"
             aria-label="Reset zoom"
             onClick={handleResetZoomClick}
-            className="rounded-lg bg-black bg-opacity-50 p-2 text-white transition-all hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-white"
+            className="rounded-lg bg-black bg-opacity-50 p-2 text-white transition-all hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-white min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             <svg
-              className="h-6 w-6"
+              className="h-6 w-6 md:h-6 md:w-6"
               fill="none"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -439,9 +455,9 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
         )}
       </div>
 
-      {/* Zoom indicator */}
+      {/* Zoom indicator - mobile: higher position to avoid thumb */}
       {showZoomIndicator && (
-        <div className="absolute top-1/2 left-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-lg bg-black bg-opacity-75 px-4 py-2 text-2xl font-bold text-white transition-opacity">
+        <div className="absolute top-1/3 md:top-1/2 left-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-lg bg-black bg-opacity-75 px-4 py-2 text-2xl font-bold text-white transition-opacity">
           {Math.round(zoom * 100)}%
         </div>
       )}
@@ -461,9 +477,13 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             cursor: zoom > 1.0 ? (isPanning ? 'grabbing' : 'grab') : 'default',
             transition: isPanning ? 'none' : 'transform 0.1s ease-out',
+            touchAction: zoom > 1.0 ? 'none' : 'pan-y', // Prevent browser gestures when zoomed
           }}
           onWheel={handleWheel}
           onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
           draggable={false}
         />
       </div>

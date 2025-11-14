@@ -991,3 +991,293 @@ describe('PhotoLightbox - Desktop Zoom & Pan Interaction', () => {
     expect(newTransform).toBe(initialTransform)
   })
 })
+
+describe('PhotoLightbox - Touch Gesture Interaction', () => {
+  const mockPhotos = [
+    {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+    },
+    {
+      path: '2024-11-10/photo_002.jpg',
+      filename: 'photo_002.jpg',
+      date: '2024-11-10T18:31:00Z',
+      size: 5500000,
+      timestamp: 1699639860,
+    },
+    {
+      path: '2024-11-10/photo_003.jpg',
+      filename: 'photo_003.jpg',
+      date: '2024-11-10T18:32:00Z',
+      size: 5100000,
+      timestamp: 1699639920,
+    },
+  ]
+
+  const mockOnClose = vi.fn()
+  const mockOnNavigate = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    document.body.style.overflow = ''
+  })
+
+  const createTouchEvent = (type, touches, changedTouches = null) => {
+    return new TouchEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      touches: touches.map((t, idx) => ({
+        clientX: t.x,
+        clientY: t.y,
+        identifier: t.id !== undefined ? t.id : idx,
+        target: t.target,
+      })),
+      changedTouches: changedTouches
+        ? changedTouches.map((t, idx) => ({
+            clientX: t.x,
+            clientY: t.y,
+            identifier: t.id !== undefined ? t.id : idx,
+            target: t.target,
+          }))
+        : [],
+    })
+  }
+
+  it('pinch gesture zooms image in/out', async () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const image = screen.getByRole('img')
+    const initialTransform = window.getComputedStyle(image).transform
+
+    // Simulate pinch-out (zoom in)
+    const touchStart = createTouchEvent(
+      'touchstart',
+      [
+        { x: 300, y: 300, id: 0, target: image },
+        { x: 500, y: 300, id: 1, target: image },
+      ]
+    )
+    image.dispatchEvent(touchStart)
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    const touchMove = createTouchEvent(
+      'touchmove',
+      [
+        { x: 250, y: 300, id: 0, target: image },
+        { x: 550, y: 300, id: 1, target: image },
+      ]
+    )
+    image.dispatchEvent(touchMove)
+
+    await waitFor(() => {
+      const transform = window.getComputedStyle(image).transform
+      // Should have scale > 1
+      expect(transform).toMatch(/scale\((\d+\.?\d*)\)/)
+      expect(transform).not.toBe(initialTransform)
+    })
+  })
+
+  it('swipe left/right navigates photos', async () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const image = screen.getByRole('img')
+
+    // Swipe left (next photo)
+    const touchStart = createTouchEvent('touchstart', [{ x: 400, y: 300, id: 0, target: image }])
+    image.dispatchEvent(touchStart)
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const touchEnd = createTouchEvent(
+      'touchend',
+      [],
+      [{ x: 200, y: 300, id: 0, target: image }]
+    )
+    image.dispatchEvent(touchEnd)
+
+    await waitFor(() => {
+      expect(mockOnNavigate).toHaveBeenCalledWith(mockPhotos[1])
+    })
+  })
+
+  it('double-tap toggles zoom', async () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const image = screen.getByRole('img')
+    const initialTransform = window.getComputedStyle(image).transform
+
+    // First tap
+    const tap1Start = createTouchEvent('touchstart', [{ x: 400, y: 300, id: 0, target: image }])
+    image.dispatchEvent(tap1Start)
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const tap1End = createTouchEvent('touchend', [], [{ x: 400, y: 300, id: 0, target: image }])
+    image.dispatchEvent(tap1End)
+
+    // Second tap (within 300ms)
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    const tap2Start = createTouchEvent('touchstart', [{ x: 400, y: 300, id: 0, target: image }])
+    image.dispatchEvent(tap2Start)
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const tap2End = createTouchEvent('touchend', [], [{ x: 400, y: 300, id: 0, target: image }])
+    image.dispatchEvent(tap2End)
+
+    // Should zoom in to 2.5x
+    await waitFor(() => {
+      const transform = window.getComputedStyle(image).transform
+      expect(transform).toMatch(/scale\(2\.5\)/)
+    })
+  })
+
+  it('touch pan works when zoomed', async () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const image = screen.getByRole('img')
+
+    // First zoom in using zoom button
+    const zoomInButton = screen.getByLabelText('Zoom in')
+    await userEvent.click(zoomInButton)
+    await userEvent.click(zoomInButton) // Zoom to 2.0x
+
+    await waitFor(() => {
+      const transform = window.getComputedStyle(image).transform
+      expect(transform).toMatch(/scale\(2\)/)
+    })
+
+    // Now try touch pan
+    const touchStart = createTouchEvent('touchstart', [{ x: 400, y: 300, id: 0, target: image }])
+    image.dispatchEvent(touchStart)
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const touchMove = createTouchEvent('touchmove', [{ x: 350, y: 250, id: 0, target: image }])
+    image.dispatchEvent(touchMove)
+
+    await waitFor(() => {
+      const transform = window.getComputedStyle(image).transform
+      // Should have translate values
+      expect(transform).toMatch(/translate\(.+px,\s*.+px\)/)
+    })
+  })
+
+  it('swipe disabled when zoomed', async () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const image = screen.getByRole('img')
+
+    // Zoom in first
+    const zoomInButton = screen.getByLabelText('Zoom in')
+    await userEvent.click(zoomInButton)
+
+    await waitFor(() => {
+      const transform = window.getComputedStyle(image).transform
+      expect(transform).toMatch(/scale\(1\.5\)/)
+    })
+
+    // Try to swipe (should not navigate)
+    const touchStart = createTouchEvent('touchstart', [{ x: 400, y: 300, id: 0, target: image }])
+    image.dispatchEvent(touchStart)
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const touchEnd = createTouchEvent(
+      'touchend',
+      [],
+      [{ x: 200, y: 300, id: 0, target: image }]
+    )
+    image.dispatchEvent(touchEnd)
+
+    // Wait to ensure navigation doesn't happen
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    expect(mockOnNavigate).not.toHaveBeenCalled()
+  })
+
+  it('touch events do not interfere with desktop events', async () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhotos[0]}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const image = screen.getByRole('img')
+    const zoomInButton = screen.getByLabelText('Zoom in')
+
+    // Desktop zoom in
+    await userEvent.click(zoomInButton)
+
+    await waitFor(() => {
+      const transform = window.getComputedStyle(image).transform
+      expect(transform).toMatch(/scale\(1\.5\)/)
+    })
+
+    // Desktop zoom out
+    const zoomOutButton = screen.getByLabelText('Zoom out')
+    await userEvent.click(zoomOutButton)
+
+    await waitFor(() => {
+      const transform = window.getComputedStyle(image).transform
+      expect(transform).toMatch(/scale\(1\)/)
+    })
+
+    // Desktop navigation (arrow keys) should still work
+    const leftArrow = new KeyboardEvent('keydown', {
+      key: 'ArrowLeft',
+      bubbles: true,
+    })
+    document.dispatchEvent(leftArrow)
+
+    await waitFor(() => {
+      expect(mockOnNavigate).toHaveBeenCalledWith(mockPhotos[2]) // Wrapped to last
+    })
+  })
+})
