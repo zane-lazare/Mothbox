@@ -81,7 +81,7 @@ describe('PhotoLightbox - Basic Rendering', () => {
     )
 
     const image = screen.getByRole('img')
-    expect(image).toHaveAttribute('alt', 'photo_001.jpg')
+    expect(image).toHaveAttribute('alt', 'Photo taken on 2024-11-10')
     expect(image.src).toContain('photo_001.jpg')
   })
 

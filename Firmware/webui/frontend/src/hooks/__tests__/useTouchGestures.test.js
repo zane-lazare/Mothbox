@@ -53,6 +53,8 @@ describe('useTouchGestures - Pinch-to-Zoom Detection', () => {
       imageHeight: 800,
       containerWidth: 800,
       containerHeight: 600,
+      minZoom: 1.0,
+      maxZoom: 5.0,
     }
   })
 
@@ -309,6 +311,8 @@ describe('useTouchGestures - Swipe Navigation Detection', () => {
       imageHeight: 800,
       containerWidth: 800,
       containerHeight: 600,
+      minZoom: 1.0,
+      maxZoom: 5.0,
     }
   })
 
@@ -478,6 +482,8 @@ describe('useTouchGestures - Double-Tap Zoom', () => {
       imageHeight: 800,
       containerWidth: 800,
       containerHeight: 600,
+      minZoom: 1.0,
+      maxZoom: 5.0,
     }
   })
 

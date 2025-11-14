@@ -82,7 +82,7 @@ describe('LightboxWorkflow Integration Tests', () => {
       // Step 1: Verify lightbox opens
       const dialog = screen.getByRole('dialog')
       expect(dialog).toBeInTheDocument()
-      expect(screen.getByAltText('photo_001.jpg')).toBeInTheDocument()
+      expect(screen.getByAltText('Photo taken on 2024-11-10')).toBeInTheDocument()
 
       // Step 2: Navigate with keyboard (right arrow)
       await user.keyboard('{ArrowRight}')
@@ -100,14 +100,14 @@ describe('LightboxWorkflow Integration Tests', () => {
       )
 
       // Verify new photo displayed
-      expect(screen.getByAltText('photo_002.jpg')).toBeInTheDocument()
+      expect(screen.getByAltText('Photo taken on 2024-11-10')).toBeInTheDocument()
 
       // Step 3: Zoom with button click
       const zoomInBtn = screen.getByLabelText(/zoom in/i)
       await user.click(zoomInBtn)
 
       // Verify zoom applied (check transform contains scale)
-      const img = screen.getByAltText('photo_002.jpg')
+      const img = screen.getByAltText('Photo taken on 2024-11-10')
       await waitFor(() => {
         expect(img.style.transform).toMatch(/scale\(1\.5\)/)
       })
@@ -176,7 +176,7 @@ describe('LightboxWorkflow Integration Tests', () => {
       const zoomInBtn = screen.getByLabelText(/zoom in/i)
       await user.click(zoomInBtn)
 
-      const img = screen.getByAltText('photo_001.jpg')
+      const img = screen.getByAltText('Photo taken on 2024-11-10')
       await waitFor(() => {
         expect(img.style.transform).toMatch(/scale\(1\.5\)/)
       })
@@ -209,7 +209,7 @@ describe('LightboxWorkflow Integration Tests', () => {
         />
       )
 
-      expect(screen.getByAltText('photo_003.jpg')).toBeInTheDocument()
+      expect(screen.getByAltText('Photo taken on 2024-11-10')).toBeInTheDocument()
 
       // Navigate forward (should wrap to first photo if WRAP_NAVIGATION is true)
       await user.keyboard('{ArrowRight}')
@@ -230,7 +230,7 @@ describe('LightboxWorkflow Integration Tests', () => {
         )
 
         await waitFor(() => {
-          expect(screen.getByAltText('photo_001.jpg')).toBeInTheDocument()
+          expect(screen.getByAltText('Photo taken on 2024-11-10')).toBeInTheDocument()
         })
 
         // Navigate backward (should wrap to last photo)
@@ -260,7 +260,7 @@ describe('LightboxWorkflow Integration Tests', () => {
       const zoomInBtn = screen.getByLabelText(/zoom in/i)
       await user.click(zoomInBtn)
 
-      let img = screen.getByAltText('photo_001.jpg')
+      let img = screen.getByAltText('Photo taken on 2024-11-10')
       await waitFor(() => {
         expect(img.style.transform).toMatch(/scale\(1\.5\)/)
       })
@@ -282,7 +282,7 @@ describe('LightboxWorkflow Integration Tests', () => {
       // Verify zoom state on new photo
       // Note: Zoom state is maintained in the hook, so it persists across photo changes
       // This test documents current behavior
-      img = screen.getByAltText('photo_002.jpg')
+      img = screen.getByAltText('Photo taken on 2024-11-10')
       await waitFor(() => {
         // Zoom persists at 1.5 (hook state maintained)
         expect(img.style.transform).toMatch(/scale\(1\.5\)/)
@@ -347,7 +347,7 @@ describe('LightboxWorkflow Integration Tests', () => {
         />
       )
 
-      const img = screen.getByAltText('photo_002.jpg')
+      const img = screen.getByAltText('Photo taken on 2024-11-10')
 
       // Zoom in with button (simulates pinch-to-zoom result)
       const zoomInBtn = screen.getByLabelText(/zoom in/i)
@@ -434,7 +434,7 @@ describe('LightboxWorkflow Integration Tests', () => {
         />
       )
 
-      const img = screen.getByAltText('photo_002.jpg')
+      const img = screen.getByAltText('Photo taken on 2024-11-10')
 
       // Zoom in first
       const zoomInBtn = screen.getByLabelText(/zoom in/i)
@@ -609,7 +609,7 @@ describe('LightboxWorkflow Integration Tests', () => {
 
       // Lightbox should still render
       expect(screen.getByRole('dialog')).toBeInTheDocument()
-      expect(screen.getByAltText('photo_001.jpg')).toBeInTheDocument()
+      expect(screen.getByAltText('Photo taken on 2024-11-10')).toBeInTheDocument()
 
       // Navigation buttons should NOT be present (no multiple photos)
       expect(screen.queryByLabelText(/previous photo/i)).not.toBeInTheDocument()
