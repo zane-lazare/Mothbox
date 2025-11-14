@@ -188,8 +188,8 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
 
     updateContainerDimensions()
 
-    // Debounce resize handler for better performance (300ms delay)
-    const debouncedUpdate = debounce(updateContainerDimensions, 300)
+    // Debounce resize handler for better performance (150ms for responsive feel)
+    const debouncedUpdate = debounce(updateContainerDimensions, 150)
 
     // Update on window resize
     window.addEventListener('resize', debouncedUpdate)
