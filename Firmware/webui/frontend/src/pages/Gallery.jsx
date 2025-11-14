@@ -1,7 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { getPhotosPaginated } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 import { useViewMode } from '../hooks/useViewMode'
@@ -66,6 +66,10 @@ export default function Gallery() {
 
   // Flatten all pages into single photo array
   const photos = data?.pages.flatMap((page) => page.photos) ?? []
+
+  // Memoized callbacks to prevent unnecessary re-renders
+  const handleCloseLightbox = useCallback(() => setSelectedPhoto(null), [])
+  const handleNavigate = useCallback((photo) => setSelectedPhoto(photo), [])
 
   // Toast notifications for error states
   useEffect(() => {
@@ -217,13 +221,13 @@ export default function Gallery() {
       <ErrorBoundary
         errorTitle="Lightbox Error"
         errorMessage="An error occurred while displaying the photo. Please try closing and reopening the lightbox."
-        onReset={() => setSelectedPhoto(null)}
+        onReset={handleCloseLightbox}
       >
         <PhotoLightbox
           photo={selectedPhoto}
           photos={photos}
-          onClose={() => setSelectedPhoto(null)}
-          onNavigate={(photo) => setSelectedPhoto(photo)}
+          onClose={handleCloseLightbox}
+          onNavigate={handleNavigate}
         />
       </ErrorBoundary>
     </div>
