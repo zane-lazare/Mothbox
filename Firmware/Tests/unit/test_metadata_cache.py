@@ -242,6 +242,39 @@ class TestMetadataCacheL2Operations:
         # Result might be None or come from L1, either is acceptable
         assert True  # Test passes if no exception raised
 
+    def test_l2_cache_eviction_lru(self, cache_dir, sample_metadata):
+        """
+        L2 cache evicts oldest files when exceeding l2_max_size.
+
+        Regression test for disk space leak (Issue #100).
+        Verifies that L2 cache doesn't grow indefinitely.
+        """
+        import time
+        from webui.backend.services.metadata_cache import MetadataCache
+
+        # Create cache with small L2 size
+        cache = MetadataCache(cache_dir, l1_max_size=3, l2_max_size=10)
+
+        # Fill L2 cache beyond capacity
+        for i in range(15):
+            cache.set(f"/photos/photo{i}.jpg", sample_metadata)
+            # Small delay to ensure different mtimes
+            time.sleep(0.01)
+
+        # Count L2 cache files
+        cache_files = list(cache_dir.glob("*.json"))
+        cache_size = len(cache_files)
+
+        # L2 should have evicted files to stay near limit
+        # Should be <= l2_max_size (eviction keeps cache at ~90% of max)
+        assert cache_size <= cache.l2_max_size, \
+            f"L2 cache size {cache_size} exceeds max {cache.l2_max_size}"
+
+        # Verify oldest files were evicted (photo0, photo1, etc.)
+        # Newer files should still be in cache
+        assert cache.get("/photos/photo14.jpg") is not None, "Newest file should be cached"
+        assert cache.get("/photos/photo13.jpg") is not None, "Recent file should be cached"
+
 
 class TestMetadataCacheTwoLevelIntegration:
     """Test L1/L2 coordination"""

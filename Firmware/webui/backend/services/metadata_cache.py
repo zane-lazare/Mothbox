@@ -293,7 +293,7 @@ class MetadataCache:
                 self._l1_cache[photo_path] = entry
 
     def _get_l2(self, photo_path: str) -> Optional[CacheEntry]:
-        """Get from L2 file cache with locking"""
+        """Get from L2 file cache with LRU update"""
         cache_file = self._get_cache_file_path(photo_path)
 
         if not cache_file.exists():
@@ -306,9 +306,17 @@ class MetadataCache:
                 try:
                     data = json.load(f)
                     entry = CacheEntry.from_dict(data)
-                    return entry
                 finally:
                     fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+            # Update file mtime for LRU tracking (after releasing lock)
+            try:
+                cache_file.touch(exist_ok=True)
+            except Exception:
+                pass  # mtime update failure is non-critical
+
+            return entry
+
         except Exception as e:
             logger.warning(f"Failed to read L2 cache file {cache_file}: {e}")
             # Corrupted or invalid cache file - remove it
@@ -319,10 +327,15 @@ class MetadataCache:
             return None
 
     def _set_l2(self, photo_path: str, entry: CacheEntry) -> None:
-        """Set in L2 file cache with locking"""
+        """Set in L2 file cache with LRU eviction"""
         cache_file = self._get_cache_file_path(photo_path)
 
         try:
+            # Check if L2 eviction needed (before adding new file)
+            if not cache_file.exists():
+                # Only check size when adding NEW file (not updating existing)
+                self._evict_l2_if_needed()
+
             # Write to temp file first for atomicity
             temp_file = cache_file.with_suffix(".tmp")
 
@@ -349,6 +362,38 @@ class MetadataCache:
         """
         path_hash = hashlib.sha256(photo_path.encode()).hexdigest()[:16]
         return self.cache_dir / f"{path_hash}.json"
+
+    def _evict_l2_if_needed(self) -> None:
+        """
+        Evict L2 cache entries if cache exceeds l2_max_size.
+
+        Uses LRU eviction based on file modification times (mtime).
+        Evicts oldest files first until cache size is below limit.
+        """
+        try:
+            # Get all cache files (exclude temp files)
+            cache_files = list(self.cache_dir.glob("*.json"))
+            cache_size = len(cache_files)
+
+            if cache_size >= self.l2_max_size:
+                # Calculate how many files to evict
+                # Evict 10% of cache size to avoid thrashing
+                evict_count = max(1, int(self.l2_max_size * 0.1))
+
+                # Sort by modification time (oldest first)
+                cache_files_sorted = sorted(cache_files, key=lambda f: f.stat().st_mtime)
+
+                # Evict oldest files
+                for cache_file in cache_files_sorted[:evict_count]:
+                    try:
+                        cache_file.unlink()
+                        logger.debug(f"Evicted L2 cache file: {cache_file.name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to evict L2 cache file {cache_file}: {e}")
+
+        except Exception as e:
+            logger.warning(f"L2 eviction failed: {e}")
+            # Eviction failure is non-fatal (cache will continue growing)
 
     def _record_hit(self, level: str, response_time: float) -> None:
         """Record cache hit statistics"""
