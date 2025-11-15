@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import MetadataField from './MetadataField';
-import { decimalToDMS, formatAltitude } from '../../utils/metadataFormatters';
+import { formatGPSCoordinate, formatAltitude } from '../../utils/metadataFormatters';
 
 /**
  * LocationTab Component
@@ -52,15 +52,9 @@ const LocationTab = ({ data }) => {
 
   const { lat, lon, gps_fix_mode, alt, gps_satellites_used, gps_hdop, gps_pdop } = data;
 
-  // Convert to DMS format with cardinal directions
-  const latDMSObj = decimalToDMS(lat);
-  const lonDMSObj = decimalToDMS(lon);
-
-  const latDirection = lat >= 0 ? 'N' : 'S';
-  const lonDirection = lon >= 0 ? 'E' : 'W';
-
-  const latDMS = `${latDMSObj.degrees}°${latDMSObj.minutes}'${latDMSObj.seconds.toFixed(2)}"${latDirection}`;
-  const lonDMS = `${lonDMSObj.degrees}°${lonDMSObj.minutes}'${lonDMSObj.seconds.toFixed(2)}"${lonDirection}`;
+  // Format coordinates in DMS format with cardinal directions using utility function
+  const latDMS = formatGPSCoordinate(lat, 'lat');
+  const lonDMS = formatGPSCoordinate(lon, 'lon');
 
   // Create Google Maps link
   const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
