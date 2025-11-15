@@ -4,6 +4,12 @@
 
 The GPS coordinate conversion utilities provide a shared library for converting between decimal degrees and degrees-minutes-seconds (DMS) formats, validating coordinates, and formatting them for display. These utilities are implemented in both Python (backend) and TypeScript (frontend) with **identical behavior** across both languages.
 
+### File Locations
+
+- **Python (webui-shared)**: `webui/lib/gps_coordinates.py` - Shared library for all webui components
+- **TypeScript (frontend)**: `webui/frontend/src/utils/gpsCoordinates.ts` - Frontend utilities
+- **Backward compatibility**: Also exported from `webui/backend/utils/` for legacy imports
+
 ### Purpose and Use Cases
 
 - **GPS EXIF Embedding**: Convert decimal coordinates to EXIF DMS format for photo geotagging
@@ -25,6 +31,15 @@ The GPS coordinate conversion utilities provide a shared library for converting 
 ### Backend (Python)
 
 ```python
+# Import from webui.lib (recommended - webui-shared library)
+from webui.lib.gps_coordinates import (
+    decimal_to_dms,
+    dms_to_decimal,
+    validate_coordinate,
+    format_coordinate_display
+)
+
+# Backward compatible - still works via re-export
 from webui.backend.utils.gps_coordinates import (
     decimal_to_dms,
     dms_to_decimal,
@@ -383,7 +398,7 @@ const dateLon = formatCoordinateDisplay(-180.0, false);
 
 **Python**:
 ```python
-from webui.backend.utils.gps_coordinates import decimal_to_dms, dms_to_decimal
+from webui.lib.gps_coordinates import decimal_to_dms, dms_to_decimal
 
 # Convert decimal to DMS (for EXIF embedding)
 lat_decimal = 37.7749
@@ -433,7 +448,7 @@ console.log(`Longitude: ${lonBack}`);  // -122.4194
 **Python (Flask API)**:
 ```python
 from flask import request, jsonify
-from webui.backend.utils.gps_coordinates import validate_coordinate, format_coordinate_display
+from webui.lib.gps_coordinates import validate_coordinate, format_coordinate_display
 
 @app.route('/api/location/set', methods=['POST'])
 def set_location():
@@ -513,7 +528,7 @@ function LocationForm() {
 
 **Python (EXIF Metadata)**:
 ```python
-from webui.backend.utils.gps_coordinates import format_coordinate_display
+from webui.lib.gps_coordinates import format_coordinate_display
 
 def get_photo_location(photo_path: str) -> str:
     """Get formatted location string from photo EXIF."""
@@ -559,7 +574,7 @@ function PhotoCard({ photo }: { photo: Photo }) {
 **Verify Accuracy**:
 
 ```python
-from webui.backend.utils.gps_coordinates import decimal_to_dms, dms_to_decimal
+from webui.lib.gps_coordinates import decimal_to_dms, dms_to_decimal
 
 # Test various coordinates
 test_coords = [
@@ -662,7 +677,7 @@ npm run benchmark:gps
 **Run tests**:
 ```bash
 pytest Tests/unit/test_gps_coordinates.py -v
-pytest Tests/unit/test_gps_coordinates.py --cov=webui.backend.utils.gps_coordinates --cov-report=html
+pytest Tests/unit/test_gps_coordinates.py --cov=webui.lib.gps_coordinates --cov-report=html
 ```
 
 ### TypeScript Frontend

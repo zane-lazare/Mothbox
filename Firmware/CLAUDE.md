@@ -440,8 +440,8 @@ def ws_connect():
 ### GPS Coordinate Conversion
 
 ```python
-# CORRECT - Use shared utilities
-from webui.backend.utils.gps_coordinates import decimal_to_dms, dms_to_decimal
+# CORRECT - Use shared utilities from webui.lib
+from webui.lib.gps_coordinates import decimal_to_dms, dms_to_decimal
 
 # Convert decimal to DMS for EXIF embedding
 lat_dms = decimal_to_dms(37.7749, is_latitude=True)
@@ -450,6 +450,9 @@ lat_dms = decimal_to_dms(37.7749, is_latitude=True)
 # Convert DMS to decimal for API/storage
 lat_decimal = dms_to_decimal(37, 46, 29.64, 'N')
 # Returns: 37.7749
+
+# BACKWARD COMPATIBLE - Can still import from utils (re-exported)
+from webui.backend.utils import decimal_to_dms, dms_to_decimal
 
 # WRONG - Don't implement conversion logic inline
 # This leads to inconsistencies and bugs
@@ -473,7 +476,7 @@ const lonDisplay = formatCoordinateDisplay(-122.4194, false);
 - `install_mothbox.sh`: Installation script with Pi detection and firmware selection
 - `gps_exif_tagger.py`: Main GPS EXIF embedding tool (CLI and watch mode)
 - `lib/gps_exif_lib.py`: GPS EXIF library (coordinate conversion, EXIF embedding, verification)
-- `webui/backend/utils/gps_coordinates.py`: **GPS coordinate utilities** (decimal ↔ DMS conversion, validation, formatting)
+- `webui/lib/gps_coordinates.py`: **GPS coordinate utilities** (decimal ↔ DMS conversion, validation, formatting) - webui-shared library
 - `webui/frontend/src/utils/gpsCoordinates.ts`: **GPS coordinate utilities (TypeScript)** (identical behavior to Python)
 - `webui/backend/app.py`: Flask app initialization, CSRF, CORS, SocketIO setup
 - `webui/backend/liveview_stream.py`: Camera streaming engine (2500+ lines)
