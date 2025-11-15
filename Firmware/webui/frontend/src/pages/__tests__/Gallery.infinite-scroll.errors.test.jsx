@@ -85,7 +85,7 @@ describe('Gallery - Infinite Scroll - Error Handling', () => {
       })
 
       // First page photos should still be visible
-      const photos = screen.getAllByAltText('photo_1.jpg')
+      const photos = screen.getAllByAltText('Photo taken on 2023-11-01')
       expect(photos.length).toBeGreaterThan(0)
       expect(photos[0]).toBeInTheDocument()
     })

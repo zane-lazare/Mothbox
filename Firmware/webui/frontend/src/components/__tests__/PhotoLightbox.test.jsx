@@ -1523,7 +1523,7 @@ describe('PhotoLightbox - GPU Acceleration', () => {
     )
 
     // Wait for image to be rendered
-    const image = await screen.findByAltText(mockPhoto.filename)
+    const image = await screen.findByAltText('Photo taken on 2024-11-10')
 
     // Should use translate3d (forces GPU acceleration)
     // Note: computed style might be matrix3d, so we check the inline style
@@ -1543,7 +1543,7 @@ describe('PhotoLightbox - GPU Acceleration', () => {
     )
 
     // Wait for image to be rendered
-    const image = await screen.findByAltText(mockPhoto.filename)
+    const image = await screen.findByAltText('Photo taken on 2024-11-10')
 
     // Initially should be auto (not zoomed)
     expect(image.style.willChange).toBe('auto')
@@ -1571,7 +1571,7 @@ describe('PhotoLightbox - GPU Acceleration', () => {
     )
 
     // Wait for image to be rendered
-    const image = await screen.findByAltText(mockPhoto.filename)
+    const image = await screen.findByAltText('Photo taken on 2024-11-10')
 
     // Zoom in first
     const zoomInButton = screen.getByRole('button', { name: /zoom in/i })
@@ -1703,7 +1703,7 @@ describe('PhotoLightbox - Performance Benchmarks', () => {
     await user.click(zoomInButton)
 
     // Wait for image to be rendered
-    const image = await screen.findByAltText(mockPhoto.filename)
+    const image = await screen.findByAltText('Photo taken on 2024-11-10')
 
     const start = performance.now()
 

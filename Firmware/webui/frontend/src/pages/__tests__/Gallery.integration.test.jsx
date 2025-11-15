@@ -72,7 +72,7 @@ describe('Gallery + PhotoLightbox Integration', () => {
 
     // Verify correct photo shown in lightbox
     const dialog = screen.getByRole('dialog')
-    const lightboxImg = within(dialog).getByAltText('photo_1.jpg')
+    const lightboxImg = within(dialog).getByAltText('Photo taken on 2023-11-01')
     expect(lightboxImg).toBeInTheDocument()
     expect(lightboxImg.src).toContain('/api/gallery/photo/photo_1.jpg')
 
@@ -104,7 +104,7 @@ describe('Gallery + PhotoLightbox Integration', () => {
     // Verify first photo in lightbox
     await waitFor(() => {
       const dialog = screen.getByRole('dialog')
-      expect(within(dialog).getByAltText('photo_1.jpg')).toBeInTheDocument()
+      expect(within(dialog).getByAltText('Photo taken on 2023-11-01')).toBeInTheDocument()
     })
 
     // Navigate to next photo with keyboard
@@ -113,7 +113,7 @@ describe('Gallery + PhotoLightbox Integration', () => {
     // Verify second photo now shown
     await waitFor(() => {
       const dialog = screen.getByRole('dialog')
-      expect(within(dialog).getByAltText('photo_2.jpg')).toBeInTheDocument()
+      expect(within(dialog).getByAltText('Photo taken on 2023-11-02')).toBeInTheDocument()
     })
 
     // Navigate to third photo
@@ -121,7 +121,7 @@ describe('Gallery + PhotoLightbox Integration', () => {
 
     await waitFor(() => {
       const dialog = screen.getByRole('dialog')
-      expect(within(dialog).getByAltText('photo_3.jpg')).toBeInTheDocument()
+      expect(within(dialog).getByAltText('Photo taken on 2023-11-03')).toBeInTheDocument()
     })
 
     // Navigate backward
@@ -129,7 +129,7 @@ describe('Gallery + PhotoLightbox Integration', () => {
 
     await waitFor(() => {
       const dialog = screen.getByRole('dialog')
-      expect(within(dialog).getByAltText('photo_2.jpg')).toBeInTheDocument()
+      expect(within(dialog).getByAltText('Photo taken on 2023-11-02')).toBeInTheDocument()
     })
 
     // Gallery should still be rendered (thumbnails still present)
@@ -179,7 +179,7 @@ describe('Gallery + PhotoLightbox Integration', () => {
 
     await waitFor(() => {
       const dialog = screen.getByRole('dialog')
-      expect(within(dialog).getByAltText('photo_2.jpg')).toBeInTheDocument()
+      expect(within(dialog).getByAltText('Photo taken on 2023-11-02')).toBeInTheDocument()
     })
 
     // Close with close button
@@ -222,7 +222,7 @@ describe('Gallery + PhotoLightbox Integration', () => {
 
       await waitFor(() => {
         const dialog = screen.getByRole('dialog')
-        expect(within(dialog).getByAltText(`photo_${i + 1}.jpg`)).toBeInTheDocument()
+        expect(within(dialog).getByAltText(`Photo taken on 2023-11-${String(i + 1).padStart(2, '0')}`)).toBeInTheDocument()
       })
 
       // Navigate a bit
@@ -262,7 +262,7 @@ describe('Gallery + PhotoLightbox Integration', () => {
 
     await waitFor(() => {
       const dialog = screen.getByRole('dialog')
-      expect(within(dialog).getByAltText('photo_3.jpg')).toBeInTheDocument()
+      expect(within(dialog).getByAltText('Photo taken on 2023-11-03')).toBeInTheDocument()
     })
 
     // No errors should occur (test passes if we get here)
@@ -386,7 +386,7 @@ describe('Gallery + PhotoLightbox Integration', () => {
 
     await waitFor(() => {
       const dialog = screen.getByRole('dialog')
-      expect(within(dialog).getByAltText('photo_2.jpg')).toBeInTheDocument()
+      expect(within(dialog).getByAltText('Photo taken on 2023-11-02')).toBeInTheDocument()
     })
 
     // Close lightbox
@@ -425,7 +425,7 @@ describe('Gallery + PhotoLightbox Integration', () => {
 
     await waitFor(() => {
       const dialog = screen.getByRole('dialog')
-      expect(within(dialog).getByAltText('photo_1.jpg')).toBeInTheDocument()
+      expect(within(dialog).getByAltText('Photo taken on 2023-11-01')).toBeInTheDocument()
     })
 
     // Navigate to second photo
@@ -433,7 +433,7 @@ describe('Gallery + PhotoLightbox Integration', () => {
 
     await waitFor(() => {
       const dialog = screen.getByRole('dialog')
-      expect(within(dialog).getByAltText('photo_2.jpg')).toBeInTheDocument()
+      expect(within(dialog).getByAltText('Photo taken on 2023-11-02')).toBeInTheDocument()
     })
 
     // Photo array changes should not crash lightbox

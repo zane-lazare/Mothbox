@@ -53,12 +53,12 @@ describe('Gallery - Infinite Scroll - Lightbox & UI', () => {
       })
 
       // Click first photo (thumbnail)
-      const photos = screen.getAllByAltText('photo_1.jpg')
+      const photos = screen.getAllByAltText('Photo taken on 2023-11-01')
       await user.click(photos[0])
 
       // Lightbox should open with full-size image
       await waitFor(() => {
-        const lightboxImage = screen.getAllByAltText('photo_1.jpg')[1]
+        const lightboxImage = screen.getAllByAltText('Photo taken on 2023-11-01')[1]
         expect(lightboxImage).toBeInTheDocument()
         expect(lightboxImage).toHaveAttribute('src', '/api/gallery/photo/photo_1.jpg')
       })
@@ -80,22 +80,22 @@ describe('Gallery - Infinite Scroll - Lightbox & UI', () => {
       })
 
       // Open lightbox
-      const photos = screen.getAllByAltText('photo_1.jpg')
+      const photos = screen.getAllByAltText('Photo taken on 2023-11-01')
       await user.click(photos[0])
 
       await waitFor(() => {
-        const lightboxImages = screen.getAllByAltText('photo_1.jpg')
+        const lightboxImages = screen.getAllByAltText('Photo taken on 2023-11-01')
         expect(lightboxImages).toHaveLength(2) // thumbnail + lightbox
       })
 
       // Click lightbox background
-      const lightboxImages = screen.getAllByAltText('photo_1.jpg')
+      const lightboxImages = screen.getAllByAltText('Photo taken on 2023-11-01')
       const lightbox = lightboxImages[1].closest('[class*="fixed"]')
       await user.click(lightbox)
 
       // Lightbox should close
       await waitFor(() => {
-        const remainingImages = screen.getAllByAltText('photo_1.jpg')
+        const remainingImages = screen.getAllByAltText('Photo taken on 2023-11-01')
         expect(remainingImages).toHaveLength(1) // only thumbnail remains
       })
     })
@@ -117,11 +117,11 @@ describe('Gallery - Infinite Scroll - Lightbox & UI', () => {
       renderGallery(queryClient)
 
       await waitFor(() => {
-        expect(screen.getByAltText('test_photo.jpg')).toBeInTheDocument()
+        expect(screen.getByAltText('Photo taken on 2023-11-15')).toBeInTheDocument()
       })
 
       // Click photo to open lightbox
-      await user.click(screen.getByAltText('test_photo.jpg'))
+      await user.click(screen.getByAltText('Photo taken on 2023-11-15'))
 
       // Check metadata is displayed
       await waitFor(() => {
@@ -162,7 +162,7 @@ describe('Gallery - Infinite Scroll - Lightbox & UI', () => {
       renderGallery(queryClient)
 
       await waitFor(() => {
-        const img = screen.getByAltText('photo_1.jpg')
+        const img = screen.getByAltText('Photo taken on 2023-11-01')
         expect(img).toHaveAttribute('src', '/api/gallery/thumbnail/photo_1.jpg')
       })
     })

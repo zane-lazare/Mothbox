@@ -75,7 +75,7 @@ describe('Gallery - Infinite Scroll - Loading & Pagination', () => {
       })
 
       // Verify first photo is rendered
-      expect(screen.getByAltText('photo_1.jpg')).toBeInTheDocument()
+      expect(screen.getByAltText('Photo taken on 2023-11-01')).toBeInTheDocument()
     })
 
     it('displays empty state when no photos exist', async () => {
@@ -173,8 +173,8 @@ describe('Gallery - Infinite Scroll - Loading & Pagination', () => {
       })
 
       // Verify both pages are rendered
-      expect(screen.getByAltText('photo_1.jpg')).toBeInTheDocument()
-      expect(screen.getByAltText('photo_10.jpg')).toBeInTheDocument()
+      expect(screen.getByAltText('Photo taken on 2023-11-01')).toBeInTheDocument()
+      expect(screen.getByAltText('Photo taken on 2023-11-10')).toBeInTheDocument()
     })
 
     it('displays skeleton cards while loading next page', async () => {
@@ -306,9 +306,9 @@ describe('Gallery - Infinite Scroll - Loading & Pagination', () => {
         expect(screen.getAllByRole('img')).toHaveLength(GALLERY_CONFIG.PAGE_SIZE * 3)
       })
 
-      expect(screen.getByAltText('photo_1.jpg')).toBeInTheDocument()
-      expect(screen.getByAltText(`photo_${GALLERY_CONFIG.PAGE_SIZE + 1}.jpg`)).toBeInTheDocument()
-      expect(screen.getByAltText(`photo_${GALLERY_CONFIG.PAGE_SIZE * 2 + 1}.jpg`)).toBeInTheDocument()
+      expect(screen.getByAltText('Photo taken on 2023-11-01')).toBeInTheDocument()
+      expect(screen.getByAltText('Photo taken on 2023-11-26')).toBeInTheDocument()
+      expect(screen.getByAltText('Photo taken on 2023-12-21')).toBeInTheDocument()
     })
   })
 

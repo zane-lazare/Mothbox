@@ -313,7 +313,7 @@ describe('Gallery - View Mode Integration', () => {
 
       // Lightbox should open
       await waitFor(() => {
-        const images = screen.queryAllByRole('img', { name: /photo-.*\.jpg/i })
+        const images = screen.queryAllByRole('img', { name: /Photo taken on/i })
         const lightboxImage = images.find(img => img.src.includes('/photo/'))
         expect(lightboxImage).toBeDefined()
         expect(lightboxImage.src).toContain('/photo/') // Full photo, not thumbnail
@@ -342,7 +342,7 @@ describe('Gallery - View Mode Integration', () => {
 
       // Lightbox should open
       await waitFor(() => {
-        const images = screen.queryAllByRole('img', { name: /photo-.*\.jpg/i })
+        const images = screen.queryAllByRole('img', { name: /Photo taken on/i })
         const lightboxImage = images.find(img => img.src.includes('/photo/'))
         expect(lightboxImage).toBeDefined()
         expect(lightboxImage.src).toContain('/photo/') // Full photo, not thumbnail
