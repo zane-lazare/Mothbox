@@ -67,11 +67,13 @@ function useZoomPan({
   const [zoom, setZoomState] = useState(1.0)
   const [pan, setPanState] = useState({ x: 0, y: 0 })
 
-  // Use ref to track current zoom without triggering callback recreations
+  // Use refs to track current zoom/pan without triggering callback recreations
   const zoomRef = useRef(zoom)
+  const panRef = useRef(pan)
   useEffect(() => {
     zoomRef.current = zoom
-  }, [zoom])
+    panRef.current = pan
+  }, [zoom, pan])
 
   /**
    * Calculate pan boundaries based on current zoom and dimensions
@@ -114,6 +116,8 @@ function useZoomPan({
   /**
    * Set zoom level (clamped to min/max)
    *
+   * Uses functional setState to avoid race conditions from multiple state updates.
+   *
    * @param {number} newZoom - New zoom level
    */
   const setZoom = useCallback(
@@ -121,14 +125,16 @@ function useZoomPan({
       const clampedZoom = Math.max(minZoom, Math.min(maxZoom, newZoom))
       setZoomState(clampedZoom)
 
-      // Reset pan when zoom returns to 1.0
-      if (clampedZoom === 1.0) {
-        setPanState({ x: 0, y: 0 })
-      } else {
+      // Use functional update to avoid race conditions
+      setPanState((currentPan) => {
+        if (clampedZoom === 1.0) {
+          // Reset pan when zoom returns to 1.0
+          return { x: 0, y: 0 }
+        }
         // Recalculate boundaries and constrain existing pan
         const boundaries = getBoundaries(clampedZoom)
-        setPanState((currentPan) => constrainPan(currentPan, boundaries))
-      }
+        return constrainPan(currentPan, boundaries)
+      })
     },
     [minZoom, maxZoom, getBoundaries, constrainPan]
   )
@@ -176,17 +182,23 @@ function useZoomPan({
    * Handle wheel events for zooming
    * Zooms in/out at cursor position to keep point under cursor stationary
    *
+   * Uses zoomRef and panRef to avoid recreating callback on every zoom/pan change,
+   * which would cause event listener churn in PhotoLightbox.
+   *
    * @param {WheelEvent} event - Wheel event
    */
   const handleWheel = useCallback(
     (event) => {
       event.preventDefault()
 
+      const currentZoom = zoomRef.current
+      const currentPan = panRef.current
+
       const delta = event.deltaY
       const zoomDirection = delta > 0 ? -1 : 1
-      const newZoom = Math.max(minZoom, Math.min(maxZoom, zoom + zoomDirection * zoomStep))
+      const newZoom = Math.max(minZoom, Math.min(maxZoom, currentZoom + zoomDirection * zoomStep))
 
-      if (newZoom === zoom) {
+      if (newZoom === currentZoom) {
         // No zoom change, already at boundary
         return
       }
@@ -202,10 +214,10 @@ function useZoomPan({
       const y = (event.clientY - rect.top) / rect.height - 0.5
 
       // Calculate new pan to keep cursor position stable
-      const deltaZoom = newZoom - zoom
+      const deltaZoom = newZoom - currentZoom
       const newPan = {
-        x: pan.x - x * deltaZoom * imageWidth,
-        y: pan.y - y * deltaZoom * imageHeight,
+        x: currentPan.x - x * deltaZoom * imageWidth,
+        y: currentPan.y - y * deltaZoom * imageHeight,
       }
 
       // Update zoom first
@@ -219,7 +231,7 @@ function useZoomPan({
         setPanState(constrainPan(newPan, boundaries))
       }
     },
-    [zoom, pan, minZoom, maxZoom, zoomStep, imageWidth, imageHeight, getBoundaries, constrainPan]
+    [minZoom, maxZoom, zoomStep, imageWidth, imageHeight, getBoundaries, constrainPan]
   )
 
   return {

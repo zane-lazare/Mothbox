@@ -56,6 +56,7 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
       return
     }
 
+    let cancelled = false // Prevent state updates after unmount
     setIsLoading(true)
 
     // Build list of images to preload (max 3: current + next + prev)
@@ -94,6 +95,7 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
     images.push(...adjacentImages)
 
     currentImg.onload = () => {
+      if (cancelled) return // Prevent state updates after unmount
       setCurrentImage(currentUrl)
       setIsLoading(false)
 
@@ -102,11 +104,13 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
         const item = imagesToPreload[index + 1]
 
         img.onload = () => {
+          if (cancelled) return // Prevent callbacks after unmount
           if (import.meta.env.DEV) {
             console.debug(`[ImagePreload] Preloaded ${item.priority} image:`, item.url)
           }
         }
         img.onerror = (e) => {
+          if (cancelled) return // Prevent callbacks after unmount
           if (import.meta.env.DEV) {
             console.warn(`[ImagePreload] Failed to preload ${item.priority} image:`, item.url, e)
           }
@@ -116,6 +120,7 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
     }
 
     currentImg.onerror = (e) => {
+      if (cancelled) return // Prevent state updates after unmount
       setIsLoading(false)
       if (import.meta.env.DEV) {
         console.error('[ImagePreload] Failed to load current image:', currentUrl, e)
@@ -124,8 +129,9 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
 
     currentImg.src = currentUrl
 
-    // Cleanup function - now has access to ALL images (including adjacent)
+    // Cleanup function - set cancellation flag FIRST, then clean up images
     return () => {
+      cancelled = true // Set flag first to prevent any pending callbacks
       images.forEach((img) => {
         img.onload = null
         img.onerror = null

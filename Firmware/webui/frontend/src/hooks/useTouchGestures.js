@@ -175,6 +175,7 @@ function useTouchGestures({
   // RAF throttle for touch move (prevents 60+ updates/sec)
   const rafIdRef = useRef(null)
   const latestTouchDataRef = useRef(null)
+  const isMountedRef = useRef(true)
 
   // Gesture detection thresholds (from LIGHTBOX_CONFIG for consistency)
   const { TOUCH_GESTURES } = LIGHTBOX_CONFIG
@@ -194,10 +195,12 @@ function useTouchGestures({
   // Cleanup pending RAF on unmount to prevent state updates after unmount
   useEffect(() => {
     return () => {
+      isMountedRef.current = false
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current)
         rafIdRef.current = null
       }
+      latestTouchDataRef.current = null
     }
   }, [])
 
@@ -266,10 +269,14 @@ function useTouchGestures({
 
       if (touches.length === 2) {
         // Two-finger pinch gesture
-        event.preventDefault()
-
         const distance = getPinchDistance(touches[0], touches[1])
         const midpoint = getPinchMidpoint(touches[0], touches[1])
+
+        // Only prevent default if we have a valid pinch (distance > 0)
+        // This avoids interfering with system accessibility zoom when touch points coincide
+        if (distance > 0) {
+          event.preventDefault()
+        }
 
         dispatch({
           type: 'PINCH_START',
@@ -334,6 +341,12 @@ function useTouchGestures({
 
       // Schedule update for next frame
       rafIdRef.current = requestAnimationFrame(() => {
+        // Guard against state updates after unmount
+        if (!isMountedRef.current) {
+          rafIdRef.current = null
+          return
+        }
+
         const touchData = latestTouchDataRef.current
         if (!touchData) {
           rafIdRef.current = null
@@ -343,7 +356,8 @@ function useTouchGestures({
         if (touchData.length === 2 && isPinching && initialPinchDistance !== null) {
           // Pinch-to-zoom
           const currentDistance = getPinchDistance(touchData[0], touchData[1])
-          const scale = currentDistance / initialPinchDistance
+          // Guard against division by zero when touch points coincide
+          const scale = initialPinchDistance > 0 ? currentDistance / initialPinchDistance : 1
           const newZoom = Math.max(minZoom, Math.min(maxZoom, initialZoom * scale))
 
           // Calculate new pan to keep pinch center stable

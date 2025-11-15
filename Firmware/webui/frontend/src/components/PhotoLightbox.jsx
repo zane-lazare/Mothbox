@@ -67,15 +67,20 @@ const formatFileSize = (bytes) => {
 /**
  * Format date string to YYYY-MM-DD
  * @param {string} dateString - ISO date string
- * @returns {string} Formatted date or original string if invalid
+ * @returns {string} Formatted date or 'Invalid Date' if parsing fails
  */
 const formatDate = (dateString) => {
   try {
     const date = new Date(dateString)
+    // new Date() doesn't throw on invalid input - it returns Invalid Date object
+    if (isNaN(date.getTime())) {
+      console.warn('[PhotoLightbox] Invalid timestamp:', dateString)
+      return 'Invalid Date'
+    }
     return date.toISOString().split('T')[0]
   } catch (error) {
-    console.warn('[PhotoLightbox] Invalid timestamp:', dateString, error)
-    return dateString
+    console.warn('[PhotoLightbox] Date parsing error:', dateString, error)
+    return 'Invalid Date'
   }
 }
 
@@ -94,6 +99,8 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   // Loading and error states
   const [isImageLoading, setIsImageLoading] = useState(true)
   const [imageError, setImageError] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+  const MAX_RETRIES = 3
 
   // Panning state
   const [isPanning, setIsPanning] = useState(false)
@@ -101,6 +108,10 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   // Zoom indicator auto-hide
   const [showZoomIndicator, setShowZoomIndicator] = useState(false)
   const zoomIndicatorTimerRef = useRef(null)
+
+  // Debounced zoom announcement for screen readers (prevents spam during wheel zoom)
+  const [announcedZoom, setAnnouncedZoom] = useState(1.0)
+  const zoomAnnouncementTimerRef = useRef(null)
 
   // Calculate current index for preloading (memoized to avoid O(n) on every render)
   const currentIndex = useMemo(
@@ -146,6 +157,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
     // Reset states when photo changes
     setIsImageLoading(true)
     setImageError(false)
+    setRetryCount(0)
 
     const handleImageLoad = () => {
       if (currentImageRef) {
@@ -229,23 +241,31 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
     }
   }, [zoom])
 
-  // Body scroll lock - runs on every render
+  // Debounce zoom announcements for screen readers (prevent spam during continuous zoom)
   useEffect(() => {
-    if (!photo) {
-      // Restore scroll when closed (only if no other modals are open)
-      const hasOtherModals = document.querySelectorAll('[role="dialog"]:not([aria-hidden="true"])').length > 0
-      if (!hasOtherModals) {
-        document.body.style.overflow = ''
-      }
-      // Restore focus to previous element (only if still in DOM)
-      if (previousFocusRef.current && previousFocusRef.current.isConnected) {
-        previousFocusRef.current.focus()
-        previousFocusRef.current = null
-      }
-      return
+    // Clear existing announcement timer
+    if (zoomAnnouncementTimerRef.current) {
+      clearTimeout(zoomAnnouncementTimerRef.current)
     }
 
-    // Lock scroll when open (use CSS class instead of direct style manipulation)
+    // Announce zoom after 500ms of no changes (user finished zooming)
+    zoomAnnouncementTimerRef.current = setTimeout(() => {
+      setAnnouncedZoom(zoom)
+    }, 500)
+
+    return () => {
+      if (zoomAnnouncementTimerRef.current) {
+        clearTimeout(zoomAnnouncementTimerRef.current)
+        zoomAnnouncementTimerRef.current = null
+      }
+    }
+  }, [zoom])
+
+  // Body scroll lock and focus management
+  useEffect(() => {
+    if (!photo) return
+
+    // Lock scroll when open and save previous focus
     previousFocusRef.current = document.activeElement
     document.body.classList.add('lightbox-open')
 
@@ -256,10 +276,10 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
 
     return () => {
       cancelAnimationFrame(frameId)
-      // Only restore scroll if no other modals remain open
-      const hasOtherModals = document.querySelectorAll('[role="dialog"]:not([aria-hidden="true"])').length > 0
-      if (!hasOtherModals) {
-        document.body.classList.remove('lightbox-open')
+      document.body.classList.remove('lightbox-open')
+      // Restore focus to previous element (only if still in DOM)
+      if (previousFocusRef.current?.isConnected) {
+        previousFocusRef.current.focus()
       }
     }
   }, [photo])
@@ -348,6 +368,16 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
           e.preventDefault()
           handleNavigate('next')
           break
+        case '+':
+        case '=': // For keyboards where + is Shift+=
+          e.preventDefault()
+          handleZoomIn()
+          break
+        case '-':
+        case '_': // For keyboards where - is Shift+_
+          e.preventDefault()
+          handleZoomOut()
+          break
         default:
           break
       }
@@ -355,7 +385,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [photo, onClose, handleNavigate])
+  }, [photo, onClose, handleNavigate, handleZoomIn, handleZoomOut])
 
   // Focus trap - keep focus within dialog
   useEffect(() => {
@@ -457,9 +487,9 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
         Use arrow keys to navigate, +/- to zoom, ESC to close
       </div>
 
-      {/* Zoom level announcement for screen readers */}
+      {/* Zoom level announcement for screen readers (debounced to prevent spam) */}
       <div aria-live="polite" className="sr-only">
-        Zoom level: {Math.round(zoom * 100)}%
+        Zoom level: {Math.round(announcedZoom * 100)}%
       </div>
 
       {/* Close button - touch-friendly sizing */}
@@ -646,20 +676,28 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
             </svg>
             <p className="text-lg font-semibold">Failed to load image</p>
             <p className="text-sm text-gray-300 mt-2">{photo.filename}</p>
-            <button
-              onClick={() => {
-                setImageError(false)
-                setIsImageLoading(true)
-                // Force image reload with cache-busting query parameter
-                if (imageRef.current) {
-                  const currentSrc = imageRef.current.src.split('?')[0]
-                  imageRef.current.src = `${currentSrc}?t=${Date.now()}`
-                }
-              }}
-              className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-            >
-              Retry
-            </button>
+            {retryCount >= MAX_RETRIES ? (
+              <p className="mt-4 text-sm text-red-300 max-w-md text-center">
+                Maximum retry attempts reached ({MAX_RETRIES}). The image may be corrupted, missing, or
+                the server may be experiencing issues.
+              </p>
+            ) : (
+              <button
+                onClick={() => {
+                  setImageError(false)
+                  setIsImageLoading(true)
+                  setRetryCount((prev) => prev + 1)
+                  // Force image reload with cache-busting query parameter
+                  if (imageRef.current) {
+                    const currentSrc = imageRef.current.src.split('?')[0]
+                    imageRef.current.src = `${currentSrc}?t=${Date.now()}`
+                  }
+                }}
+                className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+              >
+                Retry {retryCount > 0 && `(${retryCount}/${MAX_RETRIES})`}
+              </button>
+            )}
           </div>
         )}
 
