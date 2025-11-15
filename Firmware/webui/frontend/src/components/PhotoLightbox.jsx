@@ -6,6 +6,7 @@ import useTouchGestures from '../hooks/useTouchGestures'
 import useImagePreload from '../hooks/useImagePreload'
 import { debounce, throttle } from '../utils/performance'
 import { getPhotoUrl } from '../utils/api'
+import MetadataPanel from './metadata/MetadataPanel'
 
 /**
  * Adaptive Photo Lightbox Component
@@ -640,88 +641,96 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
         </div>
       )}
 
-      {/* Image container */}
-      <div
-        ref={containerRef}
-        className="flex h-full w-full items-center justify-center p-4"
-        onClick={handleImageClick}
-      >
-        {/* Loading spinner */}
-        {isImageLoading && !imageError && (
-          <div
-            className="absolute inset-0 flex items-center justify-center"
-            role="status"
-            aria-label="Loading image"
-          >
-            <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-white"></div>
-          </div>
-        )}
-
-        {/* Error message */}
-        {imageError && (
-          <div
-            className="absolute inset-0 flex flex-col items-center justify-center text-white"
-            role="alert"
-          >
-            <svg
-              className="mb-4 h-16 w-16 text-red-400"
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+      {/* Main content container - flex layout for photo + metadata panel */}
+      <div className="flex flex-col md:flex-row gap-4 h-full w-full p-4">
+        {/* Image container - flex-1 to fill remaining space */}
+        <div
+          ref={containerRef}
+          className="flex-1 flex items-center justify-center relative"
+          onClick={handleImageClick}
+        >
+          {/* Loading spinner */}
+          {isImageLoading && !imageError && (
+            <div
+              className="absolute inset-0 flex items-center justify-center"
+              role="status"
+              aria-label="Loading image"
             >
-              <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <p className="text-lg font-semibold">Failed to load image</p>
-            <p className="text-sm text-gray-300 mt-2">{photo.filename}</p>
-            {retryCount >= MAX_RETRIES ? (
-              <p className="mt-4 text-sm text-red-300 max-w-md text-center">
-                Maximum retry attempts reached ({MAX_RETRIES}). The image may be corrupted, missing, or
-                the server may be experiencing issues.
-              </p>
-            ) : (
-              <button
-                onClick={() => {
-                  setImageError(false)
-                  setIsImageLoading(true)
-                  setRetryCount((prev) => prev + 1)
-                  // Force image reload with cache-busting query parameter
-                  if (imageRef.current) {
-                    const currentSrc = imageRef.current.src.split('?')[0]
-                    imageRef.current.src = `${currentSrc}?t=${Date.now()}`
-                  }
-                }}
-                className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-              >
-                Retry {retryCount > 0 && `(${retryCount}/${MAX_RETRIES})`}
-              </button>
-            )}
-          </div>
-        )}
+              <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-white"></div>
+            </div>
+          )}
 
-        {/* Image */}
-        <img
-          ref={imageRef}
-          src={getPhotoUrl(photo.path)}
-          alt={`Photo taken on ${formatDate(photo.date)}`}
-          className="max-h-full max-w-full object-contain select-none"
-          style={{
-            transform: imageTransform,
-            cursor: zoom > 1.0 ? (isPanning ? 'grabbing' : 'grab') : 'default',
-            transition: isPanning ? 'none' : 'transform 0.1s ease-out',
-            touchAction: zoom > 1.0 ? 'none' : 'pan-y', // Prevent browser gestures when zoomed
-            willChange: zoom > 1.0 ? 'transform' : 'auto', // GPU acceleration hint when zoomed
-            opacity: isImageLoading || imageError ? 0 : 1, // Hide image while loading or on error
-          }}
-          onWheel={throttledHandleWheel}
-          onMouseDown={handleMouseDown}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          draggable={false}
-        />
+          {/* Error message */}
+          {imageError && (
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center text-white"
+              role="alert"
+            >
+              <svg
+                className="mb-4 h-16 w-16 text-red-400"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p className="text-lg font-semibold">Failed to load image</p>
+              <p className="text-sm text-gray-300 mt-2">{photo.filename}</p>
+              {retryCount >= MAX_RETRIES ? (
+                <p className="mt-4 text-sm text-red-300 max-w-md text-center">
+                  Maximum retry attempts reached ({MAX_RETRIES}). The image may be corrupted, missing, or
+                  the server may be experiencing issues.
+                </p>
+              ) : (
+                <button
+                  onClick={() => {
+                    setImageError(false)
+                    setIsImageLoading(true)
+                    setRetryCount((prev) => prev + 1)
+                    // Force image reload with cache-busting query parameter
+                    if (imageRef.current) {
+                      const currentSrc = imageRef.current.src.split('?')[0]
+                      imageRef.current.src = `${currentSrc}?t=${Date.now()}`
+                    }
+                  }}
+                  className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                >
+                  Retry {retryCount > 0 && `(${retryCount}/${MAX_RETRIES})`}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Image */}
+          <img
+            ref={imageRef}
+            src={getPhotoUrl(photo.path)}
+            alt={`Photo taken on ${formatDate(photo.date)}`}
+            className="max-h-full max-w-full object-contain select-none"
+            style={{
+              transform: imageTransform,
+              cursor: zoom > 1.0 ? (isPanning ? 'grabbing' : 'grab') : 'default',
+              transition: isPanning ? 'none' : 'transform 0.1s ease-out',
+              touchAction: zoom > 1.0 ? 'none' : 'pan-y', // Prevent browser gestures when zoomed
+              willChange: zoom > 1.0 ? 'transform' : 'auto', // GPU acceleration hint when zoomed
+              opacity: isImageLoading || imageError ? 0 : 1, // Hide image while loading or on error
+            }}
+            onWheel={throttledHandleWheel}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            draggable={false}
+          />
+        </div>
+
+        {/* Metadata panel - hidden on mobile, side panel on desktop */}
+        <div className="hidden md:block md:w-96 bg-white dark:bg-gray-800 rounded-lg overflow-hidden">
+          <MetadataPanel photoPath={photo.path} />
+        </div>
       </div>
     </div>
   )

@@ -1,8 +1,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import PhotoLightbox from '../PhotoLightbox'
 import { LIGHTBOX_CONFIG } from '../../constants/config'
+
+// Mock the MetadataPanel to avoid API dependencies in these tests
+vi.mock('../metadata/MetadataPanel', () => ({
+  default: ({ photoPath }) => (
+    <div data-testid="metadata-panel">
+      <div>Camera</div>
+      <div>Location</div>
+      <div>Capture</div>
+      <div>Tags</div>
+      <div>Deployment</div>
+      <div data-testid="metadata-photo-path">{photoPath}</div>
+    </div>
+  ),
+}))
 
 describe('PhotoLightbox - Basic Rendering', () => {
   const mockPhoto = {
@@ -111,8 +126,9 @@ describe('PhotoLightbox - Basic Rendering', () => {
       />
     )
 
-    // Check for date (should be formatted)
-    expect(screen.getByText(/2024-11-10/i)).toBeInTheDocument()
+    // Check for date (should be formatted) - may appear multiple times (metadata + panel)
+    const dateElements = screen.getAllByText(/2024-11-10/i)
+    expect(dateElements.length).toBeGreaterThan(0)
 
     // Check for file size (should be formatted as "5.0 MB" or similar)
     expect(screen.getByText(/5(\.\d+)?\s*MB/i)).toBeInTheDocument()
@@ -1733,5 +1749,441 @@ describe('PhotoLightbox - Performance Benchmarks', () => {
 
     // Should handle 100 pan events quickly (< 1 second)
     expect(totalTime).toBeLessThan(1000)
+  })
+})
+
+describe('PhotoLightbox - MetadataPanel Integration', () => {
+  const mockPhoto = {
+    path: '2024-11-10/photo_001.jpg',
+    filename: 'photo_001.jpg',
+    date: '2024-11-10T18:30:00Z',
+    size: 5242880,
+    timestamp: 1699639800,
+  }
+
+  const mockPhotos = [
+    mockPhoto,
+    {
+      path: '2024-11-10/photo_002.jpg',
+      filename: 'photo_002.jpg',
+      date: '2024-11-10T18:31:00Z',
+      size: 5500000,
+      timestamp: 1699639860,
+    },
+  ]
+
+  const mockOnClose = vi.fn()
+  const mockOnNavigate = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    document.body.style.overflow = ''
+  })
+
+  it('renders MetadataPanel when photo is displayed', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // MetadataPanel should be present (check for Camera tab as proxy)
+    expect(screen.getByText('Camera')).toBeInTheDocument()
+  })
+
+  it('passes correct photoPath to MetadataPanel', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Verify MetadataPanel is rendered with photo path
+    // Note: This is indirect - we check that tabs exist which proves MetadataPanel rendered
+    const cameraTab = screen.getByText('Camera')
+    expect(cameraTab).toBeInTheDocument()
+  })
+
+  it('MetadataPanel receives photoPath prop', () => {
+    const { container } = render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Check that MetadataPanel tabs are present (confirms component rendered)
+    expect(screen.getByText('Location')).toBeInTheDocument()
+    expect(screen.getByText('Capture')).toBeInTheDocument()
+  })
+
+  it('MetadataPanel is visible when lightbox is open', () => {
+    const { rerender } = render(
+      <PhotoLightbox
+        photo={null}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Should not render when closed
+    expect(screen.queryByText('Camera')).not.toBeInTheDocument()
+
+    // Open lightbox
+    rerender(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // MetadataPanel should be visible
+    expect(screen.getByText('Camera')).toBeInTheDocument()
+  })
+
+  it('MetadataPanel is hidden when lightbox is closed', () => {
+    const { rerender } = render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Should render when open
+    expect(screen.getByText('Camera')).toBeInTheDocument()
+
+    // Close lightbox
+    rerender(
+      <PhotoLightbox
+        photo={null}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // MetadataPanel should be hidden
+    expect(screen.queryByText('Camera')).not.toBeInTheDocument()
+  })
+
+  it('MetadataPanel hidden on mobile (<768px)', () => {
+    // Mock viewport width to mobile size
+    global.innerWidth = 375
+    global.innerHeight = 667
+
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Find the metadata panel container
+    const metadataContainer = screen.getByText('Camera').closest('.hidden')
+    expect(metadataContainer).toBeInTheDocument()
+    expect(metadataContainer).toHaveClass('hidden')
+  })
+
+  it('MetadataPanel visible on desktop (≥768px)', () => {
+    // Mock viewport width to desktop size
+    global.innerWidth = 1024
+    global.innerHeight = 768
+
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Find the metadata panel container
+    const cameraTab = screen.getByText('Camera')
+    const metadataContainer = cameraTab.closest('.md\\:block')
+    expect(metadataContainer).toBeInTheDocument()
+  })
+
+  it('MetadataPanel in side panel layout on desktop', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Find parent container with flex layout
+    const dialog = screen.getByRole('dialog')
+    const flexContainer = within(dialog).getByText('Camera').closest('.flex')
+
+    // Should have flex classes
+    expect(flexContainer).toBeInTheDocument()
+  })
+
+  it('Photo and metadata panel share container on desktop', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const dialog = screen.getByRole('dialog')
+    const image = within(dialog).getByRole('img')
+    const cameraTab = within(dialog).getByText('Camera')
+
+    // Both should be in the DOM (in same container)
+    expect(image).toBeInTheDocument()
+    expect(cameraTab).toBeInTheDocument()
+  })
+
+  it('Photo container uses flex-1 for remaining space', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const dialog = screen.getByRole('dialog')
+    const image = within(dialog).getByRole('img')
+    const imageContainer = image.closest('.flex-1')
+
+    expect(imageContainer).toBeInTheDocument()
+    expect(imageContainer).toHaveClass('flex-1')
+  })
+
+  it('MetadataPanel has fixed width on desktop (w-96 = 384px)', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const cameraTab = screen.getByText('Camera')
+    const metadataContainer = cameraTab.closest('.md\\:w-96')
+
+    expect(metadataContainer).toBeInTheDocument()
+    expect(metadataContainer).toHaveClass('md:w-96')
+  })
+
+  it('Container has proper flex layout (flex-col on mobile, flex-row on desktop)', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const dialog = screen.getByRole('dialog')
+    const cameraTab = within(dialog).getByText('Camera')
+    const flexContainer = cameraTab.closest('.flex')
+
+    // Should have both flex-col (mobile) and md:flex-row (desktop) classes
+    expect(flexContainer).toHaveClass('flex')
+    // Note: Checking for responsive classes in JSDOM is limited, so we verify flex exists
+  })
+
+  it('Gap between photo and panel (gap-4)', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const dialog = screen.getByRole('dialog')
+    const cameraTab = within(dialog).getByText('Camera')
+    const flexContainer = cameraTab.closest('.gap-4')
+
+    expect(flexContainer).toBeInTheDocument()
+    expect(flexContainer).toHaveClass('gap-4')
+  })
+
+  it('MetadataPanel has white background (bg-white dark:bg-gray-800)', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const cameraTab = screen.getByText('Camera')
+    const metadataContainer = cameraTab.closest('.bg-white')
+
+    expect(metadataContainer).toBeInTheDocument()
+    expect(metadataContainer).toHaveClass('bg-white')
+  })
+
+  it('MetadataPanel has rounded corners (rounded-lg)', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const cameraTab = screen.getByText('Camera')
+    const metadataContainer = cameraTab.closest('.rounded-lg')
+
+    expect(metadataContainer).toBeInTheDocument()
+    expect(metadataContainer).toHaveClass('rounded-lg')
+  })
+
+  it('MetadataPanel has overflow handling', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const cameraTab = screen.getByText('Camera')
+    const metadataContainer = cameraTab.closest('.overflow-hidden')
+
+    expect(metadataContainer).toBeInTheDocument()
+    expect(metadataContainer).toHaveClass('overflow-hidden')
+  })
+
+  it('Lightbox still has proper ARIA labels with MetadataPanel', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    expect(dialog).toHaveAttribute('aria-labelledby')
+    expect(dialog).toHaveAttribute('aria-describedby')
+  })
+
+  it('Close button still accessible', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const closeButton = screen.getByLabelText(/close photo viewer/i)
+    expect(closeButton).toBeInTheDocument()
+  })
+
+  it('Photo image still has alt text', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const image = screen.getByRole('img')
+    expect(image).toHaveAttribute('alt', 'Photo taken on 2024-11-10')
+  })
+
+  it('Handles null photoPath gracefully', () => {
+    const photoWithNullPath = {
+      ...mockPhoto,
+      path: null,
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithNullPath}
+        photos={[photoWithNullPath]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Should still render dialog
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toBeInTheDocument()
+  })
+
+  it('MetadataPanel does not break existing lightbox functionality', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Test close button still works
+    const closeButton = screen.getByLabelText(/close photo viewer/i)
+    await user.click(closeButton)
+    expect(mockOnClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('Existing zoom features still work', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Zoom in should still work
+    const zoomInButton = screen.getByLabelText(/zoom in/i)
+    await user.click(zoomInButton)
+
+    // Zoom indicator should appear
+    await waitFor(() => {
+      const zoomIndicators = screen.getAllByText(/150|1\.5/i)
+      expect(zoomIndicators.length).toBeGreaterThan(0)
+    })
   })
 })

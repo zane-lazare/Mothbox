@@ -17,6 +17,17 @@ vi.mock('../../utils/api', () => ({
   getPhotoUrl: vi.fn((path) => `/api/gallery/photo/${path}`),
 }))
 
+// Mock the MetadataPanel to avoid API dependencies in these tests
+vi.mock('../../components/metadata/MetadataPanel', () => ({
+  default: ({ photoPath }) => (
+    <div data-testid="metadata-panel">
+      <div>Camera</div>
+      <div>Location</div>
+      <div data-testid="metadata-photo-path">{photoPath}</div>
+    </div>
+  ),
+}))
+
 describe('Gallery - Infinite Scroll - Lightbox & UI', () => {
   let queryClient
 
