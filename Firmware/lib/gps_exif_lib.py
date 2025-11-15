@@ -176,6 +176,9 @@ def decimal_to_dms(decimal: float, is_latitude: bool) -> tuple[tuple, str]:
     """
     Convert decimal degrees to EXIF GPS format (degrees, minutes, seconds).
 
+    This is a wrapper around the shared GPS coordinate utilities that
+    adds EXIF-specific rational tuple formatting.
+
     EXIF GPS coordinates are stored in DMS (Degrees, Minutes, Seconds) format
     with rational numbers for precision. This function converts decimal degrees
     to the EXIF standard format.
@@ -203,68 +206,26 @@ def decimal_to_dms(decimal: float, is_latitude: bool) -> tuple[tuple, str]:
         - Minutes: (minutes, 1) - whole minutes
         - Seconds: (seconds*100, 100) - seconds with 2 decimal places
     """
-    import math
+    # Import shared utility (with alias to avoid name collision)
+    from webui.backend.utils.gps_coordinates import (
+        decimal_to_dms as convert_decimal_to_dms,
+    )
 
-    # Step 1: Validate input coordinate
-    if decimal is None:
-        raise ValueError("Coordinate cannot be None")
-    if math.isnan(decimal):
-        raise ValueError("Coordinate cannot be NaN")
-    if math.isinf(decimal):
-        raise ValueError("Coordinate cannot be infinity")
+    # Use shared utility for core conversion
+    # This handles all validation, range checking, and math
+    degrees, minutes, seconds, reference = convert_decimal_to_dms(decimal, is_latitude)
 
-    # Step 1a: Validate coordinate range
-    if is_latitude:
-        if not (-90 <= decimal <= 90):
-            raise ValueError(f"Invalid latitude: {decimal} (must be in range [-90, 90])")
-    else:
-        if not (-180 <= decimal <= 180):
-            raise ValueError(f"Invalid longitude: {decimal} (must be in range [-180, 180])")
-
-    # Step 2: Determine reference (N/S for latitude, E/W for longitude)
-    if is_latitude:  # noqa: SIM108  # More readable than nested ternary
-        ref = 'N' if decimal >= 0 else 'S'
-    else:
-        ref = 'E' if decimal >= 0 else 'W'
-
-    # Step 3: Use absolute value for conversion (sign is captured in ref)
-    decimal_abs = abs(decimal)
-
-    # Step 4: Extract degrees (integer part)
-    degrees = int(decimal_abs)
-
-    # Step 5: Extract minutes (fractional part * 60)
-    minutes_decimal = (decimal_abs - degrees) * 60
-    minutes = int(minutes_decimal)
-
-    # Step 6: Extract seconds (remaining fractional minutes * 60)
-    seconds_decimal = (minutes_decimal - minutes) * 60
-
-    # Step 7: Format as rational tuples per EXIF standard
-    # Seconds are multiplied by 100 to preserve 2 decimal places
-    seconds_rational = int(round(seconds_decimal * 100))
-
-    # Step 7a: Handle seconds overflow (rounding 59.999 -> 60.00)
-    # Carry over to minutes if seconds >= 60
-    if seconds_rational >= 6000:  # 60.00 seconds or more
-        minutes += 1
-        seconds_rational = 0
-
-    # Step 7b: Handle minutes overflow (59 minutes + 1 -> 60 minutes)
-    # Carry over to degrees if minutes >= 60
-    if minutes >= 60:
-        degrees += 1
-        minutes = 0
-
-    # Build DMS tuple: ((degrees, 1), (minutes, 1), (seconds*100, 100))
+    # Convert to EXIF rational tuple format
+    # EXIF stores as: ((degrees, 1), (minutes, 1), (seconds*100, 100))
+    # Note: The shared utility already handles overflow, so degrees/minutes
+    # are guaranteed to be in valid ranges
     dms_tuple = (
         (degrees, 1),
         (minutes, 1),
-        (seconds_rational, 100)
+        (int(round(seconds * 100)), 100)  # Store seconds with 0.01 precision
     )
 
-    # Step 8: Return (dms_tuple, ref_string)
-    return (dms_tuple, ref)
+    return (dms_tuple, reference)
 
 
 def build_gps_ifd(gps_data: dict[str, Any]) -> dict:
@@ -632,48 +593,46 @@ def verify_gps_exif(photo_path: Path) -> dict[str, Any]:
         result['has_gps'] = True
         result['raw_gps_ifd'] = gps_ifd
 
-        # Helper function to convert DMS to decimal degrees
-        def dms_to_decimal(dms_tuple, ref):
-            """Convert EXIF DMS format to decimal degrees."""
-            # DMS tuple format: ((degrees, 1), (minutes, 1), (seconds, 100))
+        # Helper function to parse EXIF rational tuple and convert to decimal
+        def parse_exif_coordinate(exif_dms, ref):
+            """Parse EXIF DMS tuple to decimal degrees.
 
+            This wrapper extracts DMS components from EXIF rational tuples and
+            uses the shared dms_to_decimal utility for conversion.
+            """
+            from webui.backend.utils.gps_coordinates import dms_to_decimal
+
+            # DMS tuple format: ((degrees, 1), (minutes, 1), (seconds, 100))
             # Validate denominators to prevent division by zero
             # Malformed EXIF data could have zero denominators
-            if dms_tuple[0][1] == 0 or dms_tuple[1][1] == 0 or dms_tuple[2][1] == 0:
+            if exif_dms[0][1] == 0 or exif_dms[1][1] == 0 or exif_dms[2][1] == 0:
                 raise ValueError(
                     f"Invalid EXIF DMS data: denominator is zero "
-                    f"(degrees={dms_tuple[0]}, minutes={dms_tuple[1]}, seconds={dms_tuple[2]})"
+                    f"(degrees={exif_dms[0]}, minutes={exif_dms[1]}, seconds={exif_dms[2]})"
                 )
 
-            degrees = dms_tuple[0][0] / dms_tuple[0][1]
-            minutes = dms_tuple[1][0] / dms_tuple[1][1]
-            seconds = dms_tuple[2][0] / dms_tuple[2][1]
+            # Extract DMS components from EXIF rational tuples
+            degrees = exif_dms[0][0] / exif_dms[0][1]
+            minutes = exif_dms[1][0] / exif_dms[1][1]
+            seconds = exif_dms[2][0] / exif_dms[2][1]
 
-            decimal = degrees + (minutes / 60.0) + (seconds / 3600.0)
+            # Convert bytes to string if needed
+            ref_str = ref.decode('utf-8') if isinstance(ref, bytes) else ref
 
-            # Apply sign based on reference
-            if ref in [b'S', b'W', 'S', 'W']:
-                decimal = -decimal
-
-            return decimal
+            # Use shared utility for DMS → decimal conversion
+            return dms_to_decimal(int(degrees), int(minutes), seconds, ref_str)
 
         # Extract latitude
         if piexif.GPSIFD.GPSLatitude in gps_ifd:
             lat_dms = gps_ifd[piexif.GPSIFD.GPSLatitude]
             lat_ref = gps_ifd.get(piexif.GPSIFD.GPSLatitudeRef, b'N')
-            # Handle both bytes and str
-            if isinstance(lat_ref, bytes):
-                lat_ref = lat_ref.decode('ascii')
-            result['latitude'] = dms_to_decimal(lat_dms, lat_ref)
+            result['latitude'] = parse_exif_coordinate(lat_dms, lat_ref)
 
         # Extract longitude
         if piexif.GPSIFD.GPSLongitude in gps_ifd:
             lon_dms = gps_ifd[piexif.GPSIFD.GPSLongitude]
             lon_ref = gps_ifd.get(piexif.GPSIFD.GPSLongitudeRef, b'E')
-            # Handle both bytes and str
-            if isinstance(lon_ref, bytes):
-                lon_ref = lon_ref.decode('ascii')
-            result['longitude'] = dms_to_decimal(lon_dms, lon_ref)
+            result['longitude'] = parse_exif_coordinate(lon_dms, lon_ref)
 
         # Extract altitude
         if piexif.GPSIFD.GPSAltitude in gps_ifd:
