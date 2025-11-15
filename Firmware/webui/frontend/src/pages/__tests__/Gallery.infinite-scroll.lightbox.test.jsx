@@ -17,6 +17,17 @@ vi.mock('../../utils/api', () => ({
   getPhotoUrl: vi.fn((path) => `/api/gallery/photo/${path}`),
 }))
 
+// Mock the MetadataPanel to avoid API dependencies in these tests
+vi.mock('../../components/metadata/MetadataPanel', () => ({
+  default: ({ photoPath }) => (
+    <div data-testid="metadata-panel">
+      <div>Camera</div>
+      <div>Location</div>
+      <div data-testid="metadata-photo-path">{photoPath}</div>
+    </div>
+  ),
+}))
+
 describe('Gallery - Infinite Scroll - Lightbox & UI', () => {
   let queryClient
 
@@ -124,9 +135,9 @@ describe('Gallery - Infinite Scroll - Lightbox & UI', () => {
       // Click photo to open lightbox
       await user.click(screen.getByAltText('test_photo.jpg'))
 
-      // Check metadata is displayed
+      // Check metadata is displayed (use getAllByText since filename appears in metadata panel too)
       await waitFor(() => {
-        expect(screen.getByText('test_photo.jpg')).toBeInTheDocument()
+        expect(screen.getAllByText('test_photo.jpg').length).toBeGreaterThan(0)
         expect(screen.getByText(/2\.0.*MB/)).toBeInTheDocument()
       })
     })

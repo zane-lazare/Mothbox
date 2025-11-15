@@ -4,6 +4,18 @@ import userEvent from '@testing-library/user-event'
 import PhotoLightbox from '../../components/PhotoLightbox'
 import { LIGHTBOX_CONFIG } from '../../constants/config'
 
+// Mock the MetadataPanel to avoid API dependencies in these tests
+vi.mock('../../components/metadata/MetadataPanel', () => ({
+  default: ({ photoPath }) => (
+    <div data-testid="metadata-panel">
+      <div>Camera</div>
+      <div>Location</div>
+      <div>Capture</div>
+      <div data-testid="metadata-photo-path">{photoPath}</div>
+    </div>
+  ),
+}))
+
 /**
  * Integration Tests for PhotoLightbox Component Workflows
  *
@@ -564,7 +576,7 @@ describe('LightboxWorkflow Integration Tests', () => {
 
       // Verify photo metadata is accessible (use getAllByText since filename appears multiple times)
       expect(screen.getAllByText(/photo_002.jpg/i).length).toBeGreaterThan(0)
-      expect(screen.getByText(/2024-11-10/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/2024-11-10/i).length).toBeGreaterThan(0)
     })
   })
 
