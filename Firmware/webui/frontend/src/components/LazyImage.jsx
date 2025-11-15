@@ -52,23 +52,13 @@ const LazyImage = memo(function LazyImage({
       ref={ref}
       className={`lazy-image-container ${className}`}
       style={{
-        aspectRatio: `${aspectRatio}`,
-        width: '100%',
-        backgroundColor: '#f3f4f6', // Gray placeholder
-        position: 'relative',
-        overflow: 'hidden'
+        aspectRatio: `${aspectRatio}`
       }}
       onClick={onClick}
     >
       {/* Placeholder state */}
       {!shouldLoadImage && (
-        <div className="skeleton-loader" style={{
-          width: '100%',
-          height: '100%',
-          background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)',
-          backgroundSize: '200% 100%',
-          animation: 'skeleton-loading 1.5s ease-in-out infinite'
-        }} />
+        <div className="skeleton-loader" />
       )}
 
       {/* Loading/Loaded state */}
@@ -84,42 +74,19 @@ const LazyImage = memo(function LazyImage({
             ${isLoaded ? 'opacity-100' : 'opacity-0'}
             transition-opacity duration-300
           `}
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover'
-          }}
         />
       )}
 
       {/* Error state */}
       {hasError && (
-        <div className="error-placeholder" style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '100%',
-          height: '100%',
-          backgroundColor: '#f9fafb'
-        }}>
+        <div className="error-placeholder">
           <MothIcon className="w-16 h-16 text-gray-400" />
         </div>
       )}
 
       {/* Loading indicator (optional) */}
       {shouldLoadImage && !isLoaded && !hasError && (
-        <div className="loading-indicator" style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: '32px',
-          height: '32px',
-          border: '3px solid #e5e7eb',
-          borderTopColor: '#3b82f6',
-          borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite'
-        }} />
+        <div className="loading-indicator" />
       )}
     </div>
   );

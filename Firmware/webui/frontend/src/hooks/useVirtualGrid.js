@@ -11,6 +11,25 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { calculateGridDimensions } from '../utils/gridCalculations';
 
 /**
+ * Simple debounce utility for ResizeObserver callbacks
+ * @param {Function} fn - Function to debounce
+ * @param {number} delay - Delay in milliseconds
+ * @returns {Function} Debounced function
+ */
+function debounce(fn, delay) {
+  let timeoutId = null;
+  return function debounced(...args) {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    timeoutId = setTimeout(() => {
+      fn(...args);
+      timeoutId = null;
+    }, delay);
+  };
+}
+
+/**
  * Custom hook for virtual grid layout calculations
  *
  * Tracks container dimensions and provides grid parameters for react-window.
@@ -43,6 +62,14 @@ import { calculateGridDimensions } from '../utils/gridCalculations';
 export default function useVirtualGrid(photoCount, options = {}) {
   const [containerWidth, setContainerWidth] = useState(0);
   const resizeObserverRef = useRef(null);
+  const debouncedSetWidthRef = useRef(null);
+
+  // Create debounced width setter (memoized to avoid recreation)
+  if (!debouncedSetWidthRef.current) {
+    debouncedSetWidthRef.current = debounce((width) => {
+      setContainerWidth(width);
+    }, 150); // 150ms debounce - balance between responsiveness and performance
+  }
 
   // Callback ref that sets up ResizeObserver when element is attached
   const containerRef = useCallback((node) => {
@@ -56,7 +83,8 @@ export default function useVirtualGrid(photoCount, options = {}) {
       resizeObserverRef.current = new ResizeObserver((entries) => {
         for (const entry of entries) {
           const { width } = entry.contentRect;
-          setContainerWidth(width);
+          // Use debounced setter to prevent excessive re-renders during window resizing
+          debouncedSetWidthRef.current(width);
         }
       });
 

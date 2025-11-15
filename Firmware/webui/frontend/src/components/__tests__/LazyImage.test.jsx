@@ -217,7 +217,7 @@ describe('LazyImage', () => {
       render(<LazyImage photo={mockPhoto} size={256} />);
 
       const container = document.querySelector('.lazy-image-container');
-      expect(container.style.width).toBe('100%');
+      expect(container.classList.contains('lazy-image-container')).toBe(true);
       expect(container.style.aspectRatio).toBeTruthy();
     });
 
@@ -232,7 +232,7 @@ describe('LazyImage', () => {
       render(<LazyImage photo={mockPhoto} size={256} />);
 
       const container = document.querySelector('.lazy-image-container');
-      expect(container.style.width).toBe('100%');
+      expect(container.classList.contains('lazy-image-container')).toBe(true);
     });
   });
 

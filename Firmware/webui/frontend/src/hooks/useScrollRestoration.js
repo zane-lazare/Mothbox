@@ -76,10 +76,11 @@ export default function useScrollRestoration(key = 'default') {
         return;
       }
 
-      // Restore position after a short delay to ensure DOM is ready
-      setTimeout(() => {
+      // Restore position on next animation frame to ensure DOM is ready
+      // This is more reliable than setTimeout and syncs with browser paint cycle
+      requestAnimationFrame(() => {
         scrollTo(position.scrollTop);
-      }, 100);
+      });
     } catch (err) {
       console.error('Failed to restore scroll position:', err);
     }

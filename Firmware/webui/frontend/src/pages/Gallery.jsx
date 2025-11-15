@@ -186,15 +186,41 @@ export default function Gallery() {
       {/* Conditional rendering: Grid view, Virtualized Grid, or List view */}
       {viewMode === 'grid' ? (
         shouldUseVirtualization ? (
-          /* Virtualized Photo Grid (for large galleries) */
-          <VirtualPhotoGrid
-            photos={photos}
-            onPhotoClick={setSelectedPhoto}
-            isLoading={isLoading}
-            isFetchingNextPage={isFetchingNextPage}
-            hasNextPage={hasNextPage}
-            viewMode={viewMode}
-          />
+          /* Virtualized Photo Grid (for large galleries) - wrapped in ErrorBoundary */
+          <ErrorBoundary
+            fallback={({ error, resetErrorBoundary }) => (
+              <div className="py-12">
+                <EmptyStateMessage
+                  variant="error"
+                  onCtaClick={resetErrorBoundary}
+                />
+                {/* Show technical error details in development */}
+                {import.meta.env.DEV && error && (
+                  <details className="mt-4 text-sm text-gray-600 max-w-2xl mx-auto">
+                    <summary className="cursor-pointer font-semibold">Error Details</summary>
+                    <pre className="mt-2 p-4 bg-gray-100 rounded overflow-auto">
+                      {error.message}
+                      {error.stack && `\n\n${error.stack}`}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            )}
+            onReset={() => {
+              // Reset selected photo and re-fetch photos
+              setSelectedPhoto(null)
+              refetch()
+            }}
+          >
+            <VirtualPhotoGrid
+              photos={photos}
+              onPhotoClick={setSelectedPhoto}
+              isLoading={isLoading}
+              isFetchingNextPage={isFetchingNextPage}
+              hasNextPage={hasNextPage}
+              viewMode={viewMode}
+            />
+          </ErrorBoundary>
         ) : (
           /* Traditional Photo Grid (for smaller galleries) */
           <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>

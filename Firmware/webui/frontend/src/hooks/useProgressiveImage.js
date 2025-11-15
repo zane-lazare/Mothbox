@@ -41,6 +41,7 @@ export default function useProgressiveImage(photoPath, options = {}) {
   /**
    * Load an image and return promise that resolves with URL
    * Checks cache first to avoid redundant network requests
+   * Properly cleans up Image object to prevent memory leaks
    *
    * @param {string} url - Image URL to load
    * @param {string} cacheKey - Cache key for this image
@@ -57,12 +58,27 @@ export default function useProgressiveImage(photoPath, options = {}) {
     // Not in cache - load from network
     return new Promise((resolve, reject) => {
       const img = new Image();
+
+      // Cleanup function to prevent memory leaks
+      const cleanup = () => {
+        img.onload = null;
+        img.onerror = null;
+        // Setting src to empty string helps garbage collection
+        img.src = '';
+      };
+
       img.onload = () => {
         // Cache the loaded image object
         imageCache.set(cacheKey, img);
         resolve(url);
+        // Don't cleanup here - image is cached and may be used again
       };
-      img.onerror = (err) => reject(err);
+
+      img.onerror = (err) => {
+        cleanup();
+        reject(err);
+      };
+
       img.src = url;
     });
   }, []);
