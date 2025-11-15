@@ -63,8 +63,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Import GPS EXIF library for coordinate extraction
-from lib.gps_exif_lib import verify_gps_exif
+# GPS EXIF library imported lazily in _extract_gps_location() to avoid import order issues
 
 
 class MetadataService:
@@ -369,6 +368,9 @@ class MetadataService:
         }
 
         try:
+            # Lazy import to avoid module-level import order issues
+            from lib.gps_exif_lib import verify_gps_exif
+
             # Use existing GPS EXIF library
             gps_info = verify_gps_exif(photo_path)
 
