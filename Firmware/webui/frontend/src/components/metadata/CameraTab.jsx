@@ -58,7 +58,7 @@ const CameraTab = ({ data }) => {
     <div className="space-y-6">
       {/* Camera Information Section */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 border-b dark:border-gray-600 pb-2">
           Camera Information
         </h3>
         <div className="space-y-2">
@@ -83,7 +83,7 @@ const CameraTab = ({ data }) => {
 
       {/* Technical Settings Section */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 border-b dark:border-gray-600 pb-2">
           Camera Settings
         </h3>
         <div className="space-y-2">

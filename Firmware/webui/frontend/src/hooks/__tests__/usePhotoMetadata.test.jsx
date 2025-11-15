@@ -2,6 +2,14 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import usePhotoMetadata from '../usePhotoMetadata'
+import { api } from '../../utils/api'
+
+// Mock the API module
+vi.mock('../../utils/api', () => ({
+  api: {
+    get: vi.fn(),
+  },
+}))
 
 /**
  * Test suite for usePhotoMetadata hook
@@ -34,8 +42,8 @@ describe('usePhotoMetadata', () => {
   }
 
   beforeEach(() => {
-    // Mock globalThis fetch
-    globalThis.fetch = vi.fn()
+    // Reset mocks before each test
+    vi.clearAllMocks()
   })
 
   afterEach(() => {
@@ -75,9 +83,8 @@ describe('usePhotoMetadata', () => {
         },
       }
 
-      globalThis.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
       })
 
       const { result } = renderHook(
@@ -103,9 +110,8 @@ describe('usePhotoMetadata', () => {
       const photoPath = '/var/lib/mothbox/photos/photo with spaces.jpg'
       const mockMetadata = { file: { path: photoPath } }
 
-      globalThis.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
       })
 
       renderHook(
@@ -114,8 +120,8 @@ describe('usePhotoMetadata', () => {
       )
 
       await waitFor(() => {
-        expect(globalThis.fetch).toHaveBeenCalledWith(
-          `/api/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
+        expect(api.get).toHaveBeenCalledWith(
+          `/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
         )
       })
     })
@@ -124,9 +130,8 @@ describe('usePhotoMetadata', () => {
       const photoPath = '/var/lib/mothbox/photos/photo_123.jpg'
       const mockMetadata = { file: { path: photoPath } }
 
-      globalThis.fetch.mockResolvedValue({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValue({
+        data: mockMetadata,
       })
 
       // Create a single wrapper to share QueryClient between renders
@@ -142,7 +147,7 @@ describe('usePhotoMetadata', () => {
         expect(result1.current.isSuccess).toBe(true)
       })
 
-      expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+      expect(api.get).toHaveBeenCalledTimes(1)
 
       // Unmount first hook
       unmount1()
@@ -159,7 +164,7 @@ describe('usePhotoMetadata', () => {
       })
 
       // Should still only have 1 fetch call (cached)
-      expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+      expect(api.get).toHaveBeenCalledTimes(1)
       expect(result2.current.data).toEqual(mockMetadata)
     })
 
@@ -167,9 +172,8 @@ describe('usePhotoMetadata', () => {
       const photoPath = '/var/lib/mothbox/photos/photo_456.jpg'
       const mockMetadata = { file: { path: photoPath } }
 
-      globalThis.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
       })
 
       const wrapper = createWrapper()
@@ -188,7 +192,7 @@ describe('usePhotoMetadata', () => {
 
   describe('Loading state', () => {
     it('returns loading state initially', () => {
-      globalThis.fetch.mockImplementation(() => new Promise(() => {})) // Never resolves
+      api.get.mockImplementation(() => new Promise(() => {})) // Never resolves
 
       const { result } = renderHook(
         () => usePhotoMetadata('/var/lib/mothbox/photos/photo_loading.jpg'),
@@ -204,11 +208,12 @@ describe('usePhotoMetadata', () => {
 
   describe('Error handling', () => {
     it('handles 404 errors gracefully', async () => {
-      globalThis.fetch.mockResolvedValueOnce({
-        ok: false,
+      const error = new Error('Request failed with status code 404')
+      error.response = {
         status: 404,
         statusText: 'Not Found',
-      })
+      }
+      api.get.mockRejectedValueOnce(error)
 
       const { result } = renderHook(
         () => usePhotoMetadata('/var/lib/mothbox/photos/nonexistent.jpg'),
@@ -227,11 +232,12 @@ describe('usePhotoMetadata', () => {
     })
 
     it('handles 500 server errors gracefully', async () => {
-      globalThis.fetch.mockResolvedValueOnce({
-        ok: false,
+      const error = new Error('Request failed with status code 500')
+      error.response = {
         status: 500,
         statusText: 'Internal Server Error',
-      })
+      }
+      api.get.mockRejectedValueOnce(error)
 
       const { result } = renderHook(
         () => usePhotoMetadata('/var/lib/mothbox/photos/photo_error.jpg'),
@@ -247,7 +253,7 @@ describe('usePhotoMetadata', () => {
     })
 
     it('handles network errors gracefully', async () => {
-      globalThis.fetch.mockRejectedValueOnce(new Error('Network request failed'))
+      api.get.mockRejectedValueOnce(new Error('Network request failed'))
 
       const { result } = renderHook(
         () => usePhotoMetadata('/var/lib/mothbox/photos/photo_network.jpg'),
@@ -263,12 +269,8 @@ describe('usePhotoMetadata', () => {
     })
 
     it('handles JSON parse errors gracefully', async () => {
-      globalThis.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => {
-          throw new Error('Invalid JSON')
-        },
-      })
+      // Axios automatically handles JSON parsing, so simulate a parse error
+      api.get.mockRejectedValueOnce(new Error('Invalid JSON'))
 
       const { result } = renderHook(
         () => usePhotoMetadata('/var/lib/mothbox/photos/photo_json.jpg'),
@@ -294,7 +296,7 @@ describe('usePhotoMetadata', () => {
       expect(result.current.isError).toBe(false)
       expect(result.current.isSuccess).toBe(false)
       expect(result.current.data).toBeUndefined()
-      expect(globalThis.fetch).not.toHaveBeenCalled()
+      expect(api.get).not.toHaveBeenCalled()
     })
 
     it('does not fetch when photoPath is undefined', () => {
@@ -304,7 +306,7 @@ describe('usePhotoMetadata', () => {
       )
 
       expect(result.current.isLoading).toBe(false)
-      expect(globalThis.fetch).not.toHaveBeenCalled()
+      expect(api.get).not.toHaveBeenCalled()
     })
 
     it('does not fetch when photoPath is empty string', () => {
@@ -314,15 +316,14 @@ describe('usePhotoMetadata', () => {
       )
 
       expect(result.current.isLoading).toBe(false)
-      expect(globalThis.fetch).not.toHaveBeenCalled()
+      expect(api.get).not.toHaveBeenCalled()
     })
 
     it('fetches when photoPath changes from null to valid path', async () => {
       const mockMetadata = { file: { path: '/var/lib/mothbox/photos/photo_new.jpg' } }
 
-      globalThis.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
       })
 
       const { result, rerender } = renderHook(
@@ -335,7 +336,7 @@ describe('usePhotoMetadata', () => {
 
       // Initially should not fetch
       expect(result.current.isLoading).toBe(false)
-      expect(globalThis.fetch).not.toHaveBeenCalled()
+      expect(api.get).not.toHaveBeenCalled()
 
       // Change to valid path
       rerender({ path: '/var/lib/mothbox/photos/photo_new.jpg' })
@@ -345,7 +346,7 @@ describe('usePhotoMetadata', () => {
         expect(result.current.isSuccess).toBe(true)
       })
 
-      expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+      expect(api.get).toHaveBeenCalledTimes(1)
       expect(result.current.data).toEqual(mockMetadata)
     })
   })
@@ -355,9 +356,8 @@ describe('usePhotoMetadata', () => {
       const photoPath = '/var/lib/mothbox/photos/photo_stale.jpg'
       const mockMetadata = { file: { path: photoPath } }
 
-      globalThis.fetch.mockResolvedValue({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValue({
+        data: mockMetadata,
       })
 
       const wrapper = createWrapper()
@@ -384,14 +384,12 @@ describe('usePhotoMetadata', () => {
       const metadata1 = { file: { path: '/var/lib/mothbox/photos/photo_1.jpg' } }
       const metadata2 = { file: { path: '/var/lib/mothbox/photos/photo_2.jpg' } }
 
-      globalThis.fetch
+      api.get
         .mockResolvedValueOnce({
-          ok: true,
-          json: async () => metadata1,
+          data: metadata1,
         })
         .mockResolvedValueOnce({
-          ok: true,
-          json: async () => metadata2,
+          data: metadata2,
         })
 
       const { result, rerender } = renderHook(
@@ -408,7 +406,7 @@ describe('usePhotoMetadata', () => {
       })
 
       expect(result.current.data).toEqual(metadata1)
-      expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+      expect(api.get).toHaveBeenCalledTimes(1)
 
       // Change photo path
       rerender({ path: '/var/lib/mothbox/photos/photo_2.jpg' })
@@ -418,7 +416,7 @@ describe('usePhotoMetadata', () => {
         expect(result.current.data).toEqual(metadata2)
       })
 
-      expect(globalThis.fetch).toHaveBeenCalledTimes(2)
+      expect(api.get).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -426,9 +424,8 @@ describe('usePhotoMetadata', () => {
     it('cleans up on unmount without errors', async () => {
       const mockMetadata = { file: { path: '/var/lib/mothbox/photos/photo_cleanup.jpg' } }
 
-      globalThis.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
       })
 
       const { unmount } = renderHook(
@@ -437,7 +434,7 @@ describe('usePhotoMetadata', () => {
       )
 
       await waitFor(() => {
-        expect(globalThis.fetch).toHaveBeenCalled()
+        expect(api.get).toHaveBeenCalled()
       })
 
       // Should not throw when unmounting

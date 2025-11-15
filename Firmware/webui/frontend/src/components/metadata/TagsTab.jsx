@@ -43,8 +43,8 @@ function TagsTab({ data }) {
     <div className="space-y-4">
       {/* Section Header */}
       <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-2">Tags & Annotations</h3>
-        <p className="text-xs text-gray-500 italic">
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags & Annotations</h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 italic">
           Read-only (Tagging coming in Phase 3)
         </p>
       </div>

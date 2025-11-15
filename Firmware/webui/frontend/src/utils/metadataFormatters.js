@@ -69,6 +69,25 @@ export function formatGPSCoordinate(value, type) {
 }
 
 /**
+ * Formats decimal GPS coordinates with consistent precision.
+ *
+ * @param {number} value - Decimal coordinate value (latitude or longitude)
+ * @returns {string} Formatted coordinate with 6 decimal places (~0.11m precision) or "N/A" if invalid
+ *
+ * @example
+ * formatDecimalCoordinate(34.052235) // "34.052235"
+ * formatDecimalCoordinate(-118.243683) // "-118.243683"
+ * formatDecimalCoordinate(null) // "N/A"
+ */
+export function formatDecimalCoordinate(value) {
+  if (value === null || value === undefined || isNaN(value)) {
+    return 'N/A'
+  }
+  // 6 decimal places provides ~0.11m precision for GPS coordinates
+  return value.toFixed(6)
+}
+
+/**
  * Formats altitude in meters.
  *
  * @param {number} value - Altitude in meters

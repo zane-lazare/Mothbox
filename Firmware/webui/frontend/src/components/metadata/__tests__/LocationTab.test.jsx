@@ -18,8 +18,8 @@ describe('LocationTab', () => {
       render(<LocationTab data={mockGPSData} />);
 
       expect(screen.getByText('Decimal Degrees')).toBeInTheDocument();
-      expect(screen.getByText('40.7128°')).toBeInTheDocument();
-      expect(screen.getByText('-74.006°')).toBeInTheDocument(); // Trailing zero is removed by JavaScript
+      expect(screen.getByText('40.712800°')).toBeInTheDocument();
+      expect(screen.getByText('-74.006000°')).toBeInTheDocument(); // Trailing zero is removed by JavaScript
     });
 
     it('renders GPS coordinates in DMS format', () => {
@@ -124,7 +124,7 @@ describe('LocationTab', () => {
 
       render(<LocationTab data={southernData} />);
 
-      expect(screen.getByText('-33.8688°')).toBeInTheDocument();
+      expect(screen.getByText('-33.868800°')).toBeInTheDocument();
       expect(screen.getByText(/33°52'07\.7" S/)).toBeInTheDocument();
     });
 
@@ -137,7 +137,7 @@ describe('LocationTab', () => {
 
       render(<LocationTab data={easternData} />);
 
-      expect(screen.getByText('139.6503°')).toBeInTheDocument();
+      expect(screen.getByText('139.650300°')).toBeInTheDocument();
       expect(screen.getByText(/139°39'01\.1" E/)).toBeInTheDocument();
     });
 
@@ -150,7 +150,7 @@ describe('LocationTab', () => {
 
       render(<LocationTab data={westernData} />);
 
-      expect(screen.getByText('-74.006°')).toBeInTheDocument(); // Trailing zero removed
+      expect(screen.getByText('-74.006000°')).toBeInTheDocument(); // Trailing zero removed
       expect(screen.getByText(/74°00'21\.6" W/)).toBeInTheDocument();
     });
 
@@ -163,7 +163,7 @@ describe('LocationTab', () => {
 
       render(<LocationTab data={northernData} />);
 
-      expect(screen.getByText('51.5074°')).toBeInTheDocument();
+      expect(screen.getByText('51.507400°')).toBeInTheDocument();
       expect(screen.getByText(/51°30'26\.6" N/)).toBeInTheDocument();
     });
   });
@@ -200,7 +200,7 @@ describe('LocationTab', () => {
       render(<LocationTab data={minimalData} />);
 
       // Should still render coordinates
-      expect(screen.getByText('40.7128°')).toBeInTheDocument();
+      expect(screen.getByText('40.712800°')).toBeInTheDocument();
 
       // Quality indicators should show N/A or not appear
       expect(screen.queryByText('Satellites')).toBeInTheDocument();
@@ -231,8 +231,8 @@ describe('LocationTab', () => {
 
       render(<LocationTab data={completeData} />);
 
-      expect(screen.getByText('40.7128°')).toBeInTheDocument();
-      expect(screen.getByText('-74.006°')).toBeInTheDocument(); // Trailing zero removed
+      expect(screen.getByText('40.712800°')).toBeInTheDocument();
+      expect(screen.getByText('-74.006000°')).toBeInTheDocument(); // Trailing zero removed
     });
   });
 });

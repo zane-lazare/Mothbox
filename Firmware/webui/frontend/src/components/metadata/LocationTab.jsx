@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import MetadataField from './MetadataField';
-import { formatGPSCoordinate, formatAltitude } from '../../utils/metadataFormatters';
+import { formatGPSCoordinate, formatDecimalCoordinate, formatAltitude } from '../../utils/metadataFormatters';
 
 /**
  * LocationTab Component
@@ -56,8 +56,8 @@ const LocationTab = ({ data }) => {
   const latDMS = formatGPSCoordinate(lat, 'lat');
   const lonDMS = formatGPSCoordinate(lon, 'lon');
 
-  // Create Google Maps link
-  const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
+  // Create Google Maps link with properly encoded coordinates to prevent XSS
+  const mapsUrl = `https://www.google.com/maps?q=${encodeURIComponent(lat)},${encodeURIComponent(lon)}`;
 
   // Only show altitude for 3D fix
   const showAltitude = gps_fix_mode === 3 && alt !== undefined && alt !== null;
@@ -72,12 +72,12 @@ const LocationTab = ({ data }) => {
         <div className="space-y-2">
           <MetadataField
             label="Latitude"
-            value={`${lat}°`}
+            value={`${formatDecimalCoordinate(lat)}°`}
             copyable={true}
           />
           <MetadataField
             label="Longitude"
-            value={`${lon}°`}
+            value={`${formatDecimalCoordinate(lon)}°`}
             copyable={true}
           />
           {showAltitude && (

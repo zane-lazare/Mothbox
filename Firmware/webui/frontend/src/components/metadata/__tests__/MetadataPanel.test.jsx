@@ -3,6 +3,14 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import MetadataPanel from '../MetadataPanel'
+import { api } from '../../../utils/api'
+
+// Mock the API module
+vi.mock('../../../utils/api', () => ({
+  api: {
+    get: vi.fn(),
+  },
+}))
 
 // Mock the child components
 vi.mock('../CameraTab', () => ({
@@ -130,24 +138,21 @@ function TestWrapper({ children }) {
 }
 
 describe('MetadataPanel', () => {
-  let fetchSpy
-
   beforeEach(() => {
-    // Reset fetch mock before each test
-    fetchSpy = vi.spyOn(globalThis, 'fetch')
+    // Clear all mocks before each test
+    vi.clearAllMocks()
   })
 
   afterEach(() => {
-    // Restore fetch after each test
-    fetchSpy.mockRestore()
+    // Clear all mocks after each test
     vi.clearAllMocks()
   })
 
   describe('Rendering', () => {
     it('renders all 5 tab triggers (Camera, Location, Capture, Tags, Deployment)', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       render(
@@ -172,7 +177,7 @@ describe('MetadataPanel', () => {
     })
 
     it('shows loading skeleton initially while fetching metadata', () => {
-      fetchSpy.mockImplementation(
+      api.get.mockImplementation(
         () =>
           new Promise((resolve) => {
             // Don't resolve immediately to keep loading state
@@ -192,9 +197,9 @@ describe('MetadataPanel', () => {
     })
 
     it('displays Camera tab content by default after loading', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       render(
@@ -219,7 +224,7 @@ describe('MetadataPanel', () => {
     })
 
     it('hides tab content until metadata is loaded', () => {
-      fetchSpy.mockImplementation(
+      api.get.mockImplementation(
         () =>
           new Promise((resolve) => {
             // Keep loading indefinitely
@@ -240,9 +245,9 @@ describe('MetadataPanel', () => {
     })
 
     it('renders tab list with proper ARIA role', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       render(
@@ -261,9 +266,9 @@ describe('MetadataPanel', () => {
     })
 
     it('renders tab panels with proper ARIA role', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       render(
@@ -284,9 +289,9 @@ describe('MetadataPanel', () => {
 
   describe('Tab Switching', () => {
     it('switches to Location tab when clicked', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       const user = userEvent.setup()
@@ -311,9 +316,9 @@ describe('MetadataPanel', () => {
     })
 
     it('switches to Capture tab when clicked', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       const user = userEvent.setup()
@@ -338,9 +343,9 @@ describe('MetadataPanel', () => {
     })
 
     it('switches to Tags tab when clicked', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       const user = userEvent.setup()
@@ -365,9 +370,9 @@ describe('MetadataPanel', () => {
     })
 
     it('switches to Deployment tab when clicked', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       const user = userEvent.setup()
@@ -392,9 +397,9 @@ describe('MetadataPanel', () => {
     })
 
     it('tab switching completes within 100ms (performance requirement)', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       const user = userEvent.setup()
@@ -422,9 +427,9 @@ describe('MetadataPanel', () => {
     })
 
     it('active tab has proper aria-selected attribute', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       const user = userEvent.setup()
@@ -459,9 +464,9 @@ describe('MetadataPanel', () => {
   describe('Data Loading', () => {
     it('fetches metadata using usePhotoMetadata hook', async () => {
       const photoPath = '/var/lib/mothbox/photos/test.jpg'
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       render(
@@ -471,17 +476,17 @@ describe('MetadataPanel', () => {
       )
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          `/api/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
+        expect(api.get).toHaveBeenCalledWith(
+          `/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
         )
       })
     })
 
     it('passes photoPath to usePhotoMetadata correctly', async () => {
       const photoPath = '/var/lib/mothbox/photos/special-path/image.jpg'
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       render(
@@ -491,14 +496,14 @@ describe('MetadataPanel', () => {
       )
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          `/api/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
+        expect(api.get).toHaveBeenCalledWith(
+          `/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
         )
       })
     })
 
     it('loading state shows MetadataSkeleton', () => {
-      fetchSpy.mockImplementation(
+      api.get.mockImplementation(
         () =>
           new Promise((resolve) => {
             setTimeout(() => resolve({ ok: true, json: async () => mockMetadata }), 1000)
@@ -517,9 +522,9 @@ describe('MetadataPanel', () => {
     })
 
     it('success state shows tab content', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       render(
@@ -538,9 +543,9 @@ describe('MetadataPanel', () => {
     })
 
     it('passes metadata to tabs correctly', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       const user = userEvent.setup()
@@ -578,11 +583,12 @@ describe('MetadataPanel', () => {
 
   describe('Error Handling', () => {
     it('handles API 404 errors gracefully', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: false,
+      const error = new Error('Request failed with status code 404')
+      error.response = {
         status: 404,
         statusText: 'Not Found',
-      })
+      }
+      api.get.mockRejectedValueOnce(error)
 
       render(
         <TestWrapper>
@@ -596,11 +602,12 @@ describe('MetadataPanel', () => {
     })
 
     it('handles API 500 errors gracefully', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: false,
+      const error = new Error('Request failed with status code 500')
+      error.response = {
         status: 500,
         statusText: 'Internal Server Error',
-      })
+      }
+      api.get.mockRejectedValueOnce(error)
 
       render(
         <TestWrapper>
@@ -614,7 +621,7 @@ describe('MetadataPanel', () => {
     })
 
     it('shows "Failed to load metadata" message on error', async () => {
-      fetchSpy.mockRejectedValueOnce(new Error('Network error'))
+      api.get.mockRejectedValueOnce(new Error('Network error'))
 
       render(
         <TestWrapper>
@@ -628,11 +635,12 @@ describe('MetadataPanel', () => {
     })
 
     it('shows retry suggestion on error', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: false,
+      const error = new Error('Request failed with status code 500')
+      error.response = {
         status: 500,
         statusText: 'Internal Server Error',
-      })
+      }
+      api.get.mockRejectedValueOnce(error)
 
       render(
         <TestWrapper>
@@ -646,11 +654,12 @@ describe('MetadataPanel', () => {
     })
 
     it('error state shows error message instead of tabs', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: false,
+      const error = new Error('Request failed with status code 500')
+      error.response = {
         status: 500,
         statusText: 'Internal Server Error',
-      })
+      }
+      api.get.mockRejectedValueOnce(error)
 
       render(
         <TestWrapper>
@@ -669,7 +678,7 @@ describe('MetadataPanel', () => {
 
     it('shows retry button on error that triggers refetch', async () => {
       // First call fails
-      fetchSpy.mockRejectedValueOnce(new Error('Network error'))
+      api.get.mockRejectedValueOnce(new Error('Network error'))
 
       const { rerender } = render(
         <TestWrapper>
@@ -687,9 +696,9 @@ describe('MetadataPanel', () => {
       expect(retryButton).toBeInTheDocument()
 
       // Second call succeeds
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       // Click retry button
@@ -707,9 +716,9 @@ describe('MetadataPanel', () => {
 
   describe('Responsive Layout', () => {
     it('applies responsive layout classes', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       const { container } = render(
@@ -730,9 +739,9 @@ describe('MetadataPanel', () => {
 
   describe('Accessibility', () => {
     it('all tabs have accessible labels', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       render(
@@ -756,9 +765,9 @@ describe('MetadataPanel', () => {
     })
 
     it('tab list has proper ARIA attributes', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       render(
@@ -776,9 +785,9 @@ describe('MetadataPanel', () => {
     })
 
     it('keyboard navigation works (test aria-selected changes)', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       const user = userEvent.setup()
@@ -811,9 +820,9 @@ describe('MetadataPanel', () => {
     })
 
     it('each tab has proper aria-controls', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       render(
@@ -837,9 +846,9 @@ describe('MetadataPanel', () => {
 
   describe('State Management', () => {
     it('remembers selected tab when photoPath changes', async () => {
-      fetchSpy.mockResolvedValue({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValue({
+        data: mockMetadata,
+
       })
 
       const user = userEvent.setup()
@@ -877,9 +886,9 @@ describe('MetadataPanel', () => {
     })
 
     it('defaults to camera tab on initial render', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       render(
@@ -901,9 +910,9 @@ describe('MetadataPanel', () => {
     })
 
     it('tab state persists across re-renders', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       const user = userEvent.setup()
@@ -940,9 +949,9 @@ describe('MetadataPanel', () => {
 
   describe('Edge Cases', () => {
     it('handles null metadata gracefully', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => null,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+        data: null,
       })
 
       render(
@@ -966,9 +975,9 @@ describe('MetadataPanel', () => {
         // Missing other sections
       }
 
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => partialMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+        data: partialMetadata,
       })
 
       const user = userEvent.setup()
@@ -999,7 +1008,7 @@ describe('MetadataPanel', () => {
       )
 
       // Should not make API request
-      expect(fetchSpy).not.toHaveBeenCalled()
+      expect(api.get).not.toHaveBeenCalled()
 
       // Should not show skeleton (query is disabled)
       expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
@@ -1013,16 +1022,16 @@ describe('MetadataPanel', () => {
       )
 
       // Should not make API request
-      expect(fetchSpy).not.toHaveBeenCalled()
+      expect(api.get).not.toHaveBeenCalled()
 
       // Should not show skeleton (query is disabled)
       expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
     })
 
     it('applies custom className prop', async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMetadata,
+      api.get.mockResolvedValueOnce({
+        data: mockMetadata,
+
       })
 
       const { container } = render(

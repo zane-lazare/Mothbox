@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import * as Tabs from '@radix-ui/react-tabs'
 import usePhotoMetadata from '../../hooks/usePhotoMetadata'
@@ -34,8 +34,28 @@ export default function MetadataPanel({ photoPath, className = '' }) {
   // State for active tab (defaults to 'camera')
   const [activeTab, setActiveTab] = useState('camera')
 
+  // Retry tracking state (consistent with PhotoLightbox UX)
+  const [retryCount, setRetryCount] = useState(0)
+  const MAX_RETRIES = 3
+
   // Fetch metadata using custom hook
   const { data: metadata, isLoading, isError, refetch } = usePhotoMetadata(photoPath)
+
+  // Reset retry count when photo changes
+  useEffect(() => {
+    setRetryCount(0)
+  }, [photoPath])
+
+  // Shared tab trigger styling (DRY principle)
+  const TAB_TRIGGER_CLASSES = `
+    px-4 py-2 text-sm font-medium transition-all duration-75
+    border-b-2 md:border-b-0 md:border-r-2 border-transparent
+    hover:bg-gray-50 dark:hover:bg-gray-800
+    data-[state=active]:border-blue-600 data-[state=active]:text-blue-600
+    data-[state=active]:dark:border-blue-400 data-[state=active]:dark:text-blue-400
+    text-gray-700 dark:text-gray-300
+    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+  `
 
   // Loading state - show skeleton
   if (isLoading) {
@@ -52,12 +72,22 @@ export default function MetadataPanel({ photoPath, className = '' }) {
         <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
           Please try again or check if the photo exists.
         </p>
-        <button
-          onClick={() => refetch()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-        >
-          Retry
-        </button>
+        {retryCount >= MAX_RETRIES ? (
+          <p className="mt-4 text-sm text-red-500 dark:text-red-400 max-w-md mx-auto">
+            Maximum retry attempts reached ({MAX_RETRIES}). The metadata may be unavailable or
+            the server may be experiencing issues.
+          </p>
+        ) : (
+          <button
+            onClick={() => {
+              setRetryCount((prev) => prev + 1)
+              refetch()
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Retry {retryCount > 0 && `(${retryCount}/${MAX_RETRIES})`}
+          </button>
+        )}
       </div>
     )
   }
@@ -76,78 +106,39 @@ export default function MetadataPanel({ photoPath, className = '' }) {
       >
         <Tabs.Trigger
           value="camera"
-          className={`
-            px-4 py-2 text-sm font-medium transition-all duration-75
-            border-b-2 md:border-b-0 md:border-r-2 border-transparent
-            hover:bg-gray-50 dark:hover:bg-gray-800
-            data-[state=active]:border-blue-600 data-[state=active]:text-blue-600
-            data-[state=active]:dark:border-blue-400 data-[state=active]:dark:text-blue-400
-            text-gray-700 dark:text-gray-300
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-          `}
+          className={TAB_TRIGGER_CLASSES}
         >
           Camera
         </Tabs.Trigger>
         <Tabs.Trigger
           value="location"
-          className={`
-            px-4 py-2 text-sm font-medium transition-all duration-75
-            border-b-2 md:border-b-0 md:border-r-2 border-transparent
-            hover:bg-gray-50 dark:hover:bg-gray-800
-            data-[state=active]:border-blue-600 data-[state=active]:text-blue-600
-            data-[state=active]:dark:border-blue-400 data-[state=active]:dark:text-blue-400
-            text-gray-700 dark:text-gray-300
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-          `}
+          className={TAB_TRIGGER_CLASSES}
         >
           Location
         </Tabs.Trigger>
         <Tabs.Trigger
           value="capture"
-          className={`
-            px-4 py-2 text-sm font-medium transition-all duration-75
-            border-b-2 md:border-b-0 md:border-r-2 border-transparent
-            hover:bg-gray-50 dark:hover:bg-gray-800
-            data-[state=active]:border-blue-600 data-[state=active]:text-blue-600
-            data-[state=active]:dark:border-blue-400 data-[state=active]:dark:text-blue-400
-            text-gray-700 dark:text-gray-300
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-          `}
+          className={TAB_TRIGGER_CLASSES}
         >
           Capture
         </Tabs.Trigger>
         <Tabs.Trigger
           value="tags"
-          className={`
-            px-4 py-2 text-sm font-medium transition-all duration-75
-            border-b-2 md:border-b-0 md:border-r-2 border-transparent
-            hover:bg-gray-50 dark:hover:bg-gray-800
-            data-[state=active]:border-blue-600 data-[state=active]:text-blue-600
-            data-[state=active]:dark:border-blue-400 data-[state=active]:dark:text-blue-400
-            text-gray-700 dark:text-gray-300
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-          `}
+          className={TAB_TRIGGER_CLASSES}
         >
           Tags
         </Tabs.Trigger>
         <Tabs.Trigger
           value="deployment"
-          className={`
-            px-4 py-2 text-sm font-medium transition-all duration-75
-            border-b-2 md:border-b-0 md:border-r-2 border-transparent
-            hover:bg-gray-50 dark:hover:bg-gray-800
-            data-[state=active]:border-blue-600 data-[state=active]:text-blue-600
-            data-[state=active]:dark:border-blue-400 data-[state=active]:dark:text-blue-400
-            text-gray-700 dark:text-gray-300
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-          `}
+          className={TAB_TRIGGER_CLASSES}
         >
           Deployment
         </Tabs.Trigger>
       </Tabs.List>
 
       {/* Tab Content - scrollable area for metadata */}
-      <div className="flex-1 overflow-y-auto max-h-[500px]">
+      {/* max-h-[60vh]: Responsive height constraint that adapts to viewport size */}
+      <div className="flex-1 overflow-y-auto max-h-[60vh]">
         <Tabs.Content value="camera" className="p-4">
           <CameraTab data={metadata?.camera} />
         </Tabs.Content>
@@ -173,6 +164,6 @@ export default function MetadataPanel({ photoPath, className = '' }) {
 }
 
 MetadataPanel.propTypes = {
-  photoPath: PropTypes.string,
+  photoPath: PropTypes.string.isRequired,
   className: PropTypes.string,
 }

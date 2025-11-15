@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { api } from '../utils/api'
 
 /**
  * Custom hook for fetching photo metadata using TanStack Query
@@ -38,21 +39,14 @@ export default function usePhotoMetadata(photoPath) {
     // Query function: fetches the metadata from the API
     queryFn: async () => {
       // Build API endpoint with URL-encoded photo path
-      const endpoint = `/api/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
+      const endpoint = `/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
 
-      // Fetch metadata from backend
-      const response = await fetch(endpoint)
+      // Fetch metadata from backend using centralized API client
+      // This automatically includes CSRF tokens, base URL, and error handling
+      const response = await api.get(endpoint)
 
-      // Handle non-OK responses
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch metadata: ${response.status} ${response.statusText}`
-        )
-      }
-
-      // Parse and return JSON response
-      const data = await response.json()
-      return data
+      // Return the data from axios response
+      return response.data
     },
 
     // Only fetch when photoPath is truthy (not null, undefined, or empty string)
