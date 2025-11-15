@@ -6,6 +6,14 @@
  */
 
 /**
+ * Threshold for determining if a timestamp is in seconds or milliseconds.
+ * Unix timestamps in seconds are typically < 10000000000 (Sep 9, 2001).
+ * Milliseconds timestamps are >= 10000000000.
+ * This represents approximately 316 years after Unix epoch (1970).
+ */
+const TIMESTAMP_MILLISECONDS_THRESHOLD = 10000000000
+
+/**
  * Converts decimal degrees to Degrees, Minutes, Seconds (DMS) format.
  *
  * @param {number} decimal - Decimal degrees (positive or negative)
@@ -178,9 +186,8 @@ export function formatTimestamp(value) {
     date = value
   } else if (typeof value === 'number') {
     // Handle both seconds and milliseconds timestamps
-    // Unix timestamps in seconds are typically < 10000000000
-    // Milliseconds timestamps are >= 10000000000
-    date = new Date(value < 10000000000 ? value * 1000 : value)
+    // Convert seconds to milliseconds if needed
+    date = new Date(value < TIMESTAMP_MILLISECONDS_THRESHOLD ? value * 1000 : value)
   } else if (typeof value === 'string') {
     date = new Date(value)
   } else {
