@@ -58,7 +58,7 @@ describe('Gallery - Infinite Scroll - Lightbox & UI', () => {
 
       // Lightbox should open with full-size image
       await waitFor(() => {
-        const lightboxImage = screen.getAllByAltText('Photo taken on 2023-11-01')
+        const lightboxImage = screen.getByAltText('Photo taken on 2023-11-01')
         expect(lightboxImage).toBeInTheDocument()
         expect(lightboxImage).toHaveAttribute('src', '/api/gallery/photo/photo_1.jpg')
       })
