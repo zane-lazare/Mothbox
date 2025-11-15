@@ -66,7 +66,7 @@ const LocationTab = ({ data }) => {
     <div className="space-y-6">
       {/* Decimal Degrees Section */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 border-b dark:border-gray-600 pb-2">
           Decimal Degrees
         </h3>
         <div className="space-y-2">
@@ -92,7 +92,7 @@ const LocationTab = ({ data }) => {
 
       {/* DMS Format Section */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 border-b dark:border-gray-600 pb-2">
           Degrees, Minutes, Seconds (DMS)
         </h3>
         <div className="space-y-2">
@@ -109,7 +109,7 @@ const LocationTab = ({ data }) => {
 
       {/* GPS Quality Indicators */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 border-b dark:border-gray-600 pb-2">
           GPS Quality
         </h3>
         <div className="space-y-2">

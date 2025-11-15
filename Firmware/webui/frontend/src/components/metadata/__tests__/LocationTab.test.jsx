@@ -28,11 +28,11 @@ describe('LocationTab', () => {
       // Look for DMS section header
       expect(screen.getByText(/Degrees.*Minutes.*Seconds/i)).toBeInTheDocument();
 
-      // Check for DMS values (latitude: 40°42'46.08"N)
-      expect(screen.getByText(/40°42'46.08"N/)).toBeInTheDocument();
+      // Check for DMS values (latitude: 40°42'46.1" N)
+      expect(screen.getByText(/40°42'46\.1" N/)).toBeInTheDocument();
 
-      // Check for DMS values (longitude: 74°0'21.60"W)
-      expect(screen.getByText(/74°0'21.60"W/)).toBeInTheDocument();
+      // Check for DMS values (longitude: 74°00'21.6" W)
+      expect(screen.getByText(/74°00'21\.6" W/)).toBeInTheDocument();
     });
 
     it('renders altitude only for 3D fix', () => {
@@ -125,7 +125,7 @@ describe('LocationTab', () => {
       render(<LocationTab data={southernData} />);
 
       expect(screen.getByText('-33.8688°')).toBeInTheDocument();
-      expect(screen.getByText(/33°52'7.68"S/)).toBeInTheDocument();
+      expect(screen.getByText(/33°52'07\.7" S/)).toBeInTheDocument();
     });
 
     it('handles eastern hemisphere longitude', () => {
@@ -138,7 +138,7 @@ describe('LocationTab', () => {
       render(<LocationTab data={easternData} />);
 
       expect(screen.getByText('139.6503°')).toBeInTheDocument();
-      expect(screen.getByText(/139°39'1.08"E/)).toBeInTheDocument();
+      expect(screen.getByText(/139°39'01\.1" E/)).toBeInTheDocument();
     });
 
     it('handles western hemisphere longitude', () => {
@@ -151,7 +151,7 @@ describe('LocationTab', () => {
       render(<LocationTab data={westernData} />);
 
       expect(screen.getByText('-74.006°')).toBeInTheDocument(); // Trailing zero removed
-      expect(screen.getByText(/74°0'21.60"W/)).toBeInTheDocument();
+      expect(screen.getByText(/74°00'21\.6" W/)).toBeInTheDocument();
     });
 
     it('handles northern hemisphere latitude', () => {
@@ -164,7 +164,7 @@ describe('LocationTab', () => {
       render(<LocationTab data={northernData} />);
 
       expect(screen.getByText('51.5074°')).toBeInTheDocument();
-      expect(screen.getByText(/51°30'26.64"N/)).toBeInTheDocument();
+      expect(screen.getByText(/51°30'26\.6" N/)).toBeInTheDocument();
     });
   });
 
