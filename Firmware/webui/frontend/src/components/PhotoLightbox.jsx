@@ -7,6 +7,7 @@ import useImagePreload from '../hooks/useImagePreload'
 import { debounce, throttle } from '../utils/performance'
 import { getPhotoUrl } from '../utils/api'
 import MetadataPanel from './metadata/MetadataPanel'
+import MetadataErrorBoundary from './metadata/MetadataErrorBoundary'
 
 /**
  * Adaptive Photo Lightbox Component
@@ -729,7 +730,9 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
 
         {/* Metadata panel - hidden on mobile, side panel on desktop */}
         <div className="hidden md:block md:w-96 bg-white dark:bg-gray-800 rounded-lg overflow-hidden">
-          <MetadataPanel photoPath={photo.path} />
+          <MetadataErrorBoundary>
+            <MetadataPanel photoPath={photo.path} />
+          </MetadataErrorBoundary>
         </div>
       </div>
     </div>
