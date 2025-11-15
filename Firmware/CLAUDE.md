@@ -460,8 +460,11 @@ lat_decimal = dms_to_decimal(37, 46, 29.64, 'N')
 import { decimalToDMS, formatCoordinateDisplay } from '@/utils/gpsCoordinates';
 
 const dms = decimalToDMS(37.7749, true);
-const display = formatCoordinateDisplay(37.7749, -122.4194);
-// Returns: "37°46'29.64\"N 122°25'9.84\"W"
+// Returns: { degrees: 37, minutes: 46, seconds: 29.64, reference: 'N' }
+
+const latDisplay = formatCoordinateDisplay(37.7749, true);
+const lonDisplay = formatCoordinateDisplay(-122.4194, false);
+// latDisplay: "37°46'29.64\"N", lonDisplay: "122°25'9.84\"W"
 ```
 
 ## Key Files Reference

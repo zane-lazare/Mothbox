@@ -72,9 +72,10 @@ const decimal = dmsToDecimal(37, 46, 29.64, 'N');
 const isValid = validateCoordinate(37.7749, true);
 // Returns: true
 
-// Format for display
-const display = formatCoordinateDisplay(37.7749, -122.4194);
-// Returns: "37°46'29.64\"N 122°25'9.84\"W"
+// Format coordinates for display
+const latDisplay = formatCoordinateDisplay(37.7749, true);   // "37°46'29.64\"N"
+const lonDisplay = formatCoordinateDisplay(-122.4194, false); // "122°25'9.84\"W"
+const combined = `${latDisplay} ${lonDisplay}`;               // "37°46'29.64\"N 122°25'9.84\"W"
 ```
 
 ## API Reference
@@ -334,38 +335,46 @@ function formatCoordinateDisplay(
 
 ```python
 # San Francisco, CA
-display = format_coordinate_display(37.7749, -122.4194)
-# "37°46'29.64\"N 122°25'9.84\"W"
+sf_lat = format_coordinate_display(37.7749, is_latitude=True)
+sf_lon = format_coordinate_display(-122.4194, is_latitude=False)
+# sf_lat: "37°46'29.64\"N", sf_lon: "122°25'9.84\"W"
 
 # London, UK
-display = format_coordinate_display(51.5074, -0.1278)
-# "51°30'26.64\"N 0°7'40.08\"W"
+lon_lat = format_coordinate_display(51.5074, is_latitude=True)
+lon_lon = format_coordinate_display(-0.1278, is_latitude=False)
+# lon_lat: "51°30'26.64\"N", lon_lon: "0°7'40.08\"W"
 
 # Null Island (0, 0)
-display = format_coordinate_display(0.0, 0.0)
-# "0°0'0.00\"N 0°0'0.00\"E"
+null_lat = format_coordinate_display(0.0, is_latitude=True)
+null_lon = format_coordinate_display(0.0, is_latitude=False)
+# null_lat: "0°0'0.00\"N", null_lon: "0°0'0.00\"E"
 
 # North Pole, International Date Line
-display = format_coordinate_display(90.0, -180.0)
-# "90°0'0.00\"N 180°0'0.00\"W"
+pole_lat = format_coordinate_display(90.0, is_latitude=True)
+date_lon = format_coordinate_display(-180.0, is_latitude=False)
+# pole_lat: "90°0'0.00\"N", date_lon: "180°0'0.00\"W"
 ```
 
 ```typescript
 // San Francisco, CA
-const display = formatCoordinateDisplay(37.7749, -122.4194);
-// "37°46'29.64\"N 122°25'9.84\"W"
+const sfLat = formatCoordinateDisplay(37.7749, true);
+const sfLon = formatCoordinateDisplay(-122.4194, false);
+// sfLat: "37°46'29.64\"N", sfLon: "122°25'9.84\"W"
 
 // London, UK
-const display = formatCoordinateDisplay(51.5074, -0.1278);
-// "51°30'26.64\"N 0°7'40.08\"W"
+const lonLat = formatCoordinateDisplay(51.5074, true);
+const lonLon = formatCoordinateDisplay(-0.1278, false);
+// lonLat: "51°30'26.64\"N", lonLon: "0°7'40.08\"W"
 
 // Null Island (0, 0)
-const display = formatCoordinateDisplay(0.0, 0.0);
-// "0°0'0.00\"N 0°0'0.00\"E"
+const nullLat = formatCoordinateDisplay(0.0, true);
+const nullLon = formatCoordinateDisplay(0.0, false);
+// nullLat: "0°0'0.00\"N", nullLon: "0°0'0.00\"E"
 
 // North Pole, International Date Line
-const display = formatCoordinateDisplay(90.0, -180.0);
-// "90°0'0.00\"N 180°0'0.00\"W"
+const poleLat = formatCoordinateDisplay(90.0, true);
+const dateLon = formatCoordinateDisplay(-180.0, false);
+// poleLat: "90°0'0.00\"N", dateLon: "180°0'0.00\"W"
 ```
 
 ## Examples
