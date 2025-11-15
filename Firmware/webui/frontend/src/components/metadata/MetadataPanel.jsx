@@ -35,23 +35,29 @@ export default function MetadataPanel({ photoPath, className = '' }) {
   const [activeTab, setActiveTab] = useState('camera')
 
   // Fetch metadata using custom hook
-  const { data: metadata, isLoading, isError } = usePhotoMetadata(photoPath)
+  const { data: metadata, isLoading, isError, refetch } = usePhotoMetadata(photoPath)
 
   // Loading state - show skeleton
   if (isLoading) {
     return <MetadataSkeleton rows={6} className={className} />
   }
 
-  // Error state - show error message
+  // Error state - show error message with retry button
   if (isError) {
     return (
       <div className={`p-4 text-center ${className}`}>
         <p className="text-red-600 dark:text-red-400 font-semibold mb-2">
           Failed to load metadata
         </p>
-        <p className="text-gray-600 dark:text-gray-400 text-sm">
-          Please try again later or check if the photo exists.
+        <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+          Please try again or check if the photo exists.
         </p>
+        <button
+          onClick={() => refetch()}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+        >
+          Retry
+        </button>
       </div>
     )
   }

@@ -472,7 +472,7 @@ describe('MetadataPanel', () => {
 
       await waitFor(() => {
         expect(fetchSpy).toHaveBeenCalledWith(
-          `/api/metadata/photo/${encodeURIComponent(photoPath)}`
+          `/api/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
         )
       })
     })
@@ -492,7 +492,7 @@ describe('MetadataPanel', () => {
 
       await waitFor(() => {
         expect(fetchSpy).toHaveBeenCalledWith(
-          `/api/metadata/photo/${encodeURIComponent(photoPath)}`
+          `/api/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
         )
       })
     })
@@ -665,6 +665,43 @@ describe('MetadataPanel', () => {
       // Should not show tabs
       expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
       expect(screen.queryByTestId('camera-tab')).not.toBeInTheDocument()
+    })
+
+    it('shows retry button on error that triggers refetch', async () => {
+      // First call fails
+      fetchSpy.mockRejectedValueOnce(new Error('Network error'))
+
+      const { rerender } = render(
+        <TestWrapper>
+          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
+        </TestWrapper>
+      )
+
+      // Wait for error state
+      await waitFor(() => {
+        expect(screen.getByText(/failed to load metadata/i)).toBeInTheDocument()
+      })
+
+      // Retry button should be visible
+      const retryButton = screen.getByRole('button', { name: /retry/i })
+      expect(retryButton).toBeInTheDocument()
+
+      // Second call succeeds
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockMetadata,
+      })
+
+      // Click retry button
+      await userEvent.click(retryButton)
+
+      // Should eventually show the tabs after successful refetch
+      await waitFor(() => {
+        expect(screen.getByRole('tablist')).toBeInTheDocument()
+      })
+
+      // Error message should be gone
+      expect(screen.queryByText(/failed to load metadata/i)).not.toBeInTheDocument()
     })
   })
 
