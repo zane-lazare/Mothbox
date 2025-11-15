@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getSystemStatus, getPowerStatus, capturePhoto, getPhotos, syncGps } from '../utils/api'
 import { formatTimestamp } from '../utils/helpers'
 import { QUERY_KEYS } from '../utils/queryKeys'

@@ -57,7 +57,7 @@ export const setupIntersectionObserver = () => {
   const disconnectMock = vi.fn()
   let observerCallback = null
 
-  const IntersectionObserverMock = vi.fn((callback, options) => {
+  const IntersectionObserverMock = vi.fn((callback) => {
     observerCallback = callback
     return {
       observe: observeMock,
@@ -66,7 +66,7 @@ export const setupIntersectionObserver = () => {
     }
   })
 
-  global.IntersectionObserver = IntersectionObserverMock
+  globalThis.IntersectionObserver = IntersectionObserverMock
 
   return {
     observeMock,

@@ -138,3 +138,50 @@ export const GALLERY_MESSAGES = {
   EMPTY: 'No photos yet',
   END: 'No more photos to load',
 }
+
+/**
+ * Photo Lightbox Configuration
+ *
+ * Controls behavior of the adaptive photo lightbox component with zoom, pan, and touch gestures.
+ *
+ * @property {number} ANIMATION_DURATION - Duration of lightbox open/close animations (milliseconds)
+ * @property {number} ZOOM_MIN - Minimum zoom level (1.0 = 100%, original size)
+ * @property {number} ZOOM_MAX - Maximum zoom level (5.0 = 500%, 5x magnification)
+ * @property {number} ZOOM_STEP - Zoom increment/decrement step for +/- controls
+ * @property {number} ZOOM_DOUBLE_TAP - Zoom level for double-tap zoom-in (mobile)
+ * @property {boolean} KEYBOARD_ENABLED - Enable keyboard shortcuts (arrows, +/-, ESC)
+ * @property {boolean} WRAP_NAVIGATION - Wrap navigation (last photo → first photo)
+ *
+ * @property {Object} PERFORMANCE - Performance tuning
+ * @property {number} PERFORMANCE.DEBOUNCE_RESIZE_MS - Debounce timeout for window resize events
+ *
+ * @property {Object} TOUCH_GESTURES - Touch gesture detection thresholds
+ * @property {number} TOUCH_GESTURES.DOUBLE_TAP_TIMEOUT - Max time between taps for double-tap (ms)
+ * @property {number} TOUCH_GESTURES.TAP_MAX_DURATION - Max touch duration to distinguish tap from drag (ms)
+ * @property {number} TOUCH_GESTURES.SWIPE_MIN_DISTANCE - Min horizontal distance for swipe detection (px)
+ * @property {number} TOUCH_GESTURES.SWIPE_MIN_VELOCITY - Min swipe speed to distinguish from slow drag (px/ms)
+ * @property {number} TOUCH_GESTURES.DOUBLE_TAP_DISTANCE_BASE - Base distance threshold for double-tap (px at 1x DPI)
+ *   - Multiplied by devicePixelRatio for DPI-aware detection
+ *   - 15px@1x, 30px@2x, 45px@3x for Retina/high-DPI displays
+ */
+export const LIGHTBOX_CONFIG = {
+  ANIMATION_DURATION: 200, // milliseconds
+  ZOOM_MIN: 1,
+  ZOOM_MAX: 5,
+  ZOOM_STEP: 0.5,
+  ZOOM_DOUBLE_TAP: 2.5, // Double-tap zoom level (mobile)
+  KEYBOARD_ENABLED: true,
+  WRAP_NAVIGATION: true, // Wrap to first/last photo
+
+  PERFORMANCE: {
+    DEBOUNCE_RESIZE_MS: 150, // Window resize debounce (balances responsiveness vs performance)
+  },
+
+  TOUCH_GESTURES: {
+    DOUBLE_TAP_TIMEOUT: 300, // Max time between taps to register as double-tap (ms)
+    TAP_MAX_DURATION: 200, // Max touch duration to distinguish tap from drag (ms)
+    SWIPE_MIN_DISTANCE: 50, // Min horizontal distance for swipe - prevents accidental swipes (px)
+    SWIPE_MIN_VELOCITY: 0.3, // Min swipe speed - distinguishes swipe from slow drag (px/ms)
+    DOUBLE_TAP_DISTANCE_BASE: 15, // Base distance threshold for double-tap at 1x DPI (px)
+  },
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import * as api from '../../utils/api'
 import { GALLERY_CONFIG } from '../../constants/config'
@@ -19,11 +19,10 @@ vi.mock('../../utils/api', () => ({
 
 describe('Gallery - Infinite Scroll - Lightbox & UI', () => {
   let queryClient
-  let observerMocks
 
   beforeEach(() => {
     queryClient = createTestQueryClient()
-    observerMocks = setupIntersectionObserver()
+    setupIntersectionObserver()
     vi.clearAllMocks()
   })
 
@@ -59,7 +58,7 @@ describe('Gallery - Infinite Scroll - Lightbox & UI', () => {
 
       // Lightbox should open with full-size image
       await waitFor(() => {
-        const lightboxImage = screen.getAllByAltText('photo_1.jpg')[1]
+        const lightboxImage = screen.getByAltText('Photo taken on 2023-11-01')
         expect(lightboxImage).toBeInTheDocument()
         expect(lightboxImage).toHaveAttribute('src', '/api/gallery/photo/photo_1.jpg')
       })
@@ -85,19 +84,20 @@ describe('Gallery - Infinite Scroll - Lightbox & UI', () => {
       await user.click(photos[0])
 
       await waitFor(() => {
-        const lightboxImages = screen.getAllByAltText('photo_1.jpg')
-        expect(lightboxImages).toHaveLength(2) // thumbnail + lightbox
+        // Lightbox image has descriptive alt text, thumbnail has filename
+        expect(screen.getByAltText('Photo taken on 2023-11-01')).toBeInTheDocument()
       })
 
       // Click lightbox background
-      const lightboxImages = screen.getAllByAltText('photo_1.jpg')
-      const lightbox = lightboxImages[1].closest('[class*="fixed"]')
+      const lightboxImage = screen.getByAltText('Photo taken on 2023-11-01')
+      const lightbox = lightboxImage.closest('[class*="fixed"]')
       await user.click(lightbox)
 
       // Lightbox should close
       await waitFor(() => {
-        const remainingImages = screen.getAllByAltText('photo_1.jpg')
-        expect(remainingImages).toHaveLength(1) // only thumbnail remains
+        // Only thumbnail with filename alt text remains
+        expect(screen.queryByAltText('Photo taken on 2023-11-01')).not.toBeInTheDocument()
+        expect(screen.getByAltText('photo_1.jpg')).toBeInTheDocument()
       })
     })
 

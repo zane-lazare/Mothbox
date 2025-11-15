@@ -14,7 +14,7 @@ export default function ViewModeToggle({ currentView, onViewChange, isLoading = 
   const normalizedView = currentView === 'list' ? 'list' : 'grid'
 
   // Warn in development if we received an unexpected non-null invalid value
-  if (process.env.NODE_ENV === 'development' &&
+  if (import.meta.env.DEV &&
       currentView != null &&
       currentView !== 'grid' &&
       currentView !== 'list') {

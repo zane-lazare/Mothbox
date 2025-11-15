@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getGpsConfig, updateGpsConfig, getGpsStatus, syncGps } from '../utils/api'
 import { formatTimestamp } from '../utils/helpers'
-import { validateDevicePath, validateBaudrate, validateTimeout } from '../utils/gpsValidation'
+import { validateDevicePath, validateBaudrate } from '../utils/gpsValidation'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
@@ -31,7 +31,7 @@ export default function GPSSettings() {
     queryKey: QUERY_KEYS.GPS_STATUS,
     queryFn: () => getGpsStatus().then(res => res.data),
     // Pause polling during sync to avoid spam, otherwise poll every 15s
-    refetchInterval: (data) => syncing ? false : 15000,
+    refetchInterval: () => syncing ? false : 15000,
   })
 
   const updateConfigMutation = useMutation({
@@ -150,10 +150,11 @@ export default function GPSSettings() {
       const isTimeout = message.includes('timeout') || error.response?.status === 408
 
       if (isTimeout) {
+        const timeoutValue = localConfig?.timeout || 60
         toast.error(
-          `⏱️ GPS sync timeout (${timeout}s)\n\n` +
+          `⏱️ GPS sync timeout (${timeoutValue}s)\n\n` +
           `Troubleshooting:\n` +
-          `• Increase timeout in settings (currently ${timeout}s)\n` +
+          `• Increase timeout in settings (currently ${timeoutValue}s)\n` +
           `• Move to location with clear sky view\n` +
           `• Check GPS module LED for activity\n` +
           `• Verify hardware connections\n` +
@@ -194,14 +195,7 @@ export default function GPSSettings() {
     }))
   }
 
-  const handleTimeoutChange = (newTimeout) => {
-    setLocalConfig({...localConfig, timeout: newTimeout})
-    const validation = validateTimeout(newTimeout)
-    setValidationErrors(prev => ({
-      ...prev,
-      timeout: validation.valid ? null : validation.error
-    }))
-  }
+  // Removed - timeout field no longer used (replaced by adaptive timeouts)
 
   // Check if form is valid
   const isFormValid = () => {

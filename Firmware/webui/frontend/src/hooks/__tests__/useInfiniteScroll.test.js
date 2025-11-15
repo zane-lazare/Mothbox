@@ -30,7 +30,7 @@ describe('useInfiniteScroll', () => {
     })
 
     // Replace global IntersectionObserver
-    global.IntersectionObserver = IntersectionObserverMock
+    globalThis.IntersectionObserver = IntersectionObserverMock
   })
 
   afterEach(() => {
@@ -39,7 +39,7 @@ describe('useInfiniteScroll', () => {
 
   it('creates intersection observer with correct options', () => {
     const onLoadMore = vi.fn()
-    const { result } = renderHook(() =>
+    renderHook(() =>
       useInfiniteScroll({ onLoadMore, hasMore: true, isLoading: false })
     )
 

@@ -307,8 +307,8 @@ describe('Gallery - Infinite Scroll - Loading & Pagination', () => {
       })
 
       expect(screen.getByAltText('photo_1.jpg')).toBeInTheDocument()
-      expect(screen.getByAltText(`photo_${GALLERY_CONFIG.PAGE_SIZE + 1}.jpg`)).toBeInTheDocument()
-      expect(screen.getByAltText(`photo_${GALLERY_CONFIG.PAGE_SIZE * 2 + 1}.jpg`)).toBeInTheDocument()
+      expect(screen.getByAltText('photo_26.jpg')).toBeInTheDocument()
+      expect(screen.getByAltText('photo_51.jpg')).toBeInTheDocument()
     })
   })
 
