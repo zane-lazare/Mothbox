@@ -38,9 +38,19 @@ Related:
 
 import logging
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+# Setup path to import mothbox modules (lib/)
+# This ensures lib.gps_exif_lib can be imported regardless of how this module is loaded
+# (e.g., when run from systemd service at /opt/mothbox/webui/backend/)
+services_dir = Path(__file__).resolve().parent
+backend_dir = services_dir.parent
+firmware_root = backend_dir.parent.parent  # webui/backend/services -> webui/backend -> webui -> Firmware
+if str(firmware_root) not in sys.path:
+    sys.path.insert(0, str(firmware_root))
 
 # Image processing libraries
 try:
