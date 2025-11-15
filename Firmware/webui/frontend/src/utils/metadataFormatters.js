@@ -41,7 +41,14 @@ export function decimalToDMS(decimal) {
  */
 export function formatGPSCoordinate(value, type) {
   // Validate input
-  if (value === null || value === undefined || isNaN(value) || !type || (type !== 'lat' && type !== 'lon')) {
+  if (
+    value === null ||
+    value === undefined ||
+    isNaN(value) ||
+    !type ||
+    typeof type !== 'string' ||
+    (type !== 'lat' && type !== 'lon')
+  ) {
     return 'N/A'
   }
 
