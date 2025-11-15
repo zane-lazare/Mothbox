@@ -1,5 +1,38 @@
 import React from 'react'
 
+/**
+ * Error Boundary component for catching and handling React errors.
+ *
+ * Catches JavaScript errors anywhere in the child component tree,
+ * logs those errors, and displays a fallback UI instead of crashing.
+ *
+ * @component
+ * @param {Object} props - Component props
+ * @param {React.ReactNode} props.children - Child components to wrap
+ * @param {Function} props.fallback - Optional custom fallback function (error, onClose, onRetry) => ReactNode
+ * @param {string} props.errorTitle - Optional title for default fallback UI
+ * @param {string} props.errorMessage - Optional message for default fallback UI
+ * @param {Function} props.onReset - Callback when user clicks reset/try again
+ * @param {Function} props.onRetry - Optional retry callback passed to custom fallback
+ *
+ * @example
+ * // Basic usage with default fallback
+ * <ErrorBoundary onReset={() => window.location.reload()}>
+ *   <MyComponent />
+ * </ErrorBoundary>
+ *
+ * @example
+ * // Custom fallback component
+ * <ErrorBoundary
+ *   fallback={({ error, onClose, onRetry }) => (
+ *     <LightboxErrorFallback error={error} onClose={onClose} onRetry={onRetry} />
+ *   )}
+ *   onReset={handleClose}
+ *   onRetry={handleRetry}
+ * >
+ *   <PhotoLightbox {...props} />
+ * </ErrorBoundary>
+ */
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props)
@@ -16,6 +49,21 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      // Use custom fallback component if provided
+      if (this.props.fallback) {
+        return this.props.fallback({
+          error: this.state.error,
+          onClose: () => {
+            this.setState({ hasError: false, error: null })
+            if (this.props.onReset) {
+              this.props.onReset()
+            }
+          },
+          onRetry: this.props.onRetry,
+        })
+      }
+
+      // Default fallback UI
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-6">

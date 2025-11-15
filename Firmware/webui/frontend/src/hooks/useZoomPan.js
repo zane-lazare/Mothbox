@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 
 /**
  * Custom hook for managing zoom and pan state in the photo lightbox.
@@ -67,6 +67,12 @@ function useZoomPan({
   const [zoom, setZoomState] = useState(1.0)
   const [pan, setPanState] = useState({ x: 0, y: 0 })
 
+  // Use ref to track current zoom without triggering callback recreations
+  const zoomRef = useRef(zoom)
+  useEffect(() => {
+    zoomRef.current = zoom
+  }, [zoom])
+
   /**
    * Calculate pan boundaries based on current zoom and dimensions
    *
@@ -75,6 +81,11 @@ function useZoomPan({
    */
   const getBoundaries = useCallback(
     (currentZoom) => {
+      // Guard against invalid dimensions to prevent division by zero or NaN
+      if (containerWidth <= 0 || containerHeight <= 0 || imageWidth <= 0 || imageHeight <= 0) {
+        return { maxX: 0, maxY: 0 }
+      }
+
       const scaledWidth = imageWidth * currentZoom
       const scaledHeight = imageHeight * currentZoom
 
@@ -126,14 +137,17 @@ function useZoomPan({
    * Set pan position (constrained to boundaries)
    *
    * @param {Object} newPan - New pan position {x, y}
+   *
+   * Note: Uses zoomRef instead of zoom dependency to prevent callback recreation
+   * on every zoom change, which would cause event listener churn in PhotoLightbox
    */
   const setPan = useCallback(
     (newPan) => {
-      const boundaries = getBoundaries(zoom)
+      const boundaries = getBoundaries(zoomRef.current)
       const constrainedPan = constrainPan(newPan, boundaries)
       setPanState(constrainedPan)
     },
-    [zoom, getBoundaries, constrainPan]
+    [getBoundaries, constrainPan]
   )
 
   /**
@@ -178,7 +192,12 @@ function useZoomPan({
       }
 
       // Get cursor position relative to image
-      const rect = event.currentTarget.getBoundingClientRect()
+      const rect = event.currentTarget?.getBoundingClientRect()
+      if (!rect) {
+        // Element not available (unmounted or invalid), skip cursor-relative zoom
+        return
+      }
+
       const x = (event.clientX - rect.left) / rect.width - 0.5 // Normalized -0.5 to 0.5
       const y = (event.clientY - rect.top) / rect.height - 0.5
 

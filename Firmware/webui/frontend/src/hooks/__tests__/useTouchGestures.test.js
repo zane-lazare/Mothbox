@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import useTouchGestures from '../useTouchGestures'
+import { LIGHTBOX_CONFIG } from '../../constants/config'
 
 /**
  * Test Suite: useTouchGestures Hook
@@ -377,7 +378,7 @@ describe('useTouchGestures - Swipe Navigation Detection', () => {
     expect(mockProps.onNavigate).toHaveBeenCalledWith('next')
   })
 
-  it('swipe requires minimum distance threshold (50px)', () => {
+  it(`swipe requires minimum distance threshold (${LIGHTBOX_CONFIG.TOUCH_GESTURES.SWIPE_MIN_DISTANCE}px)`, () => {
     const { result } = renderHook(() => useTouchGestures(mockProps))
 
     // Start touch
@@ -386,9 +387,10 @@ describe('useTouchGestures - Swipe Navigation Detection', () => {
       result.current.handleTouchStart(startEvent)
     })
 
-    // End touch at only 30px distance (below threshold)
+    // End touch at distance below threshold
+    const belowThreshold = LIGHTBOX_CONFIG.TOUCH_GESTURES.SWIPE_MIN_DISTANCE - 20
     const endEvent = createTouchEvent('touchend', [])
-    endEvent.changedTouches = [{ clientX: 230, clientY: 300, identifier: 0 }]
+    endEvent.changedTouches = [{ clientX: 200 + belowThreshold, clientY: 300, identifier: 0 }]
 
     act(() => {
       result.current.handleTouchEnd(endEvent)
@@ -398,7 +400,7 @@ describe('useTouchGestures - Swipe Navigation Detection', () => {
     expect(mockProps.onNavigate).not.toHaveBeenCalled()
   })
 
-  it('swipe requires minimum velocity (0.3 px/ms)', () => {
+  it(`swipe requires minimum velocity (${LIGHTBOX_CONFIG.TOUCH_GESTURES.SWIPE_MIN_VELOCITY} px/ms)`, () => {
     const { result } = renderHook(() => useTouchGestures(mockProps))
 
     // Slow swipe (100px over long time = low velocity)
@@ -536,12 +538,12 @@ describe('useTouchGestures - Double-Tap Zoom', () => {
       result.current.handleTouchEnd(tap2End)
     })
 
-    // Should zoom to 2.5x
-    expect(mockProps.setZoom).toHaveBeenCalledWith(2.5)
+    // Should zoom to configured double-tap zoom level
+    expect(mockProps.setZoom).toHaveBeenCalledWith(LIGHTBOX_CONFIG.ZOOM_DOUBLE_TAP)
   })
 
   it('double-tap when zoomed resets to 1.0x', async () => {
-    const propsZoomed = { ...mockProps, zoom: 2.5, isZoomed: true }
+    const propsZoomed = { ...mockProps, zoom: LIGHTBOX_CONFIG.ZOOM_DOUBLE_TAP, isZoomed: true }
     const { result } = renderHook(() => useTouchGestures(propsZoomed))
 
     // First tap
@@ -579,7 +581,7 @@ describe('useTouchGestures - Double-Tap Zoom', () => {
     expect(propsZoomed.setZoom).toHaveBeenCalledWith(1.0)
   })
 
-  it('double-tap requires taps within 300ms', async () => {
+  it(`double-tap requires taps within ${LIGHTBOX_CONFIG.TOUCH_GESTURES.DOUBLE_TAP_TIMEOUT}ms`, async () => {
     const { result } = renderHook(() => useTouchGestures(mockProps))
 
     // First tap
@@ -592,8 +594,8 @@ describe('useTouchGestures - Double-Tap Zoom', () => {
       result.current.handleTouchEnd(tap1End)
     })
 
-    // Wait longer than 300ms
-    await new Promise((resolve) => setTimeout(resolve, 350))
+    // Wait longer than threshold
+    await new Promise((resolve) => setTimeout(resolve, LIGHTBOX_CONFIG.TOUCH_GESTURES.DOUBLE_TAP_TIMEOUT + 50))
 
     // Second tap (too late)
     const tap2Start = createTouchEvent('touchstart', [{ x: 400, y: 300, id: 0 }])

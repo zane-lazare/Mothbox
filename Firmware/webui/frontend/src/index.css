@@ -9,6 +9,11 @@ body {
   min-height: 100vh;
 }
 
+/* Prevent body scroll when lightbox is open */
+body.lightbox-open {
+  overflow: hidden;
+}
+
 /* Settings page compact styles */
 @layer components {
   .settings-card {

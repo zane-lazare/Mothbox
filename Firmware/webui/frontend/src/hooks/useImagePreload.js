@@ -8,23 +8,30 @@ import { getPhotoUrl } from '../utils/api'
  * (previous and next) in the background for smooth navigation. Uses native
  * Image() API for efficient browser caching.
  *
+ * This hook works primarily via side effects (browser cache population).
+ * The return values are currently unused by PhotoLightbox.jsx but are
+ * exported for future use cases (e.g., loading spinners, skeleton screens).
+ *
  * @hook
  * @param {Object} config - Hook configuration
  * @param {Object} config.currentPhoto - Current photo object {path, filename, ...}
  * @param {Array<Object>} config.photos - Array of all photos
  * @param {number} config.currentIndex - Current photo index in photos array
  *
- * @returns {Object} Preload state
+ * @returns {Object} Preload state (optional - can be ignored if only using for caching)
  * @returns {string|null} returns.currentImage - Current image URL (null while loading)
  * @returns {boolean} returns.isLoading - True while current image loading
  *
  * @example
+ * // Current usage (side-effect only)
+ * useImagePreload({ currentPhoto: photos[5], photos, currentIndex: 5 })
+ *
+ * // Future usage with loading state
  * const { currentImage, isLoading } = useImagePreload({
  *   currentPhoto: photos[5],
  *   photos,
  *   currentIndex: 5,
  * })
- *
  * {isLoading && <Spinner />}
  * {currentImage && <img src={currentImage} />}
  *

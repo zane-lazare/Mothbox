@@ -1,4 +1,69 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { useReducer, useCallback, useMemo, useRef, useEffect } from 'react'
+import { LIGHTBOX_CONFIG } from '../constants/config'
+
+/**
+ * Reducer for managing touch gesture state.
+ * Centralizes state updates for cleaner state management vs. 6+ separate useState calls.
+ *
+ * @param {Object} state - Current state
+ * @param {Object} action - Action object with type and payload
+ * @returns {Object} New state
+ */
+function touchGestureReducer(state, action) {
+  switch (action.type) {
+    case 'PINCH_START':
+      return {
+        ...state,
+        isPinching: true,
+        initialPinchDistance: action.payload.distance,
+        initialZoom: action.payload.zoom,
+        initialPan: action.payload.pan,
+        touchStartPos: action.payload.touchStartPos,
+      }
+
+    case 'SINGLE_TOUCH_START':
+      return {
+        ...state,
+        touchStartPos: action.payload.touchStartPos,
+        initialPan: action.payload.pan,
+        isPinching: false,
+        initialPinchDistance: null,
+      }
+
+    case 'TAP_DETECTED':
+      return {
+        ...state,
+        lastTapTime: action.payload.timestamp,
+      }
+
+    case 'RESET_TAP':
+      return {
+        ...state,
+        lastTapTime: 0,
+      }
+
+    case 'TOUCH_END':
+      return {
+        ...state,
+        isPinching: false,
+        initialPinchDistance: null,
+        touchStartPos: null,
+      }
+
+    case 'RESET':
+      return {
+        touchStartPos: null,
+        initialPinchDistance: null,
+        initialZoom: 1.0,
+        initialPan: { x: 0, y: 0 },
+        lastTapTime: 0,
+        isPinching: false,
+      }
+
+    default:
+      return state
+  }
+}
 
 /**
  * Custom hook for managing touch gestures in the photo lightbox.
@@ -6,6 +71,10 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
  * Handles mobile interactions: pinch-to-zoom, touch pan, swipe navigation,
  * and double-tap zoom toggle. All gestures include proper boundary constraints
  * and conflict prevention (e.g., swipe disabled when zoomed).
+ *
+ * State Management: Uses useReducer instead of 6 separate useState calls for
+ * cleaner state updates and easier maintenance. All gesture state transitions
+ * are centralized in touchGestureReducer.
  *
  * @hook
  * @param {Object} config - Hook configuration
@@ -83,30 +152,43 @@ function useTouchGestures({
   minZoom,
   maxZoom,
 }) {
-  // Touch gesture state
-  const [touchStartPos, setTouchStartPos] = useState(null)
-  const [initialPinchDistance, setInitialPinchDistance] = useState(null)
-  const [initialZoom, setInitialZoom] = useState(1.0)
-  const [initialPan, setInitialPan] = useState({ x: 0, y: 0 })
-  const [lastTapTime, setLastTapTime] = useState(0)
-  const [isPinching, setIsPinching] = useState(false)
+  // Touch gesture state (managed via reducer for cleaner state updates)
+  const [gestureState, dispatch] = useReducer(touchGestureReducer, {
+    touchStartPos: null,
+    initialPinchDistance: null,
+    initialZoom: 1.0,
+    initialPan: { x: 0, y: 0 },
+    lastTapTime: 0,
+    isPinching: false,
+  })
+
+  // Destructure for cleaner access
+  const {
+    touchStartPos,
+    initialPinchDistance,
+    initialZoom,
+    initialPan,
+    lastTapTime,
+    isPinching,
+  } = gestureState
 
   // RAF throttle for touch move (prevents 60+ updates/sec)
   const rafIdRef = useRef(null)
   const latestTouchDataRef = useRef(null)
 
-  // Gesture detection thresholds (tuned for reliable touch interaction)
-  const DOUBLE_TAP_THRESHOLD = 300 // ms - max time between taps to register as double-tap
-  const TAP_MAX_DURATION = 200 // ms - max touch duration to distinguish tap from drag
-  const SWIPE_MIN_DISTANCE = 50 // px - min horizontal distance for swipe (prevents accidental swipes)
-  const SWIPE_MIN_VELOCITY = 0.3 // px/ms - min swipe speed (distinguishes swipe from slow drag)
-  const ZOOM_DOUBLE_TAP = 2.5 // zoom level for double-tap zoom-in
+  // Gesture detection thresholds (from LIGHTBOX_CONFIG for consistency)
+  const { TOUCH_GESTURES } = LIGHTBOX_CONFIG
+  const DOUBLE_TAP_THRESHOLD = TOUCH_GESTURES.DOUBLE_TAP_TIMEOUT
+  const TAP_MAX_DURATION = TOUCH_GESTURES.TAP_MAX_DURATION
+  const SWIPE_MIN_DISTANCE = TOUCH_GESTURES.SWIPE_MIN_DISTANCE
+  const SWIPE_MIN_VELOCITY = TOUCH_GESTURES.SWIPE_MIN_VELOCITY
+  const ZOOM_DOUBLE_TAP = LIGHTBOX_CONFIG.ZOOM_DOUBLE_TAP
 
   // DPI-aware double-tap distance threshold for Retina/high-DPI displays
-  // 15px@1x, 30px@2x, 45px@3x
+  // Scales base value (15px@1x) by device pixel ratio: 15px@1x, 30px@2x, 45px@3x
   const DOUBLE_TAP_DISTANCE = useMemo(
-    () => (window.devicePixelRatio || 1) * 15,
-    []
+    () => (window.devicePixelRatio || 1) * TOUCH_GESTURES.DOUBLE_TAP_DISTANCE_BASE,
+    [TOUCH_GESTURES.DOUBLE_TAP_DISTANCE_BASE]
   )
 
   // Cleanup pending RAF on unmount to prevent state updates after unmount
@@ -172,7 +254,7 @@ function useTouchGestures({
       return deltaX > 0 ? 'right' : 'left'
     }
     return null
-  }, [])
+  }, [SWIPE_MIN_DISTANCE, SWIPE_MIN_VELOCITY])
 
   /**
    * Handle touch start event
@@ -185,32 +267,35 @@ function useTouchGestures({
       if (touches.length === 2) {
         // Two-finger pinch gesture
         event.preventDefault()
-        setIsPinching(true)
 
         const distance = getPinchDistance(touches[0], touches[1])
         const midpoint = getPinchMidpoint(touches[0], touches[1])
 
-        setInitialPinchDistance(distance)
-        setInitialZoom(zoom)
-        setInitialPan(pan)
-        setTouchStartPos({ x: midpoint.x, y: midpoint.y, timestamp: Date.now() })
+        dispatch({
+          type: 'PINCH_START',
+          payload: {
+            distance,
+            zoom,
+            pan,
+            touchStartPos: { x: midpoint.x, y: midpoint.y, timestamp: Date.now() },
+          },
+        })
       } else if (touches.length === 1) {
         // Single touch: could be tap, double-tap, pan, or swipe
         event.preventDefault()
 
         const touch = touches[0]
-        setTouchStartPos({
-          x: touch.clientX,
-          y: touch.clientY,
-          timestamp: Date.now(),
+        dispatch({
+          type: 'SINGLE_TOUCH_START',
+          payload: {
+            touchStartPos: {
+              x: touch.clientX,
+              y: touch.clientY,
+              timestamp: Date.now(),
+            },
+            pan,
+          },
         })
-
-        // Store initial pan for panning gestures
-        setInitialPan(pan)
-
-        // Reset pinch state
-        setIsPinching(false)
-        setInitialPinchDistance(null)
       }
     },
     [zoom, pan, getPinchDistance, getPinchMidpoint]
@@ -326,17 +411,14 @@ function useTouchGestures({
     (event) => {
       if (!touchStartPos) {
         // Clean up any dirty state before early return (race condition fix)
-        setIsPinching(false)
-        setInitialPinchDistance(null)
+        dispatch({ type: 'TOUCH_END' })
         return
       }
 
       const touch = event.changedTouches?.[0]
       if (!touch) {
         // Pinch end (two fingers lifted)
-        setIsPinching(false)
-        setInitialPinchDistance(null)
-        setTouchStartPos(null)
+        dispatch({ type: 'TOUCH_END' })
         return
       }
 
@@ -380,10 +462,10 @@ function useTouchGestures({
             }
           }
 
-          setLastTapTime(0) // Reset to prevent triple-tap
+          dispatch({ type: 'RESET_TAP' }) // Reset to prevent triple-tap
         } else {
           // First tap of potential double-tap
-          setLastTapTime(now)
+          dispatch({ type: 'TAP_DETECTED', payload: { timestamp: now } })
         }
       } else if (!isZoomed) {
         // Check for swipe (only when not zoomed)
@@ -406,9 +488,7 @@ function useTouchGestures({
       }
 
       // Clean up
-      setIsPinching(false)
-      setInitialPinchDistance(null)
-      setTouchStartPos(null)
+      dispatch({ type: 'TOUCH_END' })
     },
     [
       touchStartPos,
@@ -423,6 +503,9 @@ function useTouchGestures({
       setZoom,
       setPan,
       DOUBLE_TAP_DISTANCE,
+      DOUBLE_TAP_THRESHOLD,
+      TAP_MAX_DURATION,
+      ZOOM_DOUBLE_TAP,
     ]
   )
 

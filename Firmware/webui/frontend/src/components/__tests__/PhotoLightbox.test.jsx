@@ -289,8 +289,8 @@ describe('PhotoLightbox - Close Behavior', () => {
       />
     )
 
-    // Body scroll should be hidden
-    expect(document.body.style.overflow).toBe('hidden')
+    // Body scroll should be locked via CSS class
+    expect(document.body.classList.contains('lightbox-open')).toBe(true)
   })
 
   it('restores body scroll when lightbox closes', () => {
@@ -303,8 +303,8 @@ describe('PhotoLightbox - Close Behavior', () => {
       />
     )
 
-    // Body scroll should be hidden when open
-    expect(document.body.style.overflow).toBe('hidden')
+    // Body scroll should be locked when open
+    expect(document.body.classList.contains('lightbox-open')).toBe(true)
 
     // Close lightbox
     rerender(
@@ -316,8 +316,8 @@ describe('PhotoLightbox - Close Behavior', () => {
       />
     )
 
-    // Body scroll should be restored
-    expect(document.body.style.overflow).toBe('')
+    // Body scroll should be restored (class removed)
+    expect(document.body.classList.contains('lightbox-open')).toBe(false)
   })
 })
 

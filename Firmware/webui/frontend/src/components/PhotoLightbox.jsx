@@ -73,7 +73,8 @@ const formatDate = (dateString) => {
   try {
     const date = new Date(dateString)
     return date.toISOString().split('T')[0]
-  } catch {
+  } catch (error) {
+    console.warn('[PhotoLightbox] Invalid timestamp:', dateString, error)
     return dateString
   }
 }
@@ -101,8 +102,11 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
   const [showZoomIndicator, setShowZoomIndicator] = useState(false)
   const zoomIndicatorTimerRef = useRef(null)
 
-  // Calculate current index for preloading
-  const currentIndex = photo ? photos.findIndex((p) => p.path === photo.path) : -1
+  // Calculate current index for preloading (memoized to avoid O(n) on every render)
+  const currentIndex = useMemo(
+    () => (photo ? photos.findIndex((p) => p.path === photo.path) : -1),
+    [photos, photo]
+  )
 
   // Zoom and pan hook
   const { zoom, pan, setZoom, setPan, handleZoomIn, handleZoomOut, handleWheel, resetZoom } =
@@ -188,8 +192,11 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
 
     updateContainerDimensions()
 
-    // Debounce resize handler for better performance (150ms for responsive feel)
-    const debouncedUpdate = debounce(updateContainerDimensions, 150)
+    // Debounce resize handler for better performance
+    const debouncedUpdate = debounce(
+      updateContainerDimensions,
+      LIGHTBOX_CONFIG.PERFORMANCE.DEBOUNCE_RESIZE_MS
+    )
 
     // Update on window resize
     window.addEventListener('resize', debouncedUpdate)
@@ -238,9 +245,9 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
       return
     }
 
-    // Lock scroll when open
+    // Lock scroll when open (use CSS class instead of direct style manipulation)
     previousFocusRef.current = document.activeElement
-    document.body.style.overflow = 'hidden'
+    document.body.classList.add('lightbox-open')
 
     // Focus close button on open (after browser paint)
     const frameId = requestAnimationFrame(() => {
@@ -252,7 +259,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
       // Only restore scroll if no other modals remain open
       const hasOtherModals = document.querySelectorAll('[role="dialog"]:not([aria-hidden="true"])').length > 0
       if (!hasOtherModals) {
-        document.body.style.overflow = ''
+        document.body.classList.remove('lightbox-open')
       }
     }
   }, [photo])
