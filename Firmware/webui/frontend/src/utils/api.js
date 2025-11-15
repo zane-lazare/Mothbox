@@ -89,7 +89,7 @@ export const testCapturePhoto = () => api.post('/camera/test-capture-photo')
 export const getPhotos = () => api.get('/gallery/photos')
 export const getPhotosPaginated = (params) => api.get('/gallery/photos/paginated', { params })
 export const getPhotoUrl = (path) => `${API_BASE_URL}/gallery/photo/${path}`
-export const getThumbnailUrl = (path) => `${API_BASE_URL}/gallery/thumbnail/${path}?size=${GALLERY_CONFIG.THUMBNAIL.SIZE}`
+export const getThumbnailUrl = (path, size = GALLERY_CONFIG.THUMBNAIL.SIZE) => `${API_BASE_URL}/gallery/thumbnail/${path}?size=${size}`
 
 // Config APIs
 export const getControls = () => api.get('/config/controls')

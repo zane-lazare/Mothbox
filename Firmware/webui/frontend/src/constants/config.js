@@ -60,6 +60,16 @@ export const GALLERY_CONFIG = {
     SIZE: 256, // Backend thumbnail size (256px high quality, already cached)
     ASPECT_RATIO: 4 / 3, // Expected aspect ratio for Mothbox camera (9152x6944 = ~1.318:1)
   },
+  VIRTUALIZATION: {
+    ENABLED: true, // Enable virtual scrolling for large galleries
+    MIN_PHOTOS_FOR_VIRTUALIZATION: 100, // Minimum photo count to activate virtualization
+    OVERSCAN_ROW_COUNT: 2, // Rows to render above/below viewport for smooth scrolling
+    ITEM_SIZE: 272, // Photo height (256px) + gap (16px)
+    ESTIMATED_ITEM_SIZE: 272, // For variable sizing (currently fixed size)
+    SCROLL_THROTTLE_MS: 16, // ~60fps scroll handling
+    MAX_CACHED_IMAGES: 100, // LRU cache size for image preloading (Step 6)
+    PRELOAD_DISTANCE: 3, // Rows to preload ahead/behind (Step 6)
+  },
 }
 
 /**
