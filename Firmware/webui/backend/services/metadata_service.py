@@ -48,7 +48,8 @@ from typing import Any
 # (e.g., when run from systemd service at /opt/mothbox/webui/backend/)
 services_dir = Path(__file__).resolve().parent
 backend_dir = services_dir.parent
-firmware_root = backend_dir.parent.parent  # webui/backend/services -> webui/backend -> webui -> Firmware
+webui_dir = backend_dir.parent
+firmware_root = webui_dir.parent  # services -> backend -> webui -> Firmware (or /opt/mothbox)
 if str(firmware_root) not in sys.path:
     sys.path.insert(0, str(firmware_root))
 
