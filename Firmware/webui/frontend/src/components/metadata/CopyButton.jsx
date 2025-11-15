@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import PropTypes from 'prop-types'
 import { ClipboardIcon, CheckIcon } from '@heroicons/react/24/outline'
 
@@ -12,24 +12,31 @@ import { ClipboardIcon, CheckIcon } from '@heroicons/react/24/outline'
  */
 export default function CopyButton({ text }) {
   const [copied, setCopied] = useState(false)
+  const timeoutRef = useRef(null)
 
   useEffect(() => {
-    // Cleanup timeout on unmount to prevent memory leaks
+    // Cleanup timeout on unmount to prevent state updates after unmount
     return () => {
-      if (copied) {
-        setCopied(false)
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
       }
     }
-  }, [copied])
+  }, [])
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
 
+      // Clear any existing timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+
       // Reset feedback after 2 seconds
-      setTimeout(() => {
+      timeoutRef.current = setTimeout(() => {
         setCopied(false)
+        timeoutRef.current = null
       }, 2000)
     } catch (error) {
       console.error('Failed to copy text to clipboard:', error)
