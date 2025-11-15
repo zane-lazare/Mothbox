@@ -437,12 +437,47 @@ def ws_connect():
     pass
 ```
 
+### GPS Coordinate Conversion
+
+```python
+# CORRECT - Use shared utilities from webui.lib
+from webui.lib.gps_coordinates import decimal_to_dms, dms_to_decimal
+
+# Convert decimal to DMS for EXIF embedding
+lat_dms = decimal_to_dms(37.7749, is_latitude=True)
+# Returns: (37, 46, 29.64, 'N')
+
+# Convert DMS to decimal for API/storage
+lat_decimal = dms_to_decimal(37, 46, 29.64, 'N')
+# Returns: 37.7749
+
+# BACKWARD COMPATIBLE - Can still import from utils (re-exported)
+from webui.backend.utils import decimal_to_dms, dms_to_decimal
+
+# WRONG - Don't implement conversion logic inline
+# This leads to inconsistencies and bugs
+```
+
+```typescript
+// CORRECT - Use shared utilities (frontend)
+import { decimalToDMS, formatCoordinateDisplay } from '@/utils/gpsCoordinates';
+
+const dms = decimalToDMS(37.7749, true);
+// Returns: { degrees: 37, minutes: 46, seconds: 29.64, reference: 'N' }
+
+const latDisplay = formatCoordinateDisplay(37.7749, true);
+const lonDisplay = formatCoordinateDisplay(-122.4194, false);
+// latDisplay: "37°46'29.64\"N", lonDisplay: "122°25'9.84\"W"
+```
+
 ## Key Files Reference
 
 - `mothbox_paths.py`: **Path resolution and hardware config** (276 lines, 97.8% coverage)
 - `install_mothbox.sh`: Installation script with Pi detection and firmware selection
 - `gps_exif_tagger.py`: Main GPS EXIF embedding tool (CLI and watch mode)
-- `gps_exif/`: GPS EXIF library (coordinate conversion, EXIF embedding, verification)
+- `lib/gps_exif_lib.py`: GPS EXIF library (coordinate conversion, EXIF embedding, verification)
+- `webui/lib/gps_coordinates.py`: **GPS coordinate utilities** (decimal ↔ DMS conversion, validation, formatting) - webui-shared library
+- `webui/frontend/src/utils/gpsCoordinates.ts`: **GPS coordinate utilities (TypeScript)** (identical behavior to Python)
 - `webui/backend/app.py`: Flask app initialization, CSRF, CORS, SocketIO setup
 - `webui/backend/liveview_stream.py`: Camera streaming engine (2500+ lines)
 - `webui/backend/routes/camera.py`: Camera control API (1270+ lines)
@@ -450,6 +485,7 @@ def ws_connect():
 - `Tests/README.md`: Comprehensive testing documentation
 - `Tests/manual/gps_exif_service/`: GPS EXIF service manual testing procedures
 - `docs/GPS_EXIF_SERVICE.md`: GPS EXIF service setup and troubleshooting guide
+- `docs/GPS_COORDINATE_UTILITIES.md`: GPS coordinate conversion utilities documentation
 
 ## Development Workflow
 
