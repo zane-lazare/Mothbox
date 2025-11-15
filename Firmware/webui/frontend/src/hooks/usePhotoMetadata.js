@@ -38,7 +38,7 @@ export default function usePhotoMetadata(photoPath) {
     // Query function: fetches the metadata from the API
     queryFn: async () => {
       // Build API endpoint with URL-encoded photo path
-      const endpoint = `/api/metadata/photo/${encodeURIComponent(photoPath)}`
+      const endpoint = `/api/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
 
       // Fetch metadata from backend
       const response = await fetch(endpoint)

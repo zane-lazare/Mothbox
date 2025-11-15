@@ -115,7 +115,7 @@ describe('usePhotoMetadata', () => {
 
       await waitFor(() => {
         expect(globalThis.fetch).toHaveBeenCalledWith(
-          `/api/metadata/photo/${encodeURIComponent(photoPath)}`
+          `/api/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
         )
       })
     })
