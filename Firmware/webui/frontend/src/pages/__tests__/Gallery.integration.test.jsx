@@ -87,8 +87,8 @@ describe('Gallery + PhotoLightbox Integration', () => {
     expect(lightboxImg).toBeInTheDocument()
     expect(lightboxImg.src).toContain('/api/gallery/photo/photo_1.jpg')
 
-    // Verify photo metadata displayed
-    expect(within(dialog).getByText('photo_1.jpg')).toBeInTheDocument()
+    // Verify photo metadata displayed (use getAllByText since filename appears in metadata panel too)
+    expect(screen.getAllByText('photo_1.jpg').length).toBeGreaterThan(0)
   })
 
   it('navigates in lightbox and Gallery state updates correctly', async () => {

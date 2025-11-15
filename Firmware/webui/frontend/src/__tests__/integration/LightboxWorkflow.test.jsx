@@ -576,7 +576,7 @@ describe('LightboxWorkflow Integration Tests', () => {
 
       // Verify photo metadata is accessible (use getAllByText since filename appears multiple times)
       expect(screen.getAllByText(/photo_002.jpg/i).length).toBeGreaterThan(0)
-      expect(screen.getByText(/2024-11-10/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/2024-11-10/i).length).toBeGreaterThan(0)
     })
   })
 
