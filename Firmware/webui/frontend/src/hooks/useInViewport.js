@@ -39,6 +39,12 @@ export default function useInViewport(options = {}) {
   }, []);
 
   useEffect(() => {
+    // Disconnect existing observer before creating new one
+    // Critical: Prevents memory leak when options change (e.g., rootMargin update)
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
+
     // Create IntersectionObserver
     const callback = (entries) => {
       entries.forEach((entry) => {
