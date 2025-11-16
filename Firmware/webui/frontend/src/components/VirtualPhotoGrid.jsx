@@ -1,10 +1,9 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { FixedSizeGrid } from 'react-window';
 import useVirtualGrid from '../hooks/useVirtualGrid';
 import VirtualPhotoGridItem from './VirtualPhotoGridItem';
 import EmptyStateMessage from './EmptyStateMessage';
-import LoadingSpinner from './LoadingSpinner';
 import { GALLERY_CONFIG } from '../constants/config';
 
 /**
@@ -19,6 +18,7 @@ import { GALLERY_CONFIG } from '../constants/config';
  * @param {function} onPhotoClick - Click handler for photos
  * @param {string} viewMode - 'grid' or 'list'
  * @param {object} options - Additional configuration
+ * @param {object} scrollRef - Ref for scroll restoration (optional)
  */
 const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
   photos = [],
@@ -27,16 +27,35 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
   hasNextPage = false,
   onPhotoClick,
   viewMode = 'grid',
-  options = {}
+  options = {},
+  scrollRef
 }) {
+  // Calculate responsive viewport height
+  const [viewportHeight, setViewportHeight] = useState(() => {
+    // Default: 80vh or 600px minimum for good UX
+    return typeof window !== 'undefined'
+      ? Math.max(window.innerHeight * 0.8, 600)
+      : 600;
+  });
+
+  // Update viewport height on window resize
+  useEffect(() => {
+    const handleResize = () => {
+      setViewportHeight(Math.max(window.innerHeight * 0.8, 600));
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Get grid layout parameters
   const {
     containerRef,
     columnCount,
     rowCount,
     itemWidth,
-    itemHeight,
-    totalHeight
+    itemHeight
+    // totalHeight is not used here - we use responsive viewportHeight instead
   } = useVirtualGrid(photos.length, {
     gap: options.gap,
     aspectRatio: options.aspectRatio,
@@ -83,22 +102,17 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
       <FixedSizeGrid
         columnCount={columnCount}
         columnWidth={itemWidth}
-        height={600} // Viewport height (scrollable container)
+        height={viewportHeight} // Responsive viewport height (80vh, min 600px)
         rowCount={rowCount}
         rowHeight={itemHeight}
         width="100%" // Full container width
         overscanRowCount={GALLERY_CONFIG.VIRTUALIZATION.OVERSCAN_ROW_COUNT}
         className="virtual-photo-grid"
+        outerRef={scrollRef} // Attach scroll restoration ref
       >
         {Cell}
       </FixedSizeGrid>
-
-      {/* Infinite scroll sentinel */}
-      {hasNextPage && (
-        <div className="infinite-scroll-sentinel">
-          {isFetchingNextPage && <LoadingSpinner />}
-        </div>
-      )}
+      {/* Note: Infinite scroll sentinel is managed by parent Gallery component */}
     </div>
   );
 });
@@ -121,7 +135,8 @@ VirtualPhotoGrid.propTypes = {
     gap: PropTypes.number,
     aspectRatio: PropTypes.number,
     thumbnailSize: PropTypes.oneOf([64, 128, 256]),
-  })
+  }),
+  scrollRef: PropTypes.object // Ref for scroll restoration
 };
 
 export default VirtualPhotoGrid;

@@ -7,6 +7,10 @@ const POSITION_TTL_MS = 30000; // 30 seconds
  * Scroll position restoration for virtual grid
  * Saves and restores scroll position across navigation
  *
+ * Used in Gallery component to restore scroll position when:
+ * - Returning from lightbox view to gallery grid
+ * - Navigating between pages
+ *
  * Features:
  * - Automatic scroll position restoration on mount
  * - TTL-based expiration (30 seconds)

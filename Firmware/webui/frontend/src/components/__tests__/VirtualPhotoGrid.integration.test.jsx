@@ -140,10 +140,11 @@ describe('VirtualPhotoGrid Integration Tests', () => {
   });
 
   it('infinite scroll: load more pages', async () => {
-    const fetchNextPage = vi.fn();
+    // Note: Infinite scroll sentinel is now managed by Gallery component
+    // This test verifies that VirtualPhotoGrid handles pagination state correctly
 
     // 1. Render first page
-    renderWithQuery(
+    const { rerender } = renderWithQuery(
       <VirtualPhotoGrid
         photos={mockPhotos.slice(0, 50)}
         hasNextPage={true}
@@ -153,21 +154,21 @@ describe('VirtualPhotoGrid Integration Tests', () => {
 
     expect(screen.getByTestId('virtual-grid')).toBeInTheDocument();
 
-    // 2. Should NOT show loading spinner when not fetching
-    expect(screen.queryByTestId('loading-spinner')).not.toBeInTheDocument();
-
-    // 3. Simulate fetching next page
-    const { rerender } = renderWithQuery(
-      <VirtualPhotoGrid
-        photos={mockPhotos.slice(0, 50)}
-        hasNextPage={true}
-        isFetchingNextPage={true}
-      />
+    // 2. Simulate fetching next page (component should still render)
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <VirtualPhotoGrid
+          photos={mockPhotos.slice(0, 50)}
+          hasNextPage={true}
+          isFetchingNextPage={true}
+        />
+      </QueryClientProvider>
     );
 
-    expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
+    // Grid should still be visible during fetch
+    expect(screen.getByTestId('virtual-grid')).toBeInTheDocument();
 
-    // 4. Append new page
+    // 3. Append new page
     rerender(
       <QueryClientProvider client={queryClient}>
         <VirtualPhotoGrid
@@ -182,8 +183,8 @@ describe('VirtualPhotoGrid Integration Tests', () => {
       expect(useVirtualGrid).toHaveBeenCalledWith(100, expect.any(Object));
     });
 
-    // No more pages
-    expect(screen.queryByTestId('loading-spinner')).not.toBeInTheDocument();
+    // Verify all photos are now available
+    expect(screen.getByTestId('virtual-grid')).toBeInTheDocument();
   });
 
   it('responsive: resize container', async () => {
@@ -314,7 +315,8 @@ describe('VirtualPhotoGrid Integration Tests', () => {
 
     // First photo should still be visible
     expect(screen.getByTestId('photo-item-photo_0.jpg')).toBeInTheDocument();
-    expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
+
+    // Note: Loading spinner is now managed by Gallery component
 
     // Click should still work during loading
     fireEvent.click(screen.getByTestId('photo-item-photo_0.jpg'));

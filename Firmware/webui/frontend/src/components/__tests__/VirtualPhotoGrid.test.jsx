@@ -303,17 +303,7 @@ describe('VirtualPhotoGrid', () => {
       expect(screen.getByTestId('virtual-grid')).toBeInTheDocument();
     });
 
-    it('shows loading indicator for infinite scroll', () => {
-      renderWithQuery(
-        <VirtualPhotoGrid
-          photos={mockPhotos}
-          isFetchingNextPage={true}
-          hasNextPage={true}
-        />
-      );
-
-      expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
-    });
+    // Note: Infinite scroll loading indicator is now managed by Gallery component
   });
 
   describe('Empty State', () => {
@@ -330,56 +320,8 @@ describe('VirtualPhotoGrid', () => {
     });
   });
 
-  describe('Infinite Scroll Integration', () => {
-    it('includes scroll sentinel for infinite scroll', () => {
-      renderWithQuery(
-        <VirtualPhotoGrid
-          photos={mockPhotos}
-          hasNextPage={true}
-          isFetchingNextPage={true}
-        />
-      );
-
-      const sentinel = screen.getByTestId('loading-spinner').parentElement;
-      expect(sentinel.className).toContain('infinite-scroll-sentinel');
-    });
-
-    it('sentinel positioned after grid items', () => {
-      renderWithQuery(
-        <VirtualPhotoGrid
-          photos={mockPhotos}
-          hasNextPage={true}
-        />
-      );
-
-      const container = screen.getByTestId('virtual-grid').parentElement;
-      expect(container.querySelector('.infinite-scroll-sentinel')).toBeInTheDocument();
-    });
-
-    it('triggers fetchNextPage when sentinel visible', () => {
-      // This would be tested in integration tests with actual IntersectionObserver
-      renderWithQuery(
-        <VirtualPhotoGrid
-          photos={mockPhotos}
-          hasNextPage={true}
-          isFetchingNextPage={false}
-        />
-      );
-
-      expect(screen.queryByTestId('loading-spinner')).not.toBeInTheDocument();
-    });
-
-    it('supports hasNextPage prop', () => {
-      renderWithQuery(
-        <VirtualPhotoGrid
-          photos={mockPhotos}
-          hasNextPage={false}
-        />
-      );
-
-      expect(screen.queryByTestId('loading-spinner')).not.toBeInTheDocument();
-    });
-  });
+  // Note: Infinite scroll sentinel is now managed by Gallery component, not VirtualPhotoGrid
+  // Integration tests for infinite scroll behavior are in Gallery.infinite-scroll.*.test.jsx
 
   describe('Click and Interaction', () => {
     it('calls onPhotoClick when photo clicked', async () => {

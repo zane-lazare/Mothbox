@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 import { useViewMode } from '../hooks/useViewMode'
+import useScrollRestoration from '../hooks/useScrollRestoration'
 import PhotoSkeleton from '../components/PhotoSkeleton'
 import PhotoGridItem from '../components/PhotoGridItem'
 import PhotoListItem from '../components/PhotoListItem'
@@ -22,6 +23,9 @@ export default function Gallery() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const { viewMode, setViewMode, isLoading: isLoadingPreference } = useViewMode()
   const navigate = useNavigate()
+
+  // Scroll restoration for virtualized grid
+  const { scrollRef, saveScrollPosition } = useScrollRestoration('gallery-main')
 
   // State tracking for toast notifications (prevent duplicates)
   const [hasShownInitialErrorToast, setHasShownInitialErrorToast] = useState(false)
@@ -80,6 +84,11 @@ export default function Gallery() {
 
   // Memoized callbacks to prevent unnecessary re-renders
   const handleCloseLightbox = useCallback(() => setSelectedPhoto(null), [])
+  const handlePhotoClick = useCallback((photo) => {
+    // Save scroll position before opening lightbox
+    saveScrollPosition()
+    setSelectedPhoto(photo)
+  }, [saveScrollPosition])
   const handleNavigate = useCallback((photo) => {
     // Validate photo exists in current photos array before navigating
     if (photos.some(p => p.path === photo.path)) {
@@ -214,11 +223,12 @@ export default function Gallery() {
           >
             <VirtualPhotoGrid
               photos={photos}
-              onPhotoClick={setSelectedPhoto}
+              onPhotoClick={handlePhotoClick}
               isLoading={isLoading}
               isFetchingNextPage={isFetchingNextPage}
               hasNextPage={hasNextPage}
               viewMode={viewMode}
+              scrollRef={scrollRef}
             />
           </ErrorBoundary>
         ) : (
