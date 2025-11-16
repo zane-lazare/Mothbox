@@ -269,7 +269,7 @@ def capture_photo():
 
         from flask import current_app
 
-        from mothbox_paths import MOTHBOX_HOME
+        from mothbox_paths import MOTHBOX_HOME, get_takephoto_script
 
         print(f"Photo capture requested. MOTHBOX_HOME: {MOTHBOX_HOME}")
 
@@ -314,8 +314,9 @@ def capture_photo():
             script_path = MOTHBOX_HOME / f"{pi_version}.x" / "scripts" / script_name
             print(f"📸 HDR mode enabled: {hdr_count} exposures, {hdr_width}µs bracket width")
         else:
+            # Use get_takephoto_script() for standard captures to get correct path
+            script_path = get_takephoto_script()
             script_name = "TakePhoto.py"
-            script_path = MOTHBOX_HOME / f"{pi_version}.x" / "scripts" / script_name
             print("📸 Standard single-exposure mode")
 
         print(f"Looking for {script_name} at: {script_path}")
@@ -323,11 +324,20 @@ def capture_photo():
         if not script_path.exists():
             error_msg = f"{script_name} not found at {script_path}"
             print(error_msg)
+
+            # Provide helpful context based on script type
+            if script_name == "TakePhoto.py":
+                help_msg = f"Ensure TakePhoto.py exists in the {pi_version}.x directory"
+            elif script_name == "TakePhoto_HDR.py":
+                help_msg = f"Ensure TakePhoto_HDR.py exists in the {pi_version}.x/scripts directory"
+            else:
+                help_msg = f"Ensure {script_name} exists in webui/backend/scripts directory"
+
             return jsonify(
                 {
                     "success": False,
                     "error": error_msg,
-                    "help": f"Ensure {script_name} exists in the {pi_version}.x/scripts directory",
+                    "help": help_msg,
                 }
             ), 500
 
