@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useState, useEffect, useMemo } from 'react';
+import React, { memo, useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { FixedSizeGrid } from 'react-window';
 import useVirtualGrid from '../hooks/useVirtualGrid';
@@ -88,10 +88,20 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
     breakpoints // Force 1 column for list view
   });
 
+  // Use ref to avoid stale closure in Cell callback
+  // Critical: Prevents Cell from recreating on every photo array change (infinite scroll)
+  // Without this, react-window would re-render ALL cells on every new page load
+  const photosRef = useRef(photos);
+  useEffect(() => {
+    photosRef.current = photos;
+  }, [photos]);
+
   // Cell renderer for react-window
+  // IMPORTANT: photos is accessed via photosRef.current to avoid dependency
+  // This keeps Cell reference stable during infinite scroll, preventing unnecessary re-renders
   const Cell = useCallback(({ columnIndex, rowIndex, style }) => {
     const photoIndex = rowIndex * columnCount + columnIndex;
-    const photo = photos[photoIndex];
+    const photo = photosRef.current[photoIndex];
 
     // Handle partial last row
     if (!photo) return null;
@@ -105,7 +115,7 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
         />
       </div>
     );
-  }, [photos, columnCount, onPhotoClick, options.thumbnailSize]);
+  }, [columnCount, onPhotoClick, options.thumbnailSize]); // photos removed from deps
 
   // Empty state
   if (!isLoading && photos.length === 0) {
