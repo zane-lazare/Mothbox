@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useState, useEffect } from 'react';
+import React, { memo, useCallback, useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { FixedSizeGrid } from 'react-window';
 import useVirtualGrid from '../hooks/useVirtualGrid';
@@ -78,6 +78,13 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
     };
   }, [updateViewportHeight]);
 
+  // Memoize breakpoints object to prevent unnecessary recalculations
+  // viewMode changes infrequently (only on user toggle), so this is efficient
+  const breakpoints = useMemo(
+    () => (viewMode === 'list' ? { sm: 0 } : undefined),
+    [viewMode]
+  );
+
   // Get grid layout parameters
   const {
     containerRef,
@@ -89,7 +96,7 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
   } = useVirtualGrid(photos.length, {
     gap: options.gap,
     aspectRatio: options.aspectRatio,
-    breakpoints: viewMode === 'list' ? { sm: 0 } : undefined // Force 1 column for list
+    breakpoints // Force 1 column for list view
   });
 
   // Cell renderer for react-window

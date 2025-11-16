@@ -64,13 +64,10 @@ export default function useVirtualGrid(photoCount, options = {}) {
   const resizeObserverRef = useRef(null);
   const debouncedSetWidthRef = useRef(null);
 
-  // Memoize options to prevent unnecessary recalculations on every render
-  // Only recalculate when the actual option values change
-  const memoizedOptions = useMemo(
-    () => options,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [options.gap, options.aspectRatio, JSON.stringify(options.breakpoints)]
-  );
+  // Extract options to primitive values for stable dependencies
+  // This prevents unnecessary recalculations when parent doesn't memoize options object
+  // Note: breakpoints is still an object reference, so callers should memoize it if it changes
+  const { gap, aspectRatio, breakpoints } = options;
 
   // Create debounced width setter (memoized to avoid recreation)
   if (!debouncedSetWidthRef.current) {
@@ -122,8 +119,8 @@ export default function useVirtualGrid(photoCount, options = {}) {
       };
     }
 
-    return calculateGridDimensions(containerWidth, photoCount, memoizedOptions);
-  }, [containerWidth, photoCount, memoizedOptions]);
+    return calculateGridDimensions(containerWidth, photoCount, { gap, aspectRatio, breakpoints });
+  }, [containerWidth, photoCount, gap, aspectRatio, breakpoints]);
 
   return {
     containerRef,
