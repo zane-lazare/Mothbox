@@ -7,6 +7,29 @@ import EmptyStateMessage from './EmptyStateMessage';
 import { GALLERY_CONFIG } from '../constants/config';
 
 /**
+ * Simple debounce utility for resize event handler
+ * @param {Function} fn - Function to debounce
+ * @param {number} delay - Delay in milliseconds
+ * @returns {Function} Debounced function with cleanup
+ */
+function debounce(fn, delay) {
+  let timeoutId = null;
+  const debounced = function(...args) {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    timeoutId = setTimeout(() => fn(...args), delay);
+  };
+  debounced.cancel = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+  };
+  return debounced;
+}
+
+/**
  * VirtualPhotoGrid - Virtualized photo grid using react-window
  * Renders only visible items for optimal performance with large collections
  * Integrates with TanStack Query infinite scroll
@@ -38,15 +61,22 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
       : 600;
   });
 
-  // Update viewport height on window resize
-  useEffect(() => {
-    const handleResize = () => {
-      setViewportHeight(Math.max(window.innerHeight * 0.8, 600));
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+  // Stable callback for height calculation
+  const updateViewportHeight = useCallback(() => {
+    setViewportHeight(Math.max(window.innerHeight * 0.8, 600));
   }, []);
+
+  // Update viewport height on window resize with debouncing
+  useEffect(() => {
+    // Debounce resize handler to prevent excessive re-renders
+    const debouncedResize = debounce(updateViewportHeight, 150);
+
+    window.addEventListener('resize', debouncedResize);
+    return () => {
+      window.removeEventListener('resize', debouncedResize);
+      debouncedResize.cancel(); // Cancel pending updates on unmount
+    };
+  }, [updateViewportHeight]);
 
   // Get grid layout parameters
   const {
