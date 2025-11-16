@@ -86,6 +86,21 @@ export default function useScrollRestoration(key = 'default') {
 
       const position = JSON.parse(saved);
 
+      // Validate parsed JSON structure (defense against corrupted/malformed data)
+      if (
+        typeof position.scrollTop !== 'number' ||
+        typeof position.timestamp !== 'number' ||
+        typeof position.key !== 'string'
+      ) {
+        // Invalid structure - clear corrupted data
+        try {
+          sessionStorage.removeItem(STORAGE_KEY);
+        } catch (e) {
+          // Ignore errors when clearing (privacy mode)
+        }
+        return;
+      }
+
       // Check TTL and key match
       const isExpired = Date.now() - position.timestamp >= POSITION_TTL_MS;
       const keyMatches = position.key === key;
