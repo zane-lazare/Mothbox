@@ -5,29 +5,7 @@ import useVirtualGrid from '../hooks/useVirtualGrid';
 import VirtualPhotoGridItem from './VirtualPhotoGridItem';
 import EmptyStateMessage from './EmptyStateMessage';
 import { GALLERY_CONFIG } from '../constants/config';
-
-/**
- * Simple debounce utility for resize event handler
- * @param {Function} fn - Function to debounce
- * @param {number} delay - Delay in milliseconds
- * @returns {Function} Debounced function with cleanup
- */
-function debounce(fn, delay) {
-  let timeoutId = null;
-  const debounced = function(...args) {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-    timeoutId = setTimeout(() => fn(...args), delay);
-  };
-  debounced.cancel = () => {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      timeoutId = null;
-    }
-  };
-  return debounced;
-}
+import { debounce } from '../utils/debounce';
 
 /**
  * VirtualPhotoGrid - Virtualized photo grid using react-window

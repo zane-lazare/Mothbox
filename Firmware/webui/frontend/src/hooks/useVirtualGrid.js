@@ -10,25 +10,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { calculateGridDimensions } from '../utils/gridCalculations';
 import { GALLERY_CONFIG } from '../constants/config';
-
-/**
- * Simple debounce utility for ResizeObserver callbacks
- * @param {Function} fn - Function to debounce
- * @param {number} delay - Delay in milliseconds
- * @returns {Function} Debounced function
- */
-function debounce(fn, delay) {
-  let timeoutId = null;
-  return function debounced(...args) {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-    timeoutId = setTimeout(() => {
-      fn(...args);
-      timeoutId = null;
-    }, delay);
-  };
-}
+import { debounce } from '../utils/debounce';
 
 /**
  * Custom hook for virtual grid layout calculations
