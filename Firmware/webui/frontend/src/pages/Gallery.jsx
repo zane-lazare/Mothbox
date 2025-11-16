@@ -5,9 +5,11 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 import { useViewMode } from '../hooks/useViewMode'
+import useScrollRestoration from '../hooks/useScrollRestoration'
 import PhotoSkeleton from '../components/PhotoSkeleton'
 import PhotoGridItem from '../components/PhotoGridItem'
 import PhotoListItem from '../components/PhotoListItem'
+import VirtualPhotoGrid from '../components/VirtualPhotoGrid'
 import PhotoLightbox from '../components/PhotoLightbox'
 import ErrorBoundary from '../components/ErrorBoundary'
 import LightboxErrorFallback from '../components/LightboxErrorFallback'
@@ -21,6 +23,9 @@ export default function Gallery() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const { viewMode, setViewMode, isLoading: isLoadingPreference } = useViewMode()
   const navigate = useNavigate()
+
+  // Scroll restoration for virtualized grid
+  const { scrollRef, saveScrollPosition } = useScrollRestoration('gallery-main')
 
   // State tracking for toast notifications (prevent duplicates)
   const [hasShownInitialErrorToast, setHasShownInitialErrorToast] = useState(false)
@@ -68,8 +73,22 @@ export default function Gallery() {
   // Flatten all pages into single photo array (memoized to prevent re-creation on every render)
   const photos = useMemo(() => data?.pages.flatMap((page) => page.photos) ?? [], [data?.pages])
 
+  // Determine if virtualization should be enabled
+  const shouldUseVirtualization = useMemo(() => {
+    return (
+      GALLERY_CONFIG.VIRTUALIZATION.ENABLED &&
+      viewMode === 'grid' &&
+      photos.length >= GALLERY_CONFIG.VIRTUALIZATION.MIN_PHOTOS_FOR_VIRTUALIZATION
+    )
+  }, [viewMode, photos.length])
+
   // Memoized callbacks to prevent unnecessary re-renders
   const handleCloseLightbox = useCallback(() => setSelectedPhoto(null), [])
+  const handlePhotoClick = useCallback((photo) => {
+    // Save scroll position before opening lightbox
+    saveScrollPosition()
+    setSelectedPhoto(photo)
+  }, [saveScrollPosition])
   const handleNavigate = useCallback((photo) => {
     // Validate photo exists in current photos array before navigating
     if (photos.some(p => p.path === photo.path)) {
@@ -173,20 +192,59 @@ export default function Gallery() {
         <EmptyStateMessage variant="first-time" onCtaClick={() => navigate('/camera')} />
       )}
 
-      {/* Conditional rendering: Grid view or List view */}
+      {/* Conditional rendering: Grid view, Virtualized Grid, or List view */}
       {viewMode === 'grid' ? (
-        /* Photo Grid */
-        <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
-          {photos.map((photo) => (
-            <PhotoGridItem key={photo.path} photo={photo} onClick={setSelectedPhoto} />
-          ))}
-
-          {/* Skeleton loading cards while fetching next page */}
-          {isFetchingNextPage &&
-            Array.from({ length: GALLERY_CONFIG.SKELETON_COUNT }).map((_, i) => (
-              <PhotoSkeleton key={`skeleton-${i}`} aria-hidden="true" />
+        shouldUseVirtualization ? (
+          /* Virtualized Photo Grid (for large galleries) - wrapped in ErrorBoundary */
+          <ErrorBoundary
+            fallback={({ error, resetErrorBoundary }) => (
+              <div className="py-12">
+                <EmptyStateMessage
+                  variant="error"
+                  onCtaClick={resetErrorBoundary}
+                />
+                {/* Show technical error details in development */}
+                {import.meta.env.DEV && error && (
+                  <details className="mt-4 text-sm text-gray-600 max-w-2xl mx-auto">
+                    <summary className="cursor-pointer font-semibold">Error Details</summary>
+                    <pre className="mt-2 p-4 bg-gray-100 rounded overflow-auto">
+                      {error.message}
+                      {error.stack && `\n\n${error.stack}`}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            )}
+            onReset={() => {
+              // Reset selected photo and re-fetch photos
+              setSelectedPhoto(null)
+              refetch()
+            }}
+          >
+            <VirtualPhotoGrid
+              photos={photos}
+              onPhotoClick={handlePhotoClick}
+              isLoading={isLoading}
+              isFetchingNextPage={isFetchingNextPage}
+              hasNextPage={hasNextPage}
+              viewMode={viewMode}
+              scrollRef={scrollRef}
+            />
+          </ErrorBoundary>
+        ) : (
+          /* Traditional Photo Grid (for smaller galleries) */
+          <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
+            {photos.map((photo) => (
+              <PhotoGridItem key={photo.path} photo={photo} onClick={setSelectedPhoto} />
             ))}
-        </div>
+
+            {/* Skeleton loading cards while fetching next page */}
+            {isFetchingNextPage &&
+              Array.from({ length: GALLERY_CONFIG.SKELETON_COUNT }).map((_, i) => (
+                <PhotoSkeleton key={`skeleton-${i}`} aria-hidden="true" />
+              ))}
+          </div>
+        )
       ) : (
         /* Photo List */
         <div className="flex flex-col gap-4">

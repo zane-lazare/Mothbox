@@ -37,6 +37,10 @@
  * @property {Object} THUMBNAIL - Thumbnail sizing configuration
  *   - SIZE: Backend thumbnail size (256px for high quality, already cached)
  *   - ASPECT_RATIO: Expected ratio for Mothbox camera (9152x6944 = ~1.318:1)
+ *
+ * @property {Object} LAZY_IMAGE - Lazy image loading configuration (IntersectionObserver)
+ *   - ROOT_MARGIN: Distance before viewport to start loading (e.g., '100px')
+ *   - THRESHOLD: Percentage of image visibility to trigger load (0.0-1.0)
  */
 export const GALLERY_CONFIG = {
   PAGE_SIZE: 24,
@@ -58,7 +62,24 @@ export const GALLERY_CONFIG = {
   },
   THUMBNAIL: {
     SIZE: 256, // Backend thumbnail size (256px high quality, already cached)
-    ASPECT_RATIO: 4 / 3, // Expected aspect ratio for Mothbox camera (9152x6944 = ~1.318:1)
+    ASPECT_RATIO: 9152 / 6944, // Mothbox camera aspect ratio (~1.318:1, slightly wider than 4:3)
+  },
+  LAZY_IMAGE: {
+    ROOT_MARGIN: '100px', // Start loading images 100px before they enter viewport
+    THRESHOLD: 0.1, // Trigger when 10% of image is visible
+  },
+  VIRTUALIZATION: {
+    ENABLED: true, // Enable virtual scrolling for large galleries
+    MIN_PHOTOS_FOR_VIRTUALIZATION: 100, // Minimum photo count to activate virtualization
+    OVERSCAN_ROW_COUNT: 2, // Rows to render above/below viewport for smooth scrolling
+    ITEM_SIZE: 272, // Photo height (256px) + gap (16px)
+    ESTIMATED_ITEM_SIZE: 272, // For variable sizing (currently fixed size)
+    SCROLL_THROTTLE_MS: 16, // ~60fps scroll handling
+    MAX_CACHED_IMAGES: 100, // LRU cache size for image preloading (Step 6)
+    PRELOAD_DISTANCE: 3, // Rows to preload ahead/behind (Step 6)
+    VIEWPORT_HEIGHT_RATIO: 0.8, // Viewport height as ratio of window height (80%)
+    MIN_VIEWPORT_HEIGHT: 600, // Minimum viewport height in pixels (600px)
+    RESIZE_DEBOUNCE_MS: 150, // Debounce delay for resize events (balances responsiveness vs performance)
   },
 }
 

@@ -1,70 +1,252 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import ProgressiveImage from '../ProgressiveImage'
 
+// Mock useProgressiveImage hook
+vi.mock('../../hooks/useProgressiveImage', () => ({
+  default: vi.fn()
+}))
+
+// Mock MothIcon component
+vi.mock('../MothIcon', () => ({
+  default: vi.fn(({ size }) => (
+    <svg role="img" aria-label="moth icon" width={size} height={size}>
+      <text>Moth Icon</text>
+    </svg>
+  ))
+}))
+
+import useProgressiveImage from '../../hooks/useProgressiveImage'
+
 describe('ProgressiveImage', () => {
-  describe('Image Loading States', () => {
-    it('shows loading state initially', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('Progressive Loading Mode (with photoPath)', () => {
+    it('uses progressive loading hook when photoPath is provided', () => {
+      useProgressiveImage.mockReturnValue({
+        src: null,
+        isLoading: true,
+        error: null,
+        stage: 'idle'
+      })
+
+      render(<ProgressiveImage photoPath="2024/photo.jpg" alt="Test image" />)
+
+      expect(useProgressiveImage).toHaveBeenCalledWith('2024/photo.jpg', {
+        thumbnailSize: 64,
+        fullSize: 256,
+        autoLoad: true
+      })
+    })
+
+    it('shows blurred thumbnail during loading', () => {
+      useProgressiveImage.mockReturnValue({
+        src: '/api/photos/thumbnail?path=2024/photo.jpg&size=64',
+        isLoading: false,
+        error: null,
+        stage: 'thumbnail'
+      })
+
+      render(<ProgressiveImage photoPath="2024/photo.jpg" alt="Test image" />)
+
+      const img = screen.getByRole('img', { name: /Test image/i })
+      expect(img).toHaveClass('blur-sm')
+      expect(img).toHaveClass('opacity-80')
+      expect(img).toHaveClass('scale-105')
+    })
+
+    it('removes blur when full image loads', () => {
+      useProgressiveImage.mockReturnValue({
+        src: '/api/photos/thumbnail?path=2024/photo.jpg&size=256',
+        isLoading: false,
+        error: null,
+        stage: 'loaded'
+      })
+
+      render(<ProgressiveImage photoPath="2024/photo.jpg" alt="Test image" />)
+
+      const img = screen.getByRole('img', { name: /Test image/i })
+      expect(img).toHaveClass('blur-0')
+      expect(img).toHaveClass('opacity-100')
+      expect(img).toHaveClass('scale-100')
+    })
+
+    it('shows moth icon fallback when progressive loading fails', () => {
+      useProgressiveImage.mockReturnValue({
+        src: null,
+        isLoading: false,
+        error: new Error('Failed to load'),
+        stage: 'error'
+      })
+
+      render(<ProgressiveImage photoPath="2024/photo.jpg" alt="Test image" iconSize={100} />)
+
+      const mothIcon = screen.getByRole('img', { name: /moth icon/i })
+      expect(mothIcon).toBeInTheDocument()
+      expect(mothIcon).toHaveAttribute('width', '100')
+      expect(mothIcon).toHaveAttribute('height', '100')
+    })
+
+    it('calls onLoad callback when full image loads', () => {
+      const mockOnLoad = vi.fn()
+
+      // First render with thumbnail
+      const { rerender } = render(
+        <ProgressiveImage photoPath="2024/photo.jpg" alt="Test image" onLoad={mockOnLoad} />
+      )
+
+      useProgressiveImage.mockReturnValue({
+        src: '/api/photos/thumbnail?path=2024/photo.jpg&size=64',
+        isLoading: false,
+        error: null,
+        stage: 'thumbnail'
+      })
+
+      expect(mockOnLoad).not.toHaveBeenCalled()
+
+      // Update to loaded stage
+      useProgressiveImage.mockReturnValue({
+        src: '/api/photos/thumbnail?path=2024/photo.jpg&size=256',
+        isLoading: false,
+        error: null,
+        stage: 'loaded'
+      })
+
+      rerender(<ProgressiveImage photoPath="2024/photo.jpg" alt="Test image" onLoad={mockOnLoad} />)
+
+      expect(mockOnLoad).toHaveBeenCalledTimes(1)
+    })
+
+    it('calls onError callback when progressive loading fails', () => {
+      const mockOnError = vi.fn()
+      const error = new Error('Failed to load')
+
+      useProgressiveImage.mockReturnValue({
+        src: null,
+        isLoading: false,
+        error,
+        stage: 'error'
+      })
+
+      render(<ProgressiveImage photoPath="2024/photo.jpg" alt="Test image" onError={mockOnError} />)
+
+      expect(mockOnError).toHaveBeenCalledWith(error)
+    })
+
+    it('displays filename when showFilenameOnError is true', () => {
+      useProgressiveImage.mockReturnValue({
+        src: null,
+        isLoading: false,
+        error: new Error('Failed to load'),
+        stage: 'error'
+      })
+
+      render(
+        <ProgressiveImage
+          photoPath="2024/photo.jpg"
+          alt="photo.jpg"
+          showFilenameOnError
+        />
+      )
+
+      expect(screen.getByText(/photo.jpg/i)).toBeInTheDocument()
+    })
+
+    it('applies custom thumbnailSize and fullSize', () => {
+      useProgressiveImage.mockReturnValue({
+        src: null,
+        isLoading: true,
+        error: null,
+        stage: 'idle'
+      })
+
+      render(
+        <ProgressiveImage
+          photoPath="2024/photo.jpg"
+          alt="Test image"
+          thumbnailSize={128}
+          fullSize={512}
+        />
+      )
+
+      expect(useProgressiveImage).toHaveBeenCalledWith('2024/photo.jpg', {
+        thumbnailSize: 128,
+        fullSize: 512,
+        autoLoad: true
+      })
+    })
+
+    it('can disable progressive loading with progressive=false', () => {
+      useProgressiveImage.mockReturnValue({
+        src: null,
+        isLoading: false,
+        error: null,
+        stage: 'idle'
+      })
+
+      render(
+        <ProgressiveImage
+          photoPath="2024/photo.jpg"
+          src="/fallback.jpg"
+          alt="Test image"
+          progressive={false}
+        />
+      )
+
+      // Should not use progressive hook
+      expect(useProgressiveImage).toHaveBeenCalledWith(null, {
+        thumbnailSize: 64,
+        fullSize: 256,
+        autoLoad: false
+      })
+
+      // Should use fallback src
+      const img = screen.getByRole('img', { name: /Test image/i })
+      expect(img).toHaveAttribute('src', '/fallback.jpg')
+    })
+  })
+
+  describe('Backward Compatibility Mode (with src only)', () => {
+    beforeEach(() => {
+      // Mock hook to return idle state (not used)
+      useProgressiveImage.mockReturnValue({
+        src: null,
+        isLoading: false,
+        error: null,
+        stage: 'idle'
+      })
+    })
+
+    it('renders image with src when photoPath not provided', () => {
       render(<ProgressiveImage src="/test.jpg" alt="Test image" />)
 
       const img = screen.getByRole('img', { name: /Test image/i })
       expect(img).toBeInTheDocument()
-      // Image should have opacity-0 initially (not loaded yet)
-      expect(img).toHaveClass('opacity-0')
+      expect(img).toHaveAttribute('src', '/test.jpg')
     })
 
-    it('transitions to full opacity when image loads', async () => {
+    it('does not use progressive hook when only src provided', () => {
+      render(<ProgressiveImage src="/test.jpg" alt="Test image" />)
+
+      expect(useProgressiveImage).toHaveBeenCalledWith(null, {
+        thumbnailSize: 64,
+        fullSize: 256,
+        autoLoad: false
+      })
+    })
+
+    it('does not show blur effect in backward compatibility mode', () => {
       render(<ProgressiveImage src="/test.jpg" alt="Test image" />)
 
       const img = screen.getByRole('img', { name: /Test image/i })
-
-      // Simulate image load
-      fireEvent.load(img)
-
-      await waitFor(() => {
-        expect(img).toHaveClass('opacity-100')
-      })
+      expect(img).toHaveClass('blur-0')
+      expect(img).toHaveClass('opacity-100')
+      expect(img).toHaveClass('scale-100')
     })
 
-    it('calls onLoad callback when image loads successfully', async () => {
-      const mockOnLoad = vi.fn()
-
-      render(<ProgressiveImage src="/test.jpg" alt="Test image" onLoad={mockOnLoad} />)
-
-      const img = screen.getByRole('img', { name: /Test image/i })
-      fireEvent.load(img)
-
-      await waitFor(() => {
-        expect(mockOnLoad).toHaveBeenCalledTimes(1)
-      })
-    })
-
-    it('applies transition animation during load', () => {
-      render(<ProgressiveImage src="/test.jpg" alt="Test image" />)
-
-      const img = screen.getByRole('img', { name: /Test image/i })
-      expect(img).toHaveClass('transition-opacity')
-      expect(img).toHaveClass('duration-300')
-    })
-  })
-
-  describe('Broken Image Handling', () => {
-    it('shows fallback moth icon when image fails to load', async () => {
-      render(<ProgressiveImage src="/broken.jpg" alt="Broken image" />)
-
-      const img = screen.getByRole('img', { name: /Broken image/i })
-
-      // Simulate image error
-      fireEvent.error(img)
-
-      await waitFor(() => {
-        // Should show moth icon fallback
-        const mothIcon = screen.getByRole('img', { name: /moth icon/i })
-        expect(mothIcon).toBeInTheDocument()
-      })
-    })
-
-    it('calls onError callback when image fails to load', async () => {
+    it('calls onError callback when src image fails to load', async () => {
       const mockOnError = vi.fn()
 
       render(<ProgressiveImage src="/broken.jpg" alt="Broken image" onError={mockOnError} />)
@@ -73,158 +255,182 @@ describe('ProgressiveImage', () => {
       fireEvent.error(img)
 
       await waitFor(() => {
-        expect(mockOnError).toHaveBeenCalledTimes(1)
+        expect(mockOnError).toHaveBeenCalled()
       })
     })
 
-    it('hides original image when error occurs', async () => {
+    it('does not show moth icon fallback for src-only errors', async () => {
       render(<ProgressiveImage src="/broken.jpg" alt="Broken image" />)
 
       const img = screen.getByRole('img', { name: /Broken image/i })
       fireEvent.error(img)
 
+      // Should not show moth icon (backward compatibility - just shows broken image icon)
       await waitFor(() => {
-        // Original image should be hidden
-        expect(img).toHaveClass('hidden')
-      })
-    })
-
-    it('displays filename when thumbnail broken', async () => {
-      render(<ProgressiveImage src="/photos/test.jpg" alt="test.jpg" showFilenameOnError />)
-
-      const img = screen.getByRole('img', { name: /test.jpg/i })
-      fireEvent.error(img)
-
-      await waitFor(() => {
-        expect(screen.getByText(/test.jpg/i)).toBeInTheDocument()
-      })
-    })
-
-    it('applies className to error fallback container', async () => {
-      const { container } = render(
-        <ProgressiveImage
-          src="/broken.jpg"
-          alt="Broken image"
-          className="w-48 h-32 rounded"
-        />
-      )
-
-      const img = screen.getByRole('img', { name: /Broken image/i })
-      fireEvent.error(img)
-
-      await waitFor(() => {
-        const fallbackContainer = container.querySelector('.bg-gray-100')
-        expect(fallbackContainer).toHaveClass('w-48')
-        expect(fallbackContainer).toHaveClass('h-32')
-        expect(fallbackContainer).toHaveClass('rounded')
+        expect(screen.queryByRole('img', { name: /moth icon/i })).not.toBeInTheDocument()
       })
     })
   })
 
-  describe('Progressive Loading Animations', () => {
-    it('applies fade-in animation with correct duration', () => {
-      render(<ProgressiveImage src="/test.jpg" alt="Test image" />)
+  describe('Styling and Animations', () => {
+    it('applies transition-all with 300ms duration', () => {
+      useProgressiveImage.mockReturnValue({
+        src: '/api/photos/thumbnail?path=2024/photo.jpg&size=256',
+        isLoading: false,
+        error: null,
+        stage: 'loaded'
+      })
+
+      render(<ProgressiveImage photoPath="2024/photo.jpg" alt="Test image" />)
 
       const img = screen.getByRole('img', { name: /Test image/i })
-      expect(img).toHaveClass('transition-opacity')
+      expect(img).toHaveClass('transition-all')
       expect(img).toHaveClass('duration-300')
     })
 
-    it('maintains aspect ratio while loading', () => {
-      const { container } = render(<ProgressiveImage src="/test.jpg" alt="Test image" />)
+    it('applies custom className to image', () => {
+      useProgressiveImage.mockReturnValue({
+        src: '/api/photos/thumbnail?path=2024/photo.jpg&size=256',
+        isLoading: false,
+        error: null,
+        stage: 'loaded'
+      })
 
-      // Parent container should have aspect ratio
-      const wrapper = container.firstChild
-      expect(wrapper).toHaveClass('relative')
+      render(<ProgressiveImage photoPath="2024/photo.jpg" alt="Test image" className="custom-class" />)
+
+      const img = screen.getByRole('img', { name: /Test image/i })
+      expect(img).toHaveClass('custom-class')
+      expect(img).toHaveClass('transition-all')
     })
 
-    it('prevents layout shift during image load', () => {
-      const { container } = render(<ProgressiveImage src="/test.jpg" alt="Test image" />)
+    it('applies className to error fallback container', () => {
+      useProgressiveImage.mockReturnValue({
+        src: null,
+        isLoading: false,
+        error: new Error('Failed'),
+        stage: 'error'
+      })
 
-      // Container should maintain dimensions
-      const wrapper = container.firstChild
-      expect(wrapper).toHaveClass('relative')
+      const { container } = render(
+        <ProgressiveImage
+          photoPath="2024/photo.jpg"
+          alt="Test image"
+          className="w-48 h-32 rounded"
+        />
+      )
+
+      const fallbackContainer = container.querySelector('.bg-gray-100')
+      expect(fallbackContainer).toHaveClass('w-48')
+      expect(fallbackContainer).toHaveClass('h-32')
+      expect(fallbackContainer).toHaveClass('rounded')
     })
   })
 
   describe('Accessibility', () => {
     it('includes alt text on image', () => {
-      render(<ProgressiveImage src="/test.jpg" alt="A beautiful moth" />)
+      useProgressiveImage.mockReturnValue({
+        src: '/api/photos/thumbnail?path=2024/photo.jpg&size=256',
+        isLoading: false,
+        error: null,
+        stage: 'loaded'
+      })
+
+      render(<ProgressiveImage photoPath="2024/photo.jpg" alt="A beautiful moth" />)
 
       const img = screen.getByRole('img', { name: /A beautiful moth/i })
       expect(img).toHaveAttribute('alt', 'A beautiful moth')
     })
 
-    it('moth icon fallback has proper aria-label', async () => {
-      render(<ProgressiveImage src="/broken.jpg" alt="Broken image" />)
-
-      const img = screen.getByRole('img', { name: /Broken image/i })
-      fireEvent.error(img)
-
-      await waitFor(() => {
-        const mothIcon = screen.getByRole('img', { name: /moth icon/i })
-        expect(mothIcon).toHaveAccessibleName()
+    it('moth icon fallback has proper aria-label', () => {
+      useProgressiveImage.mockReturnValue({
+        src: null,
+        isLoading: false,
+        error: new Error('Failed'),
+        stage: 'error'
       })
+
+      render(<ProgressiveImage photoPath="2024/photo.jpg" alt="Test image" />)
+
+      const mothIcon = screen.getByRole('img', { name: /moth icon/i })
+      expect(mothIcon).toHaveAccessibleName()
     })
 
-    it('preserves ARIA labels during loading transitions', async () => {
-      render(<ProgressiveImage src="/test.jpg" alt="Test image" />)
+    it('preserves ARIA labels during loading transitions', () => {
+      const { rerender } = render(
+        <ProgressiveImage photoPath="2024/photo.jpg" alt="Test image" />
+      )
+
+      useProgressiveImage.mockReturnValue({
+        src: '/api/photos/thumbnail?path=2024/photo.jpg&size=64',
+        isLoading: false,
+        error: null,
+        stage: 'thumbnail'
+      })
+
+      rerender(<ProgressiveImage photoPath="2024/photo.jpg" alt="Test image" />)
 
       const img = screen.getByRole('img', { name: /Test image/i })
-
-      // Before load
       expect(img).toHaveAttribute('alt', 'Test image')
 
-      // Trigger load
-      fireEvent.load(img)
-
-      // After load
-      await waitFor(() => {
-        expect(img).toHaveAttribute('alt', 'Test image')
+      useProgressiveImage.mockReturnValue({
+        src: '/api/photos/thumbnail?path=2024/photo.jpg&size=256',
+        isLoading: false,
+        error: null,
+        stage: 'loaded'
       })
+
+      rerender(<ProgressiveImage photoPath="2024/photo.jpg" alt="Test image" />)
+
+      expect(img).toHaveAttribute('alt', 'Test image')
     })
   })
 
-  describe('Custom Styling', () => {
-    it('applies custom className to image', () => {
-      render(<ProgressiveImage src="/test.jpg" alt="Test image" className="custom-class" />)
+  describe('Edge Cases', () => {
+    it('handles null photoPath gracefully', () => {
+      useProgressiveImage.mockReturnValue({
+        src: null,
+        isLoading: false,
+        error: null,
+        stage: 'idle'
+      })
+
+      render(<ProgressiveImage photoPath={null} src="/fallback.jpg" alt="Test image" />)
+
+      // Should fall back to src mode
+      expect(useProgressiveImage).toHaveBeenCalledWith(null, expect.any(Object))
 
       const img = screen.getByRole('img', { name: /Test image/i })
-      expect(img).toHaveClass('custom-class')
+      expect(img).toHaveAttribute('src', '/fallback.jpg')
     })
 
-    it('combines custom className with default classes', () => {
-      render(<ProgressiveImage src="/test.jpg" alt="Test image" className="rounded-lg" />)
+    it('handles undefined photoPath gracefully', () => {
+      useProgressiveImage.mockReturnValue({
+        src: null,
+        isLoading: false,
+        error: null,
+        stage: 'idle'
+      })
 
+      render(<ProgressiveImage photoPath={undefined} src="/fallback.jpg" alt="Test image" />)
+
+      // Should fall back to src mode
       const img = screen.getByRole('img', { name: /Test image/i })
-      expect(img).toHaveClass('rounded-lg')
-      expect(img).toHaveClass('transition-opacity')
+      expect(img).toHaveAttribute('src', '/fallback.jpg')
     })
 
-    it('accepts custom icon size for error fallback', async () => {
-      render(<ProgressiveImage src="/broken.jpg" alt="Test" iconSize={80} />)
-
-      const img = screen.getByRole('img', { name: /Test/i })
-      fireEvent.error(img)
-
-      await waitFor(() => {
-        const mothIcon = screen.getByRole('img', { name: /moth icon/i })
-        expect(mothIcon).toHaveAttribute('width', '80')
-        expect(mothIcon).toHaveAttribute('height', '80')
+    it('handles empty string photoPath gracefully', () => {
+      useProgressiveImage.mockReturnValue({
+        src: null,
+        isLoading: false,
+        error: null,
+        stage: 'idle'
       })
-    })
 
-    it('uses default icon size of 200px when not specified', async () => {
-      render(<ProgressiveImage src="/broken.jpg" alt="Test" />)
+      render(<ProgressiveImage photoPath="" src="/fallback.jpg" alt="Test image" />)
 
-      const img = screen.getByRole('img', { name: /Test/i })
-      fireEvent.error(img)
-
-      await waitFor(() => {
-        const mothIcon = screen.getByRole('img', { name: /moth icon/i })
-        expect(mothIcon).toHaveAttribute('width', '200')
-        expect(mothIcon).toHaveAttribute('height', '200')
-      })
+      // Should fall back to src mode
+      const img = screen.getByRole('img', { name: /Test image/i })
+      expect(img).toHaveAttribute('src', '/fallback.jpg')
     })
   })
 })

@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "comments": {
+    "react-window": "Chosen for VirtualPhotoGrid virtualization. NOT deprecated, zero CVEs as of 2025-01. TanStack Virtual was evaluated but rejected due to: (1) react-window's FixedSizeGrid API is purpose-built for grid virtualization, (2) TanStack requires manual 2D virtualization with more complex implementation, (3) Migration would require 15-20 hours with high regression risk for minimal benefit. Decision should be revisited only if react-window is officially deprecated or if specific TanStack Virtual features are needed. Last verified: 2025-01"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -23,6 +26,7 @@
     "react-dom": "^19.1.1",
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.9.3",
+    "react-window": "^2.2.3",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
