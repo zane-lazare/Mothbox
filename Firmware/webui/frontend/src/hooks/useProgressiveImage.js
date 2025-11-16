@@ -37,15 +37,17 @@ export default function useProgressiveImage(photoPath, options = {}) {
   const [currentSrc, setCurrentSrc] = useState(null);
   const [error, setError] = useState(null);
   const isMountedRef = useRef(true);
+  const pendingImagesRef = useRef(new Set());
 
   /**
    * Load an image and return promise that resolves with URL
    * Checks cache first to avoid redundant network requests
    * Properly cleans up Image object to prevent memory leaks
+   * Tracks pending images to abort on unmount
    *
    * @param {string} url - Image URL to load
    * @param {string} cacheKey - Cache key for this image
-   * @returns {Promise<string>} Resolves with URL on success
+   * @returns {Promise<string>} Resolves with URL on success, rejects with cleanup
    */
   const loadImage = useCallback((url, cacheKey) => {
     // Check cache first
@@ -59,15 +61,21 @@ export default function useProgressiveImage(photoPath, options = {}) {
     return new Promise((resolve, reject) => {
       const img = new Image();
 
+      // Track pending image to allow cleanup on unmount
+      pendingImagesRef.current.add(img);
+
       // Cleanup function to prevent memory leaks
+      // Setting img.src = '' is necessary for proper garbage collection in Safari and older Chrome
+      // Also aborts pending network requests
       const cleanup = () => {
         img.onload = null;
         img.onerror = null;
-        // Note: Don't set img.src = '' as it can trigger unwanted network requests
-        // Nulling event handlers is sufficient for garbage collection
+        img.src = ''; // Required for GC - aborts pending network request
+        pendingImagesRef.current.delete(img);
       };
 
       img.onload = () => {
+        pendingImagesRef.current.delete(img);
         // Cache the loaded image object
         imageCache.set(cacheKey, img);
         resolve(url);
@@ -133,6 +141,15 @@ export default function useProgressiveImage(photoPath, options = {}) {
 
     return () => {
       isMountedRef.current = false;
+
+      // Abort all pending image loads to prevent memory leaks and race conditions
+      // This is critical when component unmounts while images are still loading
+      pendingImagesRef.current.forEach(img => {
+        img.onload = null;
+        img.onerror = null;
+        img.src = ''; // Abort network request
+      });
+      pendingImagesRef.current.clear();
     };
   }, [autoLoad, startLoading]);
 
