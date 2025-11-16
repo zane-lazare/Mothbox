@@ -140,15 +140,13 @@ describe('VirtualPhotoGrid Integration Tests', () => {
   });
 
   it('infinite scroll: load more pages', async () => {
-    // Note: Infinite scroll sentinel is now managed by Gallery component
-    // This test verifies that VirtualPhotoGrid handles pagination state correctly
+    // Note: Infinite scroll sentinel and loading indicators are managed by Gallery component
+    // This test verifies that VirtualPhotoGrid renders correctly as photos are appended
 
     // 1. Render first page
     const { rerender } = renderWithQuery(
       <VirtualPhotoGrid
         photos={mockPhotos.slice(0, 50)}
-        hasNextPage={true}
-        isFetchingNextPage={false}
       />
     );
 
@@ -159,8 +157,6 @@ describe('VirtualPhotoGrid Integration Tests', () => {
       <QueryClientProvider client={queryClient}>
         <VirtualPhotoGrid
           photos={mockPhotos.slice(0, 50)}
-          hasNextPage={true}
-          isFetchingNextPage={true}
         />
       </QueryClientProvider>
     );
@@ -173,8 +169,6 @@ describe('VirtualPhotoGrid Integration Tests', () => {
       <QueryClientProvider client={queryClient}>
         <VirtualPhotoGrid
           photos={mockPhotos}
-          hasNextPage={false}
-          isFetchingNextPage={false}
         />
       </QueryClientProvider>
     );
@@ -291,8 +285,6 @@ describe('VirtualPhotoGrid Integration Tests', () => {
       <VirtualPhotoGrid
         photos={mockPhotos.slice(0, 50)}
         isLoading={false}
-        isFetchingNextPage={false}
-        hasNextPage={true}
         onPhotoClick={onPhotoClick}
       />
     );
@@ -300,14 +292,13 @@ describe('VirtualPhotoGrid Integration Tests', () => {
     const firstPhoto = screen.getByTestId('photo-item-photo_0.jpg');
     expect(firstPhoto).toBeInTheDocument();
 
-    // Start fetching next page
+    // Simulate fetching next page (photos array doesn't change yet)
+    // Note: Loading indicators are managed by Gallery component
     rerender(
       <QueryClientProvider client={queryClient}>
         <VirtualPhotoGrid
           photos={mockPhotos.slice(0, 50)}
           isLoading={false}
-          isFetchingNextPage={true}
-          hasNextPage={true}
           onPhotoClick={onPhotoClick}
         />
       </QueryClientProvider>
@@ -316,9 +307,7 @@ describe('VirtualPhotoGrid Integration Tests', () => {
     // First photo should still be visible
     expect(screen.getByTestId('photo-item-photo_0.jpg')).toBeInTheDocument();
 
-    // Note: Loading spinner is now managed by Gallery component
-
-    // Click should still work during loading
+    // Click should still work
     fireEvent.click(screen.getByTestId('photo-item-photo_0.jpg'));
     expect(onPhotoClick).toHaveBeenCalled();
   });

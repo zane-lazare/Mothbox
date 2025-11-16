@@ -14,18 +14,16 @@ import { debounce } from '../utils/debounce';
  *
  * @param {array} photos - Array of photo objects
  * @param {boolean} isLoading - Loading state from query
- * @param {boolean} isFetchingNextPage - Fetching next page state
- * @param {boolean} hasNextPage - More pages available
  * @param {function} onPhotoClick - Click handler for photos
  * @param {string} viewMode - 'grid' or 'list'
  * @param {object} options - Additional configuration
  * @param {object} scrollRef - Ref for scroll restoration (optional)
+ *
+ * Note: Infinite scroll loading indicators are managed by parent Gallery component
  */
 const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
   photos = [],
   isLoading = false,
-  isFetchingNextPage = false,
-  hasNextPage = false,
   onPhotoClick,
   viewMode = 'grid',
   options = {},
@@ -163,8 +161,6 @@ VirtualPhotoGrid.propTypes = {
     })
   ).isRequired,
   isLoading: PropTypes.bool,
-  isFetchingNextPage: PropTypes.bool,
-  hasNextPage: PropTypes.bool,
   onPhotoClick: PropTypes.func,
   viewMode: PropTypes.oneOf(['grid', 'list']),
   options: PropTypes.shape({
