@@ -37,6 +37,10 @@
  * @property {Object} THUMBNAIL - Thumbnail sizing configuration
  *   - SIZE: Backend thumbnail size (256px for high quality, already cached)
  *   - ASPECT_RATIO: Expected ratio for Mothbox camera (9152x6944 = ~1.318:1)
+ *
+ * @property {Object} LAZY_IMAGE - Lazy image loading configuration (IntersectionObserver)
+ *   - ROOT_MARGIN: Distance before viewport to start loading (e.g., '100px')
+ *   - THRESHOLD: Percentage of image visibility to trigger load (0.0-1.0)
  */
 export const GALLERY_CONFIG = {
   PAGE_SIZE: 24,
@@ -59,6 +63,10 @@ export const GALLERY_CONFIG = {
   THUMBNAIL: {
     SIZE: 256, // Backend thumbnail size (256px high quality, already cached)
     ASPECT_RATIO: 4 / 3, // Expected aspect ratio for Mothbox camera (9152x6944 = ~1.318:1)
+  },
+  LAZY_IMAGE: {
+    ROOT_MARGIN: '100px', // Start loading images 100px before they enter viewport
+    THRESHOLD: 0.1, // Trigger when 10% of image is visible
   },
   VIRTUALIZATION: {
     ENABLED: true, // Enable virtual scrolling for large galleries

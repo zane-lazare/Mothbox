@@ -2,6 +2,7 @@ import React, { useState, memo } from 'react';
 import PropTypes from 'prop-types';
 import useInViewport from '../hooks/useInViewport';
 import { getThumbnailUrl } from '../utils/api';
+import { GALLERY_CONFIG } from '../constants/config';
 import MothIcon from './MothIcon';
 import './LazyImage.css';
 
@@ -28,10 +29,10 @@ const LazyImage = memo(function LazyImage({
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
-  // Use viewport detection hook
+  // Use viewport detection hook with config values
   const { ref, hasBeenInViewport } = useInViewport({
-    rootMargin: '100px', // Preload 100px before visible
-    threshold: 0.1       // Trigger when 10% visible
+    rootMargin: GALLERY_CONFIG.LAZY_IMAGE.ROOT_MARGIN,
+    threshold: GALLERY_CONFIG.LAZY_IMAGE.THRESHOLD
   });
 
   // Only load image once it has entered viewport
