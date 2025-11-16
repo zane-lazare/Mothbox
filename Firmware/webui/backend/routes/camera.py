@@ -1123,9 +1123,14 @@ def _execute_test_capture(settings_dict, settings_source):
             firmware_version = get_firmware_version()
 
             # Build EXIF IFDs (Image File Directories)
-            # Using Mothbox name as Make identifier (matches TakePhoto.py using "MothboxV4")
+            # 0th IFD contains main image metadata (Make, Model, Software)
+            # Metadata service reads from 0th IFD, not 1st IFD
             zeroth_ifd = {
                 piexif.ImageIFD.Make: mothbox_name.encode("utf-8") if mothbox_name else b"mothbox",
+                piexif.ImageIFD.Model: camera_model.encode("utf-8") if camera_model else b"Unknown",
+                piexif.ImageIFD.Software: f"MothboxWebUI-{firmware_version}-TestCapture-{settings_source}".encode(
+                    "utf-8"
+                ),
             }
 
             # Extract exposure time and convert to EXIF rational format
@@ -1159,13 +1164,8 @@ def _execute_test_capture(settings_dict, settings_source):
             except Exception as gps_error:
                 print(f"GPS EXIF embedding skipped: {gps_error}")
 
-            # First IFD (thumbnail) - store camera model and software version
-            first_ifd = {
-                piexif.ImageIFD.Make: camera_model.encode("utf-8") if camera_model else b"Unknown",
-                piexif.ImageIFD.Software: f"MothboxWebUI-{firmware_version}-TestCapture-{settings_source}".encode(
-                    "utf-8"
-                ),
-            }
+            # 1st IFD (thumbnail) - optional, can be empty or copy of 0th
+            first_ifd = {}
 
             # Build complete EXIF dictionary
             exif_dict = {"0th": zeroth_ifd, "Exif": exif_ifd, "GPS": gps_ifd, "1st": first_ifd}
