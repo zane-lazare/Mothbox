@@ -72,8 +72,20 @@ class ImageCache {
 
   /**
    * Clear all cached images and reset statistics
+   * Nullifies image references to help garbage collection
    */
   clear() {
+    // Help GC by nullifying src references before clearing cache
+    // This is safe here because we're clearing the entire cache
+    for (const img of this.cache.values()) {
+      if (img && img.src) {
+        img.onload = null;
+        img.onerror = null;
+        // Setting to empty string is safe when explicitly clearing
+        img.src = '';
+      }
+    }
+
     this.cache.clear();
     this.hits = 0;
     this.misses = 0;
