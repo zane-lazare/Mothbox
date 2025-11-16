@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { FixedSizeGrid } from 'react-window';
+import { Grid as FixedSizeGrid } from 'react-window';
 import useVirtualGrid from '../hooks/useVirtualGrid';
 import VirtualPhotoGridItem from './VirtualPhotoGridItem';
 import EmptyStateMessage from './EmptyStateMessage';
