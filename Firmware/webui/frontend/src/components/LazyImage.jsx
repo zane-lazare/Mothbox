@@ -97,7 +97,7 @@ LazyImage.propTypes = {
     path: PropTypes.string.isRequired,
     filename: PropTypes.string.isRequired,
   }).isRequired,
-  size: PropTypes.oneOf([64, 128, 256]).isRequired,
+  size: PropTypes.oneOf([64, 128, 256]), // Optional with default = 256
   alt: PropTypes.string,
   className: PropTypes.string,
   onClick: PropTypes.func,

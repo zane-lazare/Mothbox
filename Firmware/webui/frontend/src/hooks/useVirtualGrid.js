@@ -64,6 +64,14 @@ export default function useVirtualGrid(photoCount, options = {}) {
   const resizeObserverRef = useRef(null);
   const debouncedSetWidthRef = useRef(null);
 
+  // Memoize options to prevent unnecessary recalculations on every render
+  // Only recalculate when the actual option values change
+  const memoizedOptions = useMemo(
+    () => options,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [options.gap, options.aspectRatio, JSON.stringify(options.breakpoints)]
+  );
+
   // Create debounced width setter (memoized to avoid recreation)
   if (!debouncedSetWidthRef.current) {
     debouncedSetWidthRef.current = debounce((width) => {
@@ -114,8 +122,8 @@ export default function useVirtualGrid(photoCount, options = {}) {
       };
     }
 
-    return calculateGridDimensions(containerWidth, photoCount, options);
-  }, [containerWidth, photoCount, options]);
+    return calculateGridDimensions(containerWidth, photoCount, memoizedOptions);
+  }, [containerWidth, photoCount, memoizedOptions]);
 
   return {
     containerRef,

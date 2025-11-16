@@ -17,6 +17,30 @@ vi.mock('react-router-dom', async () => {
   }
 })
 
+// Mock useProgressiveImage hook for all Gallery tests
+// Progressive loading works with real backend API, but tests need mocked responses
+vi.mock('../../hooks/useProgressiveImage', () => ({
+  default: vi.fn((photoPath, options) => {
+    // Return thumbnail URL immediately for testing
+    // In real app, this goes through thumbnail → full image stages
+    if (!photoPath) {
+      return {
+        src: null,
+        isLoading: false,
+        error: null,
+        stage: 'idle'
+      }
+    }
+
+    return {
+      src: `/api/gallery/thumbnail/${photoPath}`,
+      isLoading: false,
+      error: null,
+      stage: 'loaded'
+    }
+  })
+}))
+
 /**
  * Creates mock photo data for testing
  * @param {number} start - Starting index for photo numbering
@@ -27,7 +51,8 @@ export const createMockPhotos = (start, count) => {
   return Array.from({ length: count }, (_, i) => ({
     path: `photo_${start + i}.jpg`,
     filename: `photo_${start + i}.jpg`,
-    date: new Date(2023, 10, start + i).toISOString(),
+    // Use Date.UTC to avoid timezone issues - creates November dates (month 10) in UTC
+    date: new Date(Date.UTC(2023, 10, start + i)).toISOString(),
     size: 1024 * 1024 * (start + i),
   }))
 }

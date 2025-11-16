@@ -1,4 +1,3 @@
-import { getThumbnailUrl } from '../utils/api'
 import { formatDate, formatSize } from '../utils/helpers'
 import ProgressiveImage from './ProgressiveImage'
 
@@ -7,6 +6,7 @@ import ProgressiveImage from './ProgressiveImage'
  *
  * List view photo card with horizontal layout showing thumbnail + metadata.
  * Used in gallery list view to display photos with more detail than grid view.
+ * Features progressive loading with blur-up effect for smooth UX.
  *
  * @param {Object} props - Component props
  * @param {Object} props.photo - Photo data object
@@ -24,12 +24,14 @@ export default function PhotoListItem({ photo, onClick }) {
       aria-label={`View photo: ${photo.filename}, taken on ${formatDate(photo.date)}`}
       className="flex gap-4 p-4 bg-white rounded-lg shadow hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-blue-500 text-left w-full"
     >
-      {/* Thumbnail */}
+      {/* Thumbnail with progressive loading */}
       <ProgressiveImage
-        src={getThumbnailUrl(photo.path)}
+        photoPath={photo.path}
         alt={photo.filename}
         className="w-48 h-32 object-cover rounded flex-shrink-0"
         iconSize={80}
+        thumbnailSize={64}
+        fullSize={192}
       />
 
       {/* Metadata */}

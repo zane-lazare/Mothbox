@@ -1,4 +1,3 @@
-import { getThumbnailUrl } from '../utils/api'
 import { GALLERY_CONFIG } from '../constants/config'
 import ProgressiveImage from './ProgressiveImage'
 
@@ -7,6 +6,7 @@ import ProgressiveImage from './ProgressiveImage'
  *
  * Grid view photo card with thumbnail and hover overlay.
  * Used in gallery grid view for compact photo display.
+ * Features progressive loading with blur-up effect for smooth UX.
  *
  * @param {Object} props - Component props
  * @param {Object} props.photo - Photo data object
@@ -24,9 +24,11 @@ export default function PhotoGridItem({ photo, onClick }) {
       aria-label={`View photo: ${photo.filename}, taken on ${new Date(photo.date).toLocaleString()}`}
     >
       <ProgressiveImage
-        src={getThumbnailUrl(photo.path)}
+        photoPath={photo.path}
         alt={photo.filename}
         className={`w-full ${GALLERY_CONFIG.LAYOUT.PHOTO_HEIGHT} object-cover rounded-lg shadow hover:shadow-lg transition-shadow`}
+        thumbnailSize={GALLERY_CONFIG.THUMBNAIL.SIZE}
+        fullSize={256}
       />
       <div className="absolute inset-0 bg-transparent group-hover:bg-black/30 group-focus:bg-black/30 transition-all rounded-lg flex items-center justify-center pointer-events-none">
         <span className="text-white opacity-0 group-hover:opacity-100 group-focus:opacity-100 text-sm">

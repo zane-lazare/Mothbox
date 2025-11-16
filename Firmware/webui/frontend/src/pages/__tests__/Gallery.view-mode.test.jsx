@@ -15,6 +15,27 @@ vi.mock('../../utils/api', () => ({
   setPreference: vi.fn(),
 }))
 
+// Mock useProgressiveImage hook
+vi.mock('../../hooks/useProgressiveImage', () => ({
+  default: vi.fn((photoPath) => {
+    if (!photoPath) {
+      return {
+        src: null,
+        isLoading: false,
+        error: null,
+        stage: 'idle'
+      }
+    }
+
+    return {
+      src: `http://localhost:3000/api/gallery/thumbnail/${photoPath}?size=256`,
+      isLoading: false,
+      error: null,
+      stage: 'loaded'
+    }
+  })
+}))
+
 /**
  * Test suite for Gallery view mode integration
  *

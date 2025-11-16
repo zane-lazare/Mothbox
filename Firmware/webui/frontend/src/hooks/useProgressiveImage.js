@@ -63,8 +63,8 @@ export default function useProgressiveImage(photoPath, options = {}) {
       const cleanup = () => {
         img.onload = null;
         img.onerror = null;
-        // Setting src to empty string helps garbage collection
-        img.src = '';
+        // Note: Don't set img.src = '' as it can trigger unwanted network requests
+        // Nulling event handlers is sufficient for garbage collection
       };
 
       img.onload = () => {

@@ -68,6 +68,7 @@ const formatFileSize = (bytes) => {
 
 /**
  * Format date string to YYYY-MM-DD
+ * Preserves the calendar date regardless of timezone by using UTC methods
  * @param {string} dateString - ISO date string
  * @returns {string} Formatted date or 'Invalid Date' if parsing fails
  */
@@ -79,7 +80,11 @@ const formatDate = (dateString) => {
       console.warn('[PhotoLightbox] Invalid timestamp:', dateString)
       return 'Invalid Date'
     }
-    return date.toISOString().split('T')[0]
+    // Use UTC methods to avoid timezone conversion issues
+    const year = date.getUTCFullYear()
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(date.getUTCDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
   } catch (error) {
     console.warn('[PhotoLightbox] Date parsing error:', dateString, error)
     return 'Invalid Date'
