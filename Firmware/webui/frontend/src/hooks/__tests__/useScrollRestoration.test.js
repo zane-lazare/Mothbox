@@ -82,7 +82,7 @@ describe('useScrollRestoration', () => {
       });
 
       expect(mockSessionStorage.setItem).toHaveBeenCalledWith(
-        'gallery-scroll-position',
+        'gallery-scroll-position-test',
         expect.stringContaining('"scrollTop":1500')
       );
     });
@@ -99,7 +99,7 @@ describe('useScrollRestoration', () => {
       });
       const afterTime = Date.now();
 
-      const savedData = JSON.parse(mockSessionStorage.data['gallery-scroll-position']);
+      const savedData = JSON.parse(mockSessionStorage.data['gallery-scroll-position-test']);
       expect(savedData.timestamp).toBeGreaterThanOrEqual(beforeTime);
       expect(savedData.timestamp).toBeLessThanOrEqual(afterTime);
     });
@@ -114,7 +114,7 @@ describe('useScrollRestoration', () => {
         result.current.saveScrollPosition();
       });
 
-      const savedData = JSON.parse(mockSessionStorage.data['gallery-scroll-position']);
+      const savedData = JSON.parse(mockSessionStorage.data['gallery-scroll-position-gallery-page']);
       expect(savedData.key).toBe('gallery-page');
     });
 
@@ -133,7 +133,7 @@ describe('useScrollRestoration', () => {
     });
 
     it('overwrites previous saved position', () => {
-      const { result } = renderHook(() => useScrollRestoration('test'));
+      const { result } = renderHook(() => useScrollRestoration());
 
       const mockElement = { scrollTop: 100 };
       result.current.scrollRef.current = mockElement;
@@ -148,7 +148,7 @@ describe('useScrollRestoration', () => {
         result.current.saveScrollPosition();
       });
 
-      const savedData = JSON.parse(mockSessionStorage.data['gallery-scroll-position']);
+      const savedData = JSON.parse(mockSessionStorage.data['gallery-scroll-position-default']);
       expect(savedData.scrollTop).toBe(500);
     });
   });
@@ -163,7 +163,7 @@ describe('useScrollRestoration', () => {
         timestamp: Date.now(),
         key: 'test'
       };
-      mockSessionStorage.data['gallery-scroll-position'] = JSON.stringify(savedPosition);
+      mockSessionStorage.data['gallery-scroll-position-test'] = JSON.stringify(savedPosition);
 
       const { result } = renderHook(() => useScrollRestoration('test'));
 
@@ -203,16 +203,16 @@ describe('useScrollRestoration', () => {
       vi.useRealTimers();
     });
 
-    it('does not restore if saved position is stale (>30s)', () => {
+    it('does not restore if saved position is stale (>5min)', () => {
       vi.useFakeTimers();
 
-      // Save position from 35 seconds ago (exceeds TTL)
+      // Save position from 6 minutes ago (exceeds 5min TTL)
       const stalePosition = {
         scrollTop: 500,
-        timestamp: Date.now() - 35000,
+        timestamp: Date.now() - 360000, // 6 minutes
         key: 'test'
       };
-      mockSessionStorage.data['gallery-scroll-position'] = JSON.stringify(stalePosition);
+      mockSessionStorage.data['gallery-scroll-position-test'] = JSON.stringify(stalePosition);
 
       const { result } = renderHook(() => useScrollRestoration('test'));
 
@@ -224,7 +224,7 @@ describe('useScrollRestoration', () => {
       });
 
       expect(mockScrollTo).not.toHaveBeenCalled();
-      expect(mockSessionStorage.removeItem).toHaveBeenCalledWith('gallery-scroll-position');
+      expect(mockSessionStorage.removeItem).toHaveBeenCalledWith('gallery-scroll-position-test');
 
       vi.useRealTimers();
     });
@@ -237,7 +237,7 @@ describe('useScrollRestoration', () => {
         timestamp: Date.now(),
         key: 'different-key'
       };
-      mockSessionStorage.data['gallery-scroll-position'] = JSON.stringify(savedPosition);
+      mockSessionStorage.data['gallery-scroll-position-test-key'] = JSON.stringify(savedPosition);
 
       const { result } = renderHook(() => useScrollRestoration('test-key'));
 
@@ -254,7 +254,7 @@ describe('useScrollRestoration', () => {
     });
 
     it('handles corrupted sessionStorage data gracefully', () => {
-      mockSessionStorage.data['gallery-scroll-position'] = 'invalid-json';
+      mockSessionStorage.data['gallery-scroll-position-test'] = 'invalid-json';
 
       expect(() => {
         renderHook(() => useScrollRestoration('test'));
@@ -310,18 +310,18 @@ describe('useScrollRestoration', () => {
   });
 
   describe('TTL and Cleanup', () => {
-    it('respects 30 second TTL', () => {
+    it('respects 5 minute TTL', () => {
       vi.useFakeTimers();
 
       const now = Date.now();
 
-      // Position saved 29 seconds ago (within TTL)
+      // Position saved 4 minutes ago (within 5min TTL)
       const recentPosition = {
         scrollTop: 400,
-        timestamp: now - 29000,
+        timestamp: now - 240000, // 4 minutes
         key: 'test'
       };
-      mockSessionStorage.data['gallery-scroll-position'] = JSON.stringify(recentPosition);
+      mockSessionStorage.data['gallery-scroll-position-test'] = JSON.stringify(recentPosition);
 
       const { result } = renderHook(() => useScrollRestoration('test'));
 
@@ -342,10 +342,10 @@ describe('useScrollRestoration', () => {
 
       const stalePosition = {
         scrollTop: 100,
-        timestamp: Date.now() - 40000, // 40 seconds ago
+        timestamp: Date.now() - 360000, // 6 minutes ago (exceeds 5min TTL)
         key: 'test'
       };
-      mockSessionStorage.data['gallery-scroll-position'] = JSON.stringify(stalePosition);
+      mockSessionStorage.data['gallery-scroll-position-test'] = JSON.stringify(stalePosition);
 
       renderHook(() => useScrollRestoration('test'));
 
@@ -353,7 +353,7 @@ describe('useScrollRestoration', () => {
         vi.advanceTimersByTime(100);
       });
 
-      expect(mockSessionStorage.removeItem).toHaveBeenCalledWith('gallery-scroll-position');
+      expect(mockSessionStorage.removeItem).toHaveBeenCalledWith('gallery-scroll-position-test');
 
       vi.useRealTimers();
     });
@@ -373,7 +373,7 @@ describe('useScrollRestoration', () => {
     });
 
     it('handles rapid save calls', () => {
-      const { result } = renderHook(() => useScrollRestoration('test'));
+      const { result } = renderHook(() => useScrollRestoration());
 
       const mockElement = { scrollTop: 100 };
       result.current.scrollRef.current = mockElement;
@@ -386,12 +386,12 @@ describe('useScrollRestoration', () => {
         result.current.saveScrollPosition();
       });
 
-      const savedData = JSON.parse(mockSessionStorage.data['gallery-scroll-position']);
+      const savedData = JSON.parse(mockSessionStorage.data['gallery-scroll-position-default']);
       expect(savedData.scrollTop).toBe(300);
     });
 
     it('handles ref changes after mount', () => {
-      const { result } = renderHook(() => useScrollRestoration('test'));
+      const { result } = renderHook(() => useScrollRestoration());
 
       const mockElement1 = { scrollTop: 100 };
       result.current.scrollRef.current = mockElement1;
@@ -407,12 +407,12 @@ describe('useScrollRestoration', () => {
         result.current.saveScrollPosition();
       });
 
-      const savedData = JSON.parse(mockSessionStorage.data['gallery-scroll-position']);
+      const savedData = JSON.parse(mockSessionStorage.data['gallery-scroll-position-default']);
       expect(savedData.scrollTop).toBe(500);
     });
 
     it('works with zero scroll position', () => {
-      const { result } = renderHook(() => useScrollRestoration('test'));
+      const { result } = renderHook(() => useScrollRestoration());
 
       const mockElement = { scrollTop: 0 };
       result.current.scrollRef.current = mockElement;
@@ -421,7 +421,7 @@ describe('useScrollRestoration', () => {
         result.current.saveScrollPosition();
       });
 
-      const savedData = JSON.parse(mockSessionStorage.data['gallery-scroll-position']);
+      const savedData = JSON.parse(mockSessionStorage.data['gallery-scroll-position-default']);
       expect(savedData.scrollTop).toBe(0);
     });
   });
@@ -441,7 +441,7 @@ describe('useScrollRestoration', () => {
         result1.current.saveScrollPosition();
       });
 
-      const savedData = JSON.parse(mockSessionStorage.data['gallery-scroll-position']);
+      const savedData = JSON.parse(mockSessionStorage.data['gallery-scroll-position-page1']);
       expect(savedData.scrollTop).toBe(100);
       expect(savedData.key).toBe('page1');
     });

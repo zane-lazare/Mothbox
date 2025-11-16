@@ -306,11 +306,11 @@ describe('LazyImage', () => {
       expect(img).toBeTruthy();
     });
 
-    it('supports loading="lazy" attribute', () => {
+    it('uses loading="eager" since IntersectionObserver handles lazy loading', () => {
       render(<LazyImage photo={mockPhoto} size={256} />);
 
       const img = document.querySelector('img');
-      expect(img.getAttribute('loading')).toBe('lazy');
+      expect(img.getAttribute('loading')).toBe('eager');
     });
   });
 
