@@ -55,21 +55,32 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
 }) {
   // Calculate responsive viewport height
   const [viewportHeight, setViewportHeight] = useState(() => {
-    // Default: 80vh or 600px minimum for good UX
+    // Default: configured ratio of window height or minimum for good UX
     return typeof window !== 'undefined'
-      ? Math.max(window.innerHeight * 0.8, 600)
-      : 600;
+      ? Math.max(
+          window.innerHeight * GALLERY_CONFIG.VIRTUALIZATION.VIEWPORT_HEIGHT_RATIO,
+          GALLERY_CONFIG.VIRTUALIZATION.MIN_VIEWPORT_HEIGHT
+        )
+      : GALLERY_CONFIG.VIRTUALIZATION.MIN_VIEWPORT_HEIGHT;
   });
 
   // Stable callback for height calculation
   const updateViewportHeight = useCallback(() => {
-    setViewportHeight(Math.max(window.innerHeight * 0.8, 600));
+    setViewportHeight(
+      Math.max(
+        window.innerHeight * GALLERY_CONFIG.VIRTUALIZATION.VIEWPORT_HEIGHT_RATIO,
+        GALLERY_CONFIG.VIRTUALIZATION.MIN_VIEWPORT_HEIGHT
+      )
+    );
   }, []);
 
   // Update viewport height on window resize with debouncing
   useEffect(() => {
     // Debounce resize handler to prevent excessive re-renders
-    const debouncedResize = debounce(updateViewportHeight, 150);
+    const debouncedResize = debounce(
+      updateViewportHeight,
+      GALLERY_CONFIG.VIRTUALIZATION.RESIZE_DEBOUNCE_MS
+    );
 
     window.addEventListener('resize', debouncedResize);
     return () => {

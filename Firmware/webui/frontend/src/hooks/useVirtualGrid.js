@@ -9,6 +9,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { calculateGridDimensions } from '../utils/gridCalculations';
+import { GALLERY_CONFIG } from '../constants/config';
 
 /**
  * Simple debounce utility for ResizeObserver callbacks
@@ -73,7 +74,7 @@ export default function useVirtualGrid(photoCount, options = {}) {
   if (!debouncedSetWidthRef.current) {
     debouncedSetWidthRef.current = debounce((width) => {
       setContainerWidth(width);
-    }, 150); // 150ms debounce - balance between responsiveness and performance
+    }, GALLERY_CONFIG.VIRTUALIZATION.RESIZE_DEBOUNCE_MS); // Balance between responsiveness and performance
   }
 
   // Callback ref that sets up ResizeObserver when element is attached

@@ -69,6 +69,9 @@ export const GALLERY_CONFIG = {
     SCROLL_THROTTLE_MS: 16, // ~60fps scroll handling
     MAX_CACHED_IMAGES: 100, // LRU cache size for image preloading (Step 6)
     PRELOAD_DISTANCE: 3, // Rows to preload ahead/behind (Step 6)
+    VIEWPORT_HEIGHT_RATIO: 0.8, // Viewport height as ratio of window height (80%)
+    MIN_VIEWPORT_HEIGHT: 600, // Minimum viewport height in pixels (600px)
+    RESIZE_DEBOUNCE_MS: 150, // Debounce delay for resize events (balances responsiveness vs performance)
   },
 }
 
