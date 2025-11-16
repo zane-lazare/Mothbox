@@ -69,7 +69,7 @@ export const GALLERY_CONFIG = {
     THRESHOLD: 0.1, // Trigger when 10% of image is visible
   },
   VIRTUALIZATION: {
-    ENABLED: true, // Enable virtual scrolling for large galleries
+    ENABLED: false, // Disabled due to react-window 2.2.3 bug with React 18 StrictMode
     MIN_PHOTOS_FOR_VIRTUALIZATION: 100, // Minimum photo count to activate virtualization
     OVERSCAN_ROW_COUNT: 2, // Rows to render above/below viewport for smooth scrolling
     ITEM_SIZE: 272, // Photo height (256px) + gap (16px)
