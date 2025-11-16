@@ -25,6 +25,7 @@ export default function useScrollRestoration(key = 'default') {
 
   /**
    * Save current scroll position to sessionStorage
+   * Handles QuotaExceededError gracefully (privacy mode, storage full)
    */
   const saveScrollPosition = useCallback(() => {
     if (!scrollRef.current) return;
@@ -35,7 +36,20 @@ export default function useScrollRestoration(key = 'default') {
       key
     };
 
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(position));
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(position));
+    } catch (e) {
+      // QuotaExceededError occurs in:
+      // - Private browsing mode (Safari, Firefox)
+      // - When sessionStorage quota is full
+      // Gracefully degrade: scroll restoration disabled, but app continues working
+      if (e.name === 'QuotaExceededError') {
+        console.warn('SessionStorage quota exceeded, scroll position not saved');
+      } else {
+        // Log unexpected errors for debugging
+        console.error('Failed to save scroll position:', e);
+      }
+    }
   }, [key]);
 
   /**
@@ -62,12 +76,14 @@ export default function useScrollRestoration(key = 'default') {
    * - Position exists
    * - Not expired (within TTL)
    * - Key matches
+   *
+   * Gracefully handles storage access errors (privacy mode)
    */
   const restoreScrollPosition = useCallback(() => {
-    const saved = sessionStorage.getItem(STORAGE_KEY);
-    if (!saved) return;
-
     try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (!saved) return;
+
       const position = JSON.parse(saved);
 
       // Check TTL and key match
@@ -76,7 +92,11 @@ export default function useScrollRestoration(key = 'default') {
 
       if (isExpired || !keyMatches) {
         // Clear stale or mismatched position
-        sessionStorage.removeItem(STORAGE_KEY);
+        try {
+          sessionStorage.removeItem(STORAGE_KEY);
+        } catch (e) {
+          // Ignore errors when clearing (privacy mode)
+        }
         return;
       }
 
@@ -86,7 +106,11 @@ export default function useScrollRestoration(key = 'default') {
         scrollTo(position.scrollTop);
       });
     } catch (err) {
-      console.error('Failed to restore scroll position:', err);
+      // Gracefully handle:
+      // - SecurityError: sessionStorage access blocked (privacy mode)
+      // - JSON parse errors: corrupted data
+      // - Other storage access errors
+      console.warn('Failed to restore scroll position:', err.message);
     }
   }, [key, scrollTo]);
 

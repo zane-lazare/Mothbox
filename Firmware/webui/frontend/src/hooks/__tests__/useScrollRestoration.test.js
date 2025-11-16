@@ -23,8 +23,9 @@ describe('useScrollRestoration', () => {
 
     global.sessionStorage = mockSessionStorage;
 
-    // Mock console.error to suppress expected error logs in tests
+    // Mock console methods to suppress expected logs in tests
     vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -259,7 +260,7 @@ describe('useScrollRestoration', () => {
         renderHook(() => useScrollRestoration('test'));
       }).not.toThrow();
 
-      expect(console.error).toHaveBeenCalled();
+      expect(console.warn).toHaveBeenCalled();
     });
   });
 
@@ -363,9 +364,10 @@ describe('useScrollRestoration', () => {
       const originalSessionStorage = global.sessionStorage;
       global.sessionStorage = undefined;
 
+      // Should not throw - gracefully degrades when sessionStorage is unavailable
       expect(() => {
         renderHook(() => useScrollRestoration());
-      }).toThrow(); // sessionStorage is required
+      }).not.toThrow();
 
       global.sessionStorage = originalSessionStorage;
     });
