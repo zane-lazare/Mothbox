@@ -1172,6 +1172,65 @@ if [ "$CONFIG_CHANGED" -gt 0 ]; then
     echo ""
 fi
 
+# Migration: Split camera_settings.csv into firmware vs webui settings
+# (Added for commit 3a3e6953 - refactor: Split camera settings)
+if [ ! -f "$CONFIG_DIR/webui_settings.csv" ] && [ -f "$CONFIG_DIR/camera_settings.csv" ]; then
+    echo -e "${BLUE}Migrating camera settings to new format...${NC}"
+    echo "Creating webui_settings.csv for webui-specific workflow settings"
+
+    # Define webui-only settings that should be moved
+    WEBUI_SETTINGS=(
+        "HDR"
+        "HDR_width"
+        "FocusBracket"
+        "FocusBracket_Start"
+        "FocusBracket_End"
+        "FlashDelay_BeforeCapture"
+        "FlashDelay_AfterCapture"
+        "FocusBracket_SettleDelay"
+        "FocusBracket_LockColorGains"
+        "FocusBracket_ColorGainRed"
+        "FocusBracket_ColorGainBlue"
+        "AutoCalibration"
+        "AutoCalibrationPeriod"
+        "ImageFileType"
+        "VerticalFlip"
+        "Name"
+    )
+
+    # Create webui_settings.csv with header
+    echo "SETTING,VALUE,DETAILS" | sudo tee "$CONFIG_DIR/webui_settings.csv" > /dev/null
+
+    # Extract webui settings from camera_settings.csv
+    for setting in "${WEBUI_SETTINGS[@]}"; do
+        # Use grep with fixed string (-F) to avoid regex issues
+        line=$(grep -F "^$setting," "$CONFIG_DIR/camera_settings.csv" 2>/dev/null || true)
+        if [ -n "$line" ]; then
+            echo "$line" | sudo tee -a "$CONFIG_DIR/webui_settings.csv" > /dev/null
+            echo "  Moved: $setting"
+        fi
+    done
+
+    # Create backup of original camera_settings.csv
+    sudo cp "$CONFIG_DIR/camera_settings.csv" "$CONFIG_DIR/camera_settings.csv.pre-split-backup"
+    echo "  Created backup: camera_settings.csv.pre-split-backup"
+
+    # Remove webui settings from camera_settings.csv
+    TEMP_FILE=$(mktemp)
+    grep -vE "^($(IFS='|'; echo "${WEBUI_SETTINGS[*]}"))," "$CONFIG_DIR/camera_settings.csv" > "$TEMP_FILE"
+    sudo mv "$TEMP_FILE" "$CONFIG_DIR/camera_settings.csv"
+
+    # Set proper ownership
+    sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$CONFIG_DIR/webui_settings.csv"
+    sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$CONFIG_DIR/camera_settings.csv"
+    sudo chown $MOTHBOX_USER:$MOTHBOX_USER "$CONFIG_DIR/camera_settings.csv.pre-split-backup"
+
+    echo -e "${GREEN}✓ Settings migration complete${NC}"
+    echo "  camera_settings.csv now contains only firmware camera controls"
+    echo "  webui_settings.csv contains webui workflow settings (HDR, FocusBracket, etc.)"
+    echo ""
+fi
+
 # Restart services if Web UI was updated or service file changed
 if [ "$WEBUI_BACKEND_CHANGED" -gt 0 ] || [ "$WEBUI_FRONTEND_CHANGED" -gt 0 ] || [ "$SERVICE_CHANGED" -gt 0 ]; then
     if systemctl is-active --quiet mothbox-webui.service 2>/dev/null; then
