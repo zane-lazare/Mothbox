@@ -1079,12 +1079,105 @@ def _execute_test_capture(settings_dict, settings_source):
             filename = f"test_capture_{timestamp}.jpg"
             filepath = test_dir / filename
 
-            # Capture photo
+            # Capture photo with rich EXIF metadata
             print(f"Capturing test photo to: {filepath}")
-            picam2.capture_file(str(filepath))
 
-            # Get metadata for reference
+            # Capture array and metadata (instead of capture_file to allow custom EXIF)
+            array = picam2.capture_array("main")
             md = picam2.capture_metadata()
+
+            # Build rich EXIF metadata (matching TakePhoto.py pattern)
+            import numpy as np
+            import piexif
+            from PIL import Image
+
+            from mothbox_paths import CONTROLS_FILE, get_firmware_version
+
+            # Read configuration from controls.txt
+            mothbox_name = "mothbox"  # default
+            try:
+                if CONTROLS_FILE.exists():
+                    with open(CONTROLS_FILE) as f:
+                        for line in f:
+                            if line.startswith("name="):
+                                mothbox_name = line.split("=", 1)[1].strip()
+                                break
+            except Exception as e:
+                print(f"Warning: Could not read mothbox name from controls.txt: {e}")
+
+            # Detect camera model from Picamera2 metadata
+            camera_model = "Unknown"
+            try:
+                # Get camera model from sensor name in metadata
+                sensor_name = md.get("SensorName", "")
+                if sensor_name:
+                    camera_model = sensor_name
+                elif "ov64a40" in str(picam2.camera_properties.get("Model", "")).lower():
+                    camera_model = "Arducam 64MP (ov64a40)"
+                else:
+                    camera_model = str(picam2.camera_properties.get("Model", "Unknown"))
+            except Exception as e:
+                print(f"Warning: Could not detect camera model: {e}")
+
+            # Get firmware version
+            firmware_version = get_firmware_version()
+
+            # Build EXIF IFDs (Image File Directories)
+            # Using Mothbox name as Make identifier (matches TakePhoto.py using "MothboxV4")
+            zeroth_ifd = {
+                piexif.ImageIFD.Make: mothbox_name.encode("utf-8") if mothbox_name else b"mothbox",
+            }
+
+            # Extract exposure time and convert to EXIF rational format
+            exposure_time_us = md.get("ExposureTime", 1000)  # microseconds
+            exposure_time_s = exposure_time_us / 1000000.0  # convert to seconds
+            if exposure_time_s > 0:
+                # Store as (numerator, denominator) rational
+                exif_exposure = (1, int(1 / exposure_time_s))
+            else:
+                exif_exposure = (1, 1000)
+
+            exif_ifd = {
+                piexif.ExifIFD.ExposureTime: exif_exposure,
+                piexif.ExifIFD.FocalLength: (
+                    int(md.get("LensPosition", 0.0) * 100),
+                    10,
+                ),  # Store with extra precision (matches TakePhoto.py)
+                piexif.ExifIFD.ISOSpeed: int(md.get("AnalogueGain", 1.0) * 100),
+                piexif.ExifIFD.ISOSpeedRatings: int(md.get("AnalogueGain", 1.0) * 100),
+            }
+
+            # GPS IFD - check if GPS data exists in controls.txt
+            gps_ifd = {}
+            try:
+                from lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
+
+                gps_data = get_gps_data_from_controls()
+                if gps_data:
+                    gps_ifd = build_gps_ifd(gps_data)
+                    print("Embedded GPS EXIF from controls.txt")
+            except Exception as gps_error:
+                print(f"GPS EXIF embedding skipped: {gps_error}")
+
+            # First IFD (thumbnail) - store camera model and software version
+            first_ifd = {
+                piexif.ImageIFD.Make: camera_model.encode("utf-8") if camera_model else b"Unknown",
+                piexif.ImageIFD.Software: f"MothboxWebUI-{firmware_version}-TestCapture-{settings_source}".encode(
+                    "utf-8"
+                ),
+            }
+
+            # Build complete EXIF dictionary
+            exif_dict = {"0th": zeroth_ifd, "Exif": exif_ifd, "GPS": gps_ifd, "1st": first_ifd}
+            exif_bytes = piexif.dump(exif_dict)
+
+            # Convert BGR888 to RGB for PIL (camera captures in BGR order)
+            rgb_array = np.ascontiguousarray(array[:, :, ::-1])  # BGR to RGB
+
+            # Save with EXIF
+            pil_image = Image.fromarray(rgb_array, mode="RGB")
+            pil_image.save(str(filepath), exif=exif_bytes, quality=95)
+            print(f"Saved test capture with rich EXIF metadata to {filepath}")
 
             # Stop camera
             picam2.stop()
