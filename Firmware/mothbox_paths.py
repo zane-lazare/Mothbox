@@ -120,7 +120,8 @@ CACHE_DIR = DATA_DIR / "cache"
 THUMBNAIL_CACHE_DIR = CACHE_DIR / "thumbnails"
 
 # Configuration files
-CAMERA_SETTINGS_FILE = CONFIG_DIR / "camera_settings.csv"  # Photo capture settings
+CAMERA_SETTINGS_FILE = CONFIG_DIR / "camera_settings.csv"  # Photo capture settings (firmware controls only)
+WEBUI_WORKFLOW_SETTINGS_FILE = CONFIG_DIR / "webui_settings.csv"  # WebUI workflow settings (HDR, FocusBracket, etc.)
 SCHEDULE_SETTINGS_FILE = CONFIG_DIR / "schedule_settings.csv"
 CONTROLS_FILE = CONFIG_DIR / "controls.txt"
 WORDLIST_FILE = CONFIG_DIR / "wordlist.csv"
