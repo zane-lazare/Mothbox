@@ -303,6 +303,107 @@ ALLOWED_LIVEVIEW_SETTINGS: dict[str, Callable[[Any], bool]] = {
 
 
 # ============================================================================
+# File Management Utilities
+# ============================================================================
+
+
+def create_backup(file_path: Path, keep: int = 5) -> Path | None:
+    """
+    Create a timestamped backup of a configuration file
+
+    Creates backup with format: filename.ext.backup.YYYYMMDD_HHMMSS
+    Automatically cleans up old backups beyond the keep limit.
+
+    Args:
+        file_path: Path to the file to backup
+        keep: Number of backups to retain (default: 5)
+
+    Returns:
+        Path to the backup file, or None if backup failed
+
+    Examples:
+        >>> backup = create_backup(Path("/config/settings.csv"))
+        >>> # Creates: /config/settings.csv.backup.20250129_143052
+
+        >>> backup = create_backup(Path("/config/controls.txt"), keep=3)
+        >>> # Creates backup and keeps only 3 most recent backups
+    """
+    if not file_path.exists():
+        return None
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = file_path.with_suffix(f"{file_path.suffix}.backup.{timestamp}")
+
+    try:
+        shutil.copy2(file_path, backup_path)
+
+        # Cleanup old backups - keep only the most recent 'keep' backups
+        backup_pattern = f"{file_path.name}.backup.*"
+        backups = sorted(
+            file_path.parent.glob(backup_pattern), key=lambda p: p.stat().st_mtime, reverse=True
+        )
+
+        # Remove old backups beyond the keep limit
+        for old_backup in backups[keep:]:
+            try:
+                old_backup.unlink()
+            except Exception as e:
+                print(f"Warning: Could not delete old backup {old_backup}: {e}")
+
+        return backup_path
+    except Exception as e:
+        print(f"Warning: Failed to create backup of {file_path}: {e}")
+        return None
+
+
+def validate_path_within_directory(path: Path, base_dir: Path) -> Path:
+    """
+    Validate that a path is within a base directory (path traversal protection)
+
+    Uses resolve() and relative_to() to ensure the resolved path
+    is actually within the base directory, preventing path traversal attacks
+    like "../../../etc/passwd".
+
+    Args:
+        path: Path to validate (can be relative or contain .. components)
+        base_dir: Base directory that path must be within
+
+    Returns:
+        Path: Resolved absolute path (guaranteed to be within base_dir)
+
+    Raises:
+        ValueError: If path is outside base_dir (path traversal detected)
+        RuntimeError: If resolve() fails (e.g., symlink loop, permission denied)
+
+    Examples:
+        >>> # Valid path within directory
+        >>> validate_path_within_directory(
+        ...     Path("photos/2025/image.jpg"), Path("/home/mothbox/photos")
+        ... )
+        Path('/home/mothbox/photos/2025/image.jpg')
+
+        >>> # Path traversal attempt - raises ValueError
+        >>> validate_path_within_directory(
+        ...     Path("../../../etc/passwd"), Path("/home/mothbox/photos")
+        ... )
+        ValueError: Path is outside base directory
+
+    Security:
+        - Resolves all symlinks and .. components
+        - Checks that final absolute path is within base_dir
+        - Prevents directory traversal attacks
+        - Safe for user-provided input
+    """
+    full_path = (base_dir / path).resolve()
+    base_dir_resolved = base_dir.resolve()
+
+    # Ensure path is within base_dir (raises ValueError if not)
+    full_path.relative_to(base_dir_resolved)
+
+    return full_path
+
+
+# ============================================================================
 # Disk Space Management
 # ============================================================================
 

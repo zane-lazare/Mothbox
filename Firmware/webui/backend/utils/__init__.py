@@ -28,9 +28,12 @@ spec.loader.exec_module(_backend_utils)
 # Re-export all public items from utils.py
 sanitize_csv_value = _backend_utils.sanitize_csv_value
 ALLOWED_CAMERA_SETTINGS = _backend_utils.ALLOWED_CAMERA_SETTINGS
+ALLOWED_WEBUI_SETTINGS = _backend_utils.ALLOWED_WEBUI_SETTINGS
 ALLOWED_LIVEVIEW_SETTINGS = _backend_utils.ALLOWED_LIVEVIEW_SETTINGS
 create_backup = _backend_utils.create_backup
 validate_path_within_directory = _backend_utils.validate_path_within_directory
+check_disk_space = _backend_utils.check_disk_space
+get_last_calibration_time = _backend_utils.get_last_calibration_time
 
 # Re-export private validation functions (used by tests)
 _validate_int_enum = _backend_utils._validate_int_enum
@@ -60,9 +63,12 @@ __all__ = [
     # From parent utils.py
     "sanitize_csv_value",
     "ALLOWED_CAMERA_SETTINGS",
+    "ALLOWED_WEBUI_SETTINGS",
     "ALLOWED_LIVEVIEW_SETTINGS",
     "create_backup",
     "validate_path_within_directory",
+    "check_disk_space",
+    "get_last_calibration_time",
     # From this package
     "decimal_to_dms",
     "dms_to_decimal",
