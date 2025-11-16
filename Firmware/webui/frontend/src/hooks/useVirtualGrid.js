@@ -52,12 +52,16 @@ export default function useVirtualGrid(photoCount, options = {}) {
   // Note: breakpoints is still an object reference, so callers should memoize it if it changes
   const { gap, aspectRatio, breakpoints } = options;
 
-  // Create debounced width setter (memoized to avoid recreation)
-  if (!debouncedSetWidthRef.current) {
+  // Create debounced width setter once and clean up on unmount
+  useEffect(() => {
     debouncedSetWidthRef.current = debounce((width) => {
       setContainerWidth(width);
     }, GALLERY_CONFIG.VIRTUALIZATION.RESIZE_DEBOUNCE_MS); // Balance between responsiveness and performance
-  }
+
+    return () => {
+      debouncedSetWidthRef.current?.cancel();
+    };
+  }, []); // Only create once
 
   // Callback ref that sets up ResizeObserver when element is attached
   const containerRef = useCallback((node) => {

@@ -5,6 +5,7 @@
  * Features:
  * - Fixed maximum size (100 images by default)
  * - Automatic eviction of least recently used items
+ * - Time-based expiration (5 minutes default)
  * - Hit/miss statistics tracking
  * - Works with any key type (string, number, object)
  *
@@ -16,9 +17,11 @@
 class ImageCache {
   /**
    * @param {number} maxSize - Maximum number of images to cache (default: 100)
+   * @param {number} ttlMs - Time to live for cached items in milliseconds (default: 5 minutes)
    */
-  constructor(maxSize = 100) {
+  constructor(maxSize = 100, ttlMs = 5 * 60 * 1000) {
     this.maxSize = maxSize;
+    this.ttlMs = ttlMs;
     this.cache = new Map();
     this.hits = 0;
     this.misses = 0;
@@ -26,20 +29,29 @@ class ImageCache {
 
   /**
    * Get image from cache
-   * Updates LRU position on hit
+   * Updates LRU position on hit and checks expiration
    *
    * @param {any} key - Cache key
-   * @returns {Image|null} Cached image or null if not found
+   * @returns {Image|null} Cached image or null if not found/expired
    */
   get(key) {
     if (this.cache.has(key)) {
-      // Move to end (most recently used)
-      const value = this.cache.get(key);
+      const entry = this.cache.get(key);
+
+      // Check if expired
+      if (Date.now() - entry.timestamp > this.ttlMs) {
+        this.cache.delete(key);
+        this.misses++;
+        return null;
+      }
+
+      // Move to end (most recently used) - update timestamp on access
       this.cache.delete(key);
-      this.cache.set(key, value);
+      entry.timestamp = Date.now();
+      this.cache.set(key, entry);
 
       this.hits++;
-      return value;
+      return entry.image;
     }
 
     this.misses++;
@@ -47,20 +59,26 @@ class ImageCache {
   }
 
   /**
-   * Store image in cache
+   * Store image in cache with timestamp
    * Evicts least recently used item if cache is full
    *
    * @param {any} key - Cache key
-   * @param {Image} value - Image object to cache
+   * @param {Image} image - Image object to cache
    */
-  set(key, value) {
+  set(key, image) {
     // Remove if exists (will re-add at end for LRU)
     if (this.cache.has(key)) {
       this.cache.delete(key);
     }
 
+    // Wrap image with metadata
+    const entry = {
+      image,
+      timestamp: Date.now()
+    };
+
     // Add to end (most recently used)
-    this.cache.set(key, value);
+    this.cache.set(key, entry);
 
     // Evict oldest if over limit
     if (this.cache.size > this.maxSize) {
@@ -77,7 +95,8 @@ class ImageCache {
   clear() {
     // Help GC by nullifying src references before clearing cache
     // This is safe here because we're clearing the entire cache
-    for (const img of this.cache.values()) {
+    for (const entry of this.cache.values()) {
+      const img = entry?.image;
       if (img && img.src) {
         img.onload = null;
         img.onerror = null;

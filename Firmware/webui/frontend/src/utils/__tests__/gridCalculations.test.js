@@ -152,10 +152,10 @@ describe('gridCalculations', () => {
       expect(result.width).toBe(1000);
     });
 
-    it('calculates height based on default aspect ratio (4:3)', () => {
+    it('calculates height based on default aspect ratio (Mothbox camera)', () => {
       const result = calculateItemDimensions(1000, 4, 16);
-      // width = 238px, height = 238 / (4/3) = 238 * 0.75 = 178.5px
-      expect(result.height).toBeCloseTo(178.5, 1);
+      // width = 238px, height = 238 / (9152/6944) = ~180.58px
+      expect(result.height).toBeCloseTo(180.58, 1);
     });
 
     it('supports custom aspect ratio (16:9)', () => {
@@ -179,8 +179,9 @@ describe('gridCalculations', () => {
 
     it('uses default aspect ratio when not specified', () => {
       const result = calculateItemDimensions(1000, 4, 16);
-      // Should use DEFAULT_ASPECT_RATIO (4/3)
-      expect(result.height).toBeCloseTo(178.5, 1);
+      // Should use DEFAULT_ASPECT_RATIO (9152/6944 = ~1.318)
+      // Width: 238px, Height: 238 / 1.318 = ~180.58px
+      expect(result.height).toBeCloseTo(180.58, 0);
     });
 
     it('handles two column layout correctly', () => {
@@ -233,8 +234,8 @@ describe('gridCalculations', () => {
       // itemWidth = (1024 - 3*16) / 4 = 244px
       expect(result.itemWidth).toBe(244);
 
-      // itemHeight = 244 / (4/3) = 183px
-      expect(result.itemHeight).toBeCloseTo(183, 0);
+      // itemHeight = 244 / (9152/6944) = ~185.13px
+      expect(result.itemHeight).toBeCloseTo(185.13, 1);
 
       // totalHeight = rowCount * (itemHeight + gap) - gap
       // = 25 * (183 + 16) - 16 = 25 * 199 - 16 = 4975 - 16 = 4959px

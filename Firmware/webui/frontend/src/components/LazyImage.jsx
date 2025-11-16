@@ -67,7 +67,7 @@ const LazyImage = memo(function LazyImage({
         <img
           src={imageUrl}
           alt={alt || photo.filename}
-          loading="lazy" // Native lazy loading as backup
+          loading="eager" // Use eager since IntersectionObserver handles lazy loading
           onLoad={handleLoad}
           onError={handleError}
           className={`

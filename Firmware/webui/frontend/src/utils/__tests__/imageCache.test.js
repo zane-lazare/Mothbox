@@ -321,4 +321,52 @@ describe('imageCache', () => {
       expect(stats.size).toBe(100);
     });
   });
+
+  describe('Time-based expiration (TTL)', () => {
+    beforeEach(() => {
+      imageCache.clear();
+    });
+
+    it('returns cached image within TTL period', () => {
+      const mockImage = new Image();
+      imageCache.set('photo1', mockImage);
+
+      const cached = imageCache.get('photo1');
+      expect(cached).toBe(mockImage);
+    });
+
+    it('expires cached image after TTL period', async () => {
+      // Create cache with 50ms TTL for testing
+      const shortTTLCache = new (imageCache.constructor)(100, 50);
+      const mockImage = new Image();
+
+      shortTTLCache.set('photo1', mockImage);
+      expect(shortTTLCache.get('photo1')).toBe(mockImage);
+
+      // Wait for expiration
+      await new Promise(resolve => setTimeout(resolve, 60));
+
+      expect(shortTTLCache.get('photo1')).toBeNull();
+    });
+
+    it('refreshes timestamp on access', async () => {
+      // Create cache with 100ms TTL
+      const shortTTLCache = new (imageCache.constructor)(100, 100);
+      const mockImage = new Image();
+
+      shortTTLCache.set('photo1', mockImage);
+
+      // Access at 50ms (should refresh timestamp)
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(shortTTLCache.get('photo1')).toBe(mockImage);
+
+      // Wait another 60ms (110ms total from set, but only 60ms from last access)
+      await new Promise(resolve => setTimeout(resolve, 60));
+      expect(shortTTLCache.get('photo1')).toBe(mockImage); // Still valid
+
+      // Wait another 110ms to ensure expiration (with buffer for timing)
+      await new Promise(resolve => setTimeout(resolve, 110));
+      expect(shortTTLCache.get('photo1')).toBeNull(); // Expired
+    });
+  });
 });

@@ -23,9 +23,10 @@ export const DEFAULT_BREAKPOINTS = {
 export const DEFAULT_GAP = 16; // px
 
 /**
- * Default aspect ratio for photo items (4:3 for Mothbox camera)
+ * Default aspect ratio for photo items
+ * Mothbox camera: 9152x6944 pixels = 1.318:1 (slightly wider than 4:3)
  */
-export const DEFAULT_ASPECT_RATIO = 4 / 3; // width / height
+export const DEFAULT_ASPECT_RATIO = 9152 / 6944; // width / height
 
 /**
  * Calculate number of columns based on container width

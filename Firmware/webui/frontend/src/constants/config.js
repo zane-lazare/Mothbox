@@ -62,7 +62,7 @@ export const GALLERY_CONFIG = {
   },
   THUMBNAIL: {
     SIZE: 256, // Backend thumbnail size (256px high quality, already cached)
-    ASPECT_RATIO: 4 / 3, // Expected aspect ratio for Mothbox camera (9152x6944 = ~1.318:1)
+    ASPECT_RATIO: 9152 / 6944, // Mothbox camera aspect ratio (~1.318:1, slightly wider than 4:3)
   },
   LAZY_IMAGE: {
     ROOT_MARGIN: '100px', // Start loading images 100px before they enter viewport

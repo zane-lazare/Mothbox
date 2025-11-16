@@ -89,10 +89,9 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
   // Use ref to avoid stale closure in Cell callback
   // Critical: Prevents Cell from recreating on every photo array change (infinite scroll)
   // Without this, react-window would re-render ALL cells on every new page load
+  // Update ref synchronously before render to avoid 1-frame delay during rapid infinite scroll
   const photosRef = useRef(photos);
-  useEffect(() => {
-    photosRef.current = photos;
-  }, [photos]);
+  photosRef.current = photos;
 
   // Cell renderer for react-window
   // IMPORTANT: photos is accessed via photosRef.current to avoid dependency

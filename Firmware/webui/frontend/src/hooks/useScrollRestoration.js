@@ -1,7 +1,15 @@
 import { useRef, useEffect, useCallback } from 'react';
 
-const STORAGE_KEY = 'gallery-scroll-position';
-const POSITION_TTL_MS = 30000; // 30 seconds
+const STORAGE_KEY_PREFIX = 'gallery-scroll-position';
+const POSITION_TTL_MS = 300000; // 5 minutes - long enough for tab switching, not so long that stale positions persist
+
+/**
+ * Generate storage key for a given scroll context
+ * Prevents key collision when multiple galleries exist
+ * @param {string} key - Unique identifier for this scroll context
+ * @returns {string} Namespaced storage key
+ */
+const getStorageKey = (key) => `${STORAGE_KEY_PREFIX}-${key}`;
 
 /**
  * Scroll position restoration for virtual grid
@@ -37,7 +45,7 @@ export default function useScrollRestoration(key = 'default') {
     };
 
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(position));
+      sessionStorage.setItem(getStorageKey(key), JSON.stringify(position));
     } catch (e) {
       // QuotaExceededError occurs in:
       // - Private browsing mode (Safari, Firefox)
@@ -81,7 +89,7 @@ export default function useScrollRestoration(key = 'default') {
    */
   const restoreScrollPosition = useCallback(() => {
     try {
-      const saved = sessionStorage.getItem(STORAGE_KEY);
+      const saved = sessionStorage.getItem(getStorageKey(key));
       if (!saved) return;
 
       const position = JSON.parse(saved);
@@ -94,7 +102,7 @@ export default function useScrollRestoration(key = 'default') {
       ) {
         // Invalid structure - clear corrupted data
         try {
-          sessionStorage.removeItem(STORAGE_KEY);
+          sessionStorage.removeItem(getStorageKey(key));
         } catch (e) {
           // Ignore errors when clearing (privacy mode)
         }
@@ -108,7 +116,7 @@ export default function useScrollRestoration(key = 'default') {
       if (isExpired || !keyMatches) {
         // Clear stale or mismatched position
         try {
-          sessionStorage.removeItem(STORAGE_KEY);
+          sessionStorage.removeItem(getStorageKey(key));
         } catch (e) {
           // Ignore errors when clearing (privacy mode)
         }
