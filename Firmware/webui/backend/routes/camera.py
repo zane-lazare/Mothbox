@@ -1299,6 +1299,7 @@ def test_capture_liveview():
             "af_speed",
             "af_range",
             "af_metering",
+            "lens_position",
             "awb_enable",
             "awb_mode",
             "ae_enable",
@@ -1326,8 +1327,9 @@ def test_capture_liveview():
         settings.setdefault("ae_enable", True)
         settings.setdefault("noise_reduction_mode", 2)
 
-        # Extract awb_mode, colour gains and exposure controls before building controls (they need special handling)
+        # Extract awb_mode, lens_position, colour gains and exposure controls before building controls (they need special handling)
         awb_mode = settings.pop("awb_mode", None)
+        lens_position = settings.pop("lens_position", None)
         colour_gains_red = settings.pop("colour_gains_red", None)
         colour_gains_blue = settings.pop("colour_gains_blue", None)
         exposure_time = settings.pop("exposure_time", None)
@@ -1355,6 +1357,11 @@ def test_capture_liveview():
                 controls["ExposureTime"] = int(exposure_time)
             if analogue_gain is not None:
                 controls["AnalogueGain"] = float(analogue_gain)
+
+        # Only set manual lens position if AF is in manual mode (0)
+        # When AF mode is Auto (1) or Continuous (3), lens position is controlled by autofocus
+        if settings.get("af_mode", 2) == 0 and lens_position is not None:
+            controls["LensPosition"] = float(lens_position)
 
         return _execute_test_capture(controls, settings.get("af_mode", 2), "live view")
 
