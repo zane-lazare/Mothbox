@@ -11,36 +11,45 @@ import { formatGPSCoordinate, formatDecimalCoordinate, formatAltitude } from '..
  *
  * @component
  * @param {Object} props - Component props
- * @param {Object|null} props.data - GPS location metadata object
- * @param {number} [props.data.lat] - Latitude in decimal degrees
- * @param {number} [props.data.lon] - Longitude in decimal degrees
- * @param {number} [props.data.gps_fix_mode] - GPS fix mode (0=no fix, 1=no fix, 2=2D, 3=3D)
- * @param {number} [props.data.alt] - Altitude in meters (only shown for 3D fix)
- * @param {number} [props.data.gps_satellites_used] - Number of satellites used
- * @param {number} [props.data.gps_hdop] - Horizontal dilution of precision
- * @param {number} [props.data.gps_pdop] - Position dilution of precision
+ * @param {Object|null} props.data - Full metadata object from backend API
+ * @param {Object} [props.data.location] - GPS location metadata
+ * @param {number} [props.data.location.latitude] - Latitude in decimal degrees
+ * @param {number} [props.data.location.longitude] - Longitude in decimal degrees
+ * @param {number} [props.data.location.altitude] - Altitude in meters (only for 3D fix)
+ * @param {string} [props.data.location.gps_timestamp] - GPS timestamp
+ * @param {number} [props.data.location.satellites] - Number of satellites used
+ * @param {number} [props.data.location.hdop] - Horizontal dilution of precision
  *
  * @example
- * const gpsData = {
- *   lat: 40.7128,
- *   lon: -74.0060,
- *   gps_fix_mode: 3,
- *   alt: 10.5,
- *   gps_satellites_used: 8,
- *   gps_hdop: 1.2,
- *   gps_pdop: 2.1
+ * const metadata = {
+ *   location: {
+ *     latitude: 40.7128,
+ *     longitude: -74.0060,
+ *     altitude: 10.5,
+ *     satellites: 8,
+ *     hdop: 1.2
+ *   }
  * };
  *
- * <LocationTab data={gpsData} />
+ * <LocationTab data={metadata} />
  */
 const LocationTab = ({ data }) => {
+  // Handle null or undefined data
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center h-32 text-gray-500">
+        <p>No GPS information available</p>
+      </div>
+    );
+  }
+
+  const location = data.location || {};
+
   // Check if data is valid and has GPS fix
-  const hasValidGPS = data &&
-    data.lat !== undefined &&
-    data.lat !== null &&
-    data.lon !== undefined &&
-    data.lon !== null &&
-    data.gps_fix_mode > 0;
+  const hasValidGPS = location.latitude !== undefined &&
+    location.latitude !== null &&
+    location.longitude !== undefined &&
+    location.longitude !== null;
 
   if (!hasValidGPS) {
     return (
@@ -50,17 +59,17 @@ const LocationTab = ({ data }) => {
     );
   }
 
-  const { lat, lon, gps_fix_mode, alt, gps_satellites_used, gps_hdop, gps_pdop } = data;
+  const { latitude, longitude, altitude, satellites, hdop } = location;
 
   // Format coordinates in DMS format with cardinal directions using utility function
-  const latDMS = formatGPSCoordinate(lat, 'lat');
-  const lonDMS = formatGPSCoordinate(lon, 'lon');
+  const latDMS = formatGPSCoordinate(latitude, 'lat');
+  const lonDMS = formatGPSCoordinate(longitude, 'lon');
 
   // Create Google Maps link with properly encoded coordinates to prevent XSS
-  const mapsUrl = `https://www.google.com/maps?q=${encodeURIComponent(lat)},${encodeURIComponent(lon)}`;
+  const mapsUrl = `https://www.google.com/maps?q=${encodeURIComponent(latitude)},${encodeURIComponent(longitude)}`;
 
-  // Only show altitude for 3D fix
-  const showAltitude = gps_fix_mode === 3 && alt !== undefined && alt !== null;
+  // Only show altitude if available
+  const showAltitude = altitude !== undefined && altitude !== null;
 
   return (
     <div className="space-y-6">
@@ -72,18 +81,18 @@ const LocationTab = ({ data }) => {
         <div className="space-y-2">
           <MetadataField
             label="Latitude"
-            value={`${formatDecimalCoordinate(lat)}°`}
+            value={`${formatDecimalCoordinate(latitude)}°`}
             copyable={true}
           />
           <MetadataField
             label="Longitude"
-            value={`${formatDecimalCoordinate(lon)}°`}
+            value={`${formatDecimalCoordinate(longitude)}°`}
             copyable={true}
           />
           {showAltitude && (
             <MetadataField
               label="Altitude"
-              value={formatAltitude(alt)}
+              value={formatAltitude(altitude)}
               copyable={true}
             />
           )}
@@ -115,15 +124,11 @@ const LocationTab = ({ data }) => {
         <div className="space-y-2">
           <MetadataField
             label="Satellites"
-            value={gps_satellites_used !== undefined ? gps_satellites_used.toString() : 'N/A'}
+            value={satellites !== undefined && satellites !== null ? satellites.toString() : 'N/A'}
           />
           <MetadataField
             label="HDOP"
-            value={gps_hdop !== undefined ? gps_hdop.toString() : 'N/A'}
-          />
-          <MetadataField
-            label="PDOP"
-            value={gps_pdop !== undefined ? gps_pdop.toString() : 'N/A'}
+            value={hdop !== undefined && hdop !== null ? hdop.toString() : 'N/A'}
           />
         </div>
       </div>
@@ -159,13 +164,14 @@ const LocationTab = ({ data }) => {
 
 LocationTab.propTypes = {
   data: PropTypes.shape({
-    lat: PropTypes.number,
-    lon: PropTypes.number,
-    gps_fix_mode: PropTypes.number,
-    alt: PropTypes.number,
-    gps_satellites_used: PropTypes.number,
-    gps_hdop: PropTypes.number,
-    gps_pdop: PropTypes.number,
+    location: PropTypes.shape({
+      latitude: PropTypes.number,
+      longitude: PropTypes.number,
+      altitude: PropTypes.number,
+      gps_timestamp: PropTypes.string,
+      satellites: PropTypes.number,
+      hdop: PropTypes.number,
+    }),
   }),
 };
 

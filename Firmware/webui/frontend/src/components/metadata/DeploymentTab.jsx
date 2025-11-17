@@ -5,27 +5,28 @@ import MetadataField from './MetadataField';
  * DeploymentTab Component
  *
  * Displays Mothbox deployment metadata including device information,
- * firmware version, session details, and hardware configuration.
+ * firmware version, and series details.
  *
  * Features:
- * - Device name (copyable)
+ * - Mothbox ID (copyable)
  * - Firmware version (copyable)
- * - Session ID (copyable)
- * - Installation type
- * - Raspberry Pi model
+ * - Series type (HDR/focus bracket/single)
+ * - Series count and index
  * - Empty state handling
  * - Graceful handling of missing fields
  *
  * @component
  * @example
- * const data = {
- *   device_name: 'mothbox-backyard',
- *   firmware_version: '5.2.1',
- *   session_id: 'session-2025-03-15-143045',
- *   installation_type: 'production',
- *   pi_model: 'Raspberry Pi 5 Model B Rev 1.0'
+ * const metadata = {
+ *   deployment: {
+ *     mothbox_id: 'mothbox-backyard',
+ *     firmware_version: '5',
+ *     series_type: 'single',
+ *     series_count: null,
+ *     series_index: null
+ *   }
  * };
- * return <DeploymentTab data={data} />
+ * return <DeploymentTab data={metadata} />
  */
 function DeploymentTab({ data }) {
   // Handle null or undefined data
@@ -37,69 +38,76 @@ function DeploymentTab({ data }) {
     );
   }
 
+  const deployment = data.deployment || {};
   const {
-    device_name,
+    mothbox_id,
     firmware_version,
-    session_id,
-    installation_type,
-    pi_model,
-  } = data;
+    series_type,
+    series_count,
+    series_index,
+  } = deployment;
 
   return (
     <div className="space-y-2">
-      {/* Device Name */}
+      {/* Mothbox ID */}
       <MetadataField
-        label="Device Name"
-        value={device_name}
-        copyable={!!device_name}
+        label="Mothbox ID"
+        value={mothbox_id || 'N/A'}
+        copyable={!!mothbox_id}
       />
 
       {/* Firmware Version */}
       <MetadataField
         label="Firmware Version"
-        value={firmware_version}
+        value={firmware_version || 'N/A'}
         copyable={!!firmware_version}
       />
 
-      {/* Session ID */}
+      {/* Series Type */}
       <MetadataField
-        label="Session ID"
-        value={session_id}
-        copyable={!!session_id}
-      />
-
-      {/* Installation Type */}
-      <MetadataField
-        label="Installation Type"
-        value={installation_type}
+        label="Series Type"
+        value={series_type || 'single'}
         copyable={false}
       />
 
-      {/* Pi Model */}
-      <MetadataField
-        label="Pi Model"
-        value={pi_model}
-        copyable={false}
-      />
+      {/* Series Count */}
+      {series_count !== null && series_count !== undefined && (
+        <MetadataField
+          label="Series Count"
+          value={series_count.toString()}
+          copyable={false}
+        />
+      )}
+
+      {/* Series Index */}
+      {series_index !== null && series_index !== undefined && (
+        <MetadataField
+          label="Series Index"
+          value={series_index.toString()}
+          copyable={false}
+        />
+      )}
     </div>
   );
 }
 
 DeploymentTab.propTypes = {
   /**
-   * Deployment metadata object
+   * Full metadata object from backend API
    */
   data: PropTypes.shape({
-    /** Mothbox device name */
-    device_name: PropTypes.string,
-    /** Firmware version string */
-    firmware_version: PropTypes.string,
-    /** Session identifier */
-    session_id: PropTypes.string,
-    /** Installation type (production, legacy, custom) */
-    installation_type: PropTypes.string,
-    /** Raspberry Pi model string */
-    pi_model: PropTypes.string,
+    deployment: PropTypes.shape({
+      /** Mothbox device identifier */
+      mothbox_id: PropTypes.string,
+      /** Firmware version string */
+      firmware_version: PropTypes.string,
+      /** Series type (single, hdr, focus_bracket) */
+      series_type: PropTypes.string,
+      /** Number of photos in series */
+      series_count: PropTypes.number,
+      /** Index of this photo in series */
+      series_index: PropTypes.number,
+    }),
   }),
 };
 
