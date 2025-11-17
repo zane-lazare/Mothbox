@@ -999,12 +999,13 @@ def freeze_settings():
         return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
 
 
-def _execute_test_capture(settings_dict, settings_source):
+def _execute_test_capture(settings_dict, af_mode, settings_source):
     """
     Helper function to execute a test capture with given settings
 
     Args:
         settings_dict: Dict of camera control values to apply
+        af_mode: Autofocus mode (1=Auto, 2=Manual, 3=Continuous)
         settings_source: String describing source ('live view' or 'photo capture')
 
     Returns:
@@ -1069,6 +1070,21 @@ def _execute_test_capture(settings_dict, settings_source):
 
             # Wait for settings to stabilize
             time.sleep(0.5)
+
+            # Trigger autofocus if in Auto mode (1) or Continuous mode (3)
+            if af_mode in [1, 3]:
+                print(f"Triggering autofocus (mode={af_mode})...")
+                try:
+                    picam2.autofocus_cycle()
+                    # Wait for autofocus to complete
+                    time.sleep(1.0)
+                    print("Autofocus cycle completed")
+                except Exception as af_error:
+                    print(f"Warning: Autofocus cycle failed: {af_error}")
+                    # Continue with capture even if AF fails
+            else:
+                # Manual focus mode - no autofocus trigger needed
+                time.sleep(0.5)  # Additional stabilization time
 
             # Create test_captures directory
             test_dir = PHOTOS_DIR / "test_captures"
@@ -1275,8 +1291,16 @@ def test_capture_liveview():
             "af_mode",
             "af_speed",
             "af_range",
+            "af_metering",
             "awb_enable",
             "awb_mode",
+            "ae_enable",
+            "ae_metering_mode",
+            "exposure_time",
+            "analogue_gain",
+            "noise_reduction_mode",
+            "colour_gains_red",
+            "colour_gains_blue",
         ]
 
         for key in setting_keys:
@@ -1292,6 +1316,8 @@ def test_capture_liveview():
         settings.setdefault("af_speed", 0)
         settings.setdefault("af_range", 0)
         settings.setdefault("awb_enable", True)
+        settings.setdefault("ae_enable", True)
+        settings.setdefault("noise_reduction_mode", 2)
 
         # Build controls dict (handles case conversion and type validation)
         controls = build_picamera_controls(settings)
@@ -1300,7 +1326,20 @@ def test_capture_liveview():
         if not settings.get("awb_enable", True) and "awb_mode" in settings:
             controls["AwbMode"] = settings["awb_mode"]
 
-        return _execute_test_capture(controls, "live view")
+        # Handle colour gains tuple (if custom white balance)
+        if "colour_gains_red" in settings or "colour_gains_blue" in settings:
+            red_gain = settings.get("colour_gains_red", 2.259)  # Default from live stream
+            blue_gain = settings.get("colour_gains_blue", 1.5)
+            controls["ColourGains"] = (float(red_gain), float(blue_gain))
+
+        # Only set manual exposure if AE disabled
+        if not settings.get("ae_enable", True):
+            if "exposure_time" in settings:
+                controls["ExposureTime"] = int(settings["exposure_time"])
+            if "analogue_gain" in settings:
+                controls["AnalogueGain"] = float(settings["analogue_gain"])
+
+        return _execute_test_capture(controls, settings.get("af_mode", 2), "live view")
 
     except Exception as e:
         import traceback
@@ -1360,8 +1399,11 @@ def test_capture_photo():
             controls["Contrast"] = float(photo_settings["Contrast"])
         if "Saturation" in photo_settings:
             controls["Saturation"] = float(photo_settings["Saturation"])
+        # Extract af_mode for autofocus trigger logic
+        af_mode = 2  # Default to Manual (2)
         if "AfMode" in photo_settings:
-            controls["AfMode"] = int(photo_settings["AfMode"])
+            af_mode = int(photo_settings["AfMode"])
+            controls["AfMode"] = af_mode
         if "AfSpeed" in photo_settings:
             controls["AfSpeed"] = int(photo_settings["AfSpeed"])
         if "AfRange" in photo_settings:
@@ -1377,7 +1419,7 @@ def test_capture_photo():
         if "AwbMode" in photo_settings and not controls.get("AwbEnable", True):
             controls["AwbMode"] = int(photo_settings["AwbMode"])
 
-        return _execute_test_capture(controls, "photo capture")
+        return _execute_test_capture(controls, af_mode, "photo capture")
 
     except Exception as e:
         import traceback
