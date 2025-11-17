@@ -1169,6 +1169,13 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             # GPS IFD - check if GPS data exists in controls.txt
             gps_ifd = {}
             try:
+                # Add firmware root to path for lib/ imports
+                import sys
+                from pathlib import Path
+                firmware_root = Path(__file__).parent.parent.parent
+                if str(firmware_root) not in sys.path:
+                    sys.path.insert(0, str(firmware_root))
+
                 from lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
 
                 gps_data = get_gps_data_from_controls()
@@ -1330,12 +1337,14 @@ def test_capture_liveview():
         if not settings.get("awb_enable", True) and "awb_mode" in settings:
             controls["AwbMode"] = settings["awb_mode"]
 
-        # Handle colour gains tuple (if custom white balance)
+        # Handle colour gains tuple (only when AWB is disabled)
+        # When AWB is enabled, manual ColourGains are ignored by the camera
         # ColourGains must be set as a tuple, not individual red/blue controls
-        if colour_gains_red is not None or colour_gains_blue is not None:
-            red_gain = colour_gains_red if colour_gains_red is not None else 2.259
-            blue_gain = colour_gains_blue if colour_gains_blue is not None else 1.5
-            controls["ColourGains"] = (float(red_gain), float(blue_gain))
+        if not settings.get("awb_enable", True):
+            if colour_gains_red is not None or colour_gains_blue is not None:
+                red_gain = colour_gains_red if colour_gains_red is not None else 2.259
+                blue_gain = colour_gains_blue if colour_gains_blue is not None else 1.5
+                controls["ColourGains"] = (float(red_gain), float(blue_gain))
 
         # Only set manual exposure if AE disabled
         if not settings.get("ae_enable", True):
