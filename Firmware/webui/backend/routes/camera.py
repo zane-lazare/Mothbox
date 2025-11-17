@@ -613,29 +613,6 @@ def trigger_autofocus():
                     camera_streamer.set_manual_focus_mode(True)
                     print(f"✓ Manual focus locked at {lens_position:.2f} diopters")
 
-                    # Save lens_position to liveview_settings.txt for persistence
-                    from mothbox_paths import LIVEVIEW_SETTINGS_FILE, get_control_values
-
-                    try:
-                        # Load existing settings
-                        if LIVEVIEW_SETTINGS_FILE.exists():
-                            settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
-                        else:
-                            settings = {}
-
-                        # Update lens_position and af_mode
-                        settings['lens_position'] = str(round(lens_position, 2))
-                        settings['af_mode'] = '0'  # Manual mode
-
-                        # Write back to file (maintaining all other settings)
-                        with open(LIVEVIEW_SETTINGS_FILE, 'w') as f:
-                            for key, value in settings.items():
-                                f.write(f"{key}={value}\n")
-
-                        print(f"✓ Saved lens_position={lens_position:.2f} to liveview_settings.txt")
-                    except Exception as save_error:
-                        print(f"Warning: Failed to save lens_position to settings: {save_error}")
-
                 return jsonify(
                     {
                         "success": success,

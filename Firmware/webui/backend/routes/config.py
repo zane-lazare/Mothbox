@@ -218,7 +218,6 @@ def get_webui_settings():
             "af_mode": 2,  # Continuous autofocus
             "af_speed": 0,  # Normal speed
             "af_range": 0,  # Normal range
-            "lens_position": None,  # Manual focus position (only used when af_mode=0)
             # White balance controls
             "awb_enable": True,
             "awb_mode": 0,  # Auto
@@ -263,7 +262,6 @@ def get_webui_settings():
                         "colour_gains_red",
                         "colour_gains_blue",
                         "analogue_gain",
-                        "lens_position",
                     ]:
                         # Float values
                         with suppress(ValueError):
@@ -314,7 +312,6 @@ def update_webui_settings():
             "af_mode",
             "af_speed",
             "af_range",
-            "lens_position",
             # White balance
             "awb_enable",
             "awb_mode",
@@ -392,13 +389,6 @@ def update_webui_settings():
             af_mode = int(new_settings.get("af_mode", existing.get("af_mode", 2)))
             af_speed = int(new_settings.get("af_speed", existing.get("af_speed", 0)))
             af_range = int(new_settings.get("af_range", existing.get("af_range", 0)))
-
-            # lens_position is optional (only used when af_mode=0/Manual)
-            lens_position = new_settings.get("lens_position", existing.get("lens_position", None))
-            if lens_position is not None:
-                lens_position = float(lens_position)
-                if not (0.0 <= lens_position <= 15.0):
-                    return jsonify({"error": "lens_position must be between 0.0 and 15.0"}), 400
         except (ValueError, TypeError) as e:
             return jsonify({"error": f"Invalid focus control type: {e}"}), 400
 
@@ -610,8 +600,6 @@ def update_webui_settings():
             f.write(f"af_mode={af_mode}\n")
             f.write(f"af_speed={af_speed}\n")
             f.write(f"af_range={af_range}\n")
-            if lens_position is not None:
-                f.write(f"lens_position={lens_position}\n")
 
             # White balance controls
             f.write(f"awb_enable={'true' if awb_enable else 'false'}\n")
