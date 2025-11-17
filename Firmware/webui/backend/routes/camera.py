@@ -1326,7 +1326,8 @@ def test_capture_liveview():
         settings.setdefault("ae_enable", True)
         settings.setdefault("noise_reduction_mode", 2)
 
-        # Extract colour gains and exposure controls before building controls (they need special handling)
+        # Extract awb_mode, colour gains and exposure controls before building controls (they need special handling)
+        awb_mode = settings.pop("awb_mode", None)
         colour_gains_red = settings.pop("colour_gains_red", None)
         colour_gains_blue = settings.pop("colour_gains_blue", None)
         exposure_time = settings.pop("exposure_time", None)
@@ -1336,8 +1337,8 @@ def test_capture_liveview():
         controls = build_picamera_controls(settings)
 
         # Only set AwbMode if AWB is disabled
-        if not settings.get("awb_enable", True) and "awb_mode" in settings:
-            controls["AwbMode"] = settings["awb_mode"]
+        if not settings.get("awb_enable", True) and awb_mode is not None:
+            controls["AwbMode"] = awb_mode
 
         # Handle colour gains tuple (only when AWB is disabled)
         # When AWB is enabled, manual ColourGains are ignored by the camera
