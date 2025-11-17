@@ -140,23 +140,23 @@ export default function MetadataPanel({ photoPath, className = '' }) {
       {/* max-h-[60vh]: Responsive height constraint that adapts to viewport size */}
       <div className="flex-1 overflow-y-auto max-h-[60vh]">
         <Tabs.Content value="camera" className="p-4">
-          <CameraTab data={metadata?.camera} />
+          <CameraTab data={metadata} />
         </Tabs.Content>
 
         <Tabs.Content value="location" className="p-4">
-          <LocationTab data={metadata?.location} />
+          <LocationTab data={metadata} />
         </Tabs.Content>
 
         <Tabs.Content value="capture" className="p-4">
-          <CaptureTab data={metadata?.capture} />
+          <CaptureTab data={metadata} />
         </Tabs.Content>
 
         <Tabs.Content value="tags" className="p-4">
-          <TagsTab data={metadata?.tags} />
+          <TagsTab data={metadata} />
         </Tabs.Content>
 
         <Tabs.Content value="deployment" className="p-4">
-          <DeploymentTab data={metadata?.deployment} />
+          <DeploymentTab data={metadata} />
         </Tabs.Content>
       </div>
     </Tabs.Root>
