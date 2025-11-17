@@ -1128,9 +1128,7 @@ def _execute_test_capture(settings_dict, settings_source):
             zeroth_ifd = {
                 piexif.ImageIFD.Make: mothbox_name.encode("utf-8") if mothbox_name else b"mothbox",
                 piexif.ImageIFD.Model: camera_model.encode("utf-8") if camera_model else b"Unknown",
-                piexif.ImageIFD.Software: f"MothboxWebUI-{firmware_version}-TestCapture-{settings_source}".encode(
-                    "utf-8"
-                ),
+                piexif.ImageIFD.Software: firmware_version.encode("utf-8"),  # Just firmware version (e.g., "5")
             }
 
             # Extract exposure time and convert to EXIF rational format
