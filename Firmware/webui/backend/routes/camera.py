@@ -1319,6 +1319,10 @@ def test_capture_liveview():
         settings.setdefault("ae_enable", True)
         settings.setdefault("noise_reduction_mode", 2)
 
+        # Extract colour gains before building controls (they need special handling)
+        colour_gains_red = settings.pop("colour_gains_red", None)
+        colour_gains_blue = settings.pop("colour_gains_blue", None)
+
         # Build controls dict (handles case conversion and type validation)
         controls = build_picamera_controls(settings)
 
@@ -1327,9 +1331,10 @@ def test_capture_liveview():
             controls["AwbMode"] = settings["awb_mode"]
 
         # Handle colour gains tuple (if custom white balance)
-        if "colour_gains_red" in settings or "colour_gains_blue" in settings:
-            red_gain = settings.get("colour_gains_red", 2.259)  # Default from live stream
-            blue_gain = settings.get("colour_gains_blue", 1.5)
+        # ColourGains must be set as a tuple, not individual red/blue controls
+        if colour_gains_red is not None or colour_gains_blue is not None:
+            red_gain = colour_gains_red if colour_gains_red is not None else 2.259
+            blue_gain = colour_gains_blue if colour_gains_blue is not None else 1.5
             controls["ColourGains"] = (float(red_gain), float(blue_gain))
 
         # Only set manual exposure if AE disabled
