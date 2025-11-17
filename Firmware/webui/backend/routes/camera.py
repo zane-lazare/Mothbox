@@ -1326,9 +1326,11 @@ def test_capture_liveview():
         settings.setdefault("ae_enable", True)
         settings.setdefault("noise_reduction_mode", 2)
 
-        # Extract colour gains before building controls (they need special handling)
+        # Extract colour gains and exposure controls before building controls (they need special handling)
         colour_gains_red = settings.pop("colour_gains_red", None)
         colour_gains_blue = settings.pop("colour_gains_blue", None)
+        exposure_time = settings.pop("exposure_time", None)
+        analogue_gain = settings.pop("analogue_gain", None)
 
         # Build controls dict (handles case conversion and type validation)
         controls = build_picamera_controls(settings)
@@ -1348,10 +1350,10 @@ def test_capture_liveview():
 
         # Only set manual exposure if AE disabled
         if not settings.get("ae_enable", True):
-            if "exposure_time" in settings:
-                controls["ExposureTime"] = int(settings["exposure_time"])
-            if "analogue_gain" in settings:
-                controls["AnalogueGain"] = float(settings["analogue_gain"])
+            if exposure_time is not None:
+                controls["ExposureTime"] = int(exposure_time)
+            if analogue_gain is not None:
+                controls["AnalogueGain"] = float(analogue_gain)
 
         return _execute_test_capture(controls, settings.get("af_mode", 2), "live view")
 
