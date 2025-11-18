@@ -273,3 +273,16 @@ class TestGetCurrentSettings:
         assert settings['awb_enable'] is False
         assert settings['colour_gains_red'] == 1.8
         assert settings['colour_gains_blue'] == 2.2
+
+    def test_get_current_settings_exports_af_metering(self, camera_streamer):
+        """Should export af_metering based on AF window state"""
+        # Test with no AF window (default)
+        camera_streamer._af_window_active = False
+        settings = camera_streamer.get_current_settings()
+        assert 'af_metering' in settings
+        assert settings['af_metering'] == 0
+
+        # Test with AF window active
+        camera_streamer._af_window_active = True
+        settings = camera_streamer.get_current_settings()
+        assert settings['af_metering'] == 1

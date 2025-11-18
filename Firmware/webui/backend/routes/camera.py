@@ -1060,10 +1060,9 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             # Start camera
             picam2.start()
 
-            # Apply controls
-            controls = {}
-            for key, value in settings_dict.items():
-                controls[key] = value
+            # Apply controls using build_picamera_controls() to convert snake_case → PascalCase
+            # This ensures camera accepts the control keys (e.g., af_mode → AfMode)
+            controls = build_picamera_controls(settings_dict)
 
             picam2.set_controls(controls)
             print(f"Applied {settings_source} settings to test capture: {controls}")
@@ -1374,9 +1373,8 @@ def test_capture_liveview():
             if analogue_gain is not None:
                 controls["AnalogueGain"] = float(analogue_gain)
 
-        # Only set manual lens position if AF is in manual mode (0)
-        # When AF mode is Auto (1) or Continuous (3), lens position is controlled by autofocus
-        if settings.get("af_mode", 2) == 0 and lens_position is not None:
+        # Apply lens position if available (preserves focus across all AF modes)
+        if lens_position is not None:
             controls["LensPosition"] = float(lens_position)
 
         return _execute_test_capture(controls, settings.get("af_mode", 2), "live view")
@@ -1510,8 +1508,8 @@ def instant_capture():
             if analogue_gain is not None:
                 controls["AnalogueGain"] = float(analogue_gain)
 
-        # Only set manual lens position if AF is in manual mode (0)
-        if settings.get("af_mode", 2) == 0 and lens_position is not None:
+        # Apply lens position if available (preserves focus across all AF modes)
+        if lens_position is not None:
             controls["LensPosition"] = float(lens_position)
 
         # Generate instant capture filename: instant_YYYY_MM_DD__HH_MM_SS_[serial].jpg
@@ -1595,10 +1593,9 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             # Start camera
             picam2.start()
 
-            # Apply controls
-            controls = {}
-            for key, value in settings_dict.items():
-                controls[key] = value
+            # Apply controls using build_picamera_controls() to convert snake_case → PascalCase
+            # This ensures camera accepts the control keys (e.g., af_mode → AfMode)
+            controls = build_picamera_controls(settings_dict)
 
             picam2.set_controls(controls)
             print(f"Applied {settings_source} settings to instant capture: {controls}")

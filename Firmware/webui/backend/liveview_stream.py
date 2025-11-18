@@ -332,6 +332,9 @@ class LiveViewStreamer:
 
             # Noise reduction
             'noise_reduction_mode': self.noise_reduction_mode,
+
+            # AF metering mode (for click-to-focus AF window feature)
+            'af_metering': 1 if self._af_window_active else 0,
         }
 
         # Include lens_position from camera metadata if camera is active
