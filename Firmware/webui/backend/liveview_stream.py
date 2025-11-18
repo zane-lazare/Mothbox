@@ -272,6 +272,87 @@ class LiveViewStreamer:
         except Exception as e:
             print(f"Error loading stream settings, using defaults: {e}")
 
+    def get_current_settings(self):
+        """
+        Get current camera settings from live instance (not from file)
+
+        This method exports all current camera controls from the running LiveViewStreamer
+        instance. Settings reflect real-time changes made via WebSocket controls,
+        including unsaved slider adjustments.
+
+        Use this instead of reading from liveview_settings.txt to ensure test captures
+        match exactly what the user sees in the live stream viewport.
+
+        Returns:
+            dict: Camera settings with snake_case keys, ready for test capture:
+                {
+                    'sharpness': float,
+                    'brightness': float,
+                    'contrast': float,
+                    'saturation': float,
+                    'af_mode': int (0=Manual, 1=Single, 2=Continuous),
+                    'af_speed': int (0=Normal, 1=Fast),
+                    'af_range': int (0=Normal, 1=Macro, 2=Full),
+                    'ae_enable': bool,
+                    'ae_metering_mode': int (0=Centre, 1=Spot, 2=Matrix, 3=Custom),
+                    'awb_enable': bool,
+                    'awb_mode': int (0=Auto, 1-7=various presets),
+                    'exposure_time': int (microseconds),
+                    'analogue_gain': float,
+                    'noise_reduction_mode': int (0=Off, 1=Fast, 2=HighQuality),
+                    'colour_gains_red': float,
+                    'colour_gains_blue': float,
+                    'lens_position': float (diopters, when available),
+                }
+        """
+        # Read from instance variables (these reflect current camera state)
+        settings = {
+            # Image quality controls
+            'sharpness': self.sharpness,
+            'brightness': self.brightness,
+            'contrast': self.contrast,
+            'saturation': self.saturation,
+
+            # Focus controls - use override if set, otherwise configured value
+            'af_mode': self._af_mode_override if self._af_mode_override is not None else self.af_mode,
+            'af_speed': self.af_speed,
+            'af_range': self.af_range,
+
+            # Exposure controls
+            'ae_enable': self.ae_enable,
+            'ae_metering_mode': self.ae_metering_mode,
+            'exposure_time': self.exposure_time,
+            'analogue_gain': self.analogue_gain,
+
+            # White balance controls - split colour_gains tuple into components
+            'awb_enable': self.awb_enable,
+            'awb_mode': self.awb_mode,
+            'colour_gains_red': self.colour_gains[0],
+            'colour_gains_blue': self.colour_gains[1],
+
+            # Noise reduction
+            'noise_reduction_mode': self.noise_reduction_mode,
+        }
+
+        # Include lens_position from camera metadata if camera is active
+        # This gives us the ACTUAL current focus position, not configured value
+        if self.camera is not None:
+            try:
+                metadata = self.camera.capture_metadata()
+                if 'LensPosition' in metadata:
+                    settings['lens_position'] = metadata['LensPosition']
+            except Exception as e:
+                # Camera metadata query failed - fall back to configured value
+                print(f"Warning: Could not read lens position from camera metadata: {e}")
+                if hasattr(self, 'lens_position'):
+                    settings['lens_position'] = self.lens_position
+        else:
+            # Camera not active - use configured value if available
+            if hasattr(self, 'lens_position'):
+                settings['lens_position'] = self.lens_position
+
+        return settings
+
     def initialize_camera(self):
         """Initialize camera hardware and configure for streaming"""
         if not PICAMERA_AVAILABLE:

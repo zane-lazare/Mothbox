@@ -5,6 +5,7 @@ import { QUERY_KEYS } from '../utils/queryKeys'
 import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
 import SavePresetModal from '../components/SavePresetModal'
+import InstantCaptureButton from '../components/InstantCaptureButton'
 import { convertFromBackend, toPicameraControl } from '../utils/cameraControlMapping'
 
 /**
@@ -2203,6 +2204,14 @@ export default function Camera() {
               >
                 {testCapturing ? '📸 Capturing...' : '🧪 Test Photo'}
               </button>
+
+              {/* Instant Capture Button */}
+              <div className="mt-2">
+                <InstantCaptureButton
+                  disabled={!connected}
+                  className="w-full px-3 py-2 text-sm"
+                />
+              </div>
 
               {testCaptureResult && (
                 <div className={`mt-2 p-2 rounded border ${
