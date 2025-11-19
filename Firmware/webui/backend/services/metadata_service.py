@@ -377,8 +377,8 @@ class MetadataService:
                     capture['saturation'] = exif_ifd[piexif.ExifIFD.Saturation]
 
                 # Brightness (rational tuple)
-                if piexif.ExifIFD.Brightness in exif_ifd:
-                    brightness = exif_ifd[piexif.ExifIFD.Brightness]
+                if piexif.ExifIFD.BrightnessValue in exif_ifd:
+                    brightness = exif_ifd[piexif.ExifIFD.BrightnessValue]
                     if isinstance(brightness, tuple) and len(brightness) == 2:
                         numerator, denominator = brightness
                         if denominator != 0:

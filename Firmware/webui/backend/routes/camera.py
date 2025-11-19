@@ -1174,7 +1174,7 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
                 piexif.ExifIFD.Sharpness: int(settings_dict.get("Sharpness", 1.0)),
                 piexif.ExifIFD.Contrast: int(settings_dict.get("Contrast", 1.0)),
                 piexif.ExifIFD.Saturation: int(settings_dict.get("Saturation", 1.0)),
-                piexif.ExifIFD.Brightness: (int(settings_dict.get("Brightness", 0.0) * 100), 100),  # Rational
+                piexif.ExifIFD.BrightnessValue: (int(settings_dict.get("Brightness", 0.0) * 100), 100),  # Rational
             }
 
             # Add MakerNote to store camera-specific metadata (focus, noise reduction, etc.)
@@ -1730,7 +1730,7 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
                 piexif.ExifIFD.Sharpness: int(settings_dict.get("Sharpness", 1.0)),
                 piexif.ExifIFD.Contrast: int(settings_dict.get("Contrast", 1.0)),
                 piexif.ExifIFD.Saturation: int(settings_dict.get("Saturation", 1.0)),
-                piexif.ExifIFD.Brightness: (int(settings_dict.get("Brightness", 0.0) * 100), 100),  # Rational
+                piexif.ExifIFD.BrightnessValue: (int(settings_dict.get("Brightness", 0.0) * 100), 100),  # Rational
             }
 
             # Add MakerNote to store camera-specific metadata (focus, noise reduction, etc.)
