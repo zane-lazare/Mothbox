@@ -1204,9 +1204,10 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
                 from lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
 
                 gps_data = get_gps_data_from_controls()
-                if gps_data:
+                if gps_data.get('has_fix'):
                     gps_ifd = build_gps_ifd(gps_data)
-                    print("Embedded GPS EXIF from controls.txt")
+                    if gps_ifd:
+                        print("Embedded GPS EXIF from controls.txt")
             except Exception as gps_error:
                 print(f"GPS EXIF embedding skipped: {gps_error}")
 
@@ -1759,10 +1760,10 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
                 from lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
 
                 gps_data = get_gps_data_from_controls()
-                if gps_data:
+                if gps_data.get('has_fix'):
                     gps_ifd = build_gps_ifd(gps_data)
                     if gps_ifd:
-                        print(f"GPS EXIF embedded: lat={gps_data['lat']}, lon={gps_data['lon']}")
+                        print(f"GPS EXIF embedded: lat={gps_data['latitude']}, lon={gps_data['longitude']}")
             except Exception as gps_error:
                 print(f"Warning: Could not embed GPS EXIF: {gps_error}")
 
