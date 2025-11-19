@@ -82,7 +82,7 @@ const CameraTab = ({ data }) => {
         </h3>
         <div className="space-y-2">
           <MetadataField
-            label="ISO"
+            label="Gain (ISO)"
             value={capture.iso !== undefined && capture.iso !== null ? formatISO(capture.iso) : 'N/A'}
             copyable={capture.iso !== undefined && capture.iso !== null}
           />
@@ -92,7 +92,7 @@ const CameraTab = ({ data }) => {
             copyable={capture.f_number !== undefined && capture.f_number !== null}
           />
           <MetadataField
-            label="Shutter Speed"
+            label="Exposure Time"
             value={capture.exposure_time || 'N/A'}
             copyable={!!capture.exposure_time}
           />

@@ -281,7 +281,20 @@ class MetadataService:
             'iso': None,
             'focal_length': None,
             'white_balance': None,
-            'flash': None
+            'flash': None,
+            'exposure_mode': None,
+            'metering_mode': None,
+            'sharpness': None,
+            'contrast': None,
+            'saturation': None,
+            'brightness': None,
+            'focus_mode': None,
+            'af_range': None,
+            'af_speed': None,
+            'noise_reduction': None,
+            'lens_position': None,
+            'colour_gain_red': None,
+            'colour_gain_blue': None,
         }
 
         try:
@@ -339,6 +352,78 @@ class MetadataService:
                     flash_code = exif_ifd[piexif.ExifIFD.Flash]
                     # Flash fired if bit 0 is set
                     capture['flash'] = bool(flash_code & 0x01)
+
+                # Exposure mode (0 = Manual, 1 = Auto)
+                if piexif.ExifIFD.ExposureMode in exif_ifd:
+                    exp_mode = exif_ifd[piexif.ExifIFD.ExposureMode]
+                    capture['exposure_mode'] = 'Manual' if exp_mode == 0 else 'Auto'
+
+                # Metering mode (0 = Centre-Weighted, 1 = Spot, 2 = Matrix/Average)
+                if piexif.ExifIFD.MeteringMode in exif_ifd:
+                    meter_code = exif_ifd[piexif.ExifIFD.MeteringMode]
+                    metering_modes = {0: 'Centre-Weighted', 1: 'Spot', 2: 'Matrix'}
+                    capture['metering_mode'] = metering_modes.get(meter_code, f'Unknown ({meter_code})')
+
+                # Sharpness (integer value)
+                if piexif.ExifIFD.Sharpness in exif_ifd:
+                    capture['sharpness'] = exif_ifd[piexif.ExifIFD.Sharpness]
+
+                # Contrast (integer value)
+                if piexif.ExifIFD.Contrast in exif_ifd:
+                    capture['contrast'] = exif_ifd[piexif.ExifIFD.Contrast]
+
+                # Saturation (integer value)
+                if piexif.ExifIFD.Saturation in exif_ifd:
+                    capture['saturation'] = exif_ifd[piexif.ExifIFD.Saturation]
+
+                # Brightness (rational tuple)
+                if piexif.ExifIFD.Brightness in exif_ifd:
+                    brightness = exif_ifd[piexif.ExifIFD.Brightness]
+                    if isinstance(brightness, tuple) and len(brightness) == 2:
+                        numerator, denominator = brightness
+                        if denominator != 0:
+                            capture['brightness'] = numerator / denominator
+
+                # MakerNote contains custom Mothbox metadata (focus, noise reduction, colour gains)
+                if piexif.ExifIFD.MakerNote in exif_ifd:
+                    try:
+                        import json
+                        maker_note_json = exif_ifd[piexif.ExifIFD.MakerNote].decode('utf-8', errors='ignore')
+                        maker_note = json.loads(maker_note_json)
+
+                        # Focus mode (0=Manual, 1=Auto, 2=Continuous)
+                        if 'focus_mode' in maker_note:
+                            focus_modes = {0: 'Manual', 1: 'Auto Single', 2: 'Continuous AF'}
+                            capture['focus_mode'] = focus_modes.get(maker_note['focus_mode'], f"Unknown ({maker_note['focus_mode']})")
+
+                        # AF Range (0=Normal, 1=Macro, 2=Full)
+                        if 'af_range' in maker_note:
+                            af_ranges = {0: 'Normal', 1: 'Macro', 2: 'Full'}
+                            capture['af_range'] = af_ranges.get(maker_note['af_range'], f"Unknown ({maker_note['af_range']})")
+
+                        # AF Speed (0=Normal, 1=Fast)
+                        if 'af_speed' in maker_note:
+                            af_speeds = {0: 'Normal', 1: 'Fast'}
+                            capture['af_speed'] = af_speeds.get(maker_note['af_speed'], f"Unknown ({maker_note['af_speed']})")
+
+                        # Noise Reduction (0=Off, 1=Fast, 2=High Quality)
+                        if 'noise_reduction' in maker_note:
+                            nr_modes = {0: 'Off', 1: 'Fast', 2: 'High Quality'}
+                            capture['noise_reduction'] = nr_modes.get(maker_note['noise_reduction'], f"Unknown ({maker_note['noise_reduction']})")
+
+                        # Lens position (diopters)
+                        if 'lens_position' in maker_note:
+                            capture['lens_position'] = maker_note['lens_position']
+
+                        # Colour gains
+                        if 'colour_gain_red' in maker_note:
+                            capture['colour_gain_red'] = maker_note['colour_gain_red']
+                        if 'colour_gain_blue' in maker_note:
+                            capture['colour_gain_blue'] = maker_note['colour_gain_blue']
+
+                    except (json.JSONDecodeError, KeyError):
+                        # MakerNote is not JSON or malformed, skip gracefully
+                        pass
 
         except Exception:
             # Gracefully handle any EXIF parsing errors

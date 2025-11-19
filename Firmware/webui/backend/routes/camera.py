@@ -1169,7 +1169,27 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
                 piexif.ExifIFD.ISOSpeedRatings: int(md.get("AnalogueGain", 1.0) * 100),
                 piexif.ExifIFD.WhiteBalance: 0,  # 0 = Auto white balance
                 piexif.ExifIFD.Flash: 0,  # 0 = Flash did not fire
+                piexif.ExifIFD.ExposureMode: 0 if settings_dict.get("AfMode", 2) == 0 else 1,  # 0 = Manual, 1 = Auto
+                piexif.ExifIFD.MeteringMode: int(settings_dict.get("AeMeteringMode", 2)),  # 0=Centre, 1=Spot, 2=Matrix
+                piexif.ExifIFD.Sharpness: int(settings_dict.get("Sharpness", 1.0)),
+                piexif.ExifIFD.Contrast: int(settings_dict.get("Contrast", 1.0)),
+                piexif.ExifIFD.Saturation: int(settings_dict.get("Saturation", 1.0)),
+                piexif.ExifIFD.Brightness: (int(settings_dict.get("Brightness", 0.0) * 100), 100),  # Rational
             }
+
+            # Add MakerNote to store camera-specific metadata (focus, noise reduction, etc.)
+            # Store as JSON string in MakerNote field
+            import json
+            maker_note_data = {
+                "focus_mode": int(settings_dict.get("AfMode", 2)),  # 0=Manual, 1=Auto, 2=Continuous
+                "af_range": int(settings_dict.get("AfRange", 0)),  # 0=Normal, 1=Macro, 2=Full
+                "af_speed": int(settings_dict.get("AfSpeed", 0)),  # 0=Normal, 1=Fast
+                "noise_reduction": int(settings_dict.get("NoiseReductionMode", 2)),  # 0=Off, 1=Fast, 2=High Quality
+                "lens_position": float(md.get("LensPosition", 0.0)),
+                "colour_gain_red": float(settings_dict.get("ColourGains", (2.259, 1.5))[0]) if "ColourGains" in settings_dict else 2.259,
+                "colour_gain_blue": float(settings_dict.get("ColourGains", (2.259, 1.5))[1]) if "ColourGains" in settings_dict else 1.5,
+            }
+            exif_ifd[piexif.ExifIFD.MakerNote] = json.dumps(maker_note_data).encode('utf-8')
 
             # GPS IFD - check if GPS data exists in controls.txt
             gps_ifd = {}
@@ -1705,7 +1725,27 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
                 piexif.ExifIFD.ISOSpeedRatings: int(md.get("AnalogueGain", 1.0) * 100),
                 piexif.ExifIFD.WhiteBalance: 0,  # 0 = Auto white balance
                 piexif.ExifIFD.Flash: 0,  # 0 = Flash did not fire
+                piexif.ExifIFD.ExposureMode: 0 if settings_dict.get("AfMode", 2) == 0 else 1,  # 0 = Manual, 1 = Auto
+                piexif.ExifIFD.MeteringMode: int(settings_dict.get("AeMeteringMode", 2)),  # 0=Centre, 1=Spot, 2=Matrix
+                piexif.ExifIFD.Sharpness: int(settings_dict.get("Sharpness", 1.0)),
+                piexif.ExifIFD.Contrast: int(settings_dict.get("Contrast", 1.0)),
+                piexif.ExifIFD.Saturation: int(settings_dict.get("Saturation", 1.0)),
+                piexif.ExifIFD.Brightness: (int(settings_dict.get("Brightness", 0.0) * 100), 100),  # Rational
             }
+
+            # Add MakerNote to store camera-specific metadata (focus, noise reduction, etc.)
+            # Store as JSON string in MakerNote field
+            import json
+            maker_note_data = {
+                "focus_mode": int(settings_dict.get("AfMode", 2)),  # 0=Manual, 1=Auto, 2=Continuous
+                "af_range": int(settings_dict.get("AfRange", 0)),  # 0=Normal, 1=Macro, 2=Full
+                "af_speed": int(settings_dict.get("AfSpeed", 0)),  # 0=Normal, 1=Fast
+                "noise_reduction": int(settings_dict.get("NoiseReductionMode", 2)),  # 0=Off, 1=Fast, 2=High Quality
+                "lens_position": float(md.get("LensPosition", 0.0)),
+                "colour_gain_red": float(settings_dict.get("ColourGains", (2.259, 1.5))[0]) if "ColourGains" in settings_dict else 2.259,
+                "colour_gain_blue": float(settings_dict.get("ColourGains", (2.259, 1.5))[1]) if "ColourGains" in settings_dict else 1.5,
+            }
+            exif_ifd[piexif.ExifIFD.MakerNote] = json.dumps(maker_note_data).encode('utf-8')
 
             # GPS IFD (same as test capture)
             gps_ifd = {}

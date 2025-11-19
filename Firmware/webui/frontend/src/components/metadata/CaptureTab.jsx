@@ -5,31 +5,17 @@ import { formatTimestamp } from '../../utils/metadataFormatters';
 /**
  * CaptureTab Component
  *
- * Displays comprehensive photo capture metadata including timestamp,
- * exposure settings, ISO, aperture, focal length, and advanced settings.
+ * Displays comprehensive photo capture metadata with technical nomenclature
+ * aligned to live view camera controls.
  *
- * Features:
- * - Formatted timestamp display
- * - Exposure settings (shutter speed, ISO, aperture, focal length)
- * - Advanced settings (white balance, flash status)
- * - Copyable fields for technical values
- * - Empty state handling
- * - Graceful handling of missing/null values
+ * Sections:
+ * - Capture Details: Timestamp, basic photo info
+ * - Exposure Settings: Exposure mode, time, gain (ISO), metering
+ * - Focus Settings: Focus mode, lens position, AF range/speed
+ * - Image Processing: Noise reduction, sharpness, brightness, contrast, saturation
+ * - Colour & Advanced: Aperture, colour gains, flash
  *
  * @component
- * @example
- * const metadata = {
- *   capture: {
- *     timestamp: '2024-10-15T14:30:00',
- *     exposure_time: '1/500',
- *     iso: 400,
- *     f_number: 'f/2.8',
- *     focal_length: '24mm',
- *     white_balance: 'Auto',
- *     flash: false
- *   }
- * };
- * return <CaptureTab data={metadata} />
  */
 function CaptureTab({ data }) {
   // Handle null or undefined data
@@ -43,9 +29,12 @@ function CaptureTab({ data }) {
 
   const capture = data.capture || {};
 
+  // Helper to check if value exists
+  const hasValue = (val) => val !== undefined && val !== null;
+
   return (
     <div className="space-y-6">
-      {/* Basic Capture Information */}
+      {/* Capture Details */}
       <div>
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 border-b dark:border-gray-600 pb-2">
           Capture Details
@@ -57,21 +46,6 @@ function CaptureTab({ data }) {
             copyable={!!capture.timestamp}
           />
           <MetadataField
-            label="Exposure Time"
-            value={capture.exposure_time || 'N/A'}
-            copyable={!!capture.exposure_time}
-          />
-          <MetadataField
-            label="ISO"
-            value={capture.iso !== undefined && capture.iso !== null ? capture.iso.toString() : 'N/A'}
-            copyable={capture.iso !== undefined && capture.iso !== null}
-          />
-          <MetadataField
-            label="Aperture"
-            value={capture.f_number || 'N/A'}
-            copyable={!!capture.f_number}
-          />
-          <MetadataField
             label="Focal Length"
             value={capture.focal_length || 'N/A'}
             copyable={!!capture.focal_length}
@@ -79,20 +53,139 @@ function CaptureTab({ data }) {
         </div>
       </div>
 
-      {/* Advanced Settings */}
+      {/* Exposure Settings */}
       <div>
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 border-b dark:border-gray-600 pb-2">
-          Advanced Settings
+          Exposure Settings
         </h3>
         <div className="space-y-2">
           <MetadataField
-            label="White Balance"
+            label="Exposure Mode"
+            value={capture.exposure_mode || 'N/A'}
+            copyable={false}
+          />
+          <MetadataField
+            label="Exposure Time"
+            value={capture.exposure_time || 'N/A'}
+            copyable={!!capture.exposure_time}
+          />
+          <MetadataField
+            label="Gain (ISO)"
+            value={hasValue(capture.iso) ? capture.iso.toString() : 'N/A'}
+            copyable={hasValue(capture.iso)}
+          />
+          {capture.exposure_mode === 'Auto' && (
+            <MetadataField
+              label="Metering Mode"
+              value={capture.metering_mode || 'N/A'}
+              copyable={false}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Focus Settings */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 border-b dark:border-gray-600 pb-2">
+          Focus Settings
+        </h3>
+        <div className="space-y-2">
+          <MetadataField
+            label="Focus Mode"
+            value={capture.focus_mode || 'N/A'}
+            copyable={false}
+          />
+          {capture.focus_mode === 'Manual' && hasValue(capture.lens_position) && (
+            <MetadataField
+              label="Lens Position"
+              value={`${capture.lens_position.toFixed(2)} diopters`}
+              copyable={true}
+            />
+          )}
+          {(capture.focus_mode === 'Auto Single' || capture.focus_mode === 'Continuous AF') && (
+            <>
+              <MetadataField
+                label="AF Range"
+                value={capture.af_range || 'N/A'}
+                copyable={false}
+              />
+              <MetadataField
+                label="AF Speed"
+                value={capture.af_speed || 'N/A'}
+                copyable={false}
+              />
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Image Processing */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 border-b dark:border-gray-600 pb-2">
+          Image Processing
+        </h3>
+        <div className="space-y-2">
+          <MetadataField
+            label="Noise Reduction"
+            value={capture.noise_reduction || 'N/A'}
+            copyable={false}
+          />
+          <MetadataField
+            label="Sharpness"
+            value={hasValue(capture.sharpness) ? capture.sharpness.toString() : 'N/A'}
+            copyable={hasValue(capture.sharpness)}
+          />
+          <MetadataField
+            label="Brightness"
+            value={hasValue(capture.brightness) ? capture.brightness.toFixed(2) : 'N/A'}
+            copyable={hasValue(capture.brightness)}
+          />
+          <MetadataField
+            label="Contrast"
+            value={hasValue(capture.contrast) ? capture.contrast.toString() : 'N/A'}
+            copyable={hasValue(capture.contrast)}
+          />
+          <MetadataField
+            label="Saturation"
+            value={hasValue(capture.saturation) ? capture.saturation.toString() : 'N/A'}
+            copyable={hasValue(capture.saturation)}
+          />
+        </div>
+      </div>
+
+      {/* Colour & Advanced */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 border-b dark:border-gray-600 pb-2">
+          Colour & Advanced
+        </h3>
+        <div className="space-y-2">
+          <MetadataField
+            label="Aperture"
+            value={capture.f_number || 'N/A'}
+            copyable={!!capture.f_number}
+          />
+          <MetadataField
+            label="Colour Balance"
             value={capture.white_balance || 'N/A'}
             copyable={!!capture.white_balance}
           />
+          {hasValue(capture.colour_gain_red) && (
+            <MetadataField
+              label="Red Gain"
+              value={capture.colour_gain_red.toFixed(3)}
+              copyable={true}
+            />
+          )}
+          {hasValue(capture.colour_gain_blue) && (
+            <MetadataField
+              label="Blue Gain"
+              value={capture.colour_gain_blue.toFixed(3)}
+              copyable={true}
+            />
+          )}
           <MetadataField
             label="Flash"
-            value={capture.flash !== undefined && capture.flash !== null
+            value={hasValue(capture.flash)
               ? (capture.flash ? 'Fired' : 'Did not fire')
               : 'N/A'}
             copyable={false}
@@ -109,20 +202,35 @@ CaptureTab.propTypes = {
    */
   data: PropTypes.shape({
     capture: PropTypes.shape({
-      /** Timestamp string */
+      // Capture Details
       timestamp: PropTypes.string,
-      /** Exposure time (e.g., "1/500") */
-      exposure_time: PropTypes.string,
-      /** F-number (aperture) */
-      f_number: PropTypes.number,
-      /** ISO sensitivity */
-      iso: PropTypes.number,
-      /** Focal length (e.g., "24mm") */
       focal_length: PropTypes.string,
-      /** White balance setting */
+
+      // Exposure Settings
+      exposure_mode: PropTypes.string,
+      exposure_time: PropTypes.string,
+      iso: PropTypes.number,
+      metering_mode: PropTypes.string,
+
+      // Focus Settings
+      focus_mode: PropTypes.string,
+      lens_position: PropTypes.number,
+      af_range: PropTypes.string,
+      af_speed: PropTypes.string,
+
+      // Image Processing
+      noise_reduction: PropTypes.string,
+      sharpness: PropTypes.number,
+      brightness: PropTypes.number,
+      contrast: PropTypes.number,
+      saturation: PropTypes.number,
+
+      // Colour & Advanced
+      f_number: PropTypes.string,
       white_balance: PropTypes.string,
-      /** Flash status */
-      flash: PropTypes.string,
+      colour_gain_red: PropTypes.number,
+      colour_gain_blue: PropTypes.number,
+      flash: PropTypes.bool,
     }),
   }),
 };
