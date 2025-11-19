@@ -1191,11 +1191,8 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             exif_dict = {"0th": zeroth_ifd, "Exif": exif_ifd, "GPS": gps_ifd, "1st": first_ifd}
             exif_bytes = piexif.dump(exif_dict)
 
-            # Convert BGR888 to RGB for PIL (camera captures in BGR order)
-            rgb_array = np.ascontiguousarray(array[:, :, ::-1])  # BGR to RGB
-
-            # Save with EXIF
-            pil_image = Image.fromarray(rgb_array, mode="RGB")
+            # Save with EXIF (BGR888 format is already in correct RGB order)
+            pil_image = Image.fromarray(array, mode="RGB")
             pil_image.save(str(filepath), exif=exif_bytes, quality=95)
             print(f"Saved test capture with rich EXIF metadata to {filepath}")
 
@@ -1721,11 +1718,8 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
 
             exif_bytes = piexif.dump(exif_dict)
 
-            # Convert BGR to RGB (PIL expects RGB)
-            rgb_array = array[:, :, ::-1]
-            img = Image.fromarray(rgb_array)
-
-            # Save with EXIF metadata
+            # Save with EXIF metadata (BGR888 format is already in correct RGB order)
+            img = Image.fromarray(array)
             img.save(str(filepath), quality=95, exif=exif_bytes)
             print(f"Instant photo saved successfully: {filepath}")
 
