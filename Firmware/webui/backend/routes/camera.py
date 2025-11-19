@@ -1155,7 +1155,11 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             else:
                 exif_exposure = (1, 1000)
 
+            # Get current timestamp for DateTimeOriginal
+            capture_timestamp = datetime.now().strftime('%Y:%m:%d %H:%M:%S')
+
             exif_ifd = {
+                piexif.ExifIFD.DateTimeOriginal: capture_timestamp.encode('utf-8'),
                 piexif.ExifIFD.ExposureTime: exif_exposure,
                 piexif.ExifIFD.FocalLength: (
                     int(md.get("LensPosition", 0.0) * 100),
@@ -1163,6 +1167,8 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
                 ),  # Store with extra precision (matches TakePhoto.py)
                 piexif.ExifIFD.ISOSpeed: int(md.get("AnalogueGain", 1.0) * 100),
                 piexif.ExifIFD.ISOSpeedRatings: int(md.get("AnalogueGain", 1.0) * 100),
+                piexif.ExifIFD.WhiteBalance: 0,  # 0 = Auto white balance
+                piexif.ExifIFD.Flash: 0,  # 0 = Flash did not fire
             }
 
             # GPS IFD - check if GPS data exists in controls.txt
@@ -1679,7 +1685,12 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             else:
                 exif_exposure = (1, 1000)
 
+            # Get current timestamp for DateTimeOriginal
+            from datetime import datetime
+            capture_timestamp = datetime.now().strftime('%Y:%m:%d %H:%M:%S')
+
             exif_ifd = {
+                piexif.ExifIFD.DateTimeOriginal: capture_timestamp.encode('utf-8'),
                 piexif.ExifIFD.ExposureTime: exif_exposure,
                 piexif.ExifIFD.FocalLength: (
                     int(md.get("LensPosition", 0.0) * 100),
@@ -1687,6 +1698,8 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
                 ),
                 piexif.ExifIFD.ISOSpeed: int(md.get("AnalogueGain", 1.0) * 100),
                 piexif.ExifIFD.ISOSpeedRatings: int(md.get("AnalogueGain", 1.0) * 100),
+                piexif.ExifIFD.WhiteBalance: 0,  # 0 = Auto white balance
+                piexif.ExifIFD.Flash: 0,  # 0 = Flash did not fire
             }
 
             # GPS IFD (same as test capture)
