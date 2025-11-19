@@ -1441,6 +1441,8 @@ def instant_capture():
         # Get current live view settings
         print("Using live camera settings from camera_streamer instance")
         liveview_settings = camera_streamer.get_current_settings()
+        print(f"DEBUG: liveview_settings = {liveview_settings}")
+        print(f"DEBUG: lens_position in settings? {'lens_position' in liveview_settings}")
 
         # Extract and build settings (same logic as test_capture_liveview)
         settings = {}
