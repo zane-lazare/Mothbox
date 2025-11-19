@@ -1518,8 +1518,9 @@ def instant_capture():
         af_mode_for_capture = settings.get("af_mode", 2)
         if lens_position is not None:
             controls["LensPosition"] = float(lens_position)
-            af_mode_for_capture = 0  # Force Manual AF to preserve lens position
-            print(f"Preserving lens position {lens_position:.2f} - using Manual AF mode")
+            controls["AfMode"] = 0  # Force Manual AF to preserve lens position
+            af_mode_for_capture = 0
+            print(f"Preserving lens position {lens_position:.2f} - forcing Manual AF mode")
 
         # Generate instant capture filename: instant_YYYY_MM_DD__HH_MM_SS_[serial].jpg
         timestamp = datetime.now().strftime("%Y_%m_%d__%H_%M_%S")
