@@ -101,6 +101,7 @@ class LiveViewStreamer:
         self.streaming = False
         self.stream_thread = None
         self.stop_event = Event()
+        self._cached_lens_position = None  # Cache lens position from streaming metadata
         self.load_stream_settings()
 
     def load_stream_settings(self):
@@ -343,10 +344,16 @@ class LiveViewStreamer:
             try:
                 metadata = self.camera.capture_metadata()
                 if 'LensPosition' in metadata:
-                    settings['lens_position'] = metadata['LensPosition']
+                    lens_pos = metadata['LensPosition']
+                    settings['lens_position'] = lens_pos
+                    self._cached_lens_position = lens_pos  # Cache for future use
             except Exception as e:
-                # Camera metadata query failed - fall back to configured value
-                print(f"Warning: Could not read lens position from camera metadata: {e}")
+                # Camera metadata query failed - use cached value if available
+                if self._cached_lens_position is not None:
+                    settings['lens_position'] = self._cached_lens_position
+                    print(f"Using cached lens position {self._cached_lens_position:.2f} (metadata query failed: {e})")
+                else:
+                    print(f"Warning: Could not read lens position from camera metadata: {e}")
                 if hasattr(self, 'lens_position'):
                     settings['lens_position'] = self.lens_position
         else:
