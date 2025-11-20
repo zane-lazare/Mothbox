@@ -1789,7 +1789,7 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             return jsonify(
                 {
                     "success": True,
-                    "test_photo_path": str(relative_path),
+                    "photo_path": str(relative_path),
                     "settings_used": controls,
                     "settings_source": settings_source,
                     "metadata": {
