@@ -261,11 +261,15 @@ try:
                 )
             else:
                 print("Could not determine timezone from coordinates.")
+                print(f"Writing coordinates anyway: lat={latitude}, lon={longitude}")
+                # Still write coordinates even if timezone lookup fails
+                # Use default UTC offset of 0 since we couldn't determine it
                 update_gps_values(
                     str(CONTROLS_FILE),
-                    lat="n/a",
-                    lon="n/a",
+                    lat=latitude,
+                    lon=longitude,
                     gpstime=epoch_time,
+                    utc_offset=0,  # Default to UTC if timezone unknown
                     fix_mode=fix_mode,
                     nsat=satellites_visible,
                     usat=satellites_used,
