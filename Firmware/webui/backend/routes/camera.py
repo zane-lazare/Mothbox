@@ -1753,19 +1753,36 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             try:
                 import sys
                 from pathlib import Path
+                import traceback
                 firmware_root = Path(__file__).parent.parent.parent
                 if str(firmware_root) not in sys.path:
                     sys.path.insert(0, str(firmware_root))
 
                 from lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
+                from mothbox_paths import CONTROLS_FILE
+
+                print(f"[GPS DEBUG] Starting GPS EXIF embedding")
+                print(f"[GPS DEBUG] Reading controls.txt from: {CONTROLS_FILE}")
+                print(f"[GPS DEBUG] Controls file exists: {CONTROLS_FILE.exists()}")
 
                 gps_data = get_gps_data_from_controls()
+                print(f"[GPS DEBUG] GPS data returned: {gps_data}")
+                print(f"[GPS DEBUG] has_fix={gps_data.get('has_fix')}, lat={gps_data.get('latitude')}, lon={gps_data.get('longitude')}, fix_mode={gps_data.get('fix_mode')}")
+
                 if gps_data.get('has_fix'):
+                    print(f"[GPS DEBUG] has_fix=True, building GPS IFD...")
                     gps_ifd = build_gps_ifd(gps_data)
+                    print(f"[GPS DEBUG] GPS IFD built. Empty: {not gps_ifd}, Keys: {list(gps_ifd.keys()) if gps_ifd else 'NONE'}")
                     if gps_ifd:
                         print(f"GPS EXIF embedded: lat={gps_data['latitude']}, lon={gps_data['longitude']}")
+                    else:
+                        print(f"[GPS DEBUG] WARNING: build_gps_ifd() returned empty dict despite has_fix=True")
+                else:
+                    print(f"[GPS DEBUG] has_fix=False, skipping GPS EXIF embedding")
             except Exception as gps_error:
                 print(f"Warning: Could not embed GPS EXIF: {gps_error}")
+                print(f"[GPS DEBUG] Exception traceback:")
+                traceback.print_exc()
 
             # Dump EXIF to bytes
             exif_dict = {
@@ -1774,8 +1791,12 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             }
             if gps_ifd:
                 exif_dict["GPS"] = gps_ifd
+                print(f"[GPS DEBUG] GPS IFD added to EXIF dict with {len(gps_ifd)} tags")
+            else:
+                print(f"[GPS DEBUG] No GPS IFD to add to EXIF dict")
 
             exif_bytes = piexif.dump(exif_dict)
+            print(f"[GPS DEBUG] EXIF dict keys: {list(exif_dict.keys())}")
 
             # Save with EXIF metadata (BGR888 format is already in correct RGB order)
             img = Image.fromarray(array)
