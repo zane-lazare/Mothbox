@@ -69,6 +69,10 @@ const CameraTab = ({ data }) => {
             value={camera.model || 'N/A'}
           />
           <MetadataField
+            label="Sensor"
+            value={camera.sensor || 'N/A'}
+          />
+          <MetadataField
             label="Lens Model"
             value={camera.lens || 'N/A'}
           />

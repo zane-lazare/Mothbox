@@ -3,60 +3,176 @@ import { describe, it, expect } from 'vitest';
 import DeploymentTab from '../DeploymentTab';
 
 describe('DeploymentTab', () => {
-  describe('Basic Field Rendering', () => {
-    it('renders device name', () => {
+  describe('Device Info Section', () => {
+    it('renders Mothbox ID', () => {
       const data = {
-        device_name: 'mothbox-001',
+        deployment: {
+          mothbox_id: 'mothbox-backyard',
+        },
       };
 
       render(<DeploymentTab data={data} />);
 
-      expect(screen.getByText('Device Name')).toBeInTheDocument();
-      expect(screen.getByText('mothbox-001')).toBeInTheDocument();
+      expect(screen.getByText('Mothbox ID')).toBeInTheDocument();
+      expect(screen.getByText('mothbox-backyard')).toBeInTheDocument();
+    });
+
+    it('renders capture type', () => {
+      const data = {
+        deployment: {
+          capture_type: 'instant',
+        },
+      };
+
+      render(<DeploymentTab data={data} />);
+
+      expect(screen.getByText('Capture Type')).toBeInTheDocument();
+      expect(screen.getByText('Instant Capture')).toBeInTheDocument();
     });
 
     it('renders firmware version', () => {
       const data = {
-        firmware_version: '5.2.1',
+        deployment: {
+          firmware_version: '5',
+        },
       };
 
       render(<DeploymentTab data={data} />);
 
       expect(screen.getByText('Firmware Version')).toBeInTheDocument();
-      expect(screen.getByText('5.2.1')).toBeInTheDocument();
+      expect(screen.getByText('5')).toBeInTheDocument();
     });
 
-    it('renders session ID', () => {
+    it('formats capture type correctly', () => {
+      const testCases = [
+        { type: 'instant', expected: 'Instant Capture' },
+        { type: 'test', expected: 'Test Capture' },
+        { type: 'scheduled', expected: 'Scheduled' },
+        { type: 'bracket', expected: 'Focus Bracket' },
+        { type: 'hdr', expected: 'HDR' },
+        { type: 'unknown', expected: 'unknown' },
+      ];
+
+      testCases.forEach(({ type, expected }) => {
+        const { unmount } = render(
+          <DeploymentTab data={{ deployment: { capture_type: type } }} />
+        );
+        expect(screen.getByText(expected)).toBeInTheDocument();
+        unmount();
+      });
+    });
+  });
+
+  describe('Series Info Section', () => {
+    it('renders series type', () => {
       const data = {
-        session_id: 'session-2025-03-15-143045',
+        deployment: {
+          series_type: 'hdr',
+        },
       };
 
       render(<DeploymentTab data={data} />);
 
-      expect(screen.getByText('Session ID')).toBeInTheDocument();
-      expect(screen.getByText('session-2025-03-15-143045')).toBeInTheDocument();
+      expect(screen.getByText('Series Type')).toBeInTheDocument();
+      expect(screen.getByText('hdr')).toBeInTheDocument();
     });
 
-    it('renders installation type', () => {
+    it('renders series count and index', () => {
       const data = {
-        installation_type: 'production',
+        deployment: {
+          series_type: 'focus_bracket',
+          series_count: 5,
+          series_index: 2,
+        },
       };
 
       render(<DeploymentTab data={data} />);
 
-      expect(screen.getByText('Installation Type')).toBeInTheDocument();
-      expect(screen.getByText('production')).toBeInTheDocument();
+      expect(screen.getByText('Series Count')).toBeInTheDocument();
+      expect(screen.getByText('5')).toBeInTheDocument();
+      expect(screen.getByText('Series Index')).toBeInTheDocument();
+      expect(screen.getByText('2')).toBeInTheDocument();
     });
+  });
 
-    it('renders Pi model', () => {
+  describe('GPS Location Section', () => {
+    it('renders GPS coordinates when available', () => {
       const data = {
-        pi_model: 'Raspberry Pi 5 Model B Rev 1.0',
+        deployment: {},
+        location: {
+          latitude: 40.7128,
+          longitude: -74.006,
+        },
       };
 
       render(<DeploymentTab data={data} />);
 
-      expect(screen.getByText('Pi Model')).toBeInTheDocument();
-      expect(screen.getByText('Raspberry Pi 5 Model B Rev 1.0')).toBeInTheDocument();
+      expect(screen.getByText('GPS Location')).toBeInTheDocument();
+      // Latitude/Longitude appear twice: once in decimal, once in DMS
+      expect(screen.getAllByText('Latitude').length).toBe(2);
+      expect(screen.getAllByText('Longitude').length).toBe(2);
+    });
+
+    it('renders altitude when available', () => {
+      const data = {
+        deployment: {},
+        location: {
+          latitude: 40.7128,
+          longitude: -74.006,
+          altitude: 10.5,
+        },
+      };
+
+      render(<DeploymentTab data={data} />);
+
+      expect(screen.getByText('Altitude')).toBeInTheDocument();
+    });
+
+    it('shows no GPS message when location is not available', () => {
+      const data = {
+        deployment: {
+          mothbox_id: 'mothbox-001',
+        },
+      };
+
+      render(<DeploymentTab data={data} />);
+
+      expect(screen.getByText('No GPS information available')).toBeInTheDocument();
+    });
+
+    it('renders map link when GPS is available', () => {
+      const data = {
+        deployment: {},
+        location: {
+          latitude: 40.7128,
+          longitude: -74.006,
+        },
+      };
+
+      render(<DeploymentTab data={data} />);
+
+      const mapLink = screen.getByRole('link', { name: /view on map/i });
+      expect(mapLink).toBeInTheDocument();
+      expect(mapLink).toHaveAttribute('href', expect.stringContaining('google.com/maps'));
+    });
+
+    it('renders GPS quality indicators', () => {
+      const data = {
+        deployment: {},
+        location: {
+          latitude: 40.7128,
+          longitude: -74.006,
+          satellites: 8,
+          hdop: 1.2,
+        },
+      };
+
+      render(<DeploymentTab data={data} />);
+
+      expect(screen.getByText('Satellites')).toBeInTheDocument();
+      expect(screen.getByText('8')).toBeInTheDocument();
+      expect(screen.getByText('HDOP')).toBeInTheDocument();
+      expect(screen.getByText('1.2')).toBeInTheDocument();
     });
   });
 
@@ -72,158 +188,45 @@ describe('DeploymentTab', () => {
 
       expect(screen.getByText('No deployment data available')).toBeInTheDocument();
     });
-  });
 
-  describe('Partial Data Handling', () => {
-    it('handles missing device name', () => {
-      const data = {
-        firmware_version: '5.2.1',
-      };
+    it('handles empty deployment object', () => {
+      render(<DeploymentTab data={{ deployment: {} }} />);
 
-      render(<DeploymentTab data={data} />);
-
-      expect(screen.getByText('Device Name')).toBeInTheDocument();
-      // Multiple N/A values expected for missing fields
-      expect(screen.getAllByText('N/A').length).toBeGreaterThan(0);
-    });
-
-    it('handles missing firmware version', () => {
-      const data = {
-        device_name: 'mothbox-001',
-      };
-
-      render(<DeploymentTab data={data} />);
-
-      expect(screen.getByText('Firmware Version')).toBeInTheDocument();
-      // Multiple N/A values expected for missing fields
-      expect(screen.getAllByText('N/A').length).toBeGreaterThan(0);
-    });
-
-    it('handles missing session ID', () => {
-      const data = {
-        device_name: 'mothbox-001',
-      };
-
-      render(<DeploymentTab data={data} />);
-
-      expect(screen.getByText('Session ID')).toBeInTheDocument();
-      // Multiple N/A values expected for missing fields
-      expect(screen.getAllByText('N/A').length).toBeGreaterThan(0);
-    });
-
-    it('handles some fields null', () => {
-      const data = {
-        device_name: 'mothbox-001',
-        firmware_version: null,
-        session_id: 'session-123',
-        installation_type: null,
-        pi_model: 'Raspberry Pi 5',
-      };
-
-      render(<DeploymentTab data={data} />);
-
-      expect(screen.getByText('mothbox-001')).toBeInTheDocument();
-      expect(screen.getByText('session-123')).toBeInTheDocument();
-      expect(screen.getByText('Raspberry Pi 5')).toBeInTheDocument();
-      expect(screen.getAllByText('N/A')).toHaveLength(2); // firmware and installation
+      expect(screen.getByText('Mothbox ID')).toBeInTheDocument();
+      // Multiple N/A values for empty fields
+      const naElements = screen.getAllByText('N/A');
+      expect(naElements.length).toBeGreaterThan(0);
     });
   });
 
-  describe('Copyable Fields', () => {
-    it('device name is copyable when present', () => {
+  describe('Full Data Rendering', () => {
+    it('renders all fields when full data is provided', () => {
       const data = {
-        device_name: 'mothbox-001',
+        deployment: {
+          mothbox_id: 'mothbox-forest',
+          capture_type: 'scheduled',
+          firmware_version: '5',
+          series_type: 'single',
+        },
+        location: {
+          latitude: 37.7749,
+          longitude: -122.4194,
+          altitude: 50,
+          satellites: 12,
+          hdop: 0.8,
+        },
       };
 
       render(<DeploymentTab data={data} />);
 
-      const deviceField = screen.getByText('mothbox-001').closest('div');
-      expect(deviceField).toBeInTheDocument();
-    });
+      // Device info
+      expect(screen.getByText('mothbox-forest')).toBeInTheDocument();
+      expect(screen.getByText('Scheduled')).toBeInTheDocument();
+      expect(screen.getByText('5')).toBeInTheDocument();
 
-    it('firmware version is copyable when present', () => {
-      const data = {
-        firmware_version: '5.2.1',
-      };
-
-      render(<DeploymentTab data={data} />);
-
-      const firmwareField = screen.getByText('5.2.1').closest('div');
-      expect(firmwareField).toBeInTheDocument();
-    });
-
-    it('session ID is copyable when present', () => {
-      const data = {
-        session_id: 'session-2025-03-15-143045',
-      };
-
-      render(<DeploymentTab data={data} />);
-
-      const sessionField = screen.getByText('session-2025-03-15-143045').closest('div');
-      expect(sessionField).toBeInTheDocument();
-    });
-
-    it('fields are not copyable when missing', () => {
-      const data = {
-        device_name: null,
-      };
-
-      render(<DeploymentTab data={data} />);
-
-      // All fields should show N/A
-      expect(screen.getAllByText('N/A').length).toBeGreaterThan(0);
-    });
-  });
-
-  describe('Complete Data Scenarios', () => {
-    it('renders all fields when all data provided', () => {
-      const data = {
-        device_name: 'mothbox-backyard',
-        firmware_version: '5.2.1',
-        session_id: 'session-2025-03-15-143045',
-        installation_type: 'production',
-        pi_model: 'Raspberry Pi 5 Model B Rev 1.0',
-      };
-
-      render(<DeploymentTab data={data} />);
-
-      expect(screen.getByText('mothbox-backyard')).toBeInTheDocument();
-      expect(screen.getByText('5.2.1')).toBeInTheDocument();
-      expect(screen.getByText('session-2025-03-15-143045')).toBeInTheDocument();
-      expect(screen.getByText('production')).toBeInTheDocument();
-      expect(screen.getByText('Raspberry Pi 5 Model B Rev 1.0')).toBeInTheDocument();
-    });
-
-    it('renders only available fields with N/A for missing', () => {
-      const data = {
-        device_name: 'mothbox-test',
-        pi_model: 'Raspberry Pi 4',
-      };
-
-      render(<DeploymentTab data={data} />);
-
-      expect(screen.getByText('mothbox-test')).toBeInTheDocument();
-      expect(screen.getByText('Raspberry Pi 4')).toBeInTheDocument();
-      expect(screen.getAllByText('N/A')).toHaveLength(3); // firmware, session, installation
-    });
-  });
-
-  describe('Empty State', () => {
-    it('shows empty state message for completely null data', () => {
-      render(<DeploymentTab data={null} />);
-
-      expect(screen.getByText('No deployment data available')).toBeInTheDocument();
-    });
-
-    it('does not show empty state when at least one field has data', () => {
-      const data = {
-        device_name: 'mothbox-001',
-      };
-
-      render(<DeploymentTab data={data} />);
-
-      expect(screen.queryByText('No deployment data available')).not.toBeInTheDocument();
-      expect(screen.getByText('mothbox-001')).toBeInTheDocument();
+      // GPS location
+      expect(screen.getByText('GPS Location')).toBeInTheDocument();
+      expect(screen.getByText('12')).toBeInTheDocument(); // satellites
     });
   });
 });

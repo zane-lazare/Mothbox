@@ -112,7 +112,7 @@ class MetadataService:
                         'gps_timestamp': None, 'satellites': None, 'hdop': None},
             'capture': {'timestamp': None, 'exposure_time': None, 'f_number': None,
                        'iso': None, 'focal_length': None, 'white_balance': None, 'flash': None},
-            'deployment': {'mothbox_id': None, 'firmware_version': None,
+            'deployment': {'mothbox_id': None, 'capture_type': None, 'firmware_version': None,
                           'series_type': None, 'series_count': None, 'series_index': None},
             'file': {'path': None, 'filename': None, 'size': None,
                     'width': None, 'height': None, 'format': None}
@@ -255,8 +255,16 @@ class MetadataService:
                 if piexif.ExifIFD.LensModel in exif_ifd:
                     camera['lens'] = exif_ifd[piexif.ExifIFD.LensModel].decode('utf-8', errors='ignore').strip()
 
-                # Sensor type (may not be available in all EXIF data)
-                # We'll leave this as None for now as it's rarely populated
+                # Sensor from MakerNote (Mothbox-specific)
+                if piexif.ExifIFD.MakerNote in exif_ifd:
+                    try:
+                        import json
+                        maker_note_json = exif_ifd[piexif.ExifIFD.MakerNote].decode('utf-8', errors='ignore')
+                        maker_note = json.loads(maker_note_json)
+                        if 'sensor' in maker_note:
+                            camera['sensor'] = maker_note['sensor']
+                    except (json.JSONDecodeError, KeyError):
+                        pass
 
         except Exception:
             # Gracefully handle any EXIF parsing errors
@@ -497,6 +505,7 @@ class MetadataService:
         """
         deployment = {
             'mothbox_id': None,
+            'capture_type': None,
             'firmware_version': None,
             'series_type': None,
             'series_count': None,
@@ -504,12 +513,27 @@ class MetadataService:
         }
 
         try:
-            # Extract Mothbox ID from filename (first part before date)
-            # Example: mothbox_2024_10_15__14_30_00.jpg -> "mothbox"
-            filename = photo_path.stem
-            match = re.match(r'^([a-zA-Z0-9_-]+)_\d{4}_\d{2}_\d{2}', filename)
-            if match:
-                deployment['mothbox_id'] = match.group(1)
+            # Try to get Mothbox ID and capture type from MakerNote first (preferred)
+            if 'Exif' in exif_data:
+                exif_ifd = exif_data['Exif']
+                if piexif.ExifIFD.MakerNote in exif_ifd:
+                    try:
+                        import json
+                        maker_note_json = exif_ifd[piexif.ExifIFD.MakerNote].decode('utf-8', errors='ignore')
+                        maker_note = json.loads(maker_note_json)
+                        if 'mothbox_name' in maker_note:
+                            deployment['mothbox_id'] = maker_note['mothbox_name']
+                        if 'capture_type' in maker_note:
+                            deployment['capture_type'] = maker_note['capture_type']
+                    except (json.JSONDecodeError, KeyError):
+                        pass
+
+            # Fall back to filename parsing if MakerNote didn't have mothbox_name
+            if deployment['mothbox_id'] is None:
+                filename = photo_path.stem
+                match = re.match(r'^([a-zA-Z0-9_-]+)_\d{4}_\d{2}_\d{2}', filename)
+                if match:
+                    deployment['mothbox_id'] = match.group(1)
 
             # Extract firmware version from EXIF Software tag
             if '0th' in exif_data:

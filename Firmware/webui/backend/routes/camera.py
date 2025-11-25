@@ -1102,7 +1102,6 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             md = picam2.capture_metadata()
 
             # Build rich EXIF metadata (matching TakePhoto.py pattern)
-            import numpy as np
             import piexif
             from PIL import Image
 
@@ -1120,30 +1119,29 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             except Exception as e:
                 print(f"Warning: Could not read mothbox name from controls.txt: {e}")
 
-            # Detect camera model from Picamera2 metadata
-            camera_model = "Unknown"
+            # Detect sensor from Picamera2 metadata
+            sensor_name = "Unknown"
             try:
-                # Get camera model from sensor name in metadata
                 sensor_name = md.get("SensorName", "")
-                if sensor_name:
-                    camera_model = sensor_name
-                elif "ov64a40" in str(picam2.camera_properties.get("Model", "")).lower():
-                    camera_model = "Arducam 64MP (ov64a40)"
-                else:
-                    camera_model = str(picam2.camera_properties.get("Model", "Unknown"))
+                if not sensor_name:
+                    model_str = str(picam2.camera_properties.get("Model", ""))
+                    if "ov64a40" in model_str.lower():
+                        sensor_name = "ov64a40"
+                    else:
+                        sensor_name = model_str or "Unknown"
             except Exception as e:
-                print(f"Warning: Could not detect camera model: {e}")
+                print(f"Warning: Could not detect sensor: {e}")
 
             # Get firmware version
             firmware_version = get_firmware_version()
 
             # Build EXIF IFDs (Image File Directories)
             # 0th IFD contains main image metadata (Make, Model, Software)
-            # Metadata service reads from 0th IFD, not 1st IFD
+            # Make/Model refer to camera hardware, not Mothbox device
             zeroth_ifd = {
-                piexif.ImageIFD.Make: mothbox_name.encode("utf-8") if mothbox_name else b"mothbox",
-                piexif.ImageIFD.Model: camera_model.encode("utf-8") if camera_model else b"Unknown",
-                piexif.ImageIFD.Software: firmware_version.encode("utf-8"),  # Just firmware version (e.g., "5")
+                piexif.ImageIFD.Make: b"Arducam",
+                piexif.ImageIFD.Model: b"OwlSight 64MP",
+                piexif.ImageIFD.Software: firmware_version.encode("utf-8"),
             }
 
             # Extract exposure time and convert to EXIF rational format
@@ -1177,10 +1175,15 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
                 piexif.ExifIFD.BrightnessValue: (int(settings_dict.get("Brightness", 0.0) * 100), 100),  # Rational
             }
 
-            # Add MakerNote to store camera-specific metadata (focus, noise reduction, etc.)
+            # Add MakerNote to store Mothbox-specific metadata
             # Store as JSON string in MakerNote field
             import json
             maker_note_data = {
+                # Deployment info
+                "mothbox_name": mothbox_name or "mothbox",
+                "capture_type": "test",  # test capture from web UI preview
+                "sensor": sensor_name,
+                # Camera settings
                 "focus_mode": int(settings_dict.get("AfMode", 2)),  # 0=Manual, 1=Auto, 2=Continuous
                 "af_range": int(settings_dict.get("AfRange", 0)),  # 0=Normal, 1=Macro, 2=Full
                 "af_speed": int(settings_dict.get("AfSpeed", 0)),  # 0=Normal, 1=Fast
@@ -1292,8 +1295,9 @@ def test_capture_liveview():
         - timestamp: float
     """
     try:
-        from mothbox_paths import LIVEVIEW_SETTINGS_FILE, get_control_values
         from flask import current_app
+
+        from mothbox_paths import LIVEVIEW_SETTINGS_FILE, get_control_values
 
         print("Test capture (live view settings) requested via API")
 
@@ -1426,9 +1430,9 @@ def instant_capture():
         - timestamp: float
     """
     try:
-        from mothbox_paths import get_control_values
-        from flask import current_app
         from datetime import datetime
+
+        from flask import current_app
 
         print("Instant capture requested via API")
 
@@ -1655,7 +1659,6 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             md = picam2.capture_metadata()
 
             # Build rich EXIF metadata (same pattern as _execute_test_capture)
-            import numpy as np
             import piexif
             from PIL import Image
 
@@ -1673,26 +1676,27 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             except Exception as e:
                 print(f"Warning: Could not read mothbox name from controls.txt: {e}")
 
-            # Detect camera model
-            camera_model = "Unknown"
+            # Detect sensor from Picamera2 metadata
+            sensor_name = "Unknown"
             try:
                 sensor_name = md.get("SensorName", "")
-                if sensor_name:
-                    camera_model = sensor_name
-                elif "ov64a40" in str(picam2.camera_properties.get("Model", "")).lower():
-                    camera_model = "Arducam 64MP (ov64a40)"
-                else:
-                    camera_model = str(picam2.camera_properties.get("Model", "Unknown"))
+                if not sensor_name:
+                    model_str = str(picam2.camera_properties.get("Model", ""))
+                    if "ov64a40" in model_str.lower():
+                        sensor_name = "ov64a40"
+                    else:
+                        sensor_name = model_str or "Unknown"
             except Exception as e:
-                print(f"Warning: Could not detect camera model: {e}")
+                print(f"Warning: Could not detect sensor: {e}")
 
             # Get firmware version
             firmware_version = get_firmware_version()
 
             # Build EXIF IFDs
+            # Make/Model refer to camera hardware, not Mothbox device
             zeroth_ifd = {
-                piexif.ImageIFD.Make: mothbox_name.encode("utf-8") if mothbox_name else b"mothbox",
-                piexif.ImageIFD.Model: camera_model.encode("utf-8") if camera_model else b"Unknown",
+                piexif.ImageIFD.Make: b"Arducam",
+                piexif.ImageIFD.Model: b"OwlSight 64MP",
                 piexif.ImageIFD.Software: firmware_version.encode("utf-8"),
             }
 
@@ -1727,10 +1731,15 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
                 piexif.ExifIFD.BrightnessValue: (int(settings_dict.get("Brightness", 0.0) * 100), 100),  # Rational
             }
 
-            # Add MakerNote to store camera-specific metadata (focus, noise reduction, etc.)
+            # Add MakerNote to store Mothbox-specific metadata
             # Store as JSON string in MakerNote field
             import json
             maker_note_data = {
+                # Deployment info
+                "mothbox_name": mothbox_name or "mothbox",
+                "capture_type": "instant",  # instant capture from web UI
+                "sensor": sensor_name,
+                # Camera settings
                 "focus_mode": int(settings_dict.get("AfMode", 2)),  # 0=Manual, 1=Auto, 2=Continuous
                 "af_range": int(settings_dict.get("AfRange", 0)),  # 0=Normal, 1=Macro, 2=Full
                 "af_speed": int(settings_dict.get("AfSpeed", 0)),  # 0=Normal, 1=Fast
@@ -1741,7 +1750,6 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             }
             exif_ifd[piexif.ExifIFD.MakerNote] = json.dumps(maker_note_data).encode('utf-8')
 
-            # GPS IFD (same as test capture)
             # GPS IFD - embed GPS coordinates from controls.txt if available
             gps_ifd = {}
             try:
@@ -1764,7 +1772,7 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
                 exif_dict["GPS"] = gps_ifd
                 print(f"[GPS DEBUG] GPS IFD added to EXIF dict with {len(gps_ifd)} tags")
             else:
-                print(f"[GPS DEBUG] No GPS IFD to add to EXIF dict")
+                print("[GPS DEBUG] No GPS IFD to add to EXIF dict")
 
             exif_bytes = piexif.dump(exif_dict)
             print(f"[GPS DEBUG] EXIF dict keys: {list(exif_dict.keys())}")
