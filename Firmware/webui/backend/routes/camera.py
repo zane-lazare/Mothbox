@@ -1194,12 +1194,11 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             # GPS IFD - check if GPS data exists in controls.txt
             gps_ifd = {}
             try:
-                # Add firmware root to path for lib/ imports
+                # Add MOTHBOX_HOME to path for lib/ imports
                 import sys
-                from pathlib import Path
-                firmware_root = Path(__file__).parent.parent.parent
-                if str(firmware_root) not in sys.path:
-                    sys.path.insert(0, str(firmware_root))
+                from mothbox_paths import MOTHBOX_HOME
+                if str(MOTHBOX_HOME) not in sys.path:
+                    sys.path.insert(0, str(MOTHBOX_HOME))
 
                 from lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
 
@@ -1207,7 +1206,7 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
                 if gps_data.get('has_fix'):
                     gps_ifd = build_gps_ifd(gps_data)
                     if gps_ifd:
-                        print("Embedded GPS EXIF from controls.txt")
+                        print(f"Embedded GPS EXIF: lat={gps_data['latitude']}, lon={gps_data['longitude']}")
             except Exception as gps_error:
                 print(f"GPS EXIF embedding skipped: {gps_error}")
 
@@ -1752,16 +1751,17 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             gps_ifd = {}
             try:
                 import sys
-                from pathlib import Path
                 import traceback
-                firmware_root = Path(__file__).parent.parent.parent
-                if str(firmware_root) not in sys.path:
-                    sys.path.insert(0, str(firmware_root))
+                from mothbox_paths import MOTHBOX_HOME, CONTROLS_FILE
+
+                # Add MOTHBOX_HOME to sys.path so lib.gps_exif_lib can be imported
+                if str(MOTHBOX_HOME) not in sys.path:
+                    sys.path.insert(0, str(MOTHBOX_HOME))
 
                 from lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
-                from mothbox_paths import CONTROLS_FILE
 
                 print(f"[GPS DEBUG] Starting GPS EXIF embedding")
+                print(f"[GPS DEBUG] MOTHBOX_HOME: {MOTHBOX_HOME}")
                 print(f"[GPS DEBUG] Reading controls.txt from: {CONTROLS_FILE}")
                 print(f"[GPS DEBUG] Controls file exists: {CONTROLS_FILE.exists()}")
 
