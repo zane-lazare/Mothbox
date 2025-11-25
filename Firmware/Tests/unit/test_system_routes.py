@@ -334,8 +334,8 @@ class TestSystemInfo:
 class TestSystemDiagnostic:
     """Tests for GET /api/system/diagnostic"""
 
-    def test_diagnostic_only_includes_traceback_in_debug(self, system_client, mock_paths):
-        """GET /diagnostic only includes traceback in debug mode"""
+    def test_diagnostic_never_includes_traceback(self, system_client, mock_paths):
+        """GET /diagnostic never includes traceback (security - logged server-side only)"""
         # Test with DEBUG = False (production)
         with patch('routes.system.config.DEBUG', False), \
              patch('routes.system.get_control_values', side_effect=Exception("Test error")):
@@ -346,10 +346,10 @@ class TestSystemDiagnostic:
             data = json.loads(response.data)
 
             assert 'error' in data
-            # No traceback in production (security)
+            # No traceback returned to client (security)
             assert 'traceback' not in data
 
-        # Test with DEBUG = True (development)
+        # Test with DEBUG = True (development) - still no traceback to client
         with patch('routes.system.config.DEBUG', True), \
              patch('routes.system.get_control_values', side_effect=Exception("Test error")):
 
@@ -359,8 +359,9 @@ class TestSystemDiagnostic:
             data = json.loads(response.data)
 
             assert 'error' in data
-            # Traceback included in debug mode
-            assert 'traceback' in data
+            # Traceback NOT included even in debug mode (CodeQL security requirement)
+            # Traceback is logged server-side instead
+            assert 'traceback' not in data
 
 
 # ============================================================================

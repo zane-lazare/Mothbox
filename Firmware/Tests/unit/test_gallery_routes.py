@@ -508,7 +508,8 @@ class TestThumbnailCacheIntegration:
             assert response.status_code == 400
             data = json.loads(response.data)
             assert 'error' in data
-            assert 'Invalid size' in data['error']
+            # Generic error message returned to client (actual error logged server-side)
+            assert 'Failed to generate thumbnail' in data['error']
 
     def test_thumbnail_falls_back_without_cache(self, gallery_app, sample_photos, temp_photos_dir):
         """GET /thumbnail/<path> falls back to PIL when cache unavailable"""
