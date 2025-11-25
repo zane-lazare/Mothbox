@@ -128,7 +128,8 @@ def list_photos():
 
         return jsonify({"photos": photos})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error in list_photos: {e}")
+        return jsonify({"error": "Failed to list photos"}), 500
 
 
 @gallery_bp.route("/photo/<path:photo_path>", methods=["GET"])
@@ -173,7 +174,7 @@ def get_thumbnail(photo_path):
                 return send_file(thumbnail_path, mimetype="image/jpeg")
             except ThumbnailError as e:
                 current_app.logger.error(f"ThumbnailError: {e}")
-                return jsonify({"error": str(e)}), 400
+                return jsonify({"error": "Failed to generate thumbnail"}), 400
         else:
             # Fallback to original behavior if cache not available
             import io
@@ -644,7 +645,8 @@ def cache_warm():
         return jsonify(result)
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        print(f"Error starting cache warming: {e}")
+        return jsonify({"error": "Failed to start cache warming"}), 400
 
 
 @gallery_bp.route("/cache/warm/status", methods=["GET"])
@@ -672,7 +674,8 @@ def cache_warm_status(task_id=None):
         return jsonify(status)
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        print(f"Error getting warming status: {e}")
+        return jsonify({"error": "Failed to get warming status"}), 400
 
 
 @gallery_bp.route("/cache/warm/cancel/<task_id>", methods=["POST"])
