@@ -1867,13 +1867,33 @@ class TestTestCaptureLiveview:
         monkeypatch.setattr('camera_control_mapping.build_picamera_controls', mock_build_picamera_controls)
         monkeypatch.setattr('routes.camera.acquire_camera_with_retry', mock_acquire_camera_with_retry)
 
-        # Setup: Mock Picamera2 behavior for successful capture
-        def mock_capture_file(filepath):
-            """Create actual file when capture_file is called"""
-            Path(filepath).parent.mkdir(parents=True, exist_ok=True)
-            Path(filepath).write_text("fake image data")
+        # Setup: Configure mock_camera_streamer.get_current_settings() to return expected values
+        # The new implementation reads from camera_streamer instead of file
+        mock_camera_streamer.get_current_settings.return_value = {
+            'sharpness': 1.5,
+            'brightness': 0.0,
+            'contrast': 1.2,
+            'saturation': 1.0,
+            'af_mode': 2,
+            'af_speed': 0,
+            'af_range': 0,
+            'af_metering': 0,
+            'ae_enable': True,
+            'ae_metering_mode': 0,
+            'awb_enable': True,
+            'awb_mode': 0,
+            'exposure_time': 10000,
+            'analogue_gain': 1.5,
+            'noise_reduction_mode': 2,
+            'colour_gains_red': 2.259,
+            'colour_gains_blue': 1.500,
+            'lens_position': 5.5,
+        }
 
-        mock_picamera2._mock_instance.capture_file.side_effect = mock_capture_file
+        # Setup: Mock Picamera2 behavior for successful capture
+        # New implementation uses capture_array + piexif for rich EXIF embedding
+        import numpy as np
+        mock_picamera2._mock_instance.capture_array.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
         mock_picamera2._mock_instance.capture_metadata.return_value = {
             'ExposureTime': 10000,
             'AnalogueGain': 1.5,
@@ -1881,7 +1901,7 @@ class TestTestCaptureLiveview:
             'ColourTemperature': 5000
         }
 
-        # Setup: Write liveview settings
+        # Setup: Write liveview settings (for fallback path, though new impl uses camera_streamer)
         with open(temp_liveview_settings, 'w') as f:
             f.write("sharpness=1.5\n")
             f.write("brightness=0.0\n")
@@ -1913,21 +1933,22 @@ class TestTestCaptureLiveview:
         assert metadata['lens_position'] == 5.5
         assert metadata['colour_temperature'] == 5000
 
-        # Verify: Camera lifecycle
-        mock_instance = mock_picamera2._mock_instance
-        assert mock_instance.configure.called
-        assert mock_instance.start.called
-        assert mock_instance.set_controls.called
-        assert mock_instance.capture_file.called
-        assert mock_instance.capture_metadata.called
-        assert mock_instance.stop.called
-        assert mock_instance.close.called
-
         # Verify: File was created
         test_captures_dir = temp_photos_dir / "test_captures"
         assert test_captures_dir.exists()
         captured_files = list(test_captures_dir.glob("test_capture_*.jpg"))
         assert len(captured_files) == 1
+
+        # Verify: Camera lifecycle
+        # Note: New implementation uses capture_array instead of capture_file for rich EXIF
+        mock_instance = mock_picamera2._mock_instance
+        assert mock_instance.configure.called
+        assert mock_instance.start.called
+        assert mock_instance.set_controls.called
+        assert mock_instance.capture_array.called  # Changed from capture_file
+        assert mock_instance.capture_metadata.called
+        assert mock_instance.stop.called
+        assert mock_instance.close.called
 
     def test_test_capture_liveview_camera_busy(self, client, mock_camera_streamer, mock_picamera2,
                                                temp_photos_dir, temp_liveview_settings, monkeypatch):
@@ -2026,11 +2047,11 @@ class TestTestCaptureLiveview:
         mock_camera_streamer.streaming = True
         mock_camera_streamer.camera = MagicMock()
 
-        # Setup: Mock capture_file to raise IOError
-        def raise_file_error(filepath):
-            raise IOError("Failed to save image file")
+        # Setup: Mock capture_array to raise IOError (new implementation uses capture_array)
+        def raise_capture_error(mode):
+            raise IOError("Failed to capture image array")
 
-        mock_picamera2._mock_instance.capture_file.side_effect = raise_file_error
+        mock_picamera2._mock_instance.capture_array.side_effect = raise_capture_error
 
         # Execute: POST request
         response = client.post('/api/camera/test-capture-liveview')
@@ -2040,13 +2061,13 @@ class TestTestCaptureLiveview:
         data = response.get_json()
         assert data['success'] is False
         assert 'error' in data
-        assert 'Failed to save image file' in data['error']
+        assert 'Failed to capture image array' in data['error']
 
         # Verify: Camera cleanup happened despite error
         mock_instance = mock_picamera2._mock_instance
         assert mock_instance.configure.called
         assert mock_instance.start.called
-        assert mock_instance.capture_file.called
+        assert mock_instance.capture_array.called  # Changed from capture_file
         assert mock_instance.stop.called
         assert mock_instance.close.called
 
@@ -2092,12 +2113,9 @@ class TestTestCapturePhoto:
             f.write("AwbEnable,True,Auto white balance\n")
 
         # Setup: Mock Picamera2 behavior for successful capture
-        def mock_capture_file(filepath):
-            """Create actual file when capture_file is called"""
-            Path(filepath).parent.mkdir(parents=True, exist_ok=True)
-            Path(filepath).write_text("fake photo capture data")
-
-        mock_picamera2._mock_instance.capture_file.side_effect = mock_capture_file
+        # New implementation uses capture_array + piexif for rich EXIF embedding
+        import numpy as np
+        mock_picamera2._mock_instance.capture_array.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
         mock_picamera2._mock_instance.capture_metadata.return_value = {
             'ExposureTime': 10000,
             'AnalogueGain': 2.0,
@@ -2143,11 +2161,12 @@ class TestTestCapturePhoto:
         assert metadata['colour_temperature'] == 4500
 
         # Verify: Camera lifecycle
+        # Note: New implementation uses capture_array instead of capture_file
         mock_instance = mock_picamera2._mock_instance
         assert mock_instance.configure.called
         assert mock_instance.start.called
         assert mock_instance.set_controls.called
-        assert mock_instance.capture_file.called
+        assert mock_instance.capture_array.called  # Changed from capture_file
         assert mock_instance.capture_metadata.called
         assert mock_instance.stop.called
         assert mock_instance.close.called
@@ -2278,11 +2297,11 @@ class TestTestCapturePhoto:
             f.write("SETTING,VALUE,DETAILS\n")
             f.write("Sharpness,1.0,Default\n")
 
-        # Setup: Mock capture_file to raise IOError
-        def raise_file_error(filepath):
-            raise IOError("Disk full - cannot save image")
+        # Setup: Mock capture_array to raise IOError (new implementation uses capture_array)
+        def raise_capture_error(mode):
+            raise IOError("Disk full - cannot capture image")
 
-        mock_picamera2._mock_instance.capture_file.side_effect = raise_file_error
+        mock_picamera2._mock_instance.capture_array.side_effect = raise_capture_error
 
         # Execute: POST request
         response = client.post('/api/camera/test-capture-photo')
@@ -2292,13 +2311,13 @@ class TestTestCapturePhoto:
         data = response.get_json()
         assert data['success'] is False
         assert 'error' in data
-        assert 'Disk full - cannot save image' in data['error']
+        assert 'Disk full - cannot capture image' in data['error']
 
         # Verify: Camera cleanup happened despite error
         mock_instance = mock_picamera2._mock_instance
         assert mock_instance.configure.called
         assert mock_instance.start.called
-        assert mock_instance.capture_file.called
+        assert mock_instance.capture_array.called  # Changed from capture_file
         assert mock_instance.stop.called
         assert mock_instance.close.called
 

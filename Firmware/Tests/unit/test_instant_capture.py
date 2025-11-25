@@ -6,25 +6,25 @@ using current live view settings with instant_YYYY_MM_DD__HH_MM_SS_[serial].jpg 
 
 Pattern Reference: Follows test_gallery_routes.py for Flask test client patterns.
 
-TDD Phase: Phase 3 - Test FIRST, then implement
+Uses local fixtures for isolated Flask app testing (doesn't use conftest app fixture
+because this test needs specific PHOTOS_DIR patching for test isolation).
 """
 
 import pytest
 import json
 import re
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from flask import Flask
-from datetime import datetime
 
 
 # ============================================================================
-# Fixtures
+# Fixtures (local to this test module)
 # ============================================================================
 
 @pytest.fixture
-def mock_camera_streamer():
-    """Mock LiveViewStreamer instance with get_current_settings()"""
+def instant_capture_streamer():
+    """Mock LiveViewStreamer instance with get_current_settings() for instant capture tests"""
     mock = MagicMock()
 
     # Mock get_current_settings() to return known values
@@ -52,7 +52,7 @@ def mock_camera_streamer():
 
 
 @pytest.fixture
-def camera_app(mock_camera_streamer, tmp_path, monkeypatch):
+def camera_app(instant_capture_streamer, tmp_path, monkeypatch):
     """Flask app with camera blueprint and mocked camera_streamer"""
     import sys
     sys.path.insert(0, str(Path(__file__).parent.parent.parent / "webui" / "backend"))
@@ -72,7 +72,7 @@ def camera_app(mock_camera_streamer, tmp_path, monkeypatch):
     # Create Flask app
     app = Flask(__name__)
     app.config['TESTING'] = True
-    app.config['CAMERA_STREAMER'] = mock_camera_streamer
+    app.config['CAMERA_STREAMER'] = instant_capture_streamer
 
     app.register_blueprint(camera_bp, url_prefix='/api/camera')
 
@@ -163,10 +163,10 @@ class TestInstantCaptureEndpoint:
         assert 'test_photo_path' in data
         assert data['test_photo_path'].startswith('test_captures/')
 
-    def test_uses_camera_streamer_settings(self, camera_client, camera_app, mock_camera_streamer):
+    def test_uses_camera_streamer_settings(self, camera_client, camera_app, instant_capture_streamer):
         """Should use settings from camera_streamer.get_current_settings()"""
         # Set known values in camera_streamer
-        mock_camera_streamer.get_current_settings.return_value = {
+        instant_capture_streamer.get_current_settings.return_value = {
             'sharpness': 2.5,
             'brightness': 0.1,
             'contrast': 1.2,
@@ -201,7 +201,7 @@ class TestInstantCaptureEndpoint:
                 response = camera_client.post('/api/camera/instant-capture')
 
         # Verify get_current_settings() was called
-        mock_camera_streamer.get_current_settings.assert_called_once()
+        instant_capture_streamer.get_current_settings.assert_called_once()
 
         # Verify controls match camera_streamer values
         assert captured_controls['Sharpness'] == 2.5
@@ -311,9 +311,9 @@ class TestInstantCaptureEndpoint:
         if captured_filename:
             assert '0000000000TEST123' in captured_filename
 
-    def test_preserves_manual_exposure(self, camera_client, camera_app, mock_camera_streamer):
+    def test_preserves_manual_exposure(self, camera_client, camera_app, instant_capture_streamer):
         """Should preserve manual exposure settings from live view"""
-        mock_camera_streamer.get_current_settings.return_value = {
+        instant_capture_streamer.get_current_settings.return_value = {
             'sharpness': 1.0,
             'brightness': 0.0,
             'contrast': 1.0,

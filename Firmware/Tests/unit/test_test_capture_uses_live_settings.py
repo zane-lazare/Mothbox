@@ -7,23 +7,24 @@ live view slider values.
 
 Pattern Reference: Follows test_gallery_routes.py for Flask test client patterns.
 
-TDD Phase: Phase 2 - Test FIRST, then implement
+Uses local fixtures for isolated Flask app testing (doesn't use conftest app fixture
+because this test needs specific PHOTOS_DIR and LIVEVIEW_SETTINGS_FILE patching).
 """
 
 import pytest
 import json
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from flask import Flask
 
 
 # ============================================================================
-# Fixtures
+# Fixtures (local to this test module)
 # ============================================================================
 
 @pytest.fixture
-def mock_camera_streamer():
-    """Mock LiveViewStreamer instance with get_current_settings()"""
+def liveview_test_streamer():
+    """Mock LiveViewStreamer instance with get_current_settings() for liveview tests"""
     mock = MagicMock()
 
     # Mock get_current_settings() to return known values
@@ -51,8 +52,8 @@ def mock_camera_streamer():
 
 
 @pytest.fixture
-def camera_app(mock_camera_streamer, tmp_path, monkeypatch):
-    """Flask app with camera blueprint and mocked camera_streamer"""
+def liveview_camera_app(liveview_test_streamer, tmp_path, monkeypatch):
+    """Flask app with camera blueprint and mocked camera_streamer for liveview tests"""
     import sys
     sys.path.insert(0, str(Path(__file__).parent.parent.parent / "webui" / "backend"))
 
@@ -75,7 +76,7 @@ def camera_app(mock_camera_streamer, tmp_path, monkeypatch):
     # Create Flask app
     app = Flask(__name__)
     app.config['TESTING'] = True
-    app.config['CAMERA_STREAMER'] = mock_camera_streamer
+    app.config['CAMERA_STREAMER'] = liveview_test_streamer
 
     app.register_blueprint(camera_bp, url_prefix='/api/camera')
 
@@ -83,9 +84,9 @@ def camera_app(mock_camera_streamer, tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def camera_client(camera_app):
+def liveview_client(liveview_camera_app):
     """Test client for camera routes"""
-    return camera_app.test_client()
+    return liveview_camera_app.test_client()
 
 
 # ============================================================================
@@ -95,7 +96,7 @@ def camera_client(camera_app):
 class TestCaptureUsesLiveSettings:
     """Tests for test_capture_liveview endpoint using camera_streamer"""
 
-    def test_endpoint_calls_get_current_settings(self, camera_client, camera_app, mock_camera_streamer, monkeypatch):
+    def test_endpoint_calls_get_current_settings(self, liveview_client, liveview_camera_app, liveview_test_streamer, monkeypatch):
         """test_capture_liveview should call camera_streamer.get_current_settings()"""
         # Mock _execute_test_capture to avoid actual photo capture
         mock_execute = MagicMock(return_value=(
@@ -107,17 +108,17 @@ class TestCaptureUsesLiveSettings:
             200
         ))
 
-        with camera_app.app_context():
+        with liveview_camera_app.app_context():
             with patch('routes.camera._execute_test_capture', mock_execute):
-                response = camera_client.post('/api/camera/test-capture-liveview')
+                response = liveview_client.post('/api/camera/test-capture-liveview')
 
         # Verify get_current_settings() was called
-        mock_camera_streamer.get_current_settings.assert_called_once()
+        liveview_test_streamer.get_current_settings.assert_called_once()
 
-    def test_endpoint_uses_settings_from_camera_streamer(self, camera_client, camera_app, mock_camera_streamer, monkeypatch):
+    def test_endpoint_uses_settings_from_camera_streamer(self, liveview_client, liveview_camera_app, liveview_test_streamer, monkeypatch):
         """test_capture_liveview should use settings from camera_streamer, not file"""
         # Set known values in camera_streamer
-        mock_camera_streamer.get_current_settings.return_value = {
+        liveview_test_streamer.get_current_settings.return_value = {
             'sharpness': 3.0,  # Different from file
             'brightness': 0.2,
             'contrast': 1.5,
@@ -148,9 +149,9 @@ class TestCaptureUsesLiveSettings:
                 'settings_source': settings_source
             }), 200
 
-        with camera_app.app_context():
+        with liveview_camera_app.app_context():
             with patch('routes.camera._execute_test_capture', mock_execute):
-                response = camera_client.post('/api/camera/test-capture-liveview')
+                response = liveview_client.post('/api/camera/test-capture-liveview')
 
         # Verify controls match camera_streamer values
         assert captured_controls['Sharpness'] == 3.0
@@ -160,10 +161,10 @@ class TestCaptureUsesLiveSettings:
         assert captured_controls['ExposureTime'] == 20000  # Manual exposure
         assert captured_controls['AnalogueGain'] == 12.0
 
-    def test_endpoint_fallback_to_file_when_no_camera_streamer(self, camera_app, tmp_path, monkeypatch):
+    def test_endpoint_fallback_to_file_when_no_camera_streamer(self, liveview_camera_app, tmp_path, monkeypatch):
         """Should fall back to liveview_settings.txt when camera_streamer unavailable"""
         # Remove camera_streamer from app config
-        camera_app.config['CAMERA_STREAMER'] = None
+        liveview_camera_app.config['CAMERA_STREAMER'] = None
 
         # Write settings to file
         liveview_settings_file = tmp_path / "liveview_settings.txt"
@@ -188,7 +189,7 @@ analogue_gain=8.0
                 'settings_source': settings_source
             }), 200
 
-        with camera_app.app_context():
+        with liveview_camera_app.app_context():
             with patch('routes.camera._execute_test_capture', mock_execute):
                 # get_control_values is imported locally, so patch it at mothbox_paths
                 with patch('mothbox_paths.get_control_values', return_value={
@@ -197,7 +198,7 @@ analogue_gain=8.0
                     'exposure_time': '10000',
                     'analogue_gain': '8.0'
                 }):
-                    client = camera_app.test_client()
+                    client = liveview_camera_app.test_client()
                     response = client.post('/api/camera/test-capture-liveview')
 
         # Should have used file values
@@ -205,10 +206,10 @@ analogue_gain=8.0
         # Verify file was read as fallback
         assert captured_controls.get('Sharpness') == 1.5
 
-    def test_endpoint_preserves_manual_exposure_from_live_view(self, camera_client, camera_app, mock_camera_streamer):
+    def test_endpoint_preserves_manual_exposure_from_live_view(self, liveview_client, liveview_camera_app, liveview_test_streamer):
         """Should preserve manual exposure settings from live view"""
         # Set manual exposure in camera_streamer
-        mock_camera_streamer.get_current_settings.return_value = {
+        liveview_test_streamer.get_current_settings.return_value = {
             'sharpness': 1.0,
             'brightness': 0.0,
             'contrast': 1.0,
@@ -238,19 +239,19 @@ analogue_gain=8.0
                 'settings_source': settings_source
             }), 200
 
-        with camera_app.app_context():
+        with liveview_camera_app.app_context():
             with patch('routes.camera._execute_test_capture', mock_execute):
-                response = camera_client.post('/api/camera/test-capture-liveview')
+                response = liveview_client.post('/api/camera/test-capture-liveview')
 
         # Verify manual exposure was preserved
         assert captured_controls['AeEnable'] is False
         assert captured_controls['ExposureTime'] == 25000
         assert captured_controls['AnalogueGain'] == 15.0
 
-    def test_endpoint_preserves_manual_focus_from_live_view(self, camera_client, camera_app, mock_camera_streamer):
+    def test_endpoint_preserves_manual_focus_from_live_view(self, liveview_client, liveview_camera_app, liveview_test_streamer):
         """Should preserve manual focus settings from live view"""
         # Set manual focus in camera_streamer
-        mock_camera_streamer.get_current_settings.return_value = {
+        liveview_test_streamer.get_current_settings.return_value = {
             'sharpness': 1.0,
             'brightness': 0.0,
             'contrast': 1.0,
@@ -280,18 +281,18 @@ analogue_gain=8.0
                 'settings_source': settings_source
             }), 200
 
-        with camera_app.app_context():
+        with liveview_camera_app.app_context():
             with patch('routes.camera._execute_test_capture', mock_execute):
-                response = camera_client.post('/api/camera/test-capture-liveview')
+                response = liveview_client.post('/api/camera/test-capture-liveview')
 
         # Verify manual focus was preserved
         assert captured_controls['AfMode'] == 0
         assert captured_controls['LensPosition'] == 5.5
 
-    def test_endpoint_preserves_manual_white_balance_from_live_view(self, camera_client, camera_app, mock_camera_streamer):
+    def test_endpoint_preserves_manual_white_balance_from_live_view(self, liveview_client, liveview_camera_app, liveview_test_streamer):
         """Should preserve manual white balance settings from live view"""
         # Set manual white balance in camera_streamer
-        mock_camera_streamer.get_current_settings.return_value = {
+        liveview_test_streamer.get_current_settings.return_value = {
             'sharpness': 1.0,
             'brightness': 0.0,
             'contrast': 1.0,
@@ -321,22 +322,22 @@ analogue_gain=8.0
                 'settings_source': settings_source
             }), 200
 
-        with camera_app.app_context():
+        with liveview_camera_app.app_context():
             with patch('routes.camera._execute_test_capture', mock_execute):
-                response = camera_client.post('/api/camera/test-capture-liveview')
+                response = liveview_client.post('/api/camera/test-capture-liveview')
 
         # Verify manual white balance was preserved
         assert captured_controls['AwbEnable'] is False
         assert captured_controls['AwbMode'] == 1
         assert captured_controls['ColourGains'] == (1.8, 2.2)
 
-    def test_endpoint_error_handling_when_get_current_settings_fails(self, camera_client, camera_app, mock_camera_streamer):
+    def test_endpoint_error_handling_when_get_current_settings_fails(self, liveview_client, liveview_camera_app, liveview_test_streamer):
         """Should handle errors gracefully if get_current_settings() fails"""
         # Make get_current_settings() raise an exception
-        mock_camera_streamer.get_current_settings.side_effect = Exception("Camera fault")
+        liveview_test_streamer.get_current_settings.side_effect = Exception("Camera fault")
 
-        with camera_app.app_context():
-            response = camera_client.post('/api/camera/test-capture-liveview')
+        with liveview_camera_app.app_context():
+            response = liveview_client.post('/api/camera/test-capture-liveview')
 
         # Should return error response
         assert response.status_code == 500
