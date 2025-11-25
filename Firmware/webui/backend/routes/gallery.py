@@ -201,7 +201,8 @@ def get_thumbnail(photo_path):
         # RuntimeError: resolve() failed (e.g., symlink loop)
         return jsonify({"error": "Invalid path"}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error listing photos: {e}")  # Log server-side only
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @gallery_bp.route("/photos/paginated", methods=["GET"])
@@ -687,7 +688,8 @@ def cache_warm_cancel(task_id):
         return jsonify(result)
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        print(f"Error cancelling cache warming: {e}")  # Log server-side only
+        return jsonify({"error": "Failed to cancel warming task"}), 400
 
 
 # For testing: allow resetting the cache singleton
