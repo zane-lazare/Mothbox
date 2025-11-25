@@ -1,5 +1,5 @@
 """
-Unit tests for GPS coordinate utilities (webui/lib/gps_coordinates.py).
+Unit tests for GPS coordinate utilities (webui/shared/gps_coordinates.py).
 
 This test module implements strict TDD for Phase 2 of GPS coordinate refactoring.
 Tests are written FIRST before implementation to drive design and ensure
@@ -25,7 +25,7 @@ Test Data Sources:
 Related:
 - Phase 2 Implementation Plan: Refactor GPS coordinate utilities
 - Existing code: lib/gps_exif_lib.py (decimal_to_dms, nested dms_to_decimal)
-- Current location: webui/lib/gps_coordinates.py (webui-shared library)
+- Current location: webui/shared/gps_coordinates.py (webui-shared library)
 - Backward compatibility: Exported from webui/backend/utils/ for legacy imports
 """
 

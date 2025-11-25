@@ -6,7 +6,7 @@ suitable for real-time UI updates and batch processing.
 
 import pytest
 import time
-from webui.lib.gps_coordinates import (
+from webui.shared.gps_coordinates import (
     decimal_to_dms,
     dms_to_decimal,
     validate_coordinate,

@@ -40,7 +40,7 @@ _validate_int_enum = _backend_utils._validate_int_enum
 _validate_exposure_time = _backend_utils._validate_exposure_time
 _validate_noise_reduction_mode = _backend_utils._validate_noise_reduction_mode
 
-# Also export items from webui.lib (for backward compatibility)
+# Also export items from webui.shared (for backward compatibility)
 # Use relative import to parent package since webui may not be in sys.path
 import sys
 from pathlib import Path
@@ -52,7 +52,7 @@ webui_dir = Path(__file__).parent.parent.parent
 if str(webui_dir) not in sys.path:
     sys.path.insert(0, str(webui_dir))
 
-from webui.lib.gps_coordinates import (
+from webui.shared.gps_coordinates import (
     decimal_to_dms,
     dms_to_decimal,
     format_coordinate_display,

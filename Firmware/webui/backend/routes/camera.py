@@ -1191,24 +1191,18 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             }
             exif_ifd[piexif.ExifIFD.MakerNote] = json.dumps(maker_note_data).encode('utf-8')
 
-            # GPS IFD - check if GPS data exists in controls.txt
+            # GPS IFD - embed GPS coordinates from controls.txt if available
             gps_ifd = {}
             try:
-                # Add MOTHBOX_HOME to path for lib/ imports
-                import sys
-                from mothbox_paths import MOTHBOX_HOME
-                if str(MOTHBOX_HOME) not in sys.path:
-                    sys.path.insert(0, str(MOTHBOX_HOME))
-
                 from lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
 
                 gps_data = get_gps_data_from_controls()
                 if gps_data.get('has_fix'):
                     gps_ifd = build_gps_ifd(gps_data)
                     if gps_ifd:
-                        print(f"Embedded GPS EXIF: lat={gps_data['latitude']}, lon={gps_data['longitude']}")
+                        print(f"GPS EXIF embedded: lat={gps_data['latitude']}, lon={gps_data['longitude']}")
             except Exception as gps_error:
-                print(f"GPS EXIF embedding skipped: {gps_error}")
+                print(f"Warning: Could not embed GPS EXIF: {gps_error}")
 
             # 1st IFD (thumbnail) - optional, can be empty or copy of 0th
             first_ifd = {}
@@ -1748,41 +1742,18 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             exif_ifd[piexif.ExifIFD.MakerNote] = json.dumps(maker_note_data).encode('utf-8')
 
             # GPS IFD (same as test capture)
+            # GPS IFD - embed GPS coordinates from controls.txt if available
             gps_ifd = {}
             try:
-                import sys
-                import traceback
-                from mothbox_paths import MOTHBOX_HOME, CONTROLS_FILE
-
-                # Add MOTHBOX_HOME to sys.path so lib.gps_exif_lib can be imported
-                if str(MOTHBOX_HOME) not in sys.path:
-                    sys.path.insert(0, str(MOTHBOX_HOME))
-
                 from lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
 
-                print(f"[GPS DEBUG] Starting GPS EXIF embedding")
-                print(f"[GPS DEBUG] MOTHBOX_HOME: {MOTHBOX_HOME}")
-                print(f"[GPS DEBUG] Reading controls.txt from: {CONTROLS_FILE}")
-                print(f"[GPS DEBUG] Controls file exists: {CONTROLS_FILE.exists()}")
-
                 gps_data = get_gps_data_from_controls()
-                print(f"[GPS DEBUG] GPS data returned: {gps_data}")
-                print(f"[GPS DEBUG] has_fix={gps_data.get('has_fix')}, lat={gps_data.get('latitude')}, lon={gps_data.get('longitude')}, fix_mode={gps_data.get('fix_mode')}")
-
                 if gps_data.get('has_fix'):
-                    print(f"[GPS DEBUG] has_fix=True, building GPS IFD...")
                     gps_ifd = build_gps_ifd(gps_data)
-                    print(f"[GPS DEBUG] GPS IFD built. Empty: {not gps_ifd}, Keys: {list(gps_ifd.keys()) if gps_ifd else 'NONE'}")
                     if gps_ifd:
                         print(f"GPS EXIF embedded: lat={gps_data['latitude']}, lon={gps_data['longitude']}")
-                    else:
-                        print(f"[GPS DEBUG] WARNING: build_gps_ifd() returned empty dict despite has_fix=True")
-                else:
-                    print(f"[GPS DEBUG] has_fix=False, skipping GPS EXIF embedding")
             except Exception as gps_error:
                 print(f"Warning: Could not embed GPS EXIF: {gps_error}")
-                print(f"[GPS DEBUG] Exception traceback:")
-                traceback.print_exc()
 
             # Dump EXIF to bytes
             exif_dict = {
