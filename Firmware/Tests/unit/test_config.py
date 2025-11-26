@@ -473,28 +473,7 @@ class TestEnvironmentSettings:
         import config
         assert config.ProductionConfig.LOG_LEVEL == 'INFO'
 
-    def test_development_allows_dev_server(self, monkeypatch):
-        """Development should allow dev server"""
-        monkeypatch.setenv('SECRET_KEY', 'test-key-12345')
-        monkeypatch.setenv('MOTHBOX_ENV', 'development')
-
-        if 'config' in sys.modules:
-            del sys.modules['config']
-
-        import config
-        assert config.DevelopmentConfig.ALLOW_DEV_SERVER is True
-
-    def test_production_allows_dev_server_backward_compat(self, monkeypatch):
-        """Production should allow dev server for backward compatibility"""
-        monkeypatch.setenv('SECRET_KEY', 'test-key-12345')
-        monkeypatch.setenv('MOTHBOX_ENV', 'production')
-
-        if 'config' in sys.modules:
-            del sys.modules['config']
-
-        import config
-        # Currently True for backward compatibility (issue #19)
-        assert config.ProductionConfig.ALLOW_DEV_SERVER is True
+    # NOTE: ALLOW_DEV_SERVER was removed - unused dead code cleanup (see plan Phase 1)
 
     def test_development_env_name(self, monkeypatch):
         """Development should have ENV_NAME='development'"""
