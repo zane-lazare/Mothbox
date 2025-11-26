@@ -479,6 +479,7 @@ const lonDisplay = formatCoordinateDisplay(-122.4194, false);
 - `webui/shared/gps_coordinates.py`: **GPS coordinate utilities** (decimal ↔ DMS conversion, validation, formatting) - webui-shared library
 - `webui/frontend/src/utils/gpsCoordinates.ts`: **GPS coordinate utilities (TypeScript)** (identical behavior to Python)
 - `webui/backend/app.py`: Flask app initialization, CSRF, CORS, SocketIO setup
+- `webui/backend/constants.py`: **Centralized constants** (camera timeouts, HDR/focus bracket settings, MJPEG encoder params, AF modes)
 - `webui/backend/liveview_stream.py`: Camera streaming engine (2500+ lines)
 - `webui/backend/routes/camera.py`: Camera control API (1270+ lines)
 - `pyproject.toml`: pytest, coverage, bandit, and ruff configuration
