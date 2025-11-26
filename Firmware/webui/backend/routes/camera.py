@@ -13,6 +13,24 @@ from utils import ALLOWED_CAMERA_SETTINGS, sanitize_csv_value
 
 from mothbox_paths import CAMERA_SETTINGS_FILE, PHOTOS_DIR
 
+# Import centralized constants
+from constants import (
+    AF_MODES_REQUIRING_TRIGGER,
+    AF_PREVIEW_RESOLUTION,
+    DEFAULT_COLOUR_GAINS,
+    FB_DEFAULT_END_DIOPTERS,
+    FB_DEFAULT_START_DIOPTERS,
+    FB_MAX_DIOPTERS,
+    FB_MAX_STEPS,
+    FB_MIN_DIOPTERS,
+    FB_MIN_STEPS,
+    HDR_DEFAULT_WIDTH_US,
+    HDR_MAX_WIDTH_US,
+    HDR_MIN_WIDTH_US,
+    HDR_VALID_COUNTS,
+    TEST_CAPTURE_RESOLUTION,
+)
+
 # ============================================================================
 # Operation Timeouts and Delays
 # ============================================================================
@@ -36,7 +54,9 @@ ERROR_DETAILS_MAX_LENGTH = 500  # Maximum characters of stderr to include in API
 # ============================================================================
 
 
-def acquire_camera_with_retry(camera_id=0, max_retries=3, wait_time=2.0):
+def acquire_camera_with_retry(
+    camera_id: int = 0, max_retries: int = 3, wait_time: float = 2.0
+) -> "Picamera2":
     """
     Acquire camera with retry logic for busy state
 
@@ -108,7 +128,7 @@ def _emit_calibration_progress(step, total_steps, message, progress):
 camera_bp = Blueprint("camera", __name__)
 
 
-def _should_use_hdr_mode():
+def _should_use_hdr_mode() -> tuple[bool, int, int]:
     """
     Check if HDR mode is enabled in camera settings
 
@@ -124,11 +144,11 @@ def _should_use_hdr_mode():
         from mothbox_paths import CAMERA_SETTINGS_FILE
 
         hdr_count = 1
-        hdr_width = 7000  # Default bracket width
+        hdr_width = HDR_DEFAULT_WIDTH_US
 
         if not CAMERA_SETTINGS_FILE.exists():
             print("ℹ️  camera_settings.csv not found, defaulting to single exposure")
-            return False, 1, 7000
+            return False, 1, HDR_DEFAULT_WIDTH_US
 
         with open(CAMERA_SETTINGS_FILE) as f:
             reader = csv.DictReader(f)
@@ -137,7 +157,7 @@ def _should_use_hdr_mode():
                     try:
                         hdr_count = int(row["VALUE"])
                         # Validate HDR count is one of the allowed values
-                        if hdr_count not in [1, 3, 5, 7]:
+                        if hdr_count not in HDR_VALID_COUNTS:
                             print(
                                 f"⚠️  Invalid HDR count {hdr_count}, must be 1, 3, 5, or 7. Defaulting to 1."
                             )
@@ -149,16 +169,16 @@ def _should_use_hdr_mode():
                     try:
                         hdr_width = int(row["VALUE"])
                         # Validate bracket width is in reasonable range (1ms - 50ms)
-                        if not (1000 <= hdr_width <= 50000):
+                        if not (HDR_MIN_WIDTH_US <= hdr_width <= HDR_MAX_WIDTH_US):
                             print(
-                                f"⚠️  Invalid HDR_width {hdr_width}µs, must be 1000-50000. Defaulting to 7000."
+                                f"⚠️  Invalid HDR_width {hdr_width}µs, must be {HDR_MIN_WIDTH_US}-{HDR_MAX_WIDTH_US}. Defaulting to {HDR_DEFAULT_WIDTH_US}."
                             )
-                            hdr_width = 7000
+                            hdr_width = HDR_DEFAULT_WIDTH_US
                     except (ValueError, KeyError) as e:
                         print(
-                            f"⚠️  Could not parse HDR_width setting value: {e}. Defaulting to 7000."
+                            f"⚠️  Could not parse HDR_width setting value: {e}. Defaulting to {HDR_DEFAULT_WIDTH_US}."
                         )
-                        hdr_width = 7000
+                        hdr_width = HDR_DEFAULT_WIDTH_US
 
         use_hdr = hdr_count > 1
 
@@ -172,10 +192,10 @@ def _should_use_hdr_mode():
 
     except Exception as e:
         print(f"❌ Error reading HDR settings: {e}. Defaulting to single exposure.")
-        return False, 1, 7000
+        return False, 1, HDR_DEFAULT_WIDTH_US
 
 
-def _should_use_focus_bracket_mode():
+def _should_use_focus_bracket_mode() -> tuple[bool, int, float, float]:
     """
     Check if Focus Bracketing mode is enabled in camera settings
 
@@ -192,12 +212,12 @@ def _should_use_focus_bracket_mode():
         from mothbox_paths import CAMERA_SETTINGS_FILE
 
         steps = 1
-        start = 2.0  # Default start position
-        end = 8.0  # Default end position
+        start = FB_DEFAULT_START_DIOPTERS
+        end = FB_DEFAULT_END_DIOPTERS
 
         if not CAMERA_SETTINGS_FILE.exists():
             print("ℹ️  camera_settings.csv not found, defaulting to single focus")
-            return False, 1, 2.0, 8.0
+            return False, 1, FB_DEFAULT_START_DIOPTERS, FB_DEFAULT_END_DIOPTERS
 
         with open(CAMERA_SETTINGS_FILE) as f:
             reader = csv.DictReader(f)
@@ -206,9 +226,9 @@ def _should_use_focus_bracket_mode():
                     try:
                         steps = int(row["VALUE"])
                         # Validate steps is in allowed range
-                        if not (1 <= steps <= 10):
+                        if not (FB_MIN_STEPS <= steps <= FB_MAX_STEPS):
                             print(
-                                f"⚠️  Invalid FocusBracket count {steps}, must be 1-10. Defaulting to 1."
+                                f"⚠️  Invalid FocusBracket count {steps}, must be {FB_MIN_STEPS}-{FB_MAX_STEPS}. Defaulting to 1."
                             )
                             steps = 1
                     except (ValueError, KeyError) as e:
@@ -220,30 +240,30 @@ def _should_use_focus_bracket_mode():
                     try:
                         start = float(row["VALUE"])
                         # Validate start is in reasonable range
-                        if not (0.0 <= start <= 10.0):
+                        if not (FB_MIN_DIOPTERS <= start <= FB_MAX_DIOPTERS):
                             print(
-                                f"⚠️  Invalid FocusBracket_Start {start}, must be 0.0-10.0. Defaulting to 2.0."
+                                f"⚠️  Invalid FocusBracket_Start {start}, must be {FB_MIN_DIOPTERS}-{FB_MAX_DIOPTERS}. Defaulting to {FB_DEFAULT_START_DIOPTERS}."
                             )
-                            start = 2.0
+                            start = FB_DEFAULT_START_DIOPTERS
                     except (ValueError, KeyError) as e:
                         print(
-                            f"⚠️  Could not parse FocusBracket_Start setting value: {e}. Defaulting to 2.0."
+                            f"⚠️  Could not parse FocusBracket_Start setting value: {e}. Defaulting to {FB_DEFAULT_START_DIOPTERS}."
                         )
-                        start = 2.0
+                        start = FB_DEFAULT_START_DIOPTERS
                 elif row["SETTING"] == "FocusBracket_End":
                     try:
                         end = float(row["VALUE"])
                         # Validate end is in reasonable range
-                        if not (0.0 <= end <= 10.0):
+                        if not (FB_MIN_DIOPTERS <= end <= FB_MAX_DIOPTERS):
                             print(
-                                f"⚠️  Invalid FocusBracket_End {end}, must be 0.0-10.0. Defaulting to 8.0."
+                                f"⚠️  Invalid FocusBracket_End {end}, must be {FB_MIN_DIOPTERS}-{FB_MAX_DIOPTERS}. Defaulting to {FB_DEFAULT_END_DIOPTERS}."
                             )
-                            end = 8.0
+                            end = FB_DEFAULT_END_DIOPTERS
                     except (ValueError, KeyError) as e:
                         print(
-                            f"⚠️  Could not parse FocusBracket_End setting value: {e}. Defaulting to 8.0."
+                            f"⚠️  Could not parse FocusBracket_End setting value: {e}. Defaulting to {FB_DEFAULT_END_DIOPTERS}."
                         )
-                        end = 8.0
+                        end = FB_DEFAULT_END_DIOPTERS
 
         use_focus_bracket = steps > 1
 
@@ -257,7 +277,7 @@ def _should_use_focus_bracket_mode():
 
     except Exception as e:
         print(f"❌ Error reading Focus Bracket settings: {e}. Defaulting to single focus.")
-        return False, 1, 2.0, 8.0
+        return False, 1, FB_DEFAULT_START_DIOPTERS, FB_DEFAULT_END_DIOPTERS
 
 
 @camera_bp.route("/capture", methods=["POST"])
@@ -563,7 +583,7 @@ def trigger_autofocus():
 
                 # Configure for high-res preview (better for AF accuracy)
                 preview_config = picam2.create_preview_configuration(
-                    main={"format": "RGB888", "size": (1920, 1080)}
+                    main={"format": "RGB888", "size": AF_PREVIEW_RESOLUTION}
                 )
                 picam2.configure(preview_config)
 
@@ -922,7 +942,7 @@ def freeze_settings():
             # Initialize camera to get current metadata
             picam2 = Picamera2()
             preview_config = picam2.create_preview_configuration(
-                main={"size": (1920, 1080), "format": "RGB888"}
+                main={"size": AF_PREVIEW_RESOLUTION, "format": "RGB888"}
             )
             picam2.configure(preview_config)
             picam2.start()
@@ -1049,7 +1069,7 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             # Disable raw/lores buffers to reduce CMA usage (matches TakePhoto.py pattern)
             capture_config = picam2.create_still_configuration(
                 main={
-                    "size": (3840, 2160),
+                    "size": TEST_CAPTURE_RESOLUTION,
                     "format": "BGR888",
                 },  # 4K UHD (8.3MP), BGR888 = true RGB order
                 raw=None,
@@ -1071,7 +1091,7 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             time.sleep(0.5)
 
             # Trigger autofocus if in Auto mode (1) or Continuous mode (3)
-            if af_mode in [1, 3]:
+            if af_mode in AF_MODES_REQUIRING_TRIGGER:
                 print(f"Triggering autofocus (mode={af_mode})...")
                 try:
                     picam2.autofocus_cycle()
@@ -1189,8 +1209,8 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
                 "af_speed": int(settings_dict.get("AfSpeed", 0)),  # 0=Normal, 1=Fast
                 "noise_reduction": int(settings_dict.get("NoiseReductionMode", 2)),  # 0=Off, 1=Fast, 2=High Quality
                 "lens_position": float(md.get("LensPosition", 0.0)),
-                "colour_gain_red": float(settings_dict.get("ColourGains", (2.259, 1.5))[0]) if "ColourGains" in settings_dict else 2.259,
-                "colour_gain_blue": float(settings_dict.get("ColourGains", (2.259, 1.5))[1]) if "ColourGains" in settings_dict else 1.5,
+                "colour_gain_red": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[0]) if "ColourGains" in settings_dict else DEFAULT_COLOUR_GAINS[0],
+                "colour_gain_blue": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[1]) if "ColourGains" in settings_dict else DEFAULT_COLOUR_GAINS[1],
             }
             exif_ifd[piexif.ExifIFD.MakerNote] = json.dumps(maker_note_data).encode('utf-8')
 
@@ -1383,8 +1403,8 @@ def test_capture_liveview():
         # ColourGains must be set as a tuple, not individual red/blue controls
         if not settings.get("awb_enable", True):
             if colour_gains_red is not None or colour_gains_blue is not None:
-                red_gain = colour_gains_red if colour_gains_red is not None else 2.259
-                blue_gain = colour_gains_blue if colour_gains_blue is not None else 1.5
+                red_gain = colour_gains_red if colour_gains_red is not None else DEFAULT_COLOUR_GAINS[0]
+                blue_gain = colour_gains_blue if colour_gains_blue is not None else DEFAULT_COLOUR_GAINS[1]
                 controls["ColourGains"] = (float(red_gain), float(blue_gain))
 
         # Only set manual exposure if AE disabled
@@ -1518,8 +1538,8 @@ def instant_capture():
         # Handle colour gains tuple (only when AWB is disabled)
         if not settings.get("awb_enable", True):
             if colour_gains_red is not None or colour_gains_blue is not None:
-                red_gain = colour_gains_red if colour_gains_red is not None else 2.259
-                blue_gain = colour_gains_blue if colour_gains_blue is not None else 1.5
+                red_gain = colour_gains_red if colour_gains_red is not None else DEFAULT_COLOUR_GAINS[0]
+                blue_gain = colour_gains_blue if colour_gains_blue is not None else DEFAULT_COLOUR_GAINS[1]
                 controls["ColourGains"] = (float(red_gain), float(blue_gain))
 
         # Only set manual exposure if AE disabled
@@ -1608,7 +1628,7 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             # Configure for high-resolution capture (same as test capture)
             capture_config = picam2.create_still_configuration(
                 main={
-                    "size": (3840, 2160),
+                    "size": TEST_CAPTURE_RESOLUTION,
                     "format": "BGR888",
                 },  # 4K UHD (8.3MP), BGR888 = true RGB order
                 raw=None,
@@ -1630,7 +1650,7 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             time.sleep(0.5)
 
             # Trigger autofocus if in Auto mode (1) or Continuous mode (3)
-            if af_mode in [1, 3]:
+            if af_mode in AF_MODES_REQUIRING_TRIGGER:
                 print(f"Triggering autofocus (mode={af_mode})...")
                 try:
                     picam2.autofocus_cycle()
@@ -1745,8 +1765,8 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
                 "af_speed": int(settings_dict.get("AfSpeed", 0)),  # 0=Normal, 1=Fast
                 "noise_reduction": int(settings_dict.get("NoiseReductionMode", 2)),  # 0=Off, 1=Fast, 2=High Quality
                 "lens_position": float(md.get("LensPosition", 0.0)),
-                "colour_gain_red": float(settings_dict.get("ColourGains", (2.259, 1.5))[0]) if "ColourGains" in settings_dict else 2.259,
-                "colour_gain_blue": float(settings_dict.get("ColourGains", (2.259, 1.5))[1]) if "ColourGains" in settings_dict else 1.5,
+                "colour_gain_red": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[0]) if "ColourGains" in settings_dict else DEFAULT_COLOUR_GAINS[0],
+                "colour_gain_blue": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[1]) if "ColourGains" in settings_dict else DEFAULT_COLOUR_GAINS[1],
             }
             exif_ifd[piexif.ExifIFD.MakerNote] = json.dumps(maker_note_data).encode('utf-8')
 
