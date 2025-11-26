@@ -91,3 +91,10 @@ CALIBRATION_TOTAL_STEPS: Final[int] = 4
 # =============================================================================
 CAMERA_MAKE: Final[str] = "Arducam"
 CAMERA_MODEL: Final[str] = "OwlSight 64MP"
+
+# =============================================================================
+# EXIF RATIONAL LIMITS
+# =============================================================================
+# EXIF RATIONAL uses two unsigned 32-bit integers (max 4,294,967,295)
+# Using conservative limit for maximum compatibility with image viewers
+EXIF_RATIONAL_MAX: Final[int] = 1_000_000  # Covers exposures down to 1µs

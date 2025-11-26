@@ -20,6 +20,7 @@ from constants import (
     CAMERA_MAKE,
     CAMERA_MODEL,
     DEFAULT_COLOUR_GAINS,
+    EXIF_RATIONAL_MAX,
     FB_DEFAULT_END_DIOPTERS,
     FB_DEFAULT_START_DIOPTERS,
     FB_MAX_DIOPTERS,
@@ -1161,8 +1162,9 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             exposure_time_us = md.get("ExposureTime", 1000)  # microseconds
             exposure_time_s = exposure_time_us / 1000000.0  # convert to seconds
             if exposure_time_s > 0:
-                # Store as (numerator, denominator) rational
-                exif_exposure = (1, int(1 / exposure_time_s))
+                # Store as (numerator, denominator) rational with overflow protection
+                denominator = min(int(1 / exposure_time_s), EXIF_RATIONAL_MAX)
+                exif_exposure = (1, denominator)
             else:
                 exif_exposure = (1, 1000)
 
@@ -1712,7 +1714,9 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             exposure_time_us = md.get("ExposureTime", 1000)
             exposure_time_s = exposure_time_us / 1000000.0
             if exposure_time_s > 0:
-                exif_exposure = (1, int(1 / exposure_time_s))
+                # Store as (numerator, denominator) rational with overflow protection
+                denominator = min(int(1 / exposure_time_s), EXIF_RATIONAL_MAX)
+                exif_exposure = (1, denominator)
             else:
                 exif_exposure = (1, 1000)
 
