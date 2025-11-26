@@ -659,18 +659,11 @@ def trigger_autofocus():
                     except Exception:
                         pass
 
-                # Restart stream if it was active
-                if was_streaming and camera_streamer:
-                    print("Restarting camera stream after autofocus error...")
-                    try:
-                        camera_streamer.start_streaming()
-                    except Exception as restart_error:
-                        print(f"Warning: Failed to restart stream: {restart_error}")
-
+                # Stream restart handled by finally block to avoid duplicate restarts
                 raise camera_error
 
             finally:
-                # Always restart stream if it was active
+                # Always restart stream if it was active (handles both success and error cases)
                 if was_streaming and camera_streamer:
                     print("Restarting camera stream after autofocus...")
                     try:
@@ -1276,18 +1269,11 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
                 except Exception:
                     pass
 
-            # Restart stream if it was active
-            if was_streaming and camera_streamer:
-                print("Restarting camera stream after test capture error...")
-                try:
-                    camera_streamer.start_streaming()
-                except Exception as restart_error:
-                    print(f"Warning: Failed to restart stream: {restart_error}")
-
+            # Stream restart handled by finally block to avoid duplicate restarts
             raise camera_error
 
         finally:
-            # Always restart stream if it was active
+            # Always restart stream if it was active (handles both success and error cases)
             if was_streaming and camera_streamer:
                 print("Restarting camera stream after test capture...")
                 try:
