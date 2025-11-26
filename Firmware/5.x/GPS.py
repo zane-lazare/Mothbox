@@ -116,9 +116,9 @@ def update_gps_values(
     if usat is not None:
         updates["gps_satellites_used"] = str(usat)
     if hdop is not None:
-        updates["gps_hdop"] = f"{hdop:.2f}"
+        updates["gps_hdop"] = f"{hdop:.3f}"  # 3 decimal precision for GPS quality
     if pdop is not None:
-        updates["gps_pdop"] = f"{pdop:.2f}"
+        updates["gps_pdop"] = f"{pdop:.3f}"  # 3 decimal precision for GPS quality
 
     # Open file for read/write and acquire exclusive lock
     with open(filepath, "r+") as f:
