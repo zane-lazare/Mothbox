@@ -128,6 +128,138 @@ def _emit_calibration_progress(step, total_steps, message, progress):
         print(f"Warning: Failed to emit calibration progress: {e}")
 
 
+def _build_exif_metadata(
+    md: dict,
+    settings_dict: dict,
+    capture_type: str,
+    picam2=None,
+) -> bytes:
+    """
+    Build EXIF metadata bytes for photo capture.
+
+    Centralizes EXIF generation for test captures and instant captures,
+    reducing code duplication (~120 lines per function).
+
+    Args:
+        md: Camera metadata dict from picam2.capture_metadata()
+        settings_dict: Camera settings dict (AfMode, Sharpness, etc.)
+        capture_type: "test" or "instant" for MakerNote
+        picam2: Optional Picamera2 instance for sensor detection
+
+    Returns:
+        bytes: EXIF data ready for PIL Image.save(exif=...)
+    """
+    import json
+
+    import piexif
+
+    from mothbox_paths import CONTROLS_FILE, get_firmware_version
+
+    # Read mothbox name from controls.txt
+    mothbox_name = "mothbox"
+    try:
+        if CONTROLS_FILE.exists():
+            with open(CONTROLS_FILE) as f:
+                for line in f:
+                    if line.startswith("name="):
+                        mothbox_name = line.split("=", 1)[1].strip()
+                        break
+    except Exception as e:
+        print(f"Warning: Could not read mothbox name from controls.txt: {e}")
+
+    # Detect sensor from Picamera2 metadata
+    sensor_name = "Unknown"
+    try:
+        sensor_name = md.get("SensorName", "")
+        if not sensor_name and picam2:
+            model_str = str(picam2.camera_properties.get("Model", ""))
+            if "ov64a40" in model_str.lower():
+                sensor_name = "ov64a40"
+            else:
+                sensor_name = model_str or "Unknown"
+    except Exception as e:
+        print(f"Warning: Could not detect sensor: {e}")
+
+    # Get firmware version
+    firmware_version = get_firmware_version()
+
+    # Build 0th IFD (main image metadata)
+    zeroth_ifd = {
+        piexif.ImageIFD.Make: CAMERA_MAKE.encode("utf-8"),
+        piexif.ImageIFD.Model: CAMERA_MODEL.encode("utf-8"),
+        piexif.ImageIFD.Software: firmware_version.encode("utf-8"),
+    }
+
+    # Extract exposure time and convert to EXIF rational format
+    exposure_time_us = md.get("ExposureTime", 1000)  # microseconds
+    exposure_time_s = exposure_time_us / 1000000.0  # convert to seconds
+    if exposure_time_s > 0:
+        # Store as (numerator, denominator) rational with overflow protection
+        denominator = min(int(1 / exposure_time_s), EXIF_RATIONAL_MAX)
+        exif_exposure = (1, denominator)
+    else:
+        exif_exposure = (1, 1000)
+
+    # Get current timestamp for DateTimeOriginal
+    capture_timestamp = datetime.now().strftime('%Y:%m:%d %H:%M:%S')
+
+    # Build Exif IFD
+    exif_ifd = {
+        piexif.ExifIFD.DateTimeOriginal: capture_timestamp.encode('utf-8'),
+        piexif.ExifIFD.ExposureTime: exif_exposure,
+        piexif.ExifIFD.FocalLength: (
+            int(md.get("LensPosition", 0.0) * 100),
+            10,
+        ),  # Store with extra precision
+        piexif.ExifIFD.ISOSpeed: int(md.get("AnalogueGain", 1.0) * 100),
+        piexif.ExifIFD.ISOSpeedRatings: int(md.get("AnalogueGain", 1.0) * 100),
+        piexif.ExifIFD.WhiteBalance: 0,  # 0 = Auto white balance
+        piexif.ExifIFD.Flash: 0,  # 0 = Flash did not fire
+        piexif.ExifIFD.ExposureMode: 0 if settings_dict.get("AfMode", 2) == 0 else 1,
+        piexif.ExifIFD.MeteringMode: int(settings_dict.get("AeMeteringMode", 2)),
+        piexif.ExifIFD.Sharpness: int(settings_dict.get("Sharpness", 1.0)),
+        piexif.ExifIFD.Contrast: int(settings_dict.get("Contrast", 1.0)),
+        piexif.ExifIFD.Saturation: int(settings_dict.get("Saturation", 1.0)),
+        piexif.ExifIFD.BrightnessValue: (int(settings_dict.get("Brightness", 0.0) * 100), 100),
+    }
+
+    # Add MakerNote with Mothbox-specific metadata
+    maker_note_data = {
+        "mothbox_name": mothbox_name or "mothbox",
+        "capture_type": capture_type,
+        "sensor": sensor_name,
+        "focus_mode": int(settings_dict.get("AfMode", 2)),
+        "af_range": int(settings_dict.get("AfRange", 0)),
+        "af_speed": int(settings_dict.get("AfSpeed", 0)),
+        "noise_reduction": int(settings_dict.get("NoiseReductionMode", 2)),
+        "lens_position": float(md.get("LensPosition", 0.0)),
+        "colour_gain_red": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[0]) if "ColourGains" in settings_dict else DEFAULT_COLOUR_GAINS[0],
+        "colour_gain_blue": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[1]) if "ColourGains" in settings_dict else DEFAULT_COLOUR_GAINS[1],
+    }
+    exif_ifd[piexif.ExifIFD.MakerNote] = json.dumps(maker_note_data).encode('utf-8')
+
+    # GPS IFD - embed GPS coordinates from controls.txt if available
+    gps_ifd = {}
+    try:
+        from lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
+
+        gps_data = get_gps_data_from_controls()
+        if gps_data.get('has_fix'):
+            gps_ifd = build_gps_ifd(gps_data)
+            if gps_ifd:
+                # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
+                print(f"GPS EXIF embedded: lat={gps_data['latitude']}, lon={gps_data['longitude']}")
+    except Exception as gps_error:
+        print(f"Warning: Could not embed GPS EXIF: {gps_error}")
+
+    # Build complete EXIF dictionary
+    exif_dict = {"0th": zeroth_ifd, "Exif": exif_ifd, "1st": {}}
+    if gps_ifd:
+        exif_dict["GPS"] = gps_ifd
+
+    return piexif.dump(exif_dict)
+
+
 camera_bp = Blueprint("camera", __name__)
 
 
@@ -1115,120 +1247,10 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             array = picam2.capture_array("main")
             md = picam2.capture_metadata()
 
-            # Build rich EXIF metadata (matching TakePhoto.py pattern)
-            import piexif
+            # Build EXIF metadata using centralized helper
             from PIL import Image
 
-            from mothbox_paths import CONTROLS_FILE, get_firmware_version
-
-            # Read configuration from controls.txt
-            mothbox_name = "mothbox"  # default
-            try:
-                if CONTROLS_FILE.exists():
-                    with open(CONTROLS_FILE) as f:
-                        for line in f:
-                            if line.startswith("name="):
-                                mothbox_name = line.split("=", 1)[1].strip()
-                                break
-            except Exception as e:
-                print(f"Warning: Could not read mothbox name from controls.txt: {e}")
-
-            # Detect sensor from Picamera2 metadata
-            sensor_name = "Unknown"
-            try:
-                sensor_name = md.get("SensorName", "")
-                if not sensor_name:
-                    model_str = str(picam2.camera_properties.get("Model", ""))
-                    if "ov64a40" in model_str.lower():
-                        sensor_name = "ov64a40"
-                    else:
-                        sensor_name = model_str or "Unknown"
-            except Exception as e:
-                print(f"Warning: Could not detect sensor: {e}")
-
-            # Get firmware version
-            firmware_version = get_firmware_version()
-
-            # Build EXIF IFDs (Image File Directories)
-            # 0th IFD contains main image metadata (Make, Model, Software)
-            # Make/Model refer to camera hardware, not Mothbox device
-            zeroth_ifd = {
-                piexif.ImageIFD.Make: CAMERA_MAKE.encode("utf-8"),
-                piexif.ImageIFD.Model: CAMERA_MODEL.encode("utf-8"),
-                piexif.ImageIFD.Software: firmware_version.encode("utf-8"),
-            }
-
-            # Extract exposure time and convert to EXIF rational format
-            exposure_time_us = md.get("ExposureTime", 1000)  # microseconds
-            exposure_time_s = exposure_time_us / 1000000.0  # convert to seconds
-            if exposure_time_s > 0:
-                # Store as (numerator, denominator) rational with overflow protection
-                denominator = min(int(1 / exposure_time_s), EXIF_RATIONAL_MAX)
-                exif_exposure = (1, denominator)
-            else:
-                exif_exposure = (1, 1000)
-
-            # Get current timestamp for DateTimeOriginal
-            capture_timestamp = datetime.now().strftime('%Y:%m:%d %H:%M:%S')
-
-            exif_ifd = {
-                piexif.ExifIFD.DateTimeOriginal: capture_timestamp.encode('utf-8'),
-                piexif.ExifIFD.ExposureTime: exif_exposure,
-                piexif.ExifIFD.FocalLength: (
-                    int(md.get("LensPosition", 0.0) * 100),
-                    10,
-                ),  # Store with extra precision (matches TakePhoto.py)
-                piexif.ExifIFD.ISOSpeed: int(md.get("AnalogueGain", 1.0) * 100),
-                piexif.ExifIFD.ISOSpeedRatings: int(md.get("AnalogueGain", 1.0) * 100),
-                piexif.ExifIFD.WhiteBalance: 0,  # 0 = Auto white balance
-                piexif.ExifIFD.Flash: 0,  # 0 = Flash did not fire
-                piexif.ExifIFD.ExposureMode: 0 if settings_dict.get("AfMode", 2) == 0 else 1,  # 0 = Manual, 1 = Auto
-                piexif.ExifIFD.MeteringMode: int(settings_dict.get("AeMeteringMode", 2)),  # 0=Centre, 1=Spot, 2=Matrix
-                piexif.ExifIFD.Sharpness: int(settings_dict.get("Sharpness", 1.0)),
-                piexif.ExifIFD.Contrast: int(settings_dict.get("Contrast", 1.0)),
-                piexif.ExifIFD.Saturation: int(settings_dict.get("Saturation", 1.0)),
-                piexif.ExifIFD.BrightnessValue: (int(settings_dict.get("Brightness", 0.0) * 100), 100),  # Rational
-            }
-
-            # Add MakerNote to store Mothbox-specific metadata
-            # Store as JSON string in MakerNote field
-            import json
-            maker_note_data = {
-                # Deployment info
-                "mothbox_name": mothbox_name or "mothbox",
-                "capture_type": "test",  # test capture from web UI preview
-                "sensor": sensor_name,
-                # Camera settings
-                "focus_mode": int(settings_dict.get("AfMode", 2)),  # 0=Manual, 1=Auto, 2=Continuous
-                "af_range": int(settings_dict.get("AfRange", 0)),  # 0=Normal, 1=Macro, 2=Full
-                "af_speed": int(settings_dict.get("AfSpeed", 0)),  # 0=Normal, 1=Fast
-                "noise_reduction": int(settings_dict.get("NoiseReductionMode", 2)),  # 0=Off, 1=Fast, 2=High Quality
-                "lens_position": float(md.get("LensPosition", 0.0)),
-                "colour_gain_red": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[0]) if "ColourGains" in settings_dict else DEFAULT_COLOUR_GAINS[0],
-                "colour_gain_blue": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[1]) if "ColourGains" in settings_dict else DEFAULT_COLOUR_GAINS[1],
-            }
-            exif_ifd[piexif.ExifIFD.MakerNote] = json.dumps(maker_note_data).encode('utf-8')
-
-            # GPS IFD - embed GPS coordinates from controls.txt if available
-            gps_ifd = {}
-            try:
-                from lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
-
-                gps_data = get_gps_data_from_controls()
-                if gps_data.get('has_fix'):
-                    gps_ifd = build_gps_ifd(gps_data)
-                    if gps_ifd:
-                        # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
-                        print(f"GPS EXIF embedded: lat={gps_data['latitude']}, lon={gps_data['longitude']}")
-            except Exception as gps_error:
-                print(f"Warning: Could not embed GPS EXIF: {gps_error}")
-
-            # 1st IFD (thumbnail) - optional, can be empty or copy of 0th
-            first_ifd = {}
-
-            # Build complete EXIF dictionary
-            exif_dict = {"0th": zeroth_ifd, "Exif": exif_ifd, "GPS": gps_ifd, "1st": first_ifd}
-            exif_bytes = piexif.dump(exif_dict)
+            exif_bytes = _build_exif_metadata(md, settings_dict, "test", picam2)
 
             # Save with EXIF (Picamera2 BGR888 outputs RGB bytes - no conversion needed)
             pil_image = Image.fromarray(array, mode="RGB")
@@ -1661,134 +1683,17 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             # Use provided filename
             filepath = test_dir / filename
 
-            # Capture photo with rich EXIF metadata (same as test capture)
+            # Capture photo with rich EXIF metadata
             print(f"Capturing instant photo to: {filepath}")
 
             # Capture array and metadata
             array = picam2.capture_array("main")
             md = picam2.capture_metadata()
 
-            # Build rich EXIF metadata (same pattern as _execute_test_capture)
-            import piexif
+            # Build EXIF metadata using centralized helper
             from PIL import Image
 
-            from mothbox_paths import CONTROLS_FILE, get_firmware_version
-
-            # Read mothbox name from controls.txt
-            mothbox_name = "mothbox"
-            try:
-                if CONTROLS_FILE.exists():
-                    with open(CONTROLS_FILE) as f:
-                        for line in f:
-                            if line.startswith("name="):
-                                mothbox_name = line.split("=", 1)[1].strip()
-                                break
-            except Exception as e:
-                print(f"Warning: Could not read mothbox name from controls.txt: {e}")
-
-            # Detect sensor from Picamera2 metadata
-            sensor_name = "Unknown"
-            try:
-                sensor_name = md.get("SensorName", "")
-                if not sensor_name:
-                    model_str = str(picam2.camera_properties.get("Model", ""))
-                    if "ov64a40" in model_str.lower():
-                        sensor_name = "ov64a40"
-                    else:
-                        sensor_name = model_str or "Unknown"
-            except Exception as e:
-                print(f"Warning: Could not detect sensor: {e}")
-
-            # Get firmware version
-            firmware_version = get_firmware_version()
-
-            # Build EXIF IFDs
-            # Make/Model refer to camera hardware, not Mothbox device
-            zeroth_ifd = {
-                piexif.ImageIFD.Make: CAMERA_MAKE.encode("utf-8"),
-                piexif.ImageIFD.Model: CAMERA_MODEL.encode("utf-8"),
-                piexif.ImageIFD.Software: firmware_version.encode("utf-8"),
-            }
-
-            # Extract exposure time and convert to EXIF rational format
-            exposure_time_us = md.get("ExposureTime", 1000)
-            exposure_time_s = exposure_time_us / 1000000.0
-            if exposure_time_s > 0:
-                # Store as (numerator, denominator) rational with overflow protection
-                denominator = min(int(1 / exposure_time_s), EXIF_RATIONAL_MAX)
-                exif_exposure = (1, denominator)
-            else:
-                exif_exposure = (1, 1000)
-
-            # Get current timestamp for DateTimeOriginal
-            from datetime import datetime
-            capture_timestamp = datetime.now().strftime('%Y:%m:%d %H:%M:%S')
-
-            exif_ifd = {
-                piexif.ExifIFD.DateTimeOriginal: capture_timestamp.encode('utf-8'),
-                piexif.ExifIFD.ExposureTime: exif_exposure,
-                piexif.ExifIFD.FocalLength: (
-                    int(md.get("LensPosition", 0.0) * 100),
-                    10,
-                ),
-                piexif.ExifIFD.ISOSpeed: int(md.get("AnalogueGain", 1.0) * 100),
-                piexif.ExifIFD.ISOSpeedRatings: int(md.get("AnalogueGain", 1.0) * 100),
-                piexif.ExifIFD.WhiteBalance: 0,  # 0 = Auto white balance
-                piexif.ExifIFD.Flash: 0,  # 0 = Flash did not fire
-                piexif.ExifIFD.ExposureMode: 0 if settings_dict.get("AfMode", 2) == 0 else 1,  # 0 = Manual, 1 = Auto
-                piexif.ExifIFD.MeteringMode: int(settings_dict.get("AeMeteringMode", 2)),  # 0=Centre, 1=Spot, 2=Matrix
-                piexif.ExifIFD.Sharpness: int(settings_dict.get("Sharpness", 1.0)),
-                piexif.ExifIFD.Contrast: int(settings_dict.get("Contrast", 1.0)),
-                piexif.ExifIFD.Saturation: int(settings_dict.get("Saturation", 1.0)),
-                piexif.ExifIFD.BrightnessValue: (int(settings_dict.get("Brightness", 0.0) * 100), 100),  # Rational
-            }
-
-            # Add MakerNote to store Mothbox-specific metadata
-            # Store as JSON string in MakerNote field
-            import json
-            maker_note_data = {
-                # Deployment info
-                "mothbox_name": mothbox_name or "mothbox",
-                "capture_type": "instant",  # instant capture from web UI
-                "sensor": sensor_name,
-                # Camera settings
-                "focus_mode": int(settings_dict.get("AfMode", 2)),  # 0=Manual, 1=Auto, 2=Continuous
-                "af_range": int(settings_dict.get("AfRange", 0)),  # 0=Normal, 1=Macro, 2=Full
-                "af_speed": int(settings_dict.get("AfSpeed", 0)),  # 0=Normal, 1=Fast
-                "noise_reduction": int(settings_dict.get("NoiseReductionMode", 2)),  # 0=Off, 1=Fast, 2=High Quality
-                "lens_position": float(md.get("LensPosition", 0.0)),
-                "colour_gain_red": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[0]) if "ColourGains" in settings_dict else DEFAULT_COLOUR_GAINS[0],
-                "colour_gain_blue": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[1]) if "ColourGains" in settings_dict else DEFAULT_COLOUR_GAINS[1],
-            }
-            exif_ifd[piexif.ExifIFD.MakerNote] = json.dumps(maker_note_data).encode('utf-8')
-
-            # GPS IFD - embed GPS coordinates from controls.txt if available
-            gps_ifd = {}
-            try:
-                from lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
-
-                gps_data = get_gps_data_from_controls()
-                if gps_data.get('has_fix'):
-                    gps_ifd = build_gps_ifd(gps_data)
-                    if gps_ifd:
-                        # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
-                        print(f"GPS EXIF embedded: lat={gps_data['latitude']}, lon={gps_data['longitude']}")
-            except Exception as gps_error:
-                print(f"Warning: Could not embed GPS EXIF: {gps_error}")
-
-            # Dump EXIF to bytes
-            exif_dict = {
-                "0th": zeroth_ifd,
-                "Exif": exif_ifd,
-            }
-            if gps_ifd:
-                exif_dict["GPS"] = gps_ifd
-                print(f"[GPS DEBUG] GPS IFD added to EXIF dict with {len(gps_ifd)} tags")
-            else:
-                print("[GPS DEBUG] No GPS IFD to add to EXIF dict")
-
-            exif_bytes = piexif.dump(exif_dict)
-            print(f"[GPS DEBUG] EXIF dict keys: {list(exif_dict.keys())}")
+            exif_bytes = _build_exif_metadata(md, settings_dict, "instant", picam2)
 
             # Save with EXIF metadata (Picamera2 BGR888 outputs RGB bytes - no conversion needed)
             img = Image.fromarray(array)
