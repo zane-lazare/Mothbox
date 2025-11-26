@@ -85,3 +85,9 @@ ZOOM_LEVEL_MAX: Final[float] = 10.0
 # CALIBRATION PROGRESS
 # =============================================================================
 CALIBRATION_TOTAL_STEPS: Final[int] = 4
+
+# =============================================================================
+# CAMERA HARDWARE IDENTIFICATION (for EXIF metadata)
+# =============================================================================
+CAMERA_MAKE: Final[str] = "Arducam"
+CAMERA_MODEL: Final[str] = "OwlSight 64MP"

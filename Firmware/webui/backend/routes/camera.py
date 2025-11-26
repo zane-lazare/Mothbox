@@ -17,6 +17,8 @@ from mothbox_paths import CAMERA_SETTINGS_FILE, PHOTOS_DIR
 from constants import (
     AF_MODES_REQUIRING_TRIGGER,
     AF_PREVIEW_RESOLUTION,
+    CAMERA_MAKE,
+    CAMERA_MODEL,
     DEFAULT_COLOUR_GAINS,
     FB_DEFAULT_END_DIOPTERS,
     FB_DEFAULT_START_DIOPTERS,
@@ -1155,8 +1157,8 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             # 0th IFD contains main image metadata (Make, Model, Software)
             # Make/Model refer to camera hardware, not Mothbox device
             zeroth_ifd = {
-                piexif.ImageIFD.Make: b"Arducam",
-                piexif.ImageIFD.Model: b"OwlSight 64MP",
+                piexif.ImageIFD.Make: CAMERA_MAKE.encode("utf-8"),
+                piexif.ImageIFD.Model: CAMERA_MODEL.encode("utf-8"),
                 piexif.ImageIFD.Software: firmware_version.encode("utf-8"),
             }
 
@@ -1712,8 +1714,8 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             # Build EXIF IFDs
             # Make/Model refer to camera hardware, not Mothbox device
             zeroth_ifd = {
-                piexif.ImageIFD.Make: b"Arducam",
-                piexif.ImageIFD.Model: b"OwlSight 64MP",
+                piexif.ImageIFD.Make: CAMERA_MAKE.encode("utf-8"),
+                piexif.ImageIFD.Model: CAMERA_MODEL.encode("utf-8"),
                 piexif.ImageIFD.Software: firmware_version.encode("utf-8"),
             }
 
