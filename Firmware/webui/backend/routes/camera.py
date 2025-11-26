@@ -683,12 +683,7 @@ def trigger_autofocus():
         print(f"Autofocus error: {error_msg}")
         print(traceback.format_exc())
         return jsonify(
-            {"success": False, "error": error_msg, "traceback": traceback.format_exc()}
-        ), 500
-
-        print(traceback.format_exc())
-        return jsonify(
-            {"success": False, "error": error_msg, "traceback": traceback.format_exc()}
+            {"success": False, "error": error_msg}
         ), 500
 
 
@@ -894,7 +889,7 @@ def calibrate_photo():
                 print(f"❌ Failed emergency restart: {restart_error}")
 
         return jsonify(
-            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+            {"success": False, "error": str(e)}
         ), 500
 
 
@@ -1016,7 +1011,8 @@ def freeze_settings():
     except Exception as e:
         import traceback
 
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 
 def _execute_test_capture(settings_dict, af_mode, settings_source):
@@ -1427,7 +1423,7 @@ def test_capture_liveview():
         print(f"Test capture (live view) error: {error_msg}")
         print(traceback.format_exc())
         return jsonify(
-            {"success": False, "error": error_msg, "traceback": traceback.format_exc()}
+            {"success": False, "error": error_msg}
         ), 500
 
 
@@ -1572,7 +1568,7 @@ def instant_capture():
         print(f"Instant capture error: {error_msg}")
         print(traceback.format_exc())
         return jsonify(
-            {"success": False, "error": error_msg, "traceback": traceback.format_exc()}
+            {"success": False, "error": error_msg}
         ), 500
 
 
@@ -1929,5 +1925,5 @@ def test_capture_photo():
         print(f"Test capture (photo) error: {error_msg}")
         print(traceback.format_exc())
         return jsonify(
-            {"success": False, "error": error_msg, "traceback": traceback.format_exc()}
+            {"success": False, "error": error_msg}
         ), 500
