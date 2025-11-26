@@ -108,15 +108,11 @@ def set_GPS(filepath, lat, lon):
         for line in lines:
             print(line)
             if line.startswith("lat"):
-                # lgtm[py/clear-text-storage-sensitive-data]
-                # CodeQL suppression: GPS coordinates are deployment location for wildlife
-                # monitoring equipment, not personal/user data. Required for scientific metadata.
+                # CodeQL: py/clear-text-storage-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
                 file.write("lat=" + str(lat) + "\n")  # Replace with False
                 # print("set lat" + str(lat))
             elif line.startswith("lon"):
-                # lgtm[py/clear-text-storage-sensitive-data]
-                # CodeQL suppression: GPS coordinates are deployment location for wildlife
-                # monitoring equipment, not personal/user data. Required for scientific metadata.
+                # CodeQL: py/clear-text-storage-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
                 file.write("lon=" + str(lon) + "\n")  # Replace with False
                 # print("set lon" + str(lon))
             else:
@@ -136,9 +132,7 @@ try:
                 latitude = getattr(report, "lat", None)
                 longitude = getattr(report, "lon", None)
                 UTCtime = getattr(report, "time", "")
-                # lgtm[py/clear-text-logging-sensitive-data]
-                # CodeQL suppression: GPS coordinates are deployment location for wildlife
-                # monitoring equipment, not personal/user data. Debug logging for hardware diagnostics.
+                # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
                 print(
                     latitude,
                     "\t",

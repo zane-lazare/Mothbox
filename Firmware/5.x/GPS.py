@@ -150,9 +150,7 @@ def update_gps_values(
             for key, value in updates.items():
                 if key not in updated_keys:
                     updated_lines.append(f"{key}={value}\n")
-                    # lgtm[py/clear-text-logging-sensitive-data]
-                    # CodeQL suppression: GPS coordinates are deployment location for wildlife
-                    # monitoring equipment, not personal/user data. Debug logging for hardware diagnostics.
+                    # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
                     print(f"Added {key}={value}")
 
             # Write back to file
@@ -192,9 +190,7 @@ try:
                 longitude = getattr(report, "lon", None)
                 UTCtime = getattr(report, "time", "")
                 fix_mode = getattr(report, "mode", 0)
-                # lgtm[py/clear-text-logging-sensitive-data]
-                # CodeQL suppression: GPS coordinates are deployment location for wildlife
-                # monitoring equipment, not personal/user data. Debug logging for hardware diagnostics.
+                # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
                 print(
                     f"TPV: {latitude}\t{longitude}\t{UTCtime}\t"
                     f"alt={getattr(report, 'alt', 'nan')}\t"

@@ -1219,6 +1219,7 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
                 if gps_data.get('has_fix'):
                     gps_ifd = build_gps_ifd(gps_data)
                     if gps_ifd:
+                        # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
                         print(f"GPS EXIF embedded: lat={gps_data['latitude']}, lon={gps_data['longitude']}")
             except Exception as gps_error:
                 print(f"Warning: Could not embed GPS EXIF: {gps_error}")
@@ -1775,6 +1776,7 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
                 if gps_data.get('has_fix'):
                     gps_ifd = build_gps_ifd(gps_data)
                     if gps_ifd:
+                        # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
                         print(f"GPS EXIF embedded: lat={gps_data['latitude']}, lon={gps_data['longitude']}")
             except Exception as gps_error:
                 print(f"Warning: Could not embed GPS EXIF: {gps_error}")
