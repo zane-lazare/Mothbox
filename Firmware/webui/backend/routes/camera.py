@@ -1058,11 +1058,13 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             # Production 64MP captures still work via /api/camera/capture → TakePhoto.py (standalone process)
             # 4K provides excellent quality for previewing settings in WebUI
             # Disable raw/lores buffers to reduce CMA usage (matches TakePhoto.py pattern)
+            # Note: Picamera2 format names are counterintuitive - "BGR888" outputs RGB byte order
+            # (See: https://github.com/raspberrypi/picamera2/discussions/568)
             capture_config = picam2.create_still_configuration(
                 main={
                     "size": TEST_CAPTURE_RESOLUTION,
-                    "format": "BGR888",
-                },  # 4K UHD (8.3MP), BGR888 = true RGB order
+                    "format": "BGR888",  # Outputs RGB-ordered bytes for PIL compatibility
+                },
                 raw=None,
                 lores=None,
             )
@@ -1226,7 +1228,7 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             exif_dict = {"0th": zeroth_ifd, "Exif": exif_ifd, "GPS": gps_ifd, "1st": first_ifd}
             exif_bytes = piexif.dump(exif_dict)
 
-            # Save with EXIF (BGR888 format is already in correct RGB order)
+            # Save with EXIF (Picamera2 BGR888 outputs RGB bytes - no conversion needed)
             pil_image = Image.fromarray(array, mode="RGB")
             pil_image.save(str(filepath), exif=exif_bytes, quality=95)
             print(f"Saved test capture with rich EXIF metadata to {filepath}")
@@ -1611,11 +1613,12 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
                 picam2 = acquire_camera_with_retry(1)
 
             # Configure for high-resolution capture (same as test capture)
+            # Note: Picamera2 "BGR888" outputs RGB byte order (counterintuitive naming)
             capture_config = picam2.create_still_configuration(
                 main={
                     "size": TEST_CAPTURE_RESOLUTION,
-                    "format": "BGR888",
-                },  # 4K UHD (8.3MP), BGR888 = true RGB order
+                    "format": "BGR888",  # Outputs RGB-ordered bytes for PIL compatibility
+                },
                 raw=None,
                 lores=None,
             )
@@ -1783,7 +1786,7 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             exif_bytes = piexif.dump(exif_dict)
             print(f"[GPS DEBUG] EXIF dict keys: {list(exif_dict.keys())}")
 
-            # Save with EXIF metadata (BGR888 format is already in correct RGB order)
+            # Save with EXIF metadata (Picamera2 BGR888 outputs RGB bytes - no conversion needed)
             img = Image.fromarray(array)
             img.save(str(filepath), quality=95, exif=exif_bytes)
             print(f"Instant photo saved successfully: {filepath}")
