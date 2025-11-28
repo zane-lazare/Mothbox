@@ -207,7 +207,7 @@ def decimal_to_dms(decimal: float, is_latitude: bool) -> tuple[tuple, str]:
         - Seconds: (seconds*100, 100) - seconds with 2 decimal places
     """
     # Import shared utility (with alias to avoid name collision)
-    from webui.lib.gps_coordinates import (
+    from webui.shared.gps_coordinates import (
         decimal_to_dms as convert_decimal_to_dms,
     )
 
@@ -600,7 +600,7 @@ def verify_gps_exif(photo_path: Path) -> dict[str, Any]:
             This wrapper extracts DMS components from EXIF rational tuples and
             uses the shared dms_to_decimal utility for conversion.
             """
-            from webui.lib.gps_coordinates import dms_to_decimal
+            from webui.shared.gps_coordinates import dms_to_decimal
 
             # DMS tuple format: ((degrees, 1), (minutes, 1), (seconds, 100))
             # Validate denominators to prevent division by zero

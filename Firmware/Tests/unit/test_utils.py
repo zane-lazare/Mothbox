@@ -18,13 +18,18 @@ from utils import (
     _validate_exposure_time,
     _validate_noise_reduction_mode,
     ALLOWED_CAMERA_SETTINGS,
+    ALLOWED_WEBUI_SETTINGS,
     ALLOWED_LIVEVIEW_SETTINGS,
     create_backup,
-    validate_path_within_directory
+    validate_path_within_directory,
+    check_disk_space,
+    get_last_calibration_time,
 )
 import tempfile
 import shutil as shutil_module
 import time
+from datetime import datetime
+from unittest.mock import patch, MagicMock
 
 
 class TestSanitizeCSVValue:
@@ -414,18 +419,22 @@ class TestCameraSettingsSchema:
         assert validator(3) == False
 
     def test_hdr_validation(self):
-        """Should validate HDR bracket count"""
-        validator = ALLOWED_CAMERA_SETTINGS['HDR']
+        """Should validate HDR bracket count (odd numbers 1, 3, 5, 7)"""
+        # HDR is a webui workflow setting, not a camera control
+        validator = ALLOWED_WEBUI_SETTINGS['HDR']
         assert validator(1) == True
         assert validator(3) == True
         assert validator(5) == True
         assert validator(7) == True
         assert validator(2) == False  # Must be odd
         assert validator(4) == False
+        assert validator(0) == False
+        assert validator(9) == False  # Max is 7
 
     def test_focus_bracket_validation(self):
-        """Should validate focus bracket count"""
-        validator = ALLOWED_CAMERA_SETTINGS['FocusBracket']
+        """Should validate focus bracket count (1-10)"""
+        # FocusBracket is a webui workflow setting, not a camera control
+        validator = ALLOWED_WEBUI_SETTINGS['FocusBracket']
         assert validator(1) == True
         assert validator(5) == True
         assert validator(10) == True
@@ -441,16 +450,29 @@ class TestCameraSettingsSchema:
         assert validator('FALSE') == True
         assert validator('invalid') == False
 
-    def test_all_settings_have_validators(self):
-        """Should have validators for all expected settings"""
-        expected_settings = [
+    def test_all_camera_settings_have_validators(self):
+        """Should have validators for all expected camera settings"""
+        # Camera settings are libcamera controls (used by firmware)
+        expected_camera_settings = [
             'Sharpness', 'Brightness', 'Contrast', 'Saturation',
             'ExposureTime', 'ExposureValue', 'AnalogueGain', 'AeEnable',
             'AfMode', 'AfSpeed', 'AfRange', 'LensPosition',
-            'AwbEnable', 'AwbMode', 'HDR', 'FocusBracket'
+            'AwbEnable', 'AwbMode', 'NoiseReductionMode',
         ]
-        for setting in expected_settings:
-            assert setting in ALLOWED_CAMERA_SETTINGS
+        for setting in expected_camera_settings:
+            assert setting in ALLOWED_CAMERA_SETTINGS, f"Missing camera setting: {setting}"
+
+    def test_all_webui_settings_have_validators(self):
+        """Should have validators for all expected webui workflow settings"""
+        # Webui settings control capture workflows, NOT passed to picamera2
+        expected_webui_settings = [
+            'HDR', 'HDR_width',
+            'FocusBracket', 'FocusBracket_Start', 'FocusBracket_End',
+            'AutoCalibration', 'AutoCalibrationPeriod',
+            'ImageFileType', 'VerticalFlip', 'Name',
+        ]
+        for setting in expected_webui_settings:
+            assert setting in ALLOWED_WEBUI_SETTINGS, f"Missing webui setting: {setting}"
 
 
 class TestLiveviewSettingsSchema:
@@ -469,28 +491,9 @@ class TestLiveviewSettingsSchema:
         assert validator('True') == True
         assert validator('invalid') == False
 
-    def test_stream_dimensions(self):
-        """Should validate stream width/height"""
-        width_validator = ALLOWED_LIVEVIEW_SETTINGS['stream_width']
-        assert width_validator(640) == True
-        assert width_validator(1920) == True
-        assert width_validator(639) == False  # Too small
-        assert width_validator(1921) == False  # Too large
-
-        height_validator = ALLOWED_LIVEVIEW_SETTINGS['stream_height']
-        assert height_validator(480) == True
-        assert height_validator(1080) == True
-        assert height_validator(479) == False
-        assert height_validator(1081) == False
-
-    def test_stream_quality(self):
-        """Should validate JPEG quality"""
-        validator = ALLOWED_LIVEVIEW_SETTINGS['stream_quality']
-        assert validator(1) == True
-        assert validator(50) == True
-        assert validator(100) == True
-        assert validator(0) == False
-        assert validator(101) == False
+    # NOTE: stream_width, stream_height, stream_quality are not validated via ALLOWED_LIVEVIEW_SETTINGS.
+    # These are runtime stream configuration parameters, not settings stored in liveview_settings.txt.
+    # Streaming dimensions and quality are validated at the streaming engine layer (liveview_stream.py).
 
     def test_float_controls(self):
         """Should validate float-based controls"""
@@ -525,13 +528,15 @@ class TestLiveviewSettingsSchema:
 
     def test_focus_peaking_config(self):
         """Should validate focus peaking configuration"""
+        # Intensity range is 50-200 (edge detection strength)
         intensity_validator = ALLOWED_LIVEVIEW_SETTINGS['focus_peaking_intensity']
-        assert intensity_validator(0.0) == True
-        assert intensity_validator(100.0) == True
-        assert intensity_validator(200.0) == True
-        assert intensity_validator(-0.1) == False
-        assert intensity_validator(200.1) == False
+        assert intensity_validator(50) == True  # Minimum
+        assert intensity_validator(100) == True
+        assert intensity_validator(200) == True  # Maximum
+        assert intensity_validator(49) == False  # Below minimum
+        assert intensity_validator(201) == False  # Above maximum
 
+        # Color validator (British spelling)
         color_validator = ALLOWED_LIVEVIEW_SETTINGS['focus_peaking_colour']
         assert color_validator('green') == True
         assert color_validator('red') == True
@@ -540,6 +545,12 @@ class TestLiveviewSettingsSchema:
         assert color_validator('magenta') == True
         assert color_validator('blue') == False  # Not in list
 
+        # American spelling alias also exists
+        color_validator_us = ALLOWED_LIVEVIEW_SETTINGS['focus_peaking_color']
+        assert color_validator_us('green') == True
+        assert color_validator_us('blue') == False
+
+        # Algorithm validator
         algo_validator = ALLOWED_LIVEVIEW_SETTINGS['focus_peaking_algorithm']
         assert algo_validator('laplacian') == True
         assert algo_validator('sobel') == True
@@ -757,3 +768,234 @@ class TestValidatePathWithinDirectory:
             # Path with double slash gets normalized
             result = validate_path_within_directory(Path("subdir//file.txt"), base_dir)
             assert result == base_dir / "subdir" / "file.txt"
+
+
+# ============================================================================
+# check_disk_space() Tests
+# ============================================================================
+
+
+class TestCheckDiskSpace:
+    """Test disk space checking utility function"""
+
+    def test_sufficient_space(self):
+        """Should return True when directory has sufficient space"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            has_space, available_mb = check_disk_space(Path(tmpdir), min_mb=1)
+            # Any valid directory should have at least 1MB free
+            assert has_space is True
+            assert available_mb >= 1
+
+    def test_insufficient_space(self):
+        """Should return False when minimum space requirement exceeds available"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Request impossibly large amount of space (1 petabyte)
+            has_space, available_mb = check_disk_space(Path(tmpdir), min_mb=1_000_000_000)
+            assert has_space is False
+            # available_mb should still report actual space
+            assert isinstance(available_mb, int)
+
+    def test_boundary_exact_match(self):
+        """Should return True when available equals min_mb exactly"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Get actual available space
+            _, actual_available = check_disk_space(Path(tmpdir), min_mb=0)
+            # Now check with exact amount
+            has_space, available_mb = check_disk_space(Path(tmpdir), min_mb=actual_available)
+            assert has_space is True
+            assert available_mb == actual_available
+
+    def test_default_min_mb(self):
+        """Should use 100MB as default minimum"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Call without min_mb parameter
+            has_space, available_mb = check_disk_space(Path(tmpdir))
+            # Should work (assuming system has >100MB free)
+            assert isinstance(has_space, bool)
+            assert isinstance(available_mb, int)
+
+    def test_custom_min_mb(self):
+        """Should respect custom min_mb value"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            has_space_small, _ = check_disk_space(Path(tmpdir), min_mb=1)
+            has_space_large, _ = check_disk_space(Path(tmpdir), min_mb=1_000_000_000)
+            # Small requirement should pass, huge requirement should fail
+            assert has_space_small is True
+            assert has_space_large is False
+
+    def test_invalid_directory(self):
+        """Should return (False, 0) for nonexistent directory"""
+        has_space, available_mb = check_disk_space(Path("/nonexistent/path/12345"))
+        assert has_space is False
+        assert available_mb == 0
+
+    def test_return_type(self):
+        """Should return tuple of (bool, int)"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = check_disk_space(Path(tmpdir))
+            assert isinstance(result, tuple)
+            assert len(result) == 2
+            assert isinstance(result[0], bool)
+            assert isinstance(result[1], int)
+
+    def test_zero_min_mb(self):
+        """Should handle zero minimum requirement"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            has_space, available_mb = check_disk_space(Path(tmpdir), min_mb=0)
+            # Any available space >= 0 should pass
+            assert has_space is True
+            assert available_mb >= 0
+
+    def test_exception_handling(self):
+        """Should handle shutil.disk_usage exceptions gracefully"""
+        with patch('shutil.disk_usage') as mock_disk_usage:
+            mock_disk_usage.side_effect = PermissionError("Access denied")
+            has_space, available_mb = check_disk_space(Path("/some/path"))
+            assert has_space is False
+            assert available_mb == 0
+
+    def test_oserror_handling(self):
+        """Should handle OSError exceptions gracefully"""
+        with patch('shutil.disk_usage') as mock_disk_usage:
+            mock_disk_usage.side_effect = OSError("Disk I/O error")
+            has_space, available_mb = check_disk_space(Path("/some/path"))
+            assert has_space is False
+            assert available_mb == 0
+
+
+# ============================================================================
+# get_last_calibration_time() Tests
+# ============================================================================
+
+
+class TestGetLastCalibrationTime:
+    """Test calibration timestamp extraction from camera_settings.csv"""
+
+    def test_valid_calibration_timestamp(self):
+        """Should extract valid ISO format timestamp"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_file = Path(tmpdir) / "camera_settings.csv"
+            # Format: SETTING,VALUE (function looks for lines starting with "LastCalibration,")
+            settings_file.write_text(
+                "ExposureTime,5000\n"
+                "LastCalibration,2025-01-15T10:30:45\n"
+                "AnalogueGain,2.0\n"
+            )
+            result = get_last_calibration_time(settings_file)
+            assert result is not None
+            assert isinstance(result, datetime)
+            assert result.year == 2025
+            assert result.month == 1
+            assert result.day == 15
+            assert result.hour == 10
+            assert result.minute == 30
+            assert result.second == 45
+
+    def test_calibration_not_found(self):
+        """Should return None when LastCalibration line is not present"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_file = Path(tmpdir) / "camera_settings.csv"
+            settings_file.write_text(
+                "ExposureTime,5000\n"
+                "AnalogueGain,2.0\n"
+            )
+            result = get_last_calibration_time(settings_file)
+            assert result is None
+
+    def test_file_not_found(self):
+        """Should return None for nonexistent file"""
+        result = get_last_calibration_time(Path("/nonexistent/camera_settings.csv"))
+        assert result is None
+
+    def test_invalid_timestamp_format(self):
+        """Should return None for malformed ISO timestamp"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_file = Path(tmpdir) / "camera_settings.csv"
+            settings_file.write_text(
+                "LastCalibration,not-a-valid-timestamp\n"
+            )
+            result = get_last_calibration_time(settings_file)
+            assert result is None
+
+    def test_empty_file(self):
+        """Should return None for empty file"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_file = Path(tmpdir) / "camera_settings.csv"
+            settings_file.write_text("")
+            result = get_last_calibration_time(settings_file)
+            assert result is None
+
+    def test_first_match_returned(self):
+        """Should return first LastCalibration entry if multiple exist"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_file = Path(tmpdir) / "camera_settings.csv"
+            settings_file.write_text(
+                "LastCalibration,2025-01-10T08:00:00\n"
+                "ExposureTime,5000\n"
+                "LastCalibration,2025-01-15T12:00:00\n"
+            )
+            result = get_last_calibration_time(settings_file)
+            assert result is not None
+            assert result.day == 10  # First entry
+
+    def test_with_microseconds(self):
+        """Should handle ISO timestamp with microseconds"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_file = Path(tmpdir) / "camera_settings.csv"
+            settings_file.write_text(
+                "LastCalibration,2025-01-15T10:30:45.123456\n"
+            )
+            result = get_last_calibration_time(settings_file)
+            assert result is not None
+            assert result.microsecond == 123456
+
+    def test_with_timezone(self):
+        """Should handle ISO timestamp with timezone offset"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_file = Path(tmpdir) / "camera_settings.csv"
+            settings_file.write_text(
+                "LastCalibration,2025-01-15T10:30:45+00:00\n"
+            )
+            result = get_last_calibration_time(settings_file)
+            assert result is not None
+            assert result.tzinfo is not None
+
+    def test_crlf_line_endings(self):
+        """Should handle Windows-style CRLF line endings"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_file = Path(tmpdir) / "camera_settings.csv"
+            # Write with explicit CRLF
+            settings_file.write_bytes(
+                b"LastCalibration,2025-01-15T10:30:45\r\n"
+            )
+            result = get_last_calibration_time(settings_file)
+            assert result is not None
+            assert result.day == 15
+
+    def test_return_type(self):
+        """Should return datetime or None"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_file = Path(tmpdir) / "camera_settings.csv"
+            settings_file.write_text(
+                "LastCalibration,2025-01-15T10:30:45\n"
+            )
+            result = get_last_calibration_time(settings_file)
+            assert result is None or isinstance(result, datetime)
+
+    def test_whitespace_handling(self):
+        """Should strip whitespace from timestamp value"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_file = Path(tmpdir) / "camera_settings.csv"
+            settings_file.write_text(
+                "LastCalibration,  2025-01-15T10:30:45  \n"
+            )
+            result = get_last_calibration_time(settings_file)
+            assert result is not None
+            assert result.day == 15
+
+    def test_permission_denied(self):
+        """Should return None when file cannot be read"""
+        with patch('builtins.open') as mock_open:
+            mock_open.side_effect = PermissionError("Access denied")
+            result = get_last_calibration_time(Path("/some/settings.csv"))
+            assert result is None

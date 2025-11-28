@@ -1,3 +1,11 @@
+/**
+ * VirtualPhotoGrid Component Tests
+ *
+ * NOTE: These tests are skipped because virtualization is disabled due to
+ * react-window 2.2.3 bug with React 18 StrictMode. See GALLERY_CONFIG.VIRTUALIZATION.ENABLED
+ * Re-enable these tests when virtualization is re-enabled.
+ */
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -52,7 +60,8 @@ import VirtualPhotoGridItem from '../VirtualPhotoGridItem';
 import EmptyStateMessage from '../EmptyStateMessage';
 import LoadingSpinner from '../LoadingSpinner';
 
-describe('VirtualPhotoGrid', () => {
+// Skip all tests - virtualization is disabled due to react-window bug
+describe.skip('VirtualPhotoGrid', () => {
   let queryClient;
   const mockPhotos = Array.from({ length: 100 }, (_, i) => ({
     path: `2024/photo_${i}.jpg`,

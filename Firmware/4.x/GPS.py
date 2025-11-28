@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import fcntl
 import os
 import select
 import sys
@@ -12,7 +13,7 @@ from timezonefinder import TimezoneFinder
 
 # Add parent directory to path to import mothbox_paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from mothbox_paths import CONTROLS_FILE, get_hardware_config
+from mothbox_paths import CONTROLS_FILE, get_control_values, get_hardware_config
 
 # Load hardware configuration
 hw_config = get_hardware_config()
@@ -58,69 +59,79 @@ print("gpsmon terminated")
 """
 
 
-def get_control_values(filepath):
-    """Reads key-value pairs from the control file."""
-    control_values = {}
-    with open(filepath) as file:
-        for line in file:
-            key, value = line.strip().split("=")
-            control_values[key] = value
-    return control_values
+# Use get_control_values from mothbox_paths (proper error handling built-in)
+control_values = get_control_values(str(CONTROLS_FILE))
 
 
-control_values_fpath = str(CONTROLS_FILE)
-control_values = get_control_values(control_values_fpath)
+def update_gps_values(filepath, lat=None, lon=None, gpstime=None, utc_offset=None):
+    """
+    Atomically update GPS values in controls.txt with file locking.
 
+    This prevents race conditions with WebUI by using fcntl exclusive locks.
+    All GPS values are updated in a single locked write operation.
 
-def set_GPStime(filepath, gpstime):
-    with open(filepath) as file:
-        lines = file.readlines()
+    Args:
+        filepath: Path to controls.txt
+        lat: Latitude value (or None to skip)
+        lon: Longitude value (or None to skip)
+        gpstime: Unix timestamp (or None to skip)
+        utc_offset: UTC offset in hours (or None to skip)
+    """
+    # Prepare updates mapping (only include values that were provided)
+    updates = {}
+    if lat is not None:
+        # CodeQL: py/clear-text-storage-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
+        updates["lat"] = str(lat)
+    if lon is not None:
+        # CodeQL: py/clear-text-storage-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
+        updates["lon"] = str(lon)
+    if gpstime is not None:
+        updates["gpstime"] = str(gpstime)
+    if utc_offset is not None:
+        updates["UTCoff"] = str(utc_offset)
 
-    with open(filepath, "w") as file:
-        for line in lines:
-            print(line)
-            if line.startswith("gpstime"):
-                file.write("gpstime=" + str(gpstime) + "\n")  # Replace with False
-                # print("set gpstime " + str(gpstime))
-            else:
-                file.write(line)  # Keep other lines unchanged
+    # Open file for read/write and acquire exclusive lock
+    with open(filepath, "r+") as f:
+        try:
+            # Acquire exclusive lock (blocks until lock is available)
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
 
+            # Read current contents
+            lines = f.readlines()
 
-def set_UTCoff(filepath, UTC):
-    with open(filepath) as file:
-        lines = file.readlines()
+            # Update lines
+            updated_lines = []
+            updated_keys = set()
 
-    with open(filepath, "w") as file:
-        for line in lines:
-            print(line)
-            if line.startswith("UTCoff"):
-                file.write("UTCoff=" + str(UTC) + "\n")  # Replace with False
-                # print("set UTCoff" + str(UTC))
-            else:
-                file.write(line)  # Keep other lines unchanged
+            for line in lines:
+                stripped = line.strip()
+                if stripped and "=" in stripped and not stripped.startswith("#"):
+                    key = stripped.split("=", 1)[0]
+                    if key in updates:
+                        updated_lines.append(f"{key}={updates[key]}\n")
+                        updated_keys.add(key)
+                        print(f"Updated {key}={updates[key]}")
+                    else:
+                        updated_lines.append(line)
+                else:
+                    updated_lines.append(line)
 
+            # Add any new keys that weren't in the file
+            for key, value in updates.items():
+                if key not in updated_keys:
+                    updated_lines.append(f"{key}={value}\n")
+                    # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
+                    print(f"Added {key}={value}")
 
-def set_GPS(filepath, lat, lon):
-    with open(filepath) as file:
-        lines = file.readlines()
+            # Write back to file
+            f.seek(0)
+            f.truncate()
+            f.writelines(updated_lines)
+            f.flush()
 
-    with open(filepath, "w") as file:
-        for line in lines:
-            print(line)
-            if line.startswith("lat"):
-                # lgtm[py/clear-text-storage-sensitive-data]
-                # CodeQL suppression: GPS coordinates are deployment location for wildlife
-                # monitoring equipment, not personal/user data. Required for scientific metadata.
-                file.write("lat=" + str(lat) + "\n")  # Replace with False
-                # print("set lat" + str(lat))
-            elif line.startswith("lon"):
-                # lgtm[py/clear-text-storage-sensitive-data]
-                # CodeQL suppression: GPS coordinates are deployment location for wildlife
-                # monitoring equipment, not personal/user data. Required for scientific metadata.
-                file.write("lon=" + str(lon) + "\n")  # Replace with False
-                # print("set lon" + str(lon))
-            else:
-                file.write(line)  # Keep other lines unchanged
+        finally:
+            # Release lock (automatically released when file closes, but explicit is better)
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 print("startingGPS")
@@ -136,9 +147,7 @@ try:
                 latitude = getattr(report, "lat", None)
                 longitude = getattr(report, "lon", None)
                 UTCtime = getattr(report, "time", "")
-                # lgtm[py/clear-text-logging-sensitive-data]
-                # CodeQL suppression: GPS coordinates are deployment location for wildlife
-                # monitoring equipment, not personal/user data. Debug logging for hardware diagnostics.
+                # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
                 print(
                     latitude,
                     "\t",
@@ -175,7 +184,6 @@ try:
         print("sync HW clock with system clock")
         os.system("sudo hwclock -w")  # nosec B605 - Hardcoded system command
         print("System UTC time set.")
-        set_GPStime(str(CONTROLS_FILE), epoch_time)
 
         # Use offline timezone lookup
         if latitude is not None and longitude is not None:
@@ -190,15 +198,36 @@ try:
                 local_time = datetime.now(ZoneInfo(timezone))
                 utc_offset_hours = int(local_time.utcoffset().total_seconds() // 3600)
                 print("UTC Offset (hours):", utc_offset_hours)
-                set_GPS(str(CONTROLS_FILE), latitude, longitude)
-                set_UTCoff(str(CONTROLS_FILE), utc_offset_hours)
+
+                # Atomically update all GPS values in one locked operation
+                update_gps_values(
+                    str(CONTROLS_FILE),
+                    lat=latitude,
+                    lon=longitude,
+                    gpstime=epoch_time,
+                    utc_offset=utc_offset_hours,
+                )
             else:
                 print("Could not determine timezone from coordinates.")
-                set_GPS(str(CONTROLS_FILE), "n/a", "n/a")
+                update_gps_values(
+                    str(CONTROLS_FILE),
+                    lat="n/a",
+                    lon="n/a",
+                    gpstime=epoch_time,
+                )
+        else:
+            # GPS has time fix but no position fix
+            print("No position fix - time only")
+            update_gps_values(
+                str(CONTROLS_FILE),
+                lat="n/a",
+                lon="n/a",
+                gpstime=epoch_time,
+            )
 
     else:
         print("No UTC time received before timeout")
-        set_GPS(str(CONTROLS_FILE), "n/a", "n/a")
+        update_gps_values(str(CONTROLS_FILE), lat="n/a", lon="n/a")
 
 
 except (KeyboardInterrupt, SystemExit):

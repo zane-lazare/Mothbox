@@ -84,6 +84,7 @@ export const autoCalibrate = (data) => api.post('/camera/calibrate', data)
 export const freezeSettings = () => api.post('/camera/freeze-settings')
 export const testCaptureLiveview = () => api.post('/camera/test-capture-liveview')
 export const testCapturePhoto = () => api.post('/camera/test-capture-photo')
+export const instantCapture = () => api.post('/camera/instant-capture')
 
 // Gallery APIs
 export const getPhotos = () => api.get('/gallery/photos')

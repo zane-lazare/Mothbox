@@ -129,7 +129,8 @@ def get_system_status():
             }
         )
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error getting storage info: {e}")
+        return jsonify({"error": "Failed to get storage info"}), 500
 
 
 @system_bp.route("/power", methods=["GET"])
@@ -144,7 +145,8 @@ def get_power_status():
         # See: https://github.com/zane-lazare/Mothbox/issues/73
         return jsonify({"enabled": True, "voltage": None, "current": None, "power": None})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error getting power status: {e}")
+        return jsonify({"error": "Failed to get power status"}), 500
 
 
 @system_bp.route("/info", methods=["GET"])
@@ -184,9 +186,7 @@ def get_system_info():
         # Build error response - never include traceback in API response
         # Tracebacks reveal internal paths, versions, and code structure
         # even in development mode, as the API may be accessible from network
-        error_response = {"error": str(e)}
-
-        return jsonify(error_response), 500
+        return jsonify({"error": "Failed to get system info"}), 500
 
 
 @system_bp.route("/diagnostic", methods=["GET"])
@@ -257,11 +257,5 @@ def get_diagnostic_info():
         print("Error in /api/system/diagnostic:")
         print(traceback.format_exc())
 
-        # Build error response
-        error_response = {"error": str(e)}
-
-        # Only include traceback in development/debug mode to prevent information disclosure
-        if config.DEBUG:
-            error_response["traceback"] = traceback.format_exc()
-
-        return jsonify(error_response), 500
+        # Return generic error - traceback already logged server-side
+        return jsonify({"error": "Failed to get diagnostic info"}), 500

@@ -3,7 +3,6 @@ import PropTypes from 'prop-types'
 import * as Tabs from '@radix-ui/react-tabs'
 import usePhotoMetadata from '../../hooks/usePhotoMetadata'
 import CameraTab from './CameraTab'
-import LocationTab from './LocationTab'
 import CaptureTab from './CaptureTab'
 import TagsTab from './TagsTab'
 import DeploymentTab from './DeploymentTab'
@@ -12,9 +11,10 @@ import MetadataSkeleton from './MetadataSkeleton'
 /**
  * MetadataPanel - Container component for photo metadata display
  *
- * Orchestrates all 5 metadata tabs (Camera, Location, Capture, Tags, Deployment)
+ * Orchestrates all 4 metadata tabs (Camera, Capture, Tags, Deployment)
  * using Radix UI Tabs for accessible tab navigation. Fetches metadata using the
  * usePhotoMetadata hook and handles loading/error states.
+ * Note: Location data is now merged into the Deployment tab.
  *
  * Features:
  * - Responsive layout (vertical tabs on mobile, horizontal on desktop)
@@ -111,12 +111,6 @@ export default function MetadataPanel({ photoPath, className = '' }) {
           Camera
         </Tabs.Trigger>
         <Tabs.Trigger
-          value="location"
-          className={TAB_TRIGGER_CLASSES}
-        >
-          Location
-        </Tabs.Trigger>
-        <Tabs.Trigger
           value="capture"
           className={TAB_TRIGGER_CLASSES}
         >
@@ -141,10 +135,6 @@ export default function MetadataPanel({ photoPath, className = '' }) {
       <div className="flex-1 overflow-y-auto max-h-[60vh]">
         <Tabs.Content value="camera" className="p-4">
           <CameraTab data={metadata} />
-        </Tabs.Content>
-
-        <Tabs.Content value="location" className="p-4">
-          <LocationTab data={metadata} />
         </Tabs.Content>
 
         <Tabs.Content value="capture" className="p-4">

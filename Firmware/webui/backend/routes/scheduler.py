@@ -41,7 +41,8 @@ def list_cron_jobs():
 
         return jsonify({"jobs": jobs})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error listing cron jobs: {e}")
+        return jsonify({"error": "Failed to list cron jobs"}), 500
 
 
 @scheduler_bp.route("/job", methods=["POST"])
@@ -67,7 +68,8 @@ def add_cron_job():
         try:
             script_path = get_script_path(script_name)
         except ValueError as e:
-            return jsonify({"error": f"Script path validation failed: {str(e)}"}), 400
+            print(f"Script path validation failed: {e}")
+            return jsonify({"error": "Script path validation failed"}), 400
 
         # Construct command with validated path
         command = f"/usr/bin/python3 {script_path}"
@@ -80,7 +82,8 @@ def add_cron_job():
 
         return jsonify({"success": True, "command": command})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error adding cron job: {e}")
+        return jsonify({"error": "Failed to add cron job"}), 500
 
 
 @scheduler_bp.route("/job", methods=["DELETE"])
@@ -127,7 +130,8 @@ def delete_cron_job():
 
         return jsonify({"success": True, "removed_count": removed_count, "command": command})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error deleting cron job: {e}")
+        return jsonify({"error": "Failed to delete cron job"}), 500
 
 
 @scheduler_bp.route("/status", methods=["GET"])
@@ -144,4 +148,5 @@ def get_scheduler_status():
             {"cron_active": cron_active, "scheduler_script": str(get_script_path("Scheduler.py"))}
         )
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error getting scheduler status: {e}")
+        return jsonify({"error": "Failed to get scheduler status"}), 500

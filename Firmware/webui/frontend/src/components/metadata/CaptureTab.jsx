@@ -5,31 +5,17 @@ import { formatTimestamp } from '../../utils/metadataFormatters';
 /**
  * CaptureTab Component
  *
- * Displays photo capture metadata including timestamp, HDR status,
- * focus bracket information, and camera settings.
+ * Displays comprehensive photo capture metadata with technical nomenclature
+ * aligned to live view camera controls.
  *
- * Features:
- * - Formatted timestamp display
- * - Conditional HDR status (only shown when enabled)
- * - Conditional focus bracket info (only shown when enabled)
- * - Focus distance in meters
- * - Exposure and metering modes
- * - Copyable fields for timestamp and modes
- * - Empty state handling
+ * Sections:
+ * - Capture Details: Timestamp, basic photo info
+ * - Exposure Settings: Exposure mode, time, gain (ISO), metering
+ * - Focus Settings: Focus mode, lens position, AF range/speed
+ * - Image Processing: Noise reduction, sharpness, brightness, contrast, saturation
+ * - Colour & Advanced: Aperture, colour gains, flash
  *
  * @component
- * @example
- * const data = {
- *   timestamp: '2025-03-15T14:30:45Z',
- *   hdr_enabled: true,
- *   focus_bracket_enabled: true,
- *   focus_bracket_position: 2,
- *   focus_bracket_total: 5,
- *   focus_distance: 1.5,
- *   exposure_mode: 'auto',
- *   metering_mode: 'center-weighted'
- * };
- * return <CaptureTab data={data} />
  */
 function CaptureTab({ data }) {
   // Handle null or undefined data
@@ -41,100 +27,211 @@ function CaptureTab({ data }) {
     );
   }
 
-  const {
-    timestamp,
-    hdr_enabled,
-    focus_bracket_enabled,
-    focus_bracket_position,
-    focus_bracket_total,
-    focus_distance,
-    exposure_mode,
-    metering_mode,
-  } = data;
+  const capture = data.capture || {};
 
-  // Format focus bracket display
-  const getFocusBracketValue = () => {
-    if (focus_bracket_position != null && focus_bracket_total != null) {
-      return `${focus_bracket_position} of ${focus_bracket_total}`;
-    }
-    return null;
-  };
-
-  // Format focus distance
-  const focusDistanceFormatted = focus_distance != null ? `${focus_distance}m` : null;
+  // Helper to check if value exists
+  const hasValue = (val) => val !== undefined && val !== null;
 
   return (
-    <div className="space-y-2">
-      {/* Timestamp */}
-      <MetadataField
-        label="Timestamp"
-        value={formatTimestamp(timestamp)}
-        copyable={!!timestamp}
-      />
+    <div className="space-y-6">
+      {/* Capture Details */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 border-b dark:border-gray-600 pb-2">
+          Capture Details
+        </h3>
+        <div className="space-y-2">
+          <MetadataField
+            label="Timestamp"
+            value={formatTimestamp(capture.timestamp)}
+            copyable={!!capture.timestamp}
+          />
+          <MetadataField
+            label="Focal Length"
+            value={capture.focal_length || 'N/A'}
+            copyable={!!capture.focal_length}
+          />
+        </div>
+      </div>
 
-      {/* HDR Status - only shown when enabled */}
-      {hdr_enabled && (
-        <MetadataField
-          label="HDR Status"
-          value="Enabled"
-          copyable={false}
-        />
-      )}
+      {/* Exposure Settings */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 border-b dark:border-gray-600 pb-2">
+          Exposure Settings
+        </h3>
+        <div className="space-y-2">
+          <MetadataField
+            label="Exposure Mode"
+            value={capture.exposure_mode || 'N/A'}
+            copyable={false}
+          />
+          <MetadataField
+            label="Exposure Time"
+            value={capture.exposure_time || 'N/A'}
+            copyable={!!capture.exposure_time}
+          />
+          <MetadataField
+            label="Gain (ISO)"
+            value={hasValue(capture.iso) ? capture.iso.toString() : 'N/A'}
+            copyable={hasValue(capture.iso)}
+          />
+          {capture.exposure_mode === 'Auto' && (
+            <MetadataField
+              label="Metering Mode"
+              value={capture.metering_mode || 'N/A'}
+              copyable={false}
+            />
+          )}
+        </div>
+      </div>
 
-      {/* Focus Bracket - only shown when enabled */}
-      {focus_bracket_enabled && (
-        <MetadataField
-          label="Focus Bracket"
-          value={getFocusBracketValue()}
-          copyable={false}
-        />
-      )}
+      {/* Focus Settings */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 border-b dark:border-gray-600 pb-2">
+          Focus Settings
+        </h3>
+        <div className="space-y-2">
+          <MetadataField
+            label="Focus Mode"
+            value={capture.focus_mode || 'N/A'}
+            copyable={false}
+          />
+          {capture.focus_mode === 'Manual' && hasValue(capture.lens_position) && (
+            <MetadataField
+              label="Lens Position"
+              value={`${capture.lens_position.toFixed(2)} diopters`}
+              copyable={true}
+            />
+          )}
+          {(capture.focus_mode === 'Auto Single' || capture.focus_mode === 'Continuous AF') && (
+            <>
+              <MetadataField
+                label="AF Range"
+                value={capture.af_range || 'N/A'}
+                copyable={false}
+              />
+              <MetadataField
+                label="AF Speed"
+                value={capture.af_speed || 'N/A'}
+                copyable={false}
+              />
+            </>
+          )}
+        </div>
+      </div>
 
-      {/* Focus Distance */}
-      <MetadataField
-        label="Focus Distance"
-        value={focusDistanceFormatted}
-        copyable={false}
-      />
+      {/* Image Processing */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 border-b dark:border-gray-600 pb-2">
+          Image Processing
+        </h3>
+        <div className="space-y-2">
+          <MetadataField
+            label="Noise Reduction"
+            value={capture.noise_reduction || 'N/A'}
+            copyable={false}
+          />
+          <MetadataField
+            label="Sharpness"
+            value={hasValue(capture.sharpness) ? capture.sharpness.toString() : 'N/A'}
+            copyable={hasValue(capture.sharpness)}
+          />
+          <MetadataField
+            label="Brightness"
+            value={hasValue(capture.brightness) ? capture.brightness.toFixed(2) : 'N/A'}
+            copyable={hasValue(capture.brightness)}
+          />
+          <MetadataField
+            label="Contrast"
+            value={hasValue(capture.contrast) ? capture.contrast.toString() : 'N/A'}
+            copyable={hasValue(capture.contrast)}
+          />
+          <MetadataField
+            label="Saturation"
+            value={hasValue(capture.saturation) ? capture.saturation.toString() : 'N/A'}
+            copyable={hasValue(capture.saturation)}
+          />
+        </div>
+      </div>
 
-      {/* Exposure Mode */}
-      <MetadataField
-        label="Exposure Mode"
-        value={exposure_mode}
-        copyable={!!exposure_mode}
-      />
-
-      {/* Metering Mode */}
-      <MetadataField
-        label="Metering Mode"
-        value={metering_mode}
-        copyable={!!metering_mode}
-      />
+      {/* Colour & Advanced */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 border-b dark:border-gray-600 pb-2">
+          Colour & Advanced
+        </h3>
+        <div className="space-y-2">
+          <MetadataField
+            label="Aperture"
+            value={capture.f_number || 'N/A'}
+            copyable={!!capture.f_number}
+          />
+          <MetadataField
+            label="Colour Balance"
+            value={capture.white_balance || 'N/A'}
+            copyable={!!capture.white_balance}
+          />
+          {hasValue(capture.colour_gain_red) && (
+            <MetadataField
+              label="Red Gain"
+              value={capture.colour_gain_red.toFixed(3)}
+              copyable={true}
+            />
+          )}
+          {hasValue(capture.colour_gain_blue) && (
+            <MetadataField
+              label="Blue Gain"
+              value={capture.colour_gain_blue.toFixed(3)}
+              copyable={true}
+            />
+          )}
+          <MetadataField
+            label="Flash"
+            value={hasValue(capture.flash)
+              ? (capture.flash ? 'Fired' : 'Did not fire')
+              : 'N/A'}
+            copyable={false}
+          />
+        </div>
+      </div>
     </div>
   );
 }
 
 CaptureTab.propTypes = {
   /**
-   * Capture metadata object
+   * Full metadata object from backend API
    */
   data: PropTypes.shape({
-    /** ISO 8601 timestamp string */
-    timestamp: PropTypes.string,
-    /** HDR enabled flag */
-    hdr_enabled: PropTypes.bool,
-    /** Focus bracket enabled flag */
-    focus_bracket_enabled: PropTypes.bool,
-    /** Current focus bracket position (1-indexed) */
-    focus_bracket_position: PropTypes.number,
-    /** Total number of focus bracket images */
-    focus_bracket_total: PropTypes.number,
-    /** Focus distance in meters */
-    focus_distance: PropTypes.number,
-    /** Exposure mode (auto, manual, etc.) */
-    exposure_mode: PropTypes.string,
-    /** Metering mode (center-weighted, spot, etc.) */
-    metering_mode: PropTypes.string,
+    capture: PropTypes.shape({
+      // Capture Details
+      timestamp: PropTypes.string,
+      focal_length: PropTypes.string,
+
+      // Exposure Settings
+      exposure_mode: PropTypes.string,
+      exposure_time: PropTypes.string,
+      iso: PropTypes.number,
+      metering_mode: PropTypes.string,
+
+      // Focus Settings
+      focus_mode: PropTypes.string,
+      lens_position: PropTypes.number,
+      af_range: PropTypes.string,
+      af_speed: PropTypes.string,
+
+      // Image Processing
+      noise_reduction: PropTypes.string,
+      sharpness: PropTypes.number,
+      brightness: PropTypes.number,
+      contrast: PropTypes.number,
+      saturation: PropTypes.number,
+
+      // Colour & Advanced
+      f_number: PropTypes.string,
+      white_balance: PropTypes.string,
+      colour_gain_red: PropTypes.number,
+      colour_gain_blue: PropTypes.number,
+      flash: PropTypes.bool,
+    }),
   }),
 };
 

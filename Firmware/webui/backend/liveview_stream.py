@@ -7,6 +7,7 @@ import io
 import time
 from contextlib import contextmanager
 from threading import Event, Lock, Thread
+from typing import Any
 
 # Lazy import PIL - only needed when actually encoding images
 # This allows tests to import this module without PIL installed
@@ -45,6 +46,17 @@ from camera_control_mapping import (
     build_picamera_controls,
     handle_colour_gains,
     normalize_control_key,
+)
+
+# Import centralized constants
+from constants import (
+    EDGE_DETECTION_THRESHOLD_BASE,
+    FOCUS_PEAKING_BLEND_ALPHA,
+    MJPEG_QP_MAX,
+    MJPEG_QP_MIN,
+    MJPEG_QUALITY_TO_QP_FACTOR,
+    ZOOM_LEVEL_MAX,
+    ZOOM_LEVEL_MIN,
 )
 
 try:
@@ -101,6 +113,7 @@ class LiveViewStreamer:
         self.streaming = False
         self.stream_thread = None
         self.stop_event = Event()
+        self._cached_lens_position = None  # Cache lens position from streaming metadata
         self.load_stream_settings()
 
     def load_stream_settings(self):
@@ -272,7 +285,97 @@ class LiveViewStreamer:
         except Exception as e:
             print(f"Error loading stream settings, using defaults: {e}")
 
-    def initialize_camera(self):
+    def get_current_settings(self):
+        """
+        Get current camera settings from live instance (not from file)
+
+        This method exports all current camera controls from the running LiveViewStreamer
+        instance. Settings reflect real-time changes made via WebSocket controls,
+        including unsaved slider adjustments.
+
+        Use this instead of reading from liveview_settings.txt to ensure test captures
+        match exactly what the user sees in the live stream viewport.
+
+        Returns:
+            dict: Camera settings with snake_case keys, ready for test capture:
+                {
+                    'sharpness': float,
+                    'brightness': float,
+                    'contrast': float,
+                    'saturation': float,
+                    'af_mode': int (0=Manual, 1=Single, 2=Continuous),
+                    'af_speed': int (0=Normal, 1=Fast),
+                    'af_range': int (0=Normal, 1=Macro, 2=Full),
+                    'ae_enable': bool,
+                    'ae_metering_mode': int (0=Centre, 1=Spot, 2=Matrix, 3=Custom),
+                    'awb_enable': bool,
+                    'awb_mode': int (0=Auto, 1-7=various presets),
+                    'exposure_time': int (microseconds),
+                    'analogue_gain': float,
+                    'noise_reduction_mode': int (0=Off, 1=Fast, 2=HighQuality),
+                    'colour_gains_red': float,
+                    'colour_gains_blue': float,
+                    'lens_position': float (diopters, when available),
+                }
+        """
+        # Read from instance variables (these reflect current camera state)
+        settings = {
+            # Image quality controls
+            'sharpness': self.sharpness,
+            'brightness': self.brightness,
+            'contrast': self.contrast,
+            'saturation': self.saturation,
+
+            # Focus controls - use override if set, otherwise configured value
+            'af_mode': self._af_mode_override if self._af_mode_override is not None else self.af_mode,
+            'af_speed': self.af_speed,
+            'af_range': self.af_range,
+
+            # Exposure controls
+            'ae_enable': self.ae_enable,
+            'ae_metering_mode': self.ae_metering_mode,
+            'exposure_time': self.exposure_time,
+            'analogue_gain': self.analogue_gain,
+
+            # White balance controls - split colour_gains tuple into components
+            'awb_enable': self.awb_enable,
+            'awb_mode': self.awb_mode,
+            'colour_gains_red': self.colour_gains[0],
+            'colour_gains_blue': self.colour_gains[1],
+
+            # Noise reduction
+            'noise_reduction_mode': self.noise_reduction_mode,
+
+            # AF metering mode (for click-to-focus AF window feature)
+            'af_metering': 1 if self._af_window_active else 0,
+        }
+
+        # Include lens_position from camera metadata if camera is active
+        # This gives us the ACTUAL current focus position, not configured value
+        if self.camera is not None:
+            try:
+                metadata = self.camera.capture_metadata()
+                if 'LensPosition' in metadata:
+                    lens_pos = metadata['LensPosition']
+                    settings['lens_position'] = lens_pos
+                    self._cached_lens_position = lens_pos  # Cache for future use
+            except Exception as e:
+                # Camera metadata query failed - use cached value if available
+                if self._cached_lens_position is not None:
+                    settings['lens_position'] = self._cached_lens_position
+                    print(f"Using cached lens position {self._cached_lens_position:.2f} (metadata query failed: {e})")
+                else:
+                    print(f"Warning: Could not read lens position from camera metadata: {e}")
+                if hasattr(self, 'lens_position'):
+                    settings['lens_position'] = self.lens_position
+        else:
+            # Camera not active - use configured value if available
+            if hasattr(self, 'lens_position'):
+                settings['lens_position'] = self.lens_position
+
+        return settings
+
+    def initialize_camera(self) -> bool:
         """Initialize camera hardware and configure for streaming"""
         if not PICAMERA_AVAILABLE:
             return False
@@ -736,7 +839,7 @@ class LiveViewStreamer:
             # Hardware MJPEG is sensitive - qp > 20 produces poor quality
             # Formula: qp = 25 - (quality * 0.24) maps quality to good qp range
             # Examples: quality 100 → qp 1, quality 85 → qp 5, quality 50 → qp 13
-            qp_value = max(1, min(25, int(25 - (self.jpeg_quality * 0.24))))
+            qp_value = max(MJPEG_QP_MIN, min(MJPEG_QP_MAX, int(MJPEG_QP_MAX - (self.jpeg_quality * MJPEG_QUALITY_TO_QP_FACTOR))))
             encoder = MJPEGEncoder(qp=qp_value)
             print(f"Hardware MJPEG: quality={self.jpeg_quality}% → qp={qp_value}")
 
@@ -1022,7 +1125,7 @@ class LiveViewStreamer:
             print(f"Error capturing frame: {e}")
             raise
 
-    def update_control(self, control_dict):
+    def update_control(self, control_dict: dict[str, Any]) -> bool:
         """
         Update camera control(s) without restarting stream
 
@@ -1148,7 +1251,7 @@ class LiveViewStreamer:
         laplacian = np.abs(laplacian)
 
         # Threshold for sharp edges (inverted: high intensity = more edges)
-        inverted_threshold = 250 - threshold  # 200→50, 100→150, 50→200
+        inverted_threshold = EDGE_DETECTION_THRESHOLD_BASE - threshold  # 200→50, 100→150, 50→200
         edge_mask = (laplacian > inverted_threshold).astype(np.uint8) * 255
 
         # Morphological closing to connect nearby edges (3x3 ellipse kernel)
@@ -1160,7 +1263,7 @@ class LiveViewStreamer:
         overlay[edge_mask.astype(bool)] = overlay_colour
 
         # Blend with original (60% overlay visibility)
-        result = cv2.addWeighted(frame, 1.0, overlay, 0.6, 0)
+        result = cv2.addWeighted(frame, 1.0, overlay, FOCUS_PEAKING_BLEND_ALPHA, 0)
 
         return result
 
@@ -1203,7 +1306,7 @@ class LiveViewStreamer:
         sobel_mag = np.hypot(sobel_x, sobel_y)
 
         # Threshold for sharp edges (inverted: high intensity = more edges)
-        inverted_threshold = 250 - threshold  # 200→50, 100→150, 50→200
+        inverted_threshold = EDGE_DETECTION_THRESHOLD_BASE - threshold  # 200→50, 100→150, 50→200
         edge_mask = (sobel_mag > inverted_threshold).astype(np.uint8) * 255
 
         # Morphological closing to connect nearby edges (3x3 ellipse kernel)
@@ -1215,7 +1318,7 @@ class LiveViewStreamer:
         overlay[edge_mask.astype(bool)] = overlay_colour
 
         # Blend with original (60% overlay visibility)
-        result = cv2.addWeighted(frame, 1.0, overlay, 0.6, 0)
+        result = cv2.addWeighted(frame, 1.0, overlay, FOCUS_PEAKING_BLEND_ALPHA, 0)
 
         return result
 
@@ -1252,7 +1355,7 @@ class LiveViewStreamer:
 
         # Apply Canny edge detection (inverted: high intensity = more edges)
         # Use threshold as lower bound, upper bound = threshold * 2 (standard practice)
-        inverted_threshold = 250 - threshold  # 200→50, 100→150, 50→200
+        inverted_threshold = EDGE_DETECTION_THRESHOLD_BASE - threshold  # 200→50, 100→150, 50→200
         edge_mask = cv2.Canny(gray, inverted_threshold, inverted_threshold * 2)
 
         # Morphological closing to connect nearby edges (3x3 ellipse kernel)
@@ -1264,11 +1367,11 @@ class LiveViewStreamer:
         overlay[edge_mask.astype(bool)] = overlay_colour
 
         # Blend with original (60% overlay visibility)
-        result = cv2.addWeighted(frame, 1.0, overlay, 0.6, 0)
+        result = cv2.addWeighted(frame, 1.0, overlay, FOCUS_PEAKING_BLEND_ALPHA, 0)
 
         return result
 
-    def calculate_scaler_crop(self):
+    def calculate_scaler_crop(self) -> tuple[int, int, int, int] | None:
         """
         Calculate ScalerCrop rectangle for current zoom level and center point.
 
@@ -1389,7 +1492,7 @@ class LiveViewStreamer:
 
         return (offset_x_pixels, offset_y_pixels, crop_width, crop_height)
 
-    def get_actual_zoom_center(self):
+    def get_actual_zoom_center(self) -> dict[str, float]:
         """
         Get the actual zoom center position after aspect ratio preservation and clamping.
 
@@ -1505,7 +1608,7 @@ class LiveViewStreamer:
             return False
 
         # Update zoom state
-        self.zoom_level = max(1.0, min(zoom_level, 10.0))  # Clamp between 1x and 10x
+        self.zoom_level = max(ZOOM_LEVEL_MIN, min(zoom_level, ZOOM_LEVEL_MAX))  # Clamp between 1x and 10x
 
         if center_x is not None:
             self.zoom_center_x = max(0.0, min(center_x, 1.0))  # Clamp 0-1

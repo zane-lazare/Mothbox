@@ -7,6 +7,10 @@
  * - Seamless transition between traditional and virtualized rendering
  * - Zero breaking changes to existing functionality
  *
+ * NOTE: These tests are skipped because virtualization is disabled due to
+ * react-window 2.2.3 bug with React 18 StrictMode. See GALLERY_CONFIG.VIRTUALIZATION.ENABLED
+ * Re-enable these tests when virtualization is re-enabled.
+ *
  * @group unit
  * @module pages/__tests__/Gallery.virtualization
  */
@@ -120,7 +124,8 @@ const createPaginatedResponse = (photos, offset, limit, total) => ({
   },
 })
 
-describe('Gallery - Virtualization Integration', () => {
+// Skip all virtualization tests - virtualization is disabled due to react-window bug
+describe.skip('Gallery - Virtualization Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     // Default view mode preference (grid)

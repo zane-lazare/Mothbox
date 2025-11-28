@@ -863,5 +863,5 @@ def copy_settings():
         print(f"Copy settings error: {e}")
         print(traceback.format_exc())
         return jsonify(
-            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+            {"success": False, "error": str(e)}
         ), 500

@@ -116,9 +116,9 @@ def update_gps_values(
     if usat is not None:
         updates["gps_satellites_used"] = str(usat)
     if hdop is not None:
-        updates["gps_hdop"] = f"{hdop:.2f}"
+        updates["gps_hdop"] = f"{hdop:.3f}"  # 3 decimal precision for GPS quality
     if pdop is not None:
-        updates["gps_pdop"] = f"{pdop:.2f}"
+        updates["gps_pdop"] = f"{pdop:.3f}"  # 3 decimal precision for GPS quality
 
     # Open file for read/write and acquire exclusive lock
     with open(filepath, "r+") as f:
@@ -150,9 +150,7 @@ def update_gps_values(
             for key, value in updates.items():
                 if key not in updated_keys:
                     updated_lines.append(f"{key}={value}\n")
-                    # lgtm[py/clear-text-logging-sensitive-data]
-                    # CodeQL suppression: GPS coordinates are deployment location for wildlife
-                    # monitoring equipment, not personal/user data. Debug logging for hardware diagnostics.
+                    # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
                     print(f"Added {key}={value}")
 
             # Write back to file
@@ -192,9 +190,7 @@ try:
                 longitude = getattr(report, "lon", None)
                 UTCtime = getattr(report, "time", "")
                 fix_mode = getattr(report, "mode", 0)
-                # lgtm[py/clear-text-logging-sensitive-data]
-                # CodeQL suppression: GPS coordinates are deployment location for wildlife
-                # monitoring equipment, not personal/user data. Debug logging for hardware diagnostics.
+                # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
                 print(
                     f"TPV: {latitude}\t{longitude}\t{UTCtime}\t"
                     f"alt={getattr(report, 'alt', 'nan')}\t"
@@ -261,11 +257,15 @@ try:
                 )
             else:
                 print("Could not determine timezone from coordinates.")
+                print(f"Writing coordinates anyway: lat={latitude}, lon={longitude}")
+                # Still write coordinates even if timezone lookup fails
+                # Use default UTC offset of 0 since we couldn't determine it
                 update_gps_values(
                     str(CONTROLS_FILE),
-                    lat="n/a",
-                    lon="n/a",
+                    lat=latitude,
+                    lon=longitude,
                     gpstime=epoch_time,
+                    utc_offset=0,  # Default to UTC if timezone unknown
                     fix_mode=fix_mode,
                     nsat=satellites_visible,
                     usat=satellites_used,

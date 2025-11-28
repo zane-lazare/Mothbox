@@ -21,13 +21,7 @@ vi.mock('../CameraTab', () => ({
   ),
 }))
 
-vi.mock('../LocationTab', () => ({
-  default: ({ data }) => (
-    <div data-testid="location-tab">
-      Location Tab: {data ? 'loaded' : 'no data'}
-    </div>
-  ),
-}))
+// LocationTab is no longer used - merged into DeploymentTab
 
 vi.mock('../CaptureTab', () => ({
   default: ({ data }) => (
@@ -149,7 +143,7 @@ describe('MetadataPanel', () => {
   })
 
   describe('Rendering', () => {
-    it('renders all 5 tab triggers (Camera, Location, Capture, Tags, Deployment)', async () => {
+    it('renders all 4 tab triggers (Camera, Capture, Tags, Deployment)', async () => {
       api.get.mockResolvedValueOnce({
         data: mockMetadata,
 
@@ -166,9 +160,8 @@ describe('MetadataPanel', () => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // Check all tab triggers are present
+      // Check all tab triggers are present (Location merged into Deployment)
       expect(screen.getByRole('tab', { name: /camera/i })).toBeInTheDocument()
-      expect(screen.getByRole('tab', { name: /location/i })).toBeInTheDocument()
       expect(screen.getByRole('tab', { name: /capture/i })).toBeInTheDocument()
       expect(screen.getByRole('tab', { name: /tags/i })).toBeInTheDocument()
       expect(
@@ -216,8 +209,7 @@ describe('MetadataPanel', () => {
       // Camera tab should be visible
       expect(screen.getByTestId('camera-tab')).toBeVisible()
 
-      // Other tabs should not be visible
-      expect(screen.queryByTestId('location-tab')).not.toBeInTheDocument()
+      // Other tabs should not be visible (only Camera tab is active)
       expect(screen.queryByTestId('capture-tab')).not.toBeInTheDocument()
       expect(screen.queryByTestId('tags-tab')).not.toBeInTheDocument()
       expect(screen.queryByTestId('deployment-tab')).not.toBeInTheDocument()
@@ -241,7 +233,6 @@ describe('MetadataPanel', () => {
       // Should only show skeleton, no tab content
       expect(screen.getByTestId('metadata-skeleton')).toBeInTheDocument()
       expect(screen.queryByTestId('camera-tab')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('location-tab')).not.toBeInTheDocument()
     })
 
     it('renders tab list with proper ARIA role', async () => {
@@ -288,33 +279,6 @@ describe('MetadataPanel', () => {
   })
 
   describe('Tab Switching', () => {
-    it('switches to Location tab when clicked', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
-
-      const user = userEvent.setup()
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-      })
-
-      // Click Location tab
-      const locationTab = screen.getByRole('tab', { name: /location/i })
-      await user.click(locationTab)
-
-      // Location tab content should now be visible
-      expect(screen.getByTestId('location-tab')).toBeVisible()
-      expect(screen.queryByTestId('camera-tab')).not.toBeInTheDocument()
-    })
-
     it('switches to Capture tab when clicked', async () => {
       api.get.mockResolvedValueOnce({
         data: mockMetadata,
@@ -415,9 +379,9 @@ describe('MetadataPanel', () => {
       })
 
       // Measure tab switch performance
-      const locationTab = screen.getByRole('tab', { name: /location/i })
+      const captureTab = screen.getByRole('tab', { name: /capture/i })
       const startTime = performance.now()
-      await user.click(locationTab)
+      await user.click(captureTab)
       const endTime = performance.now()
 
       const switchTime = endTime - startTime
@@ -448,15 +412,15 @@ describe('MetadataPanel', () => {
       const cameraTab = screen.getByRole('tab', { name: /camera/i })
       expect(cameraTab).toHaveAttribute('aria-selected', 'true')
 
-      // Location tab should not be selected
-      const locationTab = screen.getByRole('tab', { name: /location/i })
-      expect(locationTab).toHaveAttribute('aria-selected', 'false')
+      // Deployment tab should not be selected
+      const deploymentTab = screen.getByRole('tab', { name: /deployment/i })
+      expect(deploymentTab).toHaveAttribute('aria-selected', 'false')
 
-      // Click Location tab
-      await user.click(locationTab)
+      // Click Deployment tab
+      await user.click(deploymentTab)
 
-      // Now Location tab should be selected
-      expect(locationTab).toHaveAttribute('aria-selected', 'true')
+      // Now Deployment tab should be selected
+      expect(deploymentTab).toHaveAttribute('aria-selected', 'true')
       expect(cameraTab).toHaveAttribute('aria-selected', 'false')
     })
   })
@@ -563,10 +527,6 @@ describe('MetadataPanel', () => {
       // Check Camera tab receives data
       expect(screen.getByTestId('camera-tab')).toHaveTextContent('loaded')
 
-      // Switch to Location tab
-      await user.click(screen.getByRole('tab', { name: /location/i }))
-      expect(screen.getByTestId('location-tab')).toHaveTextContent('loaded')
-
       // Switch to Capture tab
       await user.click(screen.getByRole('tab', { name: /capture/i }))
       expect(screen.getByTestId('capture-tab')).toHaveTextContent('loaded')
@@ -575,7 +535,7 @@ describe('MetadataPanel', () => {
       await user.click(screen.getByRole('tab', { name: /tags/i }))
       expect(screen.getByTestId('tags-tab')).toHaveTextContent('loaded')
 
-      // Switch to Deployment tab
+      // Switch to Deployment tab (now includes location data)
       await user.click(screen.getByRole('tab', { name: /deployment/i }))
       expect(screen.getByTestId('deployment-tab')).toHaveTextContent('loaded')
     })
@@ -754,9 +714,8 @@ describe('MetadataPanel', () => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // All tabs should have accessible names
+      // All tabs should have accessible names (4 tabs: Camera, Capture, Tags, Deployment)
       expect(screen.getByRole('tab', { name: /camera/i })).toBeInTheDocument()
-      expect(screen.getByRole('tab', { name: /location/i })).toBeInTheDocument()
       expect(screen.getByRole('tab', { name: /capture/i })).toBeInTheDocument()
       expect(screen.getByRole('tab', { name: /tags/i })).toBeInTheDocument()
       expect(
@@ -803,18 +762,18 @@ describe('MetadataPanel', () => {
       })
 
       const cameraTab = screen.getByRole('tab', { name: /camera/i })
-      const locationTab = screen.getByRole('tab', { name: /location/i })
+      const deploymentTab = screen.getByRole('tab', { name: /deployment/i })
 
       // Initially Camera tab should be selected
       expect(cameraTab).toHaveAttribute('aria-selected', 'true')
 
-      // Focus the location tab and press Space to activate it
-      locationTab.focus()
+      // Focus the deployment tab and press Space to activate it
+      deploymentTab.focus()
       await user.keyboard('{Space}')
 
-      // Location tab should now be selected
+      // Deployment tab should now be selected
       await waitFor(() => {
-        expect(locationTab).toHaveAttribute('aria-selected', 'true')
+        expect(deploymentTab).toHaveAttribute('aria-selected', 'true')
         expect(cameraTab).toHaveAttribute('aria-selected', 'false')
       })
     })
@@ -863,11 +822,11 @@ describe('MetadataPanel', () => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // Switch to Location tab
-      await user.click(screen.getByRole('tab', { name: /location/i }))
-      expect(screen.getByTestId('location-tab')).toBeVisible()
+      // Switch to Deployment tab
+      await user.click(screen.getByRole('tab', { name: /deployment/i }))
+      expect(screen.getByTestId('deployment-tab')).toBeVisible()
 
-      // Change photo path (should remember Location tab)
+      // Change photo path (should remember Deployment tab)
       rerender(
         <TestWrapper>
           <MetadataPanel photoPath="/var/lib/mothbox/photos/photo2.jpg" />
@@ -878,10 +837,10 @@ describe('MetadataPanel', () => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // Should still be on Location tab
-      expect(screen.getByTestId('location-tab')).toBeVisible()
+      // Should still be on Deployment tab
+      expect(screen.getByTestId('deployment-tab')).toBeVisible()
       expect(
-        screen.getByRole('tab', { name: /location/i })
+        screen.getByRole('tab', { name: /deployment/i })
       ).toHaveAttribute('aria-selected', 'true')
     })
 
@@ -994,10 +953,6 @@ describe('MetadataPanel', () => {
 
       // Camera tab should have data
       expect(screen.getByTestId('camera-tab')).toHaveTextContent('loaded')
-
-      // Location tab should have no data
-      await user.click(screen.getByRole('tab', { name: /location/i }))
-      expect(screen.getByTestId('location-tab')).toHaveTextContent('no data')
     })
 
     it('handles empty photoPath gracefully', () => {

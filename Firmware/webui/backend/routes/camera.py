@@ -1,6 +1,7 @@
 """Camera control endpoints"""
 
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 # Setup path to import mothbox_paths
@@ -12,6 +13,27 @@ from flask import Blueprint, current_app, jsonify, request
 from utils import ALLOWED_CAMERA_SETTINGS, sanitize_csv_value
 
 from mothbox_paths import CAMERA_SETTINGS_FILE, PHOTOS_DIR
+
+# Import centralized constants
+from constants import (
+    AF_MODES_REQUIRING_TRIGGER,
+    AF_PREVIEW_RESOLUTION,
+    CAMERA_MAKE,
+    CAMERA_MODEL,
+    DEFAULT_COLOUR_GAINS,
+    EXIF_RATIONAL_MAX,
+    FB_DEFAULT_END_DIOPTERS,
+    FB_DEFAULT_START_DIOPTERS,
+    FB_MAX_DIOPTERS,
+    FB_MAX_STEPS,
+    FB_MIN_DIOPTERS,
+    FB_MIN_STEPS,
+    HDR_DEFAULT_WIDTH_US,
+    HDR_MAX_WIDTH_US,
+    HDR_MIN_WIDTH_US,
+    HDR_VALID_COUNTS,
+    TEST_CAPTURE_RESOLUTION,
+)
 
 # ============================================================================
 # Operation Timeouts and Delays
@@ -36,7 +58,9 @@ ERROR_DETAILS_MAX_LENGTH = 500  # Maximum characters of stderr to include in API
 # ============================================================================
 
 
-def acquire_camera_with_retry(camera_id=0, max_retries=3, wait_time=2.0):
+def acquire_camera_with_retry(
+    camera_id: int = 0, max_retries: int = 3, wait_time: float = 2.0
+) -> "Picamera2":
     """
     Acquire camera with retry logic for busy state
 
@@ -105,10 +129,142 @@ def _emit_calibration_progress(step, total_steps, message, progress):
         print(f"Warning: Failed to emit calibration progress: {e}")
 
 
+def _build_exif_metadata(
+    md: dict,
+    settings_dict: dict,
+    capture_type: str,
+    picam2=None,
+) -> bytes:
+    """
+    Build EXIF metadata bytes for photo capture.
+
+    Centralizes EXIF generation for test captures and instant captures,
+    reducing code duplication (~120 lines per function).
+
+    Args:
+        md: Camera metadata dict from picam2.capture_metadata()
+        settings_dict: Camera settings dict (AfMode, Sharpness, etc.)
+        capture_type: "test" or "instant" for MakerNote
+        picam2: Optional Picamera2 instance for sensor detection
+
+    Returns:
+        bytes: EXIF data ready for PIL Image.save(exif=...)
+    """
+    import json
+
+    import piexif
+
+    from mothbox_paths import CONTROLS_FILE, get_firmware_version
+
+    # Read mothbox name from controls.txt
+    mothbox_name = "mothbox"
+    try:
+        if CONTROLS_FILE.exists():
+            with open(CONTROLS_FILE) as f:
+                for line in f:
+                    if line.startswith("name="):
+                        mothbox_name = line.split("=", 1)[1].strip()
+                        break
+    except Exception as e:
+        print(f"Warning: Could not read mothbox name from controls.txt: {e}")
+
+    # Detect sensor from Picamera2 metadata
+    sensor_name = "Unknown"
+    try:
+        sensor_name = md.get("SensorName", "")
+        if not sensor_name and picam2:
+            model_str = str(picam2.camera_properties.get("Model", ""))
+            if "ov64a40" in model_str.lower():
+                sensor_name = "ov64a40"
+            else:
+                sensor_name = model_str or "Unknown"
+    except Exception as e:
+        print(f"Warning: Could not detect sensor: {e}")
+
+    # Get firmware version
+    firmware_version = get_firmware_version()
+
+    # Build 0th IFD (main image metadata)
+    zeroth_ifd = {
+        piexif.ImageIFD.Make: CAMERA_MAKE.encode("utf-8"),
+        piexif.ImageIFD.Model: CAMERA_MODEL.encode("utf-8"),
+        piexif.ImageIFD.Software: firmware_version.encode("utf-8"),
+    }
+
+    # Extract exposure time and convert to EXIF rational format
+    exposure_time_us = md.get("ExposureTime", 1000)  # microseconds
+    exposure_time_s = exposure_time_us / 1000000.0  # convert to seconds
+    if exposure_time_s > 0:
+        # Store as (numerator, denominator) rational with overflow protection
+        denominator = min(int(1 / exposure_time_s), EXIF_RATIONAL_MAX)
+        exif_exposure = (1, denominator)
+    else:
+        exif_exposure = (1, 1000)
+
+    # Get current timestamp for DateTimeOriginal
+    capture_timestamp = datetime.now().strftime('%Y:%m:%d %H:%M:%S')
+
+    # Build Exif IFD
+    exif_ifd = {
+        piexif.ExifIFD.DateTimeOriginal: capture_timestamp.encode('utf-8'),
+        piexif.ExifIFD.ExposureTime: exif_exposure,
+        piexif.ExifIFD.FocalLength: (
+            int(md.get("LensPosition", 0.0) * 100),
+            10,
+        ),  # Store with extra precision
+        piexif.ExifIFD.ISOSpeed: int(md.get("AnalogueGain", 1.0) * 100),
+        piexif.ExifIFD.ISOSpeedRatings: int(md.get("AnalogueGain", 1.0) * 100),
+        piexif.ExifIFD.WhiteBalance: 0,  # 0 = Auto white balance
+        piexif.ExifIFD.Flash: 0,  # 0 = Flash did not fire
+        piexif.ExifIFD.ExposureMode: 0 if settings_dict.get("AfMode", 2) == 0 else 1,
+        piexif.ExifIFD.MeteringMode: int(settings_dict.get("AeMeteringMode", 2)),
+        piexif.ExifIFD.Sharpness: int(settings_dict.get("Sharpness", 1.0)),
+        piexif.ExifIFD.Contrast: int(settings_dict.get("Contrast", 1.0)),
+        piexif.ExifIFD.Saturation: int(settings_dict.get("Saturation", 1.0)),
+        piexif.ExifIFD.BrightnessValue: (int(settings_dict.get("Brightness", 0.0) * 100), 100),
+    }
+
+    # Add MakerNote with Mothbox-specific metadata
+    maker_note_data = {
+        "mothbox_name": mothbox_name or "mothbox",
+        "capture_type": capture_type,
+        "sensor": sensor_name,
+        "focus_mode": int(settings_dict.get("AfMode", 2)),
+        "af_range": int(settings_dict.get("AfRange", 0)),
+        "af_speed": int(settings_dict.get("AfSpeed", 0)),
+        "noise_reduction": int(settings_dict.get("NoiseReductionMode", 2)),
+        "lens_position": float(md.get("LensPosition", 0.0)),
+        "colour_gain_red": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[0]) if "ColourGains" in settings_dict else DEFAULT_COLOUR_GAINS[0],
+        "colour_gain_blue": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[1]) if "ColourGains" in settings_dict else DEFAULT_COLOUR_GAINS[1],
+    }
+    exif_ifd[piexif.ExifIFD.MakerNote] = json.dumps(maker_note_data).encode('utf-8')
+
+    # GPS IFD - embed GPS coordinates from controls.txt if available
+    gps_ifd = {}
+    try:
+        from lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
+
+        gps_data = get_gps_data_from_controls()
+        if gps_data.get('has_fix'):
+            gps_ifd = build_gps_ifd(gps_data)
+            if gps_ifd:
+                # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
+                print(f"GPS EXIF embedded: lat={gps_data['latitude']}, lon={gps_data['longitude']}")
+    except Exception as gps_error:
+        print(f"Warning: Could not embed GPS EXIF: {gps_error}")
+
+    # Build complete EXIF dictionary
+    exif_dict = {"0th": zeroth_ifd, "Exif": exif_ifd, "1st": {}}
+    if gps_ifd:
+        exif_dict["GPS"] = gps_ifd
+
+    return piexif.dump(exif_dict)
+
+
 camera_bp = Blueprint("camera", __name__)
 
 
-def _should_use_hdr_mode():
+def _should_use_hdr_mode() -> tuple[bool, int, int]:
     """
     Check if HDR mode is enabled in camera settings
 
@@ -124,11 +280,11 @@ def _should_use_hdr_mode():
         from mothbox_paths import CAMERA_SETTINGS_FILE
 
         hdr_count = 1
-        hdr_width = 7000  # Default bracket width
+        hdr_width = HDR_DEFAULT_WIDTH_US
 
         if not CAMERA_SETTINGS_FILE.exists():
             print("ℹ️  camera_settings.csv not found, defaulting to single exposure")
-            return False, 1, 7000
+            return False, 1, HDR_DEFAULT_WIDTH_US
 
         with open(CAMERA_SETTINGS_FILE) as f:
             reader = csv.DictReader(f)
@@ -137,7 +293,7 @@ def _should_use_hdr_mode():
                     try:
                         hdr_count = int(row["VALUE"])
                         # Validate HDR count is one of the allowed values
-                        if hdr_count not in [1, 3, 5, 7]:
+                        if hdr_count not in HDR_VALID_COUNTS:
                             print(
                                 f"⚠️  Invalid HDR count {hdr_count}, must be 1, 3, 5, or 7. Defaulting to 1."
                             )
@@ -149,16 +305,16 @@ def _should_use_hdr_mode():
                     try:
                         hdr_width = int(row["VALUE"])
                         # Validate bracket width is in reasonable range (1ms - 50ms)
-                        if not (1000 <= hdr_width <= 50000):
+                        if not (HDR_MIN_WIDTH_US <= hdr_width <= HDR_MAX_WIDTH_US):
                             print(
-                                f"⚠️  Invalid HDR_width {hdr_width}µs, must be 1000-50000. Defaulting to 7000."
+                                f"⚠️  Invalid HDR_width {hdr_width}µs, must be {HDR_MIN_WIDTH_US}-{HDR_MAX_WIDTH_US}. Defaulting to {HDR_DEFAULT_WIDTH_US}."
                             )
-                            hdr_width = 7000
+                            hdr_width = HDR_DEFAULT_WIDTH_US
                     except (ValueError, KeyError) as e:
                         print(
-                            f"⚠️  Could not parse HDR_width setting value: {e}. Defaulting to 7000."
+                            f"⚠️  Could not parse HDR_width setting value: {e}. Defaulting to {HDR_DEFAULT_WIDTH_US}."
                         )
-                        hdr_width = 7000
+                        hdr_width = HDR_DEFAULT_WIDTH_US
 
         use_hdr = hdr_count > 1
 
@@ -172,10 +328,10 @@ def _should_use_hdr_mode():
 
     except Exception as e:
         print(f"❌ Error reading HDR settings: {e}. Defaulting to single exposure.")
-        return False, 1, 7000
+        return False, 1, HDR_DEFAULT_WIDTH_US
 
 
-def _should_use_focus_bracket_mode():
+def _should_use_focus_bracket_mode() -> tuple[bool, int, float, float]:
     """
     Check if Focus Bracketing mode is enabled in camera settings
 
@@ -192,12 +348,12 @@ def _should_use_focus_bracket_mode():
         from mothbox_paths import CAMERA_SETTINGS_FILE
 
         steps = 1
-        start = 2.0  # Default start position
-        end = 8.0  # Default end position
+        start = FB_DEFAULT_START_DIOPTERS
+        end = FB_DEFAULT_END_DIOPTERS
 
         if not CAMERA_SETTINGS_FILE.exists():
             print("ℹ️  camera_settings.csv not found, defaulting to single focus")
-            return False, 1, 2.0, 8.0
+            return False, 1, FB_DEFAULT_START_DIOPTERS, FB_DEFAULT_END_DIOPTERS
 
         with open(CAMERA_SETTINGS_FILE) as f:
             reader = csv.DictReader(f)
@@ -206,9 +362,9 @@ def _should_use_focus_bracket_mode():
                     try:
                         steps = int(row["VALUE"])
                         # Validate steps is in allowed range
-                        if not (1 <= steps <= 10):
+                        if not (FB_MIN_STEPS <= steps <= FB_MAX_STEPS):
                             print(
-                                f"⚠️  Invalid FocusBracket count {steps}, must be 1-10. Defaulting to 1."
+                                f"⚠️  Invalid FocusBracket count {steps}, must be {FB_MIN_STEPS}-{FB_MAX_STEPS}. Defaulting to 1."
                             )
                             steps = 1
                     except (ValueError, KeyError) as e:
@@ -220,30 +376,30 @@ def _should_use_focus_bracket_mode():
                     try:
                         start = float(row["VALUE"])
                         # Validate start is in reasonable range
-                        if not (0.0 <= start <= 10.0):
+                        if not (FB_MIN_DIOPTERS <= start <= FB_MAX_DIOPTERS):
                             print(
-                                f"⚠️  Invalid FocusBracket_Start {start}, must be 0.0-10.0. Defaulting to 2.0."
+                                f"⚠️  Invalid FocusBracket_Start {start}, must be {FB_MIN_DIOPTERS}-{FB_MAX_DIOPTERS}. Defaulting to {FB_DEFAULT_START_DIOPTERS}."
                             )
-                            start = 2.0
+                            start = FB_DEFAULT_START_DIOPTERS
                     except (ValueError, KeyError) as e:
                         print(
-                            f"⚠️  Could not parse FocusBracket_Start setting value: {e}. Defaulting to 2.0."
+                            f"⚠️  Could not parse FocusBracket_Start setting value: {e}. Defaulting to {FB_DEFAULT_START_DIOPTERS}."
                         )
-                        start = 2.0
+                        start = FB_DEFAULT_START_DIOPTERS
                 elif row["SETTING"] == "FocusBracket_End":
                     try:
                         end = float(row["VALUE"])
                         # Validate end is in reasonable range
-                        if not (0.0 <= end <= 10.0):
+                        if not (FB_MIN_DIOPTERS <= end <= FB_MAX_DIOPTERS):
                             print(
-                                f"⚠️  Invalid FocusBracket_End {end}, must be 0.0-10.0. Defaulting to 8.0."
+                                f"⚠️  Invalid FocusBracket_End {end}, must be {FB_MIN_DIOPTERS}-{FB_MAX_DIOPTERS}. Defaulting to {FB_DEFAULT_END_DIOPTERS}."
                             )
-                            end = 8.0
+                            end = FB_DEFAULT_END_DIOPTERS
                     except (ValueError, KeyError) as e:
                         print(
-                            f"⚠️  Could not parse FocusBracket_End setting value: {e}. Defaulting to 8.0."
+                            f"⚠️  Could not parse FocusBracket_End setting value: {e}. Defaulting to {FB_DEFAULT_END_DIOPTERS}."
                         )
-                        end = 8.0
+                        end = FB_DEFAULT_END_DIOPTERS
 
         use_focus_bracket = steps > 1
 
@@ -257,7 +413,7 @@ def _should_use_focus_bracket_mode():
 
     except Exception as e:
         print(f"❌ Error reading Focus Bracket settings: {e}. Defaulting to single focus.")
-        return False, 1, 2.0, 8.0
+        return False, 1, FB_DEFAULT_START_DIOPTERS, FB_DEFAULT_END_DIOPTERS
 
 
 @camera_bp.route("/capture", methods=["POST"])
@@ -563,7 +719,7 @@ def trigger_autofocus():
 
                 # Configure for high-res preview (better for AF accuracy)
                 preview_config = picam2.create_preview_configuration(
-                    main={"format": "RGB888", "size": (1920, 1080)}
+                    main={"format": "RGB888", "size": AF_PREVIEW_RESOLUTION}
                 )
                 picam2.configure(preview_config)
 
@@ -637,18 +793,11 @@ def trigger_autofocus():
                     except Exception:
                         pass
 
-                # Restart stream if it was active
-                if was_streaming and camera_streamer:
-                    print("Restarting camera stream after autofocus error...")
-                    try:
-                        camera_streamer.start_streaming()
-                    except Exception as restart_error:
-                        print(f"Warning: Failed to restart stream: {restart_error}")
-
+                # Stream restart handled by finally block to avoid duplicate restarts
                 raise camera_error
 
             finally:
-                # Always restart stream if it was active
+                # Always restart stream if it was active (handles both success and error cases)
                 if was_streaming and camera_streamer:
                     print("Restarting camera stream after autofocus...")
                     try:
@@ -663,12 +812,7 @@ def trigger_autofocus():
         print(f"Autofocus error: {error_msg}")
         print(traceback.format_exc())
         return jsonify(
-            {"success": False, "error": error_msg, "traceback": traceback.format_exc()}
-        ), 500
-
-        print(traceback.format_exc())
-        return jsonify(
-            {"success": False, "error": error_msg, "traceback": traceback.format_exc()}
+            {"success": False, "error": error_msg}
         ), 500
 
 
@@ -874,7 +1018,7 @@ def calibrate_photo():
                 print(f"❌ Failed emergency restart: {restart_error}")
 
         return jsonify(
-            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+            {"success": False, "error": str(e)}
         ), 500
 
 
@@ -922,7 +1066,7 @@ def freeze_settings():
             # Initialize camera to get current metadata
             picam2 = Picamera2()
             preview_config = picam2.create_preview_configuration(
-                main={"size": (1920, 1080), "format": "RGB888"}
+                main={"size": AF_PREVIEW_RESOLUTION, "format": "RGB888"}
             )
             picam2.configure(preview_config)
             picam2.start()
@@ -996,15 +1140,17 @@ def freeze_settings():
     except Exception as e:
         import traceback
 
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 
-def _execute_test_capture(settings_dict, settings_source):
+def _execute_test_capture(settings_dict, af_mode, settings_source):
     """
     Helper function to execute a test capture with given settings
 
     Args:
         settings_dict: Dict of camera control values to apply
+        af_mode: Autofocus mode (1=Auto, 2=Manual, 3=Continuous)
         settings_source: String describing source ('live view' or 'photo capture')
 
     Returns:
@@ -1046,11 +1192,13 @@ def _execute_test_capture(settings_dict, settings_source):
             # Production 64MP captures still work via /api/camera/capture → TakePhoto.py (standalone process)
             # 4K provides excellent quality for previewing settings in WebUI
             # Disable raw/lores buffers to reduce CMA usage (matches TakePhoto.py pattern)
+            # Note: Picamera2 format names are counterintuitive - "BGR888" outputs RGB byte order
+            # (See: https://github.com/raspberrypi/picamera2/discussions/568)
             capture_config = picam2.create_still_configuration(
                 main={
-                    "size": (3840, 2160),
-                    "format": "BGR888",
-                },  # 4K UHD (8.3MP), BGR888 = true RGB order
+                    "size": TEST_CAPTURE_RESOLUTION,
+                    "format": "BGR888",  # Outputs RGB-ordered bytes for PIL compatibility
+                },
                 raw=None,
                 lores=None,
             )
@@ -1059,16 +1207,30 @@ def _execute_test_capture(settings_dict, settings_source):
             # Start camera
             picam2.start()
 
-            # Apply controls
-            controls = {}
-            for key, value in settings_dict.items():
-                controls[key] = value
+            # Apply controls using build_picamera_controls() to convert snake_case → PascalCase
+            # This ensures camera accepts the control keys (e.g., af_mode → AfMode)
+            controls = build_picamera_controls(settings_dict)
 
             picam2.set_controls(controls)
             print(f"Applied {settings_source} settings to test capture: {controls}")
 
             # Wait for settings to stabilize
             time.sleep(0.5)
+
+            # Trigger autofocus if in Auto mode (1) or Continuous mode (3)
+            if af_mode in AF_MODES_REQUIRING_TRIGGER:
+                print(f"Triggering autofocus (mode={af_mode})...")
+                try:
+                    picam2.autofocus_cycle()
+                    # Wait for autofocus to complete
+                    time.sleep(1.0)
+                    print("Autofocus cycle completed")
+                except Exception as af_error:
+                    print(f"Warning: Autofocus cycle failed: {af_error}")
+                    # Continue with capture even if AF fails
+            else:
+                # Manual focus mode - no autofocus trigger needed
+                time.sleep(0.5)  # Additional stabilization time
 
             # Create test_captures directory
             test_dir = PHOTOS_DIR / "test_captures"
@@ -1079,12 +1241,22 @@ def _execute_test_capture(settings_dict, settings_source):
             filename = f"test_capture_{timestamp}.jpg"
             filepath = test_dir / filename
 
-            # Capture photo
+            # Capture photo with rich EXIF metadata
             print(f"Capturing test photo to: {filepath}")
-            picam2.capture_file(str(filepath))
 
-            # Get metadata for reference
+            # Capture array and metadata (instead of capture_file to allow custom EXIF)
+            array = picam2.capture_array("main")
             md = picam2.capture_metadata()
+
+            # Build EXIF metadata using centralized helper
+            from PIL import Image
+
+            exif_bytes = _build_exif_metadata(md, settings_dict, "test", picam2)
+
+            # Save with EXIF (Picamera2 BGR888 outputs RGB bytes - no conversion needed)
+            pil_image = Image.fromarray(array, mode="RGB")
+            pil_image.save(str(filepath), exif=exif_bytes, quality=95)
+            print(f"Saved test capture with rich EXIF metadata to {filepath}")
 
             # Stop camera
             picam2.stop()
@@ -1124,18 +1296,11 @@ def _execute_test_capture(settings_dict, settings_source):
                 except Exception:
                     pass
 
-            # Restart stream if it was active
-            if was_streaming and camera_streamer:
-                print("Restarting camera stream after test capture error...")
-                try:
-                    camera_streamer.start_streaming()
-                except Exception as restart_error:
-                    print(f"Warning: Failed to restart stream: {restart_error}")
-
+            # Stream restart handled by finally block to avoid duplicate restarts
             raise camera_error
 
         finally:
-            # Always restart stream if it was active
+            # Always restart stream if it was active (handles both success and error cases)
             if was_streaming and camera_streamer:
                 print("Restarting camera stream after test capture...")
                 try:
@@ -1162,14 +1327,23 @@ def test_capture_liveview():
         - timestamp: float
     """
     try:
+        from flask import current_app
+
         from mothbox_paths import LIVEVIEW_SETTINGS_FILE, get_control_values
 
         print("Test capture (live view settings) requested via API")
 
-        # Load live view settings
-        liveview_settings = {}
-        if LIVEVIEW_SETTINGS_FILE.exists():
-            liveview_settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
+        # PRIMARY: Get settings from camera_streamer instance (live values)
+        camera_streamer = current_app.config.get('CAMERA_STREAMER')
+        if camera_streamer:
+            print("Using live camera settings from camera_streamer instance")
+            liveview_settings = camera_streamer.get_current_settings()
+        else:
+            # FALLBACK: Read from file when camera_streamer unavailable
+            print("Falling back to liveview_settings.txt file")
+            liveview_settings = {}
+            if LIVEVIEW_SETTINGS_FILE.exists():
+                liveview_settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
 
         # Use centralized mapping from camera_control_mapping.py
         # This eliminates implicit snake_case → PascalCase conversion
@@ -1184,13 +1358,30 @@ def test_capture_liveview():
             "af_mode",
             "af_speed",
             "af_range",
+            "af_metering",
+            "lens_position",
             "awb_enable",
             "awb_mode",
+            "ae_enable",
+            "ae_metering_mode",
+            "exposure_time",
+            "analogue_gain",
+            "noise_reduction_mode",
+            "colour_gains_red",
+            "colour_gains_blue",
         ]
 
         for key in setting_keys:
             if key in liveview_settings:
-                settings[key] = convert_from_settings_file(key, liveview_settings[key])
+                # If settings came from camera_streamer, they're already typed correctly
+                # If from file, they need conversion from strings
+                value = liveview_settings[key]
+                if camera_streamer:
+                    # Already correct type from get_current_settings()
+                    settings[key] = value
+                else:
+                    # Convert from string (file format)
+                    settings[key] = convert_from_settings_file(key, value)
 
         # Apply defaults for missing settings
         settings.setdefault("sharpness", 1.0)
@@ -1201,15 +1392,45 @@ def test_capture_liveview():
         settings.setdefault("af_speed", 0)
         settings.setdefault("af_range", 0)
         settings.setdefault("awb_enable", True)
+        settings.setdefault("ae_enable", True)
+        settings.setdefault("noise_reduction_mode", 2)
+
+        # Extract awb_mode, lens_position, colour gains and exposure controls before building controls (they need special handling)
+        awb_mode = settings.pop("awb_mode", None)
+        lens_position = settings.pop("lens_position", None)
+        colour_gains_red = settings.pop("colour_gains_red", None)
+        colour_gains_blue = settings.pop("colour_gains_blue", None)
+        exposure_time = settings.pop("exposure_time", None)
+        analogue_gain = settings.pop("analogue_gain", None)
 
         # Build controls dict (handles case conversion and type validation)
         controls = build_picamera_controls(settings)
 
         # Only set AwbMode if AWB is disabled
-        if not settings.get("awb_enable", True) and "awb_mode" in settings:
-            controls["AwbMode"] = settings["awb_mode"]
+        if not settings.get("awb_enable", True) and awb_mode is not None:
+            controls["AwbMode"] = awb_mode
 
-        return _execute_test_capture(controls, "live view")
+        # Handle colour gains tuple (only when AWB is disabled)
+        # When AWB is enabled, manual ColourGains are ignored by the camera
+        # ColourGains must be set as a tuple, not individual red/blue controls
+        if not settings.get("awb_enable", True):
+            if colour_gains_red is not None or colour_gains_blue is not None:
+                red_gain = colour_gains_red if colour_gains_red is not None else DEFAULT_COLOUR_GAINS[0]
+                blue_gain = colour_gains_blue if colour_gains_blue is not None else DEFAULT_COLOUR_GAINS[1]
+                controls["ColourGains"] = (float(red_gain), float(blue_gain))
+
+        # Only set manual exposure if AE disabled
+        if not settings.get("ae_enable", True):
+            if exposure_time is not None:
+                controls["ExposureTime"] = int(exposure_time)
+            if analogue_gain is not None:
+                controls["AnalogueGain"] = float(analogue_gain)
+
+        # Apply lens position if available (preserves focus across all AF modes)
+        if lens_position is not None:
+            controls["LensPosition"] = float(lens_position)
+
+        return _execute_test_capture(controls, settings.get("af_mode", 2), "live view")
 
     except Exception as e:
         import traceback
@@ -1218,8 +1439,317 @@ def test_capture_liveview():
         print(f"Test capture (live view) error: {error_msg}")
         print(traceback.format_exc())
         return jsonify(
-            {"success": False, "error": error_msg, "traceback": traceback.format_exc()}
+            {"success": False, "error": error_msg}
         ), 500
+
+
+@camera_bp.route("/instant-capture", methods=["POST"])
+def instant_capture():
+    """
+    Capture an instant photo using current live view settings
+
+    Captures a photo immediately with current live view settings and saves it
+    with instant_YYYY_MM_DD__HH_MM_SS_[serial].jpg naming convention.
+    Useful for quick snapshots without changing production settings.
+
+    Returns:
+        JSON with:
+        - success: bool
+        - test_photo_path: str (relative path from PHOTOS_DIR)
+        - settings_used: dict (controls that were applied)
+        - settings_source: str ('instant capture')
+        - metadata: dict (exposure, gain, lens position, color temp)
+        - timestamp: float
+    """
+    try:
+        from datetime import datetime
+
+        from flask import current_app
+
+        print("Instant capture requested via API")
+
+        # Get serial number for filename
+        def get_serial_number():
+            """Get Raspberry Pi serial number from /proc/cpuinfo"""
+            try:
+                with open("/proc/cpuinfo") as cpuinfo:
+                    for line in cpuinfo:
+                        if line.startswith("Serial"):
+                            return line.split(":")[1].strip()
+            except (OSError, IndexError):
+                pass
+            return "UNKNOWN"
+
+        # PRIMARY: Get settings from camera_streamer instance (live values)
+        camera_streamer = current_app.config.get('CAMERA_STREAMER')
+        if not camera_streamer:
+            return jsonify({
+                "success": False,
+                "error": "Camera streamer not initialized. Cannot capture instant photo."
+            }), 500
+
+        # Get current live view settings
+        print("Using live camera settings from camera_streamer instance")
+        liveview_settings = camera_streamer.get_current_settings()
+
+        # Extract and build settings (same logic as test_capture_liveview)
+        settings = {}
+        setting_keys = [
+            "sharpness",
+            "brightness",
+            "contrast",
+            "saturation",
+            "af_mode",
+            "af_speed",
+            "af_range",
+            "af_metering",
+            "lens_position",
+            "awb_enable",
+            "awb_mode",
+            "ae_enable",
+            "ae_metering_mode",
+            "exposure_time",
+            "analogue_gain",
+            "noise_reduction_mode",
+            "colour_gains_red",
+            "colour_gains_blue",
+        ]
+
+        # Settings from camera_streamer are already typed correctly
+        for key in setting_keys:
+            if key in liveview_settings:
+                settings[key] = liveview_settings[key]
+
+        # Apply defaults for missing settings
+        settings.setdefault("sharpness", 1.0)
+        settings.setdefault("brightness", 0.0)
+        settings.setdefault("contrast", 1.0)
+        settings.setdefault("saturation", 1.0)
+        settings.setdefault("af_mode", 2)
+        settings.setdefault("af_speed", 0)
+        settings.setdefault("af_range", 0)
+        settings.setdefault("awb_enable", True)
+        settings.setdefault("ae_enable", True)
+        settings.setdefault("noise_reduction_mode", 2)
+
+        # Extract special settings before building controls
+        awb_mode = settings.pop("awb_mode", None)
+        lens_position = settings.pop("lens_position", None)
+        colour_gains_red = settings.pop("colour_gains_red", None)
+        colour_gains_blue = settings.pop("colour_gains_blue", None)
+        exposure_time = settings.pop("exposure_time", None)
+        analogue_gain = settings.pop("analogue_gain", None)
+
+        # Build controls dict
+        controls = build_picamera_controls(settings)
+
+        # Only set AwbMode if AWB is disabled
+        if not settings.get("awb_enable", True) and awb_mode is not None:
+            controls["AwbMode"] = awb_mode
+
+        # Handle colour gains tuple (only when AWB is disabled)
+        if not settings.get("awb_enable", True):
+            if colour_gains_red is not None or colour_gains_blue is not None:
+                red_gain = colour_gains_red if colour_gains_red is not None else DEFAULT_COLOUR_GAINS[0]
+                blue_gain = colour_gains_blue if colour_gains_blue is not None else DEFAULT_COLOUR_GAINS[1]
+                controls["ColourGains"] = (float(red_gain), float(blue_gain))
+
+        # Only set manual exposure if AE disabled
+        if not settings.get("ae_enable", True):
+            if exposure_time is not None:
+                controls["ExposureTime"] = int(exposure_time)
+            if analogue_gain is not None:
+                controls["AnalogueGain"] = float(analogue_gain)
+
+        # Apply lens position if available (preserves focus across all AF modes)
+        # When lens_position is set, force Manual AF mode to prevent autofocus from overriding it
+        af_mode_for_capture = settings.get("af_mode", 2)
+        if lens_position is not None:
+            controls["LensPosition"] = float(lens_position)
+            controls["AfMode"] = 0  # Force Manual AF to preserve lens position
+            af_mode_for_capture = 0
+            print(f"Preserving lens position {lens_position:.2f} - forcing Manual AF mode")
+
+        # Generate instant capture filename: instant_YYYY_MM_DD__HH_MM_SS_[serial].jpg
+        timestamp = datetime.now().strftime("%Y_%m_%d__%H_%M_%S")
+        serial = get_serial_number()
+        filename = f"instant_{timestamp}_{serial}.jpg"
+
+        return _execute_instant_capture(controls, af_mode_for_capture, "instant capture", filename)
+
+    except Exception as e:
+        import traceback
+
+        error_msg = str(e)
+        print(f"Instant capture error: {error_msg}")
+        print(traceback.format_exc())
+        return jsonify(
+            {"success": False, "error": error_msg}
+        ), 500
+
+
+def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
+    """
+    Helper function to execute an instant capture with given settings and filename
+
+    Similar to _execute_test_capture but uses a custom filename instead of
+    generating timestamp-based name.
+
+    Args:
+        settings_dict: Dict of camera control values to apply
+        af_mode: Autofocus mode (1=Auto, 2=Manual, 3=Continuous)
+        settings_source: String describing source ('instant capture')
+        filename: Custom filename for the capture
+
+    Returns:
+        tuple: (success_dict, status_code) or raises exception
+    """
+    # Reuse the existing _execute_test_capture logic but with custom filename
+    # This is more maintainable than duplicating the entire capture logic
+    import gc
+    import time
+    from datetime import datetime
+
+    from flask import current_app
+
+    from mothbox_paths import PHOTOS_DIR
+
+    # Acquire operation lock to prevent concurrent camera access
+    camera_streamer = current_app.config.get("CAMERA_STREAMER")
+    if not camera_streamer:
+        return jsonify({"success": False, "error": "Camera streamer not initialized"}), 500
+
+    with camera_streamer.acquire_for_operation():
+        # Release camera hardware if initialized (prevents resource conflict)
+        was_streaming = False
+        if camera_streamer.camera:
+            print("Releasing camera hardware before instant capture...")
+            was_streaming = camera_streamer.streaming
+            camera_streamer.release_camera()
+            time.sleep(0.5)  # Let camera fully release
+
+        # Initialize camera for instant capture
+        picam2 = None
+        try:
+            # Try camera 0 first with retry logic, fallback to camera 1
+            try:
+                picam2 = acquire_camera_with_retry(0)
+            except Exception:
+                picam2 = acquire_camera_with_retry(1)
+
+            # Configure for high-resolution capture (same as test capture)
+            # Note: Picamera2 "BGR888" outputs RGB byte order (counterintuitive naming)
+            capture_config = picam2.create_still_configuration(
+                main={
+                    "size": TEST_CAPTURE_RESOLUTION,
+                    "format": "BGR888",  # Outputs RGB-ordered bytes for PIL compatibility
+                },
+                raw=None,
+                lores=None,
+            )
+            picam2.configure(capture_config)
+
+            # Start camera
+            picam2.start()
+
+            # Apply controls using build_picamera_controls() to convert snake_case → PascalCase
+            # This ensures camera accepts the control keys (e.g., af_mode → AfMode)
+            controls = build_picamera_controls(settings_dict)
+
+            picam2.set_controls(controls)
+            print(f"Applied {settings_source} settings to instant capture: {controls}")
+
+            # Wait for settings to stabilize
+            time.sleep(0.5)
+
+            # Trigger autofocus if in Auto mode (1) or Continuous mode (3)
+            if af_mode in AF_MODES_REQUIRING_TRIGGER:
+                print(f"Triggering autofocus (mode={af_mode})...")
+                try:
+                    picam2.autofocus_cycle()
+                    # Wait for autofocus to complete
+                    time.sleep(1.0)
+                    print("Autofocus cycle completed")
+                except Exception as af_error:
+                    print(f"Warning: Autofocus cycle failed: {af_error}")
+                    # Continue with capture even if AF fails
+            else:
+                # Manual focus mode - no autofocus trigger needed
+                time.sleep(0.5)  # Additional stabilization time
+
+            # Create test_captures directory
+            test_dir = PHOTOS_DIR / "test_captures"
+            test_dir.mkdir(parents=True, exist_ok=True)
+
+            # Use provided filename
+            filepath = test_dir / filename
+
+            # Capture photo with rich EXIF metadata
+            print(f"Capturing instant photo to: {filepath}")
+
+            # Capture array and metadata
+            array = picam2.capture_array("main")
+            md = picam2.capture_metadata()
+
+            # Build EXIF metadata using centralized helper
+            from PIL import Image
+
+            exif_bytes = _build_exif_metadata(md, settings_dict, "instant", picam2)
+
+            # Save with EXIF metadata (Picamera2 BGR888 outputs RGB bytes - no conversion needed)
+            img = Image.fromarray(array)
+            img.save(str(filepath), quality=95, exif=exif_bytes)
+            print(f"Instant photo saved successfully: {filepath}")
+
+            # Get relative path from PHOTOS_DIR
+            relative_path = filepath.relative_to(PHOTOS_DIR)
+
+            # Return success response
+            return jsonify(
+                {
+                    "success": True,
+                    "photo_path": str(relative_path),
+                    "settings_used": controls,
+                    "settings_source": settings_source,
+                    "metadata": {
+                        "exposure_time": md.get("ExposureTime", 0),
+                        "analogue_gain": md.get("AnalogueGain", 0.0),
+                        "lens_position": md.get("LensPosition", 0.0),
+                        "colour_temperature": md.get("ColourTemperature", 0),
+                    },
+                    "timestamp": time.time(),
+                }
+            ), 200
+
+        except Exception as e:
+            import traceback
+
+            error_msg = str(e)
+            print(f"Instant capture error: {error_msg}")
+            print(traceback.format_exc())
+            raise  # Re-raise to be caught by outer try/except
+
+        finally:
+            # Cleanup camera
+            if picam2:
+                try:
+                    picam2.stop()
+                    picam2.close()
+                    print("Camera closed")
+                except Exception as close_error:
+                    print(f"Warning: Error closing camera: {close_error}")
+
+                # Force garbage collection
+                del picam2
+                gc.collect()
+
+            # Restart streaming if it was active
+            if was_streaming and camera_streamer:
+                print("Restarting camera stream after instant capture...")
+                try:
+                    camera_streamer.start_streaming()
+                except Exception as restart_error:
+                    print(f"Warning: Failed to restart stream: {restart_error}")
 
 
 @camera_bp.route("/test-capture-photo", methods=["POST"])
@@ -1269,8 +1799,11 @@ def test_capture_photo():
             controls["Contrast"] = float(photo_settings["Contrast"])
         if "Saturation" in photo_settings:
             controls["Saturation"] = float(photo_settings["Saturation"])
+        # Extract af_mode for autofocus trigger logic
+        af_mode = 2  # Default to Manual (2)
         if "AfMode" in photo_settings:
-            controls["AfMode"] = int(photo_settings["AfMode"])
+            af_mode = int(photo_settings["AfMode"])
+            controls["AfMode"] = af_mode
         if "AfSpeed" in photo_settings:
             controls["AfSpeed"] = int(photo_settings["AfSpeed"])
         if "AfRange" in photo_settings:
@@ -1286,7 +1819,7 @@ def test_capture_photo():
         if "AwbMode" in photo_settings and not controls.get("AwbEnable", True):
             controls["AwbMode"] = int(photo_settings["AwbMode"])
 
-        return _execute_test_capture(controls, "photo capture")
+        return _execute_test_capture(controls, af_mode, "photo capture")
 
     except Exception as e:
         import traceback
@@ -1295,5 +1828,5 @@ def test_capture_photo():
         print(f"Test capture (photo) error: {error_msg}")
         print(traceback.format_exc())
         return jsonify(
-            {"success": False, "error": error_msg, "traceback": traceback.format_exc()}
+            {"success": False, "error": error_msg}
         ), 500

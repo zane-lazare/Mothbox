@@ -3,67 +3,159 @@ import { render, screen } from '@testing-library/react';
 import CameraTab from '../CameraTab';
 
 describe('CameraTab', () => {
-  const mockCameraData = {
-    camera: {
-      make: 'Arducam',
-      model: 'OwlSight 64MP',
-      lens_make: 'Arducam',
-      lens_model: '6mm Wide Angle'
-    },
-    iso: 400,
-    aperture: 2.8,
-    shutter_speed: 0.033333,
-    focal_length: 6.0,
-    exposure_mode: 'Manual',
-    metering_mode: 'CenterWeighted'
-  };
-
-  describe('Rendering', () => {
-    it('renders all camera fields with complete data', () => {
-      render(<CameraTab data={mockCameraData} />);
-
-      // Camera info
-      expect(screen.getByText('Camera Make')).toBeInTheDocument();
-      expect(screen.getAllByText('Arducam').length).toBeGreaterThan(0); // Both camera and lens make
-      expect(screen.getByText('Camera Model')).toBeInTheDocument();
-      expect(screen.getByText('OwlSight 64MP')).toBeInTheDocument();
-
-      // Lens info
-      expect(screen.getByText('Lens Make')).toBeInTheDocument();
-      expect(screen.getByText('Lens Model')).toBeInTheDocument();
-      expect(screen.getByText('6mm Wide Angle')).toBeInTheDocument();
-
-      // Technical settings
-      expect(screen.getByText('ISO')).toBeInTheDocument();
-      expect(screen.getByText('ISO 400')).toBeInTheDocument();
-      expect(screen.getByText('Aperture')).toBeInTheDocument();
-      expect(screen.getByText('f/2.8')).toBeInTheDocument();
-      expect(screen.getByText('Shutter Speed')).toBeInTheDocument();
-      expect(screen.getByText('1/30s')).toBeInTheDocument();
-      expect(screen.getByText('Focal Length')).toBeInTheDocument();
-      expect(screen.getByText('6mm')).toBeInTheDocument(); // Formatter strips .0 from whole numbers
-    });
-
-    it('renders N/A for missing camera fields', () => {
-      const partialData = {
+  describe('Camera Information Section', () => {
+    it('renders camera make', () => {
+      const data = {
         camera: {
-          make: 'Arducam'
+          make: 'Arducam',
         },
-        iso: 400
       };
 
-      render(<CameraTab data={partialData} />);
+      render(<CameraTab data={data} />);
 
+      expect(screen.getByText('Camera Make')).toBeInTheDocument();
       expect(screen.getByText('Arducam')).toBeInTheDocument();
-      expect(screen.getByText('ISO 400')).toBeInTheDocument();
-
-      // Check for N/A in missing fields
-      const naElements = screen.getAllByText('N/A');
-      expect(naElements.length).toBeGreaterThan(0);
     });
 
+    it('renders camera model', () => {
+      const data = {
+        camera: {
+          model: 'OwlSight 64MP',
+        },
+      };
+
+      render(<CameraTab data={data} />);
+
+      expect(screen.getByText('Camera Model')).toBeInTheDocument();
+      expect(screen.getByText('OwlSight 64MP')).toBeInTheDocument();
+    });
+
+    it('renders sensor', () => {
+      const data = {
+        camera: {
+          sensor: 'ov64a40',
+        },
+      };
+
+      render(<CameraTab data={data} />);
+
+      expect(screen.getByText('Sensor')).toBeInTheDocument();
+      expect(screen.getByText('ov64a40')).toBeInTheDocument();
+    });
+
+    it('renders lens model', () => {
+      const data = {
+        camera: {
+          lens: '6mm Wide Angle',
+        },
+      };
+
+      render(<CameraTab data={data} />);
+
+      expect(screen.getByText('Lens Model')).toBeInTheDocument();
+      expect(screen.getByText('6mm Wide Angle')).toBeInTheDocument();
+    });
+
+    it('renders all camera fields with complete data', () => {
+      const data = {
+        camera: {
+          make: 'Arducam',
+          model: 'OwlSight 64MP',
+          sensor: 'ov64a40',
+          lens: '6mm Wide Angle',
+        },
+      };
+
+      render(<CameraTab data={data} />);
+
+      expect(screen.getByText('Arducam')).toBeInTheDocument();
+      expect(screen.getByText('OwlSight 64MP')).toBeInTheDocument();
+      expect(screen.getByText('ov64a40')).toBeInTheDocument();
+      expect(screen.getByText('6mm Wide Angle')).toBeInTheDocument();
+    });
+  });
+
+  describe('Camera Settings Section', () => {
+    it('renders ISO (gain)', () => {
+      const data = {
+        capture: {
+          iso: 400,
+        },
+      };
+
+      render(<CameraTab data={data} />);
+
+      expect(screen.getByText('Gain (ISO)')).toBeInTheDocument();
+      expect(screen.getByText('ISO 400')).toBeInTheDocument();
+    });
+
+    it('renders aperture', () => {
+      const data = {
+        capture: {
+          f_number: 2.8,
+        },
+      };
+
+      render(<CameraTab data={data} />);
+
+      expect(screen.getByText('Aperture')).toBeInTheDocument();
+      expect(screen.getByText('f/2.8')).toBeInTheDocument();
+    });
+
+    it('renders exposure time', () => {
+      const data = {
+        capture: {
+          exposure_time: '1/500',
+        },
+      };
+
+      render(<CameraTab data={data} />);
+
+      expect(screen.getByText('Exposure Time')).toBeInTheDocument();
+      expect(screen.getByText('1/500')).toBeInTheDocument();
+    });
+
+    it('renders focal length', () => {
+      const data = {
+        capture: {
+          focal_length: '6.0mm',
+        },
+      };
+
+      render(<CameraTab data={data} />);
+
+      expect(screen.getByText('Focal Length')).toBeInTheDocument();
+      expect(screen.getByText('6.0mm')).toBeInTheDocument();
+    });
+
+    it('renders all capture settings', () => {
+      const data = {
+        capture: {
+          iso: 800,
+          f_number: 4.0,
+          exposure_time: '1/125',
+          focal_length: '6mm',
+        },
+      };
+
+      render(<CameraTab data={data} />);
+
+      expect(screen.getByText('ISO 800')).toBeInTheDocument();
+      expect(screen.getByText('f/4')).toBeInTheDocument();
+      expect(screen.getByText('1/125')).toBeInTheDocument();
+      expect(screen.getByText('6mm')).toBeInTheDocument();
+    });
+  });
+
+  describe('Null Data Handling', () => {
     it('shows empty state message when data is null', () => {
       render(<CameraTab data={null} />);
+
+      expect(screen.getByText('No camera information available')).toBeInTheDocument();
+    });
+
+    it('shows empty state message when data is undefined', () => {
+      render(<CameraTab />);
 
       expect(screen.getByText('No camera information available')).toBeInTheDocument();
     });
@@ -75,155 +167,172 @@ describe('CameraTab', () => {
     });
 
     it('handles missing camera object', () => {
-      const dataWithoutCamera = {
-        iso: 400,
-        aperture: 2.8
+      const data = {
+        capture: {
+          iso: 400,
+        },
       };
 
-      render(<CameraTab data={dataWithoutCamera} />);
-
-      expect(screen.getByText('ISO 400')).toBeInTheDocument();
-      expect(screen.getByText('f/2.8')).toBeInTheDocument();
-    });
-  });
-
-  describe('Exposure Time Formatting', () => {
-    it('formats fast shutter speeds as fractions', () => {
-      const data = { shutter_speed: 0.001 }; // 1/1000
       render(<CameraTab data={data} />);
 
-      expect(screen.getByText('1/1000s')).toBeInTheDocument();
+      // Should still render with N/A for camera fields
+      expect(screen.getByText('Camera Make')).toBeInTheDocument();
+      const naElements = screen.getAllByText('N/A');
+      expect(naElements.length).toBeGreaterThan(0);
     });
 
-    it('formats slow shutter speeds in seconds', () => {
-      const data = { shutter_speed: 2.5 };
+    it('handles missing capture object', () => {
+      const data = {
+        camera: {
+          make: 'Arducam',
+        },
+      };
+
       render(<CameraTab data={data} />);
 
-      expect(screen.getByText('2.5s')).toBeInTheDocument();
+      expect(screen.getByText('Arducam')).toBeInTheDocument();
+      // Capture fields should show N/A
+      expect(screen.getByText('Gain (ISO)')).toBeInTheDocument();
     });
 
-    it('formats one-second exposure correctly', () => {
-      const data = { shutter_speed: 1.0 };
+    it('renders N/A for missing fields', () => {
+      const data = {
+        camera: {
+          make: 'Arducam',
+        },
+      };
+
       render(<CameraTab data={data} />);
 
-      expect(screen.getByText('1s')).toBeInTheDocument();
-    });
-  });
-
-  describe('Technical Fields', () => {
-    it('formats ISO correctly', () => {
-      const data = { iso: 1600 };
-      render(<CameraTab data={data} />);
-
-      expect(screen.getByText('ISO 1600')).toBeInTheDocument();
-    });
-
-    it('formats aperture with f-stop notation', () => {
-      const data = { aperture: 5.6 };
-      render(<CameraTab data={data} />);
-
-      expect(screen.getByText('f/5.6')).toBeInTheDocument();
-    });
-
-    it('formats focal length with mm unit', () => {
-      const data = { focal_length: 24.5 };
-      render(<CameraTab data={data} />);
-
-      expect(screen.getByText('24.5mm')).toBeInTheDocument();
-    });
-
-    it('renders exposure mode when available', () => {
-      const data = { exposure_mode: 'Auto' };
-      render(<CameraTab data={data} />);
-
-      expect(screen.getByText('Exposure Mode')).toBeInTheDocument();
-      expect(screen.getByText('Auto')).toBeInTheDocument();
-    });
-
-    it('renders metering mode when available', () => {
-      const data = { metering_mode: 'Spot' };
-      render(<CameraTab data={data} />);
-
-      expect(screen.getByText('Metering Mode')).toBeInTheDocument();
-      expect(screen.getByText('Spot')).toBeInTheDocument();
+      expect(screen.getByText('Arducam')).toBeInTheDocument();
+      // Other camera fields should show N/A
+      const naElements = screen.getAllByText('N/A');
+      expect(naElements.length).toBeGreaterThan(0);
     });
   });
 
   describe('Copyable Fields', () => {
-    it('makes ISO copyable', () => {
-      render(<CameraTab data={{ iso: 800 }} />);
+    it('makes ISO copyable when present', () => {
+      const data = {
+        capture: {
+          iso: 800,
+        },
+      };
+
+      render(<CameraTab data={data} />);
 
       const copyButtons = screen.getAllByRole('button');
       expect(copyButtons.length).toBeGreaterThan(0);
     });
 
-    it('makes aperture copyable', () => {
-      render(<CameraTab data={{ aperture: 4.0 }} />);
+    it('makes aperture copyable when present', () => {
+      const data = {
+        capture: {
+          f_number: 4.0,
+        },
+      };
+
+      render(<CameraTab data={data} />);
 
       const copyButtons = screen.getAllByRole('button');
       expect(copyButtons.length).toBeGreaterThan(0);
     });
 
-    it('makes shutter speed copyable', () => {
-      render(<CameraTab data={{ shutter_speed: 0.01 }} />);
+    it('makes exposure time copyable when present', () => {
+      const data = {
+        capture: {
+          exposure_time: '1/250',
+        },
+      };
+
+      render(<CameraTab data={data} />);
 
       const copyButtons = screen.getAllByRole('button');
       expect(copyButtons.length).toBeGreaterThan(0);
     });
 
-    it('makes focal length copyable', () => {
-      render(<CameraTab data={{ focal_length: 35 }} />);
+    it('makes focal length copyable when present', () => {
+      const data = {
+        capture: {
+          focal_length: '6mm',
+        },
+      };
+
+      render(<CameraTab data={data} />);
 
       const copyButtons = screen.getAllByRole('button');
       expect(copyButtons.length).toBeGreaterThan(0);
     });
   });
 
-  describe('Partial Data Handling', () => {
-    it('handles only camera make and model', () => {
+  describe('Full Data Rendering', () => {
+    it('renders all fields when full data is provided', () => {
       const data = {
         camera: {
-          make: 'Canon',
-          model: 'EOS R5'
-        }
-      };
-
-      render(<CameraTab data={data} />);
-
-      expect(screen.getByText('Canon')).toBeInTheDocument();
-      expect(screen.getByText('EOS R5')).toBeInTheDocument();
-    });
-
-    it('handles only technical settings without camera info', () => {
-      const data = {
-        iso: 200,
-        aperture: 1.8,
-        shutter_speed: 0.0125,
-        focal_length: 50
-      };
-
-      render(<CameraTab data={data} />);
-
-      expect(screen.getByText('ISO 200')).toBeInTheDocument();
-      expect(screen.getByText('f/1.8')).toBeInTheDocument();
-      expect(screen.getByText('1/80s')).toBeInTheDocument();
-      expect(screen.getByText('50mm')).toBeInTheDocument();
-    });
-
-    it('handles mix of present and missing fields', () => {
-      const data = {
-        camera: {
-          make: 'Nikon'
+          make: 'Arducam',
+          model: 'OwlSight 64MP',
+          sensor: 'ov64a40',
+          lens: '6mm Wide Angle',
         },
-        iso: 3200,
-        focal_length: 85
+        capture: {
+          iso: 400,
+          f_number: 2.8,
+          exposure_time: '1/500',
+          focal_length: '6.0mm',
+        },
       };
 
       render(<CameraTab data={data} />);
 
-      expect(screen.getByText('Nikon')).toBeInTheDocument();
-      expect(screen.getByText('ISO 3200')).toBeInTheDocument();
-      expect(screen.getByText('85mm')).toBeInTheDocument();
+      // Camera info section
+      expect(screen.getByText('Camera Information')).toBeInTheDocument();
+      expect(screen.getByText('Arducam')).toBeInTheDocument();
+      expect(screen.getByText('OwlSight 64MP')).toBeInTheDocument();
+      expect(screen.getByText('ov64a40')).toBeInTheDocument();
+      expect(screen.getByText('6mm Wide Angle')).toBeInTheDocument();
+
+      // Camera settings section
+      expect(screen.getByText('Camera Settings')).toBeInTheDocument();
+      expect(screen.getByText('ISO 400')).toBeInTheDocument();
+      expect(screen.getByText('f/2.8')).toBeInTheDocument();
+      expect(screen.getByText('1/500')).toBeInTheDocument();
+      expect(screen.getByText('6.0mm')).toBeInTheDocument();
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('handles empty string values', () => {
+      const data = {
+        camera: {
+          make: '',
+          model: '',
+        },
+        capture: {
+          exposure_time: '',
+          focal_length: '',
+        },
+      };
+
+      render(<CameraTab data={data} />);
+
+      // Empty strings should show N/A
+      const naElements = screen.getAllByText('N/A');
+      expect(naElements.length).toBeGreaterThan(0);
+    });
+
+    it('handles zero values as N/A (invalid camera values)', () => {
+      const data = {
+        capture: {
+          iso: 0,
+          f_number: 0,
+        },
+      };
+
+      render(<CameraTab data={data} />);
+
+      // Zero values should show N/A since ISO=0 and f/0 are not valid
+      const naElements = screen.getAllByText('N/A');
+      expect(naElements.length).toBeGreaterThan(0);
     });
   });
 });

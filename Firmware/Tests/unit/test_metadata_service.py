@@ -745,3 +745,587 @@ class TestAdditionalEdgeCases:
         # These fields should be None due to division by zero
         assert metadata['capture']['exposure_time'] is None
         assert metadata['capture']['f_number'] is None
+
+
+# ============================================================================
+# Test Class 10: Series Detection Pattern Edge Cases
+# ============================================================================
+
+class TestSeriesDetectionEdgeCases:
+    """Test _detect_series_info() method with various edge cases"""
+
+    def test_hdr_series_detection_pattern(self, metadata_service, temp_photos_dir):
+        """Test HDR series detection with standard pattern (e.g., photo_HDR_1of3.jpg)"""
+        # Create HDR series with explicit pattern
+        base_name = "mothbox_2024_11_01__10_00_00"
+        photos = []
+        for i in range(1, 4):
+            photo_path = temp_photos_dir / f"{base_name}_{i}.jpg"
+            img = Image.new('RGB', (640, 480), color='red')
+            img.save(photo_path, "JPEG")
+            photos.append(photo_path)
+
+        # Test detection on middle photo
+        metadata = metadata_service.get_photo_metadata(photos[1])
+        deployment = metadata['deployment']
+
+        assert deployment['series_type'] == 'hdr'
+        assert deployment['series_count'] == 3
+        assert deployment['series_index'] == 2
+
+    def test_focus_bracket_series_detection_pattern(self, metadata_service, temp_photos_dir):
+        """Test focus bracket series detection with standard pattern"""
+        # Create focus bracket series
+        base_name = "mothbox_2024_11_01__10_30_00"
+        photos = []
+        for i in range(1, 6):
+            photo_path = temp_photos_dir / f"{base_name}_focus_{i}.jpg"
+            img = Image.new('RGB', (640, 480), color='blue')
+            img.save(photo_path, "JPEG")
+            photos.append(photo_path)
+
+        # Test detection on first photo
+        metadata = metadata_service.get_photo_metadata(photos[0])
+        deployment = metadata['deployment']
+
+        assert deployment['series_type'] == 'focus_bracket'
+        assert deployment['series_count'] == 5
+        assert deployment['series_index'] == 1
+
+    def test_single_photo_not_part_of_series(self, metadata_service, temp_photos_dir):
+        """Test single photo that's not part of any series"""
+        photo_path = temp_photos_dir / "mothbox_2024_11_01__11_00_00.jpg"
+        img = Image.new('RGB', (640, 480), color='green')
+        img.save(photo_path, "JPEG")
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+        deployment = metadata['deployment']
+
+        assert deployment['series_type'] is None
+        assert deployment['series_count'] is None
+        assert deployment['series_index'] is None
+
+    def test_malformed_series_pattern(self, metadata_service, temp_photos_dir):
+        """Test photo with malformed series pattern (e.g., invalid suffix)"""
+        # Create photo with invalid pattern
+        photo_path = temp_photos_dir / "mothbox_2024_11_01__11_30_00_abc.jpg"
+        img = Image.new('RGB', (640, 480), color='yellow')
+        img.save(photo_path, "JPEG")
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+        deployment = metadata['deployment']
+
+        # Should not detect as series
+        assert deployment['series_type'] is None
+
+    def test_missing_series_files_incomplete(self, metadata_service, temp_photos_dir):
+        """Test series with missing files (e.g., 1of3, 3of3 but no 2of3)"""
+        # Create incomplete HDR series (missing middle photo)
+        base_name = "mothbox_2024_11_01__12_00_00"
+        photo1 = temp_photos_dir / f"{base_name}_1.jpg"
+        photo3 = temp_photos_dir / f"{base_name}_3.jpg"
+
+        img = Image.new('RGB', (640, 480), color='orange')
+        img.save(photo1, "JPEG")
+        img.save(photo3, "JPEG")
+
+        # Test detection - should still detect as series with count=2
+        metadata = metadata_service.get_photo_metadata(photo1)
+        deployment = metadata['deployment']
+
+        assert deployment['series_type'] == 'hdr'
+        assert deployment['series_count'] == 2  # Only 2 files exist
+        assert deployment['series_index'] == 1
+
+    def test_series_glob_failure_handling(self, metadata_service, temp_photos_dir):
+        """Test handling when glob operation fails during series detection"""
+        # Create a focus bracket photo (focus bracket returns early with series info even on glob failure)
+        photo_path = temp_photos_dir / "mothbox_2024_11_01__13_00_00_focus_5.jpg"
+        img = Image.new('RGB', (640, 480), color='purple')
+        img.save(photo_path, "JPEG")
+
+        # Mock glob on parent_dir to raise OSError after pattern is matched
+        original_glob = Path.glob
+        def mock_glob(self, pattern):
+            # Only raise error when called during series detection
+            if "_focus_" in str(pattern):
+                raise OSError("Permission denied")
+            return original_glob(self, pattern)
+
+        with patch.object(Path, 'glob', mock_glob):
+            metadata = metadata_service.get_photo_metadata(photo_path)
+            deployment = metadata['deployment']
+
+            # Focus bracket returns series info even when glob fails
+            # series_count is None due to glob failure, but type and index are still detected
+            assert deployment['series_type'] == 'focus_bracket'
+            assert deployment['series_count'] is None  # Glob failed
+            assert deployment['series_index'] == 5
+
+    def test_series_with_different_naming_conventions(self, metadata_service, temp_photos_dir):
+        """Test series with non-standard naming conventions"""
+        # Create photos with different naming pattern
+        photos = []
+        for i in range(1, 4):
+            photo_path = temp_photos_dir / f"custom_device_2024_11_01__14_00_00_{i}.jpg"
+            img = Image.new('RGB', (640, 480), color='pink')
+            img.save(photo_path, "JPEG")
+            photos.append(photo_path)
+
+        # Should still detect HDR pattern
+        metadata = metadata_service.get_photo_metadata(photos[0])
+        deployment = metadata['deployment']
+
+        assert deployment['series_type'] == 'hdr'
+        assert deployment['series_count'] == 3
+        assert deployment['series_index'] == 1
+
+    def test_large_series_10_plus_photos(self, metadata_service, temp_photos_dir):
+        """Test series with 10+ photos (e.g., extensive focus bracket)"""
+        # Create large focus bracket series
+        base_name = "mothbox_2024_11_01__15_00_00"
+        photos = []
+        for i in range(1, 13):  # 12 photos
+            photo_path = temp_photos_dir / f"{base_name}_focus_{i}.jpg"
+            img = Image.new('RGB', (640, 480), color='cyan')
+            img.save(photo_path, "JPEG")
+            photos.append(photo_path)
+
+        # Test detection on middle photo
+        metadata = metadata_service.get_photo_metadata(photos[5])
+        deployment = metadata['deployment']
+
+        assert deployment['series_type'] == 'focus_bracket'
+        assert deployment['series_count'] == 12
+        assert deployment['series_index'] == 6
+
+
+# ============================================================================
+# Test Class 11: GPS Integration Mocking
+# ============================================================================
+
+class TestGPSIntegrationMocking:
+    """Test _extract_location_metadata() method with GPS mocking"""
+
+    def test_valid_gps_coordinates_extraction(self, metadata_service, temp_photos_dir):
+        """Test extraction of valid GPS coordinates"""
+        photo_path = temp_photos_dir / "gps_valid.jpg"
+        img = Image.new('RGB', (640, 480))
+
+        # Create EXIF with valid GPS data
+        exif_dict = {
+            "GPS": {
+                piexif.GPSIFD.GPSLatitudeRef: b"N",
+                piexif.GPSIFD.GPSLatitude: ((40, 1), (42, 1), (4600, 100)),  # 40°42'46.00"N
+                piexif.GPSIFD.GPSLongitudeRef: b"W",
+                piexif.GPSIFD.GPSLongitude: ((74, 1), (0, 1), (3600, 100)),  # 74°0'36.00"W
+            }
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+        location = metadata['location']
+
+        # Should have valid coordinates
+        assert location['latitude'] is not None
+        assert location['longitude'] is not None
+        assert isinstance(location['latitude'], float)
+        assert isinstance(location['longitude'], float)
+
+    def test_missing_gps_data_handling(self, metadata_service, temp_photos_dir):
+        """Test handling when GPS data is completely missing"""
+        photo_path = temp_photos_dir / "gps_missing.jpg"
+        img = Image.new('RGB', (640, 480))
+
+        # Create photo with NO GPS data
+        img.save(photo_path, "JPEG")
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+        location = metadata['location']
+
+        # All GPS fields should be None
+        assert location['latitude'] is None
+        assert location['longitude'] is None
+        assert location['altitude'] is None
+        assert location['satellites'] is None
+        assert location['hdop'] is None
+
+    def test_invalid_gps_format_handling(self, metadata_service, temp_photos_dir):
+        """Test handling of invalid GPS format"""
+        photo_path = temp_photos_dir / "gps_invalid.jpg"
+        img = Image.new('RGB', (640, 480))
+
+        # Create EXIF with malformed GPS data (missing required fields)
+        exif_dict = {
+            "GPS": {
+                piexif.GPSIFD.GPSLatitudeRef: b"N",
+                # Missing GPSLatitude coordinate
+            }
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+
+        # Should handle gracefully without crashing
+        assert metadata is not None
+        assert 'location' in metadata
+
+    def test_gps_with_altitude_3d_fix(self, metadata_service, temp_photos_dir):
+        """Test GPS data with altitude (3D fix)"""
+        photo_path = temp_photos_dir / "gps_3d.jpg"
+        img = Image.new('RGB', (640, 480))
+
+        # Create EXIF with 3D GPS fix (includes altitude)
+        exif_dict = {
+            "GPS": {
+                piexif.GPSIFD.GPSLatitudeRef: b"N",
+                piexif.GPSIFD.GPSLatitude: ((35, 1), (40, 1), (0, 1)),
+                piexif.GPSIFD.GPSLongitudeRef: b"E",
+                piexif.GPSIFD.GPSLongitude: ((139, 1), (45, 1), (0, 1)),
+                piexif.GPSIFD.GPSAltitudeRef: 0,
+                piexif.GPSIFD.GPSAltitude: (250, 1),  # 250m above sea level
+            }
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+        location = metadata['location']
+
+        assert location['altitude'] is not None
+        assert location['altitude'] == 250.0
+
+    def test_gps_without_altitude_2d_fix(self, metadata_service, temp_photos_dir):
+        """Test GPS data without altitude (2D fix)"""
+        photo_path = temp_photos_dir / "gps_2d.jpg"
+        img = Image.new('RGB', (640, 480))
+
+        # Create EXIF with 2D GPS fix (no altitude)
+        exif_dict = {
+            "GPS": {
+                piexif.GPSIFD.GPSLatitudeRef: b"N",
+                piexif.GPSIFD.GPSLatitude: ((35, 1), (40, 1), (0, 1)),
+                piexif.GPSIFD.GPSLongitudeRef: b"E",
+                piexif.GPSIFD.GPSLongitude: ((139, 1), (45, 1), (0, 1)),
+                # No altitude fields
+            }
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+        location = metadata['location']
+
+        assert location['latitude'] is not None
+        assert location['longitude'] is not None
+        # Altitude should be None for 2D fix
+        assert location['altitude'] is None
+
+    def test_gps_quality_metrics_extraction(self, metadata_service, temp_photos_dir):
+        """Test GPS quality metrics (HDOP, PDOP, satellites)"""
+        photo_path = temp_photos_dir / "gps_quality.jpg"
+        img = Image.new('RGB', (640, 480))
+
+        # Create EXIF with GPS quality metrics
+        exif_dict = {
+            "GPS": {
+                piexif.GPSIFD.GPSLatitudeRef: b"N",
+                piexif.GPSIFD.GPSLatitude: ((37, 1), (47, 1), (3000, 100)),
+                piexif.GPSIFD.GPSLongitudeRef: b"W",
+                piexif.GPSIFD.GPSLongitude: ((122, 1), (25, 1), (1200, 100)),
+                piexif.GPSIFD.GPSSatellites: b"15",
+                piexif.GPSIFD.GPSDOP: (120, 100),  # 1.2
+            }
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+        location = metadata['location']
+
+        assert location['satellites'] == 15
+        assert location['hdop'] is not None
+
+    def test_coordinate_conversion_dms_to_decimal(self, metadata_service, temp_photos_dir):
+        """Test coordinate conversion from DMS to decimal degrees"""
+        photo_path = temp_photos_dir / "gps_conversion.jpg"
+        img = Image.new('RGB', (640, 480))
+
+        # Create EXIF with precise DMS coordinates
+        # 51°30'26.46"N, 0°7'39.9"W (Greenwich, London)
+        exif_dict = {
+            "GPS": {
+                piexif.GPSIFD.GPSLatitudeRef: b"N",
+                piexif.GPSIFD.GPSLatitude: ((51, 1), (30, 1), (2646, 100)),
+                piexif.GPSIFD.GPSLongitudeRef: b"W",
+                piexif.GPSIFD.GPSLongitude: ((0, 1), (7, 1), (399, 10)),
+            }
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+        location = metadata['location']
+
+        # Verify conversion to decimal degrees
+        assert location['latitude'] is not None
+        assert location['longitude'] is not None
+        # Latitude should be approximately 51.507
+        assert abs(location['latitude'] - 51.507) < 0.01
+        # Longitude should be approximately -0.127
+        assert abs(location['longitude'] - (-0.127)) < 0.01
+
+    def test_empty_null_coordinate_handling(self, metadata_service, temp_photos_dir):
+        """Test handling of empty/null GPS coordinates"""
+        photo_path = temp_photos_dir / "gps_empty.jpg"
+        img = Image.new('RGB', (640, 480))
+
+        # Create EXIF with empty GPS IFD
+        exif_dict = {
+            "GPS": {}
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+        location = metadata['location']
+
+        # Should handle empty GPS data gracefully
+        assert location['latitude'] is None
+        assert location['longitude'] is None
+
+
+# ============================================================================
+# Test Class 12: EXIF Rational Edge Cases
+# ============================================================================
+
+class TestEXIFRationalEdgeCases:
+    """Test _extract_capture_metadata() method with EXIF rational edge cases"""
+
+    def test_exif_rational_number_parsing(self, metadata_service, temp_photos_dir):
+        """Test EXIF rational number parsing (exposure time as fraction)"""
+        photo_path = temp_photos_dir / "exif_rational.jpg"
+        img = Image.new('RGB', (640, 480))
+
+        # Create EXIF with various rational values
+        exif_dict = {
+            "Exif": {
+                piexif.ExifIFD.ExposureTime: (1, 1000),  # 1/1000 sec
+                piexif.ExifIFD.FNumber: (56, 10),  # f/5.6
+                piexif.ExifIFD.FocalLength: (50, 1),  # 50mm
+            }
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+        capture = metadata['capture']
+
+        assert capture['exposure_time'] == "1/1000"
+        assert capture['f_number'] == "f/5.6"
+        assert capture['focal_length'] == "50mm"
+
+    def test_makernote_json_parsing(self, metadata_service, temp_photos_dir):
+        """Test MakerNote JSON parsing"""
+        photo_path = temp_photos_dir / "exif_makernote.jpg"
+        img = Image.new('RGB', (640, 480))
+
+        # Create EXIF with MakerNote containing JSON
+        import json
+        maker_note_data = {
+            'sensor': 'IMX477',
+            'focus_mode': 1,
+            'af_range': 2,
+            'noise_reduction': 1,
+            'lens_position': 3.5
+        }
+        maker_note_json = json.dumps(maker_note_data)
+
+        exif_dict = {
+            "Exif": {
+                piexif.ExifIFD.MakerNote: maker_note_json.encode('utf-8')
+            }
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+        capture = metadata['capture']
+        camera = metadata['camera']
+
+        assert camera['sensor'] == 'IMX477'
+        assert capture['focus_mode'] == 'Auto Single'
+        assert capture['af_range'] == 'Full'
+        assert capture['noise_reduction'] == 'Fast'
+        assert capture['lens_position'] == 3.5
+
+    def test_invalid_makernote_handling(self, metadata_service, temp_photos_dir):
+        """Test handling of invalid MakerNote (non-JSON)"""
+        photo_path = temp_photos_dir / "exif_makernote_invalid.jpg"
+        img = Image.new('RGB', (640, 480))
+
+        # Create EXIF with invalid MakerNote (not JSON)
+        exif_dict = {
+            "Exif": {
+                piexif.ExifIFD.MakerNote: b"Not valid JSON data"
+            }
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+
+        # Should handle gracefully without crashing
+        assert metadata is not None
+        assert 'capture' in metadata
+
+    def test_missing_exif_tags_gracefully_handled(self, metadata_service, temp_photos_dir):
+        """Test that missing EXIF tags are gracefully handled"""
+        photo_path = temp_photos_dir / "exif_minimal.jpg"
+        img = Image.new('RGB', (640, 480))
+
+        # Create EXIF with minimal data
+        exif_dict = {
+            "Exif": {
+                piexif.ExifIFD.ISOSpeedRatings: 200
+            }
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+        capture = metadata['capture']
+
+        # ISO should be present
+        assert capture['iso'] == 200
+        # Other fields should be None
+        assert capture['exposure_time'] is None
+        assert capture['f_number'] is None
+
+    def test_corrupted_exif_data_handling(self, metadata_service, temp_photos_dir):
+        """Test handling of corrupted EXIF data"""
+        photo_path = temp_photos_dir / "exif_corrupted.jpg"
+
+        # Create minimal JPEG with corrupted EXIF marker
+        with open(photo_path, 'wb') as f:
+            # JPEG start marker
+            f.write(b'\xFF\xD8')
+            # APP1 marker (EXIF) with invalid data
+            f.write(b'\xFF\xE1\x00\x20')
+            f.write(b'Corrupted EXIF data that is invalid')
+            # JPEG end marker
+            f.write(b'\xFF\xD9')
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+
+        # Should handle gracefully without crashing
+        assert metadata is not None
+        assert 'exif_warning' in metadata or 'error' in metadata
+
+    def test_non_standard_exif_formats(self, metadata_service, temp_photos_dir):
+        """Test handling of non-standard EXIF formats"""
+        photo_path = temp_photos_dir / "exif_nonstandard.jpg"
+        img = Image.new('RGB', (640, 480))
+
+        # Create EXIF with unusual values
+        exif_dict = {
+            "Exif": {
+                piexif.ExifIFD.ExposureMode: 3,  # Unknown mode
+                piexif.ExifIFD.MeteringMode: 99,  # Unknown metering
+                piexif.ExifIFD.WhiteBalance: 2,  # Unknown WB
+            }
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+        capture = metadata['capture']
+
+        # Should handle non-standard values without crashing
+        assert metadata is not None
+        assert capture['metering_mode'] is not None  # Should have fallback
+
+    def test_large_exif_metadata(self, metadata_service, temp_photos_dir):
+        """Test handling of large EXIF metadata"""
+        photo_path = temp_photos_dir / "exif_large.jpg"
+        img = Image.new('RGB', (640, 480))
+
+        # Create EXIF with many fields
+        exif_dict = {
+            "0th": {
+                piexif.ImageIFD.Make: b"TestMake" * 10,
+                piexif.ImageIFD.Model: b"TestModel" * 10,
+                piexif.ImageIFD.Software: b"TestSoftware" * 10,
+            },
+            "Exif": {
+                piexif.ExifIFD.DateTimeOriginal: b"2024:11:01 10:00:00",
+                piexif.ExifIFD.ExposureTime: (1, 100),
+                piexif.ExifIFD.FNumber: (28, 10),
+                piexif.ExifIFD.ISOSpeedRatings: 800,
+                piexif.ExifIFD.FocalLength: (35, 1),
+                piexif.ExifIFD.WhiteBalance: 0,
+                piexif.ExifIFD.Flash: 0,
+                piexif.ExifIFD.ExposureMode: 0,
+                piexif.ExifIFD.MeteringMode: 1,
+                piexif.ExifIFD.Sharpness: 2,
+                piexif.ExifIFD.Contrast: 1,
+                piexif.ExifIFD.Saturation: 1,
+            },
+            "GPS": {
+                piexif.GPSIFD.GPSLatitudeRef: b"N",
+                piexif.GPSIFD.GPSLatitude: ((37, 1), (47, 1), (3000, 100)),
+                piexif.GPSIFD.GPSLongitudeRef: b"W",
+                piexif.GPSIFD.GPSLongitude: ((122, 1), (25, 1), (1200, 100)),
+            }
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+
+        # Should handle large EXIF without performance issues
+        assert metadata is not None
+        assert metadata['camera']['make'] is not None
+        assert metadata['capture']['iso'] == 800
+
+    def test_unicode_in_exif_fields(self, metadata_service, temp_photos_dir):
+        """Test handling of Unicode characters in EXIF fields"""
+        photo_path = temp_photos_dir / "exif_unicode.jpg"
+        img = Image.new('RGB', (640, 480))
+
+        # Create EXIF with Unicode strings
+        exif_dict = {
+            "0th": {
+                piexif.ImageIFD.Make: "Arducam™".encode('utf-8'),
+                piexif.ImageIFD.Model: "OwlSight 64MP 📷".encode('utf-8'),
+            },
+            "Exif": {
+                piexif.ExifIFD.LensModel: "Wide Angle Lens °".encode('utf-8'),
+            }
+        }
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(photo_path, "JPEG", exif=exif_bytes)
+
+        metadata = metadata_service.get_photo_metadata(photo_path)
+        camera = metadata['camera']
+
+        # Should handle Unicode gracefully
+        assert metadata is not None
+        assert "Arducam" in camera['make']
+        assert "OwlSight" in camera['model']

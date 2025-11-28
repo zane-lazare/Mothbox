@@ -66,12 +66,45 @@ logger = logging.getLogger(__name__)
 # GPS EXIF library imported lazily in _extract_gps_location() to avoid import order issues
 
 
+def _parse_exif_rational(value: Any) -> tuple[int, int] | None:
+    """
+    Parse an EXIF rational value (numerator/denominator tuple).
+
+    EXIF stores fractional values as (numerator, denominator) tuples.
+    This function validates the structure and types before returning.
+
+    Args:
+        value: The EXIF value to parse (expected to be a 2-tuple of integers)
+
+    Returns:
+        (numerator, denominator) tuple if valid, None otherwise.
+        Valid means: tuple of exactly 2 integers with positive denominator.
+    """
+    if not isinstance(value, tuple) or len(value) != 2:
+        return None
+    numerator, denominator = value
+    if not isinstance(numerator, int) or not isinstance(denominator, int):
+        return None
+    if denominator <= 0:
+        return None
+    return (numerator, denominator)
+
+
 class MetadataService:
     """
     Service for extracting comprehensive EXIF metadata from photos.
 
     Provides structured metadata extraction organized into 5 categories:
     camera, location, capture, deployment, and file information.
+
+    SECURITY ARCHITECTURE:
+        Path validation is handled by the routes layer using validate_photo_path()
+        from security_utils.py. This service expects pre-validated paths and focuses
+        on metadata extraction. Do not call methods directly with user-provided paths.
+
+        Validation is performed at:
+        - routes/metadata.py: Uses validate_photo_path() for single and batch endpoints
+        - routes/gallery.py: Uses _resolve_photo_path() → validate_photo_path()
 
     Attributes:
         None (stateless service)
@@ -84,12 +117,13 @@ class MetadataService:
         """
         Extract comprehensive metadata from a single photo.
 
-        SECURITY NOTE: This method expects photo_path to be pre-validated by the
-        caller (routes layer) using validate_photo_path(). The service layer focuses
-        on metadata extraction, not path validation.
+        SECURITY: This method expects photo_path to be pre-validated by the
+        routes layer using validate_photo_path() from security_utils.py.
+        Direct calls with untrusted paths will bypass path traversal protection.
+        See class docstring for security architecture details.
 
         Args:
-            photo_path: Path to JPEG photo file (must be validated/resolved)
+            photo_path: Path to JPEG photo file (must be validated/resolved by caller)
 
         Returns:
             dict: Structured metadata with 5 categories:
@@ -98,6 +132,7 @@ class MetadataService:
                 - capture: Photo capture settings
                 - deployment: Mothbox deployment information
                 - file: File system metadata
+            Returns {'error': ...} if photo cannot be processed.
 
         Example:
             >>> service = MetadataService()
@@ -112,7 +147,7 @@ class MetadataService:
                         'gps_timestamp': None, 'satellites': None, 'hdop': None},
             'capture': {'timestamp': None, 'exposure_time': None, 'f_number': None,
                        'iso': None, 'focal_length': None, 'white_balance': None, 'flash': None},
-            'deployment': {'mothbox_id': None, 'firmware_version': None,
+            'deployment': {'mothbox_id': None, 'capture_type': None, 'firmware_version': None,
                           'series_type': None, 'series_count': None, 'series_index': None},
             'file': {'path': None, 'filename': None, 'size': None,
                     'width': None, 'height': None, 'format': None}
@@ -255,12 +290,20 @@ class MetadataService:
                 if piexif.ExifIFD.LensModel in exif_ifd:
                     camera['lens'] = exif_ifd[piexif.ExifIFD.LensModel].decode('utf-8', errors='ignore').strip()
 
-                # Sensor type (may not be available in all EXIF data)
-                # We'll leave this as None for now as it's rarely populated
+                # Sensor from MakerNote (Mothbox-specific)
+                if piexif.ExifIFD.MakerNote in exif_ifd:
+                    try:
+                        import json
+                        maker_note_json = exif_ifd[piexif.ExifIFD.MakerNote].decode('utf-8', errors='ignore')
+                        maker_note = json.loads(maker_note_json)
+                        if 'sensor' in maker_note:
+                            camera['sensor'] = maker_note['sensor']
+                    except (json.JSONDecodeError, KeyError):
+                        pass
 
-        except Exception:
-            # Gracefully handle any EXIF parsing errors
-            pass
+        except (AttributeError, KeyError, TypeError, UnicodeDecodeError) as e:
+            # Gracefully handle EXIF parsing errors (missing keys, decode failures)
+            logger.debug(f"Camera metadata extraction failed: {e}")
 
         return camera
 
@@ -281,7 +324,20 @@ class MetadataService:
             'iso': None,
             'focal_length': None,
             'white_balance': None,
-            'flash': None
+            'flash': None,
+            'exposure_mode': None,
+            'metering_mode': None,
+            'sharpness': None,
+            'contrast': None,
+            'saturation': None,
+            'brightness': None,
+            'focus_mode': None,
+            'af_range': None,
+            'af_speed': None,
+            'noise_reduction': None,
+            'lens_position': None,
+            'colour_gain_red': None,
+            'colour_gain_blue': None,
         }
 
         try:
@@ -301,20 +357,18 @@ class MetadataService:
 
                 # Exposure time
                 if piexif.ExifIFD.ExposureTime in exif_ifd:
-                    exposure = exif_ifd[piexif.ExifIFD.ExposureTime]
-                    if isinstance(exposure, tuple) and len(exposure) == 2:
-                        numerator, denominator = exposure
-                        if denominator != 0:
-                            capture['exposure_time'] = f"{numerator}/{denominator}"
+                    rational = _parse_exif_rational(exif_ifd[piexif.ExifIFD.ExposureTime])
+                    if rational:
+                        numerator, denominator = rational
+                        capture['exposure_time'] = f"{numerator}/{denominator}"
 
                 # F-number (aperture)
                 if piexif.ExifIFD.FNumber in exif_ifd:
-                    f_num = exif_ifd[piexif.ExifIFD.FNumber]
-                    if isinstance(f_num, tuple) and len(f_num) == 2:
-                        numerator, denominator = f_num
-                        if denominator != 0:
-                            f_value = numerator / denominator
-                            capture['f_number'] = f"f/{f_value:.1f}"
+                    rational = _parse_exif_rational(exif_ifd[piexif.ExifIFD.FNumber])
+                    if rational:
+                        numerator, denominator = rational
+                        f_value = numerator / denominator
+                        capture['f_number'] = f"f/{f_value:.1f}"
 
                 # ISO
                 if piexif.ExifIFD.ISOSpeedRatings in exif_ifd:
@@ -322,12 +376,11 @@ class MetadataService:
 
                 # Focal length
                 if piexif.ExifIFD.FocalLength in exif_ifd:
-                    focal = exif_ifd[piexif.ExifIFD.FocalLength]
-                    if isinstance(focal, tuple) and len(focal) == 2:
-                        numerator, denominator = focal
-                        if denominator != 0:
-                            focal_mm = numerator / denominator
-                            capture['focal_length'] = f"{int(focal_mm)}mm"
+                    rational = _parse_exif_rational(exif_ifd[piexif.ExifIFD.FocalLength])
+                    if rational:
+                        numerator, denominator = rational
+                        focal_mm = numerator / denominator
+                        capture['focal_length'] = f"{int(focal_mm)}mm"
 
                 # White balance
                 if piexif.ExifIFD.WhiteBalance in exif_ifd:
@@ -340,9 +393,80 @@ class MetadataService:
                     # Flash fired if bit 0 is set
                     capture['flash'] = bool(flash_code & 0x01)
 
-        except Exception:
-            # Gracefully handle any EXIF parsing errors
-            pass
+                # Exposure mode (0 = Manual, 1 = Auto)
+                if piexif.ExifIFD.ExposureMode in exif_ifd:
+                    exp_mode = exif_ifd[piexif.ExifIFD.ExposureMode]
+                    capture['exposure_mode'] = 'Manual' if exp_mode == 0 else 'Auto'
+
+                # Metering mode (0 = Centre-Weighted, 1 = Spot, 2 = Matrix/Average)
+                if piexif.ExifIFD.MeteringMode in exif_ifd:
+                    meter_code = exif_ifd[piexif.ExifIFD.MeteringMode]
+                    metering_modes = {0: 'Centre-Weighted', 1: 'Spot', 2: 'Matrix'}
+                    capture['metering_mode'] = metering_modes.get(meter_code, f'Unknown ({meter_code})')
+
+                # Sharpness (integer value)
+                if piexif.ExifIFD.Sharpness in exif_ifd:
+                    capture['sharpness'] = exif_ifd[piexif.ExifIFD.Sharpness]
+
+                # Contrast (integer value)
+                if piexif.ExifIFD.Contrast in exif_ifd:
+                    capture['contrast'] = exif_ifd[piexif.ExifIFD.Contrast]
+
+                # Saturation (integer value)
+                if piexif.ExifIFD.Saturation in exif_ifd:
+                    capture['saturation'] = exif_ifd[piexif.ExifIFD.Saturation]
+
+                # Brightness (rational tuple)
+                if piexif.ExifIFD.BrightnessValue in exif_ifd:
+                    rational = _parse_exif_rational(exif_ifd[piexif.ExifIFD.BrightnessValue])
+                    if rational:
+                        numerator, denominator = rational
+                        capture['brightness'] = numerator / denominator
+
+                # MakerNote contains custom Mothbox metadata (focus, noise reduction, colour gains)
+                if piexif.ExifIFD.MakerNote in exif_ifd:
+                    try:
+                        import json
+                        maker_note_json = exif_ifd[piexif.ExifIFD.MakerNote].decode('utf-8', errors='ignore')
+                        maker_note = json.loads(maker_note_json)
+
+                        # Focus mode (0=Manual, 1=Auto, 2=Continuous)
+                        if 'focus_mode' in maker_note:
+                            focus_modes = {0: 'Manual', 1: 'Auto Single', 2: 'Continuous AF'}
+                            capture['focus_mode'] = focus_modes.get(maker_note['focus_mode'], f"Unknown ({maker_note['focus_mode']})")
+
+                        # AF Range (0=Normal, 1=Macro, 2=Full)
+                        if 'af_range' in maker_note:
+                            af_ranges = {0: 'Normal', 1: 'Macro', 2: 'Full'}
+                            capture['af_range'] = af_ranges.get(maker_note['af_range'], f"Unknown ({maker_note['af_range']})")
+
+                        # AF Speed (0=Normal, 1=Fast)
+                        if 'af_speed' in maker_note:
+                            af_speeds = {0: 'Normal', 1: 'Fast'}
+                            capture['af_speed'] = af_speeds.get(maker_note['af_speed'], f"Unknown ({maker_note['af_speed']})")
+
+                        # Noise Reduction (0=Off, 1=Fast, 2=High Quality)
+                        if 'noise_reduction' in maker_note:
+                            nr_modes = {0: 'Off', 1: 'Fast', 2: 'High Quality'}
+                            capture['noise_reduction'] = nr_modes.get(maker_note['noise_reduction'], f"Unknown ({maker_note['noise_reduction']})")
+
+                        # Lens position (diopters)
+                        if 'lens_position' in maker_note:
+                            capture['lens_position'] = maker_note['lens_position']
+
+                        # Colour gains
+                        if 'colour_gain_red' in maker_note:
+                            capture['colour_gain_red'] = maker_note['colour_gain_red']
+                        if 'colour_gain_blue' in maker_note:
+                            capture['colour_gain_blue'] = maker_note['colour_gain_blue']
+
+                    except (json.JSONDecodeError, KeyError):
+                        # MakerNote is not JSON or malformed, skip gracefully
+                        pass
+
+        except (AttributeError, KeyError, TypeError, UnicodeDecodeError, ValueError) as e:
+            # Gracefully handle EXIF parsing errors (missing keys, decode failures, numeric conversions)
+            logger.debug(f"Capture metadata extraction failed: {e}")
 
         return capture
 
@@ -390,9 +514,9 @@ class MetadataService:
 
                 location['hdop'] = gps_info.get('hdop')
 
-        except Exception:
-            # Gracefully handle GPS extraction errors
-            pass
+        except (ImportError, AttributeError, KeyError, TypeError) as e:
+            # Gracefully handle GPS extraction errors (import failure, missing data)
+            logger.debug(f"Location metadata extraction failed: {e}")
 
         return location
 
@@ -412,6 +536,7 @@ class MetadataService:
         """
         deployment = {
             'mothbox_id': None,
+            'capture_type': None,
             'firmware_version': None,
             'series_type': None,
             'series_count': None,
@@ -419,12 +544,27 @@ class MetadataService:
         }
 
         try:
-            # Extract Mothbox ID from filename (first part before date)
-            # Example: mothbox_2024_10_15__14_30_00.jpg -> "mothbox"
-            filename = photo_path.stem
-            match = re.match(r'^([a-zA-Z0-9_-]+)_\d{4}_\d{2}_\d{2}', filename)
-            if match:
-                deployment['mothbox_id'] = match.group(1)
+            # Try to get Mothbox ID and capture type from MakerNote first (preferred)
+            if 'Exif' in exif_data:
+                exif_ifd = exif_data['Exif']
+                if piexif.ExifIFD.MakerNote in exif_ifd:
+                    try:
+                        import json
+                        maker_note_json = exif_ifd[piexif.ExifIFD.MakerNote].decode('utf-8', errors='ignore')
+                        maker_note = json.loads(maker_note_json)
+                        if 'mothbox_name' in maker_note:
+                            deployment['mothbox_id'] = maker_note['mothbox_name']
+                        if 'capture_type' in maker_note:
+                            deployment['capture_type'] = maker_note['capture_type']
+                    except (json.JSONDecodeError, KeyError):
+                        pass
+
+            # Fall back to filename parsing if MakerNote didn't have mothbox_name
+            if deployment['mothbox_id'] is None:
+                filename = photo_path.stem
+                match = re.match(r'^([a-zA-Z0-9_-]+)_\d{4}_\d{2}_\d{2}', filename)
+                if match:
+                    deployment['mothbox_id'] = match.group(1)
 
             # Extract firmware version from EXIF Software tag
             if '0th' in exif_data:
@@ -438,9 +578,9 @@ class MetadataService:
             deployment['series_count'] = series_count
             deployment['series_index'] = series_index
 
-        except Exception:
-            # Gracefully handle any parsing errors
-            pass
+        except (AttributeError, KeyError, TypeError, UnicodeDecodeError) as e:
+            # Gracefully handle parsing errors (missing keys, decode failures)
+            logger.debug(f"Deployment metadata extraction failed: {e}")
 
         return deployment
 
@@ -481,9 +621,9 @@ class MetadataService:
                 file_info['height'] = image.height
                 file_info['format'] = image.format
 
-        except Exception:
-            # Gracefully handle any file system errors
-            pass
+        except (OSError, AttributeError, TypeError) as e:
+            # Gracefully handle file system errors (I/O errors, None image object)
+            logger.debug(f"File metadata extraction failed: {e}")
 
         return file_info
 
@@ -551,8 +691,8 @@ class MetadataService:
                 if series_count > 1:
                     return 'hdr', series_count, series_index
 
-        except Exception:
-            # Gracefully handle any pattern matching errors
-            pass
+        except (AttributeError, TypeError, re.error) as e:
+            # Gracefully handle pattern matching errors (regex failures, None values)
+            logger.debug(f"Series detection failed: {e}")
 
         return None, None, None

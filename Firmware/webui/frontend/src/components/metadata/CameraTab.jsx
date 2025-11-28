@@ -11,36 +11,33 @@ import { formatISO, formatAperture, formatExposureTime, formatFocalLength } from
  *
  * @component
  * @param {Object} props - Component props
- * @param {Object|null} props.data - Camera metadata object
+ * @param {Object|null} props.data - Full metadata object from backend API
  * @param {Object} [props.data.camera] - Camera and lens information
  * @param {string} [props.data.camera.make] - Camera manufacturer
  * @param {string} [props.data.camera.model] - Camera model
- * @param {string} [props.data.camera.lens_make] - Lens manufacturer
- * @param {string} [props.data.camera.lens_model] - Lens model
- * @param {number} [props.data.iso] - ISO sensitivity
- * @param {number} [props.data.aperture] - Aperture f-number
- * @param {number} [props.data.shutter_speed] - Shutter speed in seconds
- * @param {number} [props.data.focal_length] - Focal length in mm
- * @param {string} [props.data.exposure_mode] - Exposure mode (Auto, Manual, etc.)
- * @param {string} [props.data.metering_mode] - Metering mode (Spot, CenterWeighted, etc.)
+ * @param {string} [props.data.camera.lens] - Lens model
+ * @param {Object} [props.data.capture] - Capture settings
+ * @param {number} [props.data.capture.iso] - ISO sensitivity
+ * @param {number} [props.data.capture.f_number] - Aperture f-number
+ * @param {string} [props.data.capture.exposure_time] - Exposure time (e.g., "1/500")
+ * @param {string} [props.data.capture.focal_length] - Focal length (e.g., "24mm")
  *
  * @example
- * const cameraData = {
+ * const metadata = {
  *   camera: {
  *     make: 'Arducam',
  *     model: 'OwlSight 64MP',
- *     lens_make: 'Arducam',
- *     lens_model: '6mm Wide Angle'
+ *     lens: '6mm Wide Angle'
  *   },
- *   iso: 400,
- *   aperture: 2.8,
- *   shutter_speed: 0.033333,
- *   focal_length: 6.0,
- *   exposure_mode: 'Manual',
- *   metering_mode: 'CenterWeighted'
+ *   capture: {
+ *     iso: 400,
+ *     f_number: 2.8,
+ *     exposure_time: '1/500',
+ *     focal_length: '6.0mm'
+ *   }
  * };
  *
- * <CameraTab data={cameraData} />
+ * <CameraTab data={metadata} />
  */
 const CameraTab = ({ data }) => {
   // Check if data is null or empty
@@ -53,6 +50,7 @@ const CameraTab = ({ data }) => {
   }
 
   const camera = data.camera || {};
+  const capture = data.capture || {};
 
   return (
     <div className="space-y-6">
@@ -71,12 +69,12 @@ const CameraTab = ({ data }) => {
             value={camera.model || 'N/A'}
           />
           <MetadataField
-            label="Lens Make"
-            value={camera.lens_make || 'N/A'}
+            label="Sensor"
+            value={camera.sensor || 'N/A'}
           />
           <MetadataField
             label="Lens Model"
-            value={camera.lens_model || 'N/A'}
+            value={camera.lens || 'N/A'}
           />
         </div>
       </div>
@@ -88,37 +86,25 @@ const CameraTab = ({ data }) => {
         </h3>
         <div className="space-y-2">
           <MetadataField
-            label="ISO"
-            value={data.iso !== undefined ? formatISO(data.iso) : 'N/A'}
-            copyable={data.iso !== undefined}
+            label="Gain (ISO)"
+            value={capture.iso !== undefined && capture.iso !== null ? formatISO(capture.iso) : 'N/A'}
+            copyable={capture.iso !== undefined && capture.iso !== null}
           />
           <MetadataField
             label="Aperture"
-            value={data.aperture !== undefined ? formatAperture(data.aperture) : 'N/A'}
-            copyable={data.aperture !== undefined}
+            value={capture.f_number !== undefined && capture.f_number !== null ? formatAperture(capture.f_number) : 'N/A'}
+            copyable={capture.f_number !== undefined && capture.f_number !== null}
           />
           <MetadataField
-            label="Shutter Speed"
-            value={data.shutter_speed !== undefined ? formatExposureTime(data.shutter_speed) : 'N/A'}
-            copyable={data.shutter_speed !== undefined}
+            label="Exposure Time"
+            value={capture.exposure_time || 'N/A'}
+            copyable={!!capture.exposure_time}
           />
           <MetadataField
             label="Focal Length"
-            value={data.focal_length !== undefined ? formatFocalLength(data.focal_length) : 'N/A'}
-            copyable={data.focal_length !== undefined}
+            value={capture.focal_length || 'N/A'}
+            copyable={!!capture.focal_length}
           />
-          {data.exposure_mode && (
-            <MetadataField
-              label="Exposure Mode"
-              value={data.exposure_mode}
-            />
-          )}
-          {data.metering_mode && (
-            <MetadataField
-              label="Metering Mode"
-              value={data.metering_mode}
-            />
-          )}
         </div>
       </div>
     </div>
@@ -130,15 +116,18 @@ CameraTab.propTypes = {
     camera: PropTypes.shape({
       make: PropTypes.string,
       model: PropTypes.string,
-      lens_make: PropTypes.string,
-      lens_model: PropTypes.string,
+      lens: PropTypes.string,
+      sensor: PropTypes.string,
     }),
-    iso: PropTypes.number,
-    aperture: PropTypes.number,
-    shutter_speed: PropTypes.number,
-    focal_length: PropTypes.number,
-    exposure_mode: PropTypes.string,
-    metering_mode: PropTypes.string,
+    capture: PropTypes.shape({
+      iso: PropTypes.number,
+      f_number: PropTypes.number,
+      exposure_time: PropTypes.string,
+      focal_length: PropTypes.string,
+      white_balance: PropTypes.string,
+      flash: PropTypes.string,
+      timestamp: PropTypes.string,
+    }),
   }),
 };
 
