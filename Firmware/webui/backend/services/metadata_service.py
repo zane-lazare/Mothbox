@@ -66,12 +66,45 @@ logger = logging.getLogger(__name__)
 # GPS EXIF library imported lazily in _extract_gps_location() to avoid import order issues
 
 
+def _parse_exif_rational(value: Any) -> tuple[int, int] | None:
+    """
+    Parse an EXIF rational value (numerator/denominator tuple).
+
+    EXIF stores fractional values as (numerator, denominator) tuples.
+    This function validates the structure and types before returning.
+
+    Args:
+        value: The EXIF value to parse (expected to be a 2-tuple of integers)
+
+    Returns:
+        (numerator, denominator) tuple if valid, None otherwise.
+        Valid means: tuple of exactly 2 integers with positive denominator.
+    """
+    if not isinstance(value, tuple) or len(value) != 2:
+        return None
+    numerator, denominator = value
+    if not isinstance(numerator, int) or not isinstance(denominator, int):
+        return None
+    if denominator <= 0:
+        return None
+    return (numerator, denominator)
+
+
 class MetadataService:
     """
     Service for extracting comprehensive EXIF metadata from photos.
 
     Provides structured metadata extraction organized into 5 categories:
     camera, location, capture, deployment, and file information.
+
+    SECURITY ARCHITECTURE:
+        Path validation is handled by the routes layer using validate_photo_path()
+        from security_utils.py. This service expects pre-validated paths and focuses
+        on metadata extraction. Do not call methods directly with user-provided paths.
+
+        Validation is performed at:
+        - routes/metadata.py: Uses validate_photo_path() for single and batch endpoints
+        - routes/gallery.py: Uses _resolve_photo_path() → validate_photo_path()
 
     Attributes:
         None (stateless service)
@@ -84,12 +117,13 @@ class MetadataService:
         """
         Extract comprehensive metadata from a single photo.
 
-        SECURITY NOTE: This method expects photo_path to be pre-validated by the
-        caller (routes layer) using validate_photo_path(). The service layer focuses
-        on metadata extraction, not path validation.
+        SECURITY: This method expects photo_path to be pre-validated by the
+        routes layer using validate_photo_path() from security_utils.py.
+        Direct calls with untrusted paths will bypass path traversal protection.
+        See class docstring for security architecture details.
 
         Args:
-            photo_path: Path to JPEG photo file (must be validated/resolved)
+            photo_path: Path to JPEG photo file (must be validated/resolved by caller)
 
         Returns:
             dict: Structured metadata with 5 categories:
@@ -98,6 +132,7 @@ class MetadataService:
                 - capture: Photo capture settings
                 - deployment: Mothbox deployment information
                 - file: File system metadata
+            Returns {'error': ...} if photo cannot be processed.
 
         Example:
             >>> service = MetadataService()
@@ -266,9 +301,9 @@ class MetadataService:
                     except (json.JSONDecodeError, KeyError):
                         pass
 
-        except Exception:
-            # Gracefully handle any EXIF parsing errors
-            pass
+        except (AttributeError, KeyError, TypeError, UnicodeDecodeError) as e:
+            # Gracefully handle EXIF parsing errors (missing keys, decode failures)
+            logger.debug(f"Camera metadata extraction failed: {e}")
 
         return camera
 
@@ -322,20 +357,18 @@ class MetadataService:
 
                 # Exposure time
                 if piexif.ExifIFD.ExposureTime in exif_ifd:
-                    exposure = exif_ifd[piexif.ExifIFD.ExposureTime]
-                    if isinstance(exposure, tuple) and len(exposure) == 2:
-                        numerator, denominator = exposure
-                        if denominator != 0:
-                            capture['exposure_time'] = f"{numerator}/{denominator}"
+                    rational = _parse_exif_rational(exif_ifd[piexif.ExifIFD.ExposureTime])
+                    if rational:
+                        numerator, denominator = rational
+                        capture['exposure_time'] = f"{numerator}/{denominator}"
 
                 # F-number (aperture)
                 if piexif.ExifIFD.FNumber in exif_ifd:
-                    f_num = exif_ifd[piexif.ExifIFD.FNumber]
-                    if isinstance(f_num, tuple) and len(f_num) == 2:
-                        numerator, denominator = f_num
-                        if denominator != 0:
-                            f_value = numerator / denominator
-                            capture['f_number'] = f"f/{f_value:.1f}"
+                    rational = _parse_exif_rational(exif_ifd[piexif.ExifIFD.FNumber])
+                    if rational:
+                        numerator, denominator = rational
+                        f_value = numerator / denominator
+                        capture['f_number'] = f"f/{f_value:.1f}"
 
                 # ISO
                 if piexif.ExifIFD.ISOSpeedRatings in exif_ifd:
@@ -343,12 +376,11 @@ class MetadataService:
 
                 # Focal length
                 if piexif.ExifIFD.FocalLength in exif_ifd:
-                    focal = exif_ifd[piexif.ExifIFD.FocalLength]
-                    if isinstance(focal, tuple) and len(focal) == 2:
-                        numerator, denominator = focal
-                        if denominator != 0:
-                            focal_mm = numerator / denominator
-                            capture['focal_length'] = f"{int(focal_mm)}mm"
+                    rational = _parse_exif_rational(exif_ifd[piexif.ExifIFD.FocalLength])
+                    if rational:
+                        numerator, denominator = rational
+                        focal_mm = numerator / denominator
+                        capture['focal_length'] = f"{int(focal_mm)}mm"
 
                 # White balance
                 if piexif.ExifIFD.WhiteBalance in exif_ifd:
@@ -386,11 +418,10 @@ class MetadataService:
 
                 # Brightness (rational tuple)
                 if piexif.ExifIFD.BrightnessValue in exif_ifd:
-                    brightness = exif_ifd[piexif.ExifIFD.BrightnessValue]
-                    if isinstance(brightness, tuple) and len(brightness) == 2:
-                        numerator, denominator = brightness
-                        if denominator != 0:
-                            capture['brightness'] = numerator / denominator
+                    rational = _parse_exif_rational(exif_ifd[piexif.ExifIFD.BrightnessValue])
+                    if rational:
+                        numerator, denominator = rational
+                        capture['brightness'] = numerator / denominator
 
                 # MakerNote contains custom Mothbox metadata (focus, noise reduction, colour gains)
                 if piexif.ExifIFD.MakerNote in exif_ifd:
@@ -433,9 +464,9 @@ class MetadataService:
                         # MakerNote is not JSON or malformed, skip gracefully
                         pass
 
-        except Exception:
-            # Gracefully handle any EXIF parsing errors
-            pass
+        except (AttributeError, KeyError, TypeError, UnicodeDecodeError, ValueError) as e:
+            # Gracefully handle EXIF parsing errors (missing keys, decode failures, numeric conversions)
+            logger.debug(f"Capture metadata extraction failed: {e}")
 
         return capture
 
@@ -483,9 +514,9 @@ class MetadataService:
 
                 location['hdop'] = gps_info.get('hdop')
 
-        except Exception:
-            # Gracefully handle GPS extraction errors
-            pass
+        except (ImportError, AttributeError, KeyError, TypeError) as e:
+            # Gracefully handle GPS extraction errors (import failure, missing data)
+            logger.debug(f"Location metadata extraction failed: {e}")
 
         return location
 
@@ -547,9 +578,9 @@ class MetadataService:
             deployment['series_count'] = series_count
             deployment['series_index'] = series_index
 
-        except Exception:
-            # Gracefully handle any parsing errors
-            pass
+        except (AttributeError, KeyError, TypeError, UnicodeDecodeError) as e:
+            # Gracefully handle parsing errors (missing keys, decode failures)
+            logger.debug(f"Deployment metadata extraction failed: {e}")
 
         return deployment
 
@@ -590,9 +621,9 @@ class MetadataService:
                 file_info['height'] = image.height
                 file_info['format'] = image.format
 
-        except Exception:
-            # Gracefully handle any file system errors
-            pass
+        except (OSError, AttributeError, TypeError) as e:
+            # Gracefully handle file system errors (I/O errors, None image object)
+            logger.debug(f"File metadata extraction failed: {e}")
 
         return file_info
 
@@ -660,8 +691,8 @@ class MetadataService:
                 if series_count > 1:
                     return 'hdr', series_count, series_index
 
-        except Exception:
-            # Gracefully handle any pattern matching errors
-            pass
+        except (AttributeError, TypeError, re.error) as e:
+            # Gracefully handle pattern matching errors (regex failures, None values)
+            logger.debug(f"Series detection failed: {e}")
 
         return None, None, None
