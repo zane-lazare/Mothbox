@@ -355,7 +355,7 @@ def test_batch_tag_integration_with_verification(tmp_path):
         img.save(photo, 'JPEG')
 
     # Step 1: Batch tag
-    batch_script = Path(__file__).parent.parent.parent / "scripts" / "batch_tag_photos.py"
+    batch_script = Path(__file__).parent.parent.parent / "webui" / "cli" / "batch_tag_photos.py"
     result1 = subprocess.run(
         [
             sys.executable, str(batch_script),
@@ -370,7 +370,7 @@ def test_batch_tag_integration_with_verification(tmp_path):
     assert result1.returncode == 0
 
     # Step 2: Verify with verification script
-    verify_script = Path(__file__).parent.parent.parent / "scripts" / "verify_gps_exif.py"
+    verify_script = Path(__file__).parent.parent.parent / "webui" / "cli" / "verify_gps_exif.py"
     csv_output = tmp_path / "verification_report.csv"
 
     result2 = subprocess.run(
