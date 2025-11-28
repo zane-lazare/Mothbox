@@ -340,6 +340,17 @@ describe('StackedPhotoCard', () => {
       // LazyImage components should not be rendered
       expect(screen.queryByTestId('lazy-image-/photos/moth_2024_01_15__10_00_00_HDR0.jpg')).not.toBeInTheDocument()
     })
+
+    it('handles isLoading with undefined series without throwing', () => {
+      // Should render skeleton without throwing - this tests the fix for
+      // accessing series properties before checking isLoading state
+      expect(() => render(<StackedPhotoCard isLoading series={undefined} />)).not.toThrow()
+    })
+
+    it('handles isLoading with null series without throwing', () => {
+      // Should render skeleton without throwing
+      expect(() => render(<StackedPhotoCard isLoading series={null} />)).not.toThrow()
+    })
   })
 
   describe('Edge Cases', () => {

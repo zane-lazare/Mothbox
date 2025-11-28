@@ -39,6 +39,19 @@ export default function StackedPhotoCard({
   onPhotoClick,
   isLoading = false,
 }) {
+  // Loading skeleton state - check FIRST before accessing series
+  if (isLoading) {
+    return (
+      <div className="relative w-full h-64">
+        {/* Skeleton stacked layers */}
+        <div className="absolute inset-0 transform translate-x-2 translate-y-2 rounded-lg bg-gray-200 animate-pulse" />
+        <div className="absolute inset-0 transform translate-x-1 translate-y-1 rounded-lg bg-gray-200 animate-pulse" />
+        <div className="absolute inset-0 rounded-lg bg-gray-300 animate-pulse" />
+      </div>
+    )
+  }
+
+  // Now safe to destructure series
   const { series_type, photos, count } = series
 
   // Get up to 3 photos for stacking
@@ -82,18 +95,6 @@ export default function StackedPhotoCard({
     },
     [handleClick]
   )
-
-  // Loading skeleton state
-  if (isLoading) {
-    return (
-      <div className="relative w-full h-64">
-        {/* Skeleton stacked layers */}
-        <div className="absolute inset-0 transform translate-x-2 translate-y-2 rounded-lg bg-gray-200 animate-pulse" />
-        <div className="absolute inset-0 transform translate-x-1 translate-y-1 rounded-lg bg-gray-200 animate-pulse" />
-        <div className="absolute inset-0 rounded-lg bg-gray-300 animate-pulse" />
-      </div>
-    )
-  }
 
   // Handle empty series edge case
   if (!photos || photos.length === 0) {
