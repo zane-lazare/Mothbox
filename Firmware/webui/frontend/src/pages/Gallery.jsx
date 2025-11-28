@@ -32,6 +32,7 @@ export default function Gallery() {
   // State tracking for toast notifications (prevent duplicates)
   const [hasShownInitialErrorToast, setHasShownInitialErrorToast] = useState(false)
   const [hasShownEndToast, setHasShownEndToast] = useState(false)
+  const [hasShownSeriesErrorToast, setHasShownSeriesErrorToast] = useState(false)
   const prevPaginationError = useRef(null)
 
   // Infinite query for paginated photos
@@ -62,7 +63,7 @@ export default function Gallery() {
   })
 
   // Fetch series data for grouping photos
-  const { data: seriesData } = useSeries()
+  const { data: seriesData, isError: isSeriesError } = useSeries()
 
   // Set up infinite scroll sentinel
   const sentinelRef = useInfiniteScroll({
@@ -178,6 +179,21 @@ export default function Gallery() {
       setHasShownEndToast(false)
     }
   }, [hasNextPage, photos.length, isError, hasShownEndToast])
+
+  // Toast notification for series API errors
+  useEffect(() => {
+    if (isSeriesError && !hasShownSeriesErrorToast) {
+      toast.error('Could not load photo series. Displaying all photos individually.', {
+        duration: 5000,
+      })
+      setHasShownSeriesErrorToast(true)
+    }
+
+    // Reset if series loads successfully later
+    if (!isSeriesError) {
+      setHasShownSeriesErrorToast(false)
+    }
+  }, [isSeriesError, hasShownSeriesErrorToast])
 
   if (isLoading) {
     return <div className="text-center py-12">{GALLERY_MESSAGES.LOADING.INITIAL}</div>
