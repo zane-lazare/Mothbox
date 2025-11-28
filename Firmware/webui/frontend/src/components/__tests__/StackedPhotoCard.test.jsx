@@ -376,5 +376,31 @@ describe('StackedPhotoCard', () => {
       // Should not throw and render normally
       expect(() => render(<StackedPhotoCard series={noCoverSeries} />)).not.toThrow()
     })
+
+    it('handles undefined photos property without throwing', () => {
+      const undefinedPhotosSeries = {
+        series_id: 'undefined_photos',
+        series_type: 'hdr',
+        photos: undefined,
+        count: 0,
+        cover_photo: null,
+      }
+
+      // Should not throw - photos.slice guard handles this
+      expect(() => render(<StackedPhotoCard series={undefinedPhotosSeries} />)).not.toThrow()
+    })
+
+    it('handles null photos property without throwing', () => {
+      const nullPhotosSeries = {
+        series_id: 'null_photos',
+        series_type: 'hdr',
+        photos: null,
+        count: 0,
+        cover_photo: null,
+      }
+
+      // Should not throw - photos.slice guard handles this
+      expect(() => render(<StackedPhotoCard series={nullPhotosSeries} />)).not.toThrow()
+    })
   })
 })

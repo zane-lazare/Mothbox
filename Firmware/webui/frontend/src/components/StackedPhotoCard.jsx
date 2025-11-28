@@ -54,8 +54,8 @@ export default function StackedPhotoCard({
   // Now safe to destructure series
   const { series_type, photos, count } = series
 
-  // Get up to 3 photos for stacking
-  const stackedPhotos = photos.slice(0, 3)
+  // Get up to 3 photos for stacking (guard against undefined/null photos)
+  const stackedPhotos = (photos || []).slice(0, 3)
 
   // Format series type for display
   const formatSeriesType = (type) => {
