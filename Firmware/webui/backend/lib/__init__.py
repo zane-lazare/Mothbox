@@ -2,6 +2,7 @@
 
 This package contains shared library modules:
 - gps_exif_lib: GPS EXIF embedding and verification functions
+- series_detection: HDR/Focus Bracket photo series detection (Issue #110)
 """
 
 from .gps_exif_lib import (
@@ -22,7 +23,18 @@ from .gps_exif_lib import (
     verify_gps_exif,
 )
 
+from .series_detection import (
+    SeriesInfo,
+    SeriesType,
+    detect_series_type,
+    get_series_id,
+    group_photos_into_series,
+    HDR_PATTERN,
+    FB_PATTERN,
+)
+
 __all__ = [
+    # GPS EXIF exports
     'get_gps_data_from_controls',
     'decimal_to_dms',
     'build_gps_ifd',
@@ -38,4 +50,12 @@ __all__ = [
     'GPS_FIX_3D',
     'DEFAULT_HDOP',
     'DEFAULT_PDOP',
+    # Series detection exports
+    'SeriesInfo',
+    'SeriesType',
+    'detect_series_type',
+    'get_series_id',
+    'group_photos_into_series',
+    'HDR_PATTERN',
+    'FB_PATTERN',
 ]

@@ -631,9 +631,10 @@ class MetadataService:
         """
         Detect if photo is part of a series (HDR or focus bracket).
 
-        Analyzes filename patterns to identify series type, count, and index:
-        - HDR: mothbox_YYYY_MM_DD__HH_MM_SS_N.jpg (e.g., _1, _2, _3)
-        - Focus bracket: mothbox_YYYY_MM_DD__HH_MM_SS_focus_N.jpg
+        Uses the series_detection library to analyze filename patterns.
+        Patterns match actual TakePhoto.py output:
+        - HDR: {name}_{timestamp}_HDR{index}.jpg (e.g., moth_2024_01_15__10_00_00_HDR0.jpg)
+        - Focus bracket: ManFocus_{name}_{timestamp}_FB{index}.jpg
 
         SECURITY NOTE: photo_path should be pre-validated by caller.
         The parent directory access is safe because photo_path was validated.
@@ -645,54 +646,53 @@ class MetadataService:
             tuple: (series_type, series_count, series_index)
                    series_type: 'hdr', 'focus_bracket', or None
                    series_count: Total photos in series or None
-                   series_index: 1-indexed position in series or None
+                   series_index: 0-indexed position in series or None
         """
         try:
-            filename = photo_path.stem
+            # Import series detection library (Issue #110)
+            from webui.backend.lib.series_detection import (
+                detect_series_type,
+                get_series_id,
+            )
 
-            # Check for focus bracket pattern: *_focus_N
-            focus_match = re.search(r'_focus_(\d+)$', filename)
-            if focus_match:
-                series_index = int(focus_match.group(1))
+            # Detect series type from filename
+            info = detect_series_type(photo_path)
+            if info is None:
+                return None, None, None
 
-                # Count total focus bracket files in same directory
-                # Safe: photo_path was validated, so parent_dir is also within allowed directory
-                base_pattern = re.sub(r'_focus_\d+$', '', filename)
-                parent_dir = photo_path.parent
-                try:
-                    series_files = list(parent_dir.glob(f"{base_pattern}_focus_*.jpg"))
-                    series_count = len(series_files)
-                except OSError as e:
-                    logger.warning(f"Failed to glob series files: {e}")
-                    series_count = None
+            series_type = info.series_type
+            series_index = info.index
 
-                return 'focus_bracket', series_count, series_index
+            # Count total series files in same directory
+            # Safe: photo_path was validated, so parent_dir is also within allowed directory
+            parent_dir = photo_path.parent
+            try:
+                # Get series ID for this photo to count matching files
+                series_id = get_series_id(photo_path)
+                if series_id is None:
+                    return series_type, None, series_index
 
-            # Check for HDR pattern: *_N where N is single digit
-            # Ensure it's not part of timestamp (avoid matching date/time numbers)
-            hdr_match = re.search(r'_(\d)$', filename)
-            if hdr_match:
-                series_index = int(hdr_match.group(1))
+                # Count files with same series ID in directory
+                series_count = 0
+                for jpg_file in parent_dir.glob("*.jpg"):
+                    if get_series_id(jpg_file) == series_id:
+                        series_count += 1
 
-                # Count total HDR files in same directory
-                # Safe: photo_path was validated, so parent_dir is also within allowed directory
-                base_pattern = re.sub(r'_\d$', '', filename)
-                parent_dir = photo_path.parent
-                try:
-                    series_files = list(parent_dir.glob(f"{base_pattern}_*.jpg"))
+                # Also check uppercase extension
+                for jpg_file in parent_dir.glob("*.JPG"):
+                    if get_series_id(jpg_file) == series_id:
+                        series_count += 1
 
-                    # Filter to only single-digit suffixes (HDR series)
-                    hdr_files = [f for f in series_files if re.search(r'_\d\.jpg$', f.name)]
-                    series_count = len(hdr_files)
-                except OSError as e:
-                    logger.warning(f"Failed to glob series files: {e}")
-                    series_count = None
+                return series_type, series_count, series_index
 
-                if series_count > 1:
-                    return 'hdr', series_count, series_index
+            except OSError as e:
+                logger.warning(f"Failed to glob series files: {e}")
+                return series_type, None, series_index
 
-        except (AttributeError, TypeError, re.error) as e:
-            # Gracefully handle pattern matching errors (regex failures, None values)
+        except ImportError as e:
+            logger.warning(f"Series detection library not available: {e}")
+            return None, None, None
+        except (AttributeError, TypeError) as e:
+            # Gracefully handle pattern matching errors (None values, etc.)
             logger.debug(f"Series detection failed: {e}")
-
-        return None, None, None
+            return None, None, None

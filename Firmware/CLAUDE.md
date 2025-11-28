@@ -170,6 +170,58 @@ sudo systemctl status gps-exif-tagger.service
 - Service auto-restarts on failure with exponential backoff
 - Compatible with all Mothbox photo formats (.jpg, .jpeg, case-insensitive)
 
+### Series Detection System (Issue #110)
+
+**Overview**: Automatic detection and grouping of HDR and Focus Bracket photo series based on TakePhoto.py naming patterns.
+
+**Naming Patterns** (from TakePhoto.py):
+- **HDR**: `{name}_{YYYY_MM_DD__HH_MM_SS}_HDR{index}.jpg` (e.g., `moth_2024_01_15__10_30_00_HDR0.jpg`)
+- **Focus Bracket**: `ManFocus_{name}_{YYYY_MM_DD__HH_MM_SS}_FB{index}.jpg` (e.g., `ManFocus_moth_2024_01_15__10_30_00_FB0.jpg`)
+
+**Architecture**:
+- **Library**: `webui/backend/lib/series_detection.py` - Core pattern matching (97.89% coverage)
+  - `detect_series_type()`: Parse filename to get series type and index
+  - `get_series_id()`: Generate unique grouping key for series
+  - `group_photos_into_series()`: Group photos by series ID
+
+- **Service**: `webui/backend/services/series_service.py` - Cached service layer (91.94% coverage)
+  - `SeriesService`: Thread-safe service with configurable cache TTL
+  - Methods: `get_series_for_directory()`, `get_series_by_id()`, `invalidate_cache()`, `get_statistics()`
+
+- **API**: `webui/backend/routes/gallery.py` - REST endpoints
+  - `GET /api/gallery/series`: List all series (paginated, filterable)
+  - `GET /api/gallery/series/<series_id>`: Get specific series details
+  - `GET /api/gallery/series/stats`: Get cache statistics
+  - `POST /api/gallery/series/cache/invalidate`: Invalidate cache
+
+**Performance Targets**:
+- Single filename parsing: <10ms
+- 1000 photos grouping: <100ms
+- Cache hit ratio: >80%
+
+**Usage**:
+```python
+from webui.backend.lib.series_detection import detect_series_type, get_series_id
+from webui.backend.services.series_service import SeriesService
+
+# Detect series type from filename
+info = detect_series_type(Path("moth_2024_01_15__10_30_00_HDR0.jpg"))
+# Returns: SeriesInfo(series_type="hdr", base_name="moth_2024_01_15__10_30_00", index=0)
+
+# Use service with caching
+service = SeriesService(cache_ttl=300)  # 5 minute cache
+series_list = service.get_series_for_directory("/var/lib/mothbox/photos")
+```
+
+**Testing**:
+- Unit tests: `Tests/unit/test_series_detection_lib.py` (48 tests)
+- Unit tests: `Tests/unit/test_series_service.py` (31 tests)
+- API tests: `Tests/unit/test_series_api.py` (17 tests)
+- Performance tests: `Tests/performance/test_series_detection_performance.py` (16 tests)
+
+**Documentation**:
+- `webui/docs/dev/api/gallery.md`: API documentation with Series Endpoints section
+
 ### Camera System
 
 Two camera workflows:
@@ -476,12 +528,15 @@ const lonDisplay = formatCoordinateDisplay(-122.4194, false);
 - `install_mothbox.sh`: Installation script with Pi detection and firmware selection
 - `webui/cli/gps_exif_tagger.py`: Main GPS EXIF embedding tool (CLI and watch mode)
 - `webui/backend/lib/gps_exif_lib.py`: GPS EXIF library (coordinate conversion, EXIF embedding, verification)
+- `webui/backend/lib/series_detection.py`: **Series detection library** (HDR/FB pattern matching, 97.89% coverage)
+- `webui/backend/services/series_service.py`: **Series service** (cached series queries, 91.94% coverage)
 - `webui/shared/gps_coordinates.py`: **GPS coordinate utilities** (decimal ↔ DMS conversion, validation, formatting) - webui-shared library
 - `webui/frontend/src/utils/gpsCoordinates.ts`: **GPS coordinate utilities (TypeScript)** (identical behavior to Python)
 - `webui/backend/app.py`: Flask app initialization, CSRF, CORS, SocketIO setup
 - `webui/backend/constants.py`: **Centralized constants** (camera timeouts, HDR/focus bracket settings, MJPEG encoder params, AF modes)
 - `webui/backend/liveview_stream.py`: Camera streaming engine (2500+ lines)
 - `webui/backend/routes/camera.py`: Camera control API (1270+ lines)
+- `webui/backend/routes/gallery.py`: Gallery API (photos, thumbnails, series endpoints)
 - `pyproject.toml`: pytest, coverage, bandit, and ruff configuration
 - `Tests/README.md`: Comprehensive testing documentation
 - `Tests/manual/gps_exif_service/`: GPS EXIF service manual testing procedures
@@ -489,6 +544,7 @@ const lonDisplay = formatCoordinateDisplay(-122.4194, false);
 - `webui/docs/GPS_COORDINATE_UTILITIES.md`: GPS coordinate conversion utilities documentation
 - `webui/docs/CAMERA_SETTINGS.md`: Camera settings and configuration guide
 - `webui/docs/LIVEVIEW_STREAMING.md`: LiveView streaming architecture and usage
+- `webui/docs/dev/api/gallery.md`: **Gallery API documentation** (photo, thumbnail, series endpoints)
 
 ## Development Workflow
 
