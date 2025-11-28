@@ -92,6 +92,10 @@ export const getPhotosPaginated = (params) => api.get('/gallery/photos/paginated
 export const getPhotoUrl = (path) => `${API_BASE_URL}/gallery/photo/${path}`
 export const getThumbnailUrl = (path, size = GALLERY_CONFIG.THUMBNAIL.SIZE) => `${API_BASE_URL}/gallery/thumbnail/${path}?size=${size}`
 
+// Series APIs (Photo Series - HDR, Focus Bracket)
+export const getSeries = (params) => api.get('/gallery/series', { params })
+export const getSeriesById = (seriesId) => api.get(`/gallery/series/${encodeURIComponent(seriesId)}`)
+
 // Config APIs
 export const getControls = () => api.get('/config/controls')
 export const updateControls = (controls) => api.post('/config/controls', controls)

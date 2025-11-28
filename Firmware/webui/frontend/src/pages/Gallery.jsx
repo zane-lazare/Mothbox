@@ -5,10 +5,12 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 import { useViewMode } from '../hooks/useViewMode'
+import { useSeries } from '../hooks/useSeries'
 import useScrollRestoration from '../hooks/useScrollRestoration'
 import PhotoSkeleton from '../components/PhotoSkeleton'
 import PhotoGridItem from '../components/PhotoGridItem'
 import PhotoListItem from '../components/PhotoListItem'
+import StackedPhotoCard from '../components/StackedPhotoCard'
 import VirtualPhotoGrid from '../components/VirtualPhotoGrid'
 import PhotoLightbox from '../components/PhotoLightbox'
 import ErrorBoundary from '../components/ErrorBoundary'
@@ -59,6 +61,9 @@ export default function Gallery() {
     },
   })
 
+  // Fetch series data for grouping photos
+  const { data: seriesData } = useSeries()
+
   // Set up infinite scroll sentinel
   const sentinelRef = useInfiniteScroll({
     onLoadMore: fetchNextPage,
@@ -72,6 +77,31 @@ export default function Gallery() {
 
   // Flatten all pages into single photo array (memoized to prevent re-creation on every render)
   const photos = useMemo(() => data?.pages.flatMap((page) => page.photos) ?? [], [data?.pages])
+
+  // Build series lookup map: photoPath -> seriesData
+  // This allows quick lookup to determine if a photo is part of a series
+  const seriesLookup = useMemo(() => {
+    const lookup = new Map()
+    if (seriesData?.series) {
+      seriesData.series.forEach((series) => {
+        series.photos.forEach((photo) => {
+          // Handle both string paths and photo objects
+          const photoPath = typeof photo === 'string' ? photo : photo.path
+          lookup.set(photoPath, series)
+        })
+      })
+    }
+    return lookup
+  }, [seriesData])
+
+  // Filter photos for display: hide non-cover series photos (they're shown in stacked cards)
+  const displayPhotos = useMemo(() => {
+    return photos.filter((photo) => {
+      const series = seriesLookup.get(photo.path)
+      if (!series) return true // Not in a series, show it
+      return series.cover_photo === photo.path // Only show if it's the cover photo
+    })
+  }, [photos, seriesLookup])
 
   // Determine if virtualization should be enabled
   const shouldUseVirtualization = useMemo(() => {
@@ -95,6 +125,11 @@ export default function Gallery() {
       setSelectedPhoto(photo)
     }
   }, [photos])
+  // Handle series card click - open lightbox with cover photo
+  const handleSeriesPhotoClick = useCallback((photo) => {
+    saveScrollPosition()
+    setSelectedPhoto(photo)
+  }, [saveScrollPosition])
 
   // Toast notifications for error states
   useEffect(() => {
@@ -234,9 +269,25 @@ export default function Gallery() {
         ) : (
           /* Traditional Photo Grid (for smaller galleries) */
           <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
-            {photos.map((photo) => (
-              <PhotoGridItem key={photo.path} photo={photo} onClick={setSelectedPhoto} />
-            ))}
+            {displayPhotos.map((photo) => {
+              const series = seriesLookup.get(photo.path)
+
+              // If this photo is a series cover, render as StackedPhotoCard
+              if (series && series.cover_photo === photo.path) {
+                return (
+                  <StackedPhotoCard
+                    key={photo.path}
+                    series={series}
+                    onPhotoClick={handleSeriesPhotoClick}
+                  />
+                )
+              }
+
+              // Regular single photo
+              return (
+                <PhotoGridItem key={photo.path} photo={photo} onClick={setSelectedPhoto} />
+              )
+            })}
 
             {/* Skeleton loading cards while fetching next page */}
             {isFetchingNextPage &&
