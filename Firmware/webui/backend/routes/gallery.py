@@ -17,6 +17,10 @@ Endpoints:
 - GET /cache/warm/status - Get warming task status
 - POST /cache/warm/cancel/<task_id> - Cancel warming task
 - GET /photos/paginated - List photos with pagination
+- GET /series - List photo series (HDR/Focus Bracket) with pagination
+- GET /series/<series_id> - Get specific series details
+- GET /series/stats - Get series cache statistics
+- POST /series/cache/invalidate - Invalidate series cache
 """
 
 import logging
@@ -706,3 +710,240 @@ def _reset_cache():
     global _metadata_cache
     with _cache_lock:
         _metadata_cache = None
+
+
+# ============================================================================
+# Series Endpoints (Issue #110 - Phase 3)
+# ============================================================================
+
+# Valid series types for filtering
+VALID_SERIES_TYPES = {"hdr", "focus_bracket"}
+
+
+@gallery_bp.route("/series", methods=["GET"])
+def list_series():
+    """
+    List photo series (HDR and Focus Bracket) with pagination and filtering.
+
+    Query Parameters:
+        page (int): Page number (1-indexed, default: 1)
+        per_page (int): Items per page (1-100, default: 50)
+        type (str): Filter by series type (hdr, focus_bracket)
+
+    Returns:
+        JSON response with:
+        - series: List of series objects
+        - pagination: Pagination metadata
+
+    Example:
+        GET /series?page=1&per_page=50&type=hdr
+
+    Status Codes:
+        200: Success
+        400: Invalid parameters
+        503: Series service unavailable
+    """
+    # Get series service from app config
+    series_service = current_app.config.get('SERIES_SERVICE')
+
+    if not series_service:
+        return jsonify({"error": "Series service not available"}), 503
+
+    # Parse pagination parameters
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+
+        if page < 1:
+            return jsonify({"error": "Page must be >= 1"}), 400
+        if per_page < 1 or per_page > 100:
+            return jsonify({"error": "per_page must be 1-100"}), 400
+
+    except (ValueError, TypeError) as e:
+        return jsonify({"error": f"Invalid pagination parameter: {e}"}), 400
+
+    # Parse type filter
+    series_type_filter = request.args.get('type')
+    if series_type_filter and series_type_filter not in VALID_SERIES_TYPES:
+        return jsonify({
+            "error": f"Invalid type: {series_type_filter}. Valid: {', '.join(sorted(VALID_SERIES_TYPES))}"
+        }), 400
+
+    try:
+        # Get all series from directory
+        series_list = series_service.get_series_for_directory(PHOTOS_DIR)
+
+        # Apply type filter if specified
+        if series_type_filter:
+            series_list = [s for s in series_list if s.series_type == series_type_filter]
+
+        # Calculate pagination
+        total = len(series_list)
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        paginated_series = series_list[start_idx:end_idx]
+
+        # Convert to JSON-serializable format
+        series_data = []
+        for series in paginated_series:
+            # Convert paths to relative strings
+            photos_relative = [
+                str(p.relative_to(PHOTOS_DIR)) if p.is_relative_to(PHOTOS_DIR) else p.name
+                for p in series.photos
+            ]
+            cover_relative = (
+                str(series.cover_photo.relative_to(PHOTOS_DIR))
+                if series.cover_photo.is_relative_to(PHOTOS_DIR)
+                else series.cover_photo.name
+            )
+
+            series_data.append({
+                "series_id": series.series_id,
+                "series_type": series.series_type,
+                "base_name": series.base_name,
+                "count": series.count,
+                "cover_photo": cover_relative,
+                "photos": photos_relative,
+            })
+
+        return jsonify({
+            "series": series_data,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": total,
+                "has_next": end_idx < total,
+                "has_previous": page > 1,
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Error listing series: {e}", exc_info=True)
+        return jsonify({"error": "Failed to list series"}), 500
+
+
+@gallery_bp.route("/series/<series_id>", methods=["GET"])
+def get_series(series_id):
+    """
+    Get details for a specific photo series.
+
+    Path Parameters:
+        series_id: Series identifier (e.g., "hdr_moth_2024_01_15__10_00_00")
+
+    Returns:
+        JSON response with series details including all photo paths.
+
+    Example:
+        GET /series/hdr_moth_2024_01_15__10_00_00
+
+    Status Codes:
+        200: Success
+        404: Series not found
+        503: Series service unavailable
+    """
+    series_service = current_app.config.get('SERIES_SERVICE')
+
+    if not series_service:
+        return jsonify({"error": "Series service not available"}), 503
+
+    try:
+        # First ensure directory is scanned
+        series_service.get_series_for_directory(PHOTOS_DIR)
+
+        # Get series by ID
+        series = series_service.get_series_by_id(series_id)
+
+        if not series:
+            return jsonify({"error": "Series not found", "series_id": series_id}), 404
+
+        # Convert paths to relative strings
+        photos_relative = [
+            str(p.relative_to(PHOTOS_DIR)) if p.is_relative_to(PHOTOS_DIR) else p.name
+            for p in series.photos
+        ]
+        cover_relative = (
+            str(series.cover_photo.relative_to(PHOTOS_DIR))
+            if series.cover_photo.is_relative_to(PHOTOS_DIR)
+            else series.cover_photo.name
+        )
+
+        return jsonify({
+            "series_id": series.series_id,
+            "series_type": series.series_type,
+            "base_name": series.base_name,
+            "count": series.count,
+            "cover_photo": cover_relative,
+            "photos": photos_relative,
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting series {series_id}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to get series"}), 500
+
+
+@gallery_bp.route("/series/stats", methods=["GET"])
+def get_series_stats():
+    """
+    Get series cache statistics.
+
+    Returns:
+        JSON response with cache statistics.
+
+    Status Codes:
+        200: Success
+        503: Series service unavailable
+    """
+    series_service = current_app.config.get('SERIES_SERVICE')
+
+    if not series_service:
+        return jsonify({"error": "Series service not available"}), 503
+
+    try:
+        stats = series_service.get_statistics()
+        return jsonify(stats)
+
+    except Exception as e:
+        logger.error(f"Error getting series stats: {e}", exc_info=True)
+        return jsonify({"error": "Failed to get statistics"}), 500
+
+
+@gallery_bp.route("/series/cache/invalidate", methods=["POST"])
+def invalidate_series_cache():
+    """
+    Invalidate series cache (requires CSRF token).
+
+    Request body (JSON, optional):
+        directory (str): Specific directory to invalidate (optional)
+
+    Returns:
+        JSON response with success status.
+
+    Status Codes:
+        200: Success
+        503: Series service unavailable
+    """
+    series_service = current_app.config.get('SERIES_SERVICE')
+
+    if not series_service:
+        return jsonify({"error": "Series service not available"}), 503
+
+    try:
+        data = request.get_json() or {}
+        directory = data.get('directory')
+
+        if directory:
+            # Validate path security
+            dir_path = validate_photo_path(directory, PHOTOS_DIR)
+            if dir_path is None:
+                return jsonify({"error": "Invalid directory path"}), 400
+            series_service.invalidate_cache(dir_path)
+            message = f"Invalidated series cache for {directory}"
+        else:
+            series_service.invalidate_cache()
+            message = "Invalidated entire series cache"
+
+        return jsonify({"success": True, "message": message})
+
+    except Exception as e:
+        logger.error(f"Error invalidating series cache: {e}", exc_info=True)
+        return jsonify({"error": "Failed to invalidate cache"}), 500

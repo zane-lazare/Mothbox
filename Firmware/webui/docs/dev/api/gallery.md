@@ -1,7 +1,7 @@
 # Gallery API Documentation
 
-**Last Updated**: 2025-11-10
-**Version**: Phase 1 (v5.1.0)
+**Last Updated**: 2025-11-29
+**Version**: Phase 3 (v5.2.0)
 **Base URL**: `/api/gallery`
 
 ---
@@ -12,9 +12,10 @@
 2. [Authentication](#authentication)
 3. [Error Responses](#error-responses)
 4. [Photo Endpoints](#photo-endpoints)
-5. [Cache Management Endpoints](#cache-management-endpoints)
-6. [Pagination Contract](#pagination-contract)
-7. [Performance Characteristics](#performance-characteristics)
+5. [Series Endpoints](#series-endpoints) *(NEW - Issue #110)*
+6. [Cache Management Endpoints](#cache-management-endpoints)
+7. [Pagination Contract](#pagination-contract)
+8. [Performance Characteristics](#performance-characteristics)
 
 ---
 
@@ -447,6 +448,303 @@ fetch('/api/gallery/photos')
 **With**:
 ```javascript
 fetch('/api/gallery/photos/paginated?limit=50&offset=0')
+```
+
+---
+
+## Series Endpoints
+
+Photo series (HDR and Focus Bracket) are automatically detected based on TakePhoto.py naming patterns.
+
+**Naming Patterns**:
+- **HDR**: `{name}_{YYYY_MM_DD__HH_MM_SS}_HDR{index}.jpg` (e.g., `moth_2024_01_15__10_30_00_HDR0.jpg`)
+- **Focus Bracket**: `ManFocus_{name}_{YYYY_MM_DD__HH_MM_SS}_FB{index}.jpg` (e.g., `ManFocus_moth_2024_01_15__10_30_00_FB0.jpg`)
+
+**Implementation**: `webui/backend/services/series_service.py`, `webui/backend/lib/series_detection.py`
+
+---
+
+### 10. List Series
+
+Retrieve all photo series in the photos directory.
+
+**Endpoint**: `GET /api/gallery/series`
+
+**Implementation**: `webui/backend/routes/gallery.py`
+
+#### Request
+
+**Query Parameters**:
+
+| Parameter | Type | Required | Default | Validation | Description |
+|-----------|------|----------|---------|------------|-------------|
+| `page` | integer | No | 1 | ≥1 | Page number |
+| `per_page` | integer | No | 50 | 1-200 | Items per page |
+| `type` | string | No | None | `hdr`, `focus_bracket` | Filter by series type |
+
+#### Response
+
+**Success (200)**:
+
+```json
+{
+  "series": [
+    {
+      "series_id": "hdr_moth_2024_01_15__10_00_00",
+      "series_type": "hdr",
+      "base_name": "moth_2024_01_15__10_00_00",
+      "count": 3,
+      "cover_photo": "moth_2024_01_15__10_00_00_HDR0.jpg",
+      "photos": [
+        "moth_2024_01_15__10_00_00_HDR0.jpg",
+        "moth_2024_01_15__10_00_00_HDR1.jpg",
+        "moth_2024_01_15__10_00_00_HDR2.jpg"
+      ]
+    },
+    {
+      "series_id": "focus_bracket_ManFocus_moth_2024_01_15__11_00_00",
+      "series_type": "focus_bracket",
+      "base_name": "ManFocus_moth_2024_01_15__11_00_00",
+      "count": 5,
+      "cover_photo": "ManFocus_moth_2024_01_15__11_00_00_FB0.jpg",
+      "photos": [
+        "ManFocus_moth_2024_01_15__11_00_00_FB0.jpg",
+        "ManFocus_moth_2024_01_15__11_00_00_FB1.jpg",
+        "ManFocus_moth_2024_01_15__11_00_00_FB2.jpg",
+        "ManFocus_moth_2024_01_15__11_00_00_FB3.jpg",
+        "ManFocus_moth_2024_01_15__11_00_00_FB4.jpg"
+      ]
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "per_page": 50,
+    "total": 2,
+    "has_next": false
+  }
+}
+```
+
+**Error Responses**:
+
+```json
+// 400 - Invalid page number
+{
+  "error": "Invalid page: -1. Page must be >= 1"
+}
+
+// 400 - Invalid type filter
+{
+  "error": "Invalid type: 'invalid'. Valid types: hdr, focus_bracket"
+}
+
+// 503 - Service unavailable
+{
+  "error": "Series service unavailable"
+}
+
+// 500 - Internal error
+{
+  "error": "Internal server error"
+}
+```
+
+#### Examples
+
+**List all series**:
+```bash
+curl "http://localhost:5000/api/gallery/series"
+```
+
+**Filter by type**:
+```bash
+curl "http://localhost:5000/api/gallery/series?type=hdr"
+```
+
+**Paginate results**:
+```bash
+curl "http://localhost:5000/api/gallery/series?page=2&per_page=20"
+```
+
+#### Performance
+
+- **Cold cache**: 100-500ms (directory scan)
+- **Warm cache**: <10ms (in-memory lookup)
+- **1000 photos**: <100ms grouping time
+
+---
+
+### 11. Get Series Details
+
+Retrieve details for a specific photo series by ID.
+
+**Endpoint**: `GET /api/gallery/series/<series_id>`
+
+#### Request
+
+**Path Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `series_id` | string | Yes | Series identifier (e.g., `hdr_moth_2024_01_15__10_00_00`) |
+
+#### Response
+
+**Success (200)**:
+
+```json
+{
+  "series_id": "hdr_moth_2024_01_15__10_00_00",
+  "series_type": "hdr",
+  "base_name": "moth_2024_01_15__10_00_00",
+  "count": 3,
+  "cover_photo": "moth_2024_01_15__10_00_00_HDR0.jpg",
+  "photos": [
+    "moth_2024_01_15__10_00_00_HDR0.jpg",
+    "moth_2024_01_15__10_00_00_HDR1.jpg",
+    "moth_2024_01_15__10_00_00_HDR2.jpg"
+  ]
+}
+```
+
+**Error Responses**:
+
+```json
+// 404 - Series not found
+{
+  "error": "Series not found: hdr_invalid_id"
+}
+
+// 503 - Service unavailable
+{
+  "error": "Series service unavailable"
+}
+```
+
+#### Examples
+
+**Get specific series**:
+```bash
+curl "http://localhost:5000/api/gallery/series/hdr_moth_2024_01_15__10_00_00"
+```
+
+**React component**:
+```jsx
+const { data: series } = useQuery({
+  queryKey: ['series', seriesId],
+  queryFn: () =>
+    fetch(`/api/gallery/series/${seriesId}`).then(r => r.json())
+});
+
+return (
+  <div>
+    <h2>{series.series_type.toUpperCase()} Series ({series.count} photos)</h2>
+    <div className="grid grid-cols-3">
+      {series.photos.map(photo => (
+        <img
+          key={photo}
+          src={`/api/gallery/thumbnail/${photo}?size=256`}
+          alt={photo}
+        />
+      ))}
+    </div>
+  </div>
+);
+```
+
+---
+
+### 12. Get Series Statistics
+
+Retrieve cache statistics for the series service.
+
+**Endpoint**: `GET /api/gallery/series/stats`
+
+#### Response
+
+**Success (200)**:
+
+```json
+{
+  "cache_entries": 5,
+  "cache_hits": 42,
+  "cache_misses": 8,
+  "total_series": 10,
+  "series_by_type": {
+    "hdr": 6,
+    "focus_bracket": 4
+  }
+}
+```
+
+**Field Descriptions**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `cache_entries` | integer | Number of cached directory scans |
+| `cache_hits` | integer | Total cache hit count |
+| `cache_misses` | integer | Total cache miss count |
+| `total_series` | integer | Total series across all cached directories |
+| `series_by_type` | object | Count of series by type |
+
+#### Examples
+
+**Get statistics**:
+```bash
+curl "http://localhost:5000/api/gallery/series/stats"
+```
+
+---
+
+### 13. Invalidate Series Cache
+
+Manually invalidate the series detection cache.
+
+**Endpoint**: `POST /api/gallery/series/cache/invalidate`
+
+#### Request
+
+**Headers**:
+- `Content-Type`: `application/json`
+- `X-CSRFToken`: CSRF token (required)
+
+**Body** (JSON):
+
+```json
+{
+  "directory": "/var/lib/mothbox/photos"  // Optional: specific directory
+}
+```
+
+- If `directory` is not provided, the entire cache is invalidated.
+
+#### Response
+
+**Success (200)**:
+
+```json
+{
+  "success": true
+}
+```
+
+**Error Responses**:
+
+```json
+// 503 - Service unavailable
+{
+  "error": "Series service unavailable"
+}
+```
+
+#### Examples
+
+**Invalidate entire cache**:
+```bash
+curl -X POST "http://localhost:5000/api/gallery/series/cache/invalidate" \
+  -H "Content-Type: application/json" \
+  -H "X-CSRFToken: YOUR_CSRF_TOKEN" \
+  -d '{}'
 ```
 
 ---

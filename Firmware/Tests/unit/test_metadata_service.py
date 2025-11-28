@@ -142,12 +142,13 @@ def sample_hdr_series(temp_photos_dir):
     Create a series of HDR photos with sequential numbering (module-scoped)
 
     Simulates Mothbox HDR capture workflow.
+    Uses correct naming pattern from TakePhoto.py: {name}_{timestamp}_HDR{index}.jpg
     """
     photos = []
     base_name = "mothbox_2024_10_15__14_30_00"
 
-    for i in range(1, 4):
-        photo_path = temp_photos_dir / f"{base_name}_{i}.jpg"
+    for i in range(3):  # HDR0, HDR1, HDR2 (0-indexed)
+        photo_path = temp_photos_dir / f"{base_name}_HDR{i}.jpg"
 
         # Skip if already exists
         if not photo_path.exists():
@@ -166,12 +167,13 @@ def sample_focus_bracket_series(temp_photos_dir):
     Create a series of focus bracket photos (module-scoped)
 
     Simulates Mothbox focus stacking workflow.
+    Uses correct naming pattern from capture_focus_bracket.py: ManFocus_{name}_{timestamp}_FB{index}.jpg
     """
     photos = []
-    base_name = "mothbox_2024_10_15__15_00_00"
+    base_name = "ManFocus_mothbox_2024_10_15__15_00_00"
 
-    for i in range(1, 6):
-        photo_path = temp_photos_dir / f"{base_name}_focus_{i}.jpg"
+    for i in range(5):  # FB0, FB1, FB2, FB3, FB4 (0-indexed)
+        photo_path = temp_photos_dir / f"{base_name}_FB{i}.jpg"
 
         # Skip if already exists
         if not photo_path.exists():
@@ -506,23 +508,23 @@ class TestHDRFocusBracketDetection:
 
     def test_detect_hdr_series(self, metadata_service, sample_hdr_series):
         """Test detection of HDR photo series"""
-        # Test middle photo of series
+        # Test middle photo of series (HDR1)
         metadata = metadata_service.get_photo_metadata(sample_hdr_series[1])
 
         deployment = metadata['deployment']
         assert deployment['series_type'] == 'hdr'
         assert deployment['series_count'] == 3
-        assert deployment['series_index'] == 2  # Middle photo (1-indexed)
+        assert deployment['series_index'] == 1  # Middle photo (0-indexed: HDR1)
 
     def test_detect_focus_bracket_series(self, metadata_service, sample_focus_bracket_series):
         """Test detection of focus bracket photo series"""
-        # Test first photo of series
+        # Test first photo of series (FB0)
         metadata = metadata_service.get_photo_metadata(sample_focus_bracket_series[0])
 
         deployment = metadata['deployment']
         assert deployment['series_type'] == 'focus_bracket'
         assert deployment['series_count'] == 5
-        assert deployment['series_index'] == 1
+        assert deployment['series_index'] == 0  # First photo (0-indexed: FB0)
 
     def test_single_photo_has_no_series(self, metadata_service, sample_photo_with_exif):
         """Test single photo not part of series"""
@@ -755,42 +757,42 @@ class TestSeriesDetectionEdgeCases:
     """Test _detect_series_info() method with various edge cases"""
 
     def test_hdr_series_detection_pattern(self, metadata_service, temp_photos_dir):
-        """Test HDR series detection with standard pattern (e.g., photo_HDR_1of3.jpg)"""
-        # Create HDR series with explicit pattern
+        """Test HDR series detection with standard pattern (e.g., photo_2024_01_15__10_00_00_HDR0.jpg)"""
+        # Create HDR series with correct TakePhoto.py pattern
         base_name = "mothbox_2024_11_01__10_00_00"
         photos = []
-        for i in range(1, 4):
-            photo_path = temp_photos_dir / f"{base_name}_{i}.jpg"
+        for i in range(3):  # 0-indexed: HDR0, HDR1, HDR2
+            photo_path = temp_photos_dir / f"{base_name}_HDR{i}.jpg"
             img = Image.new('RGB', (640, 480), color='red')
             img.save(photo_path, "JPEG")
             photos.append(photo_path)
 
-        # Test detection on middle photo
+        # Test detection on middle photo (HDR1)
         metadata = metadata_service.get_photo_metadata(photos[1])
         deployment = metadata['deployment']
 
         assert deployment['series_type'] == 'hdr'
         assert deployment['series_count'] == 3
-        assert deployment['series_index'] == 2
+        assert deployment['series_index'] == 1  # 0-indexed
 
     def test_focus_bracket_series_detection_pattern(self, metadata_service, temp_photos_dir):
-        """Test focus bracket series detection with standard pattern"""
-        # Create focus bracket series
+        """Test focus bracket series detection with standard pattern (ManFocus_{name}_FB{N}.jpg)"""
+        # Create focus bracket series with correct TakePhoto.py pattern
         base_name = "mothbox_2024_11_01__10_30_00"
         photos = []
-        for i in range(1, 6):
-            photo_path = temp_photos_dir / f"{base_name}_focus_{i}.jpg"
+        for i in range(5):  # 0-indexed: FB0, FB1, FB2, FB3, FB4
+            photo_path = temp_photos_dir / f"ManFocus_{base_name}_FB{i}.jpg"
             img = Image.new('RGB', (640, 480), color='blue')
             img.save(photo_path, "JPEG")
             photos.append(photo_path)
 
-        # Test detection on first photo
+        # Test detection on first photo (FB0)
         metadata = metadata_service.get_photo_metadata(photos[0])
         deployment = metadata['deployment']
 
         assert deployment['series_type'] == 'focus_bracket'
         assert deployment['series_count'] == 5
-        assert deployment['series_index'] == 1
+        assert deployment['series_index'] == 0  # 0-indexed
 
     def test_single_photo_not_part_of_series(self, metadata_service, temp_photos_dir):
         """Test single photo that's not part of any series"""
@@ -819,36 +821,36 @@ class TestSeriesDetectionEdgeCases:
         assert deployment['series_type'] is None
 
     def test_missing_series_files_incomplete(self, metadata_service, temp_photos_dir):
-        """Test series with missing files (e.g., 1of3, 3of3 but no 2of3)"""
+        """Test series with missing files (e.g., HDR0, HDR2 but no HDR1)"""
         # Create incomplete HDR series (missing middle photo)
         base_name = "mothbox_2024_11_01__12_00_00"
-        photo1 = temp_photos_dir / f"{base_name}_1.jpg"
-        photo3 = temp_photos_dir / f"{base_name}_3.jpg"
+        photo0 = temp_photos_dir / f"{base_name}_HDR0.jpg"
+        photo2 = temp_photos_dir / f"{base_name}_HDR2.jpg"
 
         img = Image.new('RGB', (640, 480), color='orange')
-        img.save(photo1, "JPEG")
-        img.save(photo3, "JPEG")
+        img.save(photo0, "JPEG")
+        img.save(photo2, "JPEG")
 
         # Test detection - should still detect as series with count=2
-        metadata = metadata_service.get_photo_metadata(photo1)
+        metadata = metadata_service.get_photo_metadata(photo0)
         deployment = metadata['deployment']
 
         assert deployment['series_type'] == 'hdr'
         assert deployment['series_count'] == 2  # Only 2 files exist
-        assert deployment['series_index'] == 1
+        assert deployment['series_index'] == 0  # 0-indexed
 
     def test_series_glob_failure_handling(self, metadata_service, temp_photos_dir):
         """Test handling when glob operation fails during series detection"""
-        # Create a focus bracket photo (focus bracket returns early with series info even on glob failure)
-        photo_path = temp_photos_dir / "mothbox_2024_11_01__13_00_00_focus_5.jpg"
+        # Create a focus bracket photo with correct TakePhoto.py pattern
+        photo_path = temp_photos_dir / "ManFocus_mothbox_2024_11_01__13_00_00_FB5.jpg"
         img = Image.new('RGB', (640, 480), color='purple')
         img.save(photo_path, "JPEG")
 
-        # Mock glob on parent_dir to raise OSError after pattern is matched
+        # Mock glob on parent_dir to raise OSError when listing jpg files
         original_glob = Path.glob
         def mock_glob(self, pattern):
-            # Only raise error when called during series detection
-            if "_focus_" in str(pattern):
+            # The implementation uses "*.jpg" or "*.JPG" to count series files
+            if pattern in ("*.jpg", "*.JPG"):
                 raise OSError("Permission denied")
             return original_glob(self, pattern)
 
@@ -860,14 +862,14 @@ class TestSeriesDetectionEdgeCases:
             # series_count is None due to glob failure, but type and index are still detected
             assert deployment['series_type'] == 'focus_bracket'
             assert deployment['series_count'] is None  # Glob failed
-            assert deployment['series_index'] == 5
+            assert deployment['series_index'] == 5  # 0-indexed
 
     def test_series_with_different_naming_conventions(self, metadata_service, temp_photos_dir):
-        """Test series with non-standard naming conventions"""
-        # Create photos with different naming pattern
+        """Test series with non-standard device naming conventions"""
+        # Create photos with different device name but correct HDR pattern
         photos = []
-        for i in range(1, 4):
-            photo_path = temp_photos_dir / f"custom_device_2024_11_01__14_00_00_{i}.jpg"
+        for i in range(3):  # 0-indexed: HDR0, HDR1, HDR2
+            photo_path = temp_photos_dir / f"custom_device_2024_11_01__14_00_00_HDR{i}.jpg"
             img = Image.new('RGB', (640, 480), color='pink')
             img.save(photo_path, "JPEG")
             photos.append(photo_path)
@@ -878,26 +880,26 @@ class TestSeriesDetectionEdgeCases:
 
         assert deployment['series_type'] == 'hdr'
         assert deployment['series_count'] == 3
-        assert deployment['series_index'] == 1
+        assert deployment['series_index'] == 0  # 0-indexed
 
     def test_large_series_10_plus_photos(self, metadata_service, temp_photos_dir):
         """Test series with 10+ photos (e.g., extensive focus bracket)"""
-        # Create large focus bracket series
+        # Create large focus bracket series with correct TakePhoto.py pattern
         base_name = "mothbox_2024_11_01__15_00_00"
         photos = []
-        for i in range(1, 13):  # 12 photos
-            photo_path = temp_photos_dir / f"{base_name}_focus_{i}.jpg"
+        for i in range(12):  # 0-indexed: FB0 through FB11
+            photo_path = temp_photos_dir / f"ManFocus_{base_name}_FB{i}.jpg"
             img = Image.new('RGB', (640, 480), color='cyan')
             img.save(photo_path, "JPEG")
             photos.append(photo_path)
 
-        # Test detection on middle photo
+        # Test detection on middle photo (FB5)
         metadata = metadata_service.get_photo_metadata(photos[5])
         deployment = metadata['deployment']
 
         assert deployment['series_type'] == 'focus_bracket'
         assert deployment['series_count'] == 12
-        assert deployment['series_index'] == 6
+        assert deployment['series_index'] == 5  # 0-indexed
 
 
 # ============================================================================
