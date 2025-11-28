@@ -36,7 +36,7 @@ export function useSeries(params = {}, options = {}) {
 
   // Build query key - include params for cache differentiation
   const hasParams = Object.keys(params).length > 0
-  const queryKey = hasParams ? [QUERY_KEYS.SERIES[0], params] : QUERY_KEYS.SERIES
+  const queryKey = hasParams ? [...QUERY_KEYS.SERIES, params] : QUERY_KEYS.SERIES
 
   return useQuery({
     queryKey,
