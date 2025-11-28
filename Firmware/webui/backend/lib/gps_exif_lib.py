@@ -23,9 +23,18 @@ Related:
 - Spec: webui/docs/dev/issues/ISSUE_98_GPS_EXIF_IMPLEMENTATION_SPEC.md
 """
 
+# Path setup for accessing mothbox_paths at firmware root
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+_lib_dir = Path(__file__).resolve().parent
+_backend_dir = _lib_dir.parent
+_webui_dir = _backend_dir.parent
+_firmware_root = _webui_dir.parent
+if str(_firmware_root) not in sys.path:
+    sys.path.insert(0, str(_firmware_root))
 
 # Import path resolution from mothbox_paths (reuse existing infrastructure)
 from mothbox_paths import CONTROLS_FILE, get_control_values

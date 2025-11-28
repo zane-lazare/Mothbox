@@ -493,7 +493,7 @@ class MetadataService:
 
         try:
             # Lazy import to avoid module-level import order issues
-            from lib.gps_exif_lib import verify_gps_exif
+            from webui.backend.lib.gps_exif_lib import verify_gps_exif
 
             # Use existing GPS EXIF library
             gps_info = verify_gps_exif(photo_path)

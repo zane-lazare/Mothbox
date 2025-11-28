@@ -242,7 +242,7 @@ def _build_exif_metadata(
     # GPS IFD - embed GPS coordinates from controls.txt if available
     gps_ifd = {}
     try:
-        from lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
+        from webui.backend.lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
 
         gps_data = get_gps_data_from_controls()
         if gps_data.get('has_fix'):

@@ -28,7 +28,7 @@ import tempfile
 
 def test_extract_timestamp_from_standard_filename():
     """Test extracting timestamp from standard Mothbox filename format."""
-    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
     # Standard format: mothbox_YYYY_MM_DD__HH_MM_SS.jpg
     filename = "mothbox_2025_01_15__12_30_45.jpg"
@@ -45,7 +45,7 @@ def test_extract_timestamp_from_standard_filename():
 
 def test_extract_timestamp_from_path_object():
     """Test extracting timestamp from Path object."""
-    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
     photo_path = Path("/photos/mothbox_2025_01_15__12_30_45.jpg")
     timestamp = extract_timestamp_from_filename(photo_path)
@@ -56,7 +56,7 @@ def test_extract_timestamp_from_path_object():
 
 def test_extract_timestamp_with_directory_path():
     """Test extracting timestamp from full directory path."""
-    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
     filename = "/var/lib/mothbox/photos/2025/01/15/mothbox_2025_01_15__12_30_45.jpg"
     timestamp = extract_timestamp_from_filename(filename)
@@ -67,7 +67,7 @@ def test_extract_timestamp_with_directory_path():
 
 def test_extract_timestamp_invalid_format():
     """Test that invalid filename format returns None."""
-    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
     # Invalid formats
     assert extract_timestamp_from_filename("photo.jpg") is None
@@ -77,7 +77,7 @@ def test_extract_timestamp_invalid_format():
 
 def test_extract_timestamp_invalid_date_values():
     """Test that invalid date values return None."""
-    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
     # Invalid month
     assert extract_timestamp_from_filename("mothbox_2025_13_15__12_30_45.jpg") is None
@@ -93,13 +93,13 @@ def test_extract_timestamp_invalid_date_values():
 
 def test_print_gps_info_with_full_data(tmp_path, capsys):
     """Test printing GPS info for photo with complete GPS EXIF."""
-    from scripts.verify_gps_exif import print_gps_info
+    from webui.cli.verify_gps_exif import print_gps_info
 
     # Create test photo with GPS EXIF
     photo_path = tmp_path / "mothbox_2025_01_15__12_30_45.jpg"
 
     # Use lib to create photo with GPS
-    from lib.gps_exif_lib import embed_gps_exif
+    from webui.backend.lib.gps_exif_lib import embed_gps_exif
     from PIL import Image
 
     # Create blank JPEG
@@ -136,7 +136,7 @@ def test_print_gps_info_with_full_data(tmp_path, capsys):
 
 def test_print_gps_info_no_gps_data(tmp_path, capsys):
     """Test printing GPS info for photo without GPS EXIF."""
-    from scripts.verify_gps_exif import print_gps_info
+    from webui.cli.verify_gps_exif import print_gps_info
     from PIL import Image
 
     # Create photo without GPS
@@ -157,7 +157,7 @@ def test_print_gps_info_no_gps_data(tmp_path, capsys):
 
 def test_print_gps_info_missing_file(tmp_path, capsys):
     """Test printing GPS info for non-existent file."""
-    from scripts.verify_gps_exif import print_gps_info
+    from webui.cli.verify_gps_exif import print_gps_info
 
     photo_path = tmp_path / "nonexistent.jpg"
 
@@ -177,8 +177,8 @@ def test_print_gps_info_missing_file(tmp_path, capsys):
 
 def test_generate_csv_report_basic(tmp_path):
     """Test generating CSV report from photos with GPS EXIF."""
-    from scripts.verify_gps_exif import generate_csv_report
-    from lib.gps_exif_lib import embed_gps_exif
+    from webui.cli.verify_gps_exif import generate_csv_report
+    from webui.backend.lib.gps_exif_lib import embed_gps_exif
     from PIL import Image
 
     # Create test photos with GPS
@@ -230,8 +230,8 @@ def test_generate_csv_report_basic(tmp_path):
 
 def test_generate_csv_report_mixed_photos(tmp_path):
     """Test CSV report with mix of photos (with GPS, without GPS, missing)."""
-    from scripts.verify_gps_exif import generate_csv_report
-    from lib.gps_exif_lib import embed_gps_exif
+    from webui.cli.verify_gps_exif import generate_csv_report
+    from webui.backend.lib.gps_exif_lib import embed_gps_exif
     from PIL import Image
 
     photos = []
@@ -283,7 +283,7 @@ def test_generate_csv_report_mixed_photos(tmp_path):
 
 def test_generate_csv_report_empty_list(tmp_path):
     """Test CSV report with empty photo list."""
-    from scripts.verify_gps_exif import generate_csv_report
+    from webui.cli.verify_gps_exif import generate_csv_report
 
     csv_output = tmp_path / "gps_report.csv"
     generate_csv_report([], csv_output)
@@ -299,7 +299,7 @@ def test_generate_csv_report_empty_list(tmp_path):
 
 def test_generate_csv_report_includes_timestamp_from_filename(tmp_path):
     """Test that CSV report includes timestamp extracted from filename."""
-    from scripts.verify_gps_exif import generate_csv_report
+    from webui.cli.verify_gps_exif import generate_csv_report
     from PIL import Image
 
     # Create photo
@@ -326,8 +326,8 @@ def test_generate_csv_report_includes_timestamp_from_filename(tmp_path):
 
 def test_main_single_photo(tmp_path, capsys, monkeypatch):
     """Test main() with single photo argument."""
-    from scripts.verify_gps_exif import main
-    from lib.gps_exif_lib import embed_gps_exif
+    from webui.cli.verify_gps_exif import main
+    from webui.backend.lib.gps_exif_lib import embed_gps_exif
     from PIL import Image
 
     # Create photo with GPS
@@ -358,8 +358,8 @@ def test_main_single_photo(tmp_path, capsys, monkeypatch):
 
 def test_main_directory_scan(tmp_path, monkeypatch):
     """Test main() scanning directory for photos."""
-    from scripts.verify_gps_exif import main
-    from lib.gps_exif_lib import embed_gps_exif
+    from webui.cli.verify_gps_exif import main
+    from webui.backend.lib.gps_exif_lib import embed_gps_exif
     from PIL import Image
 
     # Create multiple photos
@@ -387,7 +387,7 @@ def test_main_directory_scan(tmp_path, monkeypatch):
 
 def test_main_csv_output(tmp_path, monkeypatch):
     """Test main() with --csv flag."""
-    from scripts.verify_gps_exif import main
+    from webui.cli.verify_gps_exif import main
     from PIL import Image
 
     # Create photo
@@ -413,7 +413,7 @@ def test_main_csv_output(tmp_path, monkeypatch):
 
 def test_main_no_arguments_shows_help(capsys, monkeypatch):
     """Test main() without arguments shows help message."""
-    from scripts.verify_gps_exif import main
+    from webui.cli.verify_gps_exif import main
 
     # Mock sys.argv with no arguments
     monkeypatch.setattr(sys, 'argv', ['verify_gps_exif.py'])
@@ -433,7 +433,7 @@ def test_main_no_arguments_shows_help(capsys, monkeypatch):
 
 def test_main_help_flag(capsys, monkeypatch):
     """Test main() with --help flag."""
-    from scripts.verify_gps_exif import main
+    from webui.cli.verify_gps_exif import main
 
     # Mock sys.argv with --help
     monkeypatch.setattr(sys, 'argv', ['verify_gps_exif.py', '--help'])
@@ -452,7 +452,7 @@ def test_main_help_flag(capsys, monkeypatch):
 
 def test_main_missing_file_error(tmp_path, capsys, monkeypatch):
     """Test main() with non-existent file."""
-    from scripts.verify_gps_exif import main
+    from webui.cli.verify_gps_exif import main
 
     nonexistent = tmp_path / "nonexistent.jpg"
 
@@ -477,7 +477,7 @@ def test_main_missing_file_error(tmp_path, capsys, monkeypatch):
 
 def test_extract_timestamp_with_focus_bracket_suffix():
     """Test extracting timestamp from focus bracket filename."""
-    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
     # Focus bracket format: mothbox_YYYY_MM_DD__HH_MM_SS_bracket_0.jpg
     filename = "mothbox_2025_01_15__12_30_45_bracket_0.jpg"
@@ -492,7 +492,7 @@ def test_extract_timestamp_with_focus_bracket_suffix():
 
 def test_csv_report_handles_unicode_paths(tmp_path):
     """Test CSV report with unicode characters in paths."""
-    from scripts.verify_gps_exif import generate_csv_report
+    from webui.cli.verify_gps_exif import generate_csv_report
     from PIL import Image
 
     # Create subdirectory with unicode
@@ -513,8 +513,8 @@ def test_csv_report_handles_unicode_paths(tmp_path):
 
 def test_print_gps_info_with_partial_data(tmp_path, capsys):
     """Test printing GPS info when photo has minimal GPS data."""
-    from scripts.verify_gps_exif import print_gps_info
-    from lib.gps_exif_lib import embed_gps_exif
+    from webui.cli.verify_gps_exif import print_gps_info
+    from webui.backend.lib.gps_exif_lib import embed_gps_exif
     from PIL import Image
 
     # Create photo with minimal GPS (no altitude, no satellites)
@@ -546,7 +546,7 @@ def test_print_gps_info_with_partial_data(tmp_path, capsys):
 
 def test_extract_timestamp_case_insensitive_extension():
     """Test extracting timestamp with uppercase/mixed-case extensions."""
-    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
     # Test various case combinations
     filenames = [
@@ -570,7 +570,7 @@ def test_extract_timestamp_case_insensitive_extension():
 
 def test_extract_timestamp_with_multiple_bracket_numbers():
     """Test extracting timestamp from focus bracket with various bracket numbers."""
-    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
     # Test bracket numbers 0-99
     for bracket_num in [0, 1, 5, 10, 25, 99]:
@@ -583,7 +583,7 @@ def test_extract_timestamp_with_multiple_bracket_numbers():
 
 def test_extract_timestamp_rejects_malformed_filenames():
     """Test that regex rejects filenames that don't match expected format."""
-    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
     malformed_filenames = [
         # Missing components
@@ -621,7 +621,7 @@ def test_extract_timestamp_rejects_malformed_filenames():
 
 def test_extract_timestamp_validates_date_ranges():
     """Test that regex extracts values but datetime validation catches invalid ranges."""
-    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
     invalid_dates = [
         # Invalid months
@@ -649,7 +649,7 @@ def test_extract_timestamp_validates_date_ranges():
 
 def test_extract_timestamp_with_full_path():
     """Test extracting timestamp from various full path formats."""
-    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
     full_paths = [
         "/var/lib/mothbox/photos/mothbox_2025_01_15__12_30_45.jpg",
@@ -669,7 +669,7 @@ def test_extract_timestamp_with_full_path():
 
 def test_extract_timestamp_edge_case_dates():
     """Test extracting timestamps for edge case valid dates."""
-    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
     edge_cases = [
         # Leap year
@@ -694,7 +694,7 @@ def test_extract_timestamp_edge_case_dates():
 
 def test_extract_timestamp_rejects_non_leap_year_feb_29():
     """Test that Feb 29 is rejected for non-leap years."""
-    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
     # 2025 is not a leap year, so Feb 29 should be rejected
     filename = "mothbox_2025_02_29__12_30_45.jpg"
@@ -704,7 +704,7 @@ def test_extract_timestamp_rejects_non_leap_year_feb_29():
 
 def test_extract_timestamp_with_path_object():
     """Test that Path objects are handled correctly."""
-    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import extract_timestamp_from_filename
     from pathlib import Path
 
     # Test with Path object
@@ -719,7 +719,7 @@ def test_extract_timestamp_with_path_object():
 
 def test_extract_timestamp_year_range():
     """Test extracting timestamps with various year values."""
-    from scripts.verify_gps_exif import extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
     # Test different year values (4 digits required by regex)
     years = [2020, 2025, 2030, 2099, 1999, 1900]
@@ -737,7 +737,7 @@ def test_extract_timestamp_year_range():
 
 def test_sanitize_csv_value_formula_prefix():
     """Test that CSV formula prefixes are escaped."""
-    from scripts.verify_gps_exif import sanitize_csv_value
+    from webui.cli.verify_gps_exif import sanitize_csv_value
 
     # Test all dangerous prefixes that spreadsheet apps interpret as formulas
     # Note: Numeric values like "+123" or "-123" are NOT escaped (they're safe numbers)
@@ -759,7 +759,7 @@ def test_sanitize_csv_value_formula_prefix():
 
 def test_sanitize_csv_value_normal_text():
     """Test that normal text is not modified."""
-    from scripts.verify_gps_exif import sanitize_csv_value
+    from webui.cli.verify_gps_exif import sanitize_csv_value
 
     # Normal values that should NOT be escaped
     normal_values = [
@@ -782,7 +782,7 @@ def test_sanitize_csv_value_normal_text():
 
 def test_sanitize_csv_value_empty_string():
     """Test that empty strings are handled correctly."""
-    from scripts.verify_gps_exif import sanitize_csv_value
+    from webui.cli.verify_gps_exif import sanitize_csv_value
 
     assert sanitize_csv_value("") == ""
     assert sanitize_csv_value(None) is None
@@ -790,7 +790,7 @@ def test_sanitize_csv_value_empty_string():
 
 def test_sanitize_csv_value_numeric():
     """Test that numeric values are handled correctly."""
-    from scripts.verify_gps_exif import sanitize_csv_value
+    from webui.cli.verify_gps_exif import sanitize_csv_value
 
     # Numeric values (converted to strings) should NOT be escaped
     assert sanitize_csv_value("123") == "123"
@@ -820,7 +820,7 @@ def test_sanitize_csv_value_injection_in_error_message():
     If the dangerous character is in the middle, it's safe because
     spreadsheet apps only interpret formulas at the start of a cell.
     """
-    from scripts.verify_gps_exif import sanitize_csv_value
+    from webui.cli.verify_gps_exif import sanitize_csv_value
 
     # These messages start with safe text, so they won't be escaped
     # (dangerous characters are in the middle, which is safe)
@@ -857,7 +857,7 @@ def test_sanitize_csv_value_in_csv_generation(tmp_path):
     This is an integration test that verifies sanitize_csv_value() is
     actually used when generating CSV reports.
     """
-    from scripts.verify_gps_exif import generate_csv_report
+    from webui.cli.verify_gps_exif import generate_csv_report
     from pathlib import Path
     import csv
 
@@ -896,7 +896,7 @@ def test_csv_injection_real_world_scenarios(tmp_path):
     3. System command injection
     4. Hyperlink injection
     """
-    from scripts.verify_gps_exif import sanitize_csv_value
+    from webui.cli.verify_gps_exif import sanitize_csv_value
 
     real_world_attacks = [
         # DDE attack (older Excel vulnerability)
@@ -938,7 +938,7 @@ def test_verify_tool_rejects_symlinks(tmp_path):
     - Symlinks can point to sensitive files (/etc/passwd, /etc/shadow)
     - Only process regular files within specified directory
     """
-    from scripts.verify_gps_exif import main
+    from webui.cli.verify_gps_exif import main
     import subprocess
     import sys
 
@@ -959,7 +959,7 @@ def test_verify_tool_rejects_symlinks(tmp_path):
     import os
     project_root = os.environ.get('PROJECT_ROOT', Path(__file__).parent.parent.parent)
     result = subprocess.run(
-        [sys.executable, "-m", "scripts.verify_gps_exif", str(tmp_path)],
+        [sys.executable, "-m", "webui.cli.verify_gps_exif", str(tmp_path)],
         capture_output=True,
         text=True,
         cwd=str(project_root)
@@ -991,7 +991,7 @@ def test_verify_tool_rejects_single_symlink(tmp_path):
     import os
     project_root = os.environ.get('PROJECT_ROOT', Path(__file__).parent.parent.parent)
     result = subprocess.run(
-        [sys.executable, "-m", "scripts.verify_gps_exif", str(symlink_photo)],
+        [sys.executable, "-m", "webui.cli.verify_gps_exif", str(symlink_photo)],
         capture_output=True,
         text=True,
         cwd=str(project_root)

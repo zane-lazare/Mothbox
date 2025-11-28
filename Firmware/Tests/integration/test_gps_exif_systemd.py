@@ -16,7 +16,7 @@ class TestSystemdServiceIntegration:
 
     def test_service_file_exists(self):
         """Test that systemd service files exist."""
-        service_dir = Path('/home/zane/projects/Mothbox/Firmware/services')
+        service_dir = Path('/home/zane/projects/Mothbox/Firmware/webui/services')
 
         production_service = service_dir / 'gps-exif-tagger.service'
         legacy_service = service_dir / 'gps-exif-tagger-legacy.service'
@@ -26,7 +26,7 @@ class TestSystemdServiceIntegration:
 
     def test_service_file_contains_correct_exec_start(self):
         """Test that service files have correct ExecStart paths."""
-        service_file = Path('/home/zane/projects/Mothbox/Firmware/services/gps-exif-tagger.service')
+        service_file = Path('/home/zane/projects/Mothbox/Firmware/webui/services/gps-exif-tagger.service')
 
         content = service_file.read_text()
 
@@ -37,7 +37,7 @@ class TestSystemdServiceIntegration:
 
     def test_service_file_has_restart_policy(self):
         """Test that service files have restart policy configured."""
-        service_file = Path('/home/zane/projects/Mothbox/Firmware/services/gps-exif-tagger.service')
+        service_file = Path('/home/zane/projects/Mothbox/Firmware/webui/services/gps-exif-tagger.service')
 
         content = service_file.read_text()
 
@@ -48,7 +48,7 @@ class TestSystemdServiceIntegration:
 
     def test_service_file_has_proper_dependencies(self):
         """Test that service files declare proper dependencies."""
-        service_file = Path('/home/zane/projects/Mothbox/Firmware/services/gps-exif-tagger.service')
+        service_file = Path('/home/zane/projects/Mothbox/Firmware/webui/services/gps-exif-tagger.service')
 
         content = service_file.read_text()
 
@@ -69,7 +69,7 @@ class TestSystemdServiceIntegration:
                 img.save(photo_path)
 
             # Simulate service execution
-            import gps_exif_tagger
+            from webui.cli import gps_exif_tagger
 
             logger = gps_exif_tagger.setup_logging(verbose=False)
 
@@ -82,7 +82,7 @@ class TestSystemdServiceIntegration:
                 controls_path = Path(controls.name)
 
             try:
-                with patch('lib.gps_exif_lib.CONTROLS_FILE', controls_path):
+                with patch('webui.backend.lib.gps_exif_lib.CONTROLS_FILE', controls_path):
                     stats = gps_exif_tagger.batch_process_directory(
                         tmp_path,
                         logger,
@@ -106,7 +106,7 @@ class TestSystemdServiceIntegration:
             img.save(photo_path)
 
             # Simulate service execution
-            import gps_exif_tagger
+            from webui.cli import gps_exif_tagger
 
             logger = gps_exif_tagger.setup_logging(verbose=False)
 
@@ -119,7 +119,7 @@ class TestSystemdServiceIntegration:
                 controls_path = Path(controls.name)
 
             try:
-                with patch('lib.gps_exif_lib.CONTROLS_FILE', controls_path):
+                with patch('webui.backend.lib.gps_exif_lib.CONTROLS_FILE', controls_path):
                     # Should not crash
                     stats = gps_exif_tagger.batch_process_directory(
                         tmp_path,
@@ -138,7 +138,7 @@ class TestServiceMonitoring:
 
     def test_logging_setup_produces_output(self):
         """Test that logging is properly configured for service."""
-        import gps_exif_tagger
+        from webui.cli import gps_exif_tagger
         import logging
 
         logger = gps_exif_tagger.setup_logging(verbose=False)
@@ -161,7 +161,7 @@ class TestServiceMonitoring:
                 img = Image.new('RGB', (100, 100), color='red')
                 img.save(photo_path)
 
-            import gps_exif_tagger
+            from webui.cli import gps_exif_tagger
 
             logger = Mock()
 
@@ -185,7 +185,7 @@ class TestServiceMonitoring:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
 
-            import gps_exif_tagger
+            from webui.cli import gps_exif_tagger
 
             logger = Mock()
 
@@ -226,7 +226,7 @@ class TestCrossServiceIntegration:
             img.save(photo_path, quality=95)
 
             # Now run GPS EXIF tagger
-            import gps_exif_tagger
+            from webui.cli import gps_exif_tagger
 
             logger = Mock()
 
@@ -281,7 +281,7 @@ class TestCrossServiceIntegration:
             img.save(tmp_path, exif=exif_bytes)
 
             # Run GPS EXIF tagger
-            from lib.gps_exif_lib import embed_gps_exif
+            from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
             # Create GPS data
             with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as controls:
@@ -316,7 +316,7 @@ class TestCrossServiceIntegration:
             img.save(tmp_path)
 
             # Tag with GPS
-            from lib.gps_exif_lib import embed_gps_exif
+            from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
             with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as controls:
                 controls.write("lat=40.7128\n")
@@ -330,7 +330,7 @@ class TestCrossServiceIntegration:
                 result = embed_gps_exif(tmp_path, controls_file=controls_path)
 
                 # Now verify with verify tool
-                from lib.gps_exif_lib import verify_gps_exif
+                from webui.backend.lib.gps_exif_lib import verify_gps_exif
 
                 verification = verify_gps_exif(tmp_path)
 

@@ -21,8 +21,8 @@ import piexif
 Image.init()
 
 from mothbox_paths import PHOTOS_DIR, CONTROLS_FILE
-from lib.gps_exif_lib import embed_gps_exif, verify_gps_exif, get_gps_data_from_controls
-from gps_exif_tagger import batch_process_directory, process_single_photo, setup_logging
+from webui.backend.lib.gps_exif_lib import embed_gps_exif, verify_gps_exif, get_gps_data_from_controls
+from webui.cli.gps_exif_tagger import batch_process_directory, process_single_photo, setup_logging
 
 
 @pytest.fixture
@@ -49,8 +49,8 @@ gps_pdop=2.1
 """)
 
     # Patch CONTROLS_FILE in both modules
-    import lib.gps_exif_lib
-    monkeypatch.setattr('lib.gps_exif_lib.CONTROLS_FILE', controls)
+    import webui.backend.lib.gps_exif_lib
+    monkeypatch.setattr('webui.backend.lib.gps_exif_lib.CONTROLS_FILE', controls)
     monkeypatch.setattr('mothbox_paths.CONTROLS_FILE', controls)
 
     return controls
@@ -305,8 +305,8 @@ gps_hdop=99.99
 """)
 
         # Patch CONTROLS_FILE
-        import lib.gps_exif_lib
-        monkeypatch.setattr('lib.gps_exif_lib.CONTROLS_FILE', controls)
+        import webui.backend.lib.gps_exif_lib
+        monkeypatch.setattr('webui.backend.lib.gps_exif_lib.CONTROLS_FILE', controls)
 
         # Verify no GPS fix
         gps_data = get_gps_data_from_controls()

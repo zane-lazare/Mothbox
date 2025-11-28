@@ -39,16 +39,22 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# Add parent directory to path for imports
-SCRIPT_DIR = Path(__file__).parent
-PROJECT_ROOT = SCRIPT_DIR.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+# Path setup for accessing mothbox_paths at firmware root
+_cli_dir = Path(__file__).resolve().parent
+_webui_dir = _cli_dir.parent
+_firmware_root = _webui_dir.parent
+if str(_firmware_root) not in sys.path:
+    sys.path.insert(0, str(_firmware_root))
 
 # Import GPS EXIF library functions
-from lib.gps_exif_lib import embed_gps_exif, get_gps_data_from_controls, is_already_tagged
+from webui.backend.lib.gps_exif_lib import (
+    embed_gps_exif,
+    get_gps_data_from_controls,
+    is_already_tagged,
+)
 
 # Import verification tool functions
-from scripts.verify_gps_exif import extract_timestamp_from_filename
+from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
 
 def filter_photos_by_date(

@@ -1163,11 +1163,11 @@ if [ "$INSTALL_GPS_EXIF_SERVICE_FLAG" = "true" ] || [ "$INTERACTIVE_MODE" = "tru
         # Determine which service file to use based on installation type
         if [ "$INSTALL_TYPE" = "production" ]; then
             SERVICE_FILE="gps-exif-tagger.service"
-            SERVICE_SOURCE="$SCRIPT_DIR/services/$SERVICE_FILE"
+            SERVICE_SOURCE="$SCRIPT_DIR/webui/services/$SERVICE_FILE"
         else
             # Legacy or custom installations use legacy service
             SERVICE_FILE="gps-exif-tagger-legacy.service"
-            SERVICE_SOURCE="$SCRIPT_DIR/services/$SERVICE_FILE"
+            SERVICE_SOURCE="$SCRIPT_DIR/webui/services/$SERVICE_FILE"
         fi
 
         # Check if service file exists

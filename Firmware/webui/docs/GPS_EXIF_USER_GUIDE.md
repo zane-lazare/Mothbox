@@ -64,10 +64,10 @@ This installs and enables the systemd service for automatic GPS tagging.
 pip3 install piexif Pillow
 
 # Test the GPS EXIF tagger
-python3 gps_exif_tagger.py --help
+python3 webui/cli/gps_exif_tagger.py --help
 
 # Verify GPS data is available
-python3 -c "from lib.gps_exif_lib import get_gps_data_from_controls; print(get_gps_data_from_controls())"
+python3 -c "from webui.backend.lib.gps_exif_lib import get_gps_data_from_controls; print(get_gps_data_from_controls())"
 ```
 
 ## Usage
@@ -78,22 +78,22 @@ Process all photos in a directory once:
 
 ```bash
 # Basic usage - process default photos directory
-python3 gps_exif_tagger.py
+python3 webui/cli/gps_exif_tagger.py
 
 # Process specific directory
-python3 gps_exif_tagger.py --directory /path/to/photos
+python3 webui/cli/gps_exif_tagger.py --directory /path/to/photos
 
 # Dry run - see what would be processed without modifying files
-python3 gps_exif_tagger.py --dry-run --verbose
+python3 webui/cli/gps_exif_tagger.py --dry-run --verbose
 
 # Create backups before modifying photos
-python3 gps_exif_tagger.py --backup
+python3 webui/cli/gps_exif_tagger.py --backup
 
 # Force re-tag all photos (even if already tagged)
-python3 gps_exif_tagger.py --force
+python3 webui/cli/gps_exif_tagger.py --force
 
 # Process specific file pattern
-python3 gps_exif_tagger.py --pattern "*.jpeg"
+python3 webui/cli/gps_exif_tagger.py --pattern "*.jpeg"
 ```
 
 **Batch Mode Output**:
@@ -121,16 +121,16 @@ Monitor directory for new photos and tag them automatically:
 
 ```bash
 # Start watch mode with default settings
-python3 gps_exif_tagger.py --watch
+python3 webui/cli/gps_exif_tagger.py --watch
 
 # Custom polling interval (check every 5 seconds)
-python3 gps_exif_tagger.py --watch --interval 5
+python3 webui/cli/gps_exif_tagger.py --watch --interval 5
 
 # Watch mode with backup creation
-python3 gps_exif_tagger.py --watch --backup --interval 10
+python3 webui/cli/gps_exif_tagger.py --watch --backup --interval 10
 
 # Watch mode with verbose logging
-python3 gps_exif_tagger.py --watch --verbose
+python3 webui/cli/gps_exif_tagger.py --watch --verbose
 ```
 
 **Watch Mode Output**:
@@ -226,7 +226,7 @@ GPS EXIF Data:
 **Diagnosis**:
 ```bash
 # Check GPS status
-python3 -c "from lib.gps_exif_lib import get_gps_data_from_controls; import pprint; pprint.pprint(get_gps_data_from_controls())"
+python3 -c "from webui.backend.lib.gps_exif_lib import get_gps_data_from_controls; import pprint; pprint.pprint(get_gps_data_from_controls())"
 ```
 
 **Solutions**:
@@ -295,7 +295,7 @@ sudo journalctl -u gps-exif-tagger.service -n 50 --no-pager
    ```bash
    which python3
    python3 -c "import piexif; print('piexif OK')"
-   python3 gps_exif_tagger.py --help
+   python3 webui/cli/gps_exif_tagger.py --help
    ```
 2. Check service file paths:
    ```bash
@@ -327,7 +327,7 @@ top -p $(pgrep -f gps_exif_tagger)
    sudo systemctl edit gps-exif-tagger.service
 
    # Change --interval value (e.g., 30 seconds instead of 10)
-   ExecStart=/usr/bin/python3 .../gps_exif_tagger.py --watch --interval 30
+   ExecStart=/usr/bin/python3 .../webui/cli/gps_exif_tagger.py --watch --interval 30
 
    # Reload and restart
    sudo systemctl daemon-reload
@@ -423,7 +423,7 @@ The systemd service has built-in limits:
 By default, GPS data is read from `controls.txt`. To use a custom source:
 
 ```python
-from lib.gps_exif_lib import embed_gps_exif
+from webui.backend.lib.gps_exif_lib import embed_gps_exif
 from pathlib import Path
 
 # Custom controls file
@@ -437,7 +437,7 @@ result = embed_gps_exif(
 
 ### Programmatic Usage
 ```python
-from lib.gps_exif_lib import get_gps_data_from_controls, embed_gps_exif, verify_gps_exif
+from webui.backend.lib.gps_exif_lib import get_gps_data_from_controls, embed_gps_exif, verify_gps_exif
 from pathlib import Path
 
 # Check GPS status
@@ -506,7 +506,7 @@ A: Yes. GPS EXIF is preserved through most photo processing workflows. Test your
 ## Support and Documentation
 
 - **Main documentation**: See `CLAUDE.md` for developer details
-- **Service setup**: See `docs/GPS_EXIF_SERVICE.md`
+- **Service setup**: See `webui/docs/GPS_EXIF_SERVICE.md`
 - **Testing procedures**: See `TESTING_PROCEDURE.md`
 - **Issue tracker**: Report bugs on GitHub issue tracker
 - **GPS setup**: See main Mothbox documentation for GPS module configuration

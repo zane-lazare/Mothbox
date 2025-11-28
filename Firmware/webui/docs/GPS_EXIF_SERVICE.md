@@ -25,7 +25,7 @@ The GPS EXIF Tagger Service is a background daemon that automatically embeds GPS
          ▼
 ┌─────────────────────────────────────────────────────┐
 │  GPS EXIF Tagger Service                            │
-│  (gps_exif_tagger.py --watch)                       │
+│  (webui/cli/gps_exif_tagger.py --watch)             │
 │                                                      │
 │  1. inotify watches photos/ for IN_CLOSE_WRITE      │
 │  2. Detects new .jpg file                           │
@@ -81,7 +81,7 @@ else
 fi
 
 # 2. Copy service file
-sudo cp services/$SERVICE_FILE /etc/systemd/system/
+sudo cp webui/services/$SERVICE_FILE /etc/systemd/system/
 
 # 3. Reload systemd
 sudo systemctl daemon-reload
@@ -178,7 +178,7 @@ User=pi
 WorkingDirectory=/opt/mothbox
 
 # Main command: watch mode with 10-second polling
-ExecStart=/usr/bin/python3 /opt/mothbox/gps_exif_tagger.py --mode immediate --watch --interval 10 --verbose
+ExecStart=/usr/bin/python3 /opt/mothbox/webui/cli/gps_exif_tagger.py --mode immediate --watch --interval 10 --verbose
 
 # Resource limits
 MemoryMax=256M
@@ -199,7 +199,7 @@ User=pi
 WorkingDirectory=/home/pi/Desktop/Mothbox/Firmware
 
 # Main command
-ExecStart=/usr/bin/python3 /home/pi/Desktop/Mothbox/Firmware/gps_exif_tagger.py --mode immediate --watch --interval 10 --verbose
+ExecStart=/usr/bin/python3 /home/pi/Desktop/Mothbox/Firmware/webui/cli/gps_exif_tagger.py --mode immediate --watch --interval 10 --verbose
 
 # Resource limits
 MemoryMax=256M
@@ -316,7 +316,7 @@ sudo journalctl -u $SERVICE | grep -i error
 
 **Common Causes**:
 1. **Missing gps_exif_tagger.py**
-   - Verify file exists: `ls /opt/mothbox/gps_exif_tagger.py`
+   - Verify file exists: `ls /opt/mothbox/webui/cli/gps_exif_tagger.py`
    - Reinstall if missing
 
 2. **Wrong WorkingDirectory**
@@ -572,9 +572,9 @@ Note: This does not remove gps_exif_tagger.py or affect existing photos.
 
 - **Installation**: `/home/zane/projects/Mothbox/Firmware/install_mothbox.sh --help`
 - **Manual Testing**: `/home/zane/projects/Mothbox/Firmware/Tests/manual/gps_exif_service/`
-- **EXIF Library**: `/home/zane/projects/Mothbox/Firmware/gps_exif/`
+- **EXIF Library**: `/home/zane/projects/Mothbox/Firmware/webui/backend/lib/gps_exif_lib.py`
 - **GPS Setup**: `/home/zane/projects/Mothbox/Firmware/README.md` (GPS section)
-- **Service Files**: `/home/zane/projects/Mothbox/Firmware/services/`
+- **Service Files**: `/home/zane/projects/Mothbox/Firmware/webui/services/`
 
 ---
 

@@ -715,7 +715,7 @@ The GPS coordinate utilities are used by the GPS EXIF embedding system (`lib/gps
 
 ```python
 from webui.backend.utils.gps_coordinates import decimal_to_dms
-from lib.gps_exif_lib import embed_gps_exif
+from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
 # Read GPS data from controls.txt
 lat_decimal = 37.7749

@@ -11,8 +11,8 @@ import time
 import sys
 
 # Import the module under test
-import gps_exif_tagger
-from lib.gps_exif_lib import embed_gps_exif
+from webui.cli import gps_exif_tagger
+from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -83,7 +83,7 @@ class TestBatchProcessing:
                 controls_path = Path(controls.name)
 
             try:
-                with patch('lib.gps_exif_lib.CONTROLS_FILE', controls_path):
+                with patch('webui.backend.lib.gps_exif_lib.CONTROLS_FILE', controls_path):
                     stats = gps_exif_tagger.batch_process_directory(
                         tmp_path,
                         logger,
@@ -159,7 +159,7 @@ class TestBatchProcessing:
                 controls_path = Path(controls.name)
 
             try:
-                with patch('lib.gps_exif_lib.CONTROLS_FILE', controls_path):
+                with patch('webui.backend.lib.gps_exif_lib.CONTROLS_FILE', controls_path):
                     # First tagging
                     stats1 = gps_exif_tagger.batch_process_directory(
                         tmp_path,
@@ -214,7 +214,7 @@ class TestBatchProcessing:
                 controls_path = Path(controls.name)
 
             try:
-                with patch('lib.gps_exif_lib.CONTROLS_FILE', controls_path):
+                with patch('webui.backend.lib.gps_exif_lib.CONTROLS_FILE', controls_path):
                     stats = gps_exif_tagger.batch_process_directory(
                         tmp_path,
                         logger,
@@ -247,7 +247,7 @@ class TestBatchProcessing:
                 controls_path = Path(controls.name)
 
             try:
-                with patch('lib.gps_exif_lib.CONTROLS_FILE', controls_path):
+                with patch('webui.backend.lib.gps_exif_lib.CONTROLS_FILE', controls_path):
                     stats = gps_exif_tagger.batch_process_directory(
                         tmp_path,
                         logger,
@@ -406,7 +406,7 @@ class TestSinglePhotoProcessing:
                 controls_path = Path(controls.name)
 
             try:
-                with patch('lib.gps_exif_lib.CONTROLS_FILE', controls_path):
+                with patch('webui.backend.lib.gps_exif_lib.CONTROLS_FILE', controls_path):
                     result = gps_exif_tagger.process_single_photo(
                         tmp_path,
                         logger
@@ -440,7 +440,7 @@ class TestSinglePhotoProcessing:
                 controls_path = Path(controls.name)
 
             try:
-                with patch('lib.gps_exif_lib.CONTROLS_FILE', controls_path):
+                with patch('webui.backend.lib.gps_exif_lib.CONTROLS_FILE', controls_path):
                     result = gps_exif_tagger.process_single_photo(
                         tmp_path,
                         logger,
@@ -755,7 +755,7 @@ class TestFileStability:
 
     def test_stable_file_returns_true(self, tmp_path):
         """Test that a stable file returns True."""
-        from gps_exif_tagger import wait_for_file_stability, setup_logging
+        from webui.cli.gps_exif_tagger import wait_for_file_stability, setup_logging
 
         logger = setup_logging(verbose=False)
 
@@ -772,7 +772,7 @@ class TestFileStability:
 
     def test_nonexistent_file_returns_false(self, tmp_path):
         """Test that a nonexistent file returns False."""
-        from gps_exif_tagger import wait_for_file_stability, setup_logging
+        from webui.cli.gps_exif_tagger import wait_for_file_stability, setup_logging
 
         logger = setup_logging(verbose=False)
 
@@ -784,7 +784,7 @@ class TestFileStability:
 
     def test_file_deleted_during_check_returns_false(self, tmp_path):
         """Test that a file deleted during stability check returns False."""
-        from gps_exif_tagger import wait_for_file_stability, setup_logging, FILE_STABILITY_INTERVAL
+        from webui.cli.gps_exif_tagger import wait_for_file_stability, setup_logging, FILE_STABILITY_INTERVAL
         import threading
 
         logger = setup_logging(verbose=False)
@@ -810,7 +810,7 @@ class TestFileStability:
 
     def test_file_modified_during_check_logs_warning(self, tmp_path):
         """Test that files modified during check are logged."""
-        from gps_exif_tagger import wait_for_file_stability, setup_logging, FILE_STABILITY_INTERVAL
+        from webui.cli.gps_exif_tagger import wait_for_file_stability, setup_logging, FILE_STABILITY_INTERVAL
         import threading
 
         logger = setup_logging(verbose=True)
@@ -837,7 +837,7 @@ class TestFileStability:
 
     def test_stability_check_completes_after_max_attempts(self, tmp_path):
         """Test that stability check completes after FILE_STABILITY_CHECKS attempts."""
-        from gps_exif_tagger import wait_for_file_stability, setup_logging, FILE_STABILITY_CHECKS, FILE_STABILITY_INTERVAL
+        from webui.cli.gps_exif_tagger import wait_for_file_stability, setup_logging, FILE_STABILITY_CHECKS, FILE_STABILITY_INTERVAL
         import threading
 
         logger = setup_logging(verbose=False)
@@ -886,7 +886,7 @@ class TestFileStability:
 
     def test_stability_check_handles_oserror(self, tmp_path):
         """Test that stability check handles OSError gracefully."""
-        from gps_exif_tagger import wait_for_file_stability, setup_logging
+        from webui.cli.gps_exif_tagger import wait_for_file_stability, setup_logging
 
         logger = setup_logging(verbose=False)
 
