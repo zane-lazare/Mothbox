@@ -372,7 +372,7 @@ console.log(response.data.photo_path)
 
 ## See Also
 
-- **GPS EXIF Tagging**: See `docs/GPS_EXIF_USER_GUIDE.md`
+- **GPS EXIF Tagging**: See `webui/docs/GPS_EXIF_USER_GUIDE.md`
 - **Camera Settings**: See `camera_settings.csv` documentation
 - **Live View Streaming**: See `webui/backend/liveview_stream.py`
 - **Photo Capture**: See `TakePhoto.py` documentation

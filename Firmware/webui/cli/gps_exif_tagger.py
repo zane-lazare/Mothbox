@@ -40,8 +40,19 @@ import time
 from pathlib import Path
 from typing import Any
 
-from lib.gps_exif_lib import embed_gps_exif, get_gps_data_from_controls, is_already_tagged
+# Path setup for accessing mothbox_paths at firmware root
+_cli_dir = Path(__file__).resolve().parent
+_webui_dir = _cli_dir.parent
+_firmware_root = _webui_dir.parent
+if str(_firmware_root) not in sys.path:
+    sys.path.insert(0, str(_firmware_root))
+
 from mothbox_paths import PHOTOS_DIR, get_hardware_config
+from webui.backend.lib.gps_exif_lib import (
+    embed_gps_exif,
+    get_gps_data_from_controls,
+    is_already_tagged,
+)
 
 # Module exports
 __all__ = [

@@ -27,7 +27,7 @@ Usage:
 Related:
 - Issue #98 Phase 3: GPS EXIF Verification Tool (Days 1-3)
 - Spec: webui/docs/dev/issues/ISSUE_98_GPS_EXIF_IMPLEMENTATION_SPEC.md
-- Library: lib/gps_exif_lib.py
+- Library: webui/backend/lib/gps_exif_lib.py
 """
 
 import argparse
@@ -37,13 +37,15 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# Add parent directory to path for imports
-SCRIPT_DIR = Path(__file__).parent
-PROJECT_ROOT = SCRIPT_DIR.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+# Path setup for accessing mothbox_paths at firmware root
+_cli_dir = Path(__file__).resolve().parent
+_webui_dir = _cli_dir.parent
+_firmware_root = _webui_dir.parent
+if str(_firmware_root) not in sys.path:
+    sys.path.insert(0, str(_firmware_root))
 
 # Import GPS EXIF library functions
-from lib.gps_exif_lib import verify_gps_exif
+from webui.backend.lib.gps_exif_lib import verify_gps_exif
 
 # Module exports
 __all__ = [

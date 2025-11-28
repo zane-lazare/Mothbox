@@ -12,7 +12,7 @@ import shutil
 import sys
 
 # Import the module under test
-from lib.gps_exif_lib import (
+from webui.backend.lib.gps_exif_lib import (
     get_gps_data_from_controls,
     decimal_to_dms,
     build_gps_ifd,
@@ -56,9 +56,9 @@ class TestPiexifImportError:
         """Test that missing piexif module is handled gracefully."""
         # The module imports piexif at the top with try/except
         # We can test the behavior by patching piexif to None
-        with patch('lib.gps_exif_lib.piexif', None):
+        with patch('webui.backend.lib.gps_exif_lib.piexif', None):
             # Import should still work
-            from lib.gps_exif_lib import embed_gps_exif
+            from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
             # But calling embed_gps_exif should fail gracefully
             with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
@@ -392,7 +392,7 @@ class TestEXIFEmbeddingErrors:
             # Mock piexif.load to return valid EXIF data (Python 3.13 compatibility)
             mock_exif = {'0th': {}, 'Exif': {}, 'GPS': {}, '1st': {}, 'thumbnail': None}
             # Mock shutil.copy2 to raise PermissionError
-            with patch('lib.gps_exif_lib.piexif.load', return_value=mock_exif):
+            with patch('webui.backend.lib.gps_exif_lib.piexif.load', return_value=mock_exif):
                 with patch('shutil.copy2', side_effect=PermissionError("Permission denied")):
                     # Create GPS data
                     with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as controls:
@@ -458,8 +458,8 @@ class TestEXIFEmbeddingErrors:
             # Mock piexif.load to return valid EXIF data (Python 3.13 compatibility)
             mock_exif = {'0th': {}, 'Exif': {}, 'GPS': {}, '1st': {}, 'thumbnail': None}
             # Mock piexif.dump to raise error
-            with patch('lib.gps_exif_lib.piexif.load', return_value=mock_exif):
-                with patch('lib.gps_exif_lib.piexif.dump', side_effect=ValueError("Invalid EXIF data")):
+            with patch('webui.backend.lib.gps_exif_lib.piexif.load', return_value=mock_exif):
+                with patch('webui.backend.lib.gps_exif_lib.piexif.dump', side_effect=ValueError("Invalid EXIF data")):
                     # Create GPS data
                     with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as controls:
                         controls.write("lat=40.7\n")
@@ -757,7 +757,7 @@ class TestDivisionByZeroErrors:
             img.save(tmp_path)
 
             # Mock piexif to return malformed GPS data with zero denominator
-            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+            with patch('webui.backend.lib.gps_exif_lib.piexif') as mock_piexif:
                 mock_piexif.GPSIFD.GPSLatitude = 2
                 mock_piexif.GPSIFD.GPSLatitudeRef = 1
                 mock_piexif.GPSIFD.GPSLongitude = 4
@@ -787,7 +787,7 @@ class TestDivisionByZeroErrors:
             img = Image.new('RGB', (100, 100), color='blue')
             img.save(tmp_path)
 
-            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+            with patch('webui.backend.lib.gps_exif_lib.piexif') as mock_piexif:
                 mock_piexif.GPSIFD.GPSLatitude = 2
                 mock_piexif.GPSIFD.GPSLatitudeRef = 1
                 mock_piexif.GPSIFD.GPSLongitude = 4
@@ -815,7 +815,7 @@ class TestDivisionByZeroErrors:
             img = Image.new('RGB', (100, 100), color='blue')
             img.save(tmp_path)
 
-            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+            with patch('webui.backend.lib.gps_exif_lib.piexif') as mock_piexif:
                 mock_piexif.GPSIFD.GPSLatitude = 2
                 mock_piexif.GPSIFD.GPSLatitudeRef = 1
                 mock_piexif.GPSIFD.GPSLongitude = 4
@@ -843,7 +843,7 @@ class TestDivisionByZeroErrors:
             img = Image.new('RGB', (100, 100), color='blue')
             img.save(tmp_path)
 
-            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+            with patch('webui.backend.lib.gps_exif_lib.piexif') as mock_piexif:
                 mock_piexif.GPSIFD.GPSLatitude = 2
                 mock_piexif.GPSIFD.GPSLatitudeRef = 1
                 mock_piexif.GPSIFD.GPSLongitude = 4
@@ -871,7 +871,7 @@ class TestDivisionByZeroErrors:
             img = Image.new('RGB', (100, 100), color='blue')
             img.save(tmp_path)
 
-            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+            with patch('webui.backend.lib.gps_exif_lib.piexif') as mock_piexif:
                 mock_piexif.GPSIFD.GPSLatitude = 2
                 mock_piexif.GPSIFD.GPSLatitudeRef = 1
                 mock_piexif.GPSIFD.GPSLongitude = 4
@@ -902,7 +902,7 @@ class TestDivisionByZeroErrors:
             img = Image.new('RGB', (100, 100), color='blue')
             img.save(tmp_path)
 
-            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+            with patch('webui.backend.lib.gps_exif_lib.piexif') as mock_piexif:
                 mock_piexif.GPSIFD.GPSLatitude = 2
                 mock_piexif.GPSIFD.GPSLatitudeRef = 1
                 mock_piexif.GPSIFD.GPSLongitude = 4
@@ -935,7 +935,7 @@ class TestDivisionByZeroErrors:
             img = Image.new('RGB', (100, 100), color='blue')
             img.save(tmp_path)
 
-            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+            with patch('webui.backend.lib.gps_exif_lib.piexif') as mock_piexif:
                 mock_piexif.GPSIFD.GPSLatitude = 2
                 mock_piexif.GPSIFD.GPSLatitudeRef = 1
                 mock_piexif.GPSIFD.GPSLongitude = 4
@@ -967,7 +967,7 @@ class TestDivisionByZeroErrors:
             img = Image.new('RGB', (100, 100), color='blue')
             img.save(tmp_path)
 
-            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+            with patch('webui.backend.lib.gps_exif_lib.piexif') as mock_piexif:
                 mock_piexif.GPSIFD.GPSLatitude = 2
                 mock_piexif.GPSIFD.GPSLatitudeRef = 1
                 mock_piexif.GPSIFD.GPSLongitude = 4
@@ -999,7 +999,7 @@ class TestDivisionByZeroErrors:
             img = Image.new('RGB', (100, 100), color='blue')
             img.save(tmp_path)
 
-            with patch('lib.gps_exif_lib.piexif') as mock_piexif:
+            with patch('webui.backend.lib.gps_exif_lib.piexif') as mock_piexif:
                 mock_piexif.GPSIFD.GPSLatitude = 2
                 mock_piexif.GPSIFD.GPSLatitudeRef = 1
                 mock_piexif.GPSIFD.GPSLongitude = 4

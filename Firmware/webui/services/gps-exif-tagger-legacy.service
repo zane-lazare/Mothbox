@@ -44,7 +44,7 @@ Environment="GPS_EXIF_INTERVAL=10"
 Environment="GPS_EXIF_PATTERN=*.jpg"
 
 # Main service command (uses environment variables)
-ExecStart=/usr/bin/python3 ${MOTHBOX_HOME}/gps_exif_tagger.py \
+ExecStart=/usr/bin/python3 ${MOTHBOX_HOME}/webui/cli/gps_exif_tagger.py \
     --mode immediate \
     --watch \
     --directory ${MOTHBOX_PHOTOS_DIR} \

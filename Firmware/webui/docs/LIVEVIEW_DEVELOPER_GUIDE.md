@@ -607,8 +607,8 @@ POST /api/camera/capture
 
 ## See Also
 
-- **Camera API Documentation**: `docs/CAMERA_API.md`
-- **User Guide**: `docs/CAMERA_USER_GUIDE.md`
+- **Camera API Documentation**: `webui/docs/CAMERA_API.md`
+- **User Guide**: `webui/docs/CAMERA_USER_GUIDE.md`
 - **Source Code**: `webui/backend/liveview_stream.py`
 - **Tests**: `Tests/unit/test_liveview_current_settings.py`
 - **Frontend Component**: `webui/frontend/src/components/InstantCaptureButton.jsx`

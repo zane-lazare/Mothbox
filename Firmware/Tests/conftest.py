@@ -529,7 +529,7 @@ def patch_path_constant_everywhere(monkeypatch, constant_name, temp_path):
             'routes.gps',
             'routes.gpio',
             'routes.system',
-            'lib.gps_exif_lib',  # Issue #98 - GPS EXIF embedding
+            'webui.backend.lib.gps_exif_lib',  # Issue #98 - GPS EXIF embedding
         ],
         'DATA_DIR': [
             'routes.gpio',  # Issue #78 - GPIO state file

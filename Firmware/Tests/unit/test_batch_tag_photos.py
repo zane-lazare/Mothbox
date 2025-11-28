@@ -1,5 +1,5 @@
 """
-Unit tests for scripts/batch_tag_photos.py - GPS EXIF Batch Tagging Tool
+Unit tests for webui/cli/batch_tag_photos.py - GPS EXIF Batch Tagging Tool
 
 Tests the batch tagging tool's ability to:
 1. Filter photos by date range
@@ -27,7 +27,7 @@ import sys
 
 def test_filter_photos_by_date_no_filters():
     """Test filtering photos with no date filters (returns all)."""
-    from scripts.batch_tag_photos import filter_photos_by_date
+    from webui.cli.batch_tag_photos import filter_photos_by_date
     from datetime import datetime
 
     photos = [
@@ -42,7 +42,7 @@ def test_filter_photos_by_date_no_filters():
 
 def test_filter_photos_by_date_after_filter():
     """Test filtering photos with --after date."""
-    from scripts.batch_tag_photos import filter_photos_by_date
+    from webui.cli.batch_tag_photos import filter_photos_by_date
 
     photos = [
         Path("mothbox_2025_01_15__12_30_00.jpg"),
@@ -61,7 +61,7 @@ def test_filter_photos_by_date_after_filter():
 
 def test_filter_photos_by_date_before_filter():
     """Test filtering photos with --before date."""
-    from scripts.batch_tag_photos import filter_photos_by_date
+    from webui.cli.batch_tag_photos import filter_photos_by_date
 
     photos = [
         Path("mothbox_2025_01_15__12_30_00.jpg"),
@@ -80,7 +80,7 @@ def test_filter_photos_by_date_before_filter():
 
 def test_filter_photos_by_date_range():
     """Test filtering photos with both --after and --before."""
-    from scripts.batch_tag_photos import filter_photos_by_date
+    from webui.cli.batch_tag_photos import filter_photos_by_date
 
     photos = [
         Path("mothbox_2025_01_15__12_30_00.jpg"),
@@ -101,7 +101,7 @@ def test_filter_photos_by_date_range():
 
 def test_filter_photos_invalid_filenames():
     """Test filtering photos with invalid filenames (no timestamp)."""
-    from scripts.batch_tag_photos import filter_photos_by_date
+    from webui.cli.batch_tag_photos import filter_photos_by_date
 
     photos = [
         Path("mothbox_2025_01_15__12_30_00.jpg"),
@@ -123,7 +123,7 @@ def test_filter_photos_invalid_filenames():
 
 def test_validate_gps_override_valid_coords():
     """Test validating valid GPS coordinates."""
-    from scripts.batch_tag_photos import validate_gps_override
+    from webui.cli.batch_tag_photos import validate_gps_override
 
     # Valid coordinates
     assert validate_gps_override(37.7749, -122.4194) is True
@@ -134,7 +134,7 @@ def test_validate_gps_override_valid_coords():
 
 def test_validate_gps_override_invalid_latitude():
     """Test validating invalid latitude values."""
-    from scripts.batch_tag_photos import validate_gps_override
+    from webui.cli.batch_tag_photos import validate_gps_override
 
     # Invalid latitudes (must be -90 to 90)
     assert validate_gps_override(91, 0) is False
@@ -144,7 +144,7 @@ def test_validate_gps_override_invalid_latitude():
 
 def test_validate_gps_override_invalid_longitude():
     """Test validating invalid longitude values."""
-    from scripts.batch_tag_photos import validate_gps_override
+    from webui.cli.batch_tag_photos import validate_gps_override
 
     # Invalid longitudes (must be -180 to 180)
     assert validate_gps_override(0, 181) is False
@@ -154,7 +154,7 @@ def test_validate_gps_override_invalid_longitude():
 
 def test_validate_gps_override_none_values():
     """Test validating None values (should be invalid)."""
-    from scripts.batch_tag_photos import validate_gps_override
+    from webui.cli.batch_tag_photos import validate_gps_override
 
     assert validate_gps_override(None, 0) is False
     assert validate_gps_override(0, None) is False
@@ -167,9 +167,9 @@ def test_validate_gps_override_none_values():
 
 def test_batch_tag_with_override_from_controls(tmp_path):
     """Test batch tagging using GPS data from controls.txt."""
-    from scripts.batch_tag_photos import batch_tag_with_override
+    from webui.cli.batch_tag_photos import batch_tag_with_override
     from PIL import Image
-    from lib.gps_exif_lib import verify_gps_exif
+    from webui.backend.lib.gps_exif_lib import verify_gps_exif
     from mothbox_paths import CONTROLS_FILE
     import shutil
 
@@ -214,9 +214,9 @@ gps_pdop = 2.0
 
 def test_batch_tag_with_override_manual_coords(tmp_path):
     """Test batch tagging with manual GPS coordinate override."""
-    from scripts.batch_tag_photos import batch_tag_with_override
+    from webui.cli.batch_tag_photos import batch_tag_with_override
     from PIL import Image
-    from lib.gps_exif_lib import verify_gps_exif
+    from webui.backend.lib.gps_exif_lib import verify_gps_exif
 
     # Create test photos
     photos = []
@@ -250,9 +250,9 @@ def test_batch_tag_with_override_manual_coords(tmp_path):
 
 def test_batch_tag_with_override_dry_run(tmp_path):
     """Test batch tagging with --dry-run flag."""
-    from scripts.batch_tag_photos import batch_tag_with_override
+    from webui.cli.batch_tag_photos import batch_tag_with_override
     from PIL import Image
-    from lib.gps_exif_lib import verify_gps_exif
+    from webui.backend.lib.gps_exif_lib import verify_gps_exif
 
     # Create test photos
     photos = []
@@ -282,7 +282,7 @@ def test_batch_tag_with_override_dry_run(tmp_path):
 
 def test_batch_tag_with_override_backup(tmp_path):
     """Test batch tagging with --backup flag."""
-    from scripts.batch_tag_photos import batch_tag_with_override
+    from webui.cli.batch_tag_photos import batch_tag_with_override
     from PIL import Image
 
     # Create test photos
@@ -312,9 +312,9 @@ def test_batch_tag_with_override_backup(tmp_path):
 
 def test_batch_tag_with_override_skip_already_tagged(tmp_path):
     """Test that already-tagged photos are skipped."""
-    from scripts.batch_tag_photos import batch_tag_with_override
+    from webui.cli.batch_tag_photos import batch_tag_with_override
     from PIL import Image
-    from lib.gps_exif_lib import embed_gps_exif
+    from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
     # Create photos, some with GPS already
     photos = []
@@ -352,9 +352,9 @@ def test_batch_tag_with_override_skip_already_tagged(tmp_path):
 
 def test_batch_tag_directory_basic(tmp_path):
     """Test batch tagging entire directory."""
-    from scripts.batch_tag_photos import batch_tag_directory
+    from webui.cli.batch_tag_photos import batch_tag_directory
     from PIL import Image
-    from lib.gps_exif_lib import verify_gps_exif
+    from webui.backend.lib.gps_exif_lib import verify_gps_exif
 
     # Create test photos in directory
     for i in range(5):
@@ -382,7 +382,7 @@ def test_batch_tag_directory_basic(tmp_path):
 
 def test_batch_tag_directory_recursive(tmp_path):
     """Test batch tagging directory recursively."""
-    from scripts.batch_tag_photos import batch_tag_directory
+    from webui.cli.batch_tag_photos import batch_tag_directory
     from PIL import Image
 
     # Create nested directory structure
@@ -413,7 +413,7 @@ def test_batch_tag_directory_recursive(tmp_path):
 
 def test_batch_tag_directory_with_date_filter(tmp_path):
     """Test batch tagging directory with date filters."""
-    from scripts.batch_tag_photos import batch_tag_directory
+    from webui.cli.batch_tag_photos import batch_tag_directory
     from PIL import Image
 
     # Create photos with different dates
@@ -445,7 +445,7 @@ def test_batch_tag_directory_with_date_filter(tmp_path):
 
 def test_main_batch_tag_directory(tmp_path, monkeypatch):
     """Test main() batch tagging a directory."""
-    from scripts.batch_tag_photos import main
+    from webui.cli.batch_tag_photos import main
     from PIL import Image
 
     # Create test photos
@@ -470,7 +470,7 @@ def test_main_batch_tag_directory(tmp_path, monkeypatch):
 
 def test_main_with_dry_run(tmp_path, monkeypatch, capsys):
     """Test main() with --dry-run flag."""
-    from scripts.batch_tag_photos import main
+    from webui.cli.batch_tag_photos import main
     from PIL import Image
 
     # Create test photos
@@ -500,7 +500,7 @@ def test_main_with_dry_run(tmp_path, monkeypatch, capsys):
 
 def test_main_with_date_filters(tmp_path, monkeypatch):
     """Test main() with --after and --before flags."""
-    from scripts.batch_tag_photos import main
+    from webui.cli.batch_tag_photos import main
     from PIL import Image
 
     # Create test photos with different dates
@@ -527,7 +527,7 @@ def test_main_with_date_filters(tmp_path, monkeypatch):
 
 def test_main_help_flag(capsys, monkeypatch):
     """Test main() with --help flag."""
-    from scripts.batch_tag_photos import main
+    from webui.cli.batch_tag_photos import main
 
     # Mock sys.argv with --help
     monkeypatch.setattr(sys, 'argv', ['batch_tag_photos.py', '--help'])
@@ -546,7 +546,7 @@ def test_main_help_flag(capsys, monkeypatch):
 
 def test_main_missing_lat_lon_error(tmp_path, monkeypatch, capsys):
     """Test main() fails without --lat/--lon and no controls.txt."""
-    from scripts.batch_tag_photos import main
+    from webui.cli.batch_tag_photos import main
 
     # Mock sys.argv without GPS coordinates
     monkeypatch.setattr(sys, 'argv', [
@@ -567,7 +567,7 @@ def test_main_missing_lat_lon_error(tmp_path, monkeypatch, capsys):
 
 def test_main_invalid_coordinates(tmp_path, monkeypatch, capsys):
     """Test main() with invalid GPS coordinates."""
-    from scripts.batch_tag_photos import main
+    from webui.cli.batch_tag_photos import main
     from PIL import Image
 
     # Create test photo
@@ -600,7 +600,7 @@ def test_main_invalid_coordinates(tmp_path, monkeypatch, capsys):
 
 def test_batch_tag_empty_directory(tmp_path):
     """Test batch tagging empty directory."""
-    from scripts.batch_tag_photos import batch_tag_directory
+    from webui.cli.batch_tag_photos import batch_tag_directory
 
     results = batch_tag_directory(
         tmp_path,
@@ -615,7 +615,7 @@ def test_batch_tag_empty_directory(tmp_path):
 
 def test_batch_tag_mixed_file_types(tmp_path):
     """Test batch tagging directory with non-JPEG files."""
-    from scripts.batch_tag_photos import batch_tag_directory
+    from webui.cli.batch_tag_photos import batch_tag_directory
     from PIL import Image
 
     # Create JPEG and non-JPEG files
@@ -639,7 +639,7 @@ def test_batch_tag_mixed_file_types(tmp_path):
 
 def test_batch_tag_handles_permission_error(tmp_path):
     """Test batch tagging handles permission errors gracefully."""
-    from scripts.batch_tag_photos import batch_tag_with_override
+    from webui.cli.batch_tag_photos import batch_tag_with_override
     from PIL import Image
     import os
 
@@ -673,8 +673,8 @@ def test_batch_tag_handles_permission_error(tmp_path):
 
 def test_batch_tag_directory_filters_symlinks(tmp_path):
     """Test that batch_tag_directory() filters out symlinks for security."""
-    from scripts.batch_tag_photos import batch_tag_directory
-    from lib.gps_exif_lib import embed_gps_exif
+    from webui.cli.batch_tag_photos import batch_tag_directory
+    from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
     # Create real photos
     photo1 = tmp_path / "photo1.jpg"
@@ -732,7 +732,7 @@ def test_batch_tag_directory_filters_symlinks(tmp_path):
 
 def test_batch_tag_directory_recursive_filters_symlinks(tmp_path):
     """Test that recursive mode also filters symlinks."""
-    from scripts.batch_tag_photos import batch_tag_directory
+    from webui.cli.batch_tag_photos import batch_tag_directory
 
     # Create subdirectory with photos
     subdir = tmp_path / "subdir"
@@ -774,7 +774,7 @@ def test_batch_tag_directory_recursive_filters_symlinks(tmp_path):
 
 def test_main_rejects_nonexistent_directory(tmp_path):
     """Test that main() rejects nonexistent directories."""
-    from scripts.batch_tag_photos import main
+    from webui.cli.batch_tag_photos import main
 
     nonexistent = tmp_path / "does_not_exist"
 
@@ -793,7 +793,7 @@ def test_main_rejects_nonexistent_directory(tmp_path):
 
 def test_main_canonicalizes_paths(tmp_path):
     """Test that main() canonicalizes paths with resolve()."""
-    from scripts.batch_tag_photos import main
+    from webui.cli.batch_tag_photos import main
 
     # Create a photo
     jpeg_bytes = (

@@ -427,7 +427,7 @@ The live view shows a real-time preview of what the camera sees at approximately
 
 ## See Also
 
-- **Camera API Documentation**: `docs/CAMERA_API.md`
-- **GPS EXIF Tagging**: `docs/GPS_EXIF_USER_GUIDE.md`
+- **Camera API Documentation**: `webui/docs/CAMERA_API.md`
+- **GPS EXIF Tagging**: `webui/docs/GPS_EXIF_USER_GUIDE.md`
 - **Settings Management**: `docs/SETTINGS_GUIDE.md` *(coming soon)*
 - **Gallery Management**: Web UI Gallery page

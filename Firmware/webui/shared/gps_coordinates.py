@@ -5,7 +5,7 @@ DMS (Degrees, Minutes, Seconds) format, validating GPS coordinates, and
 formatting coordinates for display.
 
 These utilities are designed for web UI display and API responses, extracting
-core coordinate math from the EXIF-specific implementation in lib/gps_exif_lib.py.
+core coordinate math from the EXIF-specific implementation in webui/backend/lib/gps_exif_lib.py.
 """
 
 import math

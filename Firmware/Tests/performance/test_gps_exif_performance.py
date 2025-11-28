@@ -18,8 +18,8 @@ import psutil
 import os
 
 # Import modules under test
-from lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
-import gps_exif_tagger
+from webui.backend.lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
+from webui.cli import gps_exif_tagger
 
 
 # Mark all tests in this file as performance tests
@@ -69,6 +69,7 @@ class TestSinglePhotoPerformance:
         with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
             tmp_path = Path(tmp.name)
 
+        try:
             # Create and tag photo
             img = Image.new('RGB', (1920, 1080), color='green')
             img.save(tmp_path, quality=95)

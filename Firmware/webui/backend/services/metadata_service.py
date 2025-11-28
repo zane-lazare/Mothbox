@@ -33,7 +33,7 @@ Usage:
 
 Related:
 - Issue #99: Comprehensive EXIF metadata parser for gallery
-- lib/gps_exif_lib.py: GPS coordinate extraction (reused)
+- webui/backend/lib/gps_exif_lib.py: GPS coordinate extraction (reused)
 """
 
 import logging
@@ -43,8 +43,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-# Setup path to import mothbox modules (lib/)
-# This ensures lib.gps_exif_lib can be imported regardless of how this module is loaded
+# Setup path to import mothbox modules
+# This ensures webui.backend.lib.gps_exif_lib can be imported regardless of how this module is loaded
 # (e.g., when run from systemd service at /opt/mothbox/webui/backend/)
 services_dir = Path(__file__).resolve().parent
 backend_dir = services_dir.parent
@@ -493,7 +493,7 @@ class MetadataService:
 
         try:
             # Lazy import to avoid module-level import order issues
-            from lib.gps_exif_lib import verify_gps_exif
+            from webui.backend.lib.gps_exif_lib import verify_gps_exif
 
             # Use existing GPS EXIF library
             gps_info = verify_gps_exif(photo_path)

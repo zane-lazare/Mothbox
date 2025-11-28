@@ -120,6 +120,6 @@ python3 /opt/mothbox/gps_exif_tagger.py --mode immediate --verbose
 
 ## See Also
 
-- `/home/zane/projects/Mothbox/Firmware/docs/GPS_EXIF_SERVICE.md` - Service setup guide
+- `/home/zane/projects/Mothbox/Firmware/webui/docs/GPS_EXIF_SERVICE.md` - Service setup guide
 - `MANUAL_TEST_PROCEDURES.md` - Detailed test procedures
 - `/home/zane/projects/Mothbox/Firmware/TESTING_PROCEDURE.md` - General testing guide

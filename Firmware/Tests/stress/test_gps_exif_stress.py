@@ -19,8 +19,8 @@ import threading
 from unittest.mock import Mock
 
 # Import modules under test
-from lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
-import gps_exif_tagger
+from webui.backend.lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
+from webui.cli import gps_exif_tagger
 
 
 # Mark all tests in this file as stress tests

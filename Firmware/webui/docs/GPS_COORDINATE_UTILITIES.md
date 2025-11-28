@@ -711,11 +711,11 @@ Both implementations are tested with **identical test cases** to ensure consiste
 
 ## Integration with GPS EXIF System
 
-The GPS coordinate utilities are used by the GPS EXIF embedding system (`lib/gps_exif_lib.py`) to convert coordinates for photo geotagging:
+The GPS coordinate utilities are used by the GPS EXIF embedding system (`webui/backend/lib/gps_exif_lib.py`) to convert coordinates for photo geotagging:
 
 ```python
 from webui.backend.utils.gps_coordinates import decimal_to_dms
-from lib.gps_exif_lib import embed_gps_exif
+from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
 # Read GPS data from controls.txt
 lat_decimal = 37.7749
