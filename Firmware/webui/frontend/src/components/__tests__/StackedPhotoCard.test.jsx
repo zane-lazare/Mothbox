@@ -402,5 +402,17 @@ describe('StackedPhotoCard', () => {
       // Should not throw - photos.slice guard handles this
       expect(() => render(<StackedPhotoCard series={nullPhotosSeries} />)).not.toThrow()
     })
+
+    it('returns null when series is undefined after loading completes', () => {
+      // When isLoading=false but series is still undefined, component should return null
+      const { container } = render(<StackedPhotoCard series={undefined} isLoading={false} />)
+      expect(container.firstChild).toBeNull()
+    })
+
+    it('returns null when series is null after loading completes', () => {
+      // When isLoading=false but series is null, component should return null
+      const { container } = render(<StackedPhotoCard series={null} isLoading={false} />)
+      expect(container.firstChild).toBeNull()
+    })
   })
 })

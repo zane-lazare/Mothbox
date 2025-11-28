@@ -51,11 +51,19 @@ export default function StackedPhotoCard({
     )
   }
 
+  // Guard against undefined/null series after loading
+  if (!series) {
+    return null
+  }
+
   // Now safe to destructure series
   const { series_type, photos, count } = series
 
   // Get up to 3 photos for stacking (guard against undefined/null photos)
   const stackedPhotos = (photos || []).slice(0, 3)
+
+  // Extract cover photo for stable useCallback dependency
+  const coverPhoto = stackedPhotos[0]
 
   // Format series type for display
   const formatSeriesType = (type) => {
@@ -77,13 +85,13 @@ export default function StackedPhotoCard({
 
   // Handle click on the card
   const handleClick = useCallback(() => {
-    if (onPhotoClick && photos.length > 0) {
-      onPhotoClick(photos[0])
+    if (onPhotoClick && coverPhoto) {
+      onPhotoClick(coverPhoto)
     }
     if (onCardClick) {
       onCardClick(series)
     }
-  }, [onCardClick, onPhotoClick, series, photos])
+  }, [onCardClick, onPhotoClick, coverPhoto, series])
 
   // Handle keyboard navigation
   const handleKeyDown = useCallback(
@@ -145,10 +153,12 @@ export default function StackedPhotoCard({
         const offset = offsets[actualIndex] || offsets[0]
         const shadow = shadows[actualIndex] || shadows[0]
         const isFront = actualIndex === stackedPhotos.length - 1
+        // Handle both string paths and photo objects for key
+        const photoKey = typeof photo === 'string' ? photo : photo.path
 
         return (
           <div
-            key={photo.path}
+            key={photoKey}
             className={`absolute inset-0 transform ${offset} rounded-lg overflow-hidden ${shadow} ${zIndex} ${
               isFront
                 ? 'transition-transform duration-200 group-hover:scale-[1.02] group-focus:scale-[1.02]'
@@ -167,7 +177,7 @@ export default function StackedPhotoCard({
       })}
 
       {/* Series badge - bottom right corner */}
-      <div className="absolute bottom-2 right-2 z-40 px-2 py-1 bg-black/70 text-white text-xs font-medium rounded">
+      <div className="absolute bottom-2 right-2 z-40 px-2 py-1 bg-black/80 text-white text-xs font-medium rounded">
         {count} {formatSeriesType(series_type)}
       </div>
     </div>
