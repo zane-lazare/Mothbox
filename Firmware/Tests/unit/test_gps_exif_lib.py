@@ -1,5 +1,5 @@
 """
-Unit tests for GPS EXIF library (lib/gps_exif_lib.py).
+Unit tests for GPS EXIF library (webui/backend/lib/gps_exif_lib.py).
 
 This test module implements TDD for Issue #98 GPS EXIF embedding feature.
 Tests are written FIRST before implementation to drive design and ensure

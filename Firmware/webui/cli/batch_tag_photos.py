@@ -31,7 +31,7 @@ Usage:
 Related:
 - Issue #98 Phase 3: Batch Tagging Tool (Days 4-7)
 - Spec: webui/docs/dev/issues/ISSUE_98_GPS_EXIF_IMPLEMENTATION_SPEC.md
-- Library: lib/gps_exif_lib.py
+- Library: webui/backend/lib/gps_exif_lib.py
 """
 
 import argparse

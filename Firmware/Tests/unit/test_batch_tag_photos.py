@@ -1,5 +1,5 @@
 """
-Unit tests for scripts/batch_tag_photos.py - GPS EXIF Batch Tagging Tool
+Unit tests for webui/cli/batch_tag_photos.py - GPS EXIF Batch Tagging Tool
 
 Tests the batch tagging tool's ability to:
 1. Filter photos by date range

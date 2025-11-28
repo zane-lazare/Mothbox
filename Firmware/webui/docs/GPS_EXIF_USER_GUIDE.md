@@ -194,13 +194,13 @@ Check if photos have GPS EXIF data:
 
 ```bash
 # Verify single photo
-python3 scripts/verify_gps_exif.py /path/to/photo.jpg
+python3 -m webui.cli.verify_gps_exif /path/to/photo.jpg
 
 # Verify all photos in directory
-python3 scripts/verify_gps_exif.py --directory /var/lib/mothbox/photos
+python3 -m webui.cli.verify_gps_exif --directory /var/lib/mothbox/photos
 
 # Generate CSV report
-python3 scripts/verify_gps_exif.py --directory /var/lib/mothbox/photos --csv gps_report.csv
+python3 -m webui.cli.verify_gps_exif --directory /var/lib/mothbox/photos --csv gps_report.csv
 ```
 
 **Verification Output**:
@@ -243,7 +243,7 @@ python3 -c "from webui.backend.lib.gps_exif_lib import get_gps_data_from_control
 **Diagnosis**:
 ```bash
 # Verify photo has GPS data
-python3 scripts/verify_gps_exif.py /path/to/photo.jpg
+python3 -m webui.cli.verify_gps_exif /path/to/photo.jpg
 ```
 
 **Solutions**:
@@ -348,7 +348,7 @@ top -p $(pgrep -f gps_exif_tagger)
 exiftool photo.jpg
 
 # Or use verification tool
-python3 scripts/verify_gps_exif.py photo.jpg
+python3 -m webui.cli.verify_gps_exif photo.jpg
 ```
 
 **Prevention**:
