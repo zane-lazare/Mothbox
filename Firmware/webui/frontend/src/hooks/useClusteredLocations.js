@@ -59,6 +59,8 @@ async function fetchClusteredLocations({ enabled, radius, minSize }) {
  *   - metadata: Clustering metadata (total photos, processing time, etc.)
  *   - isLoading: Loading state
  *   - error: Error object if failed
+ *   - isPartialResult: True if clustering timed out and returned partial results
+ *   - partialWarning: Warning message when partial results are returned
  *   - settings: Current clustering settings
  *   - setEnabled: Toggle clustering on/off
  *   - setRadius: Set clustering radius in meters
@@ -94,12 +96,18 @@ export function useClusteredLocations() {
     setSettings((prev) => ({ ...prev, minSize }))
   }, [])
 
+  // Extract partial result indicators from metadata
+  const isPartialResult = data?.metadata?.partial_result ?? false
+  const partialWarning = data?.metadata?.warning ?? null
+
   return {
     clusters: data?.clusters || [],
     unclustered: data?.unclustered || [],
     metadata: data?.metadata || {},
     isLoading,
     error,
+    isPartialResult,
+    partialWarning,
     settings,
     setEnabled,
     setRadius,
