@@ -115,6 +115,7 @@ export const TOAST_CONFIG = {
  * @property {Object} VIEW_MODES - Available gallery view modes
  * @property {string} VIEW_MODES.GRID - Grid view mode (multi-column thumbnail grid)
  * @property {string} VIEW_MODES.LIST - List view mode (single-column with metadata)
+ * @property {string} VIEW_MODES.MAP - Map view mode (GPS-tagged photos on Leaflet map)
  * @property {string} DEFAULT_VIEW - Default view mode when no preference set
  * @property {string} STORAGE_KEY - localStorage/backend preference key for view mode
  */
@@ -122,6 +123,7 @@ export const VIEW_CONFIG = {
   VIEW_MODES: {
     GRID: 'grid',
     LIST: 'list',
+    MAP: 'map',
   },
   DEFAULT_VIEW: 'grid',
   STORAGE_KEY: 'gallery_view_mode',
@@ -204,5 +206,59 @@ export const LIGHTBOX_CONFIG = {
     SWIPE_MIN_DISTANCE: 50, // Min horizontal distance for swipe - prevents accidental swipes (px)
     SWIPE_MIN_VELOCITY: 0.3, // Min swipe speed - distinguishes swipe from slow drag (px/ms)
     DOUBLE_TAP_DISTANCE_BASE: 15, // Base distance threshold for double-tap at 1x DPI (px)
+  },
+}
+
+/**
+ * Map Component Configuration
+ *
+ * Leaflet map configuration for displaying GPS-tagged photo locations.
+ * Uses OpenStreetMap tiles (free, no API key required).
+ *
+ * @property {Array<number>} DEFAULT_CENTER - Default map center coordinates [lat, lon] for world view
+ * @property {number} DEFAULT_ZOOM - Default zoom level (2 = world view)
+ * @property {number} MIN_ZOOM - Minimum allowed zoom level (2 = world view)
+ * @property {number} MAX_ZOOM - Maximum allowed zoom level (18 = street-level detail)
+ *
+ * @property {string} TILE_URL - OpenStreetMap tile server URL template
+ *   - {s}: Subdomain for load balancing (a/b/c)
+ *   - {z}: Zoom level
+ *   - {x}/{y}: Tile coordinates
+ * @property {string} ATTRIBUTION - OpenStreetMap copyright attribution (required by license)
+ *
+ * @property {Object} CLUSTER - Marker clustering configuration (Leaflet.markercluster)
+ *   - MAX_RADIUS: Pixel radius for grouping nearby markers into clusters
+ *   - SPIDERFY_ON_MAX_ZOOM: Expand clustered markers at max zoom level
+ *   - SHOW_COVERAGE_ON_HOVER: Show cluster coverage area on mouse hover
+ *
+ * @property {Object} POPUP - Popup window configuration for photo markers
+ *   - MAX_WIDTH: Maximum popup width in pixels
+ *   - THUMBNAIL_SIZE: Thumbnail image size in pixels (128px for fast loading)
+ */
+export const MAP_CONFIG = {
+  // Default map center (world view)
+  DEFAULT_CENTER: [0, 0],
+  DEFAULT_ZOOM: 2,
+
+  // Zoom limits
+  MIN_ZOOM: 2,
+  MAX_ZOOM: 18,
+
+  // OpenStreetMap tile provider
+  TILE_URL: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  ATTRIBUTION:
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+
+  // Marker clustering
+  CLUSTER: {
+    MAX_RADIUS: 40, // Pixel radius for clustering
+    SPIDERFY_ON_MAX_ZOOM: true,
+    SHOW_COVERAGE_ON_HOVER: false,
+  },
+
+  // Popup configuration
+  POPUP: {
+    MAX_WIDTH: 200,
+    THUMBNAIL_SIZE: 128,
   },
 }

@@ -947,3 +947,143 @@ def invalidate_series_cache():
     except Exception as e:
         logger.error(f"Error invalidating series cache: {e}", exc_info=True)
         return jsonify({"error": "Failed to invalidate cache"}), 500
+
+
+# ============================================================================
+# Photo Locations Endpoint (Issue #113 - Subtask 2)
+# ============================================================================
+
+@gallery_bp.route("/locations", methods=["GET"])
+def get_photo_locations():
+    """
+    Get photos with GPS coordinates for map display.
+
+    Query Parameters:
+        limit (int): Maximum photos to return (1-10000, default: 1000)
+
+    Returns:
+        JSON response with:
+        - locations: List of photos with GPS data
+        - total_with_gps: Count of photos with GPS
+        - total_without_gps: Count of photos without GPS
+
+    Example:
+        GET /locations?limit=100
+
+    Status Codes:
+        200: Success
+        400: Invalid limit parameter
+        500: Internal server error
+    """
+    try:
+        # Parse and validate limit parameter
+        limit_str = request.args.get('limit')
+
+        if limit_str is not None:
+            try:
+                limit = int(limit_str)
+            except ValueError:
+                return jsonify({"error": f"Limit must be an integer, got '{limit_str}'"}), 400
+
+            # Validate limit range
+            if limit <= 0:
+                return jsonify({"error": "Limit must be greater than 0"}), 400
+            if limit > 10000:
+                return jsonify({"error": "Limit must be 10000 or less"}), 400
+        else:
+            limit = 1000  # Default limit
+
+        # Check if PHOTOS_DIR exists
+        if not PHOTOS_DIR.exists():
+            return jsonify({
+                "locations": [],
+                "total_with_gps": 0,
+                "total_without_gps": 0
+            })
+
+        # Import GPS EXIF library
+        from webui.backend.lib.gps_exif_lib import verify_gps_exif
+
+        # Collect all JPG photos
+        all_photos = list(PHOTOS_DIR.glob("**/*.jpg")) + list(PHOTOS_DIR.glob("**/*.JPG"))
+
+        # Process photos and extract GPS data
+        locations = []
+        total_with_gps = 0
+        total_without_gps = 0
+
+        for photo_path in all_photos:
+            # Extract GPS data
+            try:
+                gps_info = verify_gps_exif(photo_path)
+
+                if gps_info.get('has_gps'):
+                    # Photo has GPS data
+                    total_with_gps += 1
+
+                    # Only add to locations if under limit
+                    if len(locations) < limit:
+                        # Get relative path for API URLs
+                        photo_relative = photo_path.relative_to(PHOTOS_DIR)
+
+                        # Extract timestamp from EXIF if available
+                        timestamp = gps_info.get('timestamp')
+
+                        # Convert timestamp to ISO format if needed
+                        if timestamp:
+                            # GPS timestamp might be in EXIF format (YYYY:MM:DD HH:MM:SS)
+                            # Convert to ISO 8601 format
+                            try:
+                                from datetime import datetime
+                                # Try parsing EXIF format first
+                                if ':' in timestamp and ' ' in timestamp:
+                                    dt = datetime.strptime(timestamp, '%Y:%m:%d %H:%M:%S')
+                                    timestamp = dt.isoformat()
+                            except Exception:
+                                # Keep original timestamp if conversion fails
+                                pass
+
+                        # If no GPS timestamp, try to get from EXIF DateTimeOriginal
+                        if not timestamp:
+                            try:
+                                import piexif
+                                exif_dict = piexif.load(str(photo_path))
+                                if 'Exif' in exif_dict and piexif.ExifIFD.DateTimeOriginal in exif_dict['Exif']:
+                                    dt_str = exif_dict['Exif'][piexif.ExifIFD.DateTimeOriginal].decode('utf-8', errors='ignore')
+                                    # Convert EXIF format to ISO
+                                    from datetime import datetime
+                                    dt = datetime.strptime(dt_str, '%Y:%m:%d %H:%M:%S')
+                                    timestamp = dt.isoformat()
+                            except Exception:
+                                # Use file modification time as fallback
+                                from datetime import datetime
+                                timestamp = datetime.fromtimestamp(photo_path.stat().st_mtime).isoformat()
+
+                        locations.append({
+                            "photo_path": str(photo_relative),
+                            "filename": photo_path.name,
+                            "latitude": gps_info['latitude'],
+                            "longitude": gps_info['longitude'],
+                            "timestamp": timestamp,
+                            "thumbnail_url": f"/api/gallery/thumbnail/{photo_relative}"
+                        })
+                else:
+                    # Photo has no GPS data
+                    total_without_gps += 1
+
+            except Exception as e:
+                # Handle corrupted EXIF or read errors gracefully
+                logger.debug(f"Failed to read GPS from {photo_path.name}: {e}")
+                total_without_gps += 1
+
+        return jsonify({
+            "locations": locations,
+            "total_with_gps": total_with_gps,
+            "total_without_gps": total_without_gps
+        })
+
+    except Exception as e:
+        # Log full error details server-side (CodeQL security requirement)
+        logger.error(f"Error getting photo locations: {e}", exc_info=True)
+        # Return generic message to user (don't expose internal details)
+        return jsonify({"error": "Failed to get photo locations"}), 500
