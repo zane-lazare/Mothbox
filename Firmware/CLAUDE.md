@@ -68,7 +68,7 @@ Core scripts in each version:
 **Overview**: Automatic GPS coordinate embedding in photo EXIF metadata for geotagging Mothbox captures.
 
 **Architecture**:
-- **Library**: `lib/gps_exif_lib.py` - Core GPS EXIF functionality (196 lines, 85%+ coverage)
+- **Library**: `webui/backend/lib/gps_exif_lib.py` - Core GPS EXIF functionality (196 lines, 85%+ coverage)
   - `get_gps_data_from_controls()`: Read GPS data from controls.txt
   - `decimal_to_dms()`: Convert decimal coordinates to EXIF DMS format
   - `build_gps_ifd()`: Build GPS IFD (Image File Directory) structure
@@ -76,13 +76,13 @@ Core scripts in each version:
   - `verify_gps_exif()`: Verify and extract GPS data from photos
   - `is_already_tagged()`: Check if photo already has GPS EXIF
 
-- **CLI Tool**: `gps_exif_tagger.py` - Batch and watch mode processing
+- **CLI Tool**: `webui/cli/gps_exif_tagger.py` - Batch and watch mode processing
   - **Batch mode**: One-time processing of photo directory (default)
   - **Watch mode**: Continuous monitoring for new photos (`--watch`)
   - **Options**: `--dry-run`, `--backup`, `--force`, `--pattern`, `--interval`
   - **Performance**: >10 photos/sec throughput, <500ms per photo
 
-- **Verification Tool**: `scripts/verify_gps_exif.py` - Inspect and verify GPS EXIF
+- **Verification Tool**: `webui/cli/verify_gps_exif.py` - Inspect and verify GPS EXIF
   - Interactive photo inspection
   - Batch directory verification
   - CSV report generation
@@ -90,8 +90,8 @@ Core scripts in each version:
 
 **Systemd Service** (optional):
 - **Purpose**: Automatically tag new photos as they're captured
-- **Implementation**: `gps_exif_tagger.py --mode immediate --watch --interval 10`
-- **Service files**: `services/gps-exif-tagger.service` (production), `services/gps-exif-tagger-legacy.service` (legacy)
+- **Implementation**: `webui/cli/gps_exif_tagger.py --mode immediate --watch --interval 10`
+- **Service files**: `webui/services/gps-exif-tagger.service` (production), `webui/services/gps-exif-tagger-legacy.service` (legacy)
 - **Installation**: Via `install_mothbox.sh --with-gps-exif-service`
 - **Resource limits**: 256MB memory max, 25% CPU quota
 - **Security**: Strict systemd hardening (ProtectSystem=strict, NoNewPrivileges, capability restrictions)
@@ -99,22 +99,22 @@ Core scripts in each version:
 **Usage Examples**:
 ```bash
 # Batch process entire photo directory
-python3 gps_exif_tagger.py --directory /var/lib/mothbox/photos
+python3 webui/cli/gps_exif_tagger.py --directory /var/lib/mothbox/photos
 
 # Watch mode with backup creation
-python3 gps_exif_tagger.py --watch --backup --interval 5
+python3 webui/cli/gps_exif_tagger.py --watch --backup --interval 5
 
 # Dry run to test before modifying files
-python3 gps_exif_tagger.py --dry-run --verbose
+python3 webui/cli/gps_exif_tagger.py --dry-run --verbose
 
 # Force re-tag all photos (even if already tagged)
-python3 gps_exif_tagger.py --force --pattern "*.jpg"
+python3 webui/cli/gps_exif_tagger.py --force --pattern "*.jpg"
 
 # Verify GPS EXIF in photos
-python3 scripts/verify_gps_exif.py /var/lib/mothbox/photos/photo.jpg
+python3 webui/cli/verify_gps_exif.py /var/lib/mothbox/photos/photo.jpg
 
 # Generate CSV report for all photos
-python3 scripts/verify_gps_exif.py --directory /var/lib/mothbox/photos --csv gps_report.csv
+python3 webui/cli/verify_gps_exif.py --directory /var/lib/mothbox/photos --csv gps_report.csv
 ```
 
 **Service Management**:
@@ -159,8 +159,8 @@ sudo systemctl status gps-exif-tagger.service
 - Service latency: <10 seconds from photo creation to GPS tagging
 
 **Documentation**:
-- `docs/GPS_EXIF_SERVICE.md`: Service setup, troubleshooting, configuration
-- `docs/GPS_EXIF_USER_GUIDE.md`: User guide for GPS EXIF functionality
+- `webui/docs/GPS_EXIF_SERVICE.md`: Service setup, troubleshooting, configuration
+- `webui/docs/GPS_EXIF_USER_GUIDE.md`: User guide for GPS EXIF functionality
 - `TESTING_PROCEDURE.md`: Manual testing procedures
 
 **Important Notes**:
@@ -169,6 +169,58 @@ sudo systemctl status gps-exif-tagger.service
 - Idempotent: Can safely re-run on already-tagged photos (skips by default)
 - Service auto-restarts on failure with exponential backoff
 - Compatible with all Mothbox photo formats (.jpg, .jpeg, case-insensitive)
+
+### Series Detection System (Issue #110)
+
+**Overview**: Automatic detection and grouping of HDR and Focus Bracket photo series based on TakePhoto.py naming patterns.
+
+**Naming Patterns** (from TakePhoto.py):
+- **HDR**: `{name}_{YYYY_MM_DD__HH_MM_SS}_HDR{index}.jpg` (e.g., `moth_2024_01_15__10_30_00_HDR0.jpg`)
+- **Focus Bracket**: `ManFocus_{name}_{YYYY_MM_DD__HH_MM_SS}_FB{index}.jpg` (e.g., `ManFocus_moth_2024_01_15__10_30_00_FB0.jpg`)
+
+**Architecture**:
+- **Library**: `webui/backend/lib/series_detection.py` - Core pattern matching (97.89% coverage)
+  - `detect_series_type()`: Parse filename to get series type and index
+  - `get_series_id()`: Generate unique grouping key for series
+  - `group_photos_into_series()`: Group photos by series ID
+
+- **Service**: `webui/backend/services/series_service.py` - Cached service layer (91.94% coverage)
+  - `SeriesService`: Thread-safe service with configurable cache TTL
+  - Methods: `get_series_for_directory()`, `get_series_by_id()`, `invalidate_cache()`, `get_statistics()`
+
+- **API**: `webui/backend/routes/gallery.py` - REST endpoints
+  - `GET /api/gallery/series`: List all series (paginated, filterable)
+  - `GET /api/gallery/series/<series_id>`: Get specific series details
+  - `GET /api/gallery/series/stats`: Get cache statistics
+  - `POST /api/gallery/series/cache/invalidate`: Invalidate cache
+
+**Performance Targets**:
+- Single filename parsing: <10ms
+- 1000 photos grouping: <100ms
+- Cache hit ratio: >80%
+
+**Usage**:
+```python
+from webui.backend.lib.series_detection import detect_series_type, get_series_id
+from webui.backend.services.series_service import SeriesService
+
+# Detect series type from filename
+info = detect_series_type(Path("moth_2024_01_15__10_30_00_HDR0.jpg"))
+# Returns: SeriesInfo(series_type="hdr", base_name="moth_2024_01_15__10_30_00", index=0)
+
+# Use service with caching
+service = SeriesService(cache_ttl=300)  # 5 minute cache
+series_list = service.get_series_for_directory("/var/lib/mothbox/photos")
+```
+
+**Testing**:
+- Unit tests: `Tests/unit/test_series_detection_lib.py` (48 tests)
+- Unit tests: `Tests/unit/test_series_service.py` (31 tests)
+- API tests: `Tests/unit/test_series_api.py` (17 tests)
+- Performance tests: `Tests/performance/test_series_detection_performance.py` (16 tests)
+
+**Documentation**:
+- `webui/docs/dev/api/gallery.md`: API documentation with Series Endpoints section
 
 ### Camera System
 
@@ -437,19 +489,62 @@ def ws_connect():
     pass
 ```
 
+### GPS Coordinate Conversion
+
+```python
+# CORRECT - Use shared utilities from webui.shared
+from webui.shared.gps_coordinates import decimal_to_dms, dms_to_decimal
+
+# Convert decimal to DMS for EXIF embedding
+lat_dms = decimal_to_dms(37.7749, is_latitude=True)
+# Returns: (37, 46, 29.64, 'N')
+
+# Convert DMS to decimal for API/storage
+lat_decimal = dms_to_decimal(37, 46, 29.64, 'N')
+# Returns: 37.7749
+
+# BACKWARD COMPATIBLE - Can still import from utils (re-exported)
+from webui.backend.utils import decimal_to_dms, dms_to_decimal
+
+# WRONG - Don't implement conversion logic inline
+# This leads to inconsistencies and bugs
+```
+
+```typescript
+// CORRECT - Use shared utilities (frontend)
+import { decimalToDMS, formatCoordinateDisplay } from '@/utils/gpsCoordinates';
+
+const dms = decimalToDMS(37.7749, true);
+// Returns: { degrees: 37, minutes: 46, seconds: 29.64, reference: 'N' }
+
+const latDisplay = formatCoordinateDisplay(37.7749, true);
+const lonDisplay = formatCoordinateDisplay(-122.4194, false);
+// latDisplay: "37°46'29.64\"N", lonDisplay: "122°25'9.84\"W"
+```
+
 ## Key Files Reference
 
 - `mothbox_paths.py`: **Path resolution and hardware config** (276 lines, 97.8% coverage)
 - `install_mothbox.sh`: Installation script with Pi detection and firmware selection
-- `gps_exif_tagger.py`: Main GPS EXIF embedding tool (CLI and watch mode)
-- `gps_exif/`: GPS EXIF library (coordinate conversion, EXIF embedding, verification)
+- `webui/cli/gps_exif_tagger.py`: Main GPS EXIF embedding tool (CLI and watch mode)
+- `webui/backend/lib/gps_exif_lib.py`: GPS EXIF library (coordinate conversion, EXIF embedding, verification)
+- `webui/backend/lib/series_detection.py`: **Series detection library** (HDR/FB pattern matching, 97.89% coverage)
+- `webui/backend/services/series_service.py`: **Series service** (cached series queries, 91.94% coverage)
+- `webui/shared/gps_coordinates.py`: **GPS coordinate utilities** (decimal ↔ DMS conversion, validation, formatting) - webui-shared library
+- `webui/frontend/src/utils/gpsCoordinates.ts`: **GPS coordinate utilities (TypeScript)** (identical behavior to Python)
 - `webui/backend/app.py`: Flask app initialization, CSRF, CORS, SocketIO setup
+- `webui/backend/constants.py`: **Centralized constants** (camera timeouts, HDR/focus bracket settings, MJPEG encoder params, AF modes)
 - `webui/backend/liveview_stream.py`: Camera streaming engine (2500+ lines)
 - `webui/backend/routes/camera.py`: Camera control API (1270+ lines)
+- `webui/backend/routes/gallery.py`: Gallery API (photos, thumbnails, series endpoints)
 - `pyproject.toml`: pytest, coverage, bandit, and ruff configuration
 - `Tests/README.md`: Comprehensive testing documentation
 - `Tests/manual/gps_exif_service/`: GPS EXIF service manual testing procedures
-- `docs/GPS_EXIF_SERVICE.md`: GPS EXIF service setup and troubleshooting guide
+- `webui/docs/GPS_EXIF_SERVICE.md`: GPS EXIF service setup and troubleshooting guide
+- `webui/docs/GPS_COORDINATE_UTILITIES.md`: GPS coordinate conversion utilities documentation
+- `webui/docs/CAMERA_SETTINGS.md`: Camera settings and configuration guide
+- `webui/docs/LIVEVIEW_STREAMING.md`: LiveView streaming architecture and usage
+- `webui/docs/dev/api/gallery.md`: **Gallery API documentation** (photo, thumbnail, series endpoints)
 
 ## Development Workflow
 

@@ -849,10 +849,12 @@ try:
     if num_photos < 1 or num_photos == 2:
         num_photos = 1
 
+    # Note: Picamera2 "BGR888" outputs RGB byte order (counterintuitive naming)
+    # See: https://github.com/raspberrypi/picamera2/discussions/568
     capture_main = {
         "size": (width, height),
-        "format": "BGR888",
-    }  # BGR888 = true RGB order
+        "format": "BGR888",  # Outputs RGB-ordered bytes for PIL compatibility
+    }
     capture_config = picam2.create_still_configuration(main=capture_main, raw=None, lores=None)
     capture_config_flipped = picam2.create_still_configuration(
         main=capture_main, transform=Transform(vflip=True, hflip=True), raw=None, lores=None

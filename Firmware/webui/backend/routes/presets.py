@@ -61,7 +61,8 @@ def list_presets():
 
         return jsonify({"presets": presets, "counts": counts})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error listing presets: {e}")
+        return jsonify({"error": "Failed to list presets"}), 500
 
 
 @presets_bp.route("/<name>", methods=["GET"])
@@ -83,7 +84,8 @@ def get_preset(name):
 
         return jsonify(preset_data)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error getting preset '{name}': {e}")
+        return jsonify({"error": "Failed to get preset"}), 500
 
 
 @presets_bp.route("", methods=["POST"], strict_slashes=False)
@@ -161,7 +163,7 @@ def create_preset():
 
         print(f"Error creating preset: {e}")
         print(traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to create preset"}), 500
 
 
 @presets_bp.route("/<name>/apply", methods=["POST"])
@@ -245,8 +247,9 @@ def apply_preset(name):
                             {"error": f"Invalid value for camera setting {key}: {value}"}
                         ), 400
                 except (ValueError, TypeError) as e:
+                    print(f"Invalid type for camera setting {key}: {value} - {e}")
                     return jsonify(
-                        {"error": f"Invalid type for camera setting {key}: {value} ({str(e)})"}
+                        {"error": f"Invalid type for camera setting {key}: {value}"}
                     ), 400
 
             # Read current camera_settings.csv
@@ -321,7 +324,7 @@ def apply_preset(name):
 
         print(f"Error applying preset: {e}")
         print(traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to apply preset"}), 500
 
 
 @presets_bp.route("/<name>", methods=["DELETE"])
@@ -344,4 +347,5 @@ def delete_preset(name):
             return jsonify({"error": message}), 400
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error deleting preset '{name}': {e}")
+        return jsonify({"error": "Failed to delete preset"}), 500

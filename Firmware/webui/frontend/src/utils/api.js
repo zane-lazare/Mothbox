@@ -84,12 +84,18 @@ export const autoCalibrate = (data) => api.post('/camera/calibrate', data)
 export const freezeSettings = () => api.post('/camera/freeze-settings')
 export const testCaptureLiveview = () => api.post('/camera/test-capture-liveview')
 export const testCapturePhoto = () => api.post('/camera/test-capture-photo')
+export const instantCapture = () => api.post('/camera/instant-capture')
 
 // Gallery APIs
 export const getPhotos = () => api.get('/gallery/photos')
 export const getPhotosPaginated = (params) => api.get('/gallery/photos/paginated', { params })
 export const getPhotoUrl = (path) => `${API_BASE_URL}/gallery/photo/${path}`
-export const getThumbnailUrl = (path) => `${API_BASE_URL}/gallery/thumbnail/${path}?size=${GALLERY_CONFIG.THUMBNAIL.SIZE}`
+export const getThumbnailUrl = (path, size = GALLERY_CONFIG.THUMBNAIL.SIZE) => `${API_BASE_URL}/gallery/thumbnail/${path}?size=${size}`
+export const getPhotoLocations = (params = {}) => api.get('/gallery/locations', { params }).then(res => res.data)
+
+// Series APIs (Photo Series - HDR, Focus Bracket)
+export const getSeries = (params) => api.get('/gallery/series', { params })
+export const getSeriesById = (seriesId) => api.get(`/gallery/series/${encodeURIComponent(seriesId)}`)
 
 // Config APIs
 export const getControls = () => api.get('/config/controls')

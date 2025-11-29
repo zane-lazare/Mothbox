@@ -54,9 +54,6 @@ class DevelopmentConfig(Config):
     TESTING = True
     ENV_NAME = "development"
 
-    # Development server is acceptable in this mode
-    ALLOW_DEV_SERVER = True
-
     # Verbose logging for debugging
     LOG_LEVEL = "DEBUG"
 
@@ -77,10 +74,6 @@ class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
     ENV_NAME = "production"
-
-    # Development server not recommended but supported for backward compatibility
-    # TODO: Enforce gunicorn when issue #19 is implemented
-    ALLOW_DEV_SERVER = True  # Will become False after issue #19
 
     # Minimal logging in production
     LOG_LEVEL = "INFO"

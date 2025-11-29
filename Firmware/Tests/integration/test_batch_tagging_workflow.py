@@ -22,7 +22,7 @@ import subprocess
 import sys
 from pathlib import Path
 from PIL import Image
-from lib.gps_exif_lib import verify_gps_exif, embed_gps_exif
+from webui.backend.lib.gps_exif_lib import verify_gps_exif, embed_gps_exif
 from datetime import datetime
 
 
@@ -39,7 +39,7 @@ def test_batch_tag_directory_manual_override(tmp_path):
         img.save(photo, 'JPEG')
 
     # Run batch tagging script
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "batch_tag_photos.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "batch_tag_photos.py"
     result = subprocess.run(
         [
             sys.executable, str(script_path),
@@ -73,7 +73,7 @@ def test_batch_tag_with_date_filters(tmp_path):
         img.save(photo, 'JPEG')
 
     # Run batch tagging with date filter (only 16, 17, 18)
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "batch_tag_photos.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "batch_tag_photos.py"
     result = subprocess.run(
         [
             sys.executable, str(script_path),
@@ -120,7 +120,7 @@ def test_batch_tag_recursive(tmp_path):
         img.save(photo, 'JPEG')
 
     # Run batch tagging recursively
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "batch_tag_photos.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "batch_tag_photos.py"
     result = subprocess.run(
         [
             sys.executable, str(script_path),
@@ -151,7 +151,7 @@ def test_batch_tag_dry_run_mode(tmp_path):
         img.save(photo, 'JPEG')
 
     # Run batch tagging in dry-run mode
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "batch_tag_photos.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "batch_tag_photos.py"
     result = subprocess.run(
         [
             sys.executable, str(script_path),
@@ -184,7 +184,7 @@ def test_batch_tag_backup_mode(tmp_path):
         img.save(photo, 'JPEG')
 
     # Run batch tagging with backup
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "batch_tag_photos.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "batch_tag_photos.py"
     result = subprocess.run(
         [
             sys.executable, str(script_path),
@@ -226,7 +226,7 @@ def test_batch_tag_idempotent(tmp_path):
     photos.append(photo2)
 
     # Run batch tagging
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "batch_tag_photos.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "batch_tag_photos.py"
     result = subprocess.run(
         [
             sys.executable, str(script_path),
@@ -255,7 +255,7 @@ def test_batch_tag_idempotent(tmp_path):
 def test_batch_tag_error_handling(tmp_path):
     """Integration test: Batch tagging handles errors gracefully."""
     # Test with non-existent directory
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "batch_tag_photos.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "batch_tag_photos.py"
     result = subprocess.run(
         [
             sys.executable, str(script_path),
@@ -280,7 +280,7 @@ def test_batch_tag_invalid_coordinates(tmp_path):
     img.save(photo, 'JPEG')
 
     # Test with invalid latitude (>90)
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "batch_tag_photos.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "batch_tag_photos.py"
     result = subprocess.run(
         [
             sys.executable, str(script_path),
@@ -310,7 +310,7 @@ def test_batch_tag_mixed_workflow(tmp_path):
             img.save(photo, 'JPEG')
 
     # Batch tag with: recursive, date filter, backup
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "batch_tag_photos.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "batch_tag_photos.py"
     result = subprocess.run(
         [
             sys.executable, str(script_path),
@@ -355,7 +355,7 @@ def test_batch_tag_integration_with_verification(tmp_path):
         img.save(photo, 'JPEG')
 
     # Step 1: Batch tag
-    batch_script = Path(__file__).parent.parent.parent / "scripts" / "batch_tag_photos.py"
+    batch_script = Path(__file__).parent.parent.parent / "webui" / "cli" / "batch_tag_photos.py"
     result1 = subprocess.run(
         [
             sys.executable, str(batch_script),
@@ -370,7 +370,7 @@ def test_batch_tag_integration_with_verification(tmp_path):
     assert result1.returncode == 0
 
     # Step 2: Verify with verification script
-    verify_script = Path(__file__).parent.parent.parent / "scripts" / "verify_gps_exif.py"
+    verify_script = Path(__file__).parent.parent.parent / "webui" / "cli" / "verify_gps_exif.py"
     csv_output = tmp_path / "verification_report.csv"
 
     result2 = subprocess.run(

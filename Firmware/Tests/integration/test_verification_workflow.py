@@ -21,7 +21,7 @@ import subprocess
 import sys
 from pathlib import Path
 from PIL import Image
-from lib.gps_exif_lib import embed_gps_exif
+from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
 
 # ============================================================================
@@ -48,7 +48,7 @@ def test_verify_single_photo_console_output(tmp_path):
     assert result['success']
 
     # Run verification script
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "verify_gps_exif.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "verify_gps_exif.py"
     result = subprocess.run(
         [sys.executable, str(script_path), str(photo)],
         capture_output=True,
@@ -87,7 +87,7 @@ def test_verify_directory_csv_report(tmp_path):
 
     # Generate CSV report
     csv_output = tmp_path / "gps_report.csv"
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "verify_gps_exif.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "verify_gps_exif.py"
 
     result = subprocess.run(
         [sys.executable, str(script_path), str(tmp_path), "--csv", str(csv_output)],
@@ -147,7 +147,7 @@ def test_verify_mixed_photos_workflow(tmp_path):
 
     # Generate CSV report
     csv_output = tmp_path / "mixed_report.csv"
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "verify_gps_exif.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "verify_gps_exif.py"
 
     # Pass individual photos
     photo_args = [str(p) for p in photos]
@@ -178,7 +178,7 @@ def test_verify_mixed_photos_workflow(tmp_path):
 
 def test_verify_console_output_formatting(tmp_path, capsys):
     """Integration test: Verify console output formatting."""
-    from scripts.verify_gps_exif import print_gps_info
+    from webui.cli.verify_gps_exif import print_gps_info
 
     # Create photo with full GPS data
     photo = tmp_path / "mothbox_2025_01_15__12_30_45.jpg"
@@ -212,7 +212,7 @@ def test_verify_console_output_formatting(tmp_path, capsys):
 
 def test_verify_timestamp_correlation(tmp_path):
     """Integration test: Verify photo timestamp vs GPS timestamp correlation."""
-    from scripts.verify_gps_exif import generate_csv_report, extract_timestamp_from_filename
+    from webui.cli.verify_gps_exif import generate_csv_report, extract_timestamp_from_filename
 
     # Create photo with known timestamp
     photo = tmp_path / "mothbox_2025_01_15__12_30_45.jpg"
@@ -271,7 +271,7 @@ def test_verify_large_batch_performance(tmp_path):
 
     # Generate CSV report and measure time
     csv_output = tmp_path / "batch_report.csv"
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "verify_gps_exif.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "verify_gps_exif.py"
 
     start_time = time.time()
     result = subprocess.run(
@@ -297,7 +297,7 @@ def test_verify_large_batch_performance(tmp_path):
 
 def test_verify_error_handling_workflow(tmp_path):
     """Integration test: Verify error handling for invalid inputs."""
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "verify_gps_exif.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "verify_gps_exif.py"
 
     # Test 1: Non-existent file
     result = subprocess.run(
@@ -341,7 +341,7 @@ def test_verify_focus_bracket_photos(tmp_path):
 
     # Generate CSV report
     csv_output = tmp_path / "bracket_report.csv"
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "verify_gps_exif.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "verify_gps_exif.py"
 
     result = subprocess.run(
         [sys.executable, str(script_path), str(tmp_path), "--csv", str(csv_output)],
@@ -403,7 +403,7 @@ def test_verify_mothbox_production_workflow(tmp_path):
 
     # Generate CSV report
     csv_output = tmp_path / "mothbox_night_report.csv"
-    script_path = Path(__file__).parent.parent.parent / "scripts" / "verify_gps_exif.py"
+    script_path = Path(__file__).parent.parent.parent / "webui" / "cli" / "verify_gps_exif.py"
 
     result = subprocess.run(
         [sys.executable, str(script_path), str(tmp_path), "--csv", str(csv_output)],

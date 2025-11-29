@@ -1,7 +1,17 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import PhotoListItem from '../PhotoListItem'
+
+// Mock useProgressiveImage hook to provide loaded image state
+vi.mock('../../hooks/useProgressiveImage', () => ({
+  default: vi.fn(() => ({
+    src: 'https://example.com/api/photos/thumbnail/20250106/test-photo.jpg',
+    isLoading: false,
+    error: null,
+    stage: 'loaded'
+  }))
+}))
 
 /**
  * Test suite for PhotoListItem component
@@ -10,6 +20,9 @@ import PhotoListItem from '../PhotoListItem'
  * in a horizontal layout with thumbnail and metadata.
  */
 describe('PhotoListItem', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
   const mockPhoto = {
     path: '20250106/test-photo.jpg',
     filename: 'test-photo.jpg',

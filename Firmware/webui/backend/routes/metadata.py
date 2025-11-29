@@ -15,16 +15,11 @@ Security:
 - Sanitized error messages (no stack trace exposure)
 """
 
-import logging
-from pathlib import Path
-
 from flask import Blueprint, jsonify, request
-
-from mothbox_paths import PHOTOS_DIR
-from security_utils import validate_photo_path, sanitize_error_message
+from security_utils import sanitize_error_message, validate_photo_path
 from services.metadata_service import MetadataService
 
-logger = logging.getLogger(__name__)
+from mothbox_paths import PHOTOS_DIR
 
 metadata_bp = Blueprint("metadata", __name__)
 

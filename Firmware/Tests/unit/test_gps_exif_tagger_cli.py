@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch, MagicMock, call
 from io import StringIO
 
 # Import the module under test
-import gps_exif_tagger
+from webui.cli import gps_exif_tagger
 
 
 class TestCLIArgumentParsing:

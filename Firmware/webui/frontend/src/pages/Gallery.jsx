@@ -1,17 +1,27 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { getPhotosPaginated, getThumbnailUrl, getPhotoUrl } from '../utils/api'
+import { getPhotosPaginated } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
-import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 import { useViewMode } from '../hooks/useViewMode'
+import { useSeries } from '../hooks/useSeries'
+import { usePhotoLocations } from '../hooks/usePhotoLocations'
+import useScrollRestoration from '../hooks/useScrollRestoration'
 import PhotoSkeleton from '../components/PhotoSkeleton'
 import PhotoGridItem from '../components/PhotoGridItem'
 import PhotoListItem from '../components/PhotoListItem'
+import StackedPhotoCard from '../components/StackedPhotoCard'
+import VirtualPhotoGrid from '../components/VirtualPhotoGrid'
+import PhotoLightbox from '../components/PhotoLightbox'
+import MapView from '../components/MapView'
+import ErrorBoundary from '../components/ErrorBoundary'
+import LightboxErrorFallback from '../components/LightboxErrorFallback'
 import ViewModeToggle from '../components/ViewModeToggle'
 import EmptyStateMessage from '../components/EmptyStateMessage'
 import { GALLERY_CONFIG, GALLERY_MESSAGES } from '../constants/config'
-import { formatErrorMessage, formatSize } from '../utils/helpers'
+import { formatErrorMessage } from '../utils/helpers'
 import toast from 'react-hot-toast'
 
 export default function Gallery() {
@@ -19,9 +29,13 @@ export default function Gallery() {
   const { viewMode, setViewMode, isLoading: isLoadingPreference } = useViewMode()
   const navigate = useNavigate()
 
+  // Scroll restoration for virtualized grid
+  const { scrollRef, saveScrollPosition } = useScrollRestoration('gallery-main')
+
   // State tracking for toast notifications (prevent duplicates)
   const [hasShownInitialErrorToast, setHasShownInitialErrorToast] = useState(false)
   const [hasShownEndToast, setHasShownEndToast] = useState(false)
+  const [hasShownSeriesErrorToast, setHasShownSeriesErrorToast] = useState(false)
   const prevPaginationError = useRef(null)
 
   // Infinite query for paginated photos
@@ -51,6 +65,17 @@ export default function Gallery() {
     },
   })
 
+  // Fetch series data for grouping photos
+  const { data: seriesData, isError: isSeriesError, refetch: refetchSeries } = useSeries()
+
+  // Fetch photo locations for map view
+  const {
+    locations,
+    isLoading: isLoadingLocations,
+    totalWithGps,
+    totalWithoutGps,
+  } = usePhotoLocations({}, { enabled: viewMode === 'map' })
+
   // Set up infinite scroll sentinel
   const sentinelRef = useInfiniteScroll({
     onLoadMore: fetchNextPage,
@@ -60,19 +85,74 @@ export default function Gallery() {
     rootMargin: GALLERY_CONFIG.INFINITE_SCROLL.ROOT_MARGIN,
   })
 
-  // Escape key handler for lightbox
-  useEffect(() => {
-    const handleEscape = (e) => {
-      if (e.key === 'Escape') {
-        setSelectedPhoto(null)
-      }
-    }
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, []) // setSelectedPhoto is guaranteed stable by React (setState from useState)
+  // Note: Keyboard handling (Escape, Arrow keys) is now managed by PhotoLightbox component
 
-  // Flatten all pages into single photo array
-  const photos = data?.pages.flatMap((page) => page.photos) ?? []
+  // Flatten all pages into single photo array (memoized to prevent re-creation on every render)
+  const photos = useMemo(() => data?.pages.flatMap((page) => page.photos) ?? [], [data?.pages])
+
+  // Build series lookup map: photoPath -> seriesData
+  // This allows quick lookup to determine if a photo is part of a series
+  const seriesLookup = useMemo(() => {
+    const lookup = new Map()
+    if (seriesData?.series) {
+      seriesData.series.forEach((series) => {
+        series.photos.forEach((photo) => {
+          // Handle both string paths and photo objects
+          const photoPath = typeof photo === 'string' ? photo : photo.path
+          lookup.set(photoPath, series)
+        })
+      })
+    }
+    return lookup
+  }, [seriesData])
+
+  // Filter photos for display: hide non-cover series photos (they're shown in stacked cards)
+  const displayPhotos = useMemo(() => {
+    return photos.filter((photo) => {
+      const series = seriesLookup.get(photo.path)
+      if (!series) return true // Not in a series, show it
+      return series.cover_photo === photo.path // Only show if it's the cover photo
+    })
+  }, [photos, seriesLookup])
+
+  // Determine if virtualization should be enabled
+  const shouldUseVirtualization = useMemo(() => {
+    return (
+      GALLERY_CONFIG.VIRTUALIZATION.ENABLED &&
+      viewMode === 'grid' &&
+      photos.length >= GALLERY_CONFIG.VIRTUALIZATION.MIN_PHOTOS_FOR_VIRTUALIZATION
+    )
+  }, [viewMode, photos.length])
+
+  // Memoized callbacks to prevent unnecessary re-renders
+  const handleCloseLightbox = useCallback(() => setSelectedPhoto(null), [])
+  const handlePhotoClick = useCallback((photo) => {
+    // Save scroll position before opening lightbox
+    saveScrollPosition()
+    setSelectedPhoto(photo)
+  }, [saveScrollPosition])
+  const handleNavigate = useCallback((photo) => {
+    // Validate photo exists in current photos array before navigating
+    if (photos.some(p => p.path === photo.path)) {
+      setSelectedPhoto(photo)
+    }
+  }, [photos])
+  // Handle series card click - open lightbox with cover photo
+  const handleSeriesPhotoClick = useCallback((photo) => {
+    saveScrollPosition()
+    setSelectedPhoto(photo)
+  }, [saveScrollPosition])
+
+  // Handle map marker click - open lightbox with the clicked photo
+  const handleMapPhotoClick = useCallback((location) => {
+    // Find the photo object in the photos array by matching the path
+    // Note: location.photo_path from API, photos[].path from gallery API
+    const photo = photos.find(p => p.path === location.photo_path)
+    if (photo) {
+      saveScrollPosition()
+      setSelectedPhoto(photo)
+    }
+  }, [photos, saveScrollPosition])
 
   // Toast notifications for error states
   useEffect(() => {
@@ -122,6 +202,21 @@ export default function Gallery() {
     }
   }, [hasNextPage, photos.length, isError, hasShownEndToast])
 
+  // Toast notification for series API errors
+  useEffect(() => {
+    if (isSeriesError && !hasShownSeriesErrorToast) {
+      toast.error('Could not load photo series. Displaying all photos individually.', {
+        duration: 5000,
+      })
+      setHasShownSeriesErrorToast(true)
+    }
+
+    // Reset if series loads successfully later
+    if (!isSeriesError) {
+      setHasShownSeriesErrorToast(false)
+    }
+  }, [isSeriesError, hasShownSeriesErrorToast])
+
   if (isLoading) {
     return <div className="text-center py-12">{GALLERY_MESSAGES.LOADING.INITIAL}</div>
   }
@@ -150,12 +245,42 @@ export default function Gallery() {
       {/* Header with title and view mode toggle */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Photo Gallery</h2>
-        <ViewModeToggle
-          currentView={viewMode}
-          onViewChange={setViewMode}
-          isLoading={isLoadingPreference}
-        />
+        <div className="flex items-center gap-3">
+          <ViewModeToggle
+            currentView={viewMode}
+            onViewChange={setViewMode}
+            isLoading={isLoadingPreference}
+          />
+          {/* Link to full-screen map page */}
+          {totalWithGps > 0 && (
+            <Link
+              to="/gallery/map"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              aria-label="Open full-screen map view"
+            >
+              <ArrowTopRightOnSquareIcon className="w-5 h-5" aria-hidden="true" />
+              <span className="text-sm font-medium">Full Map</span>
+            </Link>
+          )}
+        </div>
       </div>
+
+      {/* Series API error warning with retry */}
+      {isSeriesError && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-yellow-700">
+              Photo series not available. Displaying all photos individually.
+            </p>
+            <button
+              onClick={() => refetchSeries()}
+              className="text-sm text-yellow-700 underline hover:text-yellow-800"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Screen reader announcements for loading states */}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
@@ -170,20 +295,84 @@ export default function Gallery() {
         <EmptyStateMessage variant="first-time" onCtaClick={() => navigate('/camera')} />
       )}
 
-      {/* Conditional rendering: Grid view or List view */}
-      {viewMode === 'grid' ? (
-        /* Photo Grid */
-        <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
-          {photos.map((photo) => (
-            <PhotoGridItem key={photo.path} photo={photo} onClick={setSelectedPhoto} />
-          ))}
-
-          {/* Skeleton loading cards while fetching next page */}
-          {isFetchingNextPage &&
-            Array.from({ length: GALLERY_CONFIG.SKELETON_COUNT }).map((_, i) => (
-              <PhotoSkeleton key={`skeleton-${i}`} aria-hidden="true" />
-            ))}
+      {/* Conditional rendering: Grid view, Virtualized Grid, List view, or Map view */}
+      {viewMode === 'map' ? (
+        /* Map View */
+        <div className="h-[600px] rounded-lg overflow-hidden">
+          <MapView
+            locations={locations}
+            onPhotoClick={handleMapPhotoClick}
+            isLoading={isLoadingLocations}
+          />
         </div>
+      ) : viewMode === 'grid' ? (
+        shouldUseVirtualization ? (
+          /* Virtualized Photo Grid (for large galleries) - wrapped in ErrorBoundary */
+          <ErrorBoundary
+            fallback={({ error, resetErrorBoundary }) => (
+              <div className="py-12">
+                <EmptyStateMessage
+                  variant="error"
+                  onCtaClick={resetErrorBoundary}
+                />
+                {/* Show technical error details in development */}
+                {import.meta.env.DEV && error && (
+                  <details className="mt-4 text-sm text-gray-600 max-w-2xl mx-auto">
+                    <summary className="cursor-pointer font-semibold">Error Details</summary>
+                    <pre className="mt-2 p-4 bg-gray-100 rounded overflow-auto">
+                      {error.message}
+                      {error.stack && `\n\n${error.stack}`}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            )}
+            onReset={() => {
+              // Reset selected photo and re-fetch photos
+              setSelectedPhoto(null)
+              refetch()
+            }}
+          >
+            <VirtualPhotoGrid
+              photos={photos}
+              onPhotoClick={handlePhotoClick}
+              isLoading={isLoading}
+              isFetchingNextPage={isFetchingNextPage}
+              hasNextPage={hasNextPage}
+              viewMode={viewMode}
+              scrollRef={scrollRef}
+            />
+          </ErrorBoundary>
+        ) : (
+          /* Traditional Photo Grid (for smaller galleries) */
+          <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
+            {displayPhotos.map((photo) => {
+              const series = seriesLookup.get(photo.path)
+
+              // If this photo is a series cover, render as StackedPhotoCard
+              if (series && series.cover_photo === photo.path) {
+                return (
+                  <StackedPhotoCard
+                    key={photo.path}
+                    series={series}
+                    onPhotoClick={handleSeriesPhotoClick}
+                  />
+                )
+              }
+
+              // Regular single photo
+              return (
+                <PhotoGridItem key={photo.path} photo={photo} onClick={setSelectedPhoto} />
+              )
+            })}
+
+            {/* Skeleton loading cards while fetching next page */}
+            {isFetchingNextPage &&
+              Array.from({ length: GALLERY_CONFIG.SKELETON_COUNT }).map((_, i) => (
+                <PhotoSkeleton key={`skeleton-${i}`} aria-hidden="true" />
+              ))}
+          </div>
+        )
       ) : (
         /* Photo List */
         <div className="flex flex-col gap-4">
@@ -193,8 +382,8 @@ export default function Gallery() {
         </div>
       )}
 
-      {/* Pagination error message (shows error but keeps photos visible) */}
-      {isError && photos.length > 0 && (
+      {/* Pagination error message (shows error but keeps photos visible) - not shown in map view */}
+      {viewMode !== 'map' && isError && photos.length > 0 && (
         <div className="text-center py-4">
           <div className="text-red-600 mb-2">
             {formatErrorMessage(error, GALLERY_MESSAGES.ERROR.PAGINATION, GALLERY_MESSAGES.ERROR.FALLBACK)}
@@ -210,69 +399,30 @@ export default function Gallery() {
         </div>
       )}
 
-      {/* Infinite scroll sentinel */}
-      <div ref={sentinelRef} className={GALLERY_CONFIG.INFINITE_SCROLL.SENTINEL_HEIGHT} />
+      {/* Infinite scroll sentinel - not shown in map view */}
+      {viewMode !== 'map' && <div ref={sentinelRef} className={GALLERY_CONFIG.INFINITE_SCROLL.SENTINEL_HEIGHT} />}
 
-      {/* End of photos indicator */}
-      {!hasNextPage && photos.length > 0 && !isError && (
+      {/* End of photos indicator - not shown in map view */}
+      {viewMode !== 'map' && !hasNextPage && photos.length > 0 && !isError && (
         <div className="text-center py-8 text-gray-500">
           {GALLERY_MESSAGES.END}
         </div>
       )}
 
-      {/* Lightbox Modal */}
-      {selectedPhoto && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="lightbox-title"
-          onClick={() => setSelectedPhoto(null)}
-        >
-          <div className="relative max-w-6xl max-h-full">
-            {/* Close button */}
-            <button
-              onClick={() => setSelectedPhoto(null)}
-              className="absolute top-2 right-2 z-10 bg-white rounded-full p-2 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-lg"
-              aria-label="Close lightbox"
-            >
-              <svg
-                className="w-6 h-6 text-gray-800"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-
-            <img
-              src={getPhotoUrl(selectedPhoto.path)}
-              alt={selectedPhoto.filename}
-              loading="eager"
-              className="max-w-full max-h-screen object-contain"
-              onClick={(e) => e.stopPropagation()}
-            />
-            <div className="text-white text-center mt-4">
-              <h2 id="lightbox-title" className="font-semibold text-lg">
-                {selectedPhoto.filename}
-              </h2>
-              <p className="text-sm text-gray-300" aria-label="Photo date">
-                Taken: {new Date(selectedPhoto.date).toLocaleString()}
-              </p>
-              <p className="text-xs text-gray-400" aria-label="File size">
-                Size: {formatSize(selectedPhoto.size)}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Photo Lightbox with Navigation (wrapped in ErrorBoundary with custom fallback) */}
+      <ErrorBoundary
+        fallback={({ error, onClose }) => (
+          <LightboxErrorFallback error={error} onClose={onClose} />
+        )}
+        onReset={handleCloseLightbox}
+      >
+        <PhotoLightbox
+          photo={selectedPhoto}
+          photos={photos}
+          onClose={handleCloseLightbox}
+          onNavigate={handleNavigate}
+        />
+      </ErrorBoundary>
     </div>
   )
 }

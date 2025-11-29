@@ -1,33 +1,35 @@
+import { MapIcon } from '@heroicons/react/24/outline'
+
 /**
  * ViewModeToggle Component
  *
- * Toggle button for switching between grid and list gallery layouts.
+ * Toggle button for switching between grid, list, and map gallery layouts.
  * Provides accessible UI with keyboard navigation and screen reader support.
  *
  * @param {Object} props - Component props
- * @param {('grid'|'list'|null)} props.currentView - Current active view mode
+ * @param {('grid'|'list'|'map'|null)} props.currentView - Current active view mode
  * @param {Function} props.onViewChange - Callback when view mode changes
  * @param {boolean} [props.isLoading=false] - Whether preference is being saved
  */
 export default function ViewModeToggle({ currentView, onViewChange, isLoading = false }) {
   // Normalize currentView to handle invalid values
-  const normalizedView = currentView === 'list' ? 'list' : 'grid'
+  const validViews = ['grid', 'list', 'map']
+  const normalizedView = validViews.includes(currentView) ? currentView : 'grid'
 
   // Warn in development if we received an unexpected non-null invalid value
-  if (process.env.NODE_ENV === 'development' &&
+  if (import.meta.env.DEV &&
       currentView != null &&
-      currentView !== 'grid' &&
-      currentView !== 'list') {
+      !validViews.includes(currentView)) {
     console.warn(
       `ViewModeToggle received invalid currentView: "${currentView}". ` +
-      `Expected "grid" or "list". Defaulting to "grid". ` +
+      `Expected "grid", "list", or "map". Defaulting to "grid". ` +
       `This may indicate a data validation issue.`
     )
   }
 
   /**
    * Handle view mode change
-   * @param {('grid'|'list')} mode - The target view mode
+   * @param {('grid'|'list'|'map')} mode - The target view mode
    */
   const handleViewChange = (mode) => {
     // Don't change if already in this mode
@@ -113,6 +115,18 @@ export default function ViewModeToggle({ currentView, onViewChange, isLoading = 
               d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"
             />
           </svg>
+        </button>
+
+        {/* Map View Button */}
+        <button
+          type="button"
+          aria-label="Map view"
+          aria-pressed={normalizedView === 'map'}
+          disabled={isLoading}
+          onClick={() => handleViewChange('map')}
+          className={`${baseButtonClasses} ${normalizedView === 'map' ? activeClasses : inactiveClasses}`}
+        >
+          <MapIcon className="w-5 h-5" aria-hidden="true" />
         </button>
       </div>
 

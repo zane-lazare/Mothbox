@@ -38,6 +38,8 @@ export const QUERY_KEYS = {
   // Collections (simple plural nouns)
   PHOTOS: ['photos'],
   PHOTOS_INFINITE: ['photos', 'infinite'],
+  PHOTO_LOCATIONS: ['photo-locations'],
+  SERIES: ['series'],
   PRESETS: ['presets'],
   PREFERENCES: ['preferences'],
   CONTROLS: ['controls'],

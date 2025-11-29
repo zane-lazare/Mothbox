@@ -104,28 +104,28 @@ def _validate_int_enum(v, allowed_values):
 
 def _validate_exposure_time(v):
     """
-    Validate ExposureTime - must be integer or digit string in range
+    Validate ExposureTime - strict integer microseconds validation
 
-    Exposure time is specified in microseconds. Must be positive and less
-    than 1 second (1,000,000 µs) to prevent excessively long exposures.
+    Validates exposure time is a positive integer in microseconds,
+    preventing scientific notation, floats, and booleans.
 
     Args:
-        v: Value to validate (int or string digits)
+        v: Value to validate (int or string)
 
     Returns:
-        bool: True if valid exposure time
+        bool: True if valid (positive int <1s in microseconds)
 
     Raises:
-        TypeError: If value is None or bool
+        TypeError: If value is bool or None
         ValueError: If value cannot be converted to int
 
     Examples:
-        >>> _validate_exposure_time(10000)  # 10ms
+        >>> _validate_exposure_time(500)
         True
-        >>> _validate_exposure_time("50000")  # 50ms
+        >>> _validate_exposure_time("500")
         True
-        >>> _validate_exposure_time(2000000)  # 2s - too long
-        False
+        >>> _validate_exposure_time(500.5)
+        TypeError: Float not allowed...
     """
     if v is None:
         raise TypeError("None not allowed for ExposureTime")
@@ -175,8 +175,13 @@ def _validate_noise_reduction_mode(v):
     )
 
 
-# Camera settings validation schema (PascalCase picamera2 controls)
-# These map to libcamera controls used when capturing photos
+# ============================================================================
+# FIRMWARE CAMERA CONTROLS
+# ============================================================================
+# These are actual libcamera controls that can be passed to picamera2.set_controls()
+# Used by TakePhoto.py and other firmware scripts
+# These settings are stored in camera_settings.csv and read by firmware
+
 ALLOWED_CAMERA_SETTINGS: dict[str, Callable[[Any], bool]] = {
     # Image quality controls (practical ranges: 0-4 for sharpness/contrast/saturation)
     "Sharpness": lambda v: 0.0 <= float(v) <= 4.0,
@@ -209,10 +214,20 @@ ALLOWED_CAMERA_SETTINGS: dict[str, Callable[[Any], bool]] = {
     "LensShadingEnable": lambda v: str(v).lower() in ["true", "false"],
     "DefectCorrectionEnable": lambda v: str(v).lower() in ["true", "false"],
     "UseCustomTuning": lambda v: str(v).lower() in ["true", "false"],
-    # HDR/Bracketing
+}
+
+# ============================================================================
+# WEBUI WORKFLOW SETTINGS
+# ============================================================================
+# These are webui-specific settings that control capture workflows
+# NOT passed to picamera2.set_controls() - used by webui logic only
+# These settings are stored in webui_settings.csv
+
+ALLOWED_WEBUI_SETTINGS: dict[str, Callable[[Any], bool]] = {
+    # HDR/Bracketing workflow
     "HDR": lambda v: int(v) in [1, 3, 5, 7],  # Number of bracketed exposures
     "HDR_width": lambda v: 1000 <= int(v) <= 50000,  # Bracket step size (µs)
-    # Focus Bracketing
+    # Focus Bracketing workflow
     "FocusBracket": lambda v: 1 <= int(v) <= 10,  # Number of focus steps
     "FocusBracket_Start": lambda v: 0.0 <= float(v) <= 10.0,  # Start focus position (diopters)
     "FocusBracket_End": lambda v: 0.0 <= float(v) <= 10.0,  # End focus position (diopters)
@@ -236,6 +251,8 @@ ALLOWED_CAMERA_SETTINGS: dict[str, Callable[[Any], bool]] = {
     # Image format
     "ImageFileType": lambda v: int(v) in [0, 1, 2],  # 0=JPEG, 1=PNG, 2=BMP
     "VerticalFlip": lambda v: int(v) in [0, 1],  # 0=No flip, 1=Flip
+    # Device naming
+    "Name": lambda v: isinstance(v, str) and 1 <= len(v) <= 50,  # Device name
     # Focus peaking (preview-only overlay)
     "FocusPeakingEnabled": lambda v: str(v).lower() in ["true", "false"],
     "FocusPeakingIntensity": lambda v: 50 <= int(v) <= 200,
@@ -255,39 +272,38 @@ ALLOWED_LIVEVIEW_SETTINGS: dict[str, Callable[[Any], bool]] = {
     "lens_shading_enable": lambda v: str(v).lower() in ["true", "false"],
     "defect_correction_enable": lambda v: str(v).lower() in ["true", "false"],
     "use_custom_tuning": lambda v: str(v).lower() in ["true", "false"],
-    # Integer controls - Modes and discrete values
-    "noise_reduction_mode": lambda v: int(v) in [0, 1, 2],  # 0=Off, 1=Fast, 2=High Quality
-    "awb_mode": lambda v: 0 <= int(v) <= 7,  # 0=Auto, 1=Incandescent, ..., 7=Custom
-    "af_mode": lambda v: int(v) in [0, 1, 2],  # 0=Manual, 1=Auto Single, 2=Continuous
-    "af_speed": lambda v: int(v) in [0, 1],  # 0=Normal, 1=Fast
-    "af_range": lambda v: int(v) in [0, 1, 2],  # 0=Normal, 1=Macro, 2=Full
+    # Integer enumeration controls (modes/ranges/speeds)
+    "af_mode": lambda v: _validate_int_enum(v, [0, 1, 2]),  # 0=Manual, 1=Auto Single, 2=Continuous
+    "af_speed": lambda v: _validate_int_enum(v, [0, 1]),  # 0=Normal, 1=Fast
+    "af_range": lambda v: _validate_int_enum(v, [0, 1, 2]),  # 0=Normal, 1=Macro, 2=Full
+    "af_metering": lambda v: _validate_int_enum(v, [0, 1, 2]),  # 0=Auto, 1=Windows, 2=Off
+    "awb_mode": lambda v: int(v) in [0, 1, 2, 3, 4, 5, 6, 7],  # 0=Auto, 1-7=Presets
+    "noise_reduction_mode": lambda v: _validate_noise_reduction_mode(v),  # 0=Off, 1=Fast, 2=HQ
     "ae_metering_mode": lambda v: int(v) in [0, 1, 2],  # 0=Centre, 1=Spot, 2=Matrix
-    # Stream configuration (integers)
-    "stream_width": lambda v: 640 <= int(v) <= 1920,
-    "stream_height": lambda v: 480 <= int(v) <= 1080,
-    "stream_quality": lambda v: 1 <= int(v) <= 100,  # JPEG quality
-    "stream_framerate": lambda v: 1 <= int(v) <= 60,
-    # Float controls - Continuous adjustments
+    # Float controls - Image quality and camera parameters
     "sharpness": lambda v: 0.0 <= float(v) <= 4.0,
     "brightness": lambda v: -1.0 <= float(v) <= 1.0,
     "contrast": lambda v: 0.0 <= float(v) <= 4.0,
     "saturation": lambda v: 0.0 <= float(v) <= 4.0,
-    "analogue_gain": lambda v: 1.0 <= float(v) <= 16.0,  # ISO gain
-    "exposure_value": lambda v: -8.0 <= float(v) <= 8.0,  # EV compensation
     "lens_position": lambda v: 0.0 <= float(v) <= 10.0,  # Diopters (manual focus)
-    # Color gains (floats) - for manual white balance
-    "colour_gains_red": lambda v: 1.0 <= float(v) <= 4.0,
-    "colour_gains_blue": lambda v: 1.0 <= float(v) <= 4.0,
-    # Focus peaking configuration
-    "focus_peaking_intensity": lambda v: 0.0 <= float(v) <= 200.0,
+    "exposure_value": lambda v: -8.0 <= float(v) <= 8.0,  # EV compensation
+    "analogue_gain": lambda v: 1.0 <= float(v) <= 16.0,  # ISO gain
+    "colour_gains_red": lambda v: 1.0 <= float(v) <= 4.0,  # Red channel gain
+    "colour_gains_blue": lambda v: 1.0 <= float(v) <= 4.0,  # Blue channel gain
+    # Integer controls - Timing and discrete values
+    "exposure_time": _validate_exposure_time,  # Microseconds (µs)
+    # Focus peaking overlay controls (preview-only visual aid)
+    "focus_peaking_intensity": lambda v: 50 <= int(v) <= 200,  # Edge detection strength
     "focus_peaking_colour": lambda v: str(v).lower()
     in ["green", "red", "yellow", "cyan", "magenta"],
+    "focus_peaking_color": lambda v: str(v).lower()
+    in ["green", "red", "yellow", "cyan", "magenta"],  # American spelling
     "focus_peaking_algorithm": lambda v: str(v).lower() in ["laplacian", "sobel", "canny"],
 }
 
 
 # ============================================================================
-# File Backup Utilities
+# File Management Utilities
 # ============================================================================
 
 
@@ -340,11 +356,6 @@ def create_backup(file_path: Path, keep: int = 5) -> Path | None:
         return None
 
 
-# ============================================================================
-# Path Security Utilities
-# ============================================================================
-
-
 def validate_path_within_directory(path: Path, base_dir: Path) -> Path:
     """
     Validate that a path is within a base directory (path traversal protection)
@@ -390,3 +401,48 @@ def validate_path_within_directory(path: Path, base_dir: Path) -> Path:
     full_path.relative_to(base_dir_resolved)
 
     return full_path
+
+
+# ============================================================================
+# Disk Space Management
+# ============================================================================
+
+
+def check_disk_space(directory: Path, min_mb: int = 100) -> tuple[bool, int]:
+    """
+    Check if directory has sufficient free space
+
+    Args:
+        directory: Path to check
+        min_mb: Minimum required space in MB
+
+    Returns:
+        tuple: (has_space: bool, available_mb: int)
+    """
+    try:
+        stat = shutil.disk_usage(directory)
+        available_mb = stat.free // (1024 * 1024)
+        return available_mb >= min_mb, available_mb
+    except Exception:
+        return False, 0
+
+
+def get_last_calibration_time(camera_settings_path: Path) -> datetime | None:
+    """
+    Extract LastCalibration timestamp from camera_settings.csv
+
+    Args:
+        camera_settings_path: Path to camera_settings.csv
+
+    Returns:
+        datetime | None: Last calibration timestamp or None if not found
+    """
+    try:
+        with open(camera_settings_path, encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("LastCalibration,"):
+                    timestamp_str = line.split(",", 1)[1].strip()
+                    return datetime.fromisoformat(timestamp_str)
+    except Exception:
+        pass
+    return None

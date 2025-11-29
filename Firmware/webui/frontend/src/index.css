@@ -9,6 +9,33 @@ body {
   min-height: 100vh;
 }
 
+/* Prevent body scroll when lightbox is open */
+body.lightbox-open {
+  overflow: hidden;
+}
+
+/* Leaflet map touch optimization for mobile devices */
+.leaflet-container {
+  /* Disable browser touch gestures (zoom, pan) to prevent conflicts with map gestures */
+  touch-action: none;
+}
+
+/* Touch-friendly popups with adequate tap target size */
+.leaflet-popup-content {
+  /* Ensure popups are wide enough for touch interaction (minimum 200px) */
+  min-width: 200px;
+}
+
+/* Ensure popup close button has adequate touch target (44x44px minimum for accessibility) */
+.leaflet-popup-close-button {
+  width: 44px;
+  height: 44px;
+  /* Center the × symbol within the larger touch target */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Settings page compact styles */
 @layer components {
   .settings-card {

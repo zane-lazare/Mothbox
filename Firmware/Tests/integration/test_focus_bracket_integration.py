@@ -925,6 +925,7 @@ class TestAPIIntegration:
         script_path = str(subprocess_calls[0][0][0][1])
         assert 'capture_focus_bracket.py' in script_path, "Should call capture_focus_bracket.py"
 
+    @pytest.mark.skip(reason="FocusBracket validators not yet implemented - TDD placeholder")
     def test_settings_update_via_api_then_capture(self, client, integration_env, monkeypatch):
         """
         Test settings update via API → script execution

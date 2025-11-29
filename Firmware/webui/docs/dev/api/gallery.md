@@ -1,7 +1,7 @@
 # Gallery API Documentation
 
-**Last Updated**: 2025-11-10
-**Version**: Phase 1 (v5.1.0)
+**Last Updated**: 2025-11-29
+**Version**: Phase 3 (v5.2.0)
 **Base URL**: `/api/gallery`
 
 ---
@@ -12,9 +12,12 @@
 2. [Authentication](#authentication)
 3. [Error Responses](#error-responses)
 4. [Photo Endpoints](#photo-endpoints)
-5. [Cache Management Endpoints](#cache-management-endpoints)
-6. [Pagination Contract](#pagination-contract)
-7. [Performance Characteristics](#performance-characteristics)
+5. [Series Endpoints](#series-endpoints) *(NEW - Issue #110)*
+6. [Photo Locations Endpoint](#photo-locations-endpoint) *(NEW - Issue #113)*
+7. [Map View](#map-view) *(NEW - Issue #113)*
+8. [Cache Management Endpoints](#cache-management-endpoints)
+9. [Pagination Contract](#pagination-contract)
+10. [Performance Characteristics](#performance-characteristics)
 
 ---
 
@@ -448,6 +451,599 @@ fetch('/api/gallery/photos')
 ```javascript
 fetch('/api/gallery/photos/paginated?limit=50&offset=0')
 ```
+
+---
+
+## Series Endpoints
+
+Photo series (HDR and Focus Bracket) are automatically detected based on TakePhoto.py naming patterns.
+
+**Naming Patterns**:
+- **HDR**: `{name}_{YYYY_MM_DD__HH_MM_SS}_HDR{index}.jpg` (e.g., `moth_2024_01_15__10_30_00_HDR0.jpg`)
+- **Focus Bracket**: `ManFocus_{name}_{YYYY_MM_DD__HH_MM_SS}_FB{index}.jpg` (e.g., `ManFocus_moth_2024_01_15__10_30_00_FB0.jpg`)
+
+**Implementation**: `webui/backend/services/series_service.py`, `webui/backend/lib/series_detection.py`
+
+---
+
+### 10. List Series
+
+Retrieve all photo series in the photos directory.
+
+**Endpoint**: `GET /api/gallery/series`
+
+**Implementation**: `webui/backend/routes/gallery.py`
+
+#### Request
+
+**Query Parameters**:
+
+| Parameter | Type | Required | Default | Validation | Description |
+|-----------|------|----------|---------|------------|-------------|
+| `page` | integer | No | 1 | ≥1 | Page number |
+| `per_page` | integer | No | 50 | 1-200 | Items per page |
+| `type` | string | No | None | `hdr`, `focus_bracket` | Filter by series type |
+
+#### Response
+
+**Success (200)**:
+
+```json
+{
+  "series": [
+    {
+      "series_id": "hdr_moth_2024_01_15__10_00_00",
+      "series_type": "hdr",
+      "base_name": "moth_2024_01_15__10_00_00",
+      "count": 3,
+      "cover_photo": "moth_2024_01_15__10_00_00_HDR0.jpg",
+      "photos": [
+        "moth_2024_01_15__10_00_00_HDR0.jpg",
+        "moth_2024_01_15__10_00_00_HDR1.jpg",
+        "moth_2024_01_15__10_00_00_HDR2.jpg"
+      ]
+    },
+    {
+      "series_id": "focus_bracket_ManFocus_moth_2024_01_15__11_00_00",
+      "series_type": "focus_bracket",
+      "base_name": "ManFocus_moth_2024_01_15__11_00_00",
+      "count": 5,
+      "cover_photo": "ManFocus_moth_2024_01_15__11_00_00_FB0.jpg",
+      "photos": [
+        "ManFocus_moth_2024_01_15__11_00_00_FB0.jpg",
+        "ManFocus_moth_2024_01_15__11_00_00_FB1.jpg",
+        "ManFocus_moth_2024_01_15__11_00_00_FB2.jpg",
+        "ManFocus_moth_2024_01_15__11_00_00_FB3.jpg",
+        "ManFocus_moth_2024_01_15__11_00_00_FB4.jpg"
+      ]
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "per_page": 50,
+    "total": 2,
+    "has_next": false
+  }
+}
+```
+
+**Error Responses**:
+
+```json
+// 400 - Invalid page number
+{
+  "error": "Invalid page: -1. Page must be >= 1"
+}
+
+// 400 - Invalid type filter
+{
+  "error": "Invalid type: 'invalid'. Valid types: hdr, focus_bracket"
+}
+
+// 503 - Service unavailable
+{
+  "error": "Series service unavailable"
+}
+
+// 500 - Internal error
+{
+  "error": "Internal server error"
+}
+```
+
+#### Examples
+
+**List all series**:
+```bash
+curl "http://localhost:5000/api/gallery/series"
+```
+
+**Filter by type**:
+```bash
+curl "http://localhost:5000/api/gallery/series?type=hdr"
+```
+
+**Paginate results**:
+```bash
+curl "http://localhost:5000/api/gallery/series?page=2&per_page=20"
+```
+
+#### Performance
+
+- **Cold cache**: 100-500ms (directory scan)
+- **Warm cache**: <10ms (in-memory lookup)
+- **1000 photos**: <100ms grouping time
+
+---
+
+### 11. Get Series Details
+
+Retrieve details for a specific photo series by ID.
+
+**Endpoint**: `GET /api/gallery/series/<series_id>`
+
+#### Request
+
+**Path Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `series_id` | string | Yes | Series identifier (e.g., `hdr_moth_2024_01_15__10_00_00`) |
+
+#### Response
+
+**Success (200)**:
+
+```json
+{
+  "series_id": "hdr_moth_2024_01_15__10_00_00",
+  "series_type": "hdr",
+  "base_name": "moth_2024_01_15__10_00_00",
+  "count": 3,
+  "cover_photo": "moth_2024_01_15__10_00_00_HDR0.jpg",
+  "photos": [
+    "moth_2024_01_15__10_00_00_HDR0.jpg",
+    "moth_2024_01_15__10_00_00_HDR1.jpg",
+    "moth_2024_01_15__10_00_00_HDR2.jpg"
+  ]
+}
+```
+
+**Error Responses**:
+
+```json
+// 404 - Series not found
+{
+  "error": "Series not found: hdr_invalid_id"
+}
+
+// 503 - Service unavailable
+{
+  "error": "Series service unavailable"
+}
+```
+
+#### Examples
+
+**Get specific series**:
+```bash
+curl "http://localhost:5000/api/gallery/series/hdr_moth_2024_01_15__10_00_00"
+```
+
+**React component**:
+```jsx
+const { data: series } = useQuery({
+  queryKey: ['series', seriesId],
+  queryFn: () =>
+    fetch(`/api/gallery/series/${seriesId}`).then(r => r.json())
+});
+
+return (
+  <div>
+    <h2>{series.series_type.toUpperCase()} Series ({series.count} photos)</h2>
+    <div className="grid grid-cols-3">
+      {series.photos.map(photo => (
+        <img
+          key={photo}
+          src={`/api/gallery/thumbnail/${photo}?size=256`}
+          alt={photo}
+        />
+      ))}
+    </div>
+  </div>
+);
+```
+
+---
+
+### 12. Get Series Statistics
+
+Retrieve cache statistics for the series service.
+
+**Endpoint**: `GET /api/gallery/series/stats`
+
+#### Response
+
+**Success (200)**:
+
+```json
+{
+  "cache_entries": 5,
+  "cache_hits": 42,
+  "cache_misses": 8,
+  "total_series": 10,
+  "series_by_type": {
+    "hdr": 6,
+    "focus_bracket": 4
+  }
+}
+```
+
+**Field Descriptions**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `cache_entries` | integer | Number of cached directory scans |
+| `cache_hits` | integer | Total cache hit count |
+| `cache_misses` | integer | Total cache miss count |
+| `total_series` | integer | Total series across all cached directories |
+| `series_by_type` | object | Count of series by type |
+
+#### Examples
+
+**Get statistics**:
+```bash
+curl "http://localhost:5000/api/gallery/series/stats"
+```
+
+---
+
+### 13. Invalidate Series Cache
+
+Manually invalidate the series detection cache.
+
+**Endpoint**: `POST /api/gallery/series/cache/invalidate`
+
+#### Request
+
+**Headers**:
+- `Content-Type`: `application/json`
+- `X-CSRFToken`: CSRF token (required)
+
+**Body** (JSON):
+
+```json
+{
+  "directory": "/var/lib/mothbox/photos"  // Optional: specific directory
+}
+```
+
+- If `directory` is not provided, the entire cache is invalidated.
+
+#### Response
+
+**Success (200)**:
+
+```json
+{
+  "success": true
+}
+```
+
+**Error Responses**:
+
+```json
+// 503 - Service unavailable
+{
+  "error": "Series service unavailable"
+}
+```
+
+#### Examples
+
+**Invalidate entire cache**:
+```bash
+curl -X POST "http://localhost:5000/api/gallery/series/cache/invalidate" \
+  -H "Content-Type: application/json" \
+  -H "X-CSRFToken: YOUR_CSRF_TOKEN" \
+  -d '{}'
+```
+
+---
+
+## Photo Locations Endpoint
+
+Retrieves GPS coordinates for photos to display on the map view. Only returns photos that have GPS EXIF data embedded (via the GPS EXIF tagging system).
+
+**Implementation**: `webui/backend/routes/gallery.py`
+
+---
+
+### 14. Get Photo Locations
+
+Retrieve photos with GPS coordinates for map display.
+
+**Endpoint**: `GET /api/gallery/locations`
+
+#### Request
+
+**Query Parameters**:
+
+| Parameter | Type | Required | Default | Validation | Description |
+|-----------|------|----------|---------|------------|-------------|
+| `limit` | integer | No | 1000 | 1-10000 | Maximum photos to return |
+
+#### Response
+
+**Success (200)**:
+
+```json
+{
+  "locations": [
+    {
+      "photo_path": "2024-11-10/photo_001.jpg",
+      "filename": "photo_001.jpg",
+      "latitude": 37.7749,
+      "longitude": -122.4194,
+      "timestamp": "2024-11-10T10:30:00",
+      "thumbnail_url": "/api/gallery/thumbnail/2024-11-10/photo_001.jpg"
+    },
+    {
+      "photo_path": "2024-11-10/photo_002.jpg",
+      "filename": "photo_002.jpg",
+      "latitude": 37.7750,
+      "longitude": -122.4195,
+      "timestamp": "2024-11-10T11:00:00",
+      "thumbnail_url": "/api/gallery/thumbnail/2024-11-10/photo_002.jpg"
+    }
+  ],
+  "total_with_gps": 150,
+  "total_without_gps": 50
+}
+```
+
+**Field Descriptions**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `locations` | array | List of photos with GPS data |
+| `locations[].photo_path` | string | Relative path from PHOTOS_DIR |
+| `locations[].filename` | string | Photo filename |
+| `locations[].latitude` | float | Latitude in decimal degrees (-90 to 90) |
+| `locations[].longitude` | float | Longitude in decimal degrees (-180 to 180) |
+| `locations[].timestamp` | string | ISO 8601 timestamp from filename |
+| `locations[].thumbnail_url` | string | Thumbnail endpoint URL |
+| `total_with_gps` | integer | Total photos with GPS data |
+| `total_without_gps` | integer | Total photos without GPS data |
+
+**Error Responses**:
+
+```json
+// 400 - Invalid limit
+{
+  "error": "Limit must be between 1 and 10000"
+}
+
+// 500 - Internal error
+{
+  "error": "Failed to retrieve photo locations"
+}
+```
+
+#### Examples
+
+**Default limit (1000 photos)**:
+```bash
+curl "http://localhost:5000/api/gallery/locations"
+```
+
+**Custom limit**:
+```bash
+curl "http://localhost:5000/api/gallery/locations?limit=100"
+```
+
+**React component**:
+```jsx
+const { data } = useQuery({
+  queryKey: ['photo-locations'],
+  queryFn: () =>
+    fetch('/api/gallery/locations?limit=500').then(r => r.json())
+});
+
+return (
+  <MapContainer center={[37.7749, -122.4194]} zoom={13}>
+    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+    {data?.locations.map(location => (
+      <Marker
+        key={location.photo_path}
+        position={[location.latitude, location.longitude]}
+      >
+        <Popup>
+          <img src={location.thumbnail_url} alt={location.filename} />
+          <p>{location.timestamp}</p>
+        </Popup>
+      </Marker>
+    ))}
+  </MapContainer>
+);
+```
+
+#### Performance
+
+- **Typical response time**: 50-200ms for 1000 photos
+- **GPS EXIF extraction**: Cached after first read via Pillow EXIF parsing
+- **Large limits**: May increase response time (10000 photos: ~500ms)
+- **Complexity**: O(n) where n = number of photos scanned
+
+#### GPS Data Source
+
+Photos must have GPS EXIF data embedded via one of these methods:
+1. **Automatic tagging**: GPS EXIF service (systemd service)
+2. **Manual tagging**: `gps_exif_tagger.py` CLI tool
+3. **Camera direct**: Some cameras embed GPS EXIF natively
+
+See [`GPS_EXIF_SERVICE.md`](../../GPS_EXIF_SERVICE.md) for GPS tagging setup.
+
+#### Security
+
+- **Path traversal**: Protected via path validation
+- **CSRF**: Not required (read-only GET endpoint)
+- **Rate limiting**: Exempt (read-only operation)
+
+---
+
+## Map View
+
+The Gallery provides a map view for visualizing photo locations on an interactive map powered by Leaflet.
+
+### Overview
+
+**Features**:
+- Interactive map with OpenStreetMap tiles
+- Marker clustering for dense photo locations
+- Popup previews with thumbnail and timestamp
+- Click to open full photo in lightbox
+- Responsive design (mobile and desktop)
+
+**Access Points**:
+1. **Gallery tab**: Map tab in main gallery view (`/gallery?tab=map`)
+2. **Dedicated page**: Full-screen map at `/gallery/map`
+
+**Implementation**:
+- **Frontend**: `webui/frontend/src/components/Gallery/MapView.tsx`
+- **Map component**: `webui/frontend/src/components/Gallery/Map/PhotoMap.tsx`
+- **Marker component**: `webui/frontend/src/components/Gallery/Map/PhotoMarker.tsx`
+- **Hook**: `webui/frontend/src/hooks/usePhotoLocations.ts`
+- **Backend API**: `GET /api/gallery/locations`
+
+### Configuration
+
+Map behavior is configured in `webui/frontend/src/components/Gallery/Map/config.ts`:
+
+```typescript
+export const MAP_CONFIG = {
+  // Default map center (San Francisco)
+  defaultCenter: { lat: 37.7749, lng: -122.4194 },
+
+  // Default zoom level (1-18, higher = more zoomed in)
+  defaultZoom: 13,
+
+  // Maximum photos to load
+  maxPhotos: 1000,
+
+  // Marker clustering options
+  clustering: {
+    enabled: true,
+    maxClusterRadius: 50,  // pixels
+    showCoverageOnHover: false
+  },
+
+  // Thumbnail size for popups
+  thumbnailSize: 256,
+
+  // Map tile provider
+  tileLayer: {
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }
+};
+```
+
+### Marker Clustering
+
+**Behavior**:
+- Photos at similar locations are grouped into numbered clusters
+- Clusters expand when clicked or zoomed in
+- Individual markers appear at higher zoom levels
+- Cluster radius configurable via `MAP_CONFIG.clustering.maxClusterRadius`
+
+**Example**:
+- 50 photos within 50px radius → Single cluster with "50" badge
+- Zoom in → Splits into smaller clusters
+- Max zoom → Individual markers for each photo
+
+### User Interactions
+
+**Marker Click**:
+1. Opens popup with thumbnail preview
+2. Shows photo timestamp
+3. "View Full Photo" button opens lightbox
+
+**Cluster Click**:
+1. Zooms into cluster bounds
+2. Expands into smaller clusters or individual markers
+
+**Map Navigation**:
+- **Pan**: Click and drag
+- **Zoom**: Mouse wheel, zoom controls, or pinch gesture (mobile)
+- **Reset**: "Fit All Photos" button to reset bounds
+
+### Responsive Design
+
+**Desktop** (≥768px):
+- Full-width map
+- Large thumbnails (256px)
+- Sidebar with photo count
+
+**Mobile** (<768px):
+- Full-screen map
+- Smaller thumbnails (128px)
+- Bottom sheet with photo count
+
+### Performance Considerations
+
+**Initial Load**:
+- Fetches up to `MAP_CONFIG.maxPhotos` locations
+- Rendering 1000 markers: <2 seconds on modern devices
+- Clustering reduces DOM nodes significantly
+
+**Optimization Tips**:
+1. **Reduce limit**: Lower `maxPhotos` for faster initial load
+2. **Adjust clustering**: Increase `maxClusterRadius` for fewer clusters
+3. **Lazy loading**: Consider pagination for >5000 photos
+
+**Memory Usage**:
+- 1000 markers: ~20-30MB browser memory
+- 5000 markers: ~100-150MB browser memory
+
+### GPS Coverage Indicator
+
+The map view displays GPS coverage statistics:
+
+```jsx
+<div className="map-stats">
+  <p>Photos with GPS: {data.total_with_gps}</p>
+  <p>Photos without GPS: {data.total_without_gps}</p>
+  <p>Coverage: {(data.total_with_gps / (data.total_with_gps + data.total_without_gps) * 100).toFixed(1)}%</p>
+</div>
+```
+
+**Low Coverage Indicators**:
+- If <10% photos have GPS: Warning banner
+- If 0 photos have GPS: "No GPS data available" message with setup link
+
+### Troubleshooting
+
+**No markers appear**:
+1. Check GPS EXIF service is running: `sudo systemctl status gps-exif-tagger`
+2. Verify GPS fix in controls.txt: `grep "gps_fix_mode" /etc/mothbox/controls.txt`
+3. Manually tag photos: `python3 webui/cli/gps_exif_tagger.py --directory /var/lib/mothbox/photos`
+
+**Markers in wrong location**:
+1. Verify GPS coordinates in controls.txt are valid
+2. Check timezone settings (may affect timestamp display)
+3. Re-tag photos with `--force` flag: `python3 webui/cli/gps_exif_tagger.py --force`
+
+**Map loads slowly**:
+1. Reduce `MAP_CONFIG.maxPhotos` to 500 or less
+2. Enable clustering: `MAP_CONFIG.clustering.enabled = true`
+3. Increase cluster radius: `MAP_CONFIG.clustering.maxClusterRadius = 80`
+
+### Related Documentation
+
+- **GPS EXIF Service**: [`GPS_EXIF_SERVICE.md`](../../GPS_EXIF_SERVICE.md) - Setup and configuration
+- **GPS Utilities**: [`GPS_COORDINATE_UTILITIES.md`](../../GPS_COORDINATE_UTILITIES.md) - Coordinate conversion
+- **API Endpoint**: `GET /api/gallery/locations` (documented above)
 
 ---
 

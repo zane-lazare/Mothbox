@@ -176,6 +176,125 @@ def camera_streamer_func(tmp_path, monkeypatch):
         print(f"⚠️  Warning: Cleanup error: {e}")
 
 
+@pytest.fixture(scope='function')
+def camera_streamer_unit(monkeypatch):
+    """
+    Unit test fixture for LiveViewStreamer with fully mocked Picamera2
+
+    Provides a LiveViewStreamer instance where Picamera2 is mocked at
+    the module level BEFORE import, allowing tests to run without
+    actual camera hardware.
+
+    This fixture:
+    - Injects mock picamera2 into sys.modules before import
+    - Creates a real LiveViewStreamer instance with mocked dependencies
+    - Sets sensible default values for all camera controls
+    - Provides access to the mock camera for verification
+
+    Usage:
+        def test_get_current_settings(camera_streamer_unit):
+            settings = camera_streamer_unit.get_current_settings()
+            assert 'sharpness' in settings
+
+        def test_with_camera_metadata(camera_streamer_unit):
+            # Access mock camera to configure behavior
+            camera_streamer_unit.camera.capture_metadata.return_value = {
+                'LensPosition': 5.5
+            }
+            settings = camera_streamer_unit.get_current_settings()
+            assert settings['lens_position'] == 5.5
+
+    Related: Issue #78 - Camera testing infrastructure
+    """
+    from unittest.mock import MagicMock, Mock
+
+    # Create mock picamera2 module and inject BEFORE importing liveview_stream
+    mock_picamera2_module = MagicMock()
+    mock_camera_instance = MagicMock()
+
+    # Configure mock camera with realistic defaults
+    mock_camera_instance.capture_metadata.return_value = {
+        'LensPosition': 5.0,
+        'ExposureTime': 10000,
+        'AnalogueGain': 8.0,
+        'ColourTemperature': 5000,
+        'AfState': 2,  # Focused
+    }
+    mock_camera_instance.camera_properties = {'Model': 'ov64a40'}
+
+    # Picamera2() constructor returns our mock instance
+    mock_picamera2_module.Picamera2.return_value = mock_camera_instance
+
+    # Inject into sys.modules BEFORE import
+    original_picamera2 = sys.modules.get('picamera2')
+    sys.modules['picamera2'] = mock_picamera2_module
+
+    # Also need to handle the specific imports liveview_stream does
+    sys.modules['picamera2.encoders'] = MagicMock()
+    sys.modules['picamera2.outputs'] = MagicMock()
+
+    try:
+        # Force reimport of liveview_stream to pick up mocked picamera2
+        if 'liveview_stream' in sys.modules:
+            del sys.modules['liveview_stream']
+
+        from liveview_stream import LiveViewStreamer
+
+        # Create mock SocketIO
+        mock_socketio = Mock()
+        mock_socketio.emit = Mock()
+
+        # Create streamer instance
+        streamer = LiveViewStreamer(mock_socketio)
+
+        # Set sensible default values for all camera controls
+        streamer.sharpness = 1.0
+        streamer.brightness = 0.0
+        streamer.contrast = 1.0
+        streamer.saturation = 1.0
+        streamer.af_mode = 2  # Continuous
+        streamer.af_speed = 0  # Normal
+        streamer.af_range = 0  # Full
+        streamer.af_metering = 0  # Auto
+        streamer.ae_enable = True
+        streamer.ae_metering_mode = 0  # Centre-weighted
+        streamer.awb_enable = True
+        streamer.awb_mode = 0  # Auto
+        streamer.exposure_time = 10000
+        streamer.analogue_gain = 8.0
+        streamer.noise_reduction_mode = 2  # High quality
+        streamer.colour_gains = (2.259, 1.500)
+        streamer.lens_position = 7.0
+        streamer._af_mode_override = None
+        streamer._af_window_active = False
+
+        # Expose mock for test configuration
+        streamer._mock_picamera2 = mock_picamera2_module
+        streamer._mock_camera_instance = mock_camera_instance
+
+        yield streamer
+
+        # Cleanup
+        try:
+            streamer.cleanup()
+        except Exception:
+            pass
+
+    finally:
+        # Restore original sys.modules state
+        if original_picamera2 is not None:
+            sys.modules['picamera2'] = original_picamera2
+        elif 'picamera2' in sys.modules:
+            del sys.modules['picamera2']
+
+        # Clean up submodule mocks
+        sys.modules.pop('picamera2.encoders', None)
+        sys.modules.pop('picamera2.outputs', None)
+
+        # Force reimport on next use
+        sys.modules.pop('liveview_stream', None)
+
+
 # ============================================================================
 # Flask App Fixtures
 # ============================================================================
@@ -410,7 +529,7 @@ def patch_path_constant_everywhere(monkeypatch, constant_name, temp_path):
             'routes.gps',
             'routes.gpio',
             'routes.system',
-            'lib.gps_exif_lib',  # Issue #98 - GPS EXIF embedding
+            'webui.backend.lib.gps_exif_lib',  # Issue #98 - GPS EXIF embedding
         ],
         'DATA_DIR': [
             'routes.gpio',  # Issue #78 - GPIO state file
@@ -1116,6 +1235,29 @@ def mock_camera_streamer(app):
     # Mock set_manual_focus_mode()
     mock_streamer.set_manual_focus_mode.return_value = True
 
+    # Mock get_current_settings() - returns realistic camera settings
+    # Tests can override this by setting mock_streamer.get_current_settings.return_value
+    mock_streamer.get_current_settings.return_value = {
+        'sharpness': 1.0,
+        'brightness': 0.0,
+        'contrast': 1.0,
+        'saturation': 1.0,
+        'af_mode': 2,  # Continuous
+        'af_speed': 0,  # Normal
+        'af_range': 0,  # Full
+        'af_metering': 0,  # Auto
+        'ae_enable': True,
+        'ae_metering_mode': 0,  # Centre-weighted
+        'awb_enable': True,
+        'awb_mode': 0,  # Auto
+        'exposure_time': 10000,
+        'analogue_gain': 8.0,
+        'noise_reduction_mode': 2,  # High quality
+        'colour_gains_red': 2.259,
+        'colour_gains_blue': 1.500,
+        'lens_position': 7.0,
+    }
+
     # Register in app config (routes expect this)
     app.config['CAMERA_STREAMER'] = mock_streamer
 
@@ -1393,6 +1535,7 @@ def pytest_collection_modifyitems(config, items):
     - GPS EXIF workflow tests (use mocks/PIL, no camera/GPIO needed)
     - GPS EXIF verification workflow tests (use subprocess/PIL, no camera/GPIO needed)
     - GPS EXIF batch tagging workflow tests (use subprocess/PIL, no camera/GPIO needed)
+    - Map locations integration tests (use mocks/PIL/Flask test client, no camera/GPIO needed)
     """
     for item in items:
         # Mark integration tests (except manual verification and installer) as hardware tests
@@ -1405,8 +1548,9 @@ def pytest_collection_modifyitems(config, items):
         is_gps_exif_workflow = 'test_gps_exif_workflow' in fspath_str  # Uses mocks/PIL, no camera/GPIO
         is_verification_workflow = 'test_verification_workflow' in fspath_str  # Uses subprocess/PIL, no camera/GPIO
         is_batch_tagging_workflow = 'test_batch_tagging_workflow' in fspath_str  # Uses subprocess/PIL, no camera/GPIO
+        is_map_locations_integration = 'test_map_locations_integration' in fspath_str  # Uses mocks/PIL/Flask test client, no camera/GPIO
 
-        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination and not is_gps_exif_workflow and not is_verification_workflow and not is_batch_tagging_workflow:
+        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination and not is_gps_exif_workflow and not is_verification_workflow and not is_batch_tagging_workflow and not is_map_locations_integration:
             item.add_marker(pytest.mark.hardware)
 
 

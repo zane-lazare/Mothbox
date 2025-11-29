@@ -1,5 +1,5 @@
 """
-Unit tests for GPS EXIF library (lib/gps_exif_lib.py).
+Unit tests for GPS EXIF library (webui/backend/lib/gps_exif_lib.py).
 
 This test module implements TDD for Issue #98 GPS EXIF embedding feature.
 Tests are written FIRST before implementation to drive design and ensure
@@ -76,7 +76,7 @@ gps_pdop=2.1
 """)
 
         # Act: Import and call function (will fail - not implemented yet)
-        from lib.gps_exif_lib import get_gps_data_from_controls
+        from webui.backend.lib.gps_exif_lib import get_gps_data_from_controls
         gps_data = get_gps_data_from_controls(temp_controls_file)
 
         # Assert: Verify all fields parsed correctly
@@ -110,7 +110,7 @@ gps_pdop=99.99
 """)
 
         # Act: Import and call function
-        from lib.gps_exif_lib import get_gps_data_from_controls
+        from webui.backend.lib.gps_exif_lib import get_gps_data_from_controls
         gps_data = get_gps_data_from_controls(temp_controls_file)
 
         # Assert: Verify graceful handling of no fix
@@ -138,7 +138,7 @@ Relay_Ch3=9
 """)
 
         # Act: Import and call function
-        from lib.gps_exif_lib import get_gps_data_from_controls
+        from webui.backend.lib.gps_exif_lib import get_gps_data_from_controls
         gps_data = get_gps_data_from_controls(temp_controls_file)
 
         # Assert: Verify defaults when fields missing
@@ -167,7 +167,7 @@ gps_fix_mode=2
 """)
 
         # Act: Import and call function
-        from lib.gps_exif_lib import get_gps_data_from_controls
+        from webui.backend.lib.gps_exif_lib import get_gps_data_from_controls
         gps_data = get_gps_data_from_controls(temp_controls_file)
 
         # Assert: Verify partial data handling
@@ -197,7 +197,7 @@ gps_fix_mode=3
 """)
 
         # Act: Import and call function
-        from lib.gps_exif_lib import get_gps_data_from_controls
+        from webui.backend.lib.gps_exif_lib import get_gps_data_from_controls
         gps_data = get_gps_data_from_controls(temp_controls_file)
 
         # Assert: Verify altitude parsed
@@ -223,7 +223,7 @@ gps_fix_mode=2
 """)
 
         # Act: Import and call function
-        from lib.gps_exif_lib import get_gps_data_from_controls
+        from webui.backend.lib.gps_exif_lib import get_gps_data_from_controls
         gps_data = get_gps_data_from_controls(temp_controls_file)
 
         # Assert: Verify altitude is None
@@ -248,7 +248,7 @@ gps_fix_mode=3
 """)
 
         # Act: Import and call function
-        from lib.gps_exif_lib import get_gps_data_from_controls
+        from webui.backend.lib.gps_exif_lib import get_gps_data_from_controls
         gps_data = get_gps_data_from_controls(temp_controls_file)
 
         # Assert: Verify negative coordinates
@@ -274,7 +274,7 @@ gps_fix_mode=3
 """)
 
         # Act: Import and call function
-        from lib.gps_exif_lib import get_gps_data_from_controls
+        from webui.backend.lib.gps_exif_lib import get_gps_data_from_controls
         gps_data = get_gps_data_from_controls(temp_controls_file)
 
         # Assert: Verify whitespace stripped
@@ -299,7 +299,7 @@ gps_fix_mode=0
 """)
 
         # Act: Import and call function
-        from lib.gps_exif_lib import get_gps_data_from_controls
+        from webui.backend.lib.gps_exif_lib import get_gps_data_from_controls
         gps_data = get_gps_data_from_controls(temp_controls_file)
 
         # Assert: Verify graceful handling of invalid data
@@ -325,7 +325,7 @@ gps_fix_mode=3
 """)
 
         # Act: Import and call function
-        from lib.gps_exif_lib import get_gps_data_from_controls
+        from webui.backend.lib.gps_exif_lib import get_gps_data_from_controls
         gps_data = get_gps_data_from_controls(temp_controls_file)
 
         # Assert: Verify extreme coordinates
@@ -417,7 +417,7 @@ class TestCoordinateConversion:
         Expected: 37°46'29.64"N
         EXIF format: ((37, 1), (46, 1), (2964, 100)) 'N'
         """
-        from lib.gps_exif_lib import decimal_to_dms
+        from webui.backend.lib.gps_exif_lib import decimal_to_dms
 
         # Act: Convert decimal latitude to DMS
         dms, ref = decimal_to_dms(37.7749, is_latitude=True)
@@ -441,7 +441,7 @@ class TestCoordinateConversion:
         Expected: 33°52'7.68"S
         EXIF format: ((33, 1), (52, 1), (768, 100)) 'S'
         """
-        from lib.gps_exif_lib import decimal_to_dms
+        from webui.backend.lib.gps_exif_lib import decimal_to_dms
 
         # Act: Convert negative latitude to DMS
         dms, ref = decimal_to_dms(-33.8688, is_latitude=True)
@@ -465,7 +465,7 @@ class TestCoordinateConversion:
         Expected: 151°12'33.48"E
         EXIF format: ((151, 1), (12, 1), (3348, 100)) 'E'
         """
-        from lib.gps_exif_lib import decimal_to_dms
+        from webui.backend.lib.gps_exif_lib import decimal_to_dms
 
         # Act: Convert positive longitude to DMS
         dms, ref = decimal_to_dms(151.2093, is_latitude=False)
@@ -489,7 +489,7 @@ class TestCoordinateConversion:
         Expected: 122°25'9.84"W
         EXIF format: ((122, 1), (25, 1), (984, 100)) 'W'
         """
-        from lib.gps_exif_lib import decimal_to_dms
+        from webui.backend.lib.gps_exif_lib import decimal_to_dms
 
         # Act: Convert negative longitude to DMS
         dms, ref = decimal_to_dms(-122.4194, is_latitude=False)
@@ -512,7 +512,7 @@ class TestCoordinateConversion:
         Scenario: 0.0° latitude and 0.0° longitude
         Expected: 0°0'0.0"N and 0°0'0.0"E
         """
-        from lib.gps_exif_lib import decimal_to_dms
+        from webui.backend.lib.gps_exif_lib import decimal_to_dms
 
         # Act: Convert zero coordinates
         lat_dms, lat_ref = decimal_to_dms(0.0, is_latitude=True)
@@ -533,7 +533,7 @@ class TestCoordinateConversion:
         Scenario: Near North/South poles (89.9999°, -89.9999°)
         Expected: Proper handling of extreme values
         """
-        from lib.gps_exif_lib import decimal_to_dms
+        from webui.backend.lib.gps_exif_lib import decimal_to_dms
 
         # Act: Convert near-pole latitudes
         north_dms, north_ref = decimal_to_dms(89.9999, is_latitude=True)
@@ -557,7 +557,7 @@ class TestCoordinateConversion:
         Scenario: International date line (180°, -180°)
         Expected: Both map to 180° (E/W ambiguous but valid)
         """
-        from lib.gps_exif_lib import decimal_to_dms
+        from webui.backend.lib.gps_exif_lib import decimal_to_dms
 
         # Act: Convert date line longitudes
         east_dms, east_ref = decimal_to_dms(180.0, is_latitude=False)
@@ -582,7 +582,7 @@ class TestCoordinateConversion:
         Bug: 37.78333305... → 37° 46' 59.999'' → rounds to 37° 46' 60.00''
         Fix: Should produce 37° 47' 0.00'' (carry seconds to minutes)
         """
-        from lib.gps_exif_lib import decimal_to_dms
+        from webui.backend.lib.gps_exif_lib import decimal_to_dms
 
         # Act: Test coordinate that produces seconds = 59.999...
         # 37 + (46/60) + (59.999/3600) = 37.78333305...
@@ -651,7 +651,7 @@ class TestGPSIFDBuilder:
         except ImportError:
             pytest.skip("piexif required for GPS IFD tests")
 
-        from lib.gps_exif_lib import build_gps_ifd
+        from webui.backend.lib.gps_exif_lib import build_gps_ifd
 
         # Arrange: Complete GPS data (3D fix with altitude)
         gps_data = {
@@ -719,7 +719,7 @@ class TestGPSIFDBuilder:
         except ImportError:
             pytest.skip("piexif required for GPS IFD tests")
 
-        from lib.gps_exif_lib import build_gps_ifd
+        from webui.backend.lib.gps_exif_lib import build_gps_ifd
 
         # Arrange: 2D GPS fix (no altitude)
         gps_data = {
@@ -757,7 +757,7 @@ class TestGPSIFDBuilder:
         except ImportError:
             pytest.skip("piexif required for GPS IFD tests")
 
-        from lib.gps_exif_lib import build_gps_ifd
+        from webui.backend.lib.gps_exif_lib import build_gps_ifd
         from datetime import datetime, timezone
 
         # Arrange: GPS data with specific timestamp
@@ -803,7 +803,7 @@ class TestGPSIFDBuilder:
         except ImportError:
             pytest.skip("piexif required for GPS IFD tests")
 
-        from lib.gps_exif_lib import build_gps_ifd
+        from webui.backend.lib.gps_exif_lib import build_gps_ifd
 
         # Arrange: GPS data with specific HDOP
         gps_data = {
@@ -839,7 +839,7 @@ class TestGPSIFDBuilder:
         except ImportError:
             pytest.skip("piexif required for GPS IFD tests")
 
-        from lib.gps_exif_lib import build_gps_ifd
+        from webui.backend.lib.gps_exif_lib import build_gps_ifd
 
         # Arrange: GPS data with satellite count
         gps_data = {
@@ -884,7 +884,7 @@ class TestGPSIFDBuilder:
         except ImportError:
             pytest.skip("piexif required for GPS IFD tests")
 
-        from lib.gps_exif_lib import build_gps_ifd
+        from webui.backend.lib.gps_exif_lib import build_gps_ifd
 
         # Arrange: GPS data with negative altitude (below sea level)
         gps_data = {
@@ -929,7 +929,7 @@ class TestGPSIFDBuilder:
         except ImportError:
             pytest.skip("piexif required for GPS IFD tests")
 
-        from lib.gps_exif_lib import build_gps_ifd
+        from webui.backend.lib.gps_exif_lib import build_gps_ifd
 
         # Arrange: GPS data at sea level
         gps_data = {
@@ -963,7 +963,7 @@ class TestGPSIFDBuilder:
         Scenario: GPS has no fix (has_fix=False).
         Expected: Empty GPS IFD dictionary.
         """
-        from lib.gps_exif_lib import build_gps_ifd
+        from webui.backend.lib.gps_exif_lib import build_gps_ifd
 
         # Arrange: No GPS fix
         gps_data = {
@@ -1069,7 +1069,7 @@ class TestEXIFEmbedding:
         except ImportError:
             pytest.skip("piexif required for EXIF embedding tests")
 
-        from lib.gps_exif_lib import embed_gps_exif
+        from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
         # Arrange: GPS data with valid 3D fix
         gps_data = {
@@ -1113,7 +1113,7 @@ class TestEXIFEmbedding:
         Scenario: GPS has no fix (has_fix=False).
         Expected: Skip embedding, return skipped=True, photo unchanged.
         """
-        from lib.gps_exif_lib import embed_gps_exif
+        from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
         # Arrange: GPS data with no fix
         gps_data = {
@@ -1150,7 +1150,7 @@ class TestEXIFEmbedding:
         except ImportError:
             pytest.skip("piexif required for EXIF embedding tests")
 
-        from lib.gps_exif_lib import embed_gps_exif
+        from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
         # Arrange: GPS data
         gps_data = {
@@ -1193,7 +1193,7 @@ class TestEXIFEmbedding:
         Scenario: Run with backup=True.
         Expected: .bak file created, original modified, backup_path returned.
         """
-        from lib.gps_exif_lib import embed_gps_exif
+        from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
         # Arrange: GPS data
         gps_data = {
@@ -1234,7 +1234,7 @@ class TestEXIFEmbedding:
         except ImportError:
             pytest.skip("piexif required for EXIF embedding tests")
 
-        from lib.gps_exif_lib import embed_gps_exif
+        from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
         # Arrange: GPS data
         gps_data = {
@@ -1277,7 +1277,7 @@ class TestEXIFEmbedding:
         except ImportError:
             pytest.skip("piexif required for EXIF embedding tests")
 
-        from lib.gps_exif_lib import embed_gps_exif
+        from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
         # Arrange: GPS data
         gps_data = {
@@ -1323,7 +1323,7 @@ class TestEXIFEmbedding:
         Scenario: Photo path doesn't exist or is not a JPEG.
         Expected: Return error dict, don't crash.
         """
-        from lib.gps_exif_lib import embed_gps_exif
+        from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
         # Arrange: GPS data
         gps_data = {
@@ -1399,7 +1399,7 @@ class TestGPSEXIFVerification:
         except ImportError:
             pytest.skip("piexif required for EXIF verification tests")
 
-        from lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
+        from webui.backend.lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
 
         # Arrange: Embed GPS EXIF first
         gps_data = {
@@ -1440,7 +1440,7 @@ class TestGPSEXIFVerification:
         Scenario: Photo has no GPS EXIF.
         Expected: Return has_gps=False, all fields None.
         """
-        from lib.gps_exif_lib import verify_gps_exif
+        from webui.backend.lib.gps_exif_lib import verify_gps_exif
 
         # Act: Verify GPS EXIF (photo has no GPS yet)
         gps_info = verify_gps_exif(sample_photo_with_exif)
@@ -1467,7 +1467,7 @@ class TestGPSEXIFVerification:
         except ImportError:
             pytest.skip("piexif required for EXIF verification tests")
 
-        from lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
+        from webui.backend.lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
 
         # Arrange: Embed GPS with specific coordinates
         gps_data = {
@@ -1510,7 +1510,7 @@ class TestGPSEXIFVerification:
         except ImportError:
             pytest.skip("piexif required for EXIF verification tests")
 
-        from lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
+        from webui.backend.lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
 
         # Arrange: Embed GPS with negative altitude
         gps_data = {
@@ -1549,7 +1549,7 @@ class TestGPSEXIFVerification:
         except ImportError:
             pytest.skip("piexif required for EXIF verification tests")
 
-        from lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
+        from webui.backend.lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
 
         # Arrange: Embed GPS with positive altitude
         gps_data = {
@@ -1588,7 +1588,7 @@ class TestGPSEXIFVerification:
         except ImportError:
             pytest.skip("piexif required for EXIF verification tests")
 
-        from lib.gps_exif_lib import embed_gps_exif, is_already_tagged
+        from webui.backend.lib.gps_exif_lib import embed_gps_exif, is_already_tagged
 
         # Arrange: Embed GPS EXIF first
         gps_data = {
@@ -1619,7 +1619,7 @@ class TestGPSEXIFVerification:
         Scenario: Photo has no GPS EXIF.
         Expected: Return False.
         """
-        from lib.gps_exif_lib import is_already_tagged
+        from webui.backend.lib.gps_exif_lib import is_already_tagged
 
         # Act: Check if tagged (photo has no GPS yet)
         is_tagged = is_already_tagged(sample_photo_with_exif)
@@ -1636,7 +1636,7 @@ class TestGPSEXIFVerification:
         Scenario: File doesn't exist or is not a JPEG.
         Expected: Return has_gps=False, all fields None, no crash.
         """
-        from lib.gps_exif_lib import verify_gps_exif
+        from webui.backend.lib.gps_exif_lib import verify_gps_exif
 
         # Test 1: Non-existent file
         non_existent = tmp_path / "does_not_exist.jpg"
@@ -1668,7 +1668,7 @@ class TestGPSEXIFVerification:
         except ImportError:
             pytest.skip("piexif required for EXIF embedding tests")
 
-        from lib.gps_exif_lib import embed_gps_exif
+        from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
         # Arrange: Write GPS data to controls.txt
         temp_controls_file.write_text("""
@@ -1707,7 +1707,7 @@ gps_altitude=15.2
         except ImportError:
             pytest.skip("piexif required for EXIF verification tests")
 
-        from lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
+        from webui.backend.lib.gps_exif_lib import embed_gps_exif, verify_gps_exif
 
         # Arrange: Embed GPS with timestamp
         gps_data = {

@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import Gallery from '../Gallery'
 import * as api from '../../utils/api'
-import { mockNavigate } from './gallery-test-helpers.jsx'
 
 // Mock API module
 vi.mock('../../utils/api', () => ({
@@ -14,6 +13,27 @@ vi.mock('../../utils/api', () => ({
   getPhotoUrl: vi.fn((path) => `http://localhost:3000/api/gallery/photo/${path}`),
   getPreferences: vi.fn(),
   setPreference: vi.fn(),
+}))
+
+// Mock useProgressiveImage hook
+vi.mock('../../hooks/useProgressiveImage', () => ({
+  default: vi.fn((photoPath) => {
+    if (!photoPath) {
+      return {
+        src: null,
+        isLoading: false,
+        error: null,
+        stage: 'idle'
+      }
+    }
+
+    return {
+      src: `http://localhost:3000/api/gallery/thumbnail/${photoPath}?size=256`,
+      isLoading: false,
+      error: null,
+      stage: 'loaded'
+    }
+  })
 }))
 
 /**
@@ -37,7 +57,7 @@ describe('Gallery - View Mode Integration', () => {
 
   // Helper to setup IntersectionObserver mock
   const setupIntersectionObserver = () => {
-    global.IntersectionObserver = vi.fn(() => ({
+    globalThis.IntersectionObserver = vi.fn(() => ({
       observe: vi.fn(),
       unobserve: vi.fn(),
       disconnect: vi.fn(),
@@ -314,7 +334,7 @@ describe('Gallery - View Mode Integration', () => {
 
       // Lightbox should open
       await waitFor(() => {
-        const images = screen.queryAllByRole('img', { name: /photo-.*\.jpg/i })
+        const images = screen.queryAllByRole('img', { name: /Photo taken on/i })
         const lightboxImage = images.find(img => img.src.includes('/photo/'))
         expect(lightboxImage).toBeDefined()
         expect(lightboxImage.src).toContain('/photo/') // Full photo, not thumbnail
@@ -343,7 +363,7 @@ describe('Gallery - View Mode Integration', () => {
 
       // Lightbox should open
       await waitFor(() => {
-        const images = screen.queryAllByRole('img', { name: /photo-.*\.jpg/i })
+        const images = screen.queryAllByRole('img', { name: /Photo taken on/i })
         const lightboxImage = images.find(img => img.src.includes('/photo/'))
         expect(lightboxImage).toBeDefined()
         expect(lightboxImage.src).toContain('/photo/') // Full photo, not thumbnail

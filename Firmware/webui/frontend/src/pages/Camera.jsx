@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCaptureLiveview, freezeSettings, getPresets, applyPreset, createPreset, getPreferences, setPreference, updateWebuiSettings } from '../utils/api'
+import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCaptureLiveview, freezeSettings, getPresets, applyPreset, createPreset, getPreferences, updateWebuiSettings } from '../utils/api'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
 import SavePresetModal from '../components/SavePresetModal'
+import InstantCaptureButton from '../components/InstantCaptureButton'
 import { convertFromBackend, toPicameraControl } from '../utils/cameraControlMapping'
 
 /**
@@ -189,6 +190,7 @@ export default function Camera() {
         photoPresetInitialized.current = true
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetsData, preferences, selectedPhotoPreset])
 
   // Load default liveview preset from preferences on mount
@@ -212,6 +214,7 @@ export default function Camera() {
         })
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetsData, preferences, selectedLiveViewPreset])
 
   // Debounced function to emit control updates to backend
@@ -308,7 +311,6 @@ export default function Camera() {
 
     // Connect to WebSocket server using current window location
     // This ensures it works whether accessed via localhost, IP, or hostname
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.hostname
     const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
     const wsUrl = `${window.location.protocol}//${host}:${port}`
@@ -747,12 +749,6 @@ export default function Camera() {
     }
   }
 
-  // Helper: Convert PascalCase control names to camelCase for state keys
-  // e.g., 'AeMeteringMode' -> 'aeMeteringMode', 'Sharpness' -> 'sharpness'
-  const pascalToCamelCase = (str) => {
-    return str.charAt(0).toLowerCase() + str.slice(1)
-  }
-
   // Real-time control slider handlers
   const handleControlChange = (controlName, value) => {
     // Convert PascalCase control name to camelCase state key
@@ -982,7 +978,6 @@ export default function Camera() {
     }))
     setZoomLevel(1.0)  // Reset zoom to 1x
     setZoomCenter({ x: 0.5, y: 0.5 })  // Reset zoom center to center
-    setCrosshairPos({ x: 0.5, y: 0.5 })  // Reset crosshair to center
     setAfWindow(null)  // Clear AF window
 
     // Emit all resets to backend
@@ -1556,7 +1551,7 @@ export default function Camera() {
                       try {
                         await handleApplyLiveViewPreset(newValue)
                         setSelectedLiveViewPreset(newValue)
-                      } catch (error) {
+                      } catch {
                         // handleApplyLiveViewPreset already handles error display
                         // State remains unchanged on error
                       }
@@ -2209,6 +2204,14 @@ export default function Camera() {
               >
                 {testCapturing ? '📸 Capturing...' : '🧪 Test Photo'}
               </button>
+
+              {/* Instant Capture Button */}
+              <div className="mt-2">
+                <InstantCaptureButton
+                  disabled={!connected}
+                  className="w-full px-3 py-2 text-sm"
+                />
+              </div>
 
               {testCaptureResult && (
                 <div className={`mt-2 p-2 rounded border ${
