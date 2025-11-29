@@ -24,6 +24,9 @@ Endpoints:
 - GET /locations - Get photos with GPS coordinates for map display
 - POST /locations/cache/invalidate - Invalidate locations cache
 - GET /locations/stats - Get locations cache statistics
+- GET /locations/clustered - Get clustered photo locations (Issue #115)
+- GET /locations/clustered/stats - Get clustering cache statistics
+- POST /locations/clustered/cache/invalidate - Invalidate clustering cache
 """
 
 import logging
@@ -1066,3 +1069,247 @@ def get_locations_stats():
     except Exception as e:
         logger.error(f"Error getting locations stats: {e}", exc_info=True)
         return jsonify({"error": "Failed to get statistics"}), 500
+
+
+# ============================================================================
+# Clustering Endpoints (Issue #115 - Subtask 3)
+# ============================================================================
+
+@gallery_bp.route("/locations/clustered", methods=["GET"])
+@limiter.limit("60 per minute")
+def get_clustered_locations():
+    """
+    Get clustered photo locations for map display.
+
+    Query Parameters:
+        radius (int): Clustering radius in meters (default: 100)
+        min_size (int): Minimum photos per cluster (default: 2)
+        enabled (bool): Enable clustering (default: true)
+
+    Returns:
+        JSON response with:
+        - clusters: List of photo clusters
+        - unclustered: Photos not in any cluster
+        - metadata: Clustering metadata (total_photos, total_clusters, etc.)
+
+    Example:
+        GET /locations/clustered?radius=100&min_size=2&enabled=true
+
+    Status Codes:
+        200: Success
+        400: Invalid parameters
+        503: Clustering service unavailable
+        500: Internal server error
+    """
+    # Get clustering service from app config
+    clustering_service = current_app.config.get('CLUSTERING_SERVICE')
+
+    if not clustering_service:
+        return jsonify({"error": "Clustering service not available"}), 503
+
+    try:
+        # Parse query parameters
+        radius_str = request.args.get('radius')
+        min_size_str = request.args.get('min_size')
+        enabled_str = request.args.get('enabled', 'true').lower()
+
+        # Parse and validate radius
+        if radius_str is not None:
+            try:
+                radius = int(radius_str)
+            except ValueError:
+                return jsonify({"error": "Radius parameter must be a valid integer"}), 400
+
+            if radius < 0:
+                return jsonify({"error": "Radius must be non-negative"}), 400
+        else:
+            radius = None  # Use service default
+
+        # Parse and validate min_size
+        if min_size_str is not None:
+            try:
+                min_size = int(min_size_str)
+            except ValueError:
+                return jsonify({"error": "min_size parameter must be a valid integer"}), 400
+
+            if min_size < 0:
+                return jsonify({"error": "min_size must be non-negative"}), 400
+        else:
+            min_size = None  # Use service default
+
+        # Parse enabled flag
+        clustering_enabled = enabled_str in ('true', '1', 'yes')
+
+        # If clustering disabled, return all photos as unclustered
+        if not clustering_enabled:
+            # Get locations without clustering
+            locations_result = _locations_service.get_locations(PHOTOS_DIR, limit=10000)
+            locations = locations_result.get('locations', [])
+
+            # Convert to PhotoLocation-like format
+            unclustered = []
+            for loc in locations:
+                unclustered.append({
+                    'photo_id': loc['filename'],
+                    'lat': loc['latitude'],
+                    'lon': loc['longitude'],
+                    'timestamp': loc.get('timestamp')
+                })
+
+            return jsonify({
+                'clusters': [],
+                'unclustered': unclustered,
+                'metadata': {
+                    'total_photos': len(unclustered),
+                    'total_clusters': 0,
+                    'clustering_enabled': False,
+                    'radius_m': radius or 100,
+                    'processing_time_ms': 0.0,
+                    'partial_result': False,
+                    'warning': None
+                }
+            })
+
+        # Perform clustering
+        result = clustering_service.get_clustered_locations(
+            directory=PHOTOS_DIR,
+            radius_m=radius,
+            min_cluster_size=min_size
+        )
+
+        # Convert ClusteringResult to JSON-serializable format
+        clusters_data = []
+        for cluster in result.clusters:
+            # Convert photos to dict format
+            photos_data = []
+            for photo in cluster.photos:
+                photos_data.append({
+                    'photo_id': photo.photo_id,
+                    'lat': photo.lat,
+                    'lon': photo.lon,
+                    'timestamp': photo.timestamp
+                })
+
+            # Build cluster object
+            cluster_data = {
+                'cluster_id': cluster.cluster_id,
+                'center': {
+                    'lat': cluster.center_lat,
+                    'lon': cluster.center_lon
+                },
+                'count': cluster.count,
+                'photos': photos_data,
+                'date_range': {
+                    'earliest': cluster.date_range[0],
+                    'latest': cluster.date_range[1]
+                },
+                'radius_m': cluster.radius_m
+            }
+            clusters_data.append(cluster_data)
+
+        # Convert unclustered photos to dict format
+        unclustered_data = []
+        for photo in result.unclustered:
+            unclustered_data.append({
+                'photo_id': photo.photo_id,
+                'lat': photo.lat,
+                'lon': photo.lon,
+                'timestamp': photo.timestamp
+            })
+
+        # Build response
+        response_data = {
+            'clusters': clusters_data,
+            'unclustered': unclustered_data,
+            'metadata': {
+                'total_photos': result.total_photos,
+                'total_clusters': result.total_clusters,
+                'clustering_enabled': True,
+                'radius_m': result.radius_m,
+                'processing_time_ms': result.processing_time_ms,
+                'partial_result': result.partial_result,
+                'warning': result.warning
+            }
+        }
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        logger.error(f"Error getting clustered locations: {e}", exc_info=True)
+        return jsonify({"error": "Failed to get clustered locations"}), 500
+
+
+@gallery_bp.route("/locations/clustered/stats", methods=["GET"])
+def get_clustered_locations_stats():
+    """
+    Get clustering cache statistics.
+
+    Returns:
+        JSON response with cache statistics including:
+        - cache_entries: Number of cached configurations
+        - cache_hits: Total cache hit count
+        - cache_misses: Total cache miss count
+        - total_clustering_time_ms: Total time spent clustering
+
+    Status Codes:
+        200: Success
+        503: Clustering service unavailable
+    """
+    clustering_service = current_app.config.get('CLUSTERING_SERVICE')
+
+    if not clustering_service:
+        return jsonify({"error": "Clustering service not available"}), 503
+
+    try:
+        stats = clustering_service.get_statistics()
+        return jsonify(stats)
+
+    except Exception as e:
+        logger.error(f"Error getting clustering stats: {e}", exc_info=True)
+        return jsonify({"error": "Failed to get statistics"}), 500
+
+
+@gallery_bp.route("/locations/clustered/cache/invalidate", methods=["POST"])
+def invalidate_clustered_locations_cache():
+    """
+    Invalidate clustering cache (requires CSRF token).
+
+    Request body (JSON, optional):
+        directory (str): Specific directory to invalidate (optional)
+
+    Returns:
+        JSON response with success status.
+
+    Status Codes:
+        200: Success
+        400: CSRF token missing or invalid
+        503: Clustering service unavailable
+    """
+    clustering_service = current_app.config.get('CLUSTERING_SERVICE')
+
+    if not clustering_service:
+        return jsonify({"error": "Clustering service not available"}), 503
+
+    try:
+        # Handle missing or empty JSON body gracefully
+        data = {}
+        if request.is_json:
+            data = request.get_json(silent=True) or {}
+        directory = data.get('directory')
+
+        if directory:
+            # Validate path security
+            dir_path = validate_photo_path(directory, PHOTOS_DIR)
+            if dir_path is None:
+                return jsonify({"error": "Invalid directory path"}), 400
+            clustering_service.invalidate_cache(dir_path)
+            message = f"Invalidated clustering cache for {directory}"
+        else:
+            clustering_service.invalidate_cache()
+            message = "Invalidated entire clustering cache"
+
+        return jsonify({"success": True, "message": message})
+
+    except Exception as e:
+        logger.error(f"Error invalidating clustering cache: {e}", exc_info=True)
+        return jsonify({"error": "Failed to invalidate cache"}), 500
