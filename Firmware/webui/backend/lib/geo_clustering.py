@@ -51,12 +51,14 @@ class PhotoLocation:
         lon: Longitude in decimal degrees (-180 to 180)
         timestamp: Optional ISO format timestamp (YYYY-MM-DDTHH:MM:SS)
         filepath: Optional full path to photo file
+        tags: Optional list of tags/labels for the photo (Issue #117)
     """
     photo_id: str
     lat: float
     lon: float
     timestamp: str | None = None
     filepath: Path | None = None
+    tags: list[str] | None = None
 
 
 @dataclass
@@ -356,6 +358,7 @@ def cluster_locations(
         lon = loc.get("lon")
         timestamp = loc.get("timestamp")
         filepath = loc.get("filepath")
+        tags = loc.get("tags")  # Issue #117: Extract tags
 
         # Skip if missing required fields
         if not photo_id or lat is None or lon is None:
@@ -371,7 +374,8 @@ def cluster_locations(
             lat=float(lat),
             lon=float(lon),
             timestamp=timestamp,
-            filepath=Path(filepath) if filepath else None
+            filepath=Path(filepath) if filepath else None,
+            tags=tags  # Issue #117: Pass through tags
         ))
 
     n = len(photo_locations)

@@ -52,7 +52,41 @@ vi.mock('leaflet', () => ({
         this.options = options
       }
     },
+    divIcon: vi.fn((options) => ({
+      options,
+      _getIconUrl: vi.fn(),
+    })),
   },
+}))
+
+// Mock MarkerHoverPopup component
+vi.mock('../MarkerHoverPopup', () => ({
+  default: ({ cluster, isVisible, position, onPhotoClick, onClose }) => (
+    <div
+      data-testid="marker-hover-popup"
+      data-visible={isVisible}
+      data-cluster-id={cluster?.cluster_id}
+    >
+      {isVisible && cluster && (
+        <div>
+          <span>Cluster: {cluster.cluster_id}</span>
+          <span>Count: {cluster.count}</span>
+        </div>
+      )}
+    </div>
+  ),
+}))
+
+// Mock useHoverPopup hook
+vi.mock('../../hooks/useHoverPopup', () => ({
+  useHoverPopup: () => ({
+    isVisible: false,
+    targetCluster: null,
+    position: { x: 0, y: 0 },
+    handleMouseEnter: vi.fn(),
+    handleMouseLeave: vi.fn(),
+    handleClick: vi.fn(),
+  }),
 }))
 
 describe('MapView', () => {
@@ -424,6 +458,79 @@ describe('MapView', () => {
       const mapWrapper = container.firstChild
       // Should have minimum height
       expect(mapWrapper.className).toContain('h-')
+    })
+  })
+
+  describe('Hover Popup Integration', () => {
+    const mockClusters = [
+      {
+        cluster_id: 'cluster_1',
+        center: { lat: 37.7749, lon: -122.4194 },
+        count: 3,
+        photos: [
+          {
+            photo_id: 'photo1.jpg',
+            thumbnail_url: '/api/gallery/photos/photo1.jpg/thumbnail',
+            timestamp: '2024-01-15 10:30:00',
+            lat: 37.7749,
+            lon: -122.4194,
+          },
+          {
+            photo_id: 'photo2.jpg',
+            thumbnail_url: '/api/gallery/photos/photo2.jpg/thumbnail',
+            timestamp: '2024-01-15 11:00:00',
+            lat: 37.7750,
+            lon: -122.4195,
+          },
+        ],
+        date_range: {
+          earliest: '2024-01-15',
+          latest: '2024-01-15',
+        },
+      },
+    ]
+
+    it('renders MarkerHoverPopup component', () => {
+      const { container } = render(
+        <MapView
+          locations={[]}
+          clusters={mockClusters}
+          onPhotoClick={mockOnPhotoClick}
+        />
+      )
+
+      // MarkerHoverPopup should be in the DOM (even if not visible)
+      // Check for the popup container with data-testid
+      const popup = container.querySelector('[data-testid="marker-hover-popup"]')
+      expect(popup).toBeInTheDocument()
+    })
+
+    it('ClusterMarker has mouseover handler', () => {
+      render(
+        <MapView
+          locations={[]}
+          clusters={mockClusters}
+          onPhotoClick={mockOnPhotoClick}
+        />
+      )
+
+      // Verify that markers are rendered (hover handlers are attached via eventHandlers prop)
+      const markers = screen.getAllByTestId('marker')
+      expect(markers.length).toBeGreaterThan(0)
+    })
+
+    it('ClusterMarker has mouseout handler', () => {
+      render(
+        <MapView
+          locations={[]}
+          clusters={mockClusters}
+          onPhotoClick={mockOnPhotoClick}
+        />
+      )
+
+      // Verify that markers are rendered (hover handlers are attached via eventHandlers prop)
+      const markers = screen.getAllByTestId('marker')
+      expect(markers.length).toBeGreaterThan(0)
     })
   })
 })

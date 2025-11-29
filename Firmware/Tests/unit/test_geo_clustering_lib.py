@@ -642,3 +642,134 @@ class TestInputValidation:
 
         assert center_lat == 0.0
         assert center_lon == 0.0
+
+
+# ============================================================================
+# 9. Tags Support Tests (Issue #117 - Subtask 1)
+# ============================================================================
+
+class TestTagsSupport:
+    """Test tags field support in PhotoLocation and clustering."""
+
+    def test_photo_location_with_tags(self):
+        """PhotoLocation accepts tags field."""
+        photo = PhotoLocation(
+            photo_id="photo1.jpg",
+            lat=37.7749,
+            lon=-122.4194,
+            timestamp="2024-01-15T10:00:00",
+            tags=["moth", "night", "hdr"]
+        )
+
+        assert photo.tags == ["moth", "night", "hdr"]
+
+    def test_photo_location_without_tags(self):
+        """PhotoLocation tags field defaults to None."""
+        photo = PhotoLocation(
+            photo_id="photo1.jpg",
+            lat=37.7749,
+            lon=-122.4194
+        )
+
+        assert photo.tags is None
+
+    def test_clustering_preserves_tags(self):
+        """cluster_locations() preserves tags through clustering."""
+        locations = [
+            {
+                "photo_id": "photo1.jpg",
+                "lat": 37.7749,
+                "lon": -122.4194,
+                "tags": ["moth", "night"]
+            },
+            {
+                "photo_id": "photo2.jpg",
+                "lat": 37.7750,
+                "lon": -122.4195,
+                "tags": ["beetle", "day"]
+            },
+        ]
+
+        result = cluster_locations(locations, radius_m=100)
+
+        # Should form one cluster
+        assert result.total_clusters == 1
+        cluster = result.clusters[0]
+
+        # Tags should be preserved in photos
+        photo1 = next(p for p in cluster.photos if p.photo_id == "photo1.jpg")
+        photo2 = next(p for p in cluster.photos if p.photo_id == "photo2.jpg")
+
+        assert photo1.tags == ["moth", "night"]
+        assert photo2.tags == ["beetle", "day"]
+
+    def test_clustering_handles_missing_tags(self):
+        """cluster_locations() handles photos without tags."""
+        locations = [
+            {
+                "photo_id": "photo1.jpg",
+                "lat": 37.7749,
+                "lon": -122.4194,
+                "tags": ["moth"]
+            },
+            {
+                "photo_id": "photo2.jpg",
+                "lat": 37.7750,
+                "lon": -122.4195
+                # No tags field
+            },
+        ]
+
+        result = cluster_locations(locations, radius_m=100)
+
+        # Should form one cluster
+        assert result.total_clusters == 1
+        cluster = result.clusters[0]
+
+        # Tags should be preserved/None
+        photo1 = next(p for p in cluster.photos if p.photo_id == "photo1.jpg")
+        photo2 = next(p for p in cluster.photos if p.photo_id == "photo2.jpg")
+
+        assert photo1.tags == ["moth"]
+        assert photo2.tags is None
+
+    def test_unclustered_photos_preserve_tags(self):
+        """Unclustered photos preserve their tags."""
+        locations = [
+            {
+                "photo_id": "photo1.jpg",
+                "lat": 37.7749,
+                "lon": -122.4194,
+                "tags": ["moth", "solo"]
+            }
+        ]
+
+        result = cluster_locations(locations, radius_m=100)
+
+        # Single photo should be unclustered
+        assert len(result.unclustered) == 1
+        photo = result.unclustered[0]
+
+        assert photo.tags == ["moth", "solo"]
+
+    def test_empty_tags_list(self):
+        """Empty tags list is preserved."""
+        locations = [
+            {
+                "photo_id": "photo1.jpg",
+                "lat": 37.7749,
+                "lon": -122.4194,
+                "tags": []
+            },
+            {
+                "photo_id": "photo2.jpg",
+                "lat": 37.7750,
+                "lon": -122.4195,
+                "tags": []
+            },
+        ]
+
+        result = cluster_locations(locations, radius_m=100)
+
+        cluster = result.clusters[0]
+        assert all(p.tags == [] for p in cluster.photos)

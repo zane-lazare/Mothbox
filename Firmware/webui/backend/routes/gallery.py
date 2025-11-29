@@ -1187,7 +1187,8 @@ def get_clustered_locations():
                     'photo_id': photo.photo_id,
                     'lat': photo.lat,
                     'lon': photo.lon,
-                    'timestamp': photo.timestamp
+                    'timestamp': photo.timestamp,
+                    'tags': photo.tags  # Issue #117: Include tags
                 })
 
             # Build cluster object
@@ -1214,7 +1215,8 @@ def get_clustered_locations():
                 'photo_id': photo.photo_id,
                 'lat': photo.lat,
                 'lon': photo.lon,
-                'timestamp': photo.timestamp
+                'timestamp': photo.timestamp,
+                'tags': photo.tags  # Issue #117: Include tags
             })
 
         # Build response
