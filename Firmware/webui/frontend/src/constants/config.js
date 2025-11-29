@@ -289,3 +289,33 @@ export const CLUSTERING_CONFIG = {
   DEFAULT_MIN_SIZE: 2,
   STORAGE_KEY: 'mothbox_clustering_settings',
 }
+
+/**
+ * Hover Popup Configuration (Issue #117)
+ *
+ * Configuration for the interactive hover popup on map cluster markers.
+ * Displays a 3x3 thumbnail grid preview of photos at each location.
+ *
+ * @property {number} GRID_SIZE - Grid dimensions (3 = 3x3 grid)
+ * @property {number} THUMBNAIL_SIZE - Size of thumbnails in pixels (128px for balanced quality)
+ * @property {number} DEBOUNCE_MS - Debounce delay for hover detection (ms)
+ * @property {number} SHOW_DELAY_MS - Delay before showing popup (ms)
+ * @property {number} HIDE_DELAY_MS - Delay before hiding popup to prevent flicker (ms)
+ * @property {number} MAX_PHOTOS - Maximum photos to display in grid
+ * @property {number} POPUP_WIDTH - Popup container width in pixels
+ * @property {number} Z_INDEX - Z-index for popup layering (above map, below lightbox)
+ * @property {number} SWIPE_THRESHOLD - Minimum swipe distance for mobile navigation (px)
+ * @property {number} ANIMATION_DURATION - Fade animation duration (ms)
+ */
+export const HOVER_POPUP_CONFIG = {
+  GRID_SIZE: 3,
+  THUMBNAIL_SIZE: 128,
+  DEBOUNCE_MS: 150,
+  SHOW_DELAY_MS: 100,
+  HIDE_DELAY_MS: 200,
+  MAX_PHOTOS: 9,
+  POPUP_WIDTH: 280,
+  Z_INDEX: 1100,
+  SWIPE_THRESHOLD: 50,
+  ANIMATION_DURATION: 100,
+}

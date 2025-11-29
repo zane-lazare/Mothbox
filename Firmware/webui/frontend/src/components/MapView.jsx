@@ -6,6 +6,8 @@ import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerIconRetina from 'leaflet/dist/images/marker-icon-2x.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 import { MAP_CONFIG, CLUSTERING_CONFIG } from '../constants/config'
+import MarkerHoverPopup from './MarkerHoverPopup'
+import { useHoverPopup } from '../hooks/useHoverPopup'
 
 /**
  * ClusteringControls - UI controls for geographic clustering settings
@@ -58,7 +60,7 @@ function ClusteringControls({ settings, onEnabledChange, onRadiusChange }) {
  * Displays a circular badge with the number of photos in the cluster.
  * Clicking opens a popup with thumbnails and metadata.
  */
-function ClusterMarker({ cluster, onPhotoClick }) {
+function ClusterMarker({ cluster, onPhotoClick, onMouseEnter, onMouseLeave }) {
   // Create custom cluster icon
   const icon = L.divIcon({
     className: 'cluster-marker',
@@ -69,7 +71,14 @@ function ClusterMarker({ cluster, onPhotoClick }) {
   })
 
   return (
-    <Marker position={[cluster.center.lat, cluster.center.lon]} icon={icon}>
+    <Marker
+      position={[cluster.center.lat, cluster.center.lon]}
+      icon={icon}
+      eventHandlers={{
+        mouseover: (e) => onMouseEnter?.(cluster, e.originalEvent),
+        mouseout: () => onMouseLeave?.(),
+      }}
+    >
       <Popup maxWidth={250}>
         <div className="cluster-popup">
           <h4 className="font-semibold text-sm mb-1">{cluster.count} photos</h4>
@@ -177,6 +186,16 @@ function MapView({
   isLoading = false,
   className = '',
 }) {
+  // Hover popup state management
+  const {
+    isVisible,
+    targetCluster,
+    position,
+    handleMouseEnter,
+    handleMouseLeave,
+    handleClick,
+  } = useHoverPopup()
+
   // Normalize locations and clusters (handle null/undefined)
   const normalizedLocations = locations || []
   const normalizedClusters = clusters || []
@@ -268,6 +287,8 @@ function MapView({
             key={cluster.cluster_id}
             cluster={cluster}
             onPhotoClick={onPhotoClick}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
           />
         ))}
 
@@ -314,6 +335,15 @@ function MapView({
 
         <BoundsUpdater locations={normalizedLocations} clusters={normalizedClusters} />
       </MapContainer>
+
+      {/* Hover popup overlay */}
+      <MarkerHoverPopup
+        cluster={targetCluster}
+        isVisible={isVisible}
+        position={position}
+        onPhotoClick={onPhotoClick}
+        onClose={handleMouseLeave}
+      />
 
       {/* Clustering controls - only show if settings provided */}
       {clusterSettings && onClusterEnabledChange && onClusterRadiusChange && (

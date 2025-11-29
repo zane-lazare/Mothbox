@@ -527,3 +527,153 @@ class TestErrorHandling:
         assert response.status_code == 200
         data = json.loads(response.data)
         assert data['metadata']['radius_m'] == 0
+
+
+# ============================================================================
+# Tags Support Tests (Issue #117 - Subtask 1)
+# ============================================================================
+
+class TestTagsInClusteringAPI:
+    """Test tags field support in clustering API responses."""
+
+    def test_cluster_photos_include_tags(self, client, gallery_app):
+        """Cluster photos include tags field in response."""
+        # Setup mock with tags
+        clustering_service = gallery_app.config['CLUSTERING_SERVICE']
+        clustering_service.get_clustered_locations.return_value = ClusteringResult(
+            clusters=[
+                PhotoCluster(
+                    cluster_id="cluster_37.7749N_122.4194W_2",
+                    center_lat=37.7749,
+                    center_lon=-122.4194,
+                    photos=[
+                        PhotoLocation("photo1.jpg", 37.7749, -122.4194, "2024-01-15T10:00:00", tags=["moth", "night"]),
+                        PhotoLocation("photo2.jpg", 37.7750, -122.4195, "2024-01-15T11:00:00", tags=["beetle", "day"])
+                    ],
+                    date_range=("2024-01-15T10:00:00", "2024-01-15T11:00:00")
+                )
+            ],
+            unclustered=[],
+            total_photos=2,
+            total_clusters=1,
+            radius_m=100,
+            processing_time_ms=45.2
+        )
+
+        response = client.get('/api/gallery/locations/clustered')
+        data = json.loads(response.data)
+
+        # Check cluster photos have tags
+        assert len(data['clusters']) == 1
+        cluster = data['clusters'][0]
+        photos = cluster['photos']
+
+        assert len(photos) == 2
+        photo1 = next(p for p in photos if p['photo_id'] == 'photo1.jpg')
+        photo2 = next(p for p in photos if p['photo_id'] == 'photo2.jpg')
+
+        assert 'tags' in photo1
+        assert photo1['tags'] == ["moth", "night"]
+        assert 'tags' in photo2
+        assert photo2['tags'] == ["beetle", "day"]
+
+    def test_unclustered_photos_include_tags(self, client, gallery_app):
+        """Unclustered photos include tags field in response."""
+        clustering_service = gallery_app.config['CLUSTERING_SERVICE']
+        clustering_service.get_clustered_locations.return_value = ClusteringResult(
+            clusters=[],
+            unclustered=[
+                PhotoLocation("photo1.jpg", 37.7749, -122.4194, "2024-01-15T10:00:00", tags=["moth", "solo"]),
+                PhotoLocation("photo2.jpg", 38.0000, -123.0000, "2024-01-15T12:00:00", tags=["butterfly"])
+            ],
+            total_photos=2,
+            total_clusters=0,
+            radius_m=100,
+            processing_time_ms=10.0
+        )
+
+        response = client.get('/api/gallery/locations/clustered')
+        data = json.loads(response.data)
+
+        # Check unclustered photos have tags
+        assert len(data['unclustered']) == 2
+        photo1 = next(p for p in data['unclustered'] if p['photo_id'] == 'photo1.jpg')
+        photo2 = next(p for p in data['unclustered'] if p['photo_id'] == 'photo2.jpg')
+
+        assert 'tags' in photo1
+        assert photo1['tags'] == ["moth", "solo"]
+        assert 'tags' in photo2
+        assert photo2['tags'] == ["butterfly"]
+
+    def test_photos_without_tags_return_none(self, client, gallery_app):
+        """Photos without tags return None for tags field."""
+        clustering_service = gallery_app.config['CLUSTERING_SERVICE']
+        clustering_service.get_clustered_locations.return_value = ClusteringResult(
+            clusters=[
+                PhotoCluster(
+                    cluster_id="cluster_37.7749N_122.4194W_2",
+                    center_lat=37.7749,
+                    center_lon=-122.4194,
+                    photos=[
+                        PhotoLocation("photo1.jpg", 37.7749, -122.4194, "2024-01-15T10:00:00"),  # No tags
+                        PhotoLocation("photo2.jpg", 37.7750, -122.4195, "2024-01-15T11:00:00")   # No tags
+                    ],
+                    date_range=("2024-01-15T10:00:00", "2024-01-15T11:00:00")
+                )
+            ],
+            unclustered=[],
+            total_photos=2,
+            total_clusters=1,
+            radius_m=100,
+            processing_time_ms=45.2
+        )
+
+        response = client.get('/api/gallery/locations/clustered')
+        data = json.loads(response.data)
+
+        # Check photos have tags field but value is None
+        cluster = data['clusters'][0]
+        photos = cluster['photos']
+
+        assert len(photos) == 2
+        for photo in photos:
+            assert 'tags' in photo
+            assert photo['tags'] is None
+
+    def test_mixed_tags_none_and_values(self, client, gallery_app):
+        """Mix of photos with and without tags handled correctly."""
+        clustering_service = gallery_app.config['CLUSTERING_SERVICE']
+        clustering_service.get_clustered_locations.return_value = ClusteringResult(
+            clusters=[
+                PhotoCluster(
+                    cluster_id="cluster_37.7749N_122.4194W_3",
+                    center_lat=37.7749,
+                    center_lon=-122.4194,
+                    photos=[
+                        PhotoLocation("photo1.jpg", 37.7749, -122.4194, "2024-01-15T10:00:00", tags=["moth"]),
+                        PhotoLocation("photo2.jpg", 37.7750, -122.4195, "2024-01-15T11:00:00"),  # No tags
+                        PhotoLocation("photo3.jpg", 37.7751, -122.4196, "2024-01-15T12:00:00", tags=["beetle", "day"])
+                    ],
+                    date_range=("2024-01-15T10:00:00", "2024-01-15T12:00:00")
+                )
+            ],
+            unclustered=[],
+            total_photos=3,
+            total_clusters=1,
+            radius_m=100,
+            processing_time_ms=50.0
+        )
+
+        response = client.get('/api/gallery/locations/clustered')
+        data = json.loads(response.data)
+
+        cluster = data['clusters'][0]
+        photos = cluster['photos']
+
+        photo1 = next(p for p in photos if p['photo_id'] == 'photo1.jpg')
+        photo2 = next(p for p in photos if p['photo_id'] == 'photo2.jpg')
+        photo3 = next(p for p in photos if p['photo_id'] == 'photo3.jpg')
+
+        assert photo1['tags'] == ["moth"]
+        assert photo2['tags'] is None
+        assert photo3['tags'] == ["beetle", "day"]
