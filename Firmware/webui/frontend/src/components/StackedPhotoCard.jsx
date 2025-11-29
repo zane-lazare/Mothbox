@@ -185,6 +185,7 @@ export default function StackedPhotoCard({
 }
 
 StackedPhotoCard.propTypes = {
+  /** Series data - can be null/undefined (component returns null in that case) */
   series: PropTypes.shape({
     series_id: PropTypes.string.isRequired,
     series_type: PropTypes.string.isRequired,
@@ -197,7 +198,7 @@ StackedPhotoCard.propTypes = {
     ).isRequired,
     count: PropTypes.number.isRequired,
     cover_photo: PropTypes.string,
-  }).isRequired,
+  }),
   onCardClick: PropTypes.func,
   onPhotoClick: PropTypes.func,
   isLoading: PropTypes.bool,

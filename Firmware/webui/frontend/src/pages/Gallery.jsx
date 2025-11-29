@@ -63,7 +63,7 @@ export default function Gallery() {
   })
 
   // Fetch series data for grouping photos
-  const { data: seriesData, isError: isSeriesError } = useSeries()
+  const { data: seriesData, isError: isSeriesError, refetch: refetchSeries } = useSeries()
 
   // Set up infinite scroll sentinel
   const sentinelRef = useInfiniteScroll({
@@ -229,6 +229,23 @@ export default function Gallery() {
           isLoading={isLoadingPreference}
         />
       </div>
+
+      {/* Series API error warning with retry */}
+      {isSeriesError && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-yellow-700">
+              Photo series not available. Displaying all photos individually.
+            </p>
+            <button
+              onClick={() => refetchSeries()}
+              className="text-sm text-yellow-700 underline hover:text-yellow-800"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Screen reader announcements for loading states */}
       <div aria-live="polite" aria-atomic="true" className="sr-only">

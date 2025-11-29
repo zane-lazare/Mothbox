@@ -256,12 +256,33 @@ describe('StackedPhotoCard', () => {
       expect(card.className).toContain('cursor-pointer')
     })
 
-    it('front layer has z-30 for proper stacking', () => {
+    it('applies correct z-index stacking order (z-10 back, z-20 middle, z-30 front)', () => {
       const { container } = render(<StackedPhotoCard series={mockHdrSeries} />)
 
-      // Check that z-index classes are applied
-      const layers = container.querySelectorAll('[class*="z-"]')
-      expect(layers.length).toBeGreaterThan(0)
+      // Get the photo layer containers (divs with absolute positioning that contain LazyImage)
+      // DOM order is: front (z-30) first, back (z-10) last (due to reverse() in render)
+      const photoLayers = Array.from(container.querySelectorAll('[class*="absolute inset-0"]'))
+        .filter(el => el.className.includes('z-'))
+
+      // Should have 3 layers for the 3 photos
+      expect(photoLayers).toHaveLength(3)
+
+      // Verify all expected z-index classes are present
+      const zIndexClasses = photoLayers.map(el => {
+        if (el.className.includes('z-30')) return 'z-30'
+        if (el.className.includes('z-20')) return 'z-20'
+        if (el.className.includes('z-10')) return 'z-10'
+        return null
+      })
+
+      // All three z-index values should be applied (one per layer)
+      expect(zIndexClasses).toContain('z-10')
+      expect(zIndexClasses).toContain('z-20')
+      expect(zIndexClasses).toContain('z-30')
+
+      // Front layer (z-30) should have hover animation classes
+      const frontLayer = photoLayers.find(el => el.className.includes('z-30'))
+      expect(frontLayer.className).toContain('group-hover:scale')
     })
 
     it('has touch-friendly active state', () => {
