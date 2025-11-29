@@ -21,6 +21,9 @@ Endpoints:
 - GET /series/<series_id> - Get specific series details
 - GET /series/stats - Get series cache statistics
 - POST /series/cache/invalidate - Invalidate series cache
+- GET /locations - Get photos with GPS coordinates for map display
+- POST /locations/cache/invalidate - Invalidate locations cache
+- GET /locations/stats - Get locations cache statistics
 """
 
 import logging
@@ -52,6 +55,7 @@ except ImportError:
 # Import services
 # Import security utilities
 from security_utils import validate_photo_path
+from services.locations_service import LocationsService
 from services.metadata_cache import MetadataCache
 from services.metadata_service import MetadataService
 from services.photo_service import PaginationError, PhotoService
@@ -68,6 +72,9 @@ gallery_bp = Blueprint("gallery", __name__)
 # Module-level cache instance (singleton) with thread-safety
 _metadata_cache = None
 _cache_lock = threading.Lock()
+
+# Initialize locations service with 5-minute cache
+_locations_service = LocationsService(cache_ttl=300)
 
 
 def get_metadata_cache() -> MetadataCache:
@@ -947,3 +954,115 @@ def invalidate_series_cache():
     except Exception as e:
         logger.error(f"Error invalidating series cache: {e}", exc_info=True)
         return jsonify({"error": "Failed to invalidate cache"}), 500
+
+
+# ============================================================================
+# Photo Locations Endpoint (Issue #113 - Subtask 2)
+# ============================================================================
+
+@gallery_bp.route("/locations", methods=["GET"])
+@limiter.limit("60 per minute")
+def get_photo_locations():
+    """
+    Get photos with GPS coordinates for map display.
+
+    Query Parameters:
+        limit (int): Maximum photos to return (1-10000, default: 1000)
+
+    Returns:
+        JSON response with:
+        - locations: List of photos with GPS data
+        - total_with_gps: Count of photos with GPS
+        - total_without_gps: Count of photos without GPS
+
+    Example:
+        GET /locations?limit=100
+
+    Status Codes:
+        200: Success
+        400: Invalid limit parameter
+        500: Internal server error
+    """
+    try:
+        # Parse and validate limit parameter
+        limit_str = request.args.get('limit')
+        if limit_str is not None:
+            try:
+                limit = int(limit_str)
+            except ValueError:
+                return jsonify({"error": "Limit parameter must be a valid integer"}), 400
+            if limit <= 0:
+                return jsonify({"error": "Limit must be greater than 0"}), 400
+            if limit > 10000:
+                return jsonify({"error": "Limit must be 10000 or less"}), 400
+        else:
+            limit = 1000
+
+        # Use LocationsService (cached, efficient)
+        result = _locations_service.get_locations(PHOTOS_DIR, limit=limit)
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Error getting photo locations: {e}", exc_info=True)
+        return jsonify({"error": "Failed to get photo locations"}), 500
+
+
+@gallery_bp.route("/locations/cache/invalidate", methods=["POST"])
+def invalidate_locations_cache():
+    """
+    Invalidate the locations cache (requires CSRF token).
+
+    Request body (JSON, optional):
+        directory (str): Specific directory to invalidate (optional)
+
+    Returns:
+        JSON response with success status.
+
+    Status Codes:
+        200: Success
+        400: Invalid directory path
+    """
+    try:
+        data = request.get_json() or {}
+        directory = data.get('directory')
+
+        if directory:
+            # Validate path security
+            dir_path = validate_photo_path(directory, PHOTOS_DIR)
+            if dir_path is None:
+                return jsonify({"error": "Invalid directory path"}), 400
+            _locations_service.invalidate_cache(dir_path)
+            message = f"Invalidated locations cache for {directory}"
+        else:
+            _locations_service.invalidate_cache()
+            message = "Invalidated entire locations cache"
+
+        return jsonify({"status": "ok", "message": message})
+
+    except Exception as e:
+        logger.error(f"Error invalidating locations cache: {e}", exc_info=True)
+        return jsonify({"error": "Failed to invalidate cache"}), 500
+
+
+@gallery_bp.route("/locations/stats", methods=["GET"])
+def get_locations_stats():
+    """
+    Get locations cache statistics.
+
+    Returns:
+        JSON response with cache statistics including:
+        - cache_entries: Number of cached directory/limit combinations
+        - cache_hits: Total cache hit count
+        - cache_misses: Total cache miss count
+        - total_locations: Total locations across all cached entries
+
+    Status Codes:
+        200: Success
+    """
+    try:
+        stats = _locations_service.get_statistics()
+        return jsonify(stats)
+
+    except Exception as e:
+        logger.error(f"Error getting locations stats: {e}", exc_info=True)
+        return jsonify({"error": "Failed to get statistics"}), 500

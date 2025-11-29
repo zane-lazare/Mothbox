@@ -2,10 +2,12 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { getPhotosPaginated } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
+import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 import { useViewMode } from '../hooks/useViewMode'
 import { useSeries } from '../hooks/useSeries'
+import { usePhotoLocations } from '../hooks/usePhotoLocations'
 import useScrollRestoration from '../hooks/useScrollRestoration'
 import PhotoSkeleton from '../components/PhotoSkeleton'
 import PhotoGridItem from '../components/PhotoGridItem'
@@ -13,6 +15,7 @@ import PhotoListItem from '../components/PhotoListItem'
 import StackedPhotoCard from '../components/StackedPhotoCard'
 import VirtualPhotoGrid from '../components/VirtualPhotoGrid'
 import PhotoLightbox from '../components/PhotoLightbox'
+import MapView from '../components/MapView'
 import ErrorBoundary from '../components/ErrorBoundary'
 import LightboxErrorFallback from '../components/LightboxErrorFallback'
 import ViewModeToggle from '../components/ViewModeToggle'
@@ -64,6 +67,14 @@ export default function Gallery() {
 
   // Fetch series data for grouping photos
   const { data: seriesData, isError: isSeriesError, refetch: refetchSeries } = useSeries()
+
+  // Fetch photo locations for map view
+  const {
+    locations,
+    isLoading: isLoadingLocations,
+    totalWithGps,
+    totalWithoutGps,
+  } = usePhotoLocations({}, { enabled: viewMode === 'map' })
 
   // Set up infinite scroll sentinel
   const sentinelRef = useInfiniteScroll({
@@ -131,6 +142,17 @@ export default function Gallery() {
     saveScrollPosition()
     setSelectedPhoto(photo)
   }, [saveScrollPosition])
+
+  // Handle map marker click - open lightbox with the clicked photo
+  const handleMapPhotoClick = useCallback((location) => {
+    // Find the photo object in the photos array by matching the path
+    // Note: location.photo_path from API, photos[].path from gallery API
+    const photo = photos.find(p => p.path === location.photo_path)
+    if (photo) {
+      saveScrollPosition()
+      setSelectedPhoto(photo)
+    }
+  }, [photos, saveScrollPosition])
 
   // Toast notifications for error states
   useEffect(() => {
@@ -223,11 +245,24 @@ export default function Gallery() {
       {/* Header with title and view mode toggle */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Photo Gallery</h2>
-        <ViewModeToggle
-          currentView={viewMode}
-          onViewChange={setViewMode}
-          isLoading={isLoadingPreference}
-        />
+        <div className="flex items-center gap-3">
+          <ViewModeToggle
+            currentView={viewMode}
+            onViewChange={setViewMode}
+            isLoading={isLoadingPreference}
+          />
+          {/* Link to full-screen map page */}
+          {totalWithGps > 0 && (
+            <Link
+              to="/gallery/map"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              aria-label="Open full-screen map view"
+            >
+              <ArrowTopRightOnSquareIcon className="w-5 h-5" aria-hidden="true" />
+              <span className="text-sm font-medium">Full Map</span>
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Series API error warning with retry */}
@@ -260,8 +295,17 @@ export default function Gallery() {
         <EmptyStateMessage variant="first-time" onCtaClick={() => navigate('/camera')} />
       )}
 
-      {/* Conditional rendering: Grid view, Virtualized Grid, or List view */}
-      {viewMode === 'grid' ? (
+      {/* Conditional rendering: Grid view, Virtualized Grid, List view, or Map view */}
+      {viewMode === 'map' ? (
+        /* Map View */
+        <div className="h-[600px] rounded-lg overflow-hidden">
+          <MapView
+            locations={locations}
+            onPhotoClick={handleMapPhotoClick}
+            isLoading={isLoadingLocations}
+          />
+        </div>
+      ) : viewMode === 'grid' ? (
         shouldUseVirtualization ? (
           /* Virtualized Photo Grid (for large galleries) - wrapped in ErrorBoundary */
           <ErrorBoundary
@@ -338,8 +382,8 @@ export default function Gallery() {
         </div>
       )}
 
-      {/* Pagination error message (shows error but keeps photos visible) */}
-      {isError && photos.length > 0 && (
+      {/* Pagination error message (shows error but keeps photos visible) - not shown in map view */}
+      {viewMode !== 'map' && isError && photos.length > 0 && (
         <div className="text-center py-4">
           <div className="text-red-600 mb-2">
             {formatErrorMessage(error, GALLERY_MESSAGES.ERROR.PAGINATION, GALLERY_MESSAGES.ERROR.FALLBACK)}
@@ -355,11 +399,11 @@ export default function Gallery() {
         </div>
       )}
 
-      {/* Infinite scroll sentinel */}
-      <div ref={sentinelRef} className={GALLERY_CONFIG.INFINITE_SCROLL.SENTINEL_HEIGHT} />
+      {/* Infinite scroll sentinel - not shown in map view */}
+      {viewMode !== 'map' && <div ref={sentinelRef} className={GALLERY_CONFIG.INFINITE_SCROLL.SENTINEL_HEIGHT} />}
 
-      {/* End of photos indicator */}
-      {!hasNextPage && photos.length > 0 && !isError && (
+      {/* End of photos indicator - not shown in map view */}
+      {viewMode !== 'map' && !hasNextPage && photos.length > 0 && !isError && (
         <div className="text-center py-8 text-gray-500">
           {GALLERY_MESSAGES.END}
         </div>
