@@ -9,7 +9,7 @@ import { getPreferences, setPreference } from '../utils/api'
  * instant UI feedback.
  *
  * @returns {Object} Hook state
- * @returns {('grid'|'list')} viewMode - Current view mode
+ * @returns {('grid'|'list'|'map')} viewMode - Current view mode
  * @returns {Function} setViewMode - Function to change view mode
  * @returns {boolean} isLoading - Whether preference is being loaded
  *
@@ -44,7 +44,7 @@ export function useViewMode() {
     const savedMode = preferences?.[PREFERENCE_KEY]
 
     // Validate the saved preference
-    if (savedMode === 'grid' || savedMode === 'list') {
+    if (savedMode === 'grid' || savedMode === 'list' || savedMode === 'map') {
       return savedMode
     }
 
@@ -91,11 +91,11 @@ export function useViewMode() {
   /**
    * Set view mode with validation
    *
-   * @param {('grid'|'list')} newViewMode - The view mode to switch to
+   * @param {('grid'|'list'|'map')} newViewMode - The view mode to switch to
    */
   const setViewMode = (newViewMode) => {
     // Validate input
-    if (newViewMode !== 'grid' && newViewMode !== 'list') {
+    if (newViewMode !== 'grid' && newViewMode !== 'list' && newViewMode !== 'map') {
       console.warn('Invalid view mode:', newViewMode)
       return
     }
