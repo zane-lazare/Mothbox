@@ -309,6 +309,25 @@ describe('usePhotoLocations', () => {
       expect(result.current.error.message).toBe('Network request failed')
       expect(result.current.locations).toEqual([])
     })
+
+    it('handles generic network errors gracefully', async () => {
+      // Mock API to throw network error
+      getPhotoLocations.mockRejectedValueOnce(new Error('Network Error'))
+
+      const { result } = renderHook(
+        () => usePhotoLocations(),
+        { wrapper: createWrapper() }
+      )
+
+      await waitFor(() => {
+        expect(result.current.isError).toBe(true)
+      })
+
+      expect(result.current.locations).toEqual([])
+      expect(result.current.error).toBeDefined()
+      expect(result.current.totalWithGps).toBe(0)
+      expect(result.current.totalWithoutGps).toBe(0)
+    })
   })
 
   describe('Enabled option', () => {

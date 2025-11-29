@@ -4,6 +4,7 @@ import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { getPhotosPaginated } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
+import { MAP_CONFIG } from '../constants/config'
 import MapView from '../components/MapView'
 import PhotoLightbox from '../components/PhotoLightbox'
 import ErrorBoundary from '../components/ErrorBoundary'
@@ -40,7 +41,7 @@ export default function MapPage() {
     queryKey: QUERY_KEYS.PHOTOS_INFINITE,
     queryFn: ({ pageParam = 0 }) =>
       getPhotosPaginated({
-        limit: 100, // Larger batch size for map view
+        limit: MAP_CONFIG.PHOTO_BATCH_SIZE,
         offset: pageParam,
         sort: 'date_desc',
       }).then((res) => res.data),

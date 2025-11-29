@@ -21,6 +21,9 @@ Endpoints:
 - GET /series/<series_id> - Get specific series details
 - GET /series/stats - Get series cache statistics
 - POST /series/cache/invalidate - Invalidate series cache
+- GET /locations - Get photos with GPS coordinates for map display
+- POST /locations/cache/invalidate - Invalidate locations cache
+- GET /locations/stats - Get locations cache statistics
 """
 
 import logging
@@ -52,6 +55,7 @@ except ImportError:
 # Import services
 # Import security utilities
 from security_utils import validate_photo_path
+from services.locations_service import LocationsService
 from services.metadata_cache import MetadataCache
 from services.metadata_service import MetadataService
 from services.photo_service import PaginationError, PhotoService
@@ -68,6 +72,9 @@ gallery_bp = Blueprint("gallery", __name__)
 # Module-level cache instance (singleton) with thread-safety
 _metadata_cache = None
 _cache_lock = threading.Lock()
+
+# Initialize locations service with 5-minute cache
+_locations_service = LocationsService(cache_ttl=300)
 
 
 def get_metadata_cache() -> MetadataCache:
@@ -954,6 +961,7 @@ def invalidate_series_cache():
 # ============================================================================
 
 @gallery_bp.route("/locations", methods=["GET"])
+@limiter.limit("60 per minute")
 def get_photo_locations():
     """
     Get photos with GPS coordinates for map display.
@@ -978,112 +986,83 @@ def get_photo_locations():
     try:
         # Parse and validate limit parameter
         limit_str = request.args.get('limit')
-
         if limit_str is not None:
             try:
                 limit = int(limit_str)
             except ValueError:
-                return jsonify({"error": f"Limit must be an integer, got '{limit_str}'"}), 400
-
-            # Validate limit range
+                return jsonify({"error": "Limit parameter must be a valid integer"}), 400
             if limit <= 0:
                 return jsonify({"error": "Limit must be greater than 0"}), 400
             if limit > 10000:
                 return jsonify({"error": "Limit must be 10000 or less"}), 400
         else:
-            limit = 1000  # Default limit
+            limit = 1000
 
-        # Check if PHOTOS_DIR exists
-        if not PHOTOS_DIR.exists():
-            return jsonify({
-                "locations": [],
-                "total_with_gps": 0,
-                "total_without_gps": 0
-            })
-
-        # Import GPS EXIF library
-        from webui.backend.lib.gps_exif_lib import verify_gps_exif
-
-        # Collect all JPG photos
-        all_photos = list(PHOTOS_DIR.glob("**/*.jpg")) + list(PHOTOS_DIR.glob("**/*.JPG"))
-
-        # Process photos and extract GPS data
-        locations = []
-        total_with_gps = 0
-        total_without_gps = 0
-
-        for photo_path in all_photos:
-            # Extract GPS data
-            try:
-                gps_info = verify_gps_exif(photo_path)
-
-                if gps_info.get('has_gps'):
-                    # Photo has GPS data
-                    total_with_gps += 1
-
-                    # Only add to locations if under limit
-                    if len(locations) < limit:
-                        # Get relative path for API URLs
-                        photo_relative = photo_path.relative_to(PHOTOS_DIR)
-
-                        # Extract timestamp from EXIF if available
-                        timestamp = gps_info.get('timestamp')
-
-                        # Convert timestamp to ISO format if needed
-                        if timestamp:
-                            # GPS timestamp might be in EXIF format (YYYY:MM:DD HH:MM:SS)
-                            # Convert to ISO 8601 format
-                            try:
-                                from datetime import datetime
-                                # Try parsing EXIF format first
-                                if ':' in timestamp and ' ' in timestamp:
-                                    dt = datetime.strptime(timestamp, '%Y:%m:%d %H:%M:%S')
-                                    timestamp = dt.isoformat()
-                            except Exception:
-                                # Keep original timestamp if conversion fails
-                                pass
-
-                        # If no GPS timestamp, try to get from EXIF DateTimeOriginal
-                        if not timestamp:
-                            try:
-                                import piexif
-                                exif_dict = piexif.load(str(photo_path))
-                                if 'Exif' in exif_dict and piexif.ExifIFD.DateTimeOriginal in exif_dict['Exif']:
-                                    dt_str = exif_dict['Exif'][piexif.ExifIFD.DateTimeOriginal].decode('utf-8', errors='ignore')
-                                    # Convert EXIF format to ISO
-                                    from datetime import datetime
-                                    dt = datetime.strptime(dt_str, '%Y:%m:%d %H:%M:%S')
-                                    timestamp = dt.isoformat()
-                            except Exception:
-                                # Use file modification time as fallback
-                                from datetime import datetime
-                                timestamp = datetime.fromtimestamp(photo_path.stat().st_mtime).isoformat()
-
-                        locations.append({
-                            "photo_path": str(photo_relative),
-                            "filename": photo_path.name,
-                            "latitude": gps_info['latitude'],
-                            "longitude": gps_info['longitude'],
-                            "timestamp": timestamp,
-                            "thumbnail_url": f"/api/gallery/thumbnail/{photo_relative}"
-                        })
-                else:
-                    # Photo has no GPS data
-                    total_without_gps += 1
-
-            except Exception as e:
-                # Handle corrupted EXIF or read errors gracefully
-                logger.debug(f"Failed to read GPS from {photo_path.name}: {e}")
-                total_without_gps += 1
-
-        return jsonify({
-            "locations": locations,
-            "total_with_gps": total_with_gps,
-            "total_without_gps": total_without_gps
-        })
+        # Use LocationsService (cached, efficient)
+        result = _locations_service.get_locations(PHOTOS_DIR, limit=limit)
+        return jsonify(result)
 
     except Exception as e:
-        # Log full error details server-side (CodeQL security requirement)
         logger.error(f"Error getting photo locations: {e}", exc_info=True)
-        # Return generic message to user (don't expose internal details)
         return jsonify({"error": "Failed to get photo locations"}), 500
+
+
+@gallery_bp.route("/locations/cache/invalidate", methods=["POST"])
+def invalidate_locations_cache():
+    """
+    Invalidate the locations cache (requires CSRF token).
+
+    Request body (JSON, optional):
+        directory (str): Specific directory to invalidate (optional)
+
+    Returns:
+        JSON response with success status.
+
+    Status Codes:
+        200: Success
+        400: Invalid directory path
+    """
+    try:
+        data = request.get_json() or {}
+        directory = data.get('directory')
+
+        if directory:
+            # Validate path security
+            dir_path = validate_photo_path(directory, PHOTOS_DIR)
+            if dir_path is None:
+                return jsonify({"error": "Invalid directory path"}), 400
+            _locations_service.invalidate_cache(dir_path)
+            message = f"Invalidated locations cache for {directory}"
+        else:
+            _locations_service.invalidate_cache()
+            message = "Invalidated entire locations cache"
+
+        return jsonify({"status": "ok", "message": message})
+
+    except Exception as e:
+        logger.error(f"Error invalidating locations cache: {e}", exc_info=True)
+        return jsonify({"error": "Failed to invalidate cache"}), 500
+
+
+@gallery_bp.route("/locations/stats", methods=["GET"])
+def get_locations_stats():
+    """
+    Get locations cache statistics.
+
+    Returns:
+        JSON response with cache statistics including:
+        - cache_entries: Number of cached directory/limit combinations
+        - cache_hits: Total cache hit count
+        - cache_misses: Total cache miss count
+        - total_locations: Total locations across all cached entries
+
+    Status Codes:
+        200: Success
+    """
+    try:
+        stats = _locations_service.get_statistics()
+        return jsonify(stats)
+
+    except Exception as e:
+        logger.error(f"Error getting locations stats: {e}", exc_info=True)
+        return jsonify({"error": "Failed to get statistics"}), 500

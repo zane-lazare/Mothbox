@@ -1535,6 +1535,7 @@ def pytest_collection_modifyitems(config, items):
     - GPS EXIF workflow tests (use mocks/PIL, no camera/GPIO needed)
     - GPS EXIF verification workflow tests (use subprocess/PIL, no camera/GPIO needed)
     - GPS EXIF batch tagging workflow tests (use subprocess/PIL, no camera/GPIO needed)
+    - Map locations integration tests (use mocks/PIL/Flask test client, no camera/GPIO needed)
     """
     for item in items:
         # Mark integration tests (except manual verification and installer) as hardware tests
@@ -1547,8 +1548,9 @@ def pytest_collection_modifyitems(config, items):
         is_gps_exif_workflow = 'test_gps_exif_workflow' in fspath_str  # Uses mocks/PIL, no camera/GPIO
         is_verification_workflow = 'test_verification_workflow' in fspath_str  # Uses subprocess/PIL, no camera/GPIO
         is_batch_tagging_workflow = 'test_batch_tagging_workflow' in fspath_str  # Uses subprocess/PIL, no camera/GPIO
+        is_map_locations_integration = 'test_map_locations_integration' in fspath_str  # Uses mocks/PIL/Flask test client, no camera/GPIO
 
-        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination and not is_gps_exif_workflow and not is_verification_workflow and not is_batch_tagging_workflow:
+        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination and not is_gps_exif_workflow and not is_verification_workflow and not is_batch_tagging_workflow and not is_map_locations_integration:
             item.add_marker(pytest.mark.hardware)
 
 

@@ -261,4 +261,7 @@ export const MAP_CONFIG = {
     MAX_WIDTH: 200,
     THUMBNAIL_SIZE: 128,
   },
+
+  // Photo batch size for map page lightbox navigation
+  PHOTO_BATCH_SIZE: 100,
 }

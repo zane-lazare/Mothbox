@@ -2,6 +2,9 @@ import React, { useEffect } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import L from 'leaflet'
+import markerIcon from 'leaflet/dist/images/marker-icon.png'
+import markerIconRetina from 'leaflet/dist/images/marker-icon-2x.png'
+import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 import { MAP_CONFIG } from '../constants/config'
 
 /**
@@ -95,11 +98,11 @@ function MapView({ locations = [], onPhotoClick, isLoading = false, className = 
     )
   }
 
-  // Create custom marker icon (Leaflet default icon fix for bundlers)
+  // Create custom marker icon with locally bundled assets (no CDN dependency)
   const customIcon = new L.Icon({
-    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    iconUrl: markerIcon,
+    iconRetinaUrl: markerIconRetina,
+    shadowUrl: markerShadow,
     iconSize: [25, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
