@@ -153,6 +153,17 @@ else:
     app.config['CACHE_WARMER'] = None
     print("⚠️  Cache warmer not initialized (thumbnail cache unavailable)")
 
+# Initialize series service (Issue #110)
+from services.series_service import SeriesService
+
+try:
+    series_service = SeriesService(cache_ttl=300)  # 5 minute cache
+    app.config['SERIES_SERVICE'] = series_service
+    print("✓ Series service initialized")
+except Exception as e:
+    print(f"⚠️  Failed to initialize series service: {e}")
+    app.config['SERIES_SERVICE'] = None
+
 # Import route blueprints
 from routes.camera import camera_bp
 from routes.config import config_bp
