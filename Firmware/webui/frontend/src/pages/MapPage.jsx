@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeftIcon } from '@heroicons/react/24/outline'
+import { ArrowLeftIcon, ExclamationTriangleIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { getPhotosPaginated } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
@@ -62,9 +62,12 @@ export default function MapPage() {
     unclustered,
     metadata,
     isLoading: isLoadingClustered,
+    isPartialResult,
+    partialWarning,
     settings,
     setEnabled,
     setRadius,
+    refetch,
   } = useClusteredLocations()
 
   // Calculate total counts for display
@@ -129,6 +132,29 @@ export default function MapPage() {
           )}
         </div>
       </header>
+
+      {/* Partial results warning banner */}
+      {isPartialResult && (
+        <div
+          role="alert"
+          className="bg-yellow-100 border-b border-yellow-300 px-4 py-2 flex items-center justify-between"
+        >
+          <div className="flex items-center gap-2 text-yellow-800">
+            <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" />
+            <span className="text-sm">
+              {partialWarning || 'Some locations may be missing due to timeout'}
+            </span>
+          </div>
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-1 text-sm text-yellow-800 hover:text-yellow-900 hover:bg-yellow-200 px-2 py-1 rounded transition-colors"
+            aria-label="Retry loading all locations"
+          >
+            <ArrowPathIcon className="h-4 w-4" />
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Map fills remaining screen space */}
       <div className="flex-1 relative">

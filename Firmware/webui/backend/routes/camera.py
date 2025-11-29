@@ -1,8 +1,11 @@
 """Camera control endpoints"""
 
+import logging
 import subprocess
 from datetime import datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Setup path to import mothbox_paths
 # Import camera control mapping
@@ -529,6 +532,29 @@ def capture_photo():
                     from routes.system import invalidate_photo_count_cache
 
                     invalidate_photo_count_cache()
+
+                    # Invalidate location-related caches so map view shows new photo
+                    try:
+                        from webui.backend.app import (
+                            clustering_service,
+                            series_service,
+                            locations_service
+                        )
+
+                        if clustering_service:
+                            clustering_service.invalidate_cache(PHOTOS_DIR)
+                        if series_service:
+                            series_service.invalidate_cache(PHOTOS_DIR)
+                        if locations_service:
+                            locations_service.invalidate_cache(PHOTOS_DIR)
+
+                        logger.debug("Invalidated location/clustering/series caches after photo capture")
+                    except ImportError:
+                        # Services not yet initialized - this is fine during startup
+                        pass
+                    except Exception as cache_error:
+                        # Log but don't fail capture on cache invalidation errors
+                        logger.warning(f"Failed to invalidate caches: {cache_error}")
 
                     # Build success response with Focus Bracket / HDR metadata
                     response_data = {

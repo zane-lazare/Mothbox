@@ -30,10 +30,13 @@ function MarkerHoverPopup({
   onClose,
 }) {
   const popupRef = useRef(null)
+  const animationTimerRef = useRef(null)
+  const previousActiveElementRef = useRef(null)
   const [shouldRender, setShouldRender] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
 
   // Handle animation state for smooth enter/exit transitions
+  // Uses ref for timer to ensure cleanup on unmount
   useEffect(() => {
     if (isVisible) {
       // Show popup in DOM
@@ -46,10 +49,16 @@ function MarkerHoverPopup({
       // Start fade-out animation
       setIsAnimating(false)
       // Remove from DOM after animation completes
-      const timer = setTimeout(() => {
+      animationTimerRef.current = setTimeout(() => {
         setShouldRender(false)
       }, HOVER_POPUP_CONFIG.ANIMATION_DURATION)
-      return () => clearTimeout(timer)
+    }
+
+    return () => {
+      if (animationTimerRef.current) {
+        clearTimeout(animationTimerRef.current)
+        animationTimerRef.current = null
+      }
     }
   }, [isVisible])
 
@@ -100,10 +109,16 @@ function MarkerHoverPopup({
     return () => document.removeEventListener('keydown', handleTabKey)
   }, [isVisible])
 
-  // Focus popup when it becomes visible (for accessibility)
+  // Focus management - save previous focus and restore on close (for accessibility)
   useEffect(() => {
     if (isVisible && popupRef.current) {
+      // Save previously focused element before moving focus to popup
+      previousActiveElementRef.current = document.activeElement
       popupRef.current.focus()
+    } else if (!isVisible && previousActiveElementRef.current) {
+      // Restore focus when popup closes
+      previousActiveElementRef.current.focus?.()
+      previousActiveElementRef.current = null
     }
   }, [isVisible])
 
