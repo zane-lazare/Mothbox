@@ -36,6 +36,43 @@ body.lightbox-open {
   justify-content: center;
 }
 
+/* Geographic cluster marker styles */
+.cluster-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+}
+
+.cluster-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #4f46e5; /* Indigo-600 for consistency with UI theme */
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+  border: 3px solid white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cluster-badge:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Cluster popup styling */
+.cluster-popup {
+  max-width: 250px;
+  padding: 4px;
+}
+
 /* Settings page compact styles */
 @layer components {
   .settings-card {

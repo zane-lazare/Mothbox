@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { getPhotosPaginated } from '../utils/api'
@@ -9,7 +9,7 @@ import MapView from '../components/MapView'
 import PhotoLightbox from '../components/PhotoLightbox'
 import ErrorBoundary from '../components/ErrorBoundary'
 import LightboxErrorFallback from '../components/LightboxErrorFallback'
-import { usePhotoLocations } from '../hooks/usePhotoLocations'
+import { useClusteredLocations } from '../hooks/useClusteredLocations'
 
 /**
  * MapPage - Full-screen immersive map experience for GPS-tagged photos
@@ -31,7 +31,6 @@ import { usePhotoLocations } from '../hooks/usePhotoLocations'
  */
 export default function MapPage() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
-  const navigate = useNavigate()
 
   // Fetch all photos for lightbox navigation
   // Using infinite query to match Gallery.jsx pattern
@@ -57,8 +56,22 @@ export default function MapPage() {
   // Flatten all pages into single photo array
   const photos = photosData?.pages.flatMap((page) => page.photos) ?? []
 
-  // Fetch photo locations for map display
-  const { locations, isLoading, totalWithGps, totalWithoutGps } = usePhotoLocations()
+  // Fetch clustered photo locations (includes both clusters and unclustered)
+  const {
+    clusters,
+    unclustered,
+    metadata,
+    isLoading: isLoadingClustered,
+    settings,
+    setEnabled,
+    setRadius,
+  } = useClusteredLocations()
+
+  // Calculate total counts for display
+  const totalInClusters = clusters.reduce((sum, cluster) => sum + cluster.count, 0)
+  const totalPhotos = totalInClusters + unclustered.length
+  const totalWithGps = totalPhotos
+  const totalWithoutGps = metadata.total_without_gps || 0
 
   // Handle map marker click - open lightbox with the clicked photo
   const handleMapPhotoClick = useCallback(
@@ -107,7 +120,7 @@ export default function MapPage() {
         </Link>
         <div className="flex-1">
           <h1 className="text-xl font-semibold">Photo Locations</h1>
-          {!isLoading && totalWithGps > 0 && (
+          {!isLoadingClustered && totalWithGps > 0 && (
             <p className="text-sm text-gray-300 mt-1">
               {totalWithGps} photo{totalWithGps !== 1 ? 's' : ''} with GPS coordinates
               {totalWithoutGps > 0 &&
@@ -120,9 +133,13 @@ export default function MapPage() {
       {/* Map fills remaining screen space */}
       <div className="flex-1 relative">
         <MapView
-          locations={locations}
+          locations={unclustered}
+          clusters={clusters}
+          clusterSettings={settings}
+          onClusterEnabledChange={setEnabled}
+          onClusterRadiusChange={setRadius}
           onPhotoClick={handleMapPhotoClick}
-          isLoading={isLoading}
+          isLoading={isLoadingClustered}
           className="h-full"
         />
       </div>

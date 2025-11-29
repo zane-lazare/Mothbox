@@ -164,6 +164,17 @@ except Exception as e:
     print(f"⚠️  Failed to initialize series service: {e}")
     app.config['SERIES_SERVICE'] = None
 
+# Initialize clustering service (Issue #115)
+from services.clustering_service import ClusteringService
+
+try:
+    clustering_service = ClusteringService(cache_ttl=300)  # 5 minute cache
+    app.config['CLUSTERING_SERVICE'] = clustering_service
+    print("✓ Clustering service initialized")
+except Exception as e:
+    print(f"⚠️  Failed to initialize clustering service: {e}")
+    app.config['CLUSTERING_SERVICE'] = None
+
 # Import route blueprints
 from routes.camera import camera_bp
 from routes.config import config_bp

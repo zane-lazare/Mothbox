@@ -222,6 +222,71 @@ series_list = service.get_series_for_directory("/var/lib/mothbox/photos")
 **Documentation**:
 - `webui/docs/dev/api/gallery.md`: API documentation with Series Endpoints section
 
+### Location Clustering System (Issue #115)
+
+**Overview**: Geographic clustering of photo locations using Haversine distance algorithm for map visualization.
+
+**Architecture**:
+- **Library**: `webui/backend/lib/haversine.py` - Haversine distance calculation (100% coverage)
+  - `haversine_distance()`: Calculate great-circle distance between GPS coordinates
+  - `is_within_distance()`: Check if two points are within specified distance
+  - `validate_coordinates()`: Validate GPS coordinate ranges
+  - `normalize_longitude()`: Handle international dateline crossing
+
+- **Library**: `webui/backend/lib/geo_clustering.py` - Grid-based clustering algorithm (97% coverage)
+  - `cluster_locations()`: Cluster photos by geographic proximity
+  - `calculate_centroid()`: Compute geographic center of cluster
+  - Data classes: `PhotoLocation`, `PhotoCluster`, `ClusteringResult`
+
+- **Service**: `webui/backend/services/clustering_service.py` - Cached service layer
+  - `ClusteringService`: Thread-safe service with configurable cache TTL
+  - Methods: `get_clustered_locations()`, `invalidate_cache()`, `get_statistics()`
+
+- **API**: `webui/backend/routes/gallery.py` - REST endpoints
+  - `GET /api/gallery/locations/clustered`: Get clustered photo locations
+  - `GET /api/gallery/locations/clustered/stats`: Get cache statistics
+  - `POST /api/gallery/locations/clustered/cache/invalidate`: Invalidate cache
+
+- **Frontend**: React components for map integration
+  - `useClusteredLocations` hook: Fetch and manage clustered data
+  - `ClusteringControls`: Toggle and radius slider
+  - `ClusterMarker`: Custom cluster visualization
+
+**Performance Targets**:
+- Haversine calculation: <1ms per call
+- 1000 photos clustering: <100ms
+- 10000 photos clustering: <500ms
+- Cache hit: <10ms
+
+**Usage**:
+```python
+from webui.backend.lib.haversine import haversine_distance
+from webui.backend.lib.geo_clustering import cluster_locations
+
+# Calculate distance between two coordinates
+distance = haversine_distance(37.7749, -122.4194, 37.7750, -122.4195)
+# Returns: ~14 meters
+
+# Cluster photo locations
+locations = [
+    {'photo_id': 'photo1.jpg', 'lat': 37.7749, 'lon': -122.4194},
+    {'photo_id': 'photo2.jpg', 'lat': 37.7750, 'lon': -122.4195},
+]
+result = cluster_locations(locations, radius_m=100)
+# Returns: ClusteringResult with clusters and unclustered photos
+```
+
+**Testing**:
+- Unit tests: `Tests/unit/test_haversine_lib.py` (52 tests)
+- Unit tests: `Tests/unit/test_geo_clustering_lib.py` (38 tests)
+- Unit tests: `Tests/unit/test_clustering_service.py` (21 tests)
+- Unit tests: `Tests/unit/test_clustering_api.py` (25 tests)
+- Integration tests: `Tests/integration/test_clustering_workflow.py` (13 tests)
+- Performance tests: `Tests/performance/test_clustering_performance.py` (16 tests)
+
+**Documentation**:
+- `webui/docs/dev/api/gallery.md`: API documentation with Clustering Endpoints section
+
 ### Camera System
 
 Two camera workflows:

@@ -265,3 +265,27 @@ export const MAP_CONFIG = {
   // Photo batch size for map page lightbox navigation
   PHOTO_BATCH_SIZE: 100,
 }
+
+/**
+ * Clustering Configuration
+ *
+ * Geographic clustering configuration for grouping nearby photos on the map.
+ * Clustering happens on the backend using Haversine distance calculation.
+ *
+ * @property {boolean} DEFAULT_ENABLED - Enable clustering by default
+ * @property {number} DEFAULT_RADIUS - Default clustering radius in meters (100m)
+ * @property {number} MIN_RADIUS - Minimum allowed radius in meters (10m)
+ * @property {number} MAX_RADIUS - Maximum allowed radius in meters (5000m = 5km)
+ * @property {number} RADIUS_STEP - Step size for radius slider (10m increments)
+ * @property {number} DEFAULT_MIN_SIZE - Minimum photos required to form a cluster
+ * @property {string} STORAGE_KEY - localStorage key for persisting settings
+ */
+export const CLUSTERING_CONFIG = {
+  DEFAULT_ENABLED: true,
+  DEFAULT_RADIUS: 100, // meters
+  MIN_RADIUS: 10,
+  MAX_RADIUS: 5000,
+  RADIUS_STEP: 10,
+  DEFAULT_MIN_SIZE: 2,
+  STORAGE_KEY: 'mothbox_clustering_settings',
+}
