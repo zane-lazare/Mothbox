@@ -76,15 +76,15 @@ describe('useClusteredLocations', () => {
               latest: '2024-01-16',
             },
             photos: [
-              { photo_id: 'photo1.jpg', lat: 37.7749, lon: -122.4194 },
-              { photo_id: 'photo2.jpg', lat: 37.7750, lon: -122.4195 },
-              { photo_id: 'photo3.jpg', lat: 37.7751, lon: -122.4196 },
+              { path: 'photo1.jpg', lat: 37.7749, lon: -122.4194 },
+              { path: 'photo2.jpg', lat: 37.7750, lon: -122.4195 },
+              { path: 'photo3.jpg', lat: 37.7751, lon: -122.4196 },
             ],
           },
         ],
         unclustered: [
           {
-            photo_id: 'photo4.jpg',
+            path: '2024-01-17/photo4.jpg',
             lat: 38.0,
             lon: -123.0,
             timestamp: '2024-01-17T10:00:00Z',
@@ -113,18 +113,23 @@ describe('useClusteredLocations', () => {
         expect(result.current.isLoading).toBe(false)
       })
 
-      expect(result.current.clusters).toEqual(mockClusteredData.clusters)
+      // Clusters are normalized with photos having standard fields
+      expect(result.current.clusters.length).toBe(1)
+      expect(result.current.clusters[0].photos[0].path).toBe('photo1.jpg')
+      expect(result.current.clusters[0].photos[0].filename).toBe('photo1.jpg')
+      expect(result.current.clusters[0].photos[0].latitude).toBe(37.7749)
+      expect(result.current.clusters[0].photos[0].longitude).toBe(-122.4194)
+
       // Unclustered photos are normalized to frontend field names
       expect(result.current.unclustered).toEqual([
         {
+          path: '2024-01-17/photo4.jpg',
           filename: 'photo4.jpg',
           latitude: 38.0,
           longitude: -123.0,
-          thumbnail_url: '/api/gallery/photos/photo4.jpg/thumbnail',
+          thumbnail_url: '/api/gallery/thumbnail/2024-01-17%2Fphoto4.jpg',
           timestamp: '2024-01-17T10:00:00Z',
           tags: [],
-          // Backward compatibility fields
-          photo_id: 'photo4.jpg',
           lat: 38.0,
           lon: -123.0,
         },

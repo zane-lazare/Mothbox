@@ -38,22 +38,41 @@ function saveSettings(settings) {
 }
 
 /**
- * Normalize unclustered photo data to expected field names.
- * Backend returns: photo_id, lat, lon, timestamp, tags
- * Frontend expects: filename, latitude, longitude, thumbnail_url, timestamp
+ * Normalize photo data to expected field names.
+ * Backend returns: path, lat, lon, timestamp, tags
+ * Frontend expects: filename, latitude, longitude, thumbnail_url, timestamp, path
  */
-function normalizeUnclusteredPhotos(photos) {
-  return photos.map((photo) => ({
-    filename: photo.photo_id,
+function normalizePhoto(photo) {
+  return {
+    // Standardized field name
+    path: photo.path,
+    // Derived fields for UI components
+    filename: photo.path.split('/').pop() || photo.path,
     latitude: photo.lat,
     longitude: photo.lon,
-    thumbnail_url: `/api/gallery/photos/${encodeURIComponent(photo.photo_id)}/thumbnail`,
+    thumbnail_url: `/api/gallery/thumbnail/${encodeURIComponent(photo.path)}`,
     timestamp: photo.timestamp,
     tags: photo.tags,
-    // Preserve original fields for backward compatibility
-    photo_id: photo.photo_id,
+    // Preserve original lat/lon for components expecting them
     lat: photo.lat,
     lon: photo.lon,
+  }
+}
+
+/**
+ * Normalize unclustered photo data to expected field names.
+ */
+function normalizeUnclusteredPhotos(photos) {
+  return photos.map(normalizePhoto)
+}
+
+/**
+ * Normalize cluster data including photos within clusters.
+ */
+function normalizeClusters(clusters) {
+  return clusters.map((cluster) => ({
+    ...cluster,
+    photos: cluster.photos.map(normalizePhoto),
   }))
 }
 
@@ -121,7 +140,7 @@ export function useClusteredLocations() {
   const partialWarning = data?.metadata?.warning ?? null
 
   return {
-    clusters: data?.clusters || [],
+    clusters: normalizeClusters(data?.clusters || []),
     unclustered: normalizeUnclusteredPhotos(data?.unclustered || []),
     metadata: data?.metadata || {},
     isLoading,

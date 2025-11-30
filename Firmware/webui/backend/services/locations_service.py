@@ -210,7 +210,7 @@ class LocationsService:
                         timestamp = datetime.fromtimestamp(photo_path.stat().st_mtime).isoformat()
 
                     locations.append({
-                        "photo_path": str(photo_relative),
+                        "path": str(photo_relative),
                         "filename": photo_path.name,
                         "latitude": gps_info['latitude'],
                         "longitude": gps_info['longitude'],

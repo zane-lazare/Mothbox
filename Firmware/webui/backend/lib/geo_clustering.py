@@ -14,8 +14,8 @@ Usage:
     from webui.backend.lib.geo_clustering import cluster_locations
 
     locations = [
-        {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
-        {"photo_id": "photo2.jpg", "lat": 37.7750, "lon": -122.4195},
+        {"path": "2024-11-10/photo1.jpg", "lat": 37.7749, "lon": -122.4194},
+        {"path": "2024-11-10/photo2.jpg", "lat": 37.7750, "lon": -122.4195},
     ]
 
     result = cluster_locations(locations, radius_m=100)
@@ -46,14 +46,14 @@ class PhotoLocation:
     """Represents a photo with GPS location.
 
     Attributes:
-        photo_id: Unique identifier (usually filename)
+        path: Relative path from PHOTOS_DIR (e.g., "2024-11-10/photo.jpg")
         lat: Latitude in decimal degrees (-90 to 90)
         lon: Longitude in decimal degrees (-180 to 180)
         timestamp: Optional ISO format timestamp (YYYY-MM-DDTHH:MM:SS)
         filepath: Optional full path to photo file
         tags: Optional list of tags/labels for the photo (Issue #117)
     """
-    photo_id: str
+    path: str
     lat: float
     lon: float
     timestamp: str | None = None
@@ -184,8 +184,8 @@ def calculate_centroid(locations: list[PhotoLocation]) -> tuple[float, float]:
 
     Example:
         >>> locs = [
-        ...     PhotoLocation("A", 37.7749, -122.4194),
-        ...     PhotoLocation("B", 37.7751, -122.4196),
+        ...     PhotoLocation("2024/A.jpg", 37.7749, -122.4194),
+        ...     PhotoLocation("2024/B.jpg", 37.7751, -122.4196),
         ... ]
         >>> lat, lon = calculate_centroid(locs)
         >>> print(f"{lat:.4f}, {lon:.4f}")
@@ -312,7 +312,7 @@ def cluster_locations(
     7. Filter by min_cluster_size
 
     Args:
-        locations: List of dicts with keys: photo_id, lat, lon, timestamp (optional)
+        locations: List of dicts with keys: path, lat, lon, timestamp (optional)
         radius_m: Maximum distance between cluster members (meters)
         min_cluster_size: Minimum photos to form a cluster (singles go to unclustered)
         timeout_ms: Maximum processing time before returning partial results
@@ -325,8 +325,8 @@ def cluster_locations(
 
     Example:
         >>> locs = [
-        ...     {"photo_id": "A.jpg", "lat": 37.7749, "lon": -122.4194},
-        ...     {"photo_id": "B.jpg", "lat": 37.7750, "lon": -122.4195},
+        ...     {"path": "2024/A.jpg", "lat": 37.7749, "lon": -122.4194},
+        ...     {"path": "2024/B.jpg", "lat": 37.7750, "lon": -122.4195},
         ... ]
         >>> result = cluster_locations(locs, radius_m=100)
         >>> print(f"{result.total_clusters} clusters, {len(result.unclustered)} unclustered")
@@ -353,7 +353,7 @@ def cluster_locations(
     photo_locations = []
     for loc in locations:
         # Extract fields
-        photo_id = loc.get("photo_id", "")
+        path = loc.get("path", "")
         lat = loc.get("lat")
         lon = loc.get("lon")
         timestamp = loc.get("timestamp")
@@ -361,7 +361,7 @@ def cluster_locations(
         tags = loc.get("tags")  # Issue #117: Extract tags
 
         # Skip if missing required fields
-        if not photo_id or lat is None or lon is None:
+        if not path or lat is None or lon is None:
             continue
 
         # Validate coordinates
@@ -370,7 +370,7 @@ def cluster_locations(
             continue
 
         photo_locations.append(PhotoLocation(
-            photo_id=photo_id,
+            path=path,
             lat=float(lat),
             lon=float(lon),
             timestamp=timestamp,

@@ -205,16 +205,16 @@ class ClusteringService:
             )
 
         # Convert to format expected by cluster_locations
-        # locations from LocationsService: {photo_path, filename, latitude, longitude, timestamp, thumbnail_url}
-        # cluster_locations expects: {photo_id, lat, lon, timestamp}
+        # locations from LocationsService: {path, filename, latitude, longitude, timestamp, thumbnail_url}
+        # cluster_locations expects: {path, lat, lon, timestamp}
         clustering_input = []
         for loc in locations:
             clustering_input.append({
-                'photo_id': loc['filename'],
+                'path': loc['path'],
                 'lat': loc['latitude'],
                 'lon': loc['longitude'],
                 'timestamp': loc.get('timestamp'),
-                'filepath': loc.get('photo_path')
+                'filepath': loc.get('path')
             })
 
         # Perform clustering

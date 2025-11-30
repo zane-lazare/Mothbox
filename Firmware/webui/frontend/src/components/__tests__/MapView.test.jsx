@@ -469,18 +469,24 @@ describe('MapView', () => {
         count: 3,
         photos: [
           {
-            photo_id: 'photo1.jpg',
-            thumbnail_url: '/api/gallery/photos/photo1.jpg/thumbnail',
+            path: 'photo1.jpg',
+            filename: 'photo1.jpg',
+            thumbnail_url: '/api/gallery/thumbnail/photo1.jpg',
             timestamp: '2024-01-15 10:30:00',
             lat: 37.7749,
             lon: -122.4194,
+            latitude: 37.7749,
+            longitude: -122.4194,
           },
           {
-            photo_id: 'photo2.jpg',
-            thumbnail_url: '/api/gallery/photos/photo2.jpg/thumbnail',
+            path: 'photo2.jpg',
+            filename: 'photo2.jpg',
+            thumbnail_url: '/api/gallery/thumbnail/photo2.jpg',
             timestamp: '2024-01-15 11:00:00',
             lat: 37.7750,
             lon: -122.4195,
+            latitude: 37.7750,
+            longitude: -122.4195,
           },
         ],
         date_range: {
