@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useCallback, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeftIcon, ExclamationTriangleIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import { useInfiniteQuery } from '@tanstack/react-query'
@@ -10,6 +10,7 @@ import PhotoLightbox from '../components/PhotoLightbox'
 import ErrorBoundary from '../components/ErrorBoundary'
 import LightboxErrorFallback from '../components/LightboxErrorFallback'
 import { useClusteredLocations } from '../hooks/useClusteredLocations'
+import useMapLightboxSync from '../hooks/useMapLightboxSync'
 
 /**
  * MapPage - Full-screen immersive map experience for GPS-tagged photos
@@ -23,6 +24,8 @@ import { useClusteredLocations } from '../hooks/useClusteredLocations'
  * - Lightbox for viewing photos
  * - Navigation back to gallery
  * - Error boundaries for graceful degradation
+ * - Backend clustering with configurable radius
+ * - Map-lightbox synchronization with marker highlighting
  *
  * @component
  * @example
@@ -30,7 +33,7 @@ import { useClusteredLocations } from '../hooks/useClusteredLocations'
  * <Route path="/gallery/map" element={<MapPage />} />
  */
 export default function MapPage() {
-  const [selectedPhoto, setSelectedPhoto] = useState(null)
+  const mapRef = useRef(null)
 
   // Fetch all photos for lightbox navigation
   // Using infinite query to match Gallery.jsx pattern
@@ -76,37 +79,70 @@ export default function MapPage() {
   const totalWithGps = totalPhotos
   const totalWithoutGps = metadata.total_without_gps || 0
 
+  // Map-Lightbox synchronization hook
+  const {
+    currentPhoto,
+    highlightedPhotoPath,
+    openLightbox,
+    closeLightbox,
+    onMarkerClick,
+    onClusterClick,
+  } = useMapLightboxSync({ mapRef })
+
+  // Memoize virtual cluster to avoid recreation on every call
+  // This pattern allows navigation through all photos even from single marker clicks
+  const virtualCluster = useMemo(() => ({
+    getAllChildMarkers: () => photos.map(p => ({ options: { ...p } }))
+  }), [photos])
+
   // Handle map marker click - open lightbox with the clicked photo
   const handleMapPhotoClick = useCallback(
     (location) => {
       // Find the photo object in the photos array by matching the path
       const photo = photos.find((p) => p.path === location.path)
       if (photo) {
-        setSelectedPhoto(photo)
+        // Use onClusterClick to set up full photo navigation
+        onClusterClick(virtualCluster, photo)
       } else {
         // Fallback: Create a minimal photo object from location data
         // This ensures the lightbox can still open even if photo isn't in the loaded set
-        setSelectedPhoto({
+        const minimalPhoto = {
           path: location.path,
           filename: location.filename,
           thumbnail_url: location.thumbnail_url,
           date: location.timestamp,
-        })
+        }
+        onMarkerClick(null, minimalPhoto)
       }
     },
-    [photos]
+    [photos, virtualCluster, onMarkerClick, onClusterClick]
   )
 
-  // Lightbox navigation and close handlers
-  const handleCloseLightbox = useCallback(() => setSelectedPhoto(null), [])
+  // Handle lightbox navigation - simple forward to openLightbox
   const handleNavigate = useCallback(
     (photo) => {
       // Validate photo exists in current photos array before navigating
       if (photos.some((p) => p.path === photo.path)) {
-        setSelectedPhoto(photo)
+        // Open lightbox with new photo (maintains cluster context if present)
+        openLightbox(photo)
       }
     },
-    [photos]
+    [photos, openLightbox]
+  )
+
+  // Handle location click in lightbox (pan map to coordinates)
+  const handleLocationClick = useCallback(
+    (lat, lon) => {
+      if (mapRef.current && lat !== null && lon !== null) {
+        try {
+          const currentZoom = mapRef.current.getZoom?.() || 13
+          mapRef.current.flyTo?.([lat, lon], currentZoom)
+        } catch {
+          // Silently handle map pan errors (expected for certain edge cases)
+        }
+      }
+    },
+    [] // mapRef is a stable ref, no need to include in deps
   )
 
   return (
@@ -158,6 +194,7 @@ export default function MapPage() {
       {/* Map fills remaining screen space */}
       <div className="flex-1 relative">
         <MapView
+          ref={mapRef}
           locations={unclustered}
           clusters={clusters}
           clusterSettings={settings}
@@ -166,6 +203,7 @@ export default function MapPage() {
           onPhotoClick={handleMapPhotoClick}
           isLoading={isLoadingClustered}
           className="h-full"
+          highlightedPhotoPath={highlightedPhotoPath}
         />
       </div>
 
@@ -174,13 +212,14 @@ export default function MapPage() {
         fallback={({ error, onClose }) => (
           <LightboxErrorFallback error={error} onClose={onClose} />
         )}
-        onReset={handleCloseLightbox}
+        onReset={closeLightbox}
       >
         <PhotoLightbox
-          photo={selectedPhoto}
+          photo={currentPhoto}
           photos={photos}
-          onClose={handleCloseLightbox}
+          onClose={closeLightbox}
           onNavigate={handleNavigate}
+          onLocationClick={handleLocationClick}
         />
       </ErrorBoundary>
     </div>

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import L from 'leaflet'
@@ -157,6 +157,24 @@ function BoundsUpdater({ locations, clusters }) {
 }
 
 /**
+ * MapRefSetter - Internal component to expose map instance via ref
+ *
+ * This component uses the useMap hook to access the Leaflet map instance
+ * and sets it on the parent ref.
+ */
+function MapRefSetter({ mapRef }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (mapRef) {
+      mapRef.current = map
+    }
+  }, [map, mapRef])
+
+  return null
+}
+
+/**
  * MapView - Leaflet map component for displaying GPS-tagged photo locations
  *
  * Features:
@@ -167,6 +185,7 @@ function BoundsUpdater({ locations, clusters }) {
  * - Loading skeleton and empty state
  * - Fully responsive
  * - Clustering controls for adjusting backend clustering settings
+ * - Marker highlighting support for map-lightbox integration
  *
  * @param {Object} props
  * @param {Array} props.locations - Array of individual photo location objects
@@ -177,8 +196,10 @@ function BoundsUpdater({ locations, clusters }) {
  * @param {Function} props.onPhotoClick - Callback when photo marker is clicked (receives location object)
  * @param {boolean} props.isLoading - Show loading skeleton instead of map
  * @param {string} props.className - Additional CSS classes for the map wrapper
+ * @param {string} props.highlightedPhotoPath - Photo path to highlight on map (for lightbox sync)
+ * @param {React.RefObject} ref - Ref to expose map instance to parent components
  */
-function MapView({
+const MapView = React.forwardRef(function MapView({
   locations = [],
   clusters = [],
   clusterSettings = null,
@@ -187,7 +208,8 @@ function MapView({
   onPhotoClick,
   isLoading = false,
   className = '',
-}) {
+  highlightedPhotoPath = null
+}, ref) {
   // Hover popup state management
   const {
     isVisible,
@@ -195,7 +217,6 @@ function MapView({
     position,
     handleMouseEnter,
     handleMouseLeave,
-    handleClick,
   } = useHoverPopup()
 
   // Normalize locations and clusters (handle null/undefined)
@@ -244,8 +265,9 @@ function MapView({
     )
   }
 
-  // Create custom marker icon with locally bundled assets (no CDN dependency)
-  const customIcon = new L.Icon({
+  // Create custom marker icons with locally bundled assets (no CDN dependency)
+  // Memoize to avoid recreation on every render
+  const normalIcon = useMemo(() => new L.Icon({
     iconUrl: markerIcon,
     iconRetinaUrl: markerIconRetina,
     shadowUrl: markerShadow,
@@ -253,12 +275,44 @@ function MapView({
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
     shadowSize: [41, 41],
-  })
+  }), [])
+
+  // Create highlighted marker icon using divIcon for CSS-based styling (no extra assets)
+  // Orange color (#f97316) for highlighted, matches Tailwind orange-500
+  const highlightedIcon = useMemo(() => L.divIcon({
+    className: 'highlighted-marker',
+    html: `<div style="
+      background-color: #f97316;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      transform: scale(1.2);
+    "></div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 24],
+    popupAnchor: [0, -24],
+  }), [])
+
+  /**
+   * Get the appropriate icon for a location marker
+   * Returns highlighted icon if this location matches the highlighted photo path
+   */
+  const getMarkerIcon = (location) => {
+    // Check both path and photo_path fields for compatibility
+    const locationPath = location.path || location.photo_path
+    if (highlightedPhotoPath && locationPath === highlightedPhotoPath) {
+      return highlightedIcon
+    }
+    return normalIcon
+  }
 
   return (
     <div className={`w-full h-full relative ${className}`}>
       <MapContainer
         data-testid="map-container"
+        data-highlighted-path={highlightedPhotoPath || ''}
         role="application"
         aria-label="Interactive map showing photo locations"
         center={MAP_CONFIG.DEFAULT_CENTER}
@@ -283,6 +337,9 @@ function MapView({
           maxZoom={MAP_CONFIG.MAX_ZOOM}
         />
 
+        {/* Expose map instance via ref */}
+        <MapRefSetter mapRef={ref} />
+
         {/* Backend geographic cluster markers (outside MarkerClusterGroup) */}
         {normalizedClusters.map((cluster) => (
           <ClusterMarker
@@ -306,7 +363,7 @@ function MapView({
             <Marker
               key={`${location.filename}-${index}`}
               position={[location.latitude, location.longitude]}
-              icon={customIcon}
+              icon={getMarkerIcon(location)}
               eventHandlers={{
                 click: () => {
                   if (onPhotoClick) {
@@ -379,6 +436,6 @@ function MapView({
       )}
     </div>
   )
-}
+})
 
 export default React.memo(MapView)

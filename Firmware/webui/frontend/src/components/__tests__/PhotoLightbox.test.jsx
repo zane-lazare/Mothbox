@@ -2187,3 +2187,317 @@ describe('PhotoLightbox - MetadataPanel Integration', () => {
     })
   })
 })
+
+describe('PhotoLightbox - Location Header', () => {
+  const mockOnClose = vi.fn()
+  const mockOnNavigate = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    document.body.style.overflow = ''
+  })
+
+  it('displays formatted coordinates when GPS available', () => {
+    const photoWithGPS = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+      latitude: 37.7749,
+      longitude: -122.4194,
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithGPS}
+        photos={[photoWithGPS]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Should display formatted DMS coordinates
+    expect(screen.getByText(/37°46'29\.64"N/i)).toBeInTheDocument()
+    expect(screen.getByText(/122°25'9\.84"W/i)).toBeInTheDocument()
+  })
+
+  it('shows "Location not available" when GPS missing', () => {
+    const photoWithoutGPS = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+      // No latitude/longitude
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithoutGPS}
+        photos={[photoWithoutGPS]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    expect(screen.getByText(/location not available/i)).toBeInTheDocument()
+  })
+
+  it('shows "Location not available" when lat is null', () => {
+    const photoWithNullLat = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+      latitude: null,
+      longitude: -122.4194,
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithNullLat}
+        photos={[photoWithNullLat]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    expect(screen.getByText(/location not available/i)).toBeInTheDocument()
+  })
+
+  it('shows "Location not available" when lon is null', () => {
+    const photoWithNullLon = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+      latitude: 37.7749,
+      longitude: null,
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithNullLon}
+        photos={[photoWithNullLon]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    expect(screen.getByText(/location not available/i)).toBeInTheDocument()
+  })
+
+  it('formats coordinates as DMS (e.g., 37°46\'29"N)', () => {
+    const photoWithGPS = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+      latitude: 37.7749,
+      longitude: -122.4194,
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithGPS}
+        photos={[photoWithGPS]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Verify DMS format with degrees (°), minutes ('), seconds (")
+    const coordinateText = screen.getByTestId('location-coordinates')
+    expect(coordinateText).toHaveTextContent(/\d+°\d+'\d+\.\d+"[NSEW]/)
+  })
+
+  it('includes altitude when available', () => {
+    const photoWithAltitude = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+      latitude: 37.7749,
+      longitude: -122.4194,
+      altitude: 15.5,
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithAltitude}
+        photos={[photoWithAltitude]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    expect(screen.getByText(/alt.*15\.5.*m/i)).toBeInTheDocument()
+  })
+
+  it('does not show altitude section when altitude missing', () => {
+    const photoWithoutAltitude = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+      latitude: 37.7749,
+      longitude: -122.4194,
+      // No altitude
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithoutAltitude}
+        photos={[photoWithoutAltitude]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Should not find altitude text
+    expect(screen.queryByText(/alt/i)).not.toBeInTheDocument()
+  })
+
+  it('clicking coordinates calls onLocationClick callback', async () => {
+    const user = userEvent.setup()
+    const mockOnLocationClick = vi.fn()
+
+    const photoWithGPS = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+      latitude: 37.7749,
+      longitude: -122.4194,
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithGPS}
+        photos={[photoWithGPS]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+        onLocationClick={mockOnLocationClick}
+      />
+    )
+
+    const coordinateElement = screen.getByTestId('location-coordinates')
+    await user.click(coordinateElement)
+
+    expect(mockOnLocationClick).toHaveBeenCalledTimes(1)
+    expect(mockOnLocationClick).toHaveBeenCalledWith(37.7749, -122.4194)
+  })
+
+  it('location header has proper styling/accessibility', () => {
+    const photoWithGPS = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+      latitude: 37.7749,
+      longitude: -122.4194,
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithGPS}
+        photos={[photoWithGPS]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const locationHeader = screen.getByTestId('location-header')
+    expect(locationHeader).toBeInTheDocument()
+    expect(locationHeader).toHaveClass('location-header')
+  })
+
+  it('location header is not clickable when onLocationClick not provided', async () => {
+    const user = userEvent.setup()
+
+    const photoWithGPS = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+      latitude: 37.7749,
+      longitude: -122.4194,
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithGPS}
+        photos={[photoWithGPS]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+        // No onLocationClick prop
+      />
+    )
+
+    const coordinateElement = screen.getByTestId('location-coordinates')
+
+    // Should not be a button when onLocationClick is not provided
+    expect(coordinateElement.tagName).not.toBe('BUTTON')
+  })
+
+  it('location header handles zero coordinates (0, 0)', () => {
+    const photoAtNullIsland = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+      latitude: 0,
+      longitude: 0,
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoAtNullIsland}
+        photos={[photoAtNullIsland]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Should display 0°0'0.00"N, 0°0'0.00"E (not "Location not available")
+    expect(screen.getByText(/0°0'0\.00"N/i)).toBeInTheDocument()
+    expect(screen.getByText(/0°0'0\.00"E/i)).toBeInTheDocument()
+  })
+
+  it('location header displays negative altitude correctly', () => {
+    const photoUnderwater = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+      latitude: 31.5,
+      longitude: 34.9,
+      altitude: -430.5, // Dead Sea level
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoUnderwater}
+        photos={[photoUnderwater]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    expect(screen.getByText(/alt.*-430\.5.*m/i)).toBeInTheDocument()
+  })
+})

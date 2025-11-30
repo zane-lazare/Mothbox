@@ -44,7 +44,7 @@ vi.mock('react-leaflet-cluster', () => ({
   ),
 }))
 
-// Mock leaflet (L.Icon for custom markers)
+// Mock leaflet (L.Icon for custom markers, L.divIcon for highlighted markers and clusters)
 vi.mock('leaflet', () => ({
   default: {
     Icon: class MockIcon {
@@ -54,6 +54,7 @@ vi.mock('leaflet', () => ({
     },
     divIcon: vi.fn((options) => ({
       options,
+      _type: 'divIcon',
       _getIconUrl: vi.fn(),
     })),
   },
