@@ -219,9 +219,53 @@ const MapView = React.forwardRef(function MapView({
     handleMouseLeave,
   } = useHoverPopup()
 
+  // Create custom marker icons with locally bundled assets (no CDN dependency)
+  // Memoize to avoid recreation on every render
+  // IMPORTANT: These hooks MUST be called before any conditional returns to follow Rules of Hooks
+  const normalIcon = useMemo(() => new L.Icon({
+    iconUrl: markerIcon,
+    iconRetinaUrl: markerIconRetina,
+    shadowUrl: markerShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
+  }), [])
+
+  // Create highlighted marker icon using divIcon for CSS-based styling (no extra assets)
+  // Orange color (#f97316) for highlighted, matches Tailwind orange-500
+  const highlightedIcon = useMemo(() => L.divIcon({
+    className: 'highlighted-marker',
+    html: `<div style="
+      background-color: #f97316;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      transform: scale(1.2);
+    "></div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 24],
+    popupAnchor: [0, -24],
+  }), [])
+
   // Normalize locations and clusters (handle null/undefined)
   const normalizedLocations = locations || []
   const normalizedClusters = clusters || []
+
+  /**
+   * Get the appropriate icon for a location marker
+   * Returns highlighted icon if this location matches the highlighted photo path
+   */
+  const getMarkerIcon = (location) => {
+    // Check both path and photo_path fields for compatibility
+    const locationPath = location.path || location.photo_path
+    if (highlightedPhotoPath && locationPath === highlightedPhotoPath) {
+      return highlightedIcon
+    }
+    return normalIcon
+  }
 
   // Loading skeleton
   if (isLoading) {
@@ -263,49 +307,6 @@ const MapView = React.forwardRef(function MapView({
         </p>
       </div>
     )
-  }
-
-  // Create custom marker icons with locally bundled assets (no CDN dependency)
-  // Memoize to avoid recreation on every render
-  const normalIcon = useMemo(() => new L.Icon({
-    iconUrl: markerIcon,
-    iconRetinaUrl: markerIconRetina,
-    shadowUrl: markerShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-  }), [])
-
-  // Create highlighted marker icon using divIcon for CSS-based styling (no extra assets)
-  // Orange color (#f97316) for highlighted, matches Tailwind orange-500
-  const highlightedIcon = useMemo(() => L.divIcon({
-    className: 'highlighted-marker',
-    html: `<div style="
-      background-color: #f97316;
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      border: 3px solid white;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-      transform: scale(1.2);
-    "></div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 24],
-    popupAnchor: [0, -24],
-  }), [])
-
-  /**
-   * Get the appropriate icon for a location marker
-   * Returns highlighted icon if this location matches the highlighted photo path
-   */
-  const getMarkerIcon = (location) => {
-    // Check both path and photo_path fields for compatibility
-    const locationPath = location.path || location.photo_path
-    if (highlightedPhotoPath && locationPath === highlightedPhotoPath) {
-      return highlightedIcon
-    }
-    return normalIcon
   }
 
   return (
