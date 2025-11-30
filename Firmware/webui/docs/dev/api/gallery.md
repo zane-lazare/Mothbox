@@ -933,13 +933,13 @@ Get photo locations clustered by geographic proximity using Haversine distance.
       "count": 5,
       "photos": [
         {
-          "photo_id": "photo1.jpg",
+          "path": "2024-01-15/photo1.jpg",
           "lat": 37.7749,
           "lon": -122.4194,
           "timestamp": "2024-01-15T10:00:00"
         },
         {
-          "photo_id": "photo2.jpg",
+          "path": "2024-01-15/photo2.jpg",
           "lat": 37.7750,
           "lon": -122.4195,
           "timestamp": "2024-01-15T10:05:00"
@@ -954,7 +954,7 @@ Get photo locations clustered by geographic proximity using Haversine distance.
   ],
   "unclustered": [
     {
-      "photo_id": "photo3.jpg",
+      "path": "2024-01-15/photo3.jpg",
       "lat": 38.0000,
       "lon": -122.5000,
       "timestamp": "2024-01-15T12:00:00"
@@ -1067,7 +1067,7 @@ const { data } = useQuery({
 // Render unclustered photos
 {data?.unclustered.map(photo => (
   <Marker
-    key={photo.photo_id}
+    key={photo.path}
     position={[photo.lat, photo.lon]}
   />
 ))}
