@@ -95,7 +95,7 @@ def mock_locations_service(monkeypatch):
     mock_service.get_locations.return_value = {
         'locations': [
             {
-                "photo_path": "2024-01-15/photo1.jpg",
+                "path": "2024-01-15/photo1.jpg",
                 "filename": "photo1.jpg",
                 "latitude": 37.7749,
                 "longitude": -122.4194,
@@ -443,7 +443,7 @@ class TestResponseFormats:
             assert len(photos) > 0
 
             photo = photos[0]
-            assert 'photo_id' in photo
+            assert 'path' in photo
             assert 'lat' in photo
             assert 'lon' in photo
             assert 'timestamp' in photo
@@ -455,7 +455,7 @@ class TestResponseFormats:
 
         if len(data['unclustered']) > 0:
             photo = data['unclustered'][0]
-            assert 'photo_id' in photo
+            assert 'path' in photo
             assert 'lat' in photo
             assert 'lon' in photo
             assert 'timestamp' in photo
@@ -569,8 +569,8 @@ class TestTagsInClusteringAPI:
         photos = cluster['photos']
 
         assert len(photos) == 2
-        photo1 = next(p for p in photos if p['photo_id'] == 'photo1.jpg')
-        photo2 = next(p for p in photos if p['photo_id'] == 'photo2.jpg')
+        photo1 = next(p for p in photos if p['path'] == 'photo1.jpg')
+        photo2 = next(p for p in photos if p['path'] == 'photo2.jpg')
 
         assert 'tags' in photo1
         assert photo1['tags'] == ["moth", "night"]
@@ -597,8 +597,8 @@ class TestTagsInClusteringAPI:
 
         # Check unclustered photos have tags
         assert len(data['unclustered']) == 2
-        photo1 = next(p for p in data['unclustered'] if p['photo_id'] == 'photo1.jpg')
-        photo2 = next(p for p in data['unclustered'] if p['photo_id'] == 'photo2.jpg')
+        photo1 = next(p for p in data['unclustered'] if p['path'] == 'photo1.jpg')
+        photo2 = next(p for p in data['unclustered'] if p['path'] == 'photo2.jpg')
 
         assert 'tags' in photo1
         assert photo1['tags'] == ["moth", "solo"]
@@ -670,9 +670,9 @@ class TestTagsInClusteringAPI:
         cluster = data['clusters'][0]
         photos = cluster['photos']
 
-        photo1 = next(p for p in photos if p['photo_id'] == 'photo1.jpg')
-        photo2 = next(p for p in photos if p['photo_id'] == 'photo2.jpg')
-        photo3 = next(p for p in photos if p['photo_id'] == 'photo3.jpg')
+        photo1 = next(p for p in photos if p['path'] == 'photo1.jpg')
+        photo2 = next(p for p in photos if p['path'] == 'photo2.jpg')
+        photo3 = next(p for p in photos if p['path'] == 'photo3.jpg')
 
         assert photo1['tags'] == ["moth"]
         assert photo2['tags'] is None

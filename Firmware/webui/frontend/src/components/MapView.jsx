@@ -89,18 +89,18 @@ function ClusterMarker({ cluster, onPhotoClick, onMouseEnter, onMouseLeave }) {
           <div className="grid grid-cols-3 gap-1">
             {cluster.photos.slice(0, 6).map((photo) => (
               <img
-                key={photo.photo_id}
-                src={`/api/gallery/thumbnail/${photo.photo_id}?size=64`}
-                alt={photo.photo_id}
+                key={photo.path}
+                src={photo.thumbnail_url || `/api/gallery/thumbnail/${photo.path}?size=64`}
+                alt={photo.filename || photo.path}
                 className="w-full h-16 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
                 onClick={() => {
                   if (onPhotoClick) {
                     onPhotoClick({
-                      filename: photo.photo_id,
-                      photo_path: photo.photo_id,
-                      latitude: photo.lat,
-                      longitude: photo.lon,
-                      thumbnail_url: `/api/gallery/thumbnail/${photo.photo_id}`,
+                      path: photo.path,
+                      filename: photo.filename || photo.path.split('/').pop(),
+                      latitude: photo.latitude,
+                      longitude: photo.longitude,
+                      thumbnail_url: photo.thumbnail_url,
                       timestamp: photo.timestamp,
                     })
                   }

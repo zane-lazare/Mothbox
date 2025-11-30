@@ -1150,7 +1150,7 @@ def get_clustered_locations():
             unclustered = []
             for loc in locations:
                 unclustered.append({
-                    'photo_id': loc['filename'],
+                    'path': loc['path'],
                     'lat': loc['latitude'],
                     'lon': loc['longitude'],
                     'timestamp': loc.get('timestamp')
@@ -1184,7 +1184,7 @@ def get_clustered_locations():
             photos_data = []
             for photo in cluster.photos:
                 photos_data.append({
-                    'photo_id': photo.photo_id,
+                    'path': photo.path,
                     'lat': photo.lat,
                     'lon': photo.lon,
                     'timestamp': photo.timestamp,
@@ -1212,7 +1212,7 @@ def get_clustered_locations():
         unclustered_data = []
         for photo in result.unclustered:
             unclustered_data.append({
-                'photo_id': photo.photo_id,
+                'path': photo.path,
                 'lat': photo.lat,
                 'lon': photo.lon,
                 'timestamp': photo.timestamp,
