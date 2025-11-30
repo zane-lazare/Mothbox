@@ -14,10 +14,11 @@
 4. [Photo Endpoints](#photo-endpoints)
 5. [Series Endpoints](#series-endpoints) *(NEW - Issue #110)*
 6. [Photo Locations Endpoint](#photo-locations-endpoint) *(NEW - Issue #113)*
-7. [Map View](#map-view) *(NEW - Issue #113)*
-8. [Cache Management Endpoints](#cache-management-endpoints)
-9. [Pagination Contract](#pagination-contract)
-10. [Performance Characteristics](#performance-characteristics)
+7. [Clustering Endpoints](#clustering-endpoints) *(NEW - Issue #115)*
+8. [Map View](#map-view) *(NEW - Issue #113)*
+9. [Cache Management Endpoints](#cache-management-endpoints)
+10. [Pagination Contract](#pagination-contract)
+11. [Performance Characteristics](#performance-characteristics)
 
 ---
 
@@ -889,6 +890,396 @@ See [`GPS_EXIF_SERVICE.md`](../../GPS_EXIF_SERVICE.md) for GPS tagging setup.
 - **Path traversal**: Protected via path validation
 - **CSRF**: Not required (read-only GET endpoint)
 - **Rate limiting**: Exempt (read-only operation)
+
+---
+
+## Clustering Endpoints
+
+Photo location clustering groups nearby photos using the Haversine distance algorithm for improved map visualization.
+
+**Implementation**: `webui/backend/services/clustering_service.py`, `webui/backend/lib/geo_clustering.py`, `webui/backend/lib/haversine.py`
+
+---
+
+### 15. Get Clustered Locations
+
+Get photo locations clustered by geographic proximity using Haversine distance.
+
+**Endpoint**: `GET /api/gallery/locations/clustered`
+
+#### Request
+
+**Query Parameters**:
+
+| Parameter | Type | Required | Default | Validation | Description |
+|-----------|------|----------|---------|------------|-------------|
+| `radius` | integer | No | 100 | >0 | Clustering radius in meters |
+| `min_size` | integer | No | 2 | ≥1 | Minimum photos per cluster |
+| `enabled` | boolean | No | true | true/false | Enable/disable clustering |
+
+#### Response
+
+**Success (200)**:
+
+```json
+{
+  "clusters": [
+    {
+      "cluster_id": "cluster_37.7749N_122.4194W_5",
+      "center": {
+        "lat": 37.7749,
+        "lon": -122.4194
+      },
+      "count": 5,
+      "photos": [
+        {
+          "path": "2024-01-15/photo1.jpg",
+          "lat": 37.7749,
+          "lon": -122.4194,
+          "timestamp": "2024-01-15T10:00:00"
+        },
+        {
+          "path": "2024-01-15/photo2.jpg",
+          "lat": 37.7750,
+          "lon": -122.4195,
+          "timestamp": "2024-01-15T10:05:00"
+        }
+      ],
+      "date_range": {
+        "earliest": "2024-01-15T10:00:00",
+        "latest": "2024-01-15T14:30:00"
+      },
+      "radius_m": 45.2
+    }
+  ],
+  "unclustered": [
+    {
+      "path": "2024-01-15/photo3.jpg",
+      "lat": 38.0000,
+      "lon": -122.5000,
+      "timestamp": "2024-01-15T12:00:00"
+    }
+  ],
+  "metadata": {
+    "total_photos": 150,
+    "total_clusters": 12,
+    "clustering_enabled": true,
+    "radius_m": 100,
+    "min_cluster_size": 2,
+    "processing_time_ms": 45.2,
+    "partial_result": false,
+    "warning": null
+  }
+}
+```
+
+**Field Descriptions**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `clusters` | array | List of photo clusters |
+| `clusters[].cluster_id` | string | Unique cluster identifier |
+| `clusters[].center` | object | Geographic centroid of cluster |
+| `clusters[].count` | integer | Number of photos in cluster |
+| `clusters[].photos` | array | Photos in cluster with coordinates |
+| `clusters[].date_range` | object | Earliest and latest photo timestamps |
+| `clusters[].radius_m` | float | Actual cluster radius in meters |
+| `unclustered` | array | Photos not meeting min_size threshold |
+| `metadata.total_photos` | integer | Total photos processed |
+| `metadata.total_clusters` | integer | Number of clusters formed |
+| `metadata.clustering_enabled` | boolean | Whether clustering was applied |
+| `metadata.radius_m` | integer | Requested clustering radius |
+| `metadata.min_cluster_size` | integer | Minimum photos per cluster |
+| `metadata.processing_time_ms` | float | Time to compute clusters |
+| `metadata.partial_result` | boolean | True if timeout occurred |
+| `metadata.warning` | string | Warning message if applicable |
+
+**Error Responses**:
+
+```json
+// 400 - Invalid radius (negative or zero)
+{
+  "error": "Radius must be positive, got -100"
+}
+
+// 400 - Invalid min_size
+{
+  "error": "min_size must be at least 1, got 0"
+}
+
+// 400 - Invalid enabled parameter
+{
+  "error": "enabled must be true or false, got 'invalid'"
+}
+
+// 503 - Clustering service unavailable
+{
+  "error": "Clustering service not available"
+}
+
+// 500 - Internal server error
+{
+  "error": "Failed to cluster locations"
+}
+```
+
+#### Examples
+
+**Default parameters (100m radius, 2 photos minimum)**:
+```bash
+curl "http://localhost:5000/api/gallery/locations/clustered"
+```
+
+**Larger clustering radius (500m)**:
+```bash
+curl "http://localhost:5000/api/gallery/locations/clustered?radius=500"
+```
+
+**Single photo clusters allowed**:
+```bash
+curl "http://localhost:5000/api/gallery/locations/clustered?min_size=1"
+```
+
+**Disable clustering (return all photos unclustered)**:
+```bash
+curl "http://localhost:5000/api/gallery/locations/clustered?enabled=false"
+```
+
+**React component**:
+```jsx
+const { data } = useQuery({
+  queryKey: ['clustered-locations', radius, minSize],
+  queryFn: () =>
+    fetch(`/api/gallery/locations/clustered?radius=${radius}&min_size=${minSize}`)
+      .then(r => r.json())
+});
+
+// Render clusters on map
+{data?.clusters.map(cluster => (
+  <ClusterMarker
+    key={cluster.cluster_id}
+    position={[cluster.center.lat, cluster.center.lon]}
+    count={cluster.count}
+    photos={cluster.photos}
+  />
+))}
+
+// Render unclustered photos
+{data?.unclustered.map(photo => (
+  <Marker
+    key={photo.path}
+    position={[photo.lat, photo.lon]}
+  />
+))}
+```
+
+#### Performance
+
+- **Typical response time**: 50-100ms for 1000 photos
+- **Haversine calculation**: <1ms per distance calculation
+- **1000 photos**: <100ms clustering time
+- **10000 photos**: <500ms clustering time
+- **Cache hit**: <10ms (cached results)
+- **Complexity**: O(n²) worst case, O(n) average with grid optimization
+
+#### Algorithm Details
+
+**Clustering Method**: Grid-based geographic clustering
+- **Step 1**: Divide locations into grid cells based on radius
+- **Step 2**: Only compare photos in same/adjacent grid cells
+- **Step 3**: Group photos within radius using Haversine distance
+- **Step 4**: Calculate geographic centroid for each cluster
+
+**Haversine Distance**: Great-circle distance calculation
+- Accounts for Earth's curvature
+- Accurate for distances 1m - 10000km
+- Formula: `a = sin²(Δφ/2) + cos(φ1)⋅cos(φ2)⋅sin²(Δλ/2)`
+- Distance: `d = 2R⋅atan2(√a, √(1−a))` where R = Earth radius (6371 km)
+
+**Geographic Centroid**: Average of all coordinates in cluster
+- Simple arithmetic mean of latitudes and longitudes
+- Suitable for small geographic areas (< 100km)
+- More sophisticated methods available for global-scale clustering
+
+#### Security
+
+- **Path traversal**: Not applicable (no file access)
+- **CSRF**: Not required (read-only GET endpoint)
+- **Rate limiting**: Exempt (cached after first request)
+- **DOS protection**: Grid optimization prevents O(n²) worst case
+
+---
+
+### 16. Get Clustering Statistics
+
+Retrieve cache statistics for the clustering service.
+
+**Endpoint**: `GET /api/gallery/locations/clustered/stats`
+
+#### Response
+
+**Success (200)**:
+
+```json
+{
+  "cache_hits": 45,
+  "cache_misses": 12,
+  "cache_entries": 3,
+  "total_clustering_time_ms": 567.8
+}
+```
+
+**Field Descriptions**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `cache_hits` | integer | Number of cache hits |
+| `cache_misses` | integer | Number of cache misses |
+| `cache_entries` | integer | Number of cached results |
+| `total_clustering_time_ms` | float | Total time spent clustering |
+
+**Error Responses**:
+
+```json
+// 503 - Service unavailable
+{
+  "error": "Clustering service not available"
+}
+```
+
+#### Examples
+
+**Get statistics**:
+```bash
+curl "http://localhost:5000/api/gallery/locations/clustered/stats"
+```
+
+**React monitoring component**:
+```jsx
+const { data } = useQuery({
+  queryKey: ['clustering-stats'],
+  queryFn: () =>
+    fetch('/api/gallery/locations/clustered/stats').then(r => r.json()),
+  refetchInterval: 30000  // Update every 30s
+});
+
+return (
+  <div>
+    <p>Cache Hit Rate: {(data.cache_hits / (data.cache_hits + data.cache_misses) * 100).toFixed(1)}%</p>
+    <p>Cached Results: {data.cache_entries}</p>
+    <p>Total Processing Time: {data.total_clustering_time_ms.toFixed(1)}ms</p>
+  </div>
+);
+```
+
+#### Performance
+
+- **Response time**: <5ms (in-memory statistics)
+
+#### Security
+
+- **CSRF**: Not required (read-only GET endpoint)
+- **Rate limiting**: Exempt (lightweight operation)
+
+---
+
+### 17. Invalidate Clustering Cache
+
+Manually invalidate the clustering cache to force re-computation.
+
+**Endpoint**: `POST /api/gallery/locations/clustered/cache/invalidate`
+
+#### Request
+
+**Headers**:
+- `Content-Type`: `application/json`
+- `X-CSRFToken`: CSRF token (required)
+
+**Body** (JSON, optional):
+
+```json
+{
+  "directory": "/var/lib/mothbox/photos/2024-01-15"
+}
+```
+
+- If `directory` is not provided, the entire cache is invalidated.
+
+#### Response
+
+**Success (200)**:
+
+```json
+{
+  "success": true,
+  "message": "Invalidated clustering cache for /var/lib/mothbox/photos/2024-01-15"
+}
+```
+
+**Error Responses**:
+
+```json
+// 503 - Service unavailable
+{
+  "error": "Clustering service not available"
+}
+
+// 400 - CSRF token missing
+{
+  "error": "CSRF validation failed"
+}
+```
+
+#### Examples
+
+**Invalidate entire cache**:
+```bash
+curl -X POST "http://localhost:5000/api/gallery/locations/clustered/cache/invalidate" \
+  -H "Content-Type: application/json" \
+  -H "X-CSRFToken: YOUR_CSRF_TOKEN" \
+  -d '{}'
+```
+
+**Invalidate specific directory**:
+```bash
+curl -X POST "http://localhost:5000/api/gallery/locations/clustered/cache/invalidate" \
+  -H "Content-Type: application/json" \
+  -H "X-CSRFToken: YOUR_CSRF_TOKEN" \
+  -d '{"directory": "/var/lib/mothbox/photos/2024-01-15"}'
+```
+
+**React component**:
+```jsx
+const invalidateCache = async (directory = null) => {
+  const csrfToken = await fetch('/api/csrf-token').then(r => r.json());
+
+  await fetch('/api/gallery/locations/clustered/cache/invalidate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken.csrf_token
+    },
+    body: JSON.stringify({ directory })
+  });
+};
+```
+
+#### Use Cases
+
+1. **New photos added**: Invalidate cache after batch photo import
+2. **GPS data updated**: Re-tag photos with new GPS coordinates
+3. **Testing**: Clear cache to test clustering algorithms
+4. **Parameter tuning**: Force re-clustering with new parameters
+
+#### Performance
+
+- **Response time**: <5ms (cache flag reset)
+- **Next clustering request**: Full computation required (no cache hit)
+
+#### Security
+
+- **CSRF**: Required (state-changing operation)
+- **Rate limiting**: None (CSRF protection sufficient)
 
 ---
 

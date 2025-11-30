@@ -1,6 +1,6 @@
-import { useState, useCallback, useRef, useMemo } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeftIcon } from '@heroicons/react/24/outline'
+import { useCallback, useRef, useMemo } from 'react'
+import { Link } from 'react-router-dom'
+import { ArrowLeftIcon, ExclamationTriangleIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { getPhotosPaginated } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
@@ -9,7 +9,7 @@ import MapView from '../components/MapView'
 import PhotoLightbox from '../components/PhotoLightbox'
 import ErrorBoundary from '../components/ErrorBoundary'
 import LightboxErrorFallback from '../components/LightboxErrorFallback'
-import { usePhotoLocations } from '../hooks/usePhotoLocations'
+import { useClusteredLocations } from '../hooks/useClusteredLocations'
 import useMapLightboxSync from '../hooks/useMapLightboxSync'
 
 /**
@@ -24,6 +24,8 @@ import useMapLightboxSync from '../hooks/useMapLightboxSync'
  * - Lightbox for viewing photos
  * - Navigation back to gallery
  * - Error boundaries for graceful degradation
+ * - Backend clustering with configurable radius
+ * - Map-lightbox synchronization with marker highlighting
  *
  * @component
  * @example
@@ -31,7 +33,6 @@ import useMapLightboxSync from '../hooks/useMapLightboxSync'
  * <Route path="/gallery/map" element={<MapPage />} />
  */
 export default function MapPage() {
-  const navigate = useNavigate()
   const mapRef = useRef(null)
 
   // Fetch all photos for lightbox navigation
@@ -58,18 +59,30 @@ export default function MapPage() {
   // Flatten all pages into single photo array
   const photos = photosData?.pages.flatMap((page) => page.photos) ?? []
 
-  // Fetch photo locations for map display
-  const { locations, isLoading, totalWithGps, totalWithoutGps } = usePhotoLocations()
+  // Fetch clustered photo locations (includes both clusters and unclustered)
+  const {
+    clusters,
+    unclustered,
+    metadata,
+    isLoading: isLoadingClustered,
+    isPartialResult,
+    partialWarning,
+    settings,
+    setEnabled,
+    setRadius,
+    refetch,
+  } = useClusteredLocations()
+
+  // Calculate total counts for display
+  const totalInClusters = clusters.reduce((sum, cluster) => sum + cluster.count, 0)
+  const totalPhotos = totalInClusters + unclustered.length
+  const totalWithGps = totalPhotos
+  const totalWithoutGps = metadata.total_without_gps || 0
 
   // Map-Lightbox synchronization hook
   const {
-    isLightboxOpen,
     currentPhoto,
     highlightedPhotoPath,
-    hasNext,
-    hasPrevious,
-    goNext,
-    goPrevious,
     openLightbox,
     closeLightbox,
     onMarkerClick,
@@ -86,15 +99,15 @@ export default function MapPage() {
   const handleMapPhotoClick = useCallback(
     (location) => {
       // Find the photo object in the photos array by matching the path
-      // Note: location.photo_path from API, photos[].path from gallery API
-      const photo = photos.find((p) => p.path === location.photo_path)
+      const photo = photos.find((p) => p.path === location.path)
       if (photo) {
         // Use onClusterClick to set up full photo navigation
         onClusterClick(virtualCluster, photo)
       } else {
         // Fallback: Create a minimal photo object from location data
+        // This ensures the lightbox can still open even if photo isn't in the loaded set
         const minimalPhoto = {
-          path: location.photo_path,
+          path: location.path,
           filename: location.filename,
           thumbnail_url: location.thumbnail_url,
           date: location.timestamp,
@@ -145,7 +158,7 @@ export default function MapPage() {
         </Link>
         <div className="flex-1">
           <h1 className="text-xl font-semibold">Photo Locations</h1>
-          {!isLoading && totalWithGps > 0 && (
+          {!isLoadingClustered && totalWithGps > 0 && (
             <p className="text-sm text-gray-300 mt-1">
               {totalWithGps} photo{totalWithGps !== 1 ? 's' : ''} with GPS coordinates
               {totalWithoutGps > 0 &&
@@ -155,13 +168,40 @@ export default function MapPage() {
         </div>
       </header>
 
+      {/* Partial results warning banner */}
+      {isPartialResult && (
+        <div
+          role="alert"
+          className="bg-yellow-100 border-b border-yellow-300 px-4 py-2 flex items-center justify-between"
+        >
+          <div className="flex items-center gap-2 text-yellow-800">
+            <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" />
+            <span className="text-sm">
+              {partialWarning || 'Some locations may be missing due to timeout'}
+            </span>
+          </div>
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-1 text-sm text-yellow-800 hover:text-yellow-900 hover:bg-yellow-200 px-2 py-1 rounded transition-colors"
+            aria-label="Retry loading all locations"
+          >
+            <ArrowPathIcon className="h-4 w-4" />
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Map fills remaining screen space */}
       <div className="flex-1 relative">
         <MapView
           ref={mapRef}
-          locations={locations}
+          locations={unclustered}
+          clusters={clusters}
+          clusterSettings={settings}
+          onClusterEnabledChange={setEnabled}
+          onClusterRadiusChange={setRadius}
           onPhotoClick={handleMapPhotoClick}
-          isLoading={isLoading}
+          isLoading={isLoadingClustered}
           className="h-full"
           highlightedPhotoPath={highlightedPhotoPath}
         />

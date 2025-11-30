@@ -136,6 +136,56 @@ vi.mock('../../hooks/usePhotoLocations', () => ({
   }),
 }))
 
+// Mock useClusteredLocations hook (now used by MapPage)
+vi.mock('../../hooks/useClusteredLocations', () => ({
+  useClusteredLocations: () => ({
+    clusters: [],
+    unclustered: [
+      {
+        path: '2024-11-10/photo1.jpg',
+        filename: 'photo1.jpg',
+        latitude: 40.7128,
+        longitude: -74.006,
+        thumbnail_url: '/api/thumbnails/2024-11-10/photo1.jpg',
+        timestamp: '2024-11-10T10:30:00Z',
+      },
+      {
+        path: '2024-11-10/photo2.jpg',
+        filename: 'photo2.jpg',
+        latitude: 40.7129,
+        longitude: -74.007,
+        thumbnail_url: '/api/thumbnails/2024-11-10/photo2.jpg',
+        timestamp: '2024-11-10T11:30:00Z',
+      },
+    ],
+    metadata: { total_without_gps: 1 },
+    isLoading: false,
+    isPartialResult: false,
+    partialWarning: null,
+    settings: { enabled: false, radius: 100 },
+    setEnabled: vi.fn(),
+    setRadius: vi.fn(),
+    refetch: vi.fn(),
+  }),
+}))
+
+// Mock useHoverPopup hook (used by MapView)
+vi.mock('../../hooks/useHoverPopup', () => ({
+  useHoverPopup: () => ({
+    isVisible: false,
+    targetCluster: null,
+    position: { x: 0, y: 0 },
+    handleMouseEnter: vi.fn(),
+    handleMouseLeave: vi.fn(),
+    handleClick: vi.fn(),
+  }),
+}))
+
+// Mock MarkerHoverPopup component (used by MapView)
+vi.mock('../../components/MarkerHoverPopup', () => ({
+  default: () => <div data-testid="marker-hover-popup" />,
+}))
+
 // Helper to render with required providers
 function renderMapPage() {
   const queryClient = new QueryClient({

@@ -5,7 +5,120 @@ import L from 'leaflet'
 import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerIconRetina from 'leaflet/dist/images/marker-icon-2x.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
-import { MAP_CONFIG } from '../constants/config'
+import { MAP_CONFIG, CLUSTERING_CONFIG } from '../constants/config'
+import MarkerHoverPopup from './MarkerHoverPopup'
+import ErrorBoundary from './ErrorBoundary'
+import { useHoverPopup } from '../hooks/useHoverPopup'
+import { getThumbnailUrl } from '../utils/thumbnailUrl'
+
+/**
+ * ClusteringControls - UI controls for geographic clustering settings
+ *
+ * Provides toggle for enabling/disabling clustering and slider for radius adjustment.
+ * Settings are persisted in localStorage via the parent component's hook.
+ */
+function ClusteringControls({ settings, onEnabledChange, onRadiusChange }) {
+  return (
+    <div className="absolute top-4 right-4 z-[1000] bg-white rounded-lg shadow-lg p-3 min-w-[200px]">
+      <h3 className="font-medium text-sm mb-2">Geographic Clustering</h3>
+
+      <label className="flex items-center gap-2 mb-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={settings.enabled}
+          onChange={(e) => onEnabledChange(e.target.checked)}
+          className="w-4 h-4 cursor-pointer"
+        />
+        <span className="text-sm">Enable backend clustering</span>
+      </label>
+
+      {settings.enabled && (
+        <div className="mt-3">
+          <label className="text-xs text-gray-600 block mb-1">
+            Radius: {settings.radius}m
+          </label>
+          <input
+            type="range"
+            min={CLUSTERING_CONFIG.MIN_RADIUS}
+            max={CLUSTERING_CONFIG.MAX_RADIUS}
+            step={CLUSTERING_CONFIG.RADIUS_STEP}
+            value={settings.radius}
+            onChange={(e) => onRadiusChange(Number(e.target.value))}
+            className="w-full cursor-pointer"
+          />
+          <div className="flex justify-between text-xs text-gray-500 mt-1">
+            <span>{CLUSTERING_CONFIG.MIN_RADIUS}m</span>
+            <span>{CLUSTERING_CONFIG.MAX_RADIUS}m</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * ClusterMarker - Custom marker for geographic clusters
+ *
+ * Displays a circular badge with the number of photos in the cluster.
+ * Clicking opens a popup with thumbnails and metadata.
+ */
+function ClusterMarker({ cluster, onPhotoClick, onMouseEnter, onMouseLeave }) {
+  // Create custom cluster icon
+  const icon = L.divIcon({
+    className: 'cluster-marker',
+    html: `<div class="cluster-badge">${cluster.count}</div>`,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+    popupAnchor: [0, -20],
+  })
+
+  return (
+    <Marker
+      position={[cluster.center.lat, cluster.center.lon]}
+      icon={icon}
+      eventHandlers={{
+        mouseover: (e) => onMouseEnter?.(cluster, e.originalEvent),
+        mouseout: () => onMouseLeave?.(),
+      }}
+    >
+      <Popup maxWidth={250}>
+        <div className="cluster-popup">
+          <h4 className="font-semibold text-sm mb-1">{cluster.count} photos</h4>
+          <p className="text-xs text-gray-600 mb-2">
+            {cluster.date_range.earliest} - {cluster.date_range.latest}
+          </p>
+          <div className="grid grid-cols-3 gap-1">
+            {cluster.photos.slice(0, 6).map((photo) => (
+              <img
+                key={photo.path}
+                src={photo.thumbnail_url || getThumbnailUrl(photo.path, 64)}
+                alt={photo.filename || photo.path}
+                className="w-full h-16 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => {
+                  if (onPhotoClick) {
+                    onPhotoClick({
+                      path: photo.path,
+                      filename: photo.filename, // Guaranteed by useClusteredLocations normalization
+                      latitude: photo.latitude,
+                      longitude: photo.longitude,
+                      thumbnail_url: photo.thumbnail_url,
+                      timestamp: photo.timestamp,
+                    })
+                  }
+                }}
+              />
+            ))}
+          </div>
+          {cluster.count > 6 && (
+            <p className="text-xs text-gray-500 mt-1 text-center">
+              +{cluster.count - 6} more photos
+            </p>
+          )}
+        </div>
+      </Popup>
+    </Marker>
+  )
+}
 
 /**
  * BoundsUpdater - Internal component to auto-fit map bounds to all markers
@@ -13,24 +126,32 @@ import { MAP_CONFIG } from '../constants/config'
  * This component uses the useMap hook to access the Leaflet map instance
  * and update the bounds whenever locations change.
  */
-function BoundsUpdater({ locations }) {
+function BoundsUpdater({ locations, clusters }) {
   const map = useMap()
 
   useEffect(() => {
-    if (!locations || locations.length === 0) return
+    // Collect all positions from both individual locations and clusters
+    const allPositions = []
 
-    // Build bounds array from all locations
-    const bounds = locations.map((loc) => [loc.latitude, loc.longitude])
+    if (locations && locations.length > 0) {
+      allPositions.push(...locations.map((loc) => [loc.latitude, loc.longitude]))
+    }
+
+    if (clusters && clusters.length > 0) {
+      allPositions.push(...clusters.map((cluster) => [cluster.center.lat, cluster.center.lon]))
+    }
+
+    if (allPositions.length === 0) return
 
     // Fit map to show all markers
-    if (bounds.length === 1) {
+    if (allPositions.length === 1) {
       // Single location: center on it with reasonable zoom
-      map.setView(bounds[0], 12)
+      map.setView(allPositions[0], 12)
     } else {
       // Multiple locations: fit all markers in view
-      map.fitBounds(bounds, { padding: [50, 50] })
+      map.fitBounds(allPositions, { padding: [50, 50] })
     }
-  }, [locations, map])
+  }, [locations, clusters, map])
 
   return null
 }
@@ -58,15 +179,20 @@ function MapRefSetter({ mapRef }) {
  *
  * Features:
  * - OpenStreetMap tiles (no API key required)
- * - Marker clustering for performance with many photos
+ * - Hybrid clustering: Backend geographic clusters + frontend pixel clustering
  * - Auto-fit bounds to show all photo locations
  * - Photo thumbnail popups on marker click
  * - Loading skeleton and empty state
  * - Fully responsive
+ * - Clustering controls for adjusting backend clustering settings
  * - Marker highlighting support for map-lightbox integration
  *
  * @param {Object} props
- * @param {Array} props.locations - Array of photo location objects with {latitude, longitude, thumbnail_url, filename}
+ * @param {Array} props.locations - Array of individual photo location objects
+ * @param {Array} props.clusters - Array of geographic clusters from backend
+ * @param {Object} props.clusterSettings - Clustering settings {enabled, radius, minSize}
+ * @param {Function} props.onClusterEnabledChange - Callback when clustering is toggled
+ * @param {Function} props.onClusterRadiusChange - Callback when cluster radius is changed
  * @param {Function} props.onPhotoClick - Callback when photo marker is clicked (receives location object)
  * @param {boolean} props.isLoading - Show loading skeleton instead of map
  * @param {string} props.className - Additional CSS classes for the map wrapper
@@ -75,13 +201,27 @@ function MapRefSetter({ mapRef }) {
  */
 const MapView = React.forwardRef(function MapView({
   locations = [],
+  clusters = [],
+  clusterSettings = null,
+  onClusterEnabledChange = null,
+  onClusterRadiusChange = null,
   onPhotoClick,
   isLoading = false,
   className = '',
   highlightedPhotoPath = null
 }, ref) {
-  // Normalize locations (handle null/undefined)
+  // Hover popup state management
+  const {
+    isVisible,
+    targetCluster,
+    position,
+    handleMouseEnter,
+    handleMouseLeave,
+  } = useHoverPopup()
+
+  // Normalize locations and clusters (handle null/undefined)
   const normalizedLocations = locations || []
+  const normalizedClusters = clusters || []
 
   // Loading skeleton
   if (isLoading) {
@@ -96,8 +236,8 @@ const MapView = React.forwardRef(function MapView({
     )
   }
 
-  // Empty state
-  if (normalizedLocations.length === 0) {
+  // Empty state - show only if both locations and clusters are empty
+  if (normalizedLocations.length === 0 && normalizedClusters.length === 0) {
     return (
       <div
         role="status"
@@ -169,7 +309,7 @@ const MapView = React.forwardRef(function MapView({
   }
 
   return (
-    <div className={`w-full h-full ${className}`}>
+    <div className={`w-full h-full relative ${className}`}>
       <MapContainer
         data-testid="map-container"
         data-highlighted-path={highlightedPhotoPath || ''}
@@ -200,6 +340,18 @@ const MapView = React.forwardRef(function MapView({
         {/* Expose map instance via ref */}
         <MapRefSetter mapRef={ref} />
 
+        {/* Backend geographic cluster markers (outside MarkerClusterGroup) */}
+        {normalizedClusters.map((cluster) => (
+          <ClusterMarker
+            key={cluster.cluster_id}
+            cluster={cluster}
+            onPhotoClick={onPhotoClick}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+          />
+        ))}
+
+        {/* Individual photo markers with frontend pixel clustering */}
         <MarkerClusterGroup
           data-testid="marker-cluster-group"
           chunkedLoading
@@ -240,8 +392,48 @@ const MapView = React.forwardRef(function MapView({
           ))}
         </MarkerClusterGroup>
 
-        <BoundsUpdater locations={normalizedLocations} />
+        <BoundsUpdater locations={normalizedLocations} clusters={normalizedClusters} />
       </MapContainer>
+
+      {/* Hover popup overlay - wrapped in ErrorBoundary for graceful degradation */}
+      <ErrorBoundary
+        fallback={({ onClose }) => (
+          <div
+            className="fixed bg-white rounded-lg shadow-xl border border-gray-200 p-4"
+            style={{
+              left: position?.x || 0,
+              top: position?.y || 0,
+              zIndex: 1100,
+            }}
+          >
+            <p className="text-red-600 text-sm mb-2">Failed to load preview</p>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 text-sm underline"
+            >
+              Close
+            </button>
+          </div>
+        )}
+        onReset={handleMouseLeave}
+      >
+        <MarkerHoverPopup
+          cluster={targetCluster}
+          isVisible={isVisible}
+          position={position}
+          onPhotoClick={onPhotoClick}
+          onClose={handleMouseLeave}
+        />
+      </ErrorBoundary>
+
+      {/* Clustering controls - only show if settings provided */}
+      {clusterSettings && onClusterEnabledChange && onClusterRadiusChange && (
+        <ClusteringControls
+          settings={clusterSettings}
+          onEnabledChange={onClusterEnabledChange}
+          onRadiusChange={onClusterRadiusChange}
+        />
+      )}
     </div>
   )
 })

@@ -153,6 +153,32 @@ else:
     app.config['CACHE_WARMER'] = None
     print("⚠️  Cache warmer not initialized (thumbnail cache unavailable)")
 
+# Initialize services using lazy getters (avoids circular imports)
+# Services are lazily initialized on first access via get_*_service() functions
+from services import get_series_service, get_clustering_service, get_locations_service
+
+try:
+    # Pre-initialize services and store in app.config for routes that need direct access
+    app.config['SERIES_SERVICE'] = get_series_service()
+    print("✓ Series service initialized")
+except Exception as e:
+    print(f"⚠️  Failed to initialize series service: {e}")
+    app.config['SERIES_SERVICE'] = None
+
+try:
+    app.config['CLUSTERING_SERVICE'] = get_clustering_service()
+    print("✓ Clustering service initialized")
+except Exception as e:
+    print(f"⚠️  Failed to initialize clustering service: {e}")
+    app.config['CLUSTERING_SERVICE'] = None
+
+try:
+    app.config['LOCATIONS_SERVICE'] = get_locations_service()
+    print("✓ Locations service initialized")
+except Exception as e:
+    print(f"⚠️  Failed to initialize locations service: {e}")
+    app.config['LOCATIONS_SERVICE'] = None
+
 # Import route blueprints
 from routes.camera import camera_bp
 from routes.config import config_bp

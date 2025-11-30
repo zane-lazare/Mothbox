@@ -1,0 +1,143 @@
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { HOVER_POPUP_CONFIG } from '../constants/config'
+
+/**
+ * useHoverPopup Hook
+ *
+ * Manages hover state for map cluster popups with debouncing, show/hide delays,
+ * and mobile touch detection. Provides consistent hover behavior across desktop
+ * and mobile devices.
+ *
+ * @returns {Object} Popup state and handlers
+ * @returns {boolean} isVisible - Whether the popup should be displayed
+ * @returns {Object|null} targetCluster - The cluster currently being hovered
+ * @returns {Object|null} position - Popup position {x, y} relative to viewport
+ * @returns {Function} handleMouseEnter - Handler for mouse enter events
+ * @returns {Function} handleMouseLeave - Handler for mouse leave events
+ * @returns {Function} handleClick - Handler for click/tap events (mobile)
+ * @returns {boolean} isMobile - Whether the device is detected as mobile/touch
+ *
+ * @example
+ * const {
+ *   isVisible,
+ *   targetCluster,
+ *   position,
+ *   handleMouseEnter,
+ *   handleMouseLeave,
+ *   isMobile
+ * } = useHoverPopup()
+ *
+ * // Desktop: Use mouse events
+ * <ClusterMarker
+ *   onMouseEnter={(e) => handleMouseEnter(cluster, e)}
+ *   onMouseLeave={handleMouseLeave}
+ * />
+ *
+ * // Mobile: Use click events
+ * <ClusterMarker
+ *   onClick={() => handleClick(cluster)}
+ * />
+ */
+export function useHoverPopup() {
+  // State management
+  const [isVisible, setIsVisible] = useState(false)
+  const [targetCluster, setTargetCluster] = useState(null)
+  const [position, setPosition] = useState(null)
+
+  // Timer references for cleanup
+  const showTimerRef = useRef(null)
+  const hideTimerRef = useRef(null)
+
+  // Detect mobile/touch devices
+  const isMobile =
+    typeof window !== 'undefined' &&
+    ('ontouchstart' in window || window.matchMedia('(pointer: coarse)').matches)
+
+  /**
+   * Clear all pending timers
+   */
+  const clearTimers = useCallback(() => {
+    if (showTimerRef.current) {
+      clearTimeout(showTimerRef.current)
+      showTimerRef.current = null
+    }
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = null
+    }
+  }, [])
+
+  /**
+   * Handle mouse enter event
+   *
+   * Sets the target cluster and position immediately, then schedules
+   * the popup to be shown after SHOW_DELAY_MS.
+   *
+   * @param {Object} cluster - The cluster being hovered
+   * @param {MouseEvent} event - The mouse event containing position
+   */
+  const handleMouseEnter = useCallback(
+    (cluster, event) => {
+      // Clear any pending timers
+      clearTimers()
+
+      // Set target and position immediately
+      setTargetCluster(cluster)
+      setPosition({ x: event.clientX, y: event.clientY })
+
+      // Schedule popup to show after delay
+      showTimerRef.current = setTimeout(() => {
+        setIsVisible(true)
+      }, HOVER_POPUP_CONFIG.SHOW_DELAY_MS)
+    },
+    [clearTimers]
+  )
+
+  /**
+   * Handle mouse leave event
+   *
+   * Schedules the popup to be hidden after HIDE_DELAY_MS to prevent
+   * flickering when the mouse briefly leaves and re-enters.
+   */
+  const handleMouseLeave = useCallback(() => {
+    // Clear any pending timers
+    clearTimers()
+
+    // Schedule popup to hide after delay
+    hideTimerRef.current = setTimeout(() => {
+      setIsVisible(false)
+      setTargetCluster(null)
+      setPosition(null)
+    }, HOVER_POPUP_CONFIG.HIDE_DELAY_MS)
+  }, [clearTimers])
+
+  /**
+   * Handle click event (for mobile/touch devices)
+   *
+   * Toggles the popup visibility immediately without delays.
+   * Sets the target cluster when showing.
+   *
+   * @param {Object} cluster - The cluster being clicked
+   */
+  const handleClick = useCallback((cluster) => {
+    setTargetCluster(cluster)
+    setIsVisible((prev) => !prev)
+  }, [])
+
+  /**
+   * Cleanup timers on unmount
+   */
+  useEffect(() => {
+    return clearTimers
+  }, [clearTimers])
+
+  return {
+    isVisible,
+    targetCluster,
+    position,
+    handleMouseEnter,
+    handleMouseLeave,
+    handleClick,
+    isMobile,
+  }
+}

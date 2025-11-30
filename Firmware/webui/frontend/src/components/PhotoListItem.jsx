@@ -31,7 +31,7 @@ export default function PhotoListItem({ photo, onClick }) {
         className="w-48 h-32 object-cover rounded flex-shrink-0"
         iconSize={80}
         thumbnailSize={64}
-        fullSize={192}
+        fullSize={256}
       />
 
       {/* Metadata */}
