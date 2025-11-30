@@ -90,14 +90,14 @@ function ClusterMarker({ cluster, onPhotoClick, onMouseEnter, onMouseLeave }) {
             {cluster.photos.slice(0, 6).map((photo) => (
               <img
                 key={photo.path}
-                src={photo.thumbnail_url || `/api/gallery/thumbnail/${photo.path}?size=64`}
+                src={photo.thumbnail_url || `/api/gallery/thumbnail/${encodeURIComponent(photo.path || '')}?size=64`}
                 alt={photo.filename || photo.path}
                 className="w-full h-16 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
                 onClick={() => {
                   if (onPhotoClick) {
                     onPhotoClick({
                       path: photo.path,
-                      filename: photo.filename || photo.path.split('/').pop(),
+                      filename: photo.filename || (photo.path || '').split('/').pop() || 'unknown',
                       latitude: photo.latitude,
                       longitude: photo.longitude,
                       thumbnail_url: photo.thumbnail_url,

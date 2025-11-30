@@ -47,10 +47,10 @@ function normalizePhoto(photo) {
     // Standardized field name
     path: photo.path,
     // Derived fields for UI components
-    filename: photo.path.split('/').pop() || photo.path,
+    filename: (photo.path || '').split('/').pop() || photo.path || 'unknown',
     latitude: photo.lat,
     longitude: photo.lon,
-    thumbnail_url: `/api/gallery/thumbnail/${encodeURIComponent(photo.path)}`,
+    thumbnail_url: `/api/gallery/thumbnail/${encodeURIComponent(photo.path || '')}`,
     timestamp: photo.timestamp,
     tags: photo.tags,
     // Preserve original lat/lon for components expecting them
