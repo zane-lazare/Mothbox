@@ -36,6 +36,24 @@ function BoundsUpdater({ locations }) {
 }
 
 /**
+ * MapRefSetter - Internal component to expose map instance via ref
+ *
+ * This component uses the useMap hook to access the Leaflet map instance
+ * and sets it on the parent ref.
+ */
+function MapRefSetter({ mapRef }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (mapRef) {
+      mapRef.current = map
+    }
+  }, [map, mapRef])
+
+  return null
+}
+
+/**
  * MapView - Leaflet map component for displaying GPS-tagged photo locations
  *
  * Features:
@@ -45,14 +63,23 @@ function BoundsUpdater({ locations }) {
  * - Photo thumbnail popups on marker click
  * - Loading skeleton and empty state
  * - Fully responsive
+ * - Marker highlighting support for map-lightbox integration
  *
  * @param {Object} props
  * @param {Array} props.locations - Array of photo location objects with {latitude, longitude, thumbnail_url, filename}
  * @param {Function} props.onPhotoClick - Callback when photo marker is clicked (receives location object)
  * @param {boolean} props.isLoading - Show loading skeleton instead of map
  * @param {string} props.className - Additional CSS classes for the map wrapper
+ * @param {string} props.highlightedPhotoPath - Photo path to highlight on map (for lightbox sync)
+ * @param {React.RefObject} ref - Ref to expose map instance to parent components
  */
-function MapView({ locations = [], onPhotoClick, isLoading = false, className = '' }) {
+const MapView = React.forwardRef(function MapView({
+  locations = [],
+  onPhotoClick,
+  isLoading = false,
+  className = '',
+  highlightedPhotoPath = null
+}, ref) {
   // Normalize locations (handle null/undefined)
   const normalizedLocations = locations || []
 
@@ -113,6 +140,7 @@ function MapView({ locations = [], onPhotoClick, isLoading = false, className = 
     <div className={`w-full h-full ${className}`}>
       <MapContainer
         data-testid="map-container"
+        data-highlighted-path={highlightedPhotoPath || ''}
         role="application"
         aria-label="Interactive map showing photo locations"
         center={MAP_CONFIG.DEFAULT_CENTER}
@@ -136,6 +164,9 @@ function MapView({ locations = [], onPhotoClick, isLoading = false, className = 
           attribution={MAP_CONFIG.ATTRIBUTION}
           maxZoom={MAP_CONFIG.MAX_ZOOM}
         />
+
+        {/* Expose map instance via ref */}
+        <MapRefSetter mapRef={ref} />
 
         <MarkerClusterGroup
           data-testid="marker-cluster-group"
@@ -181,6 +212,6 @@ function MapView({ locations = [], onPhotoClick, isLoading = false, className = 
       </MapContainer>
     </div>
   )
-}
+})
 
 export default React.memo(MapView)

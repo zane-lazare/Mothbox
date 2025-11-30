@@ -8,6 +8,7 @@ import { debounce, throttle } from '../utils/performance'
 import { getPhotoUrl } from '../utils/api'
 import MetadataPanel from './metadata/MetadataPanel'
 import MetadataErrorBoundary from './metadata/MetadataErrorBoundary'
+import { formatCoordinateDisplay } from '../utils/gpsCoordinates'
 
 /**
  * Adaptive Photo Lightbox Component
@@ -17,10 +18,11 @@ import MetadataErrorBoundary from './metadata/MetadataErrorBoundary'
  *
  * @component
  * @param {Object} props - Component props
- * @param {Object|null} props.photo - Current photo to display {path, filename, date, size, ...}
+ * @param {Object|null} props.photo - Current photo to display {path, filename, date, size, latitude, longitude, altitude, ...}
  * @param {Array<Object>} props.photos - Array of all photos for navigation
  * @param {Function} props.onClose - Callback when lightbox closes
  * @param {Function} props.onNavigate - Callback when navigating to different photo (photo) => void
+ * @param {Function} [props.onLocationClick] - Optional callback when location is clicked (lat, lon) => void
  *
  * @example
  * <PhotoLightbox
@@ -28,6 +30,7 @@ import MetadataErrorBoundary from './metadata/MetadataErrorBoundary'
  *   photos={allPhotos}
  *   onClose={() => setSelectedPhoto(null)}
  *   onNavigate={setSelectedPhoto}
+ *   onLocationClick={(lat, lon) => centerMapOnLocation(lat, lon)}
  * />
  *
  * @features
@@ -36,6 +39,7 @@ import MetadataErrorBoundary from './metadata/MetadataErrorBoundary'
  * - Accessibility: WCAG 2.1 AA compliant, screen reader support, focus trap
  * - Performance: GPU-accelerated transforms (translate3d), progressive image loading
  * - Visual feedback: Loading spinner, error messages, zoom indicator
+ * - Location display: GPS coordinates in DMS format with altitude (when available)
  *
  * @accessibility
  * - Full keyboard navigation support
@@ -51,6 +55,7 @@ import MetadataErrorBoundary from './metadata/MetadataErrorBoundary'
  * - Efficient event listeners with cleanup
  *
  * @see https://github.com/Digital-Naturalism-Laboratories/Mothbox/issues/101
+ * @see https://github.com/Digital-Naturalism-Laboratories/Mothbox/issues/119
  */
 
 /**
@@ -91,7 +96,67 @@ const formatDate = (dateString) => {
   }
 }
 
-function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
+/**
+ * LocationHeader Component - Displays GPS coordinates and altitude
+ * @param {Object} props - Component props
+ * @param {number|null} props.latitude - Latitude in decimal degrees
+ * @param {number|null} props.longitude - Longitude in decimal degrees
+ * @param {number|null} [props.altitude] - Altitude in meters (optional)
+ * @param {Function} [props.onLocationClick] - Optional callback when clicked (lat, lon) => void
+ */
+function LocationHeader({ latitude, longitude, altitude, onLocationClick }) {
+  // Check if GPS coordinates are available (must be numbers, 0 is valid)
+  const hasGPS = typeof latitude === 'number' && typeof longitude === 'number'
+
+  // Handle location click
+  const handleClick = () => {
+    if (onLocationClick && hasGPS) {
+      onLocationClick(latitude, longitude)
+    }
+  }
+
+  if (!hasGPS) {
+    return (
+      <div className="location-header" data-testid="location-header">
+        <span className="no-location text-gray-400">Location not available</span>
+      </div>
+    )
+  }
+
+  // Format coordinates as DMS
+  const latDisplay = formatCoordinateDisplay(latitude, true, 'dms')
+  const lonDisplay = formatCoordinateDisplay(longitude, false, 'dms')
+
+  // Determine if coordinates should be clickable
+  const coordinatesElement = onLocationClick ? (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="coordinates text-blue-400 hover:text-blue-300 cursor-pointer transition-colors"
+      data-testid="location-coordinates"
+      aria-label={`Location: ${latDisplay}, ${lonDisplay}`}
+    >
+      {latDisplay}, {lonDisplay}
+    </button>
+  ) : (
+    <span className="coordinates" data-testid="location-coordinates">
+      {latDisplay}, {lonDisplay}
+    </span>
+  )
+
+  return (
+    <div className="location-header" data-testid="location-header">
+      {coordinatesElement}
+      {typeof altitude === 'number' && (
+        <span className="altitude ml-2 text-gray-300">
+          Alt: {altitude}m
+        </span>
+      )}
+    </div>
+  )
+}
+
+function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClick }) {
   const closeButtonRef = useRef(null)
   const previousFocusRef = useRef(null)
   const imageRef = useRef(null)
@@ -526,6 +591,12 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate }) {
         <p className="text-xs text-gray-300">
           {formatDate(photo.date)} • {formatFileSize(photo.size)}
         </p>
+        <LocationHeader
+          latitude={photo.latitude}
+          longitude={photo.longitude}
+          altitude={photo.altitude}
+          onLocationClick={onLocationClick}
+        />
       </div>
 
       {/* Navigation buttons - only show if multiple photos */}
