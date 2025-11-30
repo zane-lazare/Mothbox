@@ -146,8 +146,7 @@ export default function Gallery() {
   // Handle map marker click - open lightbox with the clicked photo
   const handleMapPhotoClick = useCallback((location) => {
     // Find the photo object in the photos array by matching the path
-    // Note: location.photo_path from API, photos[].path from gallery API
-    const photo = photos.find(p => p.path === location.photo_path)
+    const photo = photos.find(p => p.path === location.path)
     if (photo) {
       saveScrollPosition()
       setSelectedPhoto(photo)

@@ -228,7 +228,7 @@ class TestMapLocationsIntegration:
             assert abs(location["longitude"] - matching_photo["longitude"]) < 0.0001
 
             # Verify required fields exist
-            assert "photo_path" in location
+            assert "path" in location
             assert "filename" in location
             assert "timestamp" in location
             assert "thumbnail_url" in location

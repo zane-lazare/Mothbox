@@ -27,7 +27,7 @@ def mock_locations_service():
     mock.get_locations.return_value = {
         'locations': [
             {
-                "photo_path": "2024-01-15/photo1.jpg",
+                "path": "2024-01-15/photo1.jpg",
                 "filename": "photo1.jpg",
                 "latitude": 37.7749,
                 "longitude": -122.4194,
@@ -35,7 +35,7 @@ def mock_locations_service():
                 "thumbnail_url": "/api/gallery/thumbnail/2024-01-15/photo1.jpg"
             },
             {
-                "photo_path": "2024-01-15/photo2.jpg",
+                "path": "2024-01-15/photo2.jpg",
                 "filename": "photo2.jpg",
                 "latitude": 37.7750,
                 "longitude": -122.4195,
@@ -43,7 +43,7 @@ def mock_locations_service():
                 "thumbnail_url": "/api/gallery/thumbnail/2024-01-15/photo2.jpg"
             },
             {
-                "photo_path": "2024-01-15/photo3.jpg",
+                "path": "2024-01-15/photo3.jpg",
                 "filename": "photo3.jpg",
                 "latitude": 37.8000,
                 "longitude": -122.4500,
@@ -461,7 +461,7 @@ class TestRealClustering:
         service._locations_service.get_locations.return_value = {
             'locations': [
                 {
-                    "photo_path": "photo1.jpg",
+                    "path": "photo1.jpg",
                     "filename": "photo1.jpg",
                     "latitude": 37.7749,
                     "longitude": -122.4194,
@@ -469,7 +469,7 @@ class TestRealClustering:
                     "thumbnail_url": "/api/thumbnail/photo1.jpg"
                 },
                 {
-                    "photo_path": "photo2.jpg",
+                    "path": "photo2.jpg",
                     "filename": "photo2.jpg",
                     "latitude": 37.7750,  # ~11 meters from photo1
                     "longitude": -122.4194,
@@ -477,7 +477,7 @@ class TestRealClustering:
                     "thumbnail_url": "/api/thumbnail/photo2.jpg"
                 },
                 {
-                    "photo_path": "photo3.jpg",
+                    "path": "photo3.jpg",
                     "filename": "photo3.jpg",
                     "latitude": 38.0000,  # ~25km from photo1
                     "longitude": -122.5000,
@@ -506,7 +506,7 @@ class TestRealClustering:
         service._locations_service.get_locations.return_value = {
             'locations': [
                 {
-                    "photo_path": "photo1.jpg",
+                    "path": "photo1.jpg",
                     "filename": "photo1.jpg",
                     "latitude": 37.0000,
                     "longitude": -122.0000,
@@ -514,7 +514,7 @@ class TestRealClustering:
                     "thumbnail_url": "/api/thumbnail/photo1.jpg"
                 },
                 {
-                    "photo_path": "photo2.jpg",
+                    "path": "photo2.jpg",
                     "filename": "photo2.jpg",
                     "latitude": 38.0000,
                     "longitude": -122.0000,
@@ -522,7 +522,7 @@ class TestRealClustering:
                     "thumbnail_url": "/api/thumbnail/photo2.jpg"
                 },
                 {
-                    "photo_path": "photo3.jpg",
+                    "path": "photo3.jpg",
                     "filename": "photo3.jpg",
                     "latitude": 39.0000,
                     "longitude": -122.0000,

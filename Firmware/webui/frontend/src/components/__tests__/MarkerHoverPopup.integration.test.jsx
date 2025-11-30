@@ -17,7 +17,8 @@ describe('MarkerHoverPopup Integration Tests', () => {
     center: { lat: 37.7749, lon: -122.4194 },
     count: 15,
     photos: Array.from({ length: 15 }, (_, i) => ({
-      photo_id: `photo_${i}.jpg`,
+      path: `photo_${i}.jpg`,
+      filename: `photo_${i}.jpg`,
       lat: 37.7749 + i * 0.0001,
       lon: -122.4194 + i * 0.0001,
       timestamp: `2024-01-${15 + i}T10:00:00`,
@@ -251,7 +252,8 @@ describe('MarkerHoverPopup Integration Tests', () => {
         ...mockCluster,
         count: 150,
         photos: Array.from({ length: 150 }, (_, i) => ({
-          photo_id: `photo_${i}.jpg`,
+          path: `photo_${i}.jpg`,
+          filename: `photo_${i}.jpg`,
           lat: 37.7749,
           lon: -122.4194,
           timestamp: '2024-01-15T10:00:00',

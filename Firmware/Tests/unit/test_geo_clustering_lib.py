@@ -52,7 +52,7 @@ class TestClusterLocationsBasic:
     def test_single_photo(self):
         """Single photo goes to unclustered (min_cluster_size=2)."""
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194}
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194}
         ]
         result = cluster_locations(locations)
 
@@ -60,7 +60,7 @@ class TestClusterLocationsBasic:
         assert result.total_clusters == 0
         assert len(result.clusters) == 0
         assert len(result.unclustered) == 1
-        assert result.unclustered[0].photo_id == "photo1.jpg"
+        assert result.unclustered[0].path == "photo1.jpg"
         assert result.unclustered[0].lat == 37.7749
         assert result.unclustered[0].lon == -122.4194
 
@@ -68,8 +68,8 @@ class TestClusterLocationsBasic:
         """Two photos within 100m form a cluster."""
         # Two points ~50m apart in San Francisco
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
-            {"photo_id": "photo2.jpg", "lat": 37.7753, "lon": -122.4194},  # ~44m north
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "photo2.jpg", "lat": 37.7753, "lon": -122.4194},  # ~44m north
         ]
         result = cluster_locations(locations, radius_m=100)
 
@@ -86,8 +86,8 @@ class TestClusterLocationsBasic:
         """Two photos >100m apart remain unclustered."""
         # Two points ~1.1km apart
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
-            {"photo_id": "photo2.jpg", "lat": 37.7849, "lon": -122.4194},  # ~1.1km north
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "photo2.jpg", "lat": 37.7849, "lon": -122.4194},  # ~1.1km north
         ]
         result = cluster_locations(locations, radius_m=100)
 
@@ -100,9 +100,9 @@ class TestClusterLocationsBasic:
         """A-B and B-C within radius forms single ABC cluster."""
         # Three points in chain: A--B--C where each link is ~50m
         locations = [
-            {"photo_id": "A.jpg", "lat": 37.7749, "lon": -122.4194},
-            {"photo_id": "B.jpg", "lat": 37.7753, "lon": -122.4194},  # ~44m from A
-            {"photo_id": "C.jpg", "lat": 37.7757, "lon": -122.4194},  # ~44m from B
+            {"path": "A.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "B.jpg", "lat": 37.7753, "lon": -122.4194},  # ~44m from A
+            {"path": "C.jpg", "lat": 37.7757, "lon": -122.4194},  # ~44m from B
         ]
         result = cluster_locations(locations, radius_m=100)
 
@@ -124,9 +124,9 @@ class TestClusterProperties:
     def test_cluster_count_property(self):
         """Cluster count matches number of photos."""
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
-            {"photo_id": "photo2.jpg", "lat": 37.7750, "lon": -122.4195},
-            {"photo_id": "photo3.jpg", "lat": 37.7751, "lon": -122.4196},
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "photo2.jpg", "lat": 37.7750, "lon": -122.4195},
+            {"path": "photo3.jpg", "lat": 37.7751, "lon": -122.4196},
         ]
         result = cluster_locations(locations, radius_m=100)
 
@@ -138,9 +138,9 @@ class TestClusterProperties:
         """Centroid is geographic center of all photos."""
         # Three points forming a triangle
         locations = [
-            {"photo_id": "A.jpg", "lat": 37.7749, "lon": -122.4194},
-            {"photo_id": "B.jpg", "lat": 37.7750, "lon": -122.4195},
-            {"photo_id": "C.jpg", "lat": 37.7751, "lon": -122.4196},
+            {"path": "A.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "B.jpg", "lat": 37.7750, "lon": -122.4195},
+            {"path": "C.jpg", "lat": 37.7751, "lon": -122.4196},
         ]
         result = cluster_locations(locations, radius_m=200)
 
@@ -156,11 +156,11 @@ class TestClusterProperties:
     def test_cluster_date_range(self):
         """Date range captures earliest and latest timestamps."""
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194,
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194,
              "timestamp": "2024-01-15T10:00:00"},
-            {"photo_id": "photo2.jpg", "lat": 37.7750, "lon": -122.4195,
+            {"path": "photo2.jpg", "lat": 37.7750, "lon": -122.4195,
              "timestamp": "2024-01-15T12:00:00"},
-            {"photo_id": "photo3.jpg", "lat": 37.7751, "lon": -122.4196,
+            {"path": "photo3.jpg", "lat": 37.7751, "lon": -122.4196,
              "timestamp": "2024-01-15T14:00:00"},
         ]
         result = cluster_locations(locations, radius_m=200)
@@ -174,9 +174,9 @@ class TestClusterProperties:
     def test_cluster_radius_calculation(self):
         """Cluster radius is max distance from centroid."""
         locations = [
-            {"photo_id": "center.jpg", "lat": 37.7750, "lon": -122.4195},
-            {"photo_id": "north.jpg", "lat": 37.7755, "lon": -122.4195},  # ~55m north
-            {"photo_id": "south.jpg", "lat": 37.7745, "lon": -122.4195},  # ~55m south
+            {"path": "center.jpg", "lat": 37.7750, "lon": -122.4195},
+            {"path": "north.jpg", "lat": 37.7755, "lon": -122.4195},  # ~55m north
+            {"path": "south.jpg", "lat": 37.7745, "lon": -122.4195},  # ~55m south
         ]
         result = cluster_locations(locations, radius_m=200)
 
@@ -189,8 +189,8 @@ class TestClusterProperties:
     def test_cluster_id_generation(self):
         """Cluster ID format is correct."""
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
-            {"photo_id": "photo2.jpg", "lat": 37.7750, "lon": -122.4195},
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "photo2.jpg", "lat": 37.7750, "lon": -122.4195},
         ]
         result = cluster_locations(locations, radius_m=100)
 
@@ -214,8 +214,8 @@ class TestConfigurableRadius:
         """50m radius clusters tighter groups."""
         # Two points ~60m apart
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
-            {"photo_id": "photo2.jpg", "lat": 37.7754, "lon": -122.4194},  # ~55m north
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "photo2.jpg", "lat": 37.7754, "lon": -122.4194},  # ~55m north
         ]
 
         # With 50m radius, should NOT cluster
@@ -231,8 +231,8 @@ class TestConfigurableRadius:
     def test_radius_100m_default(self):
         """100m default radius."""
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
-            {"photo_id": "photo2.jpg", "lat": 37.7753, "lon": -122.4194},
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "photo2.jpg", "lat": 37.7753, "lon": -122.4194},
         ]
 
         result = cluster_locations(locations)  # No radius specified
@@ -243,7 +243,7 @@ class TestConfigurableRadius:
         """500m radius clusters larger areas."""
         # Create points ~400m apart
         locations = [
-            {"photo_id": f"photo{i}.jpg", "lat": 37.7749 + i * 0.003, "lon": -122.4194}
+            {"path": f"photo{i}.jpg", "lat": 37.7749 + i * 0.003, "lon": -122.4194}
             for i in range(5)
         ]
 
@@ -257,10 +257,10 @@ class TestConfigurableRadius:
         """1km radius for large area grouping."""
         # Points spread across ~800m
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
-            {"photo_id": "photo2.jpg", "lat": 37.7769, "lon": -122.4194},  # ~222m
-            {"photo_id": "photo3.jpg", "lat": 37.7789, "lon": -122.4194},  # ~444m
-            {"photo_id": "photo4.jpg", "lat": 37.7809, "lon": -122.4194},  # ~666m
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "photo2.jpg", "lat": 37.7769, "lon": -122.4194},  # ~222m
+            {"path": "photo3.jpg", "lat": 37.7789, "lon": -122.4194},  # ~444m
+            {"path": "photo4.jpg", "lat": 37.7809, "lon": -122.4194},  # ~666m
         ]
 
         result = cluster_locations(locations, radius_m=1000)
@@ -278,7 +278,7 @@ class TestEdgeCases:
     def test_all_same_location(self):
         """All photos at identical location form one cluster."""
         locations = [
-            {"photo_id": f"photo{i}.jpg", "lat": 37.7749, "lon": -122.4194}
+            {"path": f"photo{i}.jpg", "lat": 37.7749, "lon": -122.4194}
             for i in range(10)
         ]
 
@@ -293,7 +293,7 @@ class TestEdgeCases:
         """Photos in a line cluster correctly."""
         # 10 photos in a line, 30m apart each
         locations = [
-            {"photo_id": f"photo{i}.jpg", "lat": 37.7749 + i * 0.00027, "lon": -122.4194}
+            {"path": f"photo{i}.jpg", "lat": 37.7749 + i * 0.00027, "lon": -122.4194}
             for i in range(10)
         ]
 
@@ -311,7 +311,7 @@ class TestEdgeCases:
         for i in range(3):
             for j in range(3):
                 locations.append({
-                    "photo_id": f"photo_{i}_{j}.jpg",
+                    "path": f"photo_{i}_{j}.jpg",
                     "lat": 37.7749 + i * 0.00045,  # ~50m
                     "lon": -122.4194 + j * 0.00045,
                 })
@@ -326,9 +326,9 @@ class TestEdgeCases:
         """Photos near poles cluster correctly."""
         # Near North Pole
         locations = [
-            {"photo_id": "arctic1.jpg", "lat": 89.0, "lon": 0.0},
-            {"photo_id": "arctic2.jpg", "lat": 89.0, "lon": 90.0},
-            {"photo_id": "arctic3.jpg", "lat": 89.0, "lon": 180.0},
+            {"path": "arctic1.jpg", "lat": 89.0, "lon": 0.0},
+            {"path": "arctic2.jpg", "lat": 89.0, "lon": 90.0},
+            {"path": "arctic3.jpg", "lat": 89.0, "lon": 180.0},
         ]
 
         result = cluster_locations(locations, radius_m=100000)  # 100km
@@ -342,8 +342,8 @@ class TestEdgeCases:
         # NOTE: Current grid-based implementation doesn't handle dateline wrap-around
         # This is acceptable for Mothbox use case (moth traps unlikely to span dateline)
         locations = [
-            {"photo_id": "west.jpg", "lat": 0.0, "lon": 179.999},
-            {"photo_id": "east.jpg", "lat": 0.0, "lon": -179.999},
+            {"path": "west.jpg", "lat": 0.0, "lon": 179.999},
+            {"path": "east.jpg", "lat": 0.0, "lon": -179.999},
         ]
 
         result = cluster_locations(locations, radius_m=500)
@@ -357,9 +357,9 @@ class TestEdgeCases:
     def test_min_cluster_size_3(self):
         """With min_cluster_size=3, pairs go to unclustered."""
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
-            {"photo_id": "photo2.jpg", "lat": 37.7750, "lon": -122.4195},
-            {"photo_id": "photo3.jpg", "lat": 37.8749, "lon": -122.4194},  # Far away
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "photo2.jpg", "lat": 37.7750, "lon": -122.4195},
+            {"path": "photo3.jpg", "lat": 37.8749, "lon": -122.4194},  # Far away
         ]
 
         result = cluster_locations(locations, min_cluster_size=3)
@@ -381,7 +381,7 @@ class TestLargeDatasets:
         # Generate 1000 random-ish locations in San Francisco area
         locations = [
             {
-                "photo_id": f"photo{i}.jpg",
+                "path": f"photo{i}.jpg",
                 "lat": 37.7749 + (i % 100) * 0.001,
                 "lon": -122.4194 + (i // 100) * 0.001,
             }
@@ -402,7 +402,7 @@ class TestLargeDatasets:
         # Generate 10000 locations
         locations = [
             {
-                "photo_id": f"photo{i}.jpg",
+                "path": f"photo{i}.jpg",
                 "lat": 37.7749 + (i % 100) * 0.001,
                 "lon": -122.4194 + (i // 100) * 0.001,
             }
@@ -427,7 +427,7 @@ class TestLargeDatasets:
         # Generate large dataset
         locations = [
             {
-                "photo_id": f"photo{i}.jpg",
+                "path": f"photo{i}.jpg",
                 "lat": 37.7749 + (i % 100) * 0.001,
                 "lon": -122.4194 + (i // 100) * 0.001,
             }
@@ -453,8 +453,8 @@ class TestClusteringResult:
     def test_result_contains_clusters(self):
         """Result has clusters list."""
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
-            {"photo_id": "photo2.jpg", "lat": 37.7750, "lon": -122.4195},
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "photo2.jpg", "lat": 37.7750, "lon": -122.4195},
         ]
         result = cluster_locations(locations)
 
@@ -464,7 +464,7 @@ class TestClusteringResult:
     def test_result_contains_unclustered(self):
         """Result has unclustered list."""
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
         ]
         result = cluster_locations(locations)
 
@@ -475,9 +475,9 @@ class TestClusteringResult:
     def test_result_totals_correct(self):
         """total_photos = len(clusters photos) + len(unclustered)."""
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
-            {"photo_id": "photo2.jpg", "lat": 37.7750, "lon": -122.4195},
-            {"photo_id": "photo3.jpg", "lat": 37.8749, "lon": -122.4194},  # Far away
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "photo2.jpg", "lat": 37.7750, "lon": -122.4195},
+            {"path": "photo3.jpg", "lat": 37.8749, "lon": -122.4194},  # Far away
         ]
         result = cluster_locations(locations)
 
@@ -490,7 +490,7 @@ class TestClusteringResult:
     def test_result_processing_time(self):
         """processing_time_ms is populated."""
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
         ]
         result = cluster_locations(locations)
 
@@ -500,7 +500,7 @@ class TestClusteringResult:
     def test_result_radius_stored(self):
         """Configured radius is stored in result."""
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
         ]
         result = cluster_locations(locations, radius_m=250)
 
@@ -517,8 +517,8 @@ class TestCentroidCalculation:
     def test_centroid_two_points(self):
         """Centroid of two points is midpoint."""
         locations = [
-            PhotoLocation(photo_id="A", lat=37.7749, lon=-122.4194),
-            PhotoLocation(photo_id="B", lat=37.7751, lon=-122.4196),
+            PhotoLocation(path="A", lat=37.7749, lon=-122.4194),
+            PhotoLocation(path="B", lat=37.7751, lon=-122.4196),
         ]
 
         center_lat, center_lon = calculate_centroid(locations)
@@ -529,9 +529,9 @@ class TestCentroidCalculation:
     def test_centroid_three_points(self):
         """Centroid of three points is average."""
         locations = [
-            PhotoLocation(photo_id="A", lat=37.7749, lon=-122.4194),
-            PhotoLocation(photo_id="B", lat=37.7750, lon=-122.4195),
-            PhotoLocation(photo_id="C", lat=37.7751, lon=-122.4196),
+            PhotoLocation(path="A", lat=37.7749, lon=-122.4194),
+            PhotoLocation(path="B", lat=37.7750, lon=-122.4195),
+            PhotoLocation(path="C", lat=37.7751, lon=-122.4196),
         ]
 
         center_lat, center_lon = calculate_centroid(locations)
@@ -545,9 +545,9 @@ class TestCentroidCalculation:
     def test_centroid_equator(self):
         """Centroid calculation works at equator."""
         locations = [
-            PhotoLocation(photo_id="A", lat=0.0, lon=0.0),
-            PhotoLocation(photo_id="B", lat=0.0, lon=0.01),
-            PhotoLocation(photo_id="C", lat=0.01, lon=0.0),
+            PhotoLocation(path="A", lat=0.0, lon=0.0),
+            PhotoLocation(path="B", lat=0.0, lon=0.01),
+            PhotoLocation(path="C", lat=0.01, lon=0.0),
         ]
 
         center_lat, center_lon = calculate_centroid(locations)
@@ -558,9 +558,9 @@ class TestCentroidCalculation:
     def test_centroid_high_latitude(self):
         """Centroid calculation works at high latitudes."""
         locations = [
-            PhotoLocation(photo_id="A", lat=89.0, lon=0.0),
-            PhotoLocation(photo_id="B", lat=89.0, lon=90.0),
-            PhotoLocation(photo_id="C", lat=89.0, lon=180.0),
+            PhotoLocation(path="A", lat=89.0, lon=0.0),
+            PhotoLocation(path="B", lat=89.0, lon=90.0),
+            PhotoLocation(path="C", lat=89.0, lon=180.0),
         ]
 
         center_lat, center_lon = calculate_centroid(locations)
@@ -582,10 +582,10 @@ class TestInputValidation:
     def test_invalid_coordinates_skipped(self):
         """Photos with invalid coordinates are skipped."""
         locations = [
-            {"photo_id": "valid.jpg", "lat": 37.7749, "lon": -122.4194},
-            {"photo_id": "invalid_lat.jpg", "lat": 91.0, "lon": -122.4194},  # Invalid
-            {"photo_id": "invalid_lon.jpg", "lat": 37.7749, "lon": 200.0},  # Invalid
-            {"photo_id": "valid2.jpg", "lat": 37.7750, "lon": -122.4195},
+            {"path": "valid.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "invalid_lat.jpg", "lat": 91.0, "lon": -122.4194},  # Invalid
+            {"path": "invalid_lon.jpg", "lat": 37.7749, "lon": 200.0},  # Invalid
+            {"path": "valid2.jpg", "lat": 37.7750, "lon": -122.4195},
         ]
 
         result = cluster_locations(locations)
@@ -593,11 +593,11 @@ class TestInputValidation:
         # Should only process valid photos
         assert result.total_photos == 2
 
-    def test_missing_photo_id_handled(self):
-        """Missing photo_id handled gracefully."""
+    def test_missing_path_handled(self):
+        """Missing path handled gracefully."""
         locations = [
-            {"lat": 37.7749, "lon": -122.4194},  # Missing photo_id
-            {"photo_id": "photo2.jpg", "lat": 37.7750, "lon": -122.4195},
+            {"lat": 37.7749, "lon": -122.4194},  # Missing path
+            {"path": "photo2.jpg", "lat": 37.7750, "lon": -122.4195},
         ]
 
         result = cluster_locations(locations)
@@ -608,7 +608,7 @@ class TestInputValidation:
     def test_negative_radius_error(self):
         """Negative radius raises ValueError."""
         locations = [
-            {"photo_id": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "photo1.jpg", "lat": 37.7749, "lon": -122.4194},
         ]
 
         with pytest.raises(ValueError, match="(?i)radius.*non-negative"):
@@ -617,9 +617,9 @@ class TestInputValidation:
     def test_missing_coordinates_skipped(self):
         """Photos missing lat/lon are skipped."""
         locations = [
-            {"photo_id": "no_lat.jpg", "lon": -122.4194},  # Missing lat
-            {"photo_id": "no_lon.jpg", "lat": 37.7749},  # Missing lon
-            {"photo_id": "valid.jpg", "lat": 37.7749, "lon": -122.4194},
+            {"path": "no_lat.jpg", "lon": -122.4194},  # Missing lat
+            {"path": "no_lon.jpg", "lat": 37.7749},  # Missing lon
+            {"path": "valid.jpg", "lat": 37.7749, "lon": -122.4194},
         ]
 
         result = cluster_locations(locations)
@@ -654,7 +654,7 @@ class TestTagsSupport:
     def test_photo_location_with_tags(self):
         """PhotoLocation accepts tags field."""
         photo = PhotoLocation(
-            photo_id="photo1.jpg",
+            path="photo1.jpg",
             lat=37.7749,
             lon=-122.4194,
             timestamp="2024-01-15T10:00:00",
@@ -666,7 +666,7 @@ class TestTagsSupport:
     def test_photo_location_without_tags(self):
         """PhotoLocation tags field defaults to None."""
         photo = PhotoLocation(
-            photo_id="photo1.jpg",
+            path="photo1.jpg",
             lat=37.7749,
             lon=-122.4194
         )
@@ -677,13 +677,13 @@ class TestTagsSupport:
         """cluster_locations() preserves tags through clustering."""
         locations = [
             {
-                "photo_id": "photo1.jpg",
+                "path": "photo1.jpg",
                 "lat": 37.7749,
                 "lon": -122.4194,
                 "tags": ["moth", "night"]
             },
             {
-                "photo_id": "photo2.jpg",
+                "path": "photo2.jpg",
                 "lat": 37.7750,
                 "lon": -122.4195,
                 "tags": ["beetle", "day"]
@@ -697,8 +697,8 @@ class TestTagsSupport:
         cluster = result.clusters[0]
 
         # Tags should be preserved in photos
-        photo1 = next(p for p in cluster.photos if p.photo_id == "photo1.jpg")
-        photo2 = next(p for p in cluster.photos if p.photo_id == "photo2.jpg")
+        photo1 = next(p for p in cluster.photos if p.path == "photo1.jpg")
+        photo2 = next(p for p in cluster.photos if p.path == "photo2.jpg")
 
         assert photo1.tags == ["moth", "night"]
         assert photo2.tags == ["beetle", "day"]
@@ -707,13 +707,13 @@ class TestTagsSupport:
         """cluster_locations() handles photos without tags."""
         locations = [
             {
-                "photo_id": "photo1.jpg",
+                "path": "photo1.jpg",
                 "lat": 37.7749,
                 "lon": -122.4194,
                 "tags": ["moth"]
             },
             {
-                "photo_id": "photo2.jpg",
+                "path": "photo2.jpg",
                 "lat": 37.7750,
                 "lon": -122.4195
                 # No tags field
@@ -727,8 +727,8 @@ class TestTagsSupport:
         cluster = result.clusters[0]
 
         # Tags should be preserved/None
-        photo1 = next(p for p in cluster.photos if p.photo_id == "photo1.jpg")
-        photo2 = next(p for p in cluster.photos if p.photo_id == "photo2.jpg")
+        photo1 = next(p for p in cluster.photos if p.path == "photo1.jpg")
+        photo2 = next(p for p in cluster.photos if p.path == "photo2.jpg")
 
         assert photo1.tags == ["moth"]
         assert photo2.tags is None
@@ -737,7 +737,7 @@ class TestTagsSupport:
         """Unclustered photos preserve their tags."""
         locations = [
             {
-                "photo_id": "photo1.jpg",
+                "path": "photo1.jpg",
                 "lat": 37.7749,
                 "lon": -122.4194,
                 "tags": ["moth", "solo"]
@@ -756,13 +756,13 @@ class TestTagsSupport:
         """Empty tags list is preserved."""
         locations = [
             {
-                "photo_id": "photo1.jpg",
+                "path": "photo1.jpg",
                 "lat": 37.7749,
                 "lon": -122.4194,
                 "tags": []
             },
             {
-                "photo_id": "photo2.jpg",
+                "path": "photo2.jpg",
                 "lat": 37.7750,
                 "lon": -122.4195,
                 "tags": []

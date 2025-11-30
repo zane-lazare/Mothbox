@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState, useCallback, useEffect } from 'react'
 import { getClusteredLocations } from '../utils/api'
+import { getThumbnailUrl } from '../utils/thumbnailUrl'
 
 const STORAGE_KEY = 'mothbox_clustering_settings'
 
@@ -38,22 +39,53 @@ function saveSettings(settings) {
 }
 
 /**
- * Normalize unclustered photo data to expected field names.
- * Backend returns: photo_id, lat, lon, timestamp, tags
- * Frontend expects: filename, latitude, longitude, thumbnail_url, timestamp
+ * Normalizes backend photo data to frontend field names.
+ *
+ * Backend API returns: path, lat, lon, timestamp, tags
+ * Frontend expects: path, filename, latitude, longitude, thumbnail_url
+ *
+ * This normalization guarantees all fields exist, so consumers can
+ * safely access photo.filename without fallback logic.
+ *
+ * @param {Object} photo - Raw photo data from backend API
+ * @param {string} photo.path - Relative path from PHOTOS_DIR (e.g., "2024-11-10/photo.jpg")
+ * @param {number} photo.lat - Latitude coordinate
+ * @param {number} photo.lon - Longitude coordinate
+ * @param {string} [photo.timestamp] - Photo timestamp
+ * @param {string[]} [photo.tags] - Photo tags
+ * @returns {Object} Normalized photo object with guaranteed fields
  */
-function normalizeUnclusteredPhotos(photos) {
-  return photos.map((photo) => ({
-    filename: photo.photo_id,
+function normalizePhoto(photo) {
+  return {
+    // Standardized field name
+    path: photo.path,
+    // Derived fields for UI components
+    filename: (photo.path || '').split('/').pop() || photo.path || 'unknown',
     latitude: photo.lat,
     longitude: photo.lon,
-    thumbnail_url: `/api/gallery/photos/${encodeURIComponent(photo.photo_id)}/thumbnail`,
+    thumbnail_url: getThumbnailUrl(photo.path),
     timestamp: photo.timestamp,
     tags: photo.tags,
-    // Preserve original fields for backward compatibility
-    photo_id: photo.photo_id,
+    // Preserve original lat/lon for components expecting them
     lat: photo.lat,
     lon: photo.lon,
+  }
+}
+
+/**
+ * Normalize unclustered photo data to expected field names.
+ */
+function normalizeUnclusteredPhotos(photos) {
+  return photos.map(normalizePhoto)
+}
+
+/**
+ * Normalize cluster data including photos within clusters.
+ */
+function normalizeClusters(clusters) {
+  return clusters.map((cluster) => ({
+    ...cluster,
+    photos: cluster.photos.map(normalizePhoto),
   }))
 }
 
@@ -121,7 +153,7 @@ export function useClusteredLocations() {
   const partialWarning = data?.metadata?.warning ?? null
 
   return {
-    clusters: data?.clusters || [],
+    clusters: normalizeClusters(data?.clusters || []),
     unclustered: normalizeUnclusteredPhotos(data?.unclustered || []),
     metadata: data?.metadata || {},
     isLoading,

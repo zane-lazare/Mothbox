@@ -215,7 +215,7 @@ class TestLocationsEndpoint:
 
         # Verify first location structure
         location = data['locations'][0]
-        assert 'photo_path' in location
+        assert 'path' in location
         assert 'filename' in location
         assert 'latitude' in location
         assert 'longitude' in location
@@ -223,7 +223,7 @@ class TestLocationsEndpoint:
         assert 'thumbnail_url' in location
 
         # Verify data types
-        assert isinstance(location['photo_path'], str)
+        assert isinstance(location['path'], str)
         assert isinstance(location['filename'], str)
         assert isinstance(location['latitude'], float)
         assert isinstance(location['longitude'], float)
@@ -402,8 +402,8 @@ class TestLocationsEndpoint:
         # Verify thumbnail URL format
         assert location['thumbnail_url'] == '/api/gallery/thumbnail/2024-11-10/photo_001.jpg'
 
-        # Verify photo_path matches
-        assert location['photo_path'] == '2024-11-10/photo_001.jpg'
+        # Verify path matches
+        assert location['path'] == '2024-11-10/photo_001.jpg'
 
     def test_locations_invalid_limit_parameter(self, gallery_client):
         """GET /locations?limit=invalid returns 400 error"""

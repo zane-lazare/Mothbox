@@ -7,77 +7,88 @@ import { HOVER_POPUP_CONFIG } from '../../constants/config'
 describe('ThumbnailGrid', () => {
   const mockPhotos = [
     {
-      photo_id: 'photo1.jpg',
+      path: 'photo1.jpg',
+      filename: 'photo1.jpg',
       lat: 37.7749,
       lon: -122.4194,
       timestamp: '2024-01-15T10:30:00',
       tags: ['moth', 'night'],
     },
     {
-      photo_id: 'photo2.jpg',
+      path: 'photo2.jpg',
+      filename: 'photo2.jpg',
       lat: 37.7750,
       lon: -122.4195,
       timestamp: '2024-01-15T10:31:00',
       tags: ['butterfly'],
     },
     {
-      photo_id: 'photo3.jpg',
+      path: 'photo3.jpg',
+      filename: 'photo3.jpg',
       lat: 37.7751,
       lon: -122.4196,
       timestamp: '2024-01-15T10:32:00',
       tags: ['beetle'],
     },
     {
-      photo_id: 'photo4.jpg',
+      path: 'photo4.jpg',
+      filename: 'photo4.jpg',
       lat: 37.7752,
       lon: -122.4197,
       timestamp: '2024-01-15T10:33:00',
       tags: [],
     },
     {
-      photo_id: 'photo5.jpg',
+      path: 'photo5.jpg',
+      filename: 'photo5.jpg',
       lat: 37.7753,
       lon: -122.4198,
       timestamp: '2024-01-15T10:34:00',
       tags: ['moth'],
     },
     {
-      photo_id: 'photo6.jpg',
+      path: 'photo6.jpg',
+      filename: 'photo6.jpg',
       lat: 37.7754,
       lon: -122.4199,
       timestamp: '2024-01-15T10:35:00',
       tags: [],
     },
     {
-      photo_id: 'photo7.jpg',
+      path: 'photo7.jpg',
+      filename: 'photo7.jpg',
       lat: 37.7755,
       lon: -122.4200,
       timestamp: '2024-01-15T10:36:00',
       tags: ['dragonfly'],
     },
     {
-      photo_id: 'photo8.jpg',
+      path: 'photo8.jpg',
+      filename: 'photo8.jpg',
       lat: 37.7756,
       lon: -122.4201,
       timestamp: '2024-01-15T10:37:00',
       tags: [],
     },
     {
-      photo_id: 'photo9.jpg',
+      path: 'photo9.jpg',
+      filename: 'photo9.jpg',
       lat: 37.7757,
       lon: -122.4202,
       timestamp: '2024-01-15T10:38:00',
       tags: ['spider'],
     },
     {
-      photo_id: 'photo10.jpg',
+      path: 'photo10.jpg',
+      filename: 'photo10.jpg',
       lat: 37.7758,
       lon: -122.4203,
       timestamp: '2024-01-15T10:39:00',
       tags: [],
     },
     {
-      photo_id: 'photo11.jpg',
+      path: 'photo11.jpg',
+      filename: 'photo11.jpg',
       lat: 37.7759,
       lon: -122.4204,
       timestamp: '2024-01-15T10:40:00',
@@ -119,10 +130,10 @@ describe('ThumbnailGrid', () => {
 
       const images = screen.getAllByRole('img')
       images.forEach((img, index) => {
-        const photoId = mockPhotos[index].photo_id
+        const photoPath = mockPhotos[index].path
         expect(img).toHaveAttribute(
           'src',
-          `/api/gallery/thumbnail/${photoId}?size=${HOVER_POPUP_CONFIG.THUMBNAIL_SIZE}`
+          `/api/gallery/thumbnail/${photoPath}?size=${HOVER_POPUP_CONFIG.THUMBNAIL_SIZE}`
         )
       })
     })
@@ -132,7 +143,7 @@ describe('ThumbnailGrid', () => {
 
       const images = screen.getAllByRole('img')
       images.forEach((img, index) => {
-        expect(img).toHaveAttribute('alt', mockPhotos[index].photo_id)
+        expect(img).toHaveAttribute('alt', mockPhotos[index].filename)
       })
     })
 
@@ -149,8 +160,8 @@ describe('ThumbnailGrid', () => {
 
       const images = screen.getAllByRole('img')
       images.forEach((img, index) => {
-        const photoId = mockPhotos[index].photo_id
-        expect(img).toHaveAttribute('src', `/api/gallery/thumbnail/${photoId}?size=${customSize}`)
+        const photoPath = mockPhotos[index].path
+        expect(img).toHaveAttribute('src', `/api/gallery/thumbnail/${photoPath}?size=${customSize}`)
       })
     })
 
@@ -399,10 +410,10 @@ describe('ThumbnailGrid', () => {
     it('accepts photos with optional properties', () => {
       const minimalPhotos = [
         {
-          photo_id: 'photo1.jpg',
+          path: 'photo1.jpg',
         },
         {
-          photo_id: 'photo2.jpg',
+          path: 'photo2.jpg',
           lat: 37.7749,
         },
       ]

@@ -80,15 +80,14 @@ export default function MapPage() {
   const handleMapPhotoClick = useCallback(
     (location) => {
       // Find the photo object in the photos array by matching the path
-      // Note: location.photo_path from API, photos[].path from gallery API
-      const photo = photos.find((p) => p.path === location.photo_path)
+      const photo = photos.find((p) => p.path === location.path)
       if (photo) {
         setSelectedPhoto(photo)
       } else {
         // Fallback: Create a minimal photo object from location data
         // This ensures the lightbox can still open even if photo isn't in the loaded set
         setSelectedPhoto({
-          path: location.photo_path,
+          path: location.path,
           filename: location.filename,
           thumbnail_url: location.thumbnail_url,
           date: location.timestamp,

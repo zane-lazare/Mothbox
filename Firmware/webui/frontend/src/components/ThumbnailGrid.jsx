@@ -159,7 +159,7 @@ function ThumbnailGrid({
       >
         {displayPhotos.map((photo, index) => (
           <button
-            key={photo.photo_id}
+            key={photo.path}
             ref={(el) => (buttonRefs.current[index] = el)}
             type="button"
             tabIndex={index === focusedIndex ? 0 : -1}
@@ -168,8 +168,8 @@ function ThumbnailGrid({
             className="focus:outline-none focus:ring-2 focus:ring-blue-500 rounded overflow-hidden"
           >
             <img
-              src={`/api/gallery/thumbnail/${photo.photo_id}?size=${thumbnailSize}`}
-              alt={photo.photo_id}
+              src={photo.thumbnail_url || `/api/gallery/thumbnail/${photo.path}?size=${thumbnailSize}`}
+              alt={photo.filename || photo.path}
               loading="lazy"
               className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
               style={{ width: thumbnailSize, height: thumbnailSize }}
@@ -203,9 +203,13 @@ function ThumbnailGrid({
 ThumbnailGrid.propTypes = {
   photos: PropTypes.arrayOf(
     PropTypes.shape({
-      photo_id: PropTypes.string.isRequired,
+      path: PropTypes.string.isRequired,
+      filename: PropTypes.string,
+      thumbnail_url: PropTypes.string,
       lat: PropTypes.number,
       lon: PropTypes.number,
+      latitude: PropTypes.number,
+      longitude: PropTypes.number,
       timestamp: PropTypes.string,
       tags: PropTypes.arrayOf(PropTypes.string),
     })
