@@ -84,9 +84,11 @@ describe('useClusteredLocations', () => {
         ],
         unclustered: [
           {
-            filename: 'photo4.jpg',
-            latitude: 38.0,
-            longitude: -123.0,
+            photo_id: 'photo4.jpg',
+            lat: 38.0,
+            lon: -123.0,
+            timestamp: '2024-01-17T10:00:00Z',
+            tags: [],
           },
         ],
         metadata: {
@@ -112,7 +114,21 @@ describe('useClusteredLocations', () => {
       })
 
       expect(result.current.clusters).toEqual(mockClusteredData.clusters)
-      expect(result.current.unclustered).toEqual(mockClusteredData.unclustered)
+      // Unclustered photos are normalized to frontend field names
+      expect(result.current.unclustered).toEqual([
+        {
+          filename: 'photo4.jpg',
+          latitude: 38.0,
+          longitude: -123.0,
+          thumbnail_url: '/api/gallery/photos/photo4.jpg/thumbnail',
+          timestamp: '2024-01-17T10:00:00Z',
+          tags: [],
+          // Backward compatibility fields
+          photo_id: 'photo4.jpg',
+          lat: 38.0,
+          lon: -123.0,
+        },
+      ])
       expect(result.current.metadata).toEqual(mockClusteredData.metadata)
     })
 

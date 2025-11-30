@@ -38,6 +38,26 @@ function saveSettings(settings) {
 }
 
 /**
+ * Normalize unclustered photo data to expected field names.
+ * Backend returns: photo_id, lat, lon, timestamp, tags
+ * Frontend expects: filename, latitude, longitude, thumbnail_url, timestamp
+ */
+function normalizeUnclusteredPhotos(photos) {
+  return photos.map((photo) => ({
+    filename: photo.photo_id,
+    latitude: photo.lat,
+    longitude: photo.lon,
+    thumbnail_url: `/api/gallery/photos/${encodeURIComponent(photo.photo_id)}/thumbnail`,
+    timestamp: photo.timestamp,
+    tags: photo.tags,
+    // Preserve original fields for backward compatibility
+    photo_id: photo.photo_id,
+    lat: photo.lat,
+    lon: photo.lon,
+  }))
+}
+
+/**
  * Fetch clustered locations from API
  */
 async function fetchClusteredLocations({ enabled, radius, minSize }) {
@@ -102,7 +122,7 @@ export function useClusteredLocations() {
 
   return {
     clusters: data?.clusters || [],
-    unclustered: data?.unclustered || [],
+    unclustered: normalizeUnclusteredPhotos(data?.unclustered || []),
     metadata: data?.metadata || {},
     isLoading,
     error,
