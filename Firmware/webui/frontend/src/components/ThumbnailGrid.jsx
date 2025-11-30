@@ -61,6 +61,16 @@ function ThumbnailGrid({
   const [focusedIndex, setFocusedIndex] = useState(0)
   const buttonRefs = useRef([])
 
+  // Calculate grid columns from config (used for keyboard navigation)
+  const gridColumns = HOVER_POPUP_CONFIG.GRID_SIZE
+
+  // Mapping of grid sizes to Tailwind classes (required for JIT purging)
+  const gridColsClass = {
+    2: 'grid-cols-2',
+    3: 'grid-cols-3',
+    4: 'grid-cols-4',
+  }[gridColumns] || 'grid-cols-3'
+
   // Setup swipe navigation if enabled
   const { currentPage, totalPages, startIndex, endIndex, handlers } = useSwipeNavigation({
     totalItems: photos?.length || 0,
@@ -82,7 +92,6 @@ function ThumbnailGrid({
    */
   const handleKeyDown = useCallback(
     (e, index) => {
-      const gridSize = 3 // 3 columns
       const maxIndex = displayPhotos.length - 1
       let newIndex = index
 
@@ -94,10 +103,10 @@ function ThumbnailGrid({
           newIndex = Math.max(index - 1, 0)
           break
         case 'ArrowDown':
-          newIndex = Math.min(index + gridSize, maxIndex)
+          newIndex = Math.min(index + gridColumns, maxIndex)
           break
         case 'ArrowUp':
-          newIndex = Math.max(index - gridSize, 0)
+          newIndex = Math.max(index - gridColumns, 0)
           break
         case 'Home':
           newIndex = 0
@@ -118,13 +127,13 @@ function ThumbnailGrid({
       setFocusedIndex(newIndex)
       buttonRefs.current[newIndex]?.focus()
     },
-    [displayPhotos, onPhotoClick]
+    [displayPhotos, onPhotoClick, gridColumns]
   )
 
   // Loading state - show skeleton loaders
   if (isLoading) {
     return (
-      <div className={`grid grid-cols-3 gap-1 ${className}`}>
+      <div className={`grid ${gridColsClass} gap-1 ${className}`}>
         {Array.from({ length: maxPhotos }).map((_, index) => (
           <ThumbnailSkeleton key={index} size={thumbnailSize} />
         ))}
@@ -145,7 +154,7 @@ function ThumbnailGrid({
   return (
     <div className="relative">
       <div
-        className={`grid grid-cols-3 gap-1 ${className}`}
+        className={`grid ${gridColsClass} gap-1 ${className}`}
         {...(enableSwipe ? handlers : {})}
       >
         {displayPhotos.map((photo, index) => (

@@ -7,6 +7,7 @@ import markerIconRetina from 'leaflet/dist/images/marker-icon-2x.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 import { MAP_CONFIG, CLUSTERING_CONFIG } from '../constants/config'
 import MarkerHoverPopup from './MarkerHoverPopup'
+import ErrorBoundary from './ErrorBoundary'
 import { useHoverPopup } from '../hooks/useHoverPopup'
 
 /**
@@ -336,14 +337,36 @@ function MapView({
         <BoundsUpdater locations={normalizedLocations} clusters={normalizedClusters} />
       </MapContainer>
 
-      {/* Hover popup overlay */}
-      <MarkerHoverPopup
-        cluster={targetCluster}
-        isVisible={isVisible}
-        position={position}
-        onPhotoClick={onPhotoClick}
-        onClose={handleMouseLeave}
-      />
+      {/* Hover popup overlay - wrapped in ErrorBoundary for graceful degradation */}
+      <ErrorBoundary
+        fallback={({ onClose }) => (
+          <div
+            className="fixed bg-white rounded-lg shadow-xl border border-gray-200 p-4"
+            style={{
+              left: position?.x || 0,
+              top: position?.y || 0,
+              zIndex: 1100,
+            }}
+          >
+            <p className="text-red-600 text-sm mb-2">Failed to load preview</p>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 text-sm underline"
+            >
+              Close
+            </button>
+          </div>
+        )}
+        onReset={handleMouseLeave}
+      >
+        <MarkerHoverPopup
+          cluster={targetCluster}
+          isVisible={isVisible}
+          position={position}
+          onPhotoClick={onPhotoClick}
+          onClose={handleMouseLeave}
+        />
+      </ErrorBoundary>
 
       {/* Clustering controls - only show if settings provided */}
       {clusterSettings && onClusterEnabledChange && onClusterRadiusChange && (

@@ -535,23 +535,17 @@ def capture_photo():
 
                     # Invalidate location-related caches so map view shows new photo
                     try:
-                        from webui.backend.app import (
-                            clustering_service,
-                            series_service,
-                            locations_service
+                        from services import (
+                            get_clustering_service,
+                            get_series_service,
+                            get_locations_service
                         )
 
-                        if clustering_service:
-                            clustering_service.invalidate_cache(PHOTOS_DIR)
-                        if series_service:
-                            series_service.invalidate_cache(PHOTOS_DIR)
-                        if locations_service:
-                            locations_service.invalidate_cache(PHOTOS_DIR)
+                        get_clustering_service().invalidate_cache(PHOTOS_DIR)
+                        get_series_service().invalidate_cache(PHOTOS_DIR)
+                        get_locations_service().invalidate_cache(PHOTOS_DIR)
 
                         logger.debug("Invalidated location/clustering/series caches after photo capture")
-                    except ImportError:
-                        # Services not yet initialized - this is fine during startup
-                        pass
                     except Exception as cache_error:
                         # Log but don't fail capture on cache invalidation errors
                         logger.warning(f"Failed to invalidate caches: {cache_error}")

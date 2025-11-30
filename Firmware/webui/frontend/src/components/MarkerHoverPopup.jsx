@@ -32,8 +32,17 @@ function MarkerHoverPopup({
   const popupRef = useRef(null)
   const animationTimerRef = useRef(null)
   const previousActiveElementRef = useRef(null)
+  const isMountedRef = useRef(true)
   const [shouldRender, setShouldRender] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
+
+  // Track component mount state to prevent setState on unmounted component
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   // Handle animation state for smooth enter/exit transitions
   // Uses ref for timer to ensure cleanup on unmount
@@ -43,14 +52,18 @@ function MarkerHoverPopup({
       setShouldRender(true)
       // Trigger fade-in animation on next frame (ensures DOM is ready)
       requestAnimationFrame(() => {
-        setIsAnimating(true)
+        if (isMountedRef.current) {
+          setIsAnimating(true)
+        }
       })
     } else {
       // Start fade-out animation
       setIsAnimating(false)
       // Remove from DOM after animation completes
       animationTimerRef.current = setTimeout(() => {
-        setShouldRender(false)
+        if (isMountedRef.current) {
+          setShouldRender(false)
+        }
       }, HOVER_POPUP_CONFIG.ANIMATION_DURATION)
     }
 
