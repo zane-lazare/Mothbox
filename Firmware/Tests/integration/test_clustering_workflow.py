@@ -33,17 +33,17 @@ class TestClusteringWorkflow:
         return {
             'locations': [
                 # Cluster 1: Two photos within 50m
-                {'photo_path': 'photo1.jpg', 'filename': 'photo1.jpg',
+                {'path': 'photo1.jpg', 'filename': 'photo1.jpg',
                  'latitude': 37.7749, 'longitude': -122.4194, 'timestamp': '2024-01-15T10:00:00'},
-                {'photo_path': 'photo2.jpg', 'filename': 'photo2.jpg',
+                {'path': 'photo2.jpg', 'filename': 'photo2.jpg',
                  'latitude': 37.7750, 'longitude': -122.4195, 'timestamp': '2024-01-15T10:05:00'},
                 # Cluster 2: Two photos within 50m (far from cluster 1)
-                {'photo_path': 'photo3.jpg', 'filename': 'photo3.jpg',
+                {'path': 'photo3.jpg', 'filename': 'photo3.jpg',
                  'latitude': 38.5000, 'longitude': -121.5000, 'timestamp': '2024-01-15T11:00:00'},
-                {'photo_path': 'photo4.jpg', 'filename': 'photo4.jpg',
+                {'path': 'photo4.jpg', 'filename': 'photo4.jpg',
                  'latitude': 38.5001, 'longitude': -121.5001, 'timestamp': '2024-01-15T11:05:00'},
                 # Unclustered: Single photo far from others
-                {'photo_path': 'photo5.jpg', 'filename': 'photo5.jpg',
+                {'path': 'photo5.jpg', 'filename': 'photo5.jpg',
                  'latitude': 40.0000, 'longitude': -120.0000, 'timestamp': '2024-01-15T12:00:00'},
             ],
             'total_with_gps': 5,
@@ -103,21 +103,21 @@ class TestClusteringWorkflow:
         response = client.get('/api/gallery/locations/clustered?radius=100')
         data = json.loads(response.data)
 
-        # Get all photo IDs in clusters
-        clustered_ids = set()
+        # Get all photo paths in clusters
+        clustered_paths = set()
         for cluster in data['clusters']:
             for photo in cluster['photos']:
-                clustered_ids.add(photo['photo_id'])
+                clustered_paths.add(photo['path'])
 
         # Photos 1-4 should be clustered, photo5 should be unclustered
-        assert 'photo1.jpg' in clustered_ids
-        assert 'photo2.jpg' in clustered_ids
-        assert 'photo3.jpg' in clustered_ids
-        assert 'photo4.jpg' in clustered_ids
+        assert 'photo1.jpg' in clustered_paths
+        assert 'photo2.jpg' in clustered_paths
+        assert 'photo3.jpg' in clustered_paths
+        assert 'photo4.jpg' in clustered_paths
 
         # Photo5 should be unclustered
-        unclustered_ids = {p['photo_id'] for p in data['unclustered']}
-        assert 'photo5.jpg' in unclustered_ids
+        unclustered_paths = {p['path'] for p in data['unclustered']}
+        assert 'photo5.jpg' in unclustered_paths
 
     def test_cluster_centers_are_centroids(self, client):
         """Verify cluster centers are geographic centroids."""
