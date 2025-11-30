@@ -132,9 +132,8 @@ function useMapLightboxSync({ mapRef }) {
       try {
         const currentZoom = mapRef.current.getZoom?.() || 13
         mapRef.current.flyTo([photo.latitude, photo.longitude], currentZoom)
-      } catch (error) {
-        // Silently handle map errors
-        console.warn('Error panning map to photo:', error)
+      } catch {
+        // Silently handle map errors (expected for certain edge cases)
       }
     },
     [mapRef]

@@ -8,8 +8,11 @@ import { useMap } from 'react-leaflet'
  * convenience methods for common map operations (flyTo, setZoom, etc). Designed
  * for programmatic map control from parent components without prop drilling.
  *
- * IMPORTANT: This hook must be used inside a <MapContainer> component from react-leaflet,
- * as it relies on the useMap() hook which requires the map context.
+ * IMPORTANT: This hook MUST be used inside a <MapContainer> component from react-leaflet.
+ * Using it outside of MapContainer will throw an error. If you need graceful handling
+ * outside MapContainer, use the MapRefSetter component pattern instead (see MapView.jsx).
+ *
+ * @throws {Error} If used outside of a MapContainer component
  *
  * @returns {Object} Hook state
  * @returns {React.RefObject} mapRef - React ref containing the Leaflet map instance
@@ -50,15 +53,8 @@ import { useMap } from 'react-leaflet'
  */
 export function useMapRef() {
   // Get Leaflet map instance from react-leaflet context
-  // Note: This will be null if used outside MapContainer
-  let map = null
-  try {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    map = useMap()
-  } catch {
-    // useMap throws if not inside MapContainer - catch and leave map as null
-    // This allows hook to be used outside map context without crashing
-  }
+  // This hook MUST be used inside a <MapContainer> - will throw if not
+  const map = useMap()
 
   // Store map instance in ref for external access
   const mapRef = useRef(map)
@@ -90,12 +86,12 @@ export function useMapRef() {
           const currentZoom = mapRef.current.getZoom()
           mapRef.current.flyTo([lat, lng], currentZoom)
         }
-      } catch (error) {
+      } catch {
         // Silently handle errors (invalid coordinates, etc)
-        console.warn('flyTo error:', error)
+        // This is expected for photos without valid GPS
       }
     },
-    [mapRef]
+    [] // mapRef is a stable ref, no need to include in deps
   )
 
   /**
@@ -109,11 +105,11 @@ export function useMapRef() {
 
       try {
         mapRef.current.setZoom(level)
-      } catch (error) {
-        console.warn('setZoom error:', error)
+      } catch {
+        // Silently handle errors (invalid zoom level, etc)
       }
     },
-    [mapRef]
+    [] // mapRef is a stable ref, no need to include in deps
   )
 
   /**
@@ -126,11 +122,10 @@ export function useMapRef() {
 
     try {
       return mapRef.current.getCenter()
-    } catch (error) {
-      console.warn('getCenter error:', error)
+    } catch {
       return null
     }
-  }, [mapRef])
+  }, []) // mapRef is a stable ref, no need to include in deps
 
   /**
    * Get current map zoom level
@@ -142,11 +137,10 @@ export function useMapRef() {
 
     try {
       return mapRef.current.getZoom()
-    } catch (error) {
-      console.warn('getZoom error:', error)
+    } catch {
       return null
     }
-  }, [mapRef])
+  }, []) // mapRef is a stable ref, no need to include in deps
 
   /**
    * Get current map bounds
@@ -158,11 +152,10 @@ export function useMapRef() {
 
     try {
       return mapRef.current.getBounds()
-    } catch (error) {
-      console.warn('getBounds error:', error)
+    } catch {
       return null
     }
-  }, [mapRef])
+  }, []) // mapRef is a stable ref, no need to include in deps
 
   /**
    * Fit map to show specified geographic bounds
@@ -176,11 +169,11 @@ export function useMapRef() {
 
       try {
         mapRef.current.fitBounds(bounds, options)
-      } catch (error) {
-        console.warn('fitBounds error:', error)
+      } catch {
+        // Silently handle errors (invalid bounds, etc)
       }
     },
-    [mapRef]
+    [] // mapRef is a stable ref, no need to include in deps
   )
 
   return {

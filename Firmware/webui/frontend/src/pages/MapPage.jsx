@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 import { useInfiniteQuery } from '@tanstack/react-query'
@@ -76,6 +76,12 @@ export default function MapPage() {
     onClusterClick,
   } = useMapLightboxSync({ mapRef })
 
+  // Memoize virtual cluster to avoid recreation on every call
+  // This pattern allows navigation through all photos even from single marker clicks
+  const virtualCluster = useMemo(() => ({
+    getAllChildMarkers: () => photos.map(p => ({ options: { ...p } }))
+  }), [photos])
+
   // Handle map marker click - open lightbox with the clicked photo
   const handleMapPhotoClick = useCallback(
     (location) => {
@@ -83,16 +89,6 @@ export default function MapPage() {
       // Note: location.photo_path from API, photos[].path from gallery API
       const photo = photos.find((p) => p.path === location.photo_path)
       if (photo) {
-        // Create a "virtual cluster" containing all photos for navigation
-        // This allows users to navigate through all photos even when clicking a single marker
-        const virtualCluster = {
-          getAllChildMarkers: () => {
-            // Return array of mock markers with photo data in options
-            return photos.map(p => ({
-              options: { ...p }
-            }))
-          }
-        }
         // Use onClusterClick to set up full photo navigation
         onClusterClick(virtualCluster, photo)
       } else {
@@ -106,7 +102,7 @@ export default function MapPage() {
         onMarkerClick(null, minimalPhoto)
       }
     },
-    [photos, onMarkerClick, onClusterClick]
+    [photos, virtualCluster, onMarkerClick, onClusterClick]
   )
 
   // Handle lightbox navigation - simple forward to openLightbox
@@ -128,12 +124,12 @@ export default function MapPage() {
         try {
           const currentZoom = mapRef.current.getZoom?.() || 13
           mapRef.current.flyTo?.([lat, lon], currentZoom)
-        } catch (error) {
-          console.warn('Error panning map to location:', error)
+        } catch {
+          // Silently handle map pan errors (expected for certain edge cases)
         }
       }
     },
-    [mapRef]
+    [] // mapRef is a stable ref, no need to include in deps
   )
 
   return (

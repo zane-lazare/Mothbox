@@ -11,6 +11,7 @@ vi.mock('leaflet', () => ({
     Icon: class Icon {
       constructor() {}
     },
+    divIcon: (options) => ({ ...options, _type: 'divIcon' }),
     Map: class Map {
       constructor() {
         this.zoom = 10

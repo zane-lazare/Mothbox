@@ -24,10 +24,11 @@ describe('useMapRef', () => {
   }
 
   describe('Initial State', () => {
-    it('returns null map ref when not initialized', () => {
-      const { result } = renderHook(() => useMapRef())
-
-      expect(result.current.mapRef.current).toBeNull()
+    it('throws when used outside MapContainer', () => {
+      // useMapRef MUST be used inside MapContainer - it should throw if not
+      expect(() => {
+        renderHook(() => useMapRef())
+      }).toThrow('No context provided')
     })
 
     it('returns map instance when rendered inside MapContainer', () => {
@@ -194,56 +195,11 @@ describe('useMapRef', () => {
   })
 
   describe('Edge Cases and Error Handling', () => {
-    it('handles flyTo when map not initialized gracefully', () => {
-      const { result } = renderHook(() => useMapRef())
-
-      // Should not throw when map is null
+    it('throws when used outside MapContainer', () => {
+      // useMapRef MUST be used inside MapContainer - it should throw if not
       expect(() => {
-        result.current.flyTo(40.7128, -74.006)
-      }).not.toThrow()
-    })
-
-    it('handles setZoom when map not initialized gracefully', () => {
-      const { result } = renderHook(() => useMapRef())
-
-      expect(() => {
-        result.current.setZoom(15)
-      }).not.toThrow()
-    })
-
-    it('returns null from getCenter when map not initialized', () => {
-      const { result } = renderHook(() => useMapRef())
-
-      const center = result.current.getCenter()
-
-      expect(center).toBeNull()
-    })
-
-    it('returns null from getZoom when map not initialized', () => {
-      const { result } = renderHook(() => useMapRef())
-
-      const zoom = result.current.getZoom()
-
-      expect(zoom).toBeNull()
-    })
-
-    it('returns null from getBounds when map not initialized', () => {
-      const { result } = renderHook(() => useMapRef())
-
-      const bounds = result.current.getBounds()
-
-      expect(bounds).toBeNull()
-    })
-
-    it('handles fitBounds when map not initialized gracefully', () => {
-      const { result } = renderHook(() => useMapRef())
-
-      expect(() => {
-        result.current.fitBounds([
-          [40.7128, -74.006],
-          [34.0522, -118.2437],
-        ])
-      }).not.toThrow()
+        renderHook(() => useMapRef())
+      }).toThrow('No context provided')
     })
 
     it('handles invalid coordinates in flyTo gracefully', () => {
