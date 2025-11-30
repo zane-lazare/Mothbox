@@ -1537,6 +1537,7 @@ def pytest_collection_modifyitems(config, items):
     - GPS EXIF batch tagging workflow tests (use subprocess/PIL, no camera/GPIO needed)
     - Map locations integration tests (use mocks/PIL/Flask test client, no camera/GPIO needed)
     - Clustering workflow tests (use mocks/Flask test client, no camera/GPIO needed)
+    - Sidecar concurrent tests (use threading/tmp_path, no camera/GPIO needed)
     """
     for item in items:
         # Mark integration tests (except manual verification and installer) as hardware tests
@@ -1551,8 +1552,9 @@ def pytest_collection_modifyitems(config, items):
         is_batch_tagging_workflow = 'test_batch_tagging_workflow' in fspath_str  # Uses subprocess/PIL, no camera/GPIO
         is_map_locations_integration = 'test_map_locations_integration' in fspath_str  # Uses mocks/PIL/Flask test client, no camera/GPIO
         is_clustering_workflow = 'test_clustering_workflow' in fspath_str  # Uses mocks/Flask test client, no camera/GPIO
+        is_sidecar_concurrent = 'test_sidecar_concurrent' in fspath_str  # Uses threading/tmp_path, no camera/GPIO
 
-        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination and not is_gps_exif_workflow and not is_verification_workflow and not is_batch_tagging_workflow and not is_map_locations_integration and not is_clustering_workflow:
+        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination and not is_gps_exif_workflow and not is_verification_workflow and not is_batch_tagging_workflow and not is_map_locations_integration and not is_clustering_workflow and not is_sidecar_concurrent:
             item.add_marker(pytest.mark.hardware)
 
 
