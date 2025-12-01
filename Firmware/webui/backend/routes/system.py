@@ -175,7 +175,7 @@ def get_system_info():
                 "gpio_source": gpio_source,
             }
         )
-    except Exception as e:
+    except Exception:
         import traceback
 
         # Log full traceback server-side for debugging
@@ -250,7 +250,7 @@ def get_diagnostic_info():
                 "gpio_pins": get_gpio_pins(),
             }
         )
-    except Exception as e:
+    except Exception:
         import traceback
 
         # Log full traceback server-side for debugging

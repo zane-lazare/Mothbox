@@ -22,13 +22,11 @@ Usage:
 import logging
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Union
 
 from webui.backend.lib.series_detection import (
     detect_series_type,
-    get_series_id,
     group_photos_into_series,
 )
 
@@ -89,7 +87,7 @@ class SeriesService:
 
     def get_series_for_directory(
         self,
-        directory: Union[str, Path]
+        directory: str | Path
     ) -> list[PhotoSeries]:
         """Get all photo series in a directory.
 
@@ -179,14 +177,14 @@ class SeriesService:
             logger.debug(f"Found {len(series_list)} series in {directory}")
             return series_list
 
-        except (PermissionError, IOError, OSError) as e:
+        except (PermissionError, OSError) as e:
             logger.warning(f"Error scanning {directory}: {e}")
             return []
 
     def get_series_by_id(
         self,
         series_id: str,
-        directory: Union[str, Path, None] = None
+        directory: str | Path | None = None
     ) -> PhotoSeries | None:
         """Get a specific series by ID.
 
@@ -211,7 +209,7 @@ class SeriesService:
 
         return None
 
-    def invalidate_cache(self, directory: Union[str, Path, None] = None) -> None:
+    def invalidate_cache(self, directory: str | Path | None = None) -> None:
         """Invalidate cache entries.
 
         Args:

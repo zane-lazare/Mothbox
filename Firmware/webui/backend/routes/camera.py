@@ -1,21 +1,21 @@
 """Camera control endpoints"""
 
+from __future__ import annotations
+
 import logging
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picamera2 import Picamera2
 
 logger = logging.getLogger(__name__)
 
 # Setup path to import mothbox_paths
 # Import camera control mapping
 from camera_control_mapping import build_picamera_controls, convert_from_settings_file
-from flask import Blueprint, current_app, jsonify, request
-
-# Import shared utilities
-from utils import ALLOWED_CAMERA_SETTINGS, sanitize_csv_value
-
-from mothbox_paths import CAMERA_SETTINGS_FILE, PHOTOS_DIR
 
 # Import centralized constants
 from constants import (
@@ -37,6 +37,12 @@ from constants import (
     HDR_VALID_COUNTS,
     TEST_CAPTURE_RESOLUTION,
 )
+from flask import Blueprint, current_app, jsonify, request
+
+# Import shared utilities
+from utils import ALLOWED_CAMERA_SETTINGS, sanitize_csv_value
+
+from mothbox_paths import CAMERA_SETTINGS_FILE, PHOTOS_DIR
 
 # ============================================================================
 # Operation Timeouts and Delays
@@ -63,7 +69,7 @@ ERROR_DETAILS_MAX_LENGTH = 500  # Maximum characters of stderr to include in API
 
 def acquire_camera_with_retry(
     camera_id: int = 0, max_retries: int = 3, wait_time: float = 2.0
-) -> "Picamera2":
+) -> Picamera2:
     """
     Acquire camera with retry logic for busy state
 
@@ -177,10 +183,7 @@ def _build_exif_metadata(
         sensor_name = md.get("SensorName", "")
         if not sensor_name and picam2:
             model_str = str(picam2.camera_properties.get("Model", ""))
-            if "ov64a40" in model_str.lower():
-                sensor_name = "ov64a40"
-            else:
-                sensor_name = model_str or "Unknown"
+            sensor_name = "ov64a40" if "ov64a40" in model_str.lower() else model_str or "Unknown"
     except Exception as e:
         print(f"Warning: Could not detect sensor: {e}")
 
@@ -537,8 +540,8 @@ def capture_photo():
                     try:
                         from services import (
                             get_clustering_service,
+                            get_locations_service,
                             get_series_service,
-                            get_locations_service
                         )
 
                         get_clustering_service().invalidate_cache(PHOTOS_DIR)
@@ -1433,11 +1436,10 @@ def test_capture_liveview():
         # Handle colour gains tuple (only when AWB is disabled)
         # When AWB is enabled, manual ColourGains are ignored by the camera
         # ColourGains must be set as a tuple, not individual red/blue controls
-        if not settings.get("awb_enable", True):
-            if colour_gains_red is not None or colour_gains_blue is not None:
-                red_gain = colour_gains_red if colour_gains_red is not None else DEFAULT_COLOUR_GAINS[0]
-                blue_gain = colour_gains_blue if colour_gains_blue is not None else DEFAULT_COLOUR_GAINS[1]
-                controls["ColourGains"] = (float(red_gain), float(blue_gain))
+        if not settings.get("awb_enable", True) and (colour_gains_red is not None or colour_gains_blue is not None):
+            red_gain = colour_gains_red if colour_gains_red is not None else DEFAULT_COLOUR_GAINS[0]
+            blue_gain = colour_gains_blue if colour_gains_blue is not None else DEFAULT_COLOUR_GAINS[1]
+            controls["ColourGains"] = (float(red_gain), float(blue_gain))
 
         # Only set manual exposure if AE disabled
         if not settings.get("ae_enable", True):
@@ -1568,11 +1570,12 @@ def instant_capture():
             controls["AwbMode"] = awb_mode
 
         # Handle colour gains tuple (only when AWB is disabled)
-        if not settings.get("awb_enable", True):
-            if colour_gains_red is not None or colour_gains_blue is not None:
-                red_gain = colour_gains_red if colour_gains_red is not None else DEFAULT_COLOUR_GAINS[0]
-                blue_gain = colour_gains_blue if colour_gains_blue is not None else DEFAULT_COLOUR_GAINS[1]
-                controls["ColourGains"] = (float(red_gain), float(blue_gain))
+        # When AWB is enabled, manual ColourGains are ignored by the camera
+        # ColourGains must be set as a tuple, not individual red/blue controls
+        if not settings.get("awb_enable", True) and (colour_gains_red is not None or colour_gains_blue is not None):
+            red_gain = colour_gains_red if colour_gains_red is not None else DEFAULT_COLOUR_GAINS[0]
+            blue_gain = colour_gains_blue if colour_gains_blue is not None else DEFAULT_COLOUR_GAINS[1]
+            controls["ColourGains"] = (float(red_gain), float(blue_gain))
 
         # Only set manual exposure if AE disabled
         if not settings.get("ae_enable", True):
@@ -1628,7 +1631,6 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
     # This is more maintainable than duplicating the entire capture logic
     import gc
     import time
-    from datetime import datetime
 
     from flask import current_app
 

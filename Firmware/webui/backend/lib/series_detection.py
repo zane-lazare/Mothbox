@@ -30,7 +30,6 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Union
 
 
 class SeriesType(str, Enum):
@@ -82,7 +81,7 @@ MP16_HDR_PATTERN = re.compile(
 )
 
 
-def _extract_filename(path: Union[str, Path, None]) -> str | None:
+def _extract_filename(path: str | Path | None) -> str | None:
     """Extract filename from path (handles str, Path, or None).
 
     Args:
@@ -106,7 +105,7 @@ def _extract_filename(path: Union[str, Path, None]) -> str | None:
     return None
 
 
-def detect_series_type(filename: Union[str, Path, None]) -> SeriesInfo | None:
+def detect_series_type(filename: str | Path | None) -> SeriesInfo | None:
     """Detect if a photo is part of an HDR or Focus Bracket series.
 
     Analyzes the filename pattern to identify series membership.
@@ -158,7 +157,7 @@ def detect_series_type(filename: Union[str, Path, None]) -> SeriesInfo | None:
     return None
 
 
-def get_series_id(filename: Union[str, Path, None]) -> str | None:
+def get_series_id(filename: str | Path | None) -> str | None:
     """Get a unique series identifier for grouping photos.
 
     Photos from the same series will return the same ID, enabling cross-directory
@@ -188,7 +187,7 @@ def get_series_id(filename: Union[str, Path, None]) -> str | None:
 
 
 def group_photos_into_series(
-    photo_paths: list[Union[str, Path]]
+    photo_paths: list[str | Path]
 ) -> dict[str, list[Path]]:
     """Group photos by their series membership.
 

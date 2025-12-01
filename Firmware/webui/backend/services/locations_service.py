@@ -34,7 +34,6 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Union
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +73,7 @@ class LocationsService:
 
     def get_locations(
         self,
-        directory: Union[str, Path],
+        directory: str | Path,
         limit: int = 1000
     ) -> dict:
         """Get photos with GPS coordinates.
@@ -233,7 +232,7 @@ class LocationsService:
                 'total_without_gps': total_without_gps
             }
 
-        except (PermissionError, IOError, OSError) as e:
+        except (PermissionError, OSError) as e:
             logger.warning(f"Error scanning {directory}: {e}")
             return {
                 'locations': [],
@@ -241,7 +240,7 @@ class LocationsService:
                 'total_without_gps': 0
             }
 
-    def invalidate_cache(self, directory: Union[str, Path, None] = None) -> None:
+    def invalidate_cache(self, directory: str | Path | None = None) -> None:
         """Invalidate cache entries.
 
         Args:
@@ -257,7 +256,7 @@ class LocationsService:
                 # (since cache keys include limit parameter)
                 cache_key_prefix = str(Path(directory).resolve())
                 keys_to_remove = [
-                    key for key in self._cache.keys()
+                    key for key in self._cache
                     if key.startswith(cache_key_prefix)
                 ]
                 for key in keys_to_remove:
