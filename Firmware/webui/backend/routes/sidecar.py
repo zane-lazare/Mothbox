@@ -35,16 +35,17 @@ import time
 from collections import Counter
 
 from flask import Blueprint, current_app, jsonify, request
-from security_utils import sanitize_error_message, validate_photo_path
 
 from mothbox_paths import PHOTOS_DIR
-from webui.backend.lib.sidecar_metadata import MAX_NOTES_LENGTH, MAX_TAG_LENGTH
+from webui.backend.lib.sidecar_metadata import (
+    MAX_BULK_FILES,
+    MAX_NOTES_LENGTH,
+    MAX_PAGINATION_LIMIT,
+    MAX_TAG_LENGTH,
+)
+from webui.backend.security_utils import sanitize_error_message, validate_photo_path
 
 logger = logging.getLogger(__name__)
-
-# API limits
-MAX_BULK_FILES = 100  # Maximum files per bulk update request
-MAX_PAGINATION_LIMIT = 200  # Maximum items per page for list endpoints
 
 # Blueprint setup
 sidecar_bp = Blueprint("sidecar", __name__)
@@ -435,7 +436,6 @@ def delete_photo_metadata(filename: str):
 # ============================================================================
 
 @sidecar_bp.route("/photos", methods=["GET"])
-@sidecar_bp.route("/photos/metadata", methods=["GET"])
 def list_all_metadata():
     """
     List all sidecar metadata with pagination.

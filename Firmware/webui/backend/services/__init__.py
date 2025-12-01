@@ -58,8 +58,12 @@ def get_sidecar_service():
     """
     global _sidecar_service
     if _sidecar_service is None:
+        from mothbox_paths import DATA_DIR
+
         from .sidecar_service import SidecarService
-        _sidecar_service = SidecarService(cache_ttl=300)
+
+        cache_dir = DATA_DIR / "cache" / "sidecar"
+        _sidecar_service = SidecarService(cache_dir=cache_dir)
     return _sidecar_service
 
 

@@ -69,6 +69,10 @@ MAX_NOTES_LENGTH = 10000
 MAX_CUSTOM_KEYS = 100
 MAX_CUSTOM_DEPTH = 5  # Maximum nesting depth for custom values
 
+# API limits
+MAX_BULK_FILES = 100  # Maximum files per bulk update request
+MAX_PAGINATION_LIMIT = 200  # Maximum items per page for list endpoints
+
 
 # ============================================================================
 # Exceptions
