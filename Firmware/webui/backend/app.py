@@ -189,6 +189,7 @@ from routes.metadata import metadata_bp
 from routes.preferences import preferences_bp
 from routes.presets import presets_bp
 from routes.scheduler import scheduler_bp
+from routes.sidecar import sidecar_bp
 from routes.system import system_bp
 
 # Make camera_streamer accessible to routes via app config
@@ -205,6 +206,7 @@ app.register_blueprint(presets_bp, url_prefix="/api/presets")
 app.register_blueprint(preferences_bp, url_prefix="/api/preferences")
 app.register_blueprint(gps_bp, url_prefix="/api/gps")
 app.register_blueprint(metadata_bp, url_prefix="/api/metadata")
+app.register_blueprint(sidecar_bp, url_prefix="/api/sidecar")
 
 # Register WebSocket handlers
 from websocket_handlers import register_handlers
