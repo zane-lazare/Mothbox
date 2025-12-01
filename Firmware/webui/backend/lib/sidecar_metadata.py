@@ -64,6 +64,7 @@ MAX_TAG_LENGTH = 50
 MAX_SPECIES_LENGTH = 200
 MAX_NOTES_LENGTH = 10000
 MAX_CUSTOM_KEYS = 100
+MAX_CUSTOM_DEPTH = 5  # Maximum nesting depth for custom values
 
 
 # ============================================================================
@@ -151,11 +152,14 @@ def get_sidecar_path(photo_path: Path | str) -> Path:
     Returns:
         Path to sidecar JSON file ({photo}.json)
 
+    Note:
+        Path is resolved to absolute path to prevent path traversal attacks.
+
     Example:
         >>> get_sidecar_path("photo.jpg")
-        PosixPath('photo.jpg.json')
+        PosixPath('/absolute/path/to/photo.jpg.json')
     """
-    photo_path = Path(photo_path)
+    photo_path = Path(photo_path).resolve()
     return photo_path.parent / f"{photo_path.name}.json"
 
 
@@ -240,6 +244,37 @@ def normalize_tag(tag: str) -> str:
 # Schema Validation
 # ============================================================================
 
+def _is_valid_custom_value(value, depth: int = 0) -> bool:
+    """Validate custom value is a safe JSON-serializable type.
+
+    Checks that values are one of: None, str, int, float, bool, list, dict.
+    Lists and dicts are recursively validated up to MAX_CUSTOM_DEPTH.
+
+    Args:
+        value: Value to check
+        depth: Current nesting depth (max MAX_CUSTOM_DEPTH)
+
+    Returns:
+        True if valid, False otherwise
+    """
+    if depth > MAX_CUSTOM_DEPTH:
+        return False  # Prevent deeply nested structures
+
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return True
+
+    if isinstance(value, list):
+        return all(_is_valid_custom_value(v, depth + 1) for v in value)
+
+    if isinstance(value, dict):
+        return all(
+            isinstance(k, str) and _is_valid_custom_value(v, depth + 1)
+            for k, v in value.items()
+        )
+
+    return False
+
+
 def validate_schema(data: dict) -> bool:
     """Validate metadata dictionary against schema.
 
@@ -288,6 +323,14 @@ def validate_schema(data: dict) -> bool:
 
     if len(data["custom"]) > MAX_CUSTOM_KEYS:
         raise ValidationError(f"custom exceeds maximum keys ({MAX_CUSTOM_KEYS})")
+
+    # Validate custom key/value types
+    for key, value in data["custom"].items():
+        if not isinstance(key, str):
+            raise ValidationError(f"custom key must be string, got {type(key).__name__}")
+
+        if not _is_valid_custom_value(value):
+            raise ValidationError(f"custom value type not allowed for key '{key}'")
 
     return True
 
@@ -467,6 +510,10 @@ def write_metadata(
         # Atomic rename
         temp_path.replace(sidecar_path)
 
+        # Set file permissions (rw-r--r-- = 0o644)
+        with contextlib.suppress(Exception):
+            sidecar_path.chmod(0o644)
+
         return True
 
     except Exception:
@@ -611,9 +658,10 @@ def delete_metadata(
 # ============================================================================
 
 def add_tag(photo_path: Path | str, tag: str) -> SidecarMetadata:
-    """Add tag to photo metadata.
+    """Add tag to photo metadata with atomic read-modify-write.
 
     Creates sidecar if doesn't exist. Normalizes tag and prevents duplicates.
+    Uses file locking to ensure atomic operation under concurrent access.
 
     Args:
         photo_path: Path to photo file
@@ -628,25 +676,42 @@ def add_tag(photo_path: Path | str, tag: str) -> SidecarMetadata:
         True
     """
     normalized_tag = normalize_tag(tag)
+    sidecar_path = get_sidecar_path(photo_path)
 
-    # Read existing metadata or create new
-    metadata = read_metadata(photo_path)
-    if metadata is None:
-        metadata = create_metadata(photo_path)
-
-    # Add tag if not already present
-    if normalized_tag not in metadata.tags:
-        metadata.tags.append(normalized_tag)
-        metadata.modified_at = _get_current_timestamp()
+    # If sidecar doesn't exist, create it with the new tag
+    if not sidecar_path.exists():
+        metadata = create_metadata(photo_path, tags=[normalized_tag])
         write_metadata(photo_path, metadata)
+        return metadata
+
+    # Hold lock for entire read-modify-write operation (atomic)
+    with FileLock(sidecar_path, exclusive=True) as f:
+        # Read while holding lock
+        try:
+            data = json.load(f)
+            validate_schema(data)
+            metadata = SidecarMetadata.from_dict(data)
+        except (json.JSONDecodeError, ValidationError, KeyError):
+            metadata = create_metadata(photo_path)
+
+        # Modify - add tag if not already present
+        if normalized_tag not in metadata.tags:
+            metadata.tags.append(normalized_tag)
+            metadata.modified_at = _get_current_timestamp()
+
+            # Write atomically while holding lock
+            f.seek(0)
+            f.truncate()
+            json.dump(metadata.to_dict(), f, indent=2)
 
     return metadata
 
 
 def remove_tag(photo_path: Path | str, tag: str) -> SidecarMetadata:
-    """Remove tag from photo metadata.
+    """Remove tag from photo metadata with atomic read-modify-write.
 
     Normalizes tag before removal. Returns unchanged metadata if tag not found.
+    Uses file locking to ensure atomic operation under concurrent access.
 
     Args:
         photo_path: Path to photo file
@@ -661,20 +726,72 @@ def remove_tag(photo_path: Path | str, tag: str) -> SidecarMetadata:
         False
     """
     normalized_tag = normalize_tag(tag)
+    sidecar_path = get_sidecar_path(photo_path)
 
-    # Read existing metadata
-    metadata = read_metadata(photo_path)
-    if metadata is None:
-        # No metadata - create empty
+    # If sidecar doesn't exist, return empty metadata
+    if not sidecar_path.exists():
         return create_metadata(photo_path)
 
-    # Remove tag if present
-    if normalized_tag in metadata.tags:
-        metadata.tags.remove(normalized_tag)
-        metadata.modified_at = _get_current_timestamp()
-        write_metadata(photo_path, metadata)
+    # Hold lock for entire read-modify-write operation (atomic)
+    with FileLock(sidecar_path, exclusive=True) as f:
+        try:
+            data = json.load(f)
+            validate_schema(data)
+            metadata = SidecarMetadata.from_dict(data)
+        except (json.JSONDecodeError, ValidationError, KeyError):
+            return create_metadata(photo_path)
+
+        # Modify - remove tag if present
+        if normalized_tag in metadata.tags:
+            metadata.tags.remove(normalized_tag)
+            metadata.modified_at = _get_current_timestamp()
+
+            # Write atomically while holding lock
+            f.seek(0)
+            f.truncate()
+            json.dump(metadata.to_dict(), f, indent=2)
 
     return metadata
+
+
+# ============================================================================
+# Cleanup Utilities
+# ============================================================================
+
+def cleanup_temp_files(directory: Path | str, max_age_seconds: int = 3600) -> int:
+    """Remove stale .tmp files older than max_age_seconds.
+
+    Call at startup or periodically to clean up orphaned temp files
+    that may remain if process crashes during atomic write operations.
+
+    Args:
+        directory: Directory to clean
+        max_age_seconds: Remove files older than this (default: 1 hour)
+
+    Returns:
+        Number of files removed
+
+    Example:
+        >>> removed = cleanup_temp_files("/photos", max_age_seconds=3600)
+        >>> print(f"Cleaned up {removed} temp files")
+    """
+    directory = Path(directory)
+    if not directory.is_dir():
+        return 0
+
+    removed = 0
+    current_time = time.time()
+
+    for tmp_file in directory.glob("*.json.tmp"):
+        try:
+            age = current_time - tmp_file.stat().st_mtime
+            if age > max_age_seconds:
+                tmp_file.unlink()
+                removed += 1
+        except Exception:
+            pass  # Non-critical cleanup
+
+    return removed
 
 
 # ============================================================================
@@ -709,4 +826,6 @@ __all__ = [
     "remove_tag",
     # File locking
     "FileLock",
+    # Cleanup utilities
+    "cleanup_temp_files",
 ]

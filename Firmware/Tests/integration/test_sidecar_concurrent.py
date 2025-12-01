@@ -91,12 +91,13 @@ class TestConcurrentWrites:
         final_metadata = read_metadata(photo)
         assert final_metadata is not None, "Final metadata should be readable"
 
-        # All 10 tags should be added (may have race condition duplicates, but all should succeed)
-        # Due to read-modify-write pattern, some operations might be lost in concurrent scenarios
-        # The key is no corruption - the file should be valid and readable
-        assert len(final_metadata.tags) >= 1, "Should have at least one tag"
-        assert "initial" in final_metadata.tags or len(final_metadata.tags) > 1, \
-            "Should preserve initial tag or have new tags"
+        # With atomic read-modify-write operations, ALL 10 tags + initial should be present
+        # No operations should be lost due to race conditions
+        assert len(final_metadata.tags) == 11, \
+            f"All 11 tags (initial + 10 new) should be present, got {len(final_metadata.tags)}: {final_metadata.tags}"
+        assert "initial" in final_metadata.tags, "Should preserve initial tag"
+        for i in range(10):
+            assert f"tag{i}" in final_metadata.tags, f"tag{i} should be present"
 
         # Verify all written tags are in results (operations succeeded)
         assert len(results) == 10, f"All 10 operations should complete, got {len(results)}"

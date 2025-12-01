@@ -46,6 +46,7 @@ from typing import Any
 
 from webui.backend.lib.sidecar_metadata import (
     SidecarMetadata,
+    cleanup_temp_files,
     list_photos_with_sidecars,
     read_metadata,
     write_metadata,
@@ -156,6 +157,14 @@ class SidecarService:
         self._l2_hits = 0
         self._l2_misses = 0
         self._total_response_times: deque[float] = deque(maxlen=1000)
+
+        # Clean up orphaned temp files from previous crashes
+        try:
+            removed = cleanup_temp_files(self.cache_dir)
+            if removed > 0:
+                logger.info(f"Cleaned up {removed} orphaned temp files from cache")
+        except Exception as e:
+            logger.warning(f"Failed to clean up temp files: {e}")
 
     def get_metadata(self, photo_path: str) -> SidecarMetadata | None:
         """
@@ -497,7 +506,13 @@ class SidecarService:
                 return None
 
     def _set_l2(self, photo_path: str, entry: CacheEntry) -> None:
-        """Set in L2 file cache with LRU eviction."""
+        """Set in L2 file cache with LRU eviction.
+
+        Note: Eviction check only occurs when adding new entries, not updates.
+        This means cache may slightly exceed l2_max_size until the next new
+        entry is added. This is acceptable behavior to minimize I/O overhead
+        on frequently updated entries.
+        """
         cache_file = self._get_cache_file_path(photo_path)
 
         with self._l2_lock:

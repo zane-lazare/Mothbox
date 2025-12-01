@@ -51,6 +51,10 @@ try:
         # File locking
         FileLock,
         LockTimeoutError,
+        # Cleanup utilities
+        cleanup_temp_files,
+        # Constants for testing
+        MAX_CUSTOM_DEPTH,
     )
     IMPLEMENTATION_EXISTS = True
 except ImportError:
@@ -74,6 +78,8 @@ except ImportError:
     normalize_tag = None
     FileLock = None
     LockTimeoutError = None
+    cleanup_temp_files = None
+    MAX_CUSTOM_DEPTH = 5
 
 
 # Skip all tests if implementation doesn't exist yet (TDD red phase)
@@ -853,3 +859,239 @@ class TestPerformanceBaseline:
         elapsed = (time.perf_counter() - start) * 1000
 
         assert elapsed < 100  # Allow 100ms for CI variability, target is 50ms
+
+
+# ============================================================================
+# Path Traversal Protection Tests (Issue #102 Bug Fix)
+# ============================================================================
+
+class TestPathTraversalProtection:
+    """Tests for path traversal protection in get_sidecar_path."""
+
+    def test_path_is_resolved(self, tmp_path):
+        """get_sidecar_path should resolve paths to absolute."""
+        photo_path = tmp_path / "photo.jpg"
+        sidecar_path = get_sidecar_path(photo_path)
+
+        # Should be absolute path
+        assert sidecar_path.is_absolute()
+
+    def test_relative_path_resolved_to_cwd(self):
+        """Relative paths should be resolved against current working directory."""
+        sidecar_path = get_sidecar_path("photo.jpg")
+
+        # Should be absolute (resolved)
+        assert sidecar_path.is_absolute()
+        assert sidecar_path.name == "photo.jpg.json"
+
+    def test_path_traversal_normalized(self, tmp_path):
+        """Path with .. should be normalized."""
+        # Create path with traversal sequence
+        subdir = tmp_path / "subdir"
+        subdir.mkdir()
+
+        # Path that goes up and back down
+        traversal_path = subdir / ".." / "photo.jpg"
+        sidecar_path = get_sidecar_path(traversal_path)
+
+        # Should normalize to tmp_path/photo.jpg.json, not subdir/../photo.jpg.json
+        assert ".." not in str(sidecar_path)
+        assert sidecar_path.is_absolute()
+
+
+# ============================================================================
+# Custom Value Validation Tests (Issue #102 Bug Fix)
+# ============================================================================
+
+class TestCustomValueValidation:
+    """Tests for custom value type validation in validate_schema."""
+
+    def test_valid_simple_custom_values(self, tmp_path):
+        """Valid simple types in custom should pass."""
+        valid_data = {
+            "version": "1.0",
+            "photo_filename": "photo.jpg",
+            "created_at": "2024-01-01T00:00:00Z",
+            "modified_at": "2024-01-01T00:00:00Z",
+            "tags": [],
+            "custom": {
+                "string_val": "hello",
+                "int_val": 42,
+                "float_val": 3.14,
+                "bool_val": True,
+                "none_val": None,
+            }
+        }
+
+        # Should not raise
+        assert validate_schema(valid_data) is True
+
+    def test_valid_nested_custom_values(self, tmp_path):
+        """Valid nested structures in custom should pass."""
+        valid_data = {
+            "version": "1.0",
+            "photo_filename": "photo.jpg",
+            "created_at": "2024-01-01T00:00:00Z",
+            "modified_at": "2024-01-01T00:00:00Z",
+            "tags": [],
+            "custom": {
+                "nested_dict": {"key": "value", "num": 123},
+                "nested_list": [1, 2, "three", True],
+                "mixed": {"list": [1, 2, 3], "dict": {"a": "b"}}
+            }
+        }
+
+        # Should not raise
+        assert validate_schema(valid_data) is True
+
+    def test_invalid_custom_value_type_raises(self, tmp_path):
+        """Invalid types in custom should raise ValidationError."""
+        # Using a set (not JSON-serializable type)
+        invalid_data = {
+            "version": "1.0",
+            "photo_filename": "photo.jpg",
+            "created_at": "2024-01-01T00:00:00Z",
+            "modified_at": "2024-01-01T00:00:00Z",
+            "tags": [],
+            "custom": {
+                "bad_value": {1, 2, 3}  # set is not allowed
+            }
+        }
+
+        with pytest.raises(ValidationError, match="custom value type not allowed"):
+            validate_schema(invalid_data)
+
+    def test_deeply_nested_custom_rejected(self, tmp_path):
+        """Custom values nested deeper than MAX_CUSTOM_DEPTH should be rejected."""
+        # Build deeply nested structure
+        deep_nested = "value"
+        for _ in range(MAX_CUSTOM_DEPTH + 2):  # Go beyond the limit
+            deep_nested = {"level": deep_nested}
+
+        invalid_data = {
+            "version": "1.0",
+            "photo_filename": "photo.jpg",
+            "created_at": "2024-01-01T00:00:00Z",
+            "modified_at": "2024-01-01T00:00:00Z",
+            "tags": [],
+            "custom": {
+                "deep": deep_nested
+            }
+        }
+
+        with pytest.raises(ValidationError, match="custom value type not allowed"):
+            validate_schema(invalid_data)
+
+    def test_non_string_custom_key_raises(self, tmp_path):
+        """Non-string keys in custom should raise ValidationError."""
+        # Note: In Python, dict keys can be ints, but JSON requires strings
+        # This test checks our validation catches non-string keys
+        invalid_data = {
+            "version": "1.0",
+            "photo_filename": "photo.jpg",
+            "created_at": "2024-01-01T00:00:00Z",
+            "modified_at": "2024-01-01T00:00:00Z",
+            "tags": [],
+            "custom": {
+                123: "value"  # int key not allowed
+            }
+        }
+
+        with pytest.raises(ValidationError, match="custom key must be string"):
+            validate_schema(invalid_data)
+
+
+# ============================================================================
+# Temp File Cleanup Tests (Issue #102 Bug Fix)
+# ============================================================================
+
+class TestTempFileCleanup:
+    """Tests for cleanup_temp_files function."""
+
+    def test_cleanup_removes_old_tmp_files(self, tmp_path):
+        """cleanup_temp_files should remove .tmp files older than max_age."""
+        import time
+
+        # Create old temp file
+        old_tmp = tmp_path / "old.json.tmp"
+        old_tmp.write_text("{}")
+
+        # Make it appear old by setting mtime to past
+        import os
+        old_time = time.time() - 7200  # 2 hours ago
+        os.utime(old_tmp, (old_time, old_time))
+
+        # Clean up files older than 1 hour
+        removed = cleanup_temp_files(tmp_path, max_age_seconds=3600)
+
+        assert removed == 1
+        assert not old_tmp.exists()
+
+    def test_cleanup_keeps_recent_tmp_files(self, tmp_path):
+        """cleanup_temp_files should keep recent .tmp files."""
+        # Create recent temp file
+        recent_tmp = tmp_path / "recent.json.tmp"
+        recent_tmp.write_text("{}")
+
+        # Clean up files older than 1 hour
+        removed = cleanup_temp_files(tmp_path, max_age_seconds=3600)
+
+        assert removed == 0
+        assert recent_tmp.exists()
+
+    def test_cleanup_ignores_non_tmp_files(self, tmp_path):
+        """cleanup_temp_files should not remove non-.tmp files."""
+        import time
+        import os
+
+        # Create old regular JSON file
+        old_json = tmp_path / "old.json"
+        old_json.write_text("{}")
+
+        # Make it appear old
+        old_time = time.time() - 7200  # 2 hours ago
+        os.utime(old_json, (old_time, old_time))
+
+        # Clean up
+        removed = cleanup_temp_files(tmp_path, max_age_seconds=3600)
+
+        assert removed == 0
+        assert old_json.exists()
+
+    def test_cleanup_empty_directory(self, tmp_path):
+        """cleanup_temp_files should handle empty directory."""
+        removed = cleanup_temp_files(tmp_path)
+
+        assert removed == 0
+
+    def test_cleanup_nonexistent_directory(self, tmp_path):
+        """cleanup_temp_files should handle non-existent directory."""
+        nonexistent = tmp_path / "does_not_exist"
+
+        removed = cleanup_temp_files(nonexistent)
+
+        assert removed == 0
+
+
+# ============================================================================
+# File Permission Tests (Issue #102 Bug Fix)
+# ============================================================================
+
+class TestFilePermissions:
+    """Tests for file permission handling in write_metadata."""
+
+    def test_sidecar_has_readable_permissions(self, sample_photo):
+        """Written sidecar files should be readable by owner and group."""
+        import stat
+
+        metadata = create_metadata(sample_photo, tags=["test"])
+        write_metadata(sample_photo, metadata)
+
+        sidecar_path = get_sidecar_path(sample_photo)
+        mode = sidecar_path.stat().st_mode
+
+        # Should be readable by owner (at minimum)
+        assert mode & stat.S_IRUSR
+
+        # Should be readable by group (0o644 sets this)
+        assert mode & stat.S_IRGRP
