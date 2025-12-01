@@ -478,9 +478,11 @@ def write_metadata(
     metadata: SidecarMetadata,
     backup: bool = True
 ) -> bool:
-    """Write metadata to photo's sidecar file.
+    """Write metadata to photo's sidecar file atomically.
 
-    Uses atomic write via temporary file. Optionally creates backup.
+    Uses file locking for the entire backup + write operation to prevent
+    race conditions. Writes directly to the locked file descriptor to
+    ensure atomicity with other concurrent operations using FileLock.
 
     Args:
         photo_path: Path to photo file
@@ -498,26 +500,22 @@ def write_metadata(
     sidecar_path = get_sidecar_path(photo_path)
 
     try:
-        # Create backup if requested and sidecar exists
-        if backup and sidecar_path.exists():
-            backup_path = sidecar_path.with_suffix(f".json{BACKUP_EXTENSION}")
-            backup_path.write_text(sidecar_path.read_text())
+        # Hold lock for entire backup + write operation
+        with FileLock(sidecar_path, exclusive=True) as f:
+            # Create backup if requested and file has content
+            if backup:
+                content = f.read()
+                if content:
+                    backup_path = sidecar_path.with_suffix(f".json{BACKUP_EXTENSION}")
+                    backup_path.write_text(content)
+                f.seek(0)
 
-        # Write to temporary file first (atomic write)
-        temp_path = sidecar_path.with_suffix(".json.tmp")
+            # Write directly to the locked file (not via temp file + replace)
+            # This ensures the lock protects the actual file being written
+            f.truncate()
+            json.dump(metadata.to_dict(), f, indent=2)
 
-        with open(temp_path, "w") as f:
-            # Acquire exclusive lock for writing
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                json.dump(metadata.to_dict(), f, indent=2)
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-
-        # Atomic rename
-        temp_path.replace(sidecar_path)
-
-        # Set file permissions (rw-r--r-- = 0o644)
+        # Set file permissions outside lock (non-critical)
         try:
             sidecar_path.chmod(0o644)
         except (OSError, PermissionError) as e:
@@ -526,11 +524,6 @@ def write_metadata(
         return True
 
     except Exception:
-        # Clean up temp file if it exists
-        temp_path = sidecar_path.with_suffix(".json.tmp")
-        if temp_path.exists():
-            with contextlib.suppress(Exception):
-                temp_path.unlink()
         return False
 
 
@@ -589,8 +582,9 @@ def update_metadata(
 ) -> SidecarMetadata:
     """Update existing metadata or create new if doesn't exist.
 
-    Performs partial update - only specified fields are modified.
-    Automatically updates modified_at timestamp and normalizes tags.
+    Performs atomic partial update - only specified fields are modified.
+    Uses file locking to ensure thread-safe read-modify-write cycle,
+    preventing lost updates when multiple threads modify different fields.
 
     Args:
         photo_path: Path to photo file
@@ -604,24 +598,40 @@ def update_metadata(
         >>> metadata.species
         'Actias luna'
     """
-    # Read existing metadata or create new
-    metadata = read_metadata(photo_path)
-    if metadata is None:
-        metadata = create_metadata(photo_path)
+    sidecar_path = get_sidecar_path(photo_path)
 
-    # Update fields
-    for key, value in updates.items():
-        if key == "tags" and value is not None:
-            # Normalize tags
-            setattr(metadata, key, [normalize_tag(tag) for tag in value])
-        elif hasattr(metadata, key):
-            setattr(metadata, key, value)
+    # Hold lock for entire read-modify-write operation (atomic)
+    # FileLock creates the file if it doesn't exist (w+ mode)
+    with FileLock(sidecar_path, exclusive=True) as f:
+        # Read existing content or create new metadata
+        try:
+            content = f.read()
+            if content:
+                f.seek(0)
+                data = json.load(f)
+                validate_schema(data)
+                metadata = SidecarMetadata.from_dict(data)
+            else:
+                # File was just created (empty)
+                metadata = create_metadata(photo_path)
+        except (json.JSONDecodeError, ValidationError, KeyError):
+            metadata = create_metadata(photo_path)
 
-    # Update modified_at timestamp
-    metadata.modified_at = _get_current_timestamp()
+        # Update fields
+        for key, value in updates.items():
+            if key == "tags" and value is not None:
+                # Normalize tags
+                setattr(metadata, key, [normalize_tag(tag) for tag in value])
+            elif hasattr(metadata, key):
+                setattr(metadata, key, value)
 
-    # Write to disk
-    write_metadata(photo_path, metadata)
+        # Update modified_at timestamp
+        metadata.modified_at = _get_current_timestamp()
+
+        # Write atomically while holding lock
+        f.seek(0)
+        f.truncate()
+        json.dump(metadata.to_dict(), f, indent=2)
 
     return metadata
 
