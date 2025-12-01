@@ -5,6 +5,8 @@ pytest>=7.0.0
 pytest-mock>=3.10.0
 pytest-timeout>=2.1.0
 pytest-cov>=4.0.0
+pytest-xdist>=3.5.0  # Parallel test execution
+pytest-split>=0.9.0  # Deterministic test splitting for CI sharding
 
 # Flask dependencies (required by integration tests that import app.py)
 Flask==3.0.0

@@ -26,11 +26,23 @@ markers = [
     "integration: multi-component integration tests",
     "calibration: calibration functionality tests",
     "unit: unit tests for individual functions and modules",
+    "xdist_group(name): Group tests to run on same worker (pytest-xdist)",
 ]
 
 [tool.coverage.run]
 # Source directories to measure coverage
 source = [".", "webui/backend"]
+
+# Enable parallel coverage collection for pytest-xdist
+parallel = true
+concurrency = ["multiprocessing", "thread"]
+
+[tool.coverage.paths]
+# Map source paths for combining coverage from different CI jobs
+source = [
+    ".",
+    "/home/runner/work/Mothbox/Mothbox/Firmware/",
+]
 
 # Files and directories to omit from coverage
 omit = [
