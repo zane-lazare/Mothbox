@@ -209,17 +209,17 @@ jobs:
           # List what we have
           ls -la coverage*.xml || echo "No coverage XML files to combine"
 
-          # Combine coverage data (coverage.py uses .coverage files, not XML)
-          # For XML combination, we use coverage combine with data files
-          # But since we have XML outputs, we'll just check the threshold from one file
-          # and generate a combined HTML report
+          # Note: coverage.py `combine` requires .coverage data files, not XML
+          # XML files are for reporting/display only and cannot be combined.
+          # The 85% threshold is checked in each individual test job.
+          # This step just verifies all coverage XML files were collected successfully.
 
-          # Check if any tests passed - if all shards failed, skip coverage check
           if ls coverage*.xml 1> /dev/null 2>&1; then
-            echo "Coverage files found, generating report..."
-            # Use the first coverage file to verify threshold
-            # In practice, each shard covers different code, so we need proper combination
-            coverage report --fail-under=85 || echo "Note: Coverage threshold check may be inaccurate with split tests"
+            echo "Coverage reports collected from all shards:"
+            ls -la coverage*.xml
+            echo ""
+            echo "Note: Per-shard coverage threshold (85%) is enforced in individual test jobs."
+            echo "XML files collected here are for artifact storage and reporting only."
           else
             echo "No coverage files found - tests may have failed"
             exit 1

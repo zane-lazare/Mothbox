@@ -56,7 +56,12 @@ _tags_cache_time = 0
 _species_cache = None
 _species_cache_time = 0
 _cache_lock = threading.Lock()
-AGGREGATION_CACHE_TTL = 300  # 5 minutes
+_DEFAULT_AGGREGATION_CACHE_TTL = 300  # 5 minutes
+
+
+def _get_cache_ttl() -> int:
+    """Get aggregation cache TTL from app config or use default."""
+    return current_app.config.get('SIDECAR_AGGREGATION_CACHE_TTL', _DEFAULT_AGGREGATION_CACHE_TTL)
 
 
 def invalidate_aggregation_cache():
@@ -79,16 +84,19 @@ def invalidate_aggregation_cache():
 # Helper Functions
 # ============================================================================
 
-def check_api_key():
+def check_api_key() -> bool:
     """
     Check if request has valid API key in X-API-Key header.
+
+    Note: This function is defined for future use. API key authentication
+    is not yet implemented - see issue #175 for tracking.
 
     Returns:
         True if valid API key provided, False otherwise
     """
     api_key = request.headers.get('X-API-Key')
     expected_key = current_app.config.get('API_KEY')
-    return api_key and expected_key and api_key == expected_key
+    return bool(api_key and expected_key and api_key == expected_key)
 
 
 def validate_metadata_input(data: dict) -> tuple[bool, str | None]:
@@ -283,10 +291,8 @@ def update_photo_metadata(filename: str):
         }
     """
     try:
-        # Check authentication (CSRF OR API key)
-        # API key bypasses CSRF protection
-        # If no API key, CSRF protection is enforced by Flask-WTF automatically
-        check_api_key()  # API key validation (currently for future use)
+        # Authentication: CSRF protection is enforced by Flask-WTF automatically.
+        # API key auth not yet implemented - see issue #175 for tracking.
 
         # Get sidecar service
         service = current_app.config.get('SIDECAR_SERVICE')
@@ -387,8 +393,8 @@ def delete_photo_metadata(filename: str):
         {"success": true}
     """
     try:
-        # Check authentication (CSRF OR API key)
-        check_api_key()  # API key validation (currently for future use)
+        # Authentication: CSRF protection is enforced by Flask-WTF automatically.
+        # API key auth not yet implemented - see issue #175 for tracking.
 
         # Get sidecar service
         service = current_app.config.get('SIDECAR_SERVICE')
@@ -405,19 +411,10 @@ def delete_photo_metadata(filename: str):
         if metadata is None:
             return jsonify({"error": "Metadata not found"}), 404
 
-        # Delete via service (invalidate cache and delete file)
-        # The service should handle both cache invalidation and file deletion
-        from webui.backend.lib.sidecar_metadata import delete_metadata, get_sidecar_path
-
-        # Delete the actual sidecar file
-        sidecar_path = get_sidecar_path(full_path)
-        if sidecar_path.exists():
-            delete_success = delete_metadata(full_path)
-            if not delete_success:
-                return jsonify({"error": "Failed to delete metadata"}), 500
-
-        # Invalidate service cache
-        service.invalidate(str(full_path))
+        # Delete via service (handles cache invalidation and file deletion)
+        delete_success = service.delete_metadata(str(full_path))
+        if not delete_success:
+            return jsonify({"error": "Failed to delete metadata"}), 500
 
         # Invalidate aggregation cache since tags/species may have changed
         invalidate_aggregation_cache()
@@ -603,8 +600,8 @@ def bulk_update_metadata():
         }
     """
     try:
-        # Check authentication (CSRF OR API key)
-        check_api_key()  # API key validation (currently for future use)
+        # Authentication: CSRF protection is enforced by Flask-WTF automatically.
+        # API key auth not yet implemented - see issue #175 for tracking.
 
         # Get sidecar service
         service = current_app.config.get('SIDECAR_SERVICE')
@@ -818,14 +815,14 @@ def get_all_tags():
         global _tags_cache, _tags_cache_time
         with _cache_lock:
             cache_age = time.time() - _tags_cache_time
-            if _tags_cache is not None and cache_age < AGGREGATION_CACHE_TTL:
+            if _tags_cache is not None and cache_age < _get_cache_ttl():
                 all_tags = _tags_cache.copy()
                 logger.debug(f"Tags cache hit (age: {cache_age:.1f}s)")
             else:
                 # Aggregate tags from all sidecar files
                 tag_counter = Counter()
 
-                for sidecar_path in PHOTOS_DIR.glob("*.json"):
+                for sidecar_path in PHOTOS_DIR.rglob("*.meta.json"):
                     try:
                         sidecar_data = json.loads(sidecar_path.read_text())
                         for tag in sidecar_data.get('tags', []):
@@ -957,14 +954,14 @@ def get_all_species():
         global _species_cache, _species_cache_time
         with _cache_lock:
             cache_age = time.time() - _species_cache_time
-            if _species_cache is not None and cache_age < AGGREGATION_CACHE_TTL:
+            if _species_cache is not None and cache_age < _get_cache_ttl():
                 all_species = _species_cache.copy()
                 logger.debug(f"Species cache hit (age: {cache_age:.1f}s)")
             else:
                 # Aggregate species from all sidecar files
                 species_counter = Counter()
 
-                for sidecar_path in PHOTOS_DIR.glob("*.json"):
+                for sidecar_path in PHOTOS_DIR.rglob("*.meta.json"):
                     try:
                         sidecar_data = json.loads(sidecar_path.read_text())
                         species_name = sidecar_data.get('species')
