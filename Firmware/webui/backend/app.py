@@ -155,7 +155,12 @@ else:
 
 # Initialize services using lazy getters (avoids circular imports)
 # Services are lazily initialized on first access via get_*_service() functions
-from services import get_series_service, get_clustering_service, get_locations_service
+from services import (
+    get_clustering_service,
+    get_locations_service,
+    get_series_service,
+    get_sidecar_service,
+)
 
 try:
     # Pre-initialize services and store in app.config for routes that need direct access
@@ -178,6 +183,13 @@ try:
 except Exception as e:
     print(f"⚠️  Failed to initialize locations service: {e}")
     app.config['LOCATIONS_SERVICE'] = None
+
+try:
+    app.config['SIDECAR_SERVICE'] = get_sidecar_service()
+    print("✓ Sidecar service initialized")
+except Exception as e:
+    print(f"⚠️  Failed to initialize sidecar service: {e}")
+    app.config['SIDECAR_SERVICE'] = None
 
 # Import route blueprints
 from routes.camera import camera_bp
@@ -231,6 +243,15 @@ limiter.exempt(app.view_functions["gallery.get_thumbnail"])
 limiter.exempt(app.view_functions["gallery.get_photo"])
 
 print("✓ Rate limiting applied to camera, GPIO, and GPS endpoints")
+
+# Sidecar API rate limiting (Issue #107 follow-up)
+# Bulk: 10 per minute (prevents abuse of batch operations)
+# PATCH/DELETE: 30 per minute (one per 2 seconds, reasonable for UI use)
+limiter.limit("10 per minute")(app.view_functions["sidecar.bulk_update_metadata"])
+limiter.limit("30 per minute")(app.view_functions["sidecar.update_photo_metadata"])
+limiter.limit("30 per minute")(app.view_functions["sidecar.delete_photo_metadata"])
+
+print("✓ Rate limiting applied to sidecar endpoints")
 
 
 # CSRF token endpoint

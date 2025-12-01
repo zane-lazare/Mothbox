@@ -202,11 +202,11 @@ def client(sidecar_app):
 
 
 # ============================================================================
-# Test GET /api/sidecar/photos/{filename}/metadata Endpoint
+# Test GET /api/sidecar/photos/{filename} Endpoint
 # ============================================================================
 
 class TestGetPhotoMetadata:
-    """Tests for GET /api/sidecar/photos/{filename}/metadata endpoint."""
+    """Tests for GET /api/sidecar/photos/{filename} endpoint."""
 
     def test_get_metadata_returns_existing(self, client, sample_photo, mock_sidecar_service):
         """
@@ -305,11 +305,11 @@ class TestGetPhotoMetadata:
 
 
 # ============================================================================
-# Test PATCH /api/sidecar/photos/{filename}/metadata Endpoint
+# Test PATCH /api/sidecar/photos/{filename} Endpoint
 # ============================================================================
 
 class TestUpdatePhotoMetadata:
-    """Tests for PATCH /api/sidecar/photos/{filename}/metadata endpoint."""
+    """Tests for PATCH /api/sidecar/photos/{filename} endpoint."""
 
     def test_update_metadata_success(self, client, sample_photo, mock_sidecar_service):
         """
@@ -326,7 +326,7 @@ class TestUpdatePhotoMetadata:
         }
 
         response = client.patch(
-            f'/api/sidecar/photos/{sample_photo.name}/metadata',
+            f'/api/sidecar/photos/{sample_photo.name}',
             data=json.dumps(update_data),
             content_type='application/json'
         )
@@ -371,7 +371,7 @@ class TestUpdatePhotoMetadata:
         update_data = {"tags": ["new_tag"]}
 
         response = client.patch(
-            f'/api/sidecar/photos/{sample_photo.name}/metadata',
+            f'/api/sidecar/photos/{sample_photo.name}',
             data=json.dumps(update_data),
             content_type='application/json'
         )
@@ -390,7 +390,7 @@ class TestUpdatePhotoMetadata:
         - Error message indicates invalid JSON
         """
         response = client.patch(
-            f'/api/sidecar/photos/{sample_photo.name}/metadata',
+            f'/api/sidecar/photos/{sample_photo.name}',
             data='{"invalid": json syntax}',  # Malformed JSON
             content_type='application/json'
         )
@@ -414,7 +414,7 @@ class TestUpdatePhotoMetadata:
         # Try without CSRF token (should fail in production)
         # Note: May pass in test mode if CSRF disabled
         response = client.patch(
-            f'/api/sidecar/photos/{sample_photo.name}/metadata',
+            f'/api/sidecar/photos/{sample_photo.name}',
             data=json.dumps(update_data),
             content_type='application/json'
         )
@@ -441,7 +441,7 @@ class TestUpdatePhotoMetadata:
 
         for malicious_path in traversal_attempts:
             response = client.patch(
-                f'/api/sidecar/photos/{malicious_path}/metadata',
+                f'/api/sidecar/photos/{malicious_path}',
                 data=json.dumps({"tags": ["test"]}),
                 content_type='application/json'
             )
@@ -464,7 +464,7 @@ class TestUpdatePhotoMetadata:
         update_data = {"tags": ["api_test"]}
 
         response = client.patch(
-            f'/api/sidecar/photos/{sample_photo.name}/metadata',
+            f'/api/sidecar/photos/{sample_photo.name}',
             data=json.dumps(update_data),
             content_type='application/json',
             headers={'X-API-Key': 'test-api-key-12345'}
@@ -477,11 +477,11 @@ class TestUpdatePhotoMetadata:
 
 
 # ============================================================================
-# Test DELETE /api/sidecar/photos/{filename}/metadata Endpoint
+# Test DELETE /api/sidecar/photos/{filename} Endpoint
 # ============================================================================
 
 class TestDeletePhotoMetadata:
-    """Tests for DELETE /api/sidecar/photos/{filename}/metadata endpoint."""
+    """Tests for DELETE /api/sidecar/photos/{filename} endpoint."""
 
     def test_delete_metadata_success(self, client, sample_photo, sample_sidecar, mock_sidecar_service):
         """
@@ -609,7 +609,7 @@ class TestTagOperations:
         }
 
         response = client.patch(
-            f'/api/sidecar/photos/{sample_photo.name}/metadata',
+            f'/api/sidecar/photos/{sample_photo.name}',
             data=json.dumps(update_data),
             content_type='application/json'
         )
@@ -649,7 +649,7 @@ class TestTagOperations:
         }
 
         response = client.patch(
-            f'/api/sidecar/photos/{sample_photo.name}/metadata',
+            f'/api/sidecar/photos/{sample_photo.name}',
             data=json.dumps(update_data),
             content_type='application/json'
         )
@@ -687,7 +687,7 @@ class TestTagOperations:
         }
 
         response = client.patch(
-            f'/api/sidecar/photos/{sample_photo.name}/metadata',
+            f'/api/sidecar/photos/{sample_photo.name}',
             data=json.dumps(update_data),
             content_type='application/json'
         )
@@ -848,7 +848,7 @@ class TestMetadataErrorHandling:
         }
 
         response = client.patch(
-            f'/api/sidecar/photos/{sample_photo.name}/metadata',
+            f'/api/sidecar/photos/{sample_photo.name}',
             data=json.dumps(update_data),
             content_type='application/json'
         )
@@ -1212,6 +1212,19 @@ class TestBulkMetadataUpdate:
 class TestTagAggregation:
     """Tests for GET /api/sidecar/tags endpoint."""
 
+    @pytest.fixture(autouse=True)
+    def clear_aggregation_cache(self, temp_photos_dir):
+        """Clear aggregation cache before each test to ensure test isolation.
+
+        Depends on temp_photos_dir to ensure PHOTOS_DIR is patched first,
+        then clears cache so tests use the patched directory.
+
+        Uses routes.sidecar (not webui.backend.routes.sidecar) to match
+        the import path used by sidecar_bp in this test file.
+        """
+        from routes.sidecar import invalidate_aggregation_cache
+        invalidate_aggregation_cache()
+
     def test_get_tags_returns_unique_with_counts(self, client, temp_photos_dir):
         """GET /tags returns unique tags with usage counts."""
         # Create sample sidecar files with tags
@@ -1364,6 +1377,19 @@ class TestTagAggregation:
 
 class TestSpeciesAggregation:
     """Tests for GET /api/sidecar/species endpoint."""
+
+    @pytest.fixture(autouse=True)
+    def clear_aggregation_cache(self, temp_photos_dir):
+        """Clear aggregation cache before each test to ensure test isolation.
+
+        Depends on temp_photos_dir to ensure PHOTOS_DIR is patched first,
+        then clears cache so tests use the patched directory.
+
+        Uses routes.sidecar (not webui.backend.routes.sidecar) to match
+        the import path used by sidecar_bp in this test file.
+        """
+        from routes.sidecar import invalidate_aggregation_cache
+        invalidate_aggregation_cache()
 
     def test_get_species_returns_unique_with_counts(self, client, temp_photos_dir):
         """GET /species returns unique species with usage counts."""

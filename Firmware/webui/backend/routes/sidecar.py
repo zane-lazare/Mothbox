@@ -9,7 +9,7 @@ URL Prefix: /api/sidecar
 
 Endpoints:
 - GET    /photos/<filename>          - Get sidecar metadata
-- PATCH  /photos/<filename>/metadata - Update sidecar metadata
+- PATCH  /photos/<filename>          - Update sidecar metadata
 - DELETE /photos/<filename>          - Delete sidecar
 - GET    /photos                     - List all metadata (paginated)
 - POST   /bulk                       - Bulk update metadata (Phase 2)
@@ -30,6 +30,8 @@ Authentication Modes:
 
 import json
 import logging
+import threading
+import time
 from collections import Counter
 
 from flask import Blueprint, current_app, jsonify, request
@@ -42,6 +44,35 @@ logger = logging.getLogger(__name__)
 
 # Blueprint setup
 sidecar_bp = Blueprint("sidecar", __name__)
+
+# ============================================================================
+# Aggregation Cache (Issue #107 follow-up - Performance)
+# ============================================================================
+# Tags and species aggregation scans all sidecar files. This cache
+# prevents repeated O(n) scans on every request.
+
+_tags_cache = None
+_tags_cache_time = 0
+_species_cache = None
+_species_cache_time = 0
+_cache_lock = threading.Lock()
+AGGREGATION_CACHE_TTL = 300  # 5 minutes
+
+
+def invalidate_aggregation_cache():
+    """
+    Invalidate tags and species aggregation cache.
+
+    Called after metadata updates (PATCH, DELETE, bulk) to ensure
+    subsequent aggregation requests return fresh data.
+    """
+    global _tags_cache, _species_cache, _tags_cache_time, _species_cache_time
+    with _cache_lock:
+        _tags_cache = None
+        _species_cache = None
+        _tags_cache_time = 0
+        _species_cache_time = 0
+        logger.debug("Aggregation cache invalidated")
 
 
 # ============================================================================
@@ -197,10 +228,10 @@ def get_photo_metadata(filename: str):
 
 
 # ============================================================================
-# PATCH /photos/<filename>/metadata - Update sidecar metadata
+# PATCH /photos/<filename> - Update sidecar metadata
 # ============================================================================
 
-@sidecar_bp.route("/photos/<path:filename>/metadata", methods=["PATCH"])
+@sidecar_bp.route("/photos/<path:filename>", methods=["PATCH"])
 def update_photo_metadata(filename: str):
     """
     Update sidecar metadata for a photo.
@@ -235,7 +266,7 @@ def update_photo_metadata(filename: str):
         503: Service unavailable
 
     Example:
-        PATCH /api/sidecar/photos/photo.jpg/metadata
+        PATCH /api/sidecar/photos/photo.jpg
         Content-Type: application/json
         X-CSRFToken: <token>
 
@@ -314,6 +345,9 @@ def update_photo_metadata(filename: str):
         if updated_metadata is None:
             return jsonify({"error": "Failed to update metadata"}), 500
 
+        # Invalidate aggregation cache since tags/species may have changed
+        invalidate_aggregation_cache()
+
         return jsonify(updated_metadata.to_dict()), 200
 
     except Exception as e:
@@ -382,8 +416,11 @@ def delete_photo_metadata(filename: str):
             if not delete_success:
                 return jsonify({"error": "Failed to delete metadata"}), 500
 
-        # Invalidate cache
+        # Invalidate service cache
         service.invalidate(str(full_path))
+
+        # Invalidate aggregation cache since tags/species may have changed
+        invalidate_aggregation_cache()
 
         return jsonify({"success": True}), 200
 
@@ -677,6 +714,10 @@ def bulk_update_metadata():
                 failed_list.append(filename)
                 error_dict[filename] = "Update failed"
 
+        # Invalidate aggregation cache if any updates succeeded
+        if success_list:
+            invalidate_aggregation_cache()
+
         # Build response
         return jsonify({
             "success": success_list,
@@ -773,20 +814,33 @@ def get_all_tags():
         if order not in ['asc', 'desc']:
             return jsonify({"error": "order must be 'asc' or 'desc'"}), 400
 
-        # Aggregate tags from all sidecar files
-        tag_counter = Counter()
+        # Use cached aggregation data if available and fresh
+        global _tags_cache, _tags_cache_time
+        with _cache_lock:
+            cache_age = time.time() - _tags_cache_time
+            if _tags_cache is not None and cache_age < AGGREGATION_CACHE_TTL:
+                all_tags = _tags_cache.copy()
+                logger.debug(f"Tags cache hit (age: {cache_age:.1f}s)")
+            else:
+                # Aggregate tags from all sidecar files
+                tag_counter = Counter()
 
-        for sidecar_path in PHOTOS_DIR.glob("*.json"):
-            try:
-                sidecar_data = json.loads(sidecar_path.read_text())
-                for tag in sidecar_data.get('tags', []):
-                    tag_counter[tag] += 1
-            except (OSError, json.JSONDecodeError, KeyError):
-                # Skip corrupted or invalid sidecar files
-                continue
+                for sidecar_path in PHOTOS_DIR.glob("*.json"):
+                    try:
+                        sidecar_data = json.loads(sidecar_path.read_text())
+                        for tag in sidecar_data.get('tags', []):
+                            tag_counter[tag] += 1
+                    except (OSError, json.JSONDecodeError, KeyError):
+                        # Skip corrupted or invalid sidecar files
+                        continue
 
-        # Convert to list of {name, count} dicts
-        all_tags = [{"name": tag, "count": count} for tag, count in tag_counter.items()]
+                # Convert to list of {name, count} dicts
+                all_tags = [{"name": tag, "count": count} for tag, count in tag_counter.items()]
+
+                # Cache the result
+                _tags_cache = all_tags.copy()
+                _tags_cache_time = time.time()
+                logger.debug(f"Tags cache miss - scanned {len(tag_counter)} unique tags")
 
         # Sort
         if sort_by == 'count':
@@ -899,23 +953,36 @@ def get_all_species():
         if order not in ['asc', 'desc']:
             return jsonify({"error": "order must be 'asc' or 'desc'"}), 400
 
-        # Aggregate species from all sidecar files
-        species_counter = Counter()
+        # Use cached aggregation data if available and fresh
+        global _species_cache, _species_cache_time
+        with _cache_lock:
+            cache_age = time.time() - _species_cache_time
+            if _species_cache is not None and cache_age < AGGREGATION_CACHE_TTL:
+                all_species = _species_cache.copy()
+                logger.debug(f"Species cache hit (age: {cache_age:.1f}s)")
+            else:
+                # Aggregate species from all sidecar files
+                species_counter = Counter()
 
-        for sidecar_path in PHOTOS_DIR.glob("*.json"):
-            try:
-                sidecar_data = json.loads(sidecar_path.read_text())
-                species_name = sidecar_data.get('species')
+                for sidecar_path in PHOTOS_DIR.glob("*.json"):
+                    try:
+                        sidecar_data = json.loads(sidecar_path.read_text())
+                        species_name = sidecar_data.get('species')
 
-                # Only count non-null species
-                if species_name is not None:
-                    species_counter[species_name] += 1
-            except (OSError, json.JSONDecodeError, KeyError):
-                # Skip corrupted or invalid sidecar files
-                continue
+                        # Only count non-null species
+                        if species_name is not None:
+                            species_counter[species_name] += 1
+                    except (OSError, json.JSONDecodeError, KeyError):
+                        # Skip corrupted or invalid sidecar files
+                        continue
 
-        # Convert to list of {name, count} dicts
-        all_species = [{"name": species, "count": count} for species, count in species_counter.items()]
+                # Convert to list of {name, count} dicts
+                all_species = [{"name": species, "count": count} for species, count in species_counter.items()]
+
+                # Cache the result
+                _species_cache = all_species.copy()
+                _species_cache_time = time.time()
+                logger.debug(f"Species cache miss - scanned {len(species_counter)} unique species")
 
         # Sort
         if sort_by == 'count':
