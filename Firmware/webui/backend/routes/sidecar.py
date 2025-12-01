@@ -42,6 +42,10 @@ from webui.backend.lib.sidecar_metadata import MAX_NOTES_LENGTH, MAX_TAG_LENGTH
 
 logger = logging.getLogger(__name__)
 
+# API limits
+MAX_BULK_FILES = 100  # Maximum files per bulk update request
+MAX_PAGINATION_LIMIT = 200  # Maximum items per page for list endpoints
+
 # Blueprint setup
 sidecar_bp = Blueprint("sidecar", __name__)
 
@@ -490,9 +494,9 @@ def list_all_metadata():
         if per_page < 1:
             return jsonify({"error": "per_page must be >= 1"}), 400
 
-        # Cap per_page at 200
-        if per_page > 200:
-            per_page = 200
+        # Cap per_page at maximum
+        if per_page > MAX_PAGINATION_LIMIT:
+            per_page = MAX_PAGINATION_LIMIT
 
         # Calculate offset
         offset = (page - 1) * per_page
@@ -638,8 +642,8 @@ def bulk_update_metadata():
         if len(filenames) == 0:
             return jsonify({"error": "Field 'filenames' cannot be empty"}), 400
 
-        if len(filenames) > 100:
-            return jsonify({"error": "Maximum 100 files per request"}), 400
+        if len(filenames) > MAX_BULK_FILES:
+            return jsonify({"error": f"Maximum {MAX_BULK_FILES} files per request"}), 400
 
         # Validate updates
         if not isinstance(updates, dict):
@@ -800,9 +804,9 @@ def get_all_tags():
         if per_page < 1:
             return jsonify({"error": "per_page must be >= 1"}), 400
 
-        # Cap per_page at 200
-        if per_page > 200:
-            per_page = 200
+        # Cap per_page at maximum
+        if per_page > MAX_PAGINATION_LIMIT:
+            per_page = MAX_PAGINATION_LIMIT
 
         # Validate sort parameters
         if sort_by not in ['count', 'name']:
@@ -939,9 +943,9 @@ def get_all_species():
         if per_page < 1:
             return jsonify({"error": "per_page must be >= 1"}), 400
 
-        # Cap per_page at 200
-        if per_page > 200:
-            per_page = 200
+        # Cap per_page at maximum
+        if per_page > MAX_PAGINATION_LIMIT:
+            per_page = MAX_PAGINATION_LIMIT
 
         # Validate sort parameters
         if sort_by not in ['count', 'name']:

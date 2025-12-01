@@ -93,6 +93,7 @@ jobs:
             --cov=webui/backend \
             --cov-report=xml:coverage-unit-${{ matrix.shard }}.xml \
             --cov-report=term \
+            --cov-fail-under=85 \
             --splits 3 \
             --group ${{ matrix.shard }} \
             -v \
@@ -153,6 +154,7 @@ jobs:
             --cov=webui/backend \
             --cov-report=xml:coverage-integration.xml \
             --cov-report=term \
+            --cov-fail-under=85 \
             -v \
             --tb=short
 

@@ -296,9 +296,8 @@ class SidecarService:
         # Delete the sidecar file
         success = lib_delete(full_path)
 
-        # Invalidate cache regardless of success (file may be partially deleted)
-        if success:
-            self.invalidate(photo_path)
+        # Always invalidate cache - file may be gone, partially deleted, or corrupted
+        self.invalidate(photo_path)
 
         return success
 
