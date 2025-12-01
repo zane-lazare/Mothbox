@@ -614,3 +614,96 @@ class TestStressScenarios:
         time.sleep(0.1)
         final = read_metadata(photo)
         assert final is not None, "Final metadata should be readable after all operations complete"
+
+
+class TestConcurrentCreation:
+    """Tests for concurrent sidecar creation scenarios."""
+
+    def test_concurrent_add_tag_on_nonexistent_file(self, tmp_path):
+        """Multiple add_tag calls on non-existent sidecar should all succeed atomically.
+
+        This tests the fix for the race condition where concurrent add_tag() calls
+        on a photo without a sidecar could race during initial creation.
+        """
+        photo = tmp_path / "photo.jpg"
+        photo.touch()
+
+        # Ensure no sidecar exists
+        sidecar = tmp_path / "photo.jpg.json"
+        assert not sidecar.exists()
+
+        num_threads = 10
+        tags_to_add = [f"tag_{i}" for i in range(num_threads)]
+        successful_adds = []
+        lock = threading.Lock()
+
+        def add_unique_tag(tag):
+            """Add a unique tag."""
+            try:
+                result = add_tag(photo, tag)
+                with lock:
+                    successful_adds.append(tag)
+                return result
+            except Exception as e:
+                print(f"add_tag({tag}) failed: {e}")
+                return None
+
+        # All threads try to add_tag simultaneously on a file with no sidecar
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            futures = [executor.submit(add_unique_tag, tag) for tag in tags_to_add]
+            for future in as_completed(futures, timeout=5.0):
+                future.result()
+
+        # Sidecar should exist now
+        assert sidecar.exists(), "Sidecar should be created"
+
+        # All add_tag calls should have succeeded
+        assert len(successful_adds) == num_threads, \
+            f"All {num_threads} add_tag calls should succeed, got {len(successful_adds)}"
+
+        # Final metadata should have all tags (no lost updates)
+        final = read_metadata(photo)
+        assert final is not None, "Final metadata should be readable"
+
+        # All tags should be present (atomic creation + all updates applied)
+        for tag in tags_to_add:
+            normalized_tag = tag.lower()
+            assert normalized_tag in final.tags, \
+                f"Tag '{normalized_tag}' missing from final tags: {final.tags}"
+
+    def test_concurrent_add_tag_first_one_wins_creates_file(self, tmp_path):
+        """First add_tag to create file should succeed, others should update atomically."""
+        photo = tmp_path / "photo.jpg"
+        photo.touch()
+
+        # Create barrier to synchronize threads
+        barrier = threading.Barrier(5)
+        results = []
+        lock = threading.Lock()
+
+        def synchronized_add_tag(tag):
+            """Wait for all threads, then add tag."""
+            try:
+                barrier.wait(timeout=2.0)  # Synchronize all threads
+                result = add_tag(photo, tag)
+                with lock:
+                    results.append((tag, True))
+                return result
+            except Exception as e:
+                with lock:
+                    results.append((tag, False, str(e)))
+                return None
+
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(synchronized_add_tag, f"sync_tag_{i}") for i in range(5)]
+            for future in as_completed(futures, timeout=5.0):
+                future.result()
+
+        # All operations should succeed
+        success_count = sum(1 for r in results if r[1])
+        assert success_count == 5, f"All 5 add_tag calls should succeed, got {success_count}"
+
+        # Final metadata should have all 5 tags
+        final = read_metadata(photo)
+        assert final is not None
+        assert len(final.tags) == 5, f"Should have 5 tags, got {len(final.tags)}: {final.tags}"

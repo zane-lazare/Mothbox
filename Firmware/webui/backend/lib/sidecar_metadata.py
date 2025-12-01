@@ -47,10 +47,13 @@ Usage:
 import contextlib
 import fcntl
 import json
+import logging
 import time
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # Constants
@@ -511,8 +514,10 @@ def write_metadata(
         temp_path.replace(sidecar_path)
 
         # Set file permissions (rw-r--r-- = 0o644)
-        with contextlib.suppress(Exception):
+        try:
             sidecar_path.chmod(0o644)
+        except (OSError, PermissionError) as e:
+            logger.debug(f"Could not set permissions on {sidecar_path}: {e}")
 
         return True
 
@@ -678,19 +683,20 @@ def add_tag(photo_path: Path | str, tag: str) -> SidecarMetadata:
     normalized_tag = normalize_tag(tag)
     sidecar_path = get_sidecar_path(photo_path)
 
-    # If sidecar doesn't exist, create it with the new tag
-    if not sidecar_path.exists():
-        metadata = create_metadata(photo_path, tags=[normalized_tag])
-        write_metadata(photo_path, metadata)
-        return metadata
-
     # Hold lock for entire read-modify-write operation (atomic)
+    # FileLock creates the file if it doesn't exist (w+ mode)
     with FileLock(sidecar_path, exclusive=True) as f:
-        # Read while holding lock
+        # Read existing content or create new metadata
         try:
-            data = json.load(f)
-            validate_schema(data)
-            metadata = SidecarMetadata.from_dict(data)
+            content = f.read()
+            if content:
+                f.seek(0)
+                data = json.load(f)
+                validate_schema(data)
+                metadata = SidecarMetadata.from_dict(data)
+            else:
+                # File was just created (empty)
+                metadata = create_metadata(photo_path)
         except (json.JSONDecodeError, ValidationError, KeyError):
             metadata = create_metadata(photo_path)
 
@@ -710,8 +716,8 @@ def add_tag(photo_path: Path | str, tag: str) -> SidecarMetadata:
 def remove_tag(photo_path: Path | str, tag: str) -> SidecarMetadata:
     """Remove tag from photo metadata with atomic read-modify-write.
 
-    Normalizes tag before removal. Returns unchanged metadata if tag not found.
-    Uses file locking to ensure atomic operation under concurrent access.
+    Normalizes tag before removal. Returns unchanged metadata if tag not found
+    or sidecar doesn't exist. Uses file locking for atomic operations.
 
     Args:
         photo_path: Path to photo file
@@ -728,13 +734,18 @@ def remove_tag(photo_path: Path | str, tag: str) -> SidecarMetadata:
     normalized_tag = normalize_tag(tag)
     sidecar_path = get_sidecar_path(photo_path)
 
-    # If sidecar doesn't exist, return empty metadata
+    # If sidecar doesn't exist, return empty metadata (nothing to remove)
     if not sidecar_path.exists():
         return create_metadata(photo_path)
 
     # Hold lock for entire read-modify-write operation (atomic)
     with FileLock(sidecar_path, exclusive=True) as f:
         try:
+            content = f.read()
+            if not content:
+                # File exists but is empty (shouldn't happen, but handle it)
+                return create_metadata(photo_path)
+            f.seek(0)
             data = json.load(f)
             validate_schema(data)
             metadata = SidecarMetadata.from_dict(data)

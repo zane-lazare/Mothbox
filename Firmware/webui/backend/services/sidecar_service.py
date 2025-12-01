@@ -501,8 +501,10 @@ class SidecarService:
             except Exception as e:
                 logger.warning(f"Failed to read L2 cache file {cache_file}: {e}")
                 # Corrupted cache file - remove it
-                with contextlib.suppress(Exception):
+                try:
                     cache_file.unlink()
+                except (OSError, PermissionError) as unlink_err:
+                    logger.debug(f"Failed to remove corrupted cache file {cache_file}: {unlink_err}")
                 return None
 
     def _set_l2(self, photo_path: str, entry: CacheEntry) -> None:
