@@ -826,7 +826,7 @@ def get_all_tags():
                 # Aggregate tags from all sidecar files
                 tag_counter = Counter()
 
-                for sidecar_path in PHOTOS_DIR.rglob("*.meta.json"):
+                for sidecar_path in PHOTOS_DIR.rglob("*.jpg.json"):
                     try:
                         sidecar_data = json.loads(sidecar_path.read_text())
                         for tag in sidecar_data.get('tags', []):
@@ -965,7 +965,7 @@ def get_all_species():
                 # Aggregate species from all sidecar files
                 species_counter = Counter()
 
-                for sidecar_path in PHOTOS_DIR.rglob("*.meta.json"):
+                for sidecar_path in PHOTOS_DIR.rglob("*.jpg.json"):
                     try:
                         sidecar_data = json.loads(sidecar_path.read_text())
                         species_name = sidecar_data.get('species')
