@@ -49,29 +49,29 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
     }
   }, [isOpen])
 
-  // Close on Escape
+  // Close on Escape or click outside - only attach listeners when open
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose()
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
+    if (!isOpen) return
 
-  // Close on click outside
-  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+
     const handleClickOutside = (e) => {
-      if (isOpen &&
-          dropdownRef.current &&
+      if (dropdownRef.current &&
           !dropdownRef.current.contains(e.target) &&
           !anchorEl?.contains(e.target)) {
         onClose()
       }
     }
+
+    document.addEventListener('keydown', handleKeyDown)
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
   }, [isOpen, onClose, anchorEl])
 
   if (!isOpen) return null
