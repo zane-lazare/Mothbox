@@ -878,8 +878,9 @@ def get_all_tags():
                 all_tags = [{"name": tag, "count": count} for tag, count in tag_counter.items()]
 
                 # Cache the result and notify waiters
+                # No need to copy here - readers always copy before sorting
                 with _cache_condition:
-                    _tags_cache = all_tags.copy()
+                    _tags_cache = all_tags
                     _tags_cache_time = time.time()
                     _tags_cache_building = False
                     _cache_condition.notify_all()  # Wake waiting threads
@@ -1056,8 +1057,9 @@ def get_all_species():
                 all_species = [{"name": species, "count": count} for species, count in species_counter.items()]
 
                 # Cache the result and notify waiters
+                # No need to copy here - readers always copy before sorting
                 with _cache_condition:
-                    _species_cache = all_species.copy()
+                    _species_cache = all_species
                     _species_cache_time = time.time()
                     _species_cache_building = False
                     _cache_condition.notify_all()  # Wake waiting threads
