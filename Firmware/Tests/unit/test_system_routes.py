@@ -394,9 +394,16 @@ class TestPhotoCountCache:
             _photo_count_cache['timestamp'] = time.time() - (PHOTO_COUNT_CACHE_TTL + 10)
 
         # Mock the filesystem to return 75 photos
+        # Use side_effect to return photos only for first pattern (*.jpg)
+        # since implementation iterates over PHOTO_PATTERNS
+        def glob_side_effect(pattern):
+            if '*.jpg' in pattern and 'JPG' not in pattern and 'jpeg' not in pattern:
+                return ['photo.jpg'] * 75
+            return []
+
         with patch('routes.system.PHOTOS_DIR') as mock_photos_dir:
             mock_photos_dir.exists.return_value = True
-            mock_photos_dir.glob.return_value = ['photo.jpg'] * 75
+            mock_photos_dir.glob.side_effect = glob_side_effect
 
             count = _get_cached_photo_count()
 
@@ -414,9 +421,16 @@ class TestPhotoCountCache:
             _photo_count_cache['timestamp'] = 0
 
         # Mock the filesystem
+        # Use side_effect to return photos only for first pattern (*.jpg)
+        # since implementation iterates over PHOTO_PATTERNS
+        def glob_side_effect(pattern):
+            if '*.jpg' in pattern and 'JPG' not in pattern and 'jpeg' not in pattern:
+                return ['a.jpg', 'b.jpg', 'c.jpg']
+            return []
+
         with patch('routes.system.PHOTOS_DIR') as mock_photos_dir:
             mock_photos_dir.exists.return_value = True
-            mock_photos_dir.glob.return_value = ['a.jpg', 'b.jpg', 'c.jpg']
+            mock_photos_dir.glob.side_effect = glob_side_effect
 
             count = _get_cached_photo_count()
 
