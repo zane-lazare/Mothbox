@@ -98,3 +98,17 @@ CAMERA_MODEL: Final[str] = "OwlSight 64MP"
 # EXIF RATIONAL uses two unsigned 32-bit integers (max 4,294,967,295)
 # Using conservative limit for maximum compatibility with image viewers
 EXIF_RATIONAL_MAX: Final[int] = 1_000_000  # Covers exposures down to 1µs
+
+# =============================================================================
+# PHOTO FILE PATTERNS
+# =============================================================================
+# Glob patterns for all supported photo extensions (case variations)
+PHOTO_PATTERNS: Final[tuple[str, ...]] = ("*.jpg", "*.JPG", "*.jpeg", "*.JPEG")
+
+# Sidecar file patterns (photo filename + .json)
+SIDECAR_PATTERNS: Final[tuple[str, ...]] = (
+    "*.jpg.json",
+    "*.JPG.json",
+    "*.jpeg.json",
+    "*.JPEG.json",
+)

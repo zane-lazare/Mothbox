@@ -672,15 +672,14 @@ class MetadataService:
                     return series_type, None, series_index
 
                 # Count files with same series ID in directory
-                series_count = 0
-                for jpg_file in parent_dir.glob("*.jpg"):
-                    if get_series_id(jpg_file) == series_id:
-                        series_count += 1
+                # Import PHOTO_PATTERNS for all supported extensions
+                from constants import PHOTO_PATTERNS
 
-                # Also check uppercase extension
-                for jpg_file in parent_dir.glob("*.JPG"):
-                    if get_series_id(jpg_file) == series_id:
-                        series_count += 1
+                series_count = 0
+                for pattern in PHOTO_PATTERNS:
+                    for jpg_file in parent_dir.glob(pattern):
+                        if get_series_id(jpg_file) == series_id:
+                            series_count += 1
 
                 return series_type, series_count, series_index
 

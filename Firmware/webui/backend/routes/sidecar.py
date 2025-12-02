@@ -33,10 +33,12 @@ import logging
 import threading
 import time
 from collections import Counter
+from itertools import chain
 
 from flask import Blueprint, current_app, jsonify, request
 
 from mothbox_paths import PHOTOS_DIR
+from webui.backend.constants import SIDECAR_PATTERNS
 from webui.backend.lib.sidecar_metadata import (
     MAX_BULK_FILES,
     MAX_NOTES_LENGTH,
@@ -55,12 +57,18 @@ sidecar_bp = Blueprint("sidecar", __name__)
 # ============================================================================
 # Tags and species aggregation scans all sidecar files. This cache
 # prevents repeated O(n) scans on every request.
+#
+# Uses RLock to allow reentrant locking and a "building" flag to prevent
+# thundering herd when cache expires under concurrent load.
 
 _tags_cache = None
 _tags_cache_time = 0
+_tags_cache_building = False
 _species_cache = None
 _species_cache_time = 0
-_cache_lock = threading.Lock()
+_species_cache_building = False
+_cache_lock = threading.RLock()  # Reentrant lock for nested calls
+_cache_condition = threading.Condition(_cache_lock)  # For wait/notify on first build
 _DEFAULT_AGGREGATION_CACHE_TTL = 300  # 5 minutes
 
 
@@ -77,11 +85,15 @@ def invalidate_aggregation_cache():
     subsequent aggregation requests return fresh data.
     """
     global _tags_cache, _species_cache, _tags_cache_time, _species_cache_time
-    with _cache_lock:
+    global _tags_cache_building, _species_cache_building
+    with _cache_condition:
         _tags_cache = None
         _species_cache = None
         _tags_cache_time = 0
         _species_cache_time = 0
+        _tags_cache_building = False
+        _species_cache_building = False
+        _cache_condition.notify_all()  # Wake any waiters
         logger.debug("Aggregation cache invalidated")
 
 
@@ -816,32 +828,69 @@ def get_all_tags():
             return jsonify({"error": "order must be 'asc' or 'desc'"}), 400
 
         # Use cached aggregation data if available and fresh
-        global _tags_cache, _tags_cache_time
-        with _cache_lock:
+        # Uses Condition for wait/notify to prevent thundering herd on first build
+        global _tags_cache, _tags_cache_time, _tags_cache_building
+        all_tags = None
+
+        with _cache_condition:
             cache_age = time.time() - _tags_cache_time
             if _tags_cache is not None and cache_age < _get_cache_ttl():
                 all_tags = _tags_cache.copy()
                 logger.debug(f"Tags cache hit (age: {cache_age:.1f}s)")
+            elif _tags_cache_building:
+                # Another thread is building - wait for it or use stale data
+                if _tags_cache is not None:
+                    # Stale data available, use it without waiting
+                    all_tags = _tags_cache.copy()
+                    logger.debug("Tags cache building, using stale data")
+                else:
+                    # First build - must wait for builder to complete
+                    logger.debug("Tags cache building (first build), waiting...")
+                    _cache_condition.wait(timeout=30.0)  # Wait up to 30s
+                    # After waking, check if cache is now available
+                    if _tags_cache is not None:
+                        all_tags = _tags_cache.copy()
+                        logger.debug("Tags cache now available after wait")
             else:
+                # Mark as building to prevent thundering herd
+                _tags_cache_building = True
+
+        # Build cache outside the lock if needed
+        if all_tags is None:
+            try:
                 # Aggregate tags from all sidecar files
+                # Use chain.from_iterable to scan directory once for all patterns
                 tag_counter = Counter()
 
-                for sidecar_path in PHOTOS_DIR.rglob("*.jpg.json"):
+                all_sidecars = chain.from_iterable(
+                    PHOTOS_DIR.rglob(pattern) for pattern in SIDECAR_PATTERNS
+                )
+                for sidecar_path in all_sidecars:
                     try:
                         sidecar_data = json.loads(sidecar_path.read_text())
                         for tag in sidecar_data.get('tags', []):
                             tag_counter[tag] += 1
-                    except (OSError, json.JSONDecodeError, KeyError):
-                        # Skip corrupted or invalid sidecar files
+                    except (OSError, json.JSONDecodeError, KeyError) as e:
+                        logger.debug(f"Skipping invalid sidecar {sidecar_path}: {e}")
                         continue
 
                 # Convert to list of {name, count} dicts
                 all_tags = [{"name": tag, "count": count} for tag, count in tag_counter.items()]
 
-                # Cache the result
-                _tags_cache = all_tags.copy()
-                _tags_cache_time = time.time()
-                logger.debug(f"Tags cache miss - scanned {len(tag_counter)} unique tags")
+                # Cache the result and notify waiters
+                # No need to copy here - readers always copy before sorting
+                with _cache_condition:
+                    _tags_cache = all_tags
+                    _tags_cache_time = time.time()
+                    _tags_cache_building = False
+                    _cache_condition.notify_all()  # Wake waiting threads
+                logger.debug(f"Tags cache built - {len(tag_counter)} unique tags")
+            except Exception:
+                # Reset building flag and notify waiters on error
+                with _cache_condition:
+                    _tags_cache_building = False
+                    _cache_condition.notify_all()
+                raise
 
         # Sort
         if sort_by == 'count':
@@ -955,17 +1004,44 @@ def get_all_species():
             return jsonify({"error": "order must be 'asc' or 'desc'"}), 400
 
         # Use cached aggregation data if available and fresh
-        global _species_cache, _species_cache_time
-        with _cache_lock:
+        # Uses Condition for wait/notify to prevent thundering herd on first build
+        global _species_cache, _species_cache_time, _species_cache_building
+        all_species = None
+
+        with _cache_condition:
             cache_age = time.time() - _species_cache_time
             if _species_cache is not None and cache_age < _get_cache_ttl():
                 all_species = _species_cache.copy()
                 logger.debug(f"Species cache hit (age: {cache_age:.1f}s)")
+            elif _species_cache_building:
+                # Another thread is building - wait for it or use stale data
+                if _species_cache is not None:
+                    # Stale data available, use it without waiting
+                    all_species = _species_cache.copy()
+                    logger.debug("Species cache building, using stale data")
+                else:
+                    # First build - must wait for builder to complete
+                    logger.debug("Species cache building (first build), waiting...")
+                    _cache_condition.wait(timeout=30.0)  # Wait up to 30s
+                    # After waking, check if cache is now available
+                    if _species_cache is not None:
+                        all_species = _species_cache.copy()
+                        logger.debug("Species cache now available after wait")
             else:
+                # Mark as building to prevent thundering herd
+                _species_cache_building = True
+
+        # Build cache outside the lock if needed
+        if all_species is None:
+            try:
                 # Aggregate species from all sidecar files
+                # Use chain.from_iterable to scan directory once for all patterns
                 species_counter = Counter()
 
-                for sidecar_path in PHOTOS_DIR.rglob("*.jpg.json"):
+                all_sidecars = chain.from_iterable(
+                    PHOTOS_DIR.rglob(pattern) for pattern in SIDECAR_PATTERNS
+                )
+                for sidecar_path in all_sidecars:
                     try:
                         sidecar_data = json.loads(sidecar_path.read_text())
                         species_name = sidecar_data.get('species')
@@ -973,17 +1049,27 @@ def get_all_species():
                         # Only count non-null species
                         if species_name is not None:
                             species_counter[species_name] += 1
-                    except (OSError, json.JSONDecodeError, KeyError):
-                        # Skip corrupted or invalid sidecar files
+                    except (OSError, json.JSONDecodeError, KeyError) as e:
+                        logger.debug(f"Skipping invalid sidecar {sidecar_path}: {e}")
                         continue
 
                 # Convert to list of {name, count} dicts
                 all_species = [{"name": species, "count": count} for species, count in species_counter.items()]
 
-                # Cache the result
-                _species_cache = all_species.copy()
-                _species_cache_time = time.time()
-                logger.debug(f"Species cache miss - scanned {len(species_counter)} unique species")
+                # Cache the result and notify waiters
+                # No need to copy here - readers always copy before sorting
+                with _cache_condition:
+                    _species_cache = all_species
+                    _species_cache_time = time.time()
+                    _species_cache_building = False
+                    _cache_condition.notify_all()  # Wake waiting threads
+                logger.debug(f"Species cache built - {len(species_counter)} unique species")
+            except Exception:
+                # Reset building flag and notify waiters on error
+                with _cache_condition:
+                    _species_cache_building = False
+                    _cache_condition.notify_all()
+                raise
 
         # Sort
         if sort_by == 'count':

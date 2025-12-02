@@ -1576,3 +1576,67 @@ class TestSpeciesAggregation:
         data = json.loads(response.data)
         # Should be capped at 200
         assert data['pagination']['per_page'] <= 200
+
+
+# ============================================================================
+# Multi-Extension Support Tests (Issue: Hardcoded Pattern Fix)
+# ============================================================================
+
+class TestMultiExtensionSupport:
+    """Tests for proper support of .jpg, .JPG, .jpeg, .JPEG extensions in aggregation."""
+
+    def test_get_all_tags_includes_all_photo_extensions(self, client, temp_photos_dir):
+        """GET /tags aggregates tags from sidecars with all photo extensions."""
+        # Create sidecars with different extensions
+        (temp_photos_dir / "photo1.jpg.json").write_text('{"tags": ["moth", "night"]}')
+        (temp_photos_dir / "photo2.JPG.json").write_text('{"tags": ["moth", "trap"]}')
+        (temp_photos_dir / "photo3.jpeg.json").write_text('{"tags": ["beetle"]}')
+        (temp_photos_dir / "photo4.JPEG.json").write_text('{"tags": ["night"]}')
+
+        # Clear cache to force fresh scan
+        from routes.sidecar import invalidate_aggregation_cache
+        invalidate_aggregation_cache()
+
+        response = client.get('/api/sidecar/tags')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+
+        # Build tag -> count dict for easier assertion
+        tag_counts = {t['name']: t['count'] for t in data['tags']}
+
+        # Verify all tags are found from all extensions
+        assert 'moth' in tag_counts
+        assert tag_counts['moth'] == 2  # From .jpg and .JPG sidecars
+        assert 'night' in tag_counts
+        assert tag_counts['night'] == 2  # From .jpg and .JPEG sidecars
+        assert 'beetle' in tag_counts
+        assert tag_counts['beetle'] == 1  # From .jpeg sidecar
+        assert 'trap' in tag_counts
+        assert tag_counts['trap'] == 1  # From .JPG sidecar
+
+    def test_get_all_species_includes_all_photo_extensions(self, client, temp_photos_dir):
+        """GET /species aggregates species from sidecars with all photo extensions."""
+        # Create sidecars with different extensions
+        (temp_photos_dir / "moth1.jpg.json").write_text('{"species": "Actias luna"}')
+        (temp_photos_dir / "moth2.JPG.json").write_text('{"species": "Actias luna"}')
+        (temp_photos_dir / "moth3.jpeg.json").write_text('{"species": "Bombyx mori"}')
+        (temp_photos_dir / "moth4.JPEG.json").write_text('{"species": "Bombyx mori"}')
+
+        # Clear cache to force fresh scan
+        from routes.sidecar import invalidate_aggregation_cache
+        invalidate_aggregation_cache()
+
+        response = client.get('/api/sidecar/species')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+
+        # Build species -> count dict for easier assertion
+        species_counts = {s['name']: s['count'] for s in data['species']}
+
+        # Verify species are aggregated from all extensions
+        assert 'Actias luna' in species_counts
+        assert species_counts['Actias luna'] == 2  # From .jpg and .JPG sidecars
+        assert 'Bombyx mori' in species_counts
+        assert species_counts['Bombyx mori'] == 2  # From .jpeg and .JPEG sidecars

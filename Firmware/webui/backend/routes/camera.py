@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import subprocess
 from datetime import datetime
+from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -35,6 +36,7 @@ from constants import (
     HDR_MAX_WIDTH_US,
     HDR_MIN_WIDTH_US,
     HDR_VALID_COUNTS,
+    PHOTO_PATTERNS,
     TEST_CAPTURE_RESOLUTION,
 )
 from flask import Blueprint, current_app, jsonify, request
@@ -526,8 +528,11 @@ def capture_photo():
 
                 if result.returncode == 0:
                     # Find the most recent photo(s)
+                    all_photos = chain.from_iterable(
+                        PHOTOS_DIR.glob(f"**/{pattern}") for pattern in PHOTO_PATTERNS
+                    )
                     photos = sorted(
-                        PHOTOS_DIR.glob("**/*.jpg"), key=lambda p: p.stat().st_mtime, reverse=True
+                        all_photos, key=lambda p: p.stat().st_mtime, reverse=True
                     )
                     latest_photo = str(photos[0].relative_to(PHOTOS_DIR)) if photos else None
 
