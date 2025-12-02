@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { TagIcon } from '@heroicons/react/24/outline'
 import QuickTagDropdown from './QuickTagDropdown'
+import ErrorBoundary from '../ErrorBoundary'
 import useSidecarMetadata from '../../hooks/useSidecarMetadata'
 
 /**
@@ -86,12 +87,17 @@ function QuickTagButton({ filename, className = '', onDropdownOpenChange }) {
         )}
       </button>
 
-      <QuickTagDropdown
-        filename={filename}
-        isOpen={isOpen}
-        onClose={handleClose}
-        anchorEl={buttonRef.current}
-      />
+      <ErrorBoundary
+        fallback={() => null}
+        onReset={handleClose}
+      >
+        <QuickTagDropdown
+          filename={filename}
+          isOpen={isOpen}
+          onClose={handleClose}
+          anchorEl={buttonRef.current}
+        />
+      </ErrorBoundary>
     </>
   )
 }
