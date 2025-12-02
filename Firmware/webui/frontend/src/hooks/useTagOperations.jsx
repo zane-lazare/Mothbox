@@ -146,7 +146,7 @@ export default function useTagOperations(filename) {
             </div>
           ),
           {
-            duration: 5000,
+            duration: TOAST_CONFIG.ERROR_DURATION,
           }
         )
       } else {
