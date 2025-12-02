@@ -347,13 +347,14 @@ def validate_schema(data: dict) -> bool:
 # ============================================================================
 
 class FileLock:
-    """File lock context manager using fcntl.
+    """File lock context manager using fcntl with separate lock file.
 
-    Provides exclusive or shared locks with timeout support.
-    Uses exponential backoff for lock acquisition.
+    Uses a separate .lock file to acquire the lock BEFORE opening the data file.
+    This prevents race conditions where threads open the data file before
+    acquiring the lock and read stale content.
 
     Args:
-        path: Path to file to lock
+        path: Path to data file to lock
         exclusive: True for exclusive lock (LOCK_EX), False for shared (LOCK_SH)
         timeout: Maximum seconds to wait for lock acquisition
 
@@ -367,47 +368,64 @@ class FileLock:
 
     def __init__(self, path: Path, exclusive: bool = True, timeout: float = 5.0):
         self.path = Path(path)
+        self.lock_path = Path(str(self.path) + ".lock")
         self.exclusive = exclusive
         self.timeout = timeout
-        self.file = None
+        self.lock_file = None
+        self.data_file = None
 
     def __enter__(self):
-        """Acquire lock and return file handle."""
-        # Use text mode for reading, binary for writing
-        mode = ("r+" if self.path.exists() else "w+") if self.exclusive else "r"
+        """Acquire lock on lock file, then open data file."""
+        # Open/create lock file and acquire lock on it
+        self.lock_file = open(self.lock_path, "w")
 
-        self.file = open(self.path, mode)
-
-        # Try to acquire lock with exponential backoff
         lock_type = fcntl.LOCK_EX if self.exclusive else fcntl.LOCK_SH
         start_time = time.time()
         wait_time = 0.001  # Start with 1ms
 
         while True:
             try:
-                # Try non-blocking lock
-                fcntl.flock(self.file.fileno(), lock_type | fcntl.LOCK_NB)
-                return self.file
+                # Try non-blocking lock on the lock file
+                fcntl.flock(self.lock_file.fileno(), lock_type | fcntl.LOCK_NB)
+                break  # Lock acquired
             except BlockingIOError:
-                # Lock held by another process
+                # Lock held by another process/thread
                 elapsed = time.time() - start_time
                 if elapsed >= self.timeout:
-                    self.file.close()
+                    self.lock_file.close()
                     raise LockTimeoutError(f"Could not acquire lock on {self.path} within {self.timeout}s") from None
 
                 # Exponential backoff
                 time.sleep(wait_time)
                 wait_time = min(wait_time * 2, 0.1)  # Max 100ms between attempts
 
+        # NOW open data file (after lock acquired) - this is the key fix
+        # The file existence check and open happen AFTER we hold the lock
+        mode = ("r+" if self.path.exists() else "w+") if self.exclusive else "r"
+        self.data_file = open(self.path, mode)
+
+        return self.data_file
+
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Release lock and close file."""
-        if self.file:
+        """Close data file, release lock, close lock file."""
+        # Close data file first
+        if self.data_file:
             try:
-                fcntl.flock(self.file.fileno(), fcntl.LOCK_UN)
+                self.data_file.close()
+            except Exception:  # nosec B110 - Close errors are non-critical
+                pass
+
+        # Release lock and close lock file
+        if self.lock_file:
+            try:
+                fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
             except Exception:  # nosec B110 - Unlock errors are non-critical
-                pass  # Lock release failures don't affect program correctness
+                pass
             finally:
-                self.file.close()
+                try:
+                    self.lock_file.close()
+                except Exception:  # nosec B110 - Close errors are non-critical
+                    pass
 
 
 # ============================================================================
@@ -784,9 +802,9 @@ def remove_tag(photo_path: Path | str, tag: str) -> SidecarMetadata:
 # ============================================================================
 
 def cleanup_temp_files(directory: Path | str, max_age_seconds: int = 3600) -> int:
-    """Remove stale .tmp files older than max_age_seconds.
+    """Remove stale .tmp and .lock files older than max_age_seconds.
 
-    Call at startup or periodically to clean up orphaned temp files
+    Call at startup or periodically to clean up orphaned temp and lock files
     that may remain if process crashes during atomic write operations.
 
     Args:
@@ -807,14 +825,16 @@ def cleanup_temp_files(directory: Path | str, max_age_seconds: int = 3600) -> in
     removed = 0
     current_time = time.time()
 
-    for tmp_file in directory.glob("*.json.tmp"):
-        try:
-            age = current_time - tmp_file.stat().st_mtime
-            if age > max_age_seconds:
-                tmp_file.unlink()
-                removed += 1
-        except Exception:
-            pass  # Non-critical cleanup
+    # Clean up both .tmp and .lock files
+    for pattern in ("*.json.tmp", "*.json.lock"):
+        for tmp_file in directory.glob(pattern):
+            try:
+                age = current_time - tmp_file.stat().st_mtime
+                if age > max_age_seconds:
+                    tmp_file.unlink()
+                    removed += 1
+            except Exception:
+                pass  # Non-critical cleanup
 
     return removed
 
