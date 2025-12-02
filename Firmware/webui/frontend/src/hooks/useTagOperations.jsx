@@ -155,6 +155,8 @@ export default function useTagOperations(filename) {
         })
       }
     },
+    // Note: previousTagsRef is intentionally not in deps - refs are stable and
+    // accessing .current always gets the latest value without causing stale closures
     [sidecar]
   )
 
