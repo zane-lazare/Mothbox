@@ -22,8 +22,10 @@ export default function PhotoGridItem({ photo, onClick }) {
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false)
 
   const handlePhotoClick = () => {
-    // Only trigger onClick if tag dropdown is not open
-    if (!isTagDropdownOpen) {
+    if (isTagDropdownOpen) {
+      // Close dropdown when clicking photo area
+      setIsTagDropdownOpen(false)
+    } else {
       onClick(photo)
     }
   }
