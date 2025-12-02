@@ -102,12 +102,25 @@ jobs:
             -v \
             --tb=short
 
+      - name: Rename coverage data file for combining
+        if: always()
+        run: |
+          # Rename .coverage to unique name for later combining
+          if [ -f .coverage ]; then
+            mv .coverage .coverage.unit-${{ matrix.shard }}
+            echo "Renamed .coverage to .coverage.unit-${{ matrix.shard }}"
+          else
+            echo "Warning: .coverage file not found"
+          fi
+
       - name: Upload unit coverage (shard ${{ matrix.shard }})
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-unit-${{ matrix.shard }}
-          path: Firmware/coverage-unit-${{ matrix.shard }}.xml
+          path: |
+            Firmware/coverage-unit-${{ matrix.shard }}.xml
+            Firmware/.coverage.unit-${{ matrix.shard }}
           retention-days: 1
 
   # ==========================================================================
@@ -163,12 +176,25 @@ jobs:
             -v \
             --tb=short
 
+      - name: Rename coverage data file for combining
+        if: always()
+        run: |
+          # Rename .coverage to unique name for later combining
+          if [ -f .coverage ]; then
+            mv .coverage .coverage.integration
+            echo "Renamed .coverage to .coverage.integration"
+          else
+            echo "Warning: .coverage file not found"
+          fi
+
       - name: Upload integration coverage
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-integration
-          path: Firmware/coverage-integration.xml
+          path: |
+            Firmware/coverage-integration.xml
+            Firmware/.coverage.integration
           retention-days: 1
 
   # ==========================================================================
@@ -204,46 +230,66 @@ jobs:
 
       - name: List coverage files
         run: |
-          echo "Coverage files found:"
-          ls -la coverage-reports/ || echo "No coverage-reports directory"
-          find . -name "coverage*.xml" -type f 2>/dev/null || echo "No XML files found"
+          echo "=== Coverage files found in artifacts ==="
+          ls -la ../coverage-reports/ || echo "No coverage-reports directory at repo root"
+          echo ""
+          echo "=== Looking for .coverage data files ==="
+          find ../coverage-reports -name ".coverage*" -type f 2>/dev/null || echo "No .coverage files found"
+          echo ""
+          echo "=== Looking for XML reports ==="
+          find ../coverage-reports -name "coverage*.xml" -type f 2>/dev/null || echo "No XML files found"
 
-      - name: Combine coverage reports
+      - name: Combine coverage data and generate reports
         run: |
-          # Coverage XML files are downloaded to coverage-reports/ directory
-          # The working-directory is Firmware, so we need to go up one level
-          echo "Looking for coverage files..."
-          ls -la ../coverage-reports/ 2>/dev/null || echo "No coverage-reports directory at repo root"
+          echo "=== Combining coverage data from all test shards ==="
 
-          # Copy from repo root coverage-reports to Firmware directory
+          # Copy .coverage files from artifacts to Firmware directory
+          echo "Copying .coverage files..."
+          cp ../coverage-reports/.coverage.* . 2>/dev/null || true
+
+          # Also copy XML files for reference
           cp ../coverage-reports/*.xml . 2>/dev/null || true
 
           # List what we have
-          ls -la coverage*.xml 2>/dev/null || echo "No coverage XML files in current directory"
+          echo ""
+          echo "Coverage data files found:"
+          ls -la .coverage* 2>/dev/null || echo "No .coverage files in current directory"
 
-          # Note: coverage.py `combine` requires .coverage data files, not XML
-          # XML files are for reporting/display only and cannot be combined.
-          # Coverage threshold (85%) is enforced locally when running full test suite
-          # without sharding (CI shards only achieve ~50% each).
-          # This step just verifies all coverage XML files were collected successfully.
-
-          if ls coverage*.xml 1> /dev/null 2>&1; then
-            echo "Coverage reports collected from all shards:"
-            ls -la coverage*.xml
+          # Combine coverage data
+          if ls .coverage.* 1> /dev/null 2>&1; then
             echo ""
-            echo "Note: Coverage threshold (85%) is enforced locally when running the full"
-            echo "test suite without sharding. CI shards cannot enforce per-shard thresholds"
-            echo "because each shard only runs 1/3 of tests (~50% coverage individually)."
-            echo "XML files collected here are for artifact storage and reporting only."
+            echo "=== Running coverage combine ==="
+            coverage combine
+
+            echo ""
+            echo "=== Combined Coverage Report ==="
+            coverage report
+
+            echo ""
+            echo "=== Generating HTML report ==="
+            coverage html
+
+            echo ""
+            echo "=== Generating combined XML report ==="
+            coverage xml -o coverage-combined.xml
+
+            echo ""
+            echo "✅ Coverage data combined successfully"
           else
-            # Don't fail if no XML files - this is just a reporting step
-            echo "⚠️ No coverage XML files found. This could mean:"
-            echo "   - Tests failed and didn't generate coverage"
-            echo "   - Artifact download paths have changed"
-            echo "   - This is expected in some edge cases"
             echo ""
-            echo "Check the individual test job results for actual test status."
+            echo "❌ ERROR: No .coverage data files found to combine"
+            echo "This could mean:"
+            echo "   - Tests failed and didn't generate coverage"
+            echo "   - Artifact upload/download paths have changed"
+            echo ""
+            echo "Check the individual test job results for details."
+            exit 1
           fi
+
+      - name: Enforce 85% coverage threshold
+        run: |
+          echo "=== Enforcing 85% Coverage Threshold ==="
+          coverage report --fail-under=85
 
       - name: Upload combined coverage report
         if: always()
@@ -251,7 +297,7 @@ jobs:
         with:
           name: coverage-report-combined
           path: |
-            Firmware/coverage-reports/
+            Firmware/coverage-combined.xml
             Firmware/htmlcov/
           retention-days: 7
 
@@ -385,9 +431,10 @@ jobs:
             FAILED=1
           fi
 
-          # Coverage report failure is a warning, not a hard failure
+          # Coverage report enforces the 85% threshold - failure means coverage is too low
           if [ "${{ needs.coverage-report.result }}" != "success" ]; then
-            echo "⚠️ Coverage report generation had issues (check artifacts)"
+            echo "❌ Coverage report failed (coverage below 85% threshold or data combining failed)"
+            FAILED=1
           fi
 
           if [ "$FAILED" -eq 1 ]; then
