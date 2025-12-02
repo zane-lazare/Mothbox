@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from itertools import chain
 import logging
 import subprocess
 from datetime import datetime
+from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING
 

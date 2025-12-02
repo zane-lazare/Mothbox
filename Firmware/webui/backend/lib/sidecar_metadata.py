@@ -410,22 +410,15 @@ class FileLock:
         """Close data file, release lock, close lock file."""
         # Close data file first
         if self.data_file:
-            try:
+            with contextlib.suppress(Exception):
                 self.data_file.close()
-            except Exception:  # nosec B110 - Close errors are non-critical
-                pass
 
         # Release lock and close lock file
         if self.lock_file:
-            try:
+            with contextlib.suppress(Exception):
                 fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
-            except Exception:  # nosec B110 - Unlock errors are non-critical
-                pass
-            finally:
-                try:
-                    self.lock_file.close()
-                except Exception:  # nosec B110 - Close errors are non-critical
-                    pass
+            with contextlib.suppress(Exception):
+                self.lock_file.close()
 
 
 # ============================================================================

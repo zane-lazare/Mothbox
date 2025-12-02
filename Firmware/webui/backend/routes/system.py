@@ -1,9 +1,9 @@
 """System status and monitoring endpoints"""
 
-from itertools import chain
 import shutil
 import threading
 import time
+from itertools import chain
 from pathlib import Path
 
 # Setup path to import mothbox_paths

@@ -29,11 +29,11 @@ Endpoints:
 - POST /locations/clustered/cache/invalidate - Invalidate clustering cache
 """
 
-from itertools import chain
 import logging
 import threading
 import time
 from datetime import datetime
+from itertools import chain
 from pathlib import Path
 
 from constants import PHOTO_PATTERNS
