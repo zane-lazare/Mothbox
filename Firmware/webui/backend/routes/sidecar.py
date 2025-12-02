@@ -33,6 +33,7 @@ import logging
 import threading
 import time
 from collections import Counter
+from itertools import chain
 
 from flask import Blueprint, current_app, jsonify, request
 
@@ -858,17 +859,20 @@ def get_all_tags():
         if all_tags is None:
             try:
                 # Aggregate tags from all sidecar files
+                # Use chain.from_iterable to scan directory once for all patterns
                 tag_counter = Counter()
 
-                for pattern in SIDECAR_PATTERNS:
-                    for sidecar_path in PHOTOS_DIR.rglob(pattern):
-                        try:
-                            sidecar_data = json.loads(sidecar_path.read_text())
-                            for tag in sidecar_data.get('tags', []):
-                                tag_counter[tag] += 1
-                        except (OSError, json.JSONDecodeError, KeyError) as e:
-                            logger.debug(f"Skipping invalid sidecar {sidecar_path}: {e}")
-                            continue
+                all_sidecars = chain.from_iterable(
+                    PHOTOS_DIR.rglob(pattern) for pattern in SIDECAR_PATTERNS
+                )
+                for sidecar_path in all_sidecars:
+                    try:
+                        sidecar_data = json.loads(sidecar_path.read_text())
+                        for tag in sidecar_data.get('tags', []):
+                            tag_counter[tag] += 1
+                    except (OSError, json.JSONDecodeError, KeyError) as e:
+                        logger.debug(f"Skipping invalid sidecar {sidecar_path}: {e}")
+                        continue
 
                 # Convert to list of {name, count} dicts
                 all_tags = [{"name": tag, "count": count} for tag, count in tag_counter.items()]
@@ -1030,20 +1034,23 @@ def get_all_species():
         if all_species is None:
             try:
                 # Aggregate species from all sidecar files
+                # Use chain.from_iterable to scan directory once for all patterns
                 species_counter = Counter()
 
-                for pattern in SIDECAR_PATTERNS:
-                    for sidecar_path in PHOTOS_DIR.rglob(pattern):
-                        try:
-                            sidecar_data = json.loads(sidecar_path.read_text())
-                            species_name = sidecar_data.get('species')
+                all_sidecars = chain.from_iterable(
+                    PHOTOS_DIR.rglob(pattern) for pattern in SIDECAR_PATTERNS
+                )
+                for sidecar_path in all_sidecars:
+                    try:
+                        sidecar_data = json.loads(sidecar_path.read_text())
+                        species_name = sidecar_data.get('species')
 
-                            # Only count non-null species
-                            if species_name is not None:
-                                species_counter[species_name] += 1
-                        except (OSError, json.JSONDecodeError, KeyError) as e:
-                            logger.debug(f"Skipping invalid sidecar {sidecar_path}: {e}")
-                            continue
+                        # Only count non-null species
+                        if species_name is not None:
+                            species_counter[species_name] += 1
+                    except (OSError, json.JSONDecodeError, KeyError) as e:
+                        logger.debug(f"Skipping invalid sidecar {sidecar_path}: {e}")
+                        continue
 
                 # Convert to list of {name, count} dicts
                 all_species = [{"name": species, "count": count} for species, count in species_counter.items()]
