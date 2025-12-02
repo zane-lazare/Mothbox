@@ -11,6 +11,11 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
   const searchInputRef = useRef(null)
   const [searchQuery, setSearchQuery] = useState('')
 
+  // Use refs to stabilize event listener dependencies and prevent memory leaks
+  // when onClose or anchorEl props change while dropdown is open
+  const onCloseRef = useRef(onClose)
+  const anchorElRef = useRef(anchorEl)
+
   // Fetch all tags sorted by count
   const { data: tagsData, isLoading: tagsLoading, isError: tagsError } = useTags({
     sort: 'count',
@@ -37,6 +42,12 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
     whileElementsMounted: autoUpdate,
   })
 
+  // Keep refs updated with latest prop values
+  useEffect(() => {
+    onCloseRef.current = onClose
+    anchorElRef.current = anchorEl
+  })
+
   // Update reference element
   useEffect(() => {
     refs.setReference(anchorEl)
@@ -50,18 +61,19 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
   }, [isOpen])
 
   // Close on Escape or click outside - only attach listeners when open
+  // Uses refs to prevent memory leaks when props change during open state
   useEffect(() => {
     if (!isOpen) return
 
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') onCloseRef.current()
     }
 
     const handleClickOutside = (e) => {
       if (dropdownRef.current &&
           !dropdownRef.current.contains(e.target) &&
-          !anchorEl?.contains(e.target)) {
-        onClose()
+          !anchorElRef.current?.contains(e.target)) {
+        onCloseRef.current()
       }
     }
 
@@ -72,7 +84,7 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
       document.removeEventListener('keydown', handleKeyDown)
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isOpen, onClose, anchorEl])
+  }, [isOpen])  // Only isOpen as dependency - refs are always current
 
   if (!isOpen) return null
 
