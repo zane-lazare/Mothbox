@@ -163,11 +163,12 @@ export default function useTagOperations(filename) {
   // Monitor for mutation errors and show error toast
   // Note: The rollback already happens in useSidecarMetadata's onError
   // We just need to notify the user with the option to manually undo
-  const prevUpdateError = useRef(null)
+  // Use counter to handle repeated identical errors (same error object reference)
+  const errorCountRef = useRef(0)
 
   useEffect(() => {
-    if (sidecar.updateError && sidecar.updateError !== prevUpdateError.current) {
-      prevUpdateError.current = sidecar.updateError
+    if (sidecar.updateError) {
+      errorCountRef.current += 1
       const { type, tag } = lastOperationRef.current
       if (type && tag) {
         showErrorWithUndo(type, tag)
