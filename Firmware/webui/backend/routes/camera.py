@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import itertools
+from itertools import chain
 import logging
 import subprocess
 from datetime import datetime
@@ -528,7 +528,7 @@ def capture_photo():
 
                 if result.returncode == 0:
                     # Find the most recent photo(s)
-                    all_photos = itertools.chain.from_iterable(
+                    all_photos = chain.from_iterable(
                         PHOTOS_DIR.glob(f"**/{pattern}") for pattern in PHOTO_PATTERNS
                     )
                     photos = sorted(

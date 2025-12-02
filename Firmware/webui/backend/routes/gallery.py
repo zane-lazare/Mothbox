@@ -29,7 +29,7 @@ Endpoints:
 - POST /locations/clustered/cache/invalidate - Invalidate clustering cache
 """
 
-import itertools
+from itertools import chain
 import logging
 import threading
 import time
@@ -128,7 +128,7 @@ def list_photos():
             return jsonify({"photos": []})
 
         photos = []
-        all_photos = itertools.chain.from_iterable(
+        all_photos = chain.from_iterable(
             PHOTOS_DIR.glob(f"**/{pattern}") for pattern in PHOTO_PATTERNS
         )
         for photo_path in sorted(

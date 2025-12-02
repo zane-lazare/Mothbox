@@ -1,6 +1,6 @@
 """System status and monitoring endpoints"""
 
-import itertools
+from itertools import chain
 import shutil
 import threading
 import time
@@ -60,7 +60,7 @@ def _get_cached_photo_count():
         # Cache expired or empty, perform count
         try:
             if PHOTOS_DIR.exists():
-                all_photos = itertools.chain.from_iterable(
+                all_photos = chain.from_iterable(
                     PHOTOS_DIR.glob(f"**/{pattern}") for pattern in PHOTO_PATTERNS
                 )
                 count = sum(1 for _ in all_photos)
