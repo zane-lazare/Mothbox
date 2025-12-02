@@ -15,6 +15,16 @@ function TagAutocomplete({
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const inputRef = useRef(null)
   const listRef = useRef(null)
+  const blurTimeoutRef = useRef(null)
+
+  // Cleanup blur timeout on unmount to prevent memory leak
+  useEffect(() => {
+    return () => {
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // Filter tags based on input (case-insensitive substring match)
   const filteredTags = tags.filter(
@@ -115,7 +125,8 @@ function TagAutocomplete({
 
   const handleBlur = () => {
     // Delay to allow click events on dropdown items to fire
-    setTimeout(() => {
+    // Store ref for cleanup on unmount
+    blurTimeoutRef.current = setTimeout(() => {
       setIsOpen(false)
     }, 150)
   }
