@@ -42,6 +42,8 @@ function QuickTagButton({ filename, className = '', onDropdownOpenChange }) {
   const handleClose = useCallback(() => {
     setIsOpen(false)
     onDropdownOpenChange?.(false)
+    // Restore focus to trigger button for keyboard accessibility
+    buttonRef.current?.focus()
   }, [onDropdownOpenChange])
 
   return (
