@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import useSidecarMetadata from '../useSidecarMetadata'
+import useSidecarMetadata, { clearTagsInvalidationTimeout } from '../useSidecarMetadata'
 import * as api from '../../utils/api'
 
 // Mock the API module
@@ -39,6 +39,8 @@ describe('useSidecarMetadata', () => {
 
   afterEach(() => {
     queryClient.clear()
+    // Clear any pending debounced tags invalidation to prevent test interference
+    clearTagsInvalidationTimeout()
   })
 
   /**
@@ -219,7 +221,7 @@ describe('useSidecarMetadata', () => {
       expect(result.current.updateError).toBeDefined()
     })
 
-    it('invalidates related queries on successful update', async () => {
+    it('invalidates sidecar metadata immediately on update', async () => {
       const filename = 'photo_invalidate.jpg'
       const initialMetadata = { filename, tags: ['moth'] }
 
@@ -239,10 +241,13 @@ describe('useSidecarMetadata', () => {
         result.current.updateTags(['butterfly'])
       })
 
+      // Sidecar metadata is invalidated immediately
       await waitFor(() => {
         expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['sidecarMetadata', filename] })
-        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['tags'] })
       })
+
+      // Note: Tags invalidation is debounced (1 second delay) to batch rapid tag operations
+      // and is tested separately in integration tests
     })
   })
 

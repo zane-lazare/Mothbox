@@ -1,6 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getPhotoSidecarMetadata, updatePhotoSidecarMetadata } from '../utils/api'
 
+// Module-level timeout for debouncing tags cache invalidation
+// Batches rapid tag operations into a single refetch after 1 second of inactivity
+let tagsInvalidationTimeout = null
+
+// Export for test cleanup - clears pending debounced invalidation
+export function clearTagsInvalidationTimeout() {
+  if (tagsInvalidationTimeout) {
+    clearTimeout(tagsInvalidationTimeout)
+    tagsInvalidationTimeout = null
+  }
+}
+
 /**
  * Custom hook for fetching and mutating photo sidecar metadata
  *
@@ -92,12 +104,22 @@ export default function useSidecarMetadata(filename) {
       }
     },
     onSettled: () => {
-      // Invalidate related queries to ensure sync with server
+      // Invalidate sidecar metadata immediately to sync with server
       // Note: This runs on both success and error. After error, the optimistic
       // update is already rolled back in onError, but we still refetch to
       // confirm cache matches server state. This is intentional TanStack Query pattern.
       queryClient.invalidateQueries({ queryKey: ['sidecarMetadata', filename] })
-      queryClient.invalidateQueries({ queryKey: ['tags'] })
+
+      // Debounce tags invalidation - wait 1 second after last update
+      // This batches rapid tag operations into a single tags refetch,
+      // preventing excessive network requests when user rapidly tags photos
+      if (tagsInvalidationTimeout) {
+        clearTimeout(tagsInvalidationTimeout)
+      }
+      tagsInvalidationTimeout = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['tags'] })
+        tagsInvalidationTimeout = null
+      }, 1000)
     },
   })
 
