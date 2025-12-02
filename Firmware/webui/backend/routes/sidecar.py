@@ -56,12 +56,17 @@ sidecar_bp = Blueprint("sidecar", __name__)
 # ============================================================================
 # Tags and species aggregation scans all sidecar files. This cache
 # prevents repeated O(n) scans on every request.
+#
+# Uses RLock to allow reentrant locking and a "building" flag to prevent
+# thundering herd when cache expires under concurrent load.
 
 _tags_cache = None
 _tags_cache_time = 0
+_tags_cache_building = False
 _species_cache = None
 _species_cache_time = 0
-_cache_lock = threading.Lock()
+_species_cache_building = False
+_cache_lock = threading.RLock()  # Reentrant lock for nested calls
 _DEFAULT_AGGREGATION_CACHE_TTL = 300  # 5 minutes
 
 
@@ -78,11 +83,14 @@ def invalidate_aggregation_cache():
     subsequent aggregation requests return fresh data.
     """
     global _tags_cache, _species_cache, _tags_cache_time, _species_cache_time
+    global _tags_cache_building, _species_cache_building
     with _cache_lock:
         _tags_cache = None
         _species_cache = None
         _tags_cache_time = 0
         _species_cache_time = 0
+        _tags_cache_building = False
+        _species_cache_building = False
         logger.debug("Aggregation cache invalidated")
 
 
@@ -817,13 +825,27 @@ def get_all_tags():
             return jsonify({"error": "order must be 'asc' or 'desc'"}), 400
 
         # Use cached aggregation data if available and fresh
-        global _tags_cache, _tags_cache_time
+        # Uses building flag to prevent thundering herd on cache expiry
+        global _tags_cache, _tags_cache_time, _tags_cache_building
+        all_tags = None
+
         with _cache_lock:
             cache_age = time.time() - _tags_cache_time
             if _tags_cache is not None and cache_age < _get_cache_ttl():
                 all_tags = _tags_cache.copy()
                 logger.debug(f"Tags cache hit (age: {cache_age:.1f}s)")
+            elif _tags_cache_building:
+                # Another thread is building, return stale data if available
+                if _tags_cache is not None:
+                    all_tags = _tags_cache.copy()
+                    logger.debug("Tags cache building by another thread, using stale data")
             else:
+                # Mark as building to prevent thundering herd
+                _tags_cache_building = True
+
+        # Build cache outside the lock if needed
+        if all_tags is None:
+            try:
                 # Aggregate tags from all sidecar files
                 tag_counter = Counter()
 
@@ -841,9 +863,16 @@ def get_all_tags():
                 all_tags = [{"name": tag, "count": count} for tag, count in tag_counter.items()]
 
                 # Cache the result
-                _tags_cache = all_tags.copy()
-                _tags_cache_time = time.time()
+                with _cache_lock:
+                    _tags_cache = all_tags.copy()
+                    _tags_cache_time = time.time()
+                    _tags_cache_building = False
                 logger.debug(f"Tags cache miss - scanned {len(tag_counter)} unique tags")
+            except Exception:
+                # Reset building flag on error
+                with _cache_lock:
+                    _tags_cache_building = False
+                raise
 
         # Sort
         if sort_by == 'count':
@@ -957,13 +986,27 @@ def get_all_species():
             return jsonify({"error": "order must be 'asc' or 'desc'"}), 400
 
         # Use cached aggregation data if available and fresh
-        global _species_cache, _species_cache_time
+        # Uses building flag to prevent thundering herd on cache expiry
+        global _species_cache, _species_cache_time, _species_cache_building
+        all_species = None
+
         with _cache_lock:
             cache_age = time.time() - _species_cache_time
             if _species_cache is not None and cache_age < _get_cache_ttl():
                 all_species = _species_cache.copy()
                 logger.debug(f"Species cache hit (age: {cache_age:.1f}s)")
+            elif _species_cache_building:
+                # Another thread is building, return stale data if available
+                if _species_cache is not None:
+                    all_species = _species_cache.copy()
+                    logger.debug("Species cache building by another thread, using stale data")
             else:
+                # Mark as building to prevent thundering herd
+                _species_cache_building = True
+
+        # Build cache outside the lock if needed
+        if all_species is None:
+            try:
                 # Aggregate species from all sidecar files
                 species_counter = Counter()
 
@@ -984,9 +1027,16 @@ def get_all_species():
                 all_species = [{"name": species, "count": count} for species, count in species_counter.items()]
 
                 # Cache the result
-                _species_cache = all_species.copy()
-                _species_cache_time = time.time()
+                with _cache_lock:
+                    _species_cache = all_species.copy()
+                    _species_cache_time = time.time()
+                    _species_cache_building = False
                 logger.debug(f"Species cache miss - scanned {len(species_counter)} unique species")
+            except Exception:
+                # Reset building flag on error
+                with _cache_lock:
+                    _species_cache_building = False
+                raise
 
         # Sort
         if sort_by == 'count':
