@@ -36,6 +36,7 @@ Related:
 - webui/backend/lib/gps_exif_lib.py: GPS coordinate extraction (reused)
 """
 
+import contextlib
 import logging
 import re
 import sys
@@ -507,10 +508,8 @@ class MetadataService:
                 # Convert satellites from string to int if present
                 satellites_str = gps_info.get('satellites')
                 if satellites_str:
-                    try:
+                    with contextlib.suppress(ValueError, TypeError):
                         location['satellites'] = int(satellites_str)
-                    except (ValueError, TypeError):
-                        pass
 
                 location['hdop'] = gps_info.get('hdop')
 

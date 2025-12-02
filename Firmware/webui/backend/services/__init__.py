@@ -12,6 +12,7 @@ from .thumbnail_cache import ThumbnailCache, ThumbnailError
 _clustering_service = None
 _series_service = None
 _locations_service = None
+_sidecar_service = None
 
 
 def get_clustering_service():
@@ -50,6 +51,22 @@ def get_locations_service():
     return _locations_service
 
 
+def get_sidecar_service():
+    """
+    Get the singleton SidecarService instance.
+    Lazily initializes on first call to avoid circular imports.
+    """
+    global _sidecar_service
+    if _sidecar_service is None:
+        from mothbox_paths import DATA_DIR
+
+        from .sidecar_service import SidecarService
+
+        cache_dir = DATA_DIR / "cache" / "sidecar"
+        _sidecar_service = SidecarService(cache_dir=cache_dir)
+    return _sidecar_service
+
+
 __all__ = [
     'PhotoService',
     'PaginationError',
@@ -58,4 +75,5 @@ __all__ = [
     'get_clustering_service',
     'get_series_service',
     'get_locations_service',
+    'get_sidecar_service',
 ]

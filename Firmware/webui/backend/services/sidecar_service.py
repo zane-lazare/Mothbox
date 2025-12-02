@@ -274,6 +274,33 @@ class SidecarService:
 
         return metadata
 
+    def delete_metadata(self, photo_path: str) -> bool:
+        """
+        Delete sidecar metadata file and invalidate cache.
+
+        Args:
+            photo_path: Path to photo file
+
+        Returns:
+            True if sidecar was deleted successfully, False otherwise
+        """
+        from webui.backend.lib.sidecar_metadata import delete_metadata as lib_delete
+        from webui.backend.lib.sidecar_metadata import get_sidecar_path
+
+        full_path = Path(photo_path)
+        sidecar_path = get_sidecar_path(full_path)
+
+        if not sidecar_path.exists():
+            return False
+
+        # Delete the sidecar file
+        success = lib_delete(full_path)
+
+        # Always invalidate cache - file may be gone, partially deleted, or corrupted
+        self.invalidate(photo_path)
+
+        return success
+
     def invalidate(self, photo_path: str) -> bool:
         """
         Remove photo from L1 and L2 cache.

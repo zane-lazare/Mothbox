@@ -69,6 +69,10 @@ MAX_NOTES_LENGTH = 10000
 MAX_CUSTOM_KEYS = 100
 MAX_CUSTOM_DEPTH = 5  # Maximum nesting depth for custom values
 
+# API limits
+MAX_BULK_FILES = 100  # Maximum files per bulk update request
+MAX_PAGINATION_LIMIT = 200  # Maximum items per page for list endpoints
+
 
 # ============================================================================
 # Exceptions
@@ -343,13 +347,14 @@ def validate_schema(data: dict) -> bool:
 # ============================================================================
 
 class FileLock:
-    """File lock context manager using fcntl.
+    """File lock context manager using fcntl with separate lock file.
 
-    Provides exclusive or shared locks with timeout support.
-    Uses exponential backoff for lock acquisition.
+    Uses a separate .lock file to acquire the lock BEFORE opening the data file.
+    This prevents race conditions where threads open the data file before
+    acquiring the lock and read stale content.
 
     Args:
-        path: Path to file to lock
+        path: Path to data file to lock
         exclusive: True for exclusive lock (LOCK_EX), False for shared (LOCK_SH)
         timeout: Maximum seconds to wait for lock acquisition
 
@@ -363,47 +368,64 @@ class FileLock:
 
     def __init__(self, path: Path, exclusive: bool = True, timeout: float = 5.0):
         self.path = Path(path)
+        self.lock_path = Path(str(self.path) + ".lock")
         self.exclusive = exclusive
         self.timeout = timeout
-        self.file = None
+        self.lock_file = None
+        self.data_file = None
 
     def __enter__(self):
-        """Acquire lock and return file handle."""
-        # Use text mode for reading, binary for writing
-        mode = ("r+" if self.path.exists() else "w+") if self.exclusive else "r"
+        """Acquire lock on lock file, then open data file."""
+        # Open/create lock file and acquire lock on it
+        self.lock_file = open(self.lock_path, "w")
 
-        self.file = open(self.path, mode)
-
-        # Try to acquire lock with exponential backoff
         lock_type = fcntl.LOCK_EX if self.exclusive else fcntl.LOCK_SH
         start_time = time.time()
         wait_time = 0.001  # Start with 1ms
 
         while True:
             try:
-                # Try non-blocking lock
-                fcntl.flock(self.file.fileno(), lock_type | fcntl.LOCK_NB)
-                return self.file
+                # Try non-blocking lock on the lock file
+                fcntl.flock(self.lock_file.fileno(), lock_type | fcntl.LOCK_NB)
+                break  # Lock acquired
             except BlockingIOError:
-                # Lock held by another process
+                # Lock held by another process/thread
                 elapsed = time.time() - start_time
                 if elapsed >= self.timeout:
-                    self.file.close()
+                    self.lock_file.close()
                     raise LockTimeoutError(f"Could not acquire lock on {self.path} within {self.timeout}s") from None
 
                 # Exponential backoff
                 time.sleep(wait_time)
                 wait_time = min(wait_time * 2, 0.1)  # Max 100ms between attempts
 
+        # NOW open data file (after lock acquired) - this is the key fix
+        # The file existence check and open happen AFTER we hold the lock
+        mode = ("r+" if self.path.exists() else "w+") if self.exclusive else "r"
+        self.data_file = open(self.path, mode)
+
+        return self.data_file
+
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Release lock and close file."""
-        if self.file:
+        """Close data file, release lock, close lock file."""
+        # Close data file first
+        if self.data_file:
             try:
-                fcntl.flock(self.file.fileno(), fcntl.LOCK_UN)
+                self.data_file.close()
+            except Exception:  # nosec B110 - Close errors are non-critical
+                pass
+
+        # Release lock and close lock file
+        if self.lock_file:
+            try:
+                fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
             except Exception:  # nosec B110 - Unlock errors are non-critical
-                pass  # Lock release failures don't affect program correctness
+                pass
             finally:
-                self.file.close()
+                try:
+                    self.lock_file.close()
+                except Exception:  # nosec B110 - Close errors are non-critical
+                    pass
 
 
 # ============================================================================
@@ -474,9 +496,11 @@ def write_metadata(
     metadata: SidecarMetadata,
     backup: bool = True
 ) -> bool:
-    """Write metadata to photo's sidecar file.
+    """Write metadata to photo's sidecar file atomically.
 
-    Uses atomic write via temporary file. Optionally creates backup.
+    Uses file locking for the entire backup + write operation to prevent
+    race conditions. Writes directly to the locked file descriptor to
+    ensure atomicity with other concurrent operations using FileLock.
 
     Args:
         photo_path: Path to photo file
@@ -494,26 +518,22 @@ def write_metadata(
     sidecar_path = get_sidecar_path(photo_path)
 
     try:
-        # Create backup if requested and sidecar exists
-        if backup and sidecar_path.exists():
-            backup_path = sidecar_path.with_suffix(f".json{BACKUP_EXTENSION}")
-            backup_path.write_text(sidecar_path.read_text())
+        # Hold lock for entire backup + write operation
+        with FileLock(sidecar_path, exclusive=True) as f:
+            # Create backup if requested and file has content
+            if backup:
+                content = f.read()
+                if content:
+                    backup_path = sidecar_path.with_suffix(f".json{BACKUP_EXTENSION}")
+                    backup_path.write_text(content)
+                f.seek(0)
 
-        # Write to temporary file first (atomic write)
-        temp_path = sidecar_path.with_suffix(".json.tmp")
+            # Write directly to the locked file (not via temp file + replace)
+            # This ensures the lock protects the actual file being written
+            f.truncate()
+            json.dump(metadata.to_dict(), f, indent=2)
 
-        with open(temp_path, "w") as f:
-            # Acquire exclusive lock for writing
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                json.dump(metadata.to_dict(), f, indent=2)
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-
-        # Atomic rename
-        temp_path.replace(sidecar_path)
-
-        # Set file permissions (rw-r--r-- = 0o644)
+        # Set file permissions outside lock (non-critical)
         try:
             sidecar_path.chmod(0o644)
         except (OSError, PermissionError) as e:
@@ -522,11 +542,6 @@ def write_metadata(
         return True
 
     except Exception:
-        # Clean up temp file if it exists
-        temp_path = sidecar_path.with_suffix(".json.tmp")
-        if temp_path.exists():
-            with contextlib.suppress(Exception):
-                temp_path.unlink()
         return False
 
 
@@ -585,8 +600,9 @@ def update_metadata(
 ) -> SidecarMetadata:
     """Update existing metadata or create new if doesn't exist.
 
-    Performs partial update - only specified fields are modified.
-    Automatically updates modified_at timestamp and normalizes tags.
+    Performs atomic partial update - only specified fields are modified.
+    Uses file locking to ensure thread-safe read-modify-write cycle,
+    preventing lost updates when multiple threads modify different fields.
 
     Args:
         photo_path: Path to photo file
@@ -600,24 +616,40 @@ def update_metadata(
         >>> metadata.species
         'Actias luna'
     """
-    # Read existing metadata or create new
-    metadata = read_metadata(photo_path)
-    if metadata is None:
-        metadata = create_metadata(photo_path)
+    sidecar_path = get_sidecar_path(photo_path)
 
-    # Update fields
-    for key, value in updates.items():
-        if key == "tags" and value is not None:
-            # Normalize tags
-            setattr(metadata, key, [normalize_tag(tag) for tag in value])
-        elif hasattr(metadata, key):
-            setattr(metadata, key, value)
+    # Hold lock for entire read-modify-write operation (atomic)
+    # FileLock creates the file if it doesn't exist (w+ mode)
+    with FileLock(sidecar_path, exclusive=True) as f:
+        # Read existing content or create new metadata
+        try:
+            content = f.read()
+            if content:
+                f.seek(0)
+                data = json.load(f)
+                validate_schema(data)
+                metadata = SidecarMetadata.from_dict(data)
+            else:
+                # File was just created (empty)
+                metadata = create_metadata(photo_path)
+        except (json.JSONDecodeError, ValidationError, KeyError):
+            metadata = create_metadata(photo_path)
 
-    # Update modified_at timestamp
-    metadata.modified_at = _get_current_timestamp()
+        # Update fields
+        for key, value in updates.items():
+            if key == "tags" and value is not None:
+                # Normalize tags
+                setattr(metadata, key, [normalize_tag(tag) for tag in value])
+            elif hasattr(metadata, key):
+                setattr(metadata, key, value)
 
-    # Write to disk
-    write_metadata(photo_path, metadata)
+        # Update modified_at timestamp
+        metadata.modified_at = _get_current_timestamp()
+
+        # Write atomically while holding lock
+        f.seek(0)
+        f.truncate()
+        json.dump(metadata.to_dict(), f, indent=2)
 
     return metadata
 
@@ -770,9 +802,9 @@ def remove_tag(photo_path: Path | str, tag: str) -> SidecarMetadata:
 # ============================================================================
 
 def cleanup_temp_files(directory: Path | str, max_age_seconds: int = 3600) -> int:
-    """Remove stale .tmp files older than max_age_seconds.
+    """Remove stale .tmp and .lock files older than max_age_seconds.
 
-    Call at startup or periodically to clean up orphaned temp files
+    Call at startup or periodically to clean up orphaned temp and lock files
     that may remain if process crashes during atomic write operations.
 
     Args:
@@ -793,14 +825,16 @@ def cleanup_temp_files(directory: Path | str, max_age_seconds: int = 3600) -> in
     removed = 0
     current_time = time.time()
 
-    for tmp_file in directory.glob("*.json.tmp"):
-        try:
-            age = current_time - tmp_file.stat().st_mtime
-            if age > max_age_seconds:
-                tmp_file.unlink()
-                removed += 1
-        except Exception:
-            pass  # Non-critical cleanup
+    # Clean up both .tmp and .lock files
+    for pattern in ("*.json.tmp", "*.json.lock"):
+        for tmp_file in directory.glob(pattern):
+            try:
+                age = current_time - tmp_file.stat().st_mtime
+                if age > max_age_seconds:
+                    tmp_file.unlink()
+                    removed += 1
+            except Exception:
+                pass  # Non-critical cleanup
 
     return removed
 

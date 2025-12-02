@@ -103,7 +103,11 @@ class TestConcurrentWrites:
         assert len(results) == 10, f"All 10 operations should complete, got {len(results)}"
 
     def test_concurrent_writes_preserve_data_integrity(self, tmp_path):
-        """Concurrent writes should preserve all data fields."""
+        """Concurrent writes to DIFFERENT fields should preserve ALL updates.
+
+        With atomic read-modify-write in update_metadata(), updates to different
+        fields are serialized and all changes are preserved - no lost updates.
+        """
         photo = tmp_path / "photo.jpg"
         photo.touch()
 
@@ -137,13 +141,15 @@ class TestConcurrentWrites:
             for future in as_completed(futures):
                 future.result(timeout=5.0)
 
-        # Verify final state is consistent
+        # Verify all field updates are preserved (no lost updates)
+        # With atomic update_metadata(), each update reads the latest state,
+        # modifies only its field, and writes back - all updates are preserved
         final = read_metadata(photo)
-        assert final is not None
-        assert isinstance(final.tags, list)
-        assert isinstance(final.custom, dict)
-        assert final.species is not None
-        assert final.notes is not None
+        assert final is not None, "File should be readable after concurrent updates"
+        assert final.species == "Updated species", "species update should be preserved"
+        assert final.notes == "Updated notes", "notes update should be preserved"
+        assert final.tags == ["new", "tags"], "tags update should be preserved"
+        assert final.custom == {"new_key": "new_value"}, "custom update should be preserved"
 
     def test_high_frequency_writes(self, tmp_path):
         """Rapid succession of writes should not corrupt data."""

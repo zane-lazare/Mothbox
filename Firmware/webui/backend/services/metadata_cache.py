@@ -14,6 +14,7 @@ Performance targets:
 Thread-safe with statistics tracking.
 """
 
+import contextlib
 import fcntl
 import hashlib
 import json
@@ -349,20 +350,16 @@ class MetadataCache:
                         fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
                 # Update file mtime for LRU tracking (after releasing file lock)
-                try:
+                with contextlib.suppress(Exception):
                     cache_file.touch(exist_ok=True)
-                except Exception:
-                    pass  # mtime update failure is non-critical
 
                 return entry
 
             except Exception as e:
                 logger.warning(f"Failed to read L2 cache file {cache_file}: {e}")
                 # Corrupted or invalid cache file - remove it
-                try:
+                with contextlib.suppress(Exception):
                     cache_file.unlink()
-                except Exception:
-                    pass
                 return None
 
     def _set_l2(self, photo_path: str, entry: CacheEntry) -> None:

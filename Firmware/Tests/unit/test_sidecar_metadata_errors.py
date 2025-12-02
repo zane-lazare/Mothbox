@@ -450,8 +450,12 @@ class TestBackupRecovery:
 class TestPermissionErrors:
     """Tests for permission-related errors."""
 
-    def test_read_only_sidecar_file_write_succeeds_via_atomic_write(self, tmp_path):
-        """Atomic write via temp file succeeds even with read-only sidecar (by design)."""
+    def test_read_only_sidecar_file_write_fails_with_lock(self, tmp_path):
+        """Write to read-only sidecar file fails because FileLock needs r+ mode.
+
+        With atomic locking, we need to open the file for reading before writing,
+        which fails on read-only files. This is expected behavior for thread-safe writes.
+        """
         photo = tmp_path / "photo.jpg"
         photo.touch()
 
@@ -464,18 +468,16 @@ class TestPermissionErrors:
         sidecar.chmod(0o444)
 
         try:
-            # Atomic write via temp file + replace will succeed
-            # (This is actually desirable behavior - temp file bypasses permissions)
+            # With FileLock, opening r+ mode fails on read-only file
             metadata2 = create_metadata(photo, tags=["butterfly"])
             result = write_metadata(photo, metadata2, backup=False)
 
-            # On most systems, atomic write succeeds (replaces file)
-            # This is expected behavior for atomic writes
-            assert result is True, "Atomic write should succeed by replacing file"
+            # Should fail because FileLock can't open read-only file in r+ mode
+            assert result is False, "Write should fail on read-only sidecar file"
 
-            # Verify content was updated
+            # Original content should be preserved
             read_back = read_metadata(photo)
-            assert "butterfly" in read_back.tags
+            assert "moth" in read_back.tags
         finally:
             # Restore permissions for cleanup
             sidecar.chmod(0o644)
@@ -502,7 +504,7 @@ class TestPermissionErrors:
             subdir.chmod(0o755)
 
     def test_permission_error_on_backup_creation(self, tmp_path):
-        """Permission error during backup creation should fail gracefully."""
+        """Permission error during backup file write should fail gracefully."""
         photo = tmp_path / "photo.jpg"
         photo.touch()
 
@@ -510,15 +512,15 @@ class TestPermissionErrors:
         metadata = create_metadata(photo, tags=["moth"])
         write_metadata(photo, metadata, backup=False)
 
-        # Mock shutil operations to simulate permission error
-        with patch('pathlib.Path.read_text', side_effect=PermissionError("Permission denied")):
-            # Try to write with backup (should fail during backup read)
+        # Mock Path.write_text (backup file creation) to fail with permission error
+        with patch('pathlib.Path.write_text', side_effect=PermissionError("Permission denied")):
+            # Try to write with backup (should fail during backup write)
             metadata2 = create_metadata(photo, tags=["butterfly"])
             result = write_metadata(photo, metadata2, backup=True)
             assert result is False, "Should fail when backup creation fails"
 
-    def test_atomic_write_cleanup_on_error(self, tmp_path):
-        """Temp file should be cleaned up when atomic write fails."""
+    def test_write_error_returns_false(self, tmp_path):
+        """Write errors should return False without leaving orphaned files."""
         photo = tmp_path / "photo.jpg"
         photo.touch()
 
@@ -529,9 +531,9 @@ class TestPermissionErrors:
             result = write_metadata(photo, metadata, backup=False)
             assert result is False, "Write should fail"
 
-        # Check for orphaned temp files
+        # Verify no orphaned temp files (write_metadata uses direct write, not temp files)
         temp_files = list(tmp_path.glob("*.tmp"))
-        assert len(temp_files) == 0, f"Temp file should be cleaned up: {temp_files}"
+        assert len(temp_files) == 0, f"No temp files should exist: {temp_files}"
 
 
 class TestEdgeCases:

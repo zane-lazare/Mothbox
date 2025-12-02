@@ -95,6 +95,10 @@ def pytest_configure(config):
         "markers",
         "calibration: test calibration functionality (photo/stream autofocus and exposure)"
     )
+    config.addinivalue_line(
+        "markers",
+        "xdist_group(name): Group tests to run on same worker (pytest-xdist parallel execution)"
+    )
 
 
 # ============================================================================

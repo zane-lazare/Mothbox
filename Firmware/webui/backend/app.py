@@ -155,7 +155,12 @@ else:
 
 # Initialize services using lazy getters (avoids circular imports)
 # Services are lazily initialized on first access via get_*_service() functions
-from services import get_series_service, get_clustering_service, get_locations_service
+from services import (
+    get_clustering_service,
+    get_locations_service,
+    get_series_service,
+    get_sidecar_service,
+)
 
 try:
     # Pre-initialize services and store in app.config for routes that need direct access
@@ -179,6 +184,13 @@ except Exception as e:
     print(f"⚠️  Failed to initialize locations service: {e}")
     app.config['LOCATIONS_SERVICE'] = None
 
+try:
+    app.config['SIDECAR_SERVICE'] = get_sidecar_service()
+    print("✓ Sidecar service initialized")
+except Exception as e:
+    print(f"⚠️  Failed to initialize sidecar service: {e}")
+    app.config['SIDECAR_SERVICE'] = None
+
 # Import route blueprints
 from routes.camera import camera_bp
 from routes.config import config_bp
@@ -189,6 +201,7 @@ from routes.metadata import metadata_bp
 from routes.preferences import preferences_bp
 from routes.presets import presets_bp
 from routes.scheduler import scheduler_bp
+from routes.sidecar import sidecar_bp
 from routes.system import system_bp
 
 # Make camera_streamer accessible to routes via app config
@@ -205,6 +218,7 @@ app.register_blueprint(presets_bp, url_prefix="/api/presets")
 app.register_blueprint(preferences_bp, url_prefix="/api/preferences")
 app.register_blueprint(gps_bp, url_prefix="/api/gps")
 app.register_blueprint(metadata_bp, url_prefix="/api/metadata")
+app.register_blueprint(sidecar_bp, url_prefix="/api/sidecar")
 
 # Register WebSocket handlers
 from websocket_handlers import register_handlers
@@ -229,6 +243,15 @@ limiter.exempt(app.view_functions["gallery.get_thumbnail"])
 limiter.exempt(app.view_functions["gallery.get_photo"])
 
 print("✓ Rate limiting applied to camera, GPIO, and GPS endpoints")
+
+# Sidecar API rate limiting (Issue #107 follow-up)
+# Bulk: 10 per minute (prevents abuse of batch operations)
+# PATCH/DELETE: 30 per minute (one per 2 seconds, reasonable for UI use)
+limiter.limit("10 per minute")(app.view_functions["sidecar.bulk_update_metadata"])
+limiter.limit("30 per minute")(app.view_functions["sidecar.update_photo_metadata"])
+limiter.limit("30 per minute")(app.view_functions["sidecar.delete_photo_metadata"])
+
+print("✓ Rate limiting applied to sidecar endpoints")
 
 
 # CSRF token endpoint

@@ -22,15 +22,14 @@ from .gps_exif_lib import (
     is_already_tagged,
     verify_gps_exif,
 )
-
 from .series_detection import (
+    FB_PATTERN,
+    HDR_PATTERN,
     SeriesInfo,
     SeriesType,
     detect_series_type,
     get_series_id,
     group_photos_into_series,
-    HDR_PATTERN,
-    FB_PATTERN,
 )
 
 __all__ = [
