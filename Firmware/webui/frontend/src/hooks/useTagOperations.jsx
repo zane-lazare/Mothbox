@@ -183,7 +183,9 @@ export default function useTagOperations(filename) {
     if (!sidecar.updateError) {
       prevErrorRef.current = null
     }
-  }, [sidecar.updateError, showErrorWithUndo])
+    // Include isUpdating to trigger on each mutation cycle, catching consecutive
+    // failures even if the error object reference is the same
+  }, [sidecar.updateError, sidecar.isUpdating, showErrorWithUndo])
 
   return {
     // Query state
