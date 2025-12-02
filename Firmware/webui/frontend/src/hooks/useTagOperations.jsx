@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import useSidecarMetadata from './useSidecarMetadata'
 import { TOAST_CONFIG } from '../constants/config'
@@ -163,17 +163,19 @@ export default function useTagOperations(filename) {
   // We just need to notify the user with the option to manually undo
   const prevUpdateError = useRef(null)
 
-  if (sidecar.updateError && sidecar.updateError !== prevUpdateError.current) {
-    prevUpdateError.current = sidecar.updateError
-    const { type, tag } = lastOperationRef.current
-    if (type && tag) {
-      showErrorWithUndo(type, tag)
-    } else {
-      toast.error('Failed to update tags', {
-        duration: TOAST_CONFIG.ERROR_DURATION,
-      })
+  useEffect(() => {
+    if (sidecar.updateError && sidecar.updateError !== prevUpdateError.current) {
+      prevUpdateError.current = sidecar.updateError
+      const { type, tag } = lastOperationRef.current
+      if (type && tag) {
+        showErrorWithUndo(type, tag)
+      } else {
+        toast.error('Failed to update tags', {
+          duration: TOAST_CONFIG.ERROR_DURATION,
+        })
+      }
     }
-  }
+  }, [sidecar.updateError, showErrorWithUndo])
 
   return {
     // Query state
