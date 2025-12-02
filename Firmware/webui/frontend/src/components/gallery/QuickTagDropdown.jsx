@@ -93,15 +93,15 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
   const quickTags = allTags.slice(0, 8)
 
   // Filter tags based on search query
+  // Pre-compute lowercase search query once, not per-tag in filter callback
+  const searchLower = searchQuery.toLowerCase()
   const filteredTags = searchQuery
-    ? allTags.filter(tag =>
-        tag.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+    ? allTags.filter(tag => tag.name.toLowerCase().includes(searchLower))
     : allTags
 
   // Check if search query matches an existing tag
   const exactMatch = filteredTags.find(
-    tag => tag.name.toLowerCase() === searchQuery.toLowerCase()
+    tag => tag.name.toLowerCase() === searchLower
   )
 
   // Show create option if search query is not empty and doesn't match exactly
