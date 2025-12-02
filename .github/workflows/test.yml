@@ -42,6 +42,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Limit permissions of GITHUB_TOKEN for security
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   # ==========================================================================
   # Unit Tests - Split into 3 parallel shards for faster execution
