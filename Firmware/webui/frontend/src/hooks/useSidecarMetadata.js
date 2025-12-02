@@ -113,11 +113,14 @@ export default function useSidecarMetadata(filename) {
   /**
    * Add a single tag to existing tags
    * Prevents duplicate tags
+   * Uses queryClient.getQueryData for fresh data to avoid stale closure issues
    *
    * @param {string} tag - Tag to add
    */
   const addTag = (tag) => {
-    const currentTags = query.data?.tags || []
+    // Get fresh data from queryClient to avoid stale closure when called
+    // immediately after another mutation (optimistic updates modify cache)
+    const currentTags = queryClient.getQueryData(['sidecarMetadata', filename])?.tags || []
     if (!currentTags.includes(tag)) {
       updateMutation.mutate({ tags: [...currentTags, tag] })
     }
@@ -125,11 +128,14 @@ export default function useSidecarMetadata(filename) {
 
   /**
    * Remove a single tag from existing tags
+   * Uses queryClient.getQueryData for fresh data to avoid stale closure issues
    *
    * @param {string} tag - Tag to remove
    */
   const removeTag = (tag) => {
-    const currentTags = query.data?.tags || []
+    // Get fresh data from queryClient to avoid stale closure when called
+    // immediately after another mutation (optimistic updates modify cache)
+    const currentTags = queryClient.getQueryData(['sidecarMetadata', filename])?.tags || []
     updateMutation.mutate({ tags: currentTags.filter((t) => t !== tag) })
   }
 
