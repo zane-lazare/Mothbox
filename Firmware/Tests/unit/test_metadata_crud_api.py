@@ -752,7 +752,7 @@ class TestMetadataListPagination:
             'has_next': True
         }
 
-        response = client.get('/api/sidecar/photos/metadata?page=2&per_page=20')
+        response = client.get('/api/sidecar/photos?page=2&per_page=20')
 
         assert response.status_code == 200
         data = json.loads(response.data)
@@ -761,13 +761,13 @@ class TestMetadataListPagination:
 
     def test_list_metadata_max_per_page(self, client):
         """
-        GET /api/sidecar/photos/metadata enforces max per_page of 200.
+        GET /api/sidecar/photos enforces max per_page of 200.
 
         Expected behavior:
         - per_page capped at 200 even if higher value requested
         - No error returned
         """
-        response = client.get('/api/sidecar/photos/metadata?per_page=500')
+        response = client.get('/api/sidecar/photos?per_page=500')
 
         assert response.status_code == 200
         data = json.loads(response.data)
@@ -776,13 +776,13 @@ class TestMetadataListPagination:
 
     def test_list_metadata_invalid_page(self, client):
         """
-        GET /api/sidecar/photos/metadata?page=-1 returns 400 for invalid page.
+        GET /api/sidecar/photos?page=-1 returns 400 for invalid page.
 
         Expected behavior:
         - Status 400
         - JSON error response
         """
-        response = client.get('/api/sidecar/photos/metadata?page=-1')
+        response = client.get('/api/sidecar/photos?page=-1')
 
         assert response.status_code == 400
         data = json.loads(response.data)
