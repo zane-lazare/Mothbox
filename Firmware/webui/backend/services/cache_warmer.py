@@ -46,6 +46,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from constants import PHOTO_PATTERNS
+
 from services.thumbnail_cache import ThumbnailCache, ThumbnailError
 
 # Try to import psutil for CPU monitoring
@@ -439,12 +441,13 @@ class CacheWarmer:
             return new_photos
 
         # Find photos modified after timestamp
-        for photo_path in self.photos_dir.rglob("*.jpg"):
-            try:
-                if photo_path.is_file() and photo_path.stat().st_mtime >= since:
-                    new_photos.append(photo_path)
-            except (OSError, PermissionError):
-                continue
+        for pattern in PHOTO_PATTERNS:
+            for photo_path in self.photos_dir.rglob(pattern):
+                try:
+                    if photo_path.is_file() and photo_path.stat().st_mtime >= since:
+                        new_photos.append(photo_path)
+                except (OSError, PermissionError):
+                    continue
 
         return new_photos
 
@@ -529,12 +532,13 @@ class CacheWarmer:
             return []
 
         photos = []
-        for photo_path in self.photos_dir.rglob("*.jpg"):
-            if photo_path.is_file():
-                try:
-                    photos.append((photo_path, photo_path.stat().st_mtime))
-                except (OSError, PermissionError):
-                    continue
+        for pattern in PHOTO_PATTERNS:
+            for photo_path in self.photos_dir.rglob(pattern):
+                if photo_path.is_file():
+                    try:
+                        photos.append((photo_path, photo_path.stat().st_mtime))
+                    except (OSError, PermissionError):
+                        continue
 
         # Sort by mtime, newest first
         photos.sort(key=lambda x: x[1], reverse=True)
@@ -552,9 +556,10 @@ class CacheWarmer:
             return []
 
         photos = []
-        for photo_path in self.photos_dir.rglob("*.jpg"):
-            if photo_path.is_file():
-                photos.append(photo_path)
+        for pattern in PHOTO_PATTERNS:
+            for photo_path in self.photos_dir.rglob(pattern):
+                if photo_path.is_file():
+                    photos.append(photo_path)
 
         return photos
 

@@ -29,12 +29,14 @@ Endpoints:
 - POST /locations/clustered/cache/invalidate - Invalidate clustering cache
 """
 
+import itertools
 import logging
 import threading
 import time
 from datetime import datetime
 from pathlib import Path
 
+from constants import PHOTO_PATTERNS
 from flask import Blueprint, current_app, jsonify, request, send_file
 
 # Import will be available when app.py is created
@@ -126,8 +128,11 @@ def list_photos():
             return jsonify({"photos": []})
 
         photos = []
+        all_photos = itertools.chain.from_iterable(
+            PHOTOS_DIR.glob(f"**/{pattern}") for pattern in PHOTO_PATTERNS
+        )
         for photo_path in sorted(
-            PHOTOS_DIR.glob("**/*.jpg"), key=lambda p: p.stat().st_mtime, reverse=True
+            all_photos, key=lambda p: p.stat().st_mtime, reverse=True
         ):
             stat = photo_path.stat()
             photos.append(

@@ -8,6 +8,8 @@ Part of Issue #135 - Gallery API Pagination implementation.
 from datetime import datetime
 from pathlib import Path
 
+from constants import PHOTO_PATTERNS
+
 from mothbox_paths import PHOTOS_DIR
 
 
@@ -136,13 +138,14 @@ class PhotoService:
             return []
 
         photos = []
-        for photo_path in self.photos_dir.rglob("*.jpg"):
-            try:
-                stat = photo_path.stat()
-                photos.append((photo_path, stat.st_mtime, stat.st_size))
-            except OSError:
-                # Skip photos that can't be accessed
-                continue
+        for pattern in PHOTO_PATTERNS:
+            for photo_path in self.photos_dir.rglob(pattern):
+                try:
+                    stat = photo_path.stat()
+                    photos.append((photo_path, stat.st_mtime, stat.st_size))
+                except OSError:
+                    # Skip photos that can't be accessed
+                    continue
 
         return photos
 

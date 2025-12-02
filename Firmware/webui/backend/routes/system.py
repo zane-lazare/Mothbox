@@ -1,5 +1,6 @@
 """System status and monitoring endpoints"""
 
+import itertools
 import shutil
 import threading
 import time
@@ -7,6 +8,7 @@ from pathlib import Path
 
 # Setup path to import mothbox_paths
 from config import get_config
+from constants import PHOTO_PATTERNS
 from flask import Blueprint, jsonify
 
 from mothbox_paths import (
@@ -57,7 +59,13 @@ def _get_cached_photo_count():
 
         # Cache expired or empty, perform count
         try:
-            count = len(list(PHOTOS_DIR.glob("**/*.jpg"))) if PHOTOS_DIR.exists() else 0
+            if PHOTOS_DIR.exists():
+                all_photos = itertools.chain.from_iterable(
+                    PHOTOS_DIR.glob(f"**/{pattern}") for pattern in PHOTO_PATTERNS
+                )
+                count = sum(1 for _ in all_photos)
+            else:
+                count = 0
 
             # Update cache
             _photo_count_cache["count"] = count

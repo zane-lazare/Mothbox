@@ -37,6 +37,7 @@ from collections import Counter
 from flask import Blueprint, current_app, jsonify, request
 
 from mothbox_paths import PHOTOS_DIR
+from webui.backend.constants import SIDECAR_PATTERNS
 from webui.backend.lib.sidecar_metadata import (
     MAX_BULK_FILES,
     MAX_NOTES_LENGTH,
@@ -826,14 +827,15 @@ def get_all_tags():
                 # Aggregate tags from all sidecar files
                 tag_counter = Counter()
 
-                for sidecar_path in PHOTOS_DIR.rglob("*.jpg.json"):
-                    try:
-                        sidecar_data = json.loads(sidecar_path.read_text())
-                        for tag in sidecar_data.get('tags', []):
-                            tag_counter[tag] += 1
-                    except (OSError, json.JSONDecodeError, KeyError):
-                        # Skip corrupted or invalid sidecar files
-                        continue
+                for pattern in SIDECAR_PATTERNS:
+                    for sidecar_path in PHOTOS_DIR.rglob(pattern):
+                        try:
+                            sidecar_data = json.loads(sidecar_path.read_text())
+                            for tag in sidecar_data.get('tags', []):
+                                tag_counter[tag] += 1
+                        except (OSError, json.JSONDecodeError, KeyError):
+                            # Skip corrupted or invalid sidecar files
+                            continue
 
                 # Convert to list of {name, count} dicts
                 all_tags = [{"name": tag, "count": count} for tag, count in tag_counter.items()]
@@ -965,17 +967,18 @@ def get_all_species():
                 # Aggregate species from all sidecar files
                 species_counter = Counter()
 
-                for sidecar_path in PHOTOS_DIR.rglob("*.jpg.json"):
-                    try:
-                        sidecar_data = json.loads(sidecar_path.read_text())
-                        species_name = sidecar_data.get('species')
+                for pattern in SIDECAR_PATTERNS:
+                    for sidecar_path in PHOTOS_DIR.rglob(pattern):
+                        try:
+                            sidecar_data = json.loads(sidecar_path.read_text())
+                            species_name = sidecar_data.get('species')
 
-                        # Only count non-null species
-                        if species_name is not None:
-                            species_counter[species_name] += 1
-                    except (OSError, json.JSONDecodeError, KeyError):
-                        # Skip corrupted or invalid sidecar files
-                        continue
+                            # Only count non-null species
+                            if species_name is not None:
+                                species_counter[species_name] += 1
+                        except (OSError, json.JSONDecodeError, KeyError):
+                            # Skip corrupted or invalid sidecar files
+                            continue
 
                 # Convert to list of {name, count} dicts
                 all_species = [{"name": species, "count": count} for species, count in species_counter.items()]
