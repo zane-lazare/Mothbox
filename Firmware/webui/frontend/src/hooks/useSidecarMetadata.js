@@ -90,6 +90,9 @@ export default function useSidecarMetadata(filename) {
     },
     onSettled: () => {
       // Invalidate related queries to ensure sync with server
+      // Note: This runs on both success and error. After error, the optimistic
+      // update is already rolled back in onError, but we still refetch to
+      // confirm cache matches server state. This is intentional TanStack Query pattern.
       queryClient.invalidateQueries({ queryKey: ['sidecarMetadata', filename] })
       queryClient.invalidateQueries({ queryKey: ['tags'] })
     },
