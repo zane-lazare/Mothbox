@@ -122,6 +122,7 @@ jobs:
             Firmware/coverage-unit-${{ matrix.shard }}.xml
             Firmware/.coverage.unit-${{ matrix.shard }}
           retention-days: 1
+          include-hidden-files: true
 
   # ==========================================================================
   # Integration Tests - Run in parallel with unit tests
@@ -196,6 +197,7 @@ jobs:
             Firmware/coverage-integration.xml
             Firmware/.coverage.integration
           retention-days: 1
+          include-hidden-files: true
 
   # ==========================================================================
   # Coverage Report - Combine all coverage from unit and integration tests
