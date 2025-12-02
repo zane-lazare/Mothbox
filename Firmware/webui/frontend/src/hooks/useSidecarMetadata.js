@@ -121,9 +121,14 @@ export default function useSidecarMetadata(filename) {
     // Get fresh data from queryClient to avoid stale closure when called
     // immediately after another mutation (optimistic updates modify cache)
     const currentTags = queryClient.getQueryData(['sidecarMetadata', filename])?.tags || []
-    if (!currentTags.includes(tag)) {
-      updateMutation.mutate({ tags: [...currentTags, tag] })
-    }
+    const trimmedTag = tag?.trim()
+
+    // Reject empty/whitespace tags
+    if (!trimmedTag) return
+    // Already exists (compare trimmed)
+    if (currentTags.includes(trimmedTag)) return
+
+    updateMutation.mutate({ tags: [...currentTags, trimmedTag] })
   }
 
   /**
