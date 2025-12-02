@@ -67,6 +67,7 @@ _species_cache = None
 _species_cache_time = 0
 _species_cache_building = False
 _cache_lock = threading.RLock()  # Reentrant lock for nested calls
+_cache_condition = threading.Condition(_cache_lock)  # For wait/notify on first build
 _DEFAULT_AGGREGATION_CACHE_TTL = 300  # 5 minutes
 
 
@@ -84,13 +85,14 @@ def invalidate_aggregation_cache():
     """
     global _tags_cache, _species_cache, _tags_cache_time, _species_cache_time
     global _tags_cache_building, _species_cache_building
-    with _cache_lock:
+    with _cache_condition:
         _tags_cache = None
         _species_cache = None
         _tags_cache_time = 0
         _species_cache_time = 0
         _tags_cache_building = False
         _species_cache_building = False
+        _cache_condition.notify_all()  # Wake any waiters
         logger.debug("Aggregation cache invalidated")
 
 
@@ -825,20 +827,29 @@ def get_all_tags():
             return jsonify({"error": "order must be 'asc' or 'desc'"}), 400
 
         # Use cached aggregation data if available and fresh
-        # Uses building flag to prevent thundering herd on cache expiry
+        # Uses Condition for wait/notify to prevent thundering herd on first build
         global _tags_cache, _tags_cache_time, _tags_cache_building
         all_tags = None
 
-        with _cache_lock:
+        with _cache_condition:
             cache_age = time.time() - _tags_cache_time
             if _tags_cache is not None and cache_age < _get_cache_ttl():
                 all_tags = _tags_cache.copy()
                 logger.debug(f"Tags cache hit (age: {cache_age:.1f}s)")
             elif _tags_cache_building:
-                # Another thread is building, return stale data if available
+                # Another thread is building - wait for it or use stale data
                 if _tags_cache is not None:
+                    # Stale data available, use it without waiting
                     all_tags = _tags_cache.copy()
-                    logger.debug("Tags cache building by another thread, using stale data")
+                    logger.debug("Tags cache building, using stale data")
+                else:
+                    # First build - must wait for builder to complete
+                    logger.debug("Tags cache building (first build), waiting...")
+                    _cache_condition.wait(timeout=30.0)  # Wait up to 30s
+                    # After waking, check if cache is now available
+                    if _tags_cache is not None:
+                        all_tags = _tags_cache.copy()
+                        logger.debug("Tags cache now available after wait")
             else:
                 # Mark as building to prevent thundering herd
                 _tags_cache_building = True
@@ -862,16 +873,18 @@ def get_all_tags():
                 # Convert to list of {name, count} dicts
                 all_tags = [{"name": tag, "count": count} for tag, count in tag_counter.items()]
 
-                # Cache the result
-                with _cache_lock:
+                # Cache the result and notify waiters
+                with _cache_condition:
                     _tags_cache = all_tags.copy()
                     _tags_cache_time = time.time()
                     _tags_cache_building = False
-                logger.debug(f"Tags cache miss - scanned {len(tag_counter)} unique tags")
+                    _cache_condition.notify_all()  # Wake waiting threads
+                logger.debug(f"Tags cache built - {len(tag_counter)} unique tags")
             except Exception:
-                # Reset building flag on error
-                with _cache_lock:
+                # Reset building flag and notify waiters on error
+                with _cache_condition:
                     _tags_cache_building = False
+                    _cache_condition.notify_all()
                 raise
 
         # Sort
@@ -986,20 +999,29 @@ def get_all_species():
             return jsonify({"error": "order must be 'asc' or 'desc'"}), 400
 
         # Use cached aggregation data if available and fresh
-        # Uses building flag to prevent thundering herd on cache expiry
+        # Uses Condition for wait/notify to prevent thundering herd on first build
         global _species_cache, _species_cache_time, _species_cache_building
         all_species = None
 
-        with _cache_lock:
+        with _cache_condition:
             cache_age = time.time() - _species_cache_time
             if _species_cache is not None and cache_age < _get_cache_ttl():
                 all_species = _species_cache.copy()
                 logger.debug(f"Species cache hit (age: {cache_age:.1f}s)")
             elif _species_cache_building:
-                # Another thread is building, return stale data if available
+                # Another thread is building - wait for it or use stale data
                 if _species_cache is not None:
+                    # Stale data available, use it without waiting
                     all_species = _species_cache.copy()
-                    logger.debug("Species cache building by another thread, using stale data")
+                    logger.debug("Species cache building, using stale data")
+                else:
+                    # First build - must wait for builder to complete
+                    logger.debug("Species cache building (first build), waiting...")
+                    _cache_condition.wait(timeout=30.0)  # Wait up to 30s
+                    # After waking, check if cache is now available
+                    if _species_cache is not None:
+                        all_species = _species_cache.copy()
+                        logger.debug("Species cache now available after wait")
             else:
                 # Mark as building to prevent thundering herd
                 _species_cache_building = True
@@ -1026,16 +1048,18 @@ def get_all_species():
                 # Convert to list of {name, count} dicts
                 all_species = [{"name": species, "count": count} for species, count in species_counter.items()]
 
-                # Cache the result
-                with _cache_lock:
+                # Cache the result and notify waiters
+                with _cache_condition:
                     _species_cache = all_species.copy()
                     _species_cache_time = time.time()
                     _species_cache_building = False
-                logger.debug(f"Species cache miss - scanned {len(species_counter)} unique species")
+                    _cache_condition.notify_all()  # Wake waiting threads
+                logger.debug(f"Species cache built - {len(species_counter)} unique species")
             except Exception:
-                # Reset building flag on error
-                with _cache_lock:
+                # Reset building flag and notify waiters on error
+                with _cache_condition:
                     _species_cache_building = False
+                    _cache_condition.notify_all()
                 raise
 
         # Sort
