@@ -59,6 +59,9 @@ export default function useSidecarMetadata(filename) {
     },
     enabled: !!filename,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    // Retry transient failures (network issues, temporary server errors)
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   })
 
   /**

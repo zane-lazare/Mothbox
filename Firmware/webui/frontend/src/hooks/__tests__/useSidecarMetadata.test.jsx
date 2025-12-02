@@ -111,13 +111,17 @@ describe('useSidecarMetadata', () => {
 
     it('handles fetch errors gracefully', async () => {
       const error = new Error('Failed to fetch sidecar metadata')
-      api.getPhotoSidecarMetadata.mockRejectedValueOnce(error)
+      // Mock rejection for all retry attempts (initial + 2 retries)
+      api.getPhotoSidecarMetadata.mockRejectedValue(error)
 
       const { result } = renderUseSidecarMetadata('photo_error.jpg')
 
-      await waitFor(() => {
-        expect(result.current.isError).toBe(true)
-      })
+      await waitFor(
+        () => {
+          expect(result.current.isError).toBe(true)
+        },
+        { timeout: 10000 }
+      ) // Allow time for retries
 
       expect(result.current.isLoading).toBe(false)
       expect(result.current.isSuccess).toBe(false)
