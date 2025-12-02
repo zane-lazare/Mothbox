@@ -855,8 +855,8 @@ def get_all_tags():
                             sidecar_data = json.loads(sidecar_path.read_text())
                             for tag in sidecar_data.get('tags', []):
                                 tag_counter[tag] += 1
-                        except (OSError, json.JSONDecodeError, KeyError):
-                            # Skip corrupted or invalid sidecar files
+                        except (OSError, json.JSONDecodeError, KeyError) as e:
+                            logger.debug(f"Skipping invalid sidecar {sidecar_path}: {e}")
                             continue
 
                 # Convert to list of {name, count} dicts
@@ -1019,8 +1019,8 @@ def get_all_species():
                             # Only count non-null species
                             if species_name is not None:
                                 species_counter[species_name] += 1
-                        except (OSError, json.JSONDecodeError, KeyError):
-                            # Skip corrupted or invalid sidecar files
+                        except (OSError, json.JSONDecodeError, KeyError) as e:
+                            logger.debug(f"Skipping invalid sidecar {sidecar_path}: {e}")
                             continue
 
                 # Convert to list of {name, count} dicts
