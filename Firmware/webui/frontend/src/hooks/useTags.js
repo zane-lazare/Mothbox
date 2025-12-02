@@ -41,10 +41,18 @@ import { getAllTags } from '../utils/api'
  * // Returns top 10 tags sorted by count in descending order
  */
 export default function useTags(params = {}) {
+  // Normalize query key to ensure consistent cache keys regardless of
+  // property order in params object (e.g., { sort, order } vs { order, sort })
+  const normalizedParams = {
+    sort: params?.sort,
+    order: params?.order,
+    limit: params?.limit,
+  }
+
   return useQuery({
     // Query key: unique identifier for this query in the cache
-    // Format: ['tags', params]
-    queryKey: ['tags', params],
+    // Format: ['tags', normalizedParams] - explicitly ordered for cache consistency
+    queryKey: ['tags', normalizedParams],
 
     // Query function: fetches the tags from the API
     queryFn: async () => {
