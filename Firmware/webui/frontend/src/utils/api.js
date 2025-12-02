@@ -134,3 +134,9 @@ export const getGpsStatus = () => api.get('/gps/status')
 export const syncGps = () => api.post('/gps/sync')
 export const getGpsConfig = () => api.get('/gps/config')
 export const updateGpsConfig = (config) => api.put('/gps/config', config)
+
+// Sidecar Metadata APIs
+export const getAllTags = (params = {}) => api.get('/sidecar/tags', { params })
+export const getPhotoSidecarMetadata = (filename) => api.get(`/sidecar/photos/${encodeURIComponent(filename)}`)
+export const updatePhotoSidecarMetadata = (filename, updates) => api.patch(`/sidecar/photos/${encodeURIComponent(filename)}`, updates)
+export const bulkUpdateSidecarMetadata = (filenames, updates) => api.post('/sidecar/bulk', { filenames, updates })
