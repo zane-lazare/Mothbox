@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { TagIcon } from '@heroicons/react/24/outline'
 import QuickTagDropdown from './QuickTagDropdown'
@@ -32,19 +32,20 @@ function QuickTagButton({ filename, className = '', onDropdownOpenChange }) {
   const handleClick = useCallback((e) => {
     e.stopPropagation()
     e.preventDefault()
-    setIsOpen(prev => {
-      const newState = !prev
-      onDropdownOpenChange?.(newState)
-      return newState
-    })
-  }, [onDropdownOpenChange])
+    setIsOpen(prev => !prev)
+  }, [])
+
+  // Notify parent of state changes after state is committed
+  useEffect(() => {
+    onDropdownOpenChange?.(isOpen)
+  }, [isOpen, onDropdownOpenChange])
 
   const handleClose = useCallback(() => {
     setIsOpen(false)
-    onDropdownOpenChange?.(false)
+    // Parent notified via useEffect after state commits
     // Restore focus to trigger button for keyboard accessibility
     buttonRef.current?.focus()
-  }, [onDropdownOpenChange])
+  }, [])
 
   return (
     <>
