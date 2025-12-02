@@ -1,11 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
 import PropTypes from 'prop-types'
 
+// Maximum tag length (matches backend validation)
+const MAX_TAG_LENGTH = 100
+
 function TagAutocomplete({
   tags = [],
   selectedTags = [],
   onSelect,
   onCreate,
+  onValidationError,
   placeholder = 'Search or create tags...',
   disabled = false,
   className = '',
@@ -111,12 +115,20 @@ function TagAutocomplete({
 
   const handleCreate = () => {
     const newTag = inputValue.trim()
-    if (newTag && !selectedTags.includes(newTag)) {
-      onCreate(newTag)
-      setInputValue('')
-      setIsOpen(false)
-      setHighlightedIndex(-1)
+    if (!newTag || selectedTags.includes(newTag)) {
+      return
     }
+
+    // Validate tag length before sending to backend
+    if (newTag.length > MAX_TAG_LENGTH) {
+      onValidationError?.(`Tag cannot exceed ${MAX_TAG_LENGTH} characters`)
+      return
+    }
+
+    onCreate(newTag)
+    setInputValue('')
+    setIsOpen(false)
+    setHighlightedIndex(-1)
   }
 
   const handleInputChange = (e) => {
@@ -237,6 +249,7 @@ TagAutocomplete.propTypes = {
   selectedTags: PropTypes.arrayOf(PropTypes.string),
   onSelect: PropTypes.func.isRequired,
   onCreate: PropTypes.func.isRequired,
+  onValidationError: PropTypes.func,
   placeholder: PropTypes.string,
   disabled: PropTypes.bool,
   className: PropTypes.string,
