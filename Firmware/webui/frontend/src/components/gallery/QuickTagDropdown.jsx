@@ -9,7 +9,9 @@ import useSidecarMetadata from '../../hooks/useSidecarMetadata'
 function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
   const dropdownRef = useRef(null)
   const searchInputRef = useRef(null)
+  const listRef = useRef(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
 
   // Use refs to stabilize event listener dependencies and prevent memory leaks
   // when onClose or anchorEl props change while dropdown is open
@@ -53,12 +55,26 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
     refs.setReference(anchorEl)
   }, [anchorEl, refs])
 
-  // Focus search input when opened
+  // Focus search input when opened and reset highlight
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => searchInputRef.current?.focus(), 0)
+      setHighlightedIndex(-1)
     }
   }, [isOpen])
+
+  // Scroll highlighted item into view during keyboard navigation
+  useEffect(() => {
+    if (highlightedIndex >= 0 && listRef.current) {
+      const highlightedElement = listRef.current.querySelector(
+        `[data-tag-index="${highlightedIndex}"]`
+      )
+      highlightedElement?.scrollIntoView({
+        block: 'nearest',
+        behavior: 'smooth'
+      })
+    }
+  }, [highlightedIndex])
 
   // Close on Escape or click outside - only attach listeners when open
   // Uses refs to prevent memory leaks when props change during open state
@@ -125,11 +141,53 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
 
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value)
+    setHighlightedIndex(-1)  // Reset highlight when search changes
   }
 
   const handleSearchKeyDown = (e) => {
-    if (e.key === 'Enter' && showCreateOption) {
-      handleCreateTag(searchQuery)
+    // Calculate total navigable options:
+    // - Create option (if shown) at index 0
+    // - Filtered tags at subsequent indices
+    const totalOptions = filteredTags.length + (showCreateOption ? 1 : 0)
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        if (totalOptions > 0) {
+          setHighlightedIndex((prev) => {
+            if (prev === -1) return 0
+            return (prev + 1) % totalOptions
+          })
+        }
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        if (totalOptions > 0) {
+          setHighlightedIndex((prev) => {
+            if (prev === -1) return totalOptions - 1
+            return (prev - 1 + totalOptions) % totalOptions
+          })
+        }
+        break
+      case 'Enter':
+        e.preventDefault()
+        if (highlightedIndex >= 0) {
+          // If create option is shown, it's at index 0
+          if (showCreateOption && highlightedIndex === 0) {
+            handleCreateTag(searchQuery)
+          } else {
+            // Adjust index based on whether create option is shown
+            const tagIndex = showCreateOption ? highlightedIndex - 1 : highlightedIndex
+            if (tagIndex >= 0 && tagIndex < filteredTags.length) {
+              handleToggleTag(filteredTags[tagIndex].name)
+            }
+          }
+        } else if (showCreateOption) {
+          // No highlight but create option available - create the tag
+          handleCreateTag(searchQuery)
+        }
+        break
+      // Note: Escape is handled by document-level listener
     }
   }
 
@@ -217,10 +275,13 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
           {showCreateOption && (
             <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
               <button
+                data-tag-index={0}
                 onClick={() => handleCreateTag(searchQuery)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded
+                onMouseEnter={() => setHighlightedIndex(0)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded
                            hover:bg-blue-50 dark:hover:bg-blue-900/30 text-left
-                           text-blue-600 dark:text-blue-400 font-medium"
+                           text-blue-600 dark:text-blue-400 font-medium
+                           ${highlightedIndex === 0 ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30' : ''}`}
               >
                 <span className="text-sm">Create &quot;{searchQuery.trim()}&quot;</span>
               </button>
@@ -228,19 +289,25 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
           )}
 
           {/* All Tags Section */}
-          <div className="max-h-48 overflow-y-auto p-3">
+          <div ref={listRef} className="max-h-48 overflow-y-auto p-3">
             <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
               All Tags ({filteredTags.length})
             </div>
             <div className="space-y-1">
-              {filteredTags.map(tag => {
+              {filteredTags.map((tag, index) => {
                 const isApplied = appliedTags.includes(tag.name)
+                // Tag indices start after create option (if shown)
+                const tagIndex = showCreateOption ? index + 1 : index
+                const isHighlighted = highlightedIndex === tagIndex
                 return (
                   <button
                     key={tag.name}
+                    data-tag-index={tagIndex}
+                    onMouseEnter={() => setHighlightedIndex(tagIndex)}
                     className={`w-full flex items-center justify-between px-2 py-1.5 rounded
                                hover:bg-gray-100 dark:hover:bg-gray-700 text-left
-                               ${isApplied ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`}
+                               ${isApplied ? 'bg-blue-50 dark:bg-blue-900/30' : ''}
+                               ${isHighlighted ? 'ring-2 ring-blue-500' : ''}`}
                     onClick={() => handleToggleTag(tag.name)}
                   >
                     <span className="flex items-center gap-2">
