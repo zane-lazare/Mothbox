@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import PropTypes from 'prop-types'
 import { useFloating, offset, flip, shift, autoUpdate } from '@floating-ui/react'
 import { XMarkIcon, CheckIcon, MagnifyingGlassIcon } from '@heroicons/react/20/solid'
@@ -90,7 +90,7 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
 
   const allTags = tagsData?.tags || []
   const appliedTags = sidecarData?.tags || []
-  const quickTags = allTags.slice(0, 8)
+  const quickTags = useMemo(() => allTags.slice(0, 8), [allTags])
 
   // Filter tags based on search query
   // Pre-compute lowercase search query once, not per-tag in filter callback
