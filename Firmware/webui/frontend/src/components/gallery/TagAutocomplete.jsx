@@ -1,8 +1,55 @@
 import { useState, useRef, useEffect } from 'react'
 import PropTypes from 'prop-types'
+import { METADATA_VALIDATION } from '../../constants/config'
 
-// Maximum tag length (matches backend validation)
-const MAX_TAG_LENGTH = 100
+// Try to import the fuzzy search hook (graceful fallback if not available)
+let useTagAutocomplete = null
+try {
+  useTagAutocomplete = require('../../../hooks/useTagAutocomplete').default
+} catch (e) {
+  // Hook not available yet - will use prop-based filtering
+  useTagAutocomplete = null
+}
+
+/**
+ * HighlightedMatch - Highlights the matched portion of a tag
+ * @param {string} text - The full tag text
+ * @param {string} query - The search query
+ */
+function HighlightedMatch({ text, query }) {
+  if (!query || !text) {
+    return <span data-testid="highlighted-match">{text}</span>
+  }
+
+  // Find the query in the text (case-insensitive)
+  const lowerText = text.toLowerCase()
+  const lowerQuery = query.toLowerCase()
+  const index = lowerText.indexOf(lowerQuery)
+
+  if (index === -1) {
+    return <span data-testid="highlighted-match">{text}</span>
+  }
+
+  // Split text into before, match, and after
+  const before = text.slice(0, index)
+  const match = text.slice(index, index + query.length)
+  const after = text.slice(index + query.length)
+
+  return (
+    <span data-testid="highlighted-match">
+      {before}
+      <mark className="bg-yellow-200 dark:bg-yellow-700 font-semibold">
+        {match}
+      </mark>
+      {after}
+    </span>
+  )
+}
+
+HighlightedMatch.propTypes = {
+  text: PropTypes.string.isRequired,
+  query: PropTypes.string,
+}
 
 function TagAutocomplete({
   tags = [],
@@ -20,6 +67,16 @@ function TagAutocomplete({
   const inputRef = useRef(null)
   const listRef = useRef(null)
   const blurTimeoutRef = useRef(null)
+
+  /**
+   * Backwards compatibility: The `tags` prop enables local filtering mode.
+   * This is deprecated - new code should rely on fuzzy search API.
+   * TODO: Remove tags prop support in next major version.
+   */
+  const shouldUseFuzzySearch = useTagAutocomplete !== null && !tags.length
+  const fuzzySearchResult = shouldUseFuzzySearch
+    ? useTagAutocomplete(inputValue, { enabled: inputValue.trim().length > 0 })
+    : { suggestions: [], isLoading: false, error: null }
 
   // Cleanup blur timeout on unmount to prevent memory leak
   useEffect(() => {
@@ -43,19 +100,27 @@ function TagAutocomplete({
     }
   }, [highlightedIndex])
 
-  // Filter tags based on input (case-insensitive substring match)
-  const filteredTags = tags.filter(
+  // Choose between fuzzy search results or local filtering
+  const localFilteredTags = tags.filter(
     (tag) =>
       tag.name.toLowerCase().includes(inputValue.toLowerCase()) &&
       !selectedTags.includes(tag.name)
   )
 
-  // Check if exact match exists
-  const exactMatch = tags.some(
+  const filteredTags = shouldUseFuzzySearch
+    ? fuzzySearchResult.suggestions.filter((tag) => !selectedTags.includes(tag.name))
+    : localFilteredTags
+
+  // Check if exact match exists (check both sources)
+  const allTags = shouldUseFuzzySearch ? fuzzySearchResult.suggestions : tags
+  const exactMatch = allTags.some(
     (t) => t.name.toLowerCase() === inputValue.toLowerCase()
   )
   const showCreateOption =
     inputValue.trim() && !exactMatch && !selectedTags.includes(inputValue.trim())
+
+  // Get loading state from hook
+  const isLoading = shouldUseFuzzySearch && fuzzySearchResult.isLoading
 
   // Total number of options (filtered tags + create option if shown)
   const totalOptions = filteredTags.length + (showCreateOption ? 1 : 0)
@@ -98,6 +163,20 @@ function TagAutocomplete({
           handleCreate()
         }
         break
+      case 'Tab':
+        // Tab key: select highlighted item if any, then allow default tab behavior
+        if (highlightedIndex >= 0 && highlightedIndex < totalOptions) {
+          e.preventDefault()
+          if (highlightedIndex < filteredTags.length) {
+            handleSelect(filteredTags[highlightedIndex].name)
+          } else if (showCreateOption) {
+            handleCreate()
+          }
+        }
+        // If no highlight, just close dropdown and let tab move focus naturally
+        setIsOpen(false)
+        setHighlightedIndex(-1)
+        break
       case 'Escape':
         setIsOpen(false)
         setHighlightedIndex(-1)
@@ -120,8 +199,8 @@ function TagAutocomplete({
     }
 
     // Validate tag length before sending to backend
-    if (newTag.length > MAX_TAG_LENGTH) {
-      onValidationError?.(`Tag cannot exceed ${MAX_TAG_LENGTH} characters`)
+    if (newTag.length > METADATA_VALIDATION.MAX_TAG_LENGTH) {
+      onValidationError?.(`Tag cannot exceed ${METADATA_VALIDATION.MAX_TAG_LENGTH} characters`)
       return
     }
 
@@ -182,7 +261,39 @@ function TagAutocomplete({
                    disabled:opacity-50 disabled:cursor-not-allowed"
       />
 
-      {isOpen && totalOptions > 0 && (
+      {isOpen && isLoading && (
+        <div
+          role="status"
+          className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border
+                     border-gray-300 dark:border-gray-600 rounded-md shadow-lg p-3"
+        >
+          <div className="flex items-center justify-center gap-2">
+            <svg
+              className="animate-spin h-5 w-5 text-blue-500"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+            <span className="text-gray-600 dark:text-gray-400">Loading suggestions...</span>
+          </div>
+        </div>
+      )}
+
+      {isOpen && !isLoading && totalOptions > 0 && (
         <ul
           id="tag-listbox"
           role="listbox"
@@ -207,8 +318,20 @@ function TagAutocomplete({
               onClick={() => handleSelect(tag.name)}
               onMouseEnter={() => setHighlightedIndex(index)}
             >
-              <span>{tag.name}</span>
-              <span className="text-gray-500 text-sm">({tag.count})</span>
+              <div className="flex items-center gap-2 flex-1">
+                <HighlightedMatch text={tag.name} query={inputValue} />
+                {tag.score !== undefined && shouldUseFuzzySearch && (
+                  <span
+                    data-testid="match-score"
+                    className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-800
+                               text-blue-700 dark:text-blue-300"
+                    title={`Match quality: ${Math.round(tag.score * 100)}%`}
+                  >
+                    {Math.round(tag.score * 100)}%
+                  </span>
+                )}
+              </div>
+              <span className="text-gray-500 text-sm ml-2">({tag.count})</span>
             </li>
           ))}
 
