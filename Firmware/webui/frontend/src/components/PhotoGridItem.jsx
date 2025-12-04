@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo, useCallback } from 'react'
 import { GALLERY_CONFIG } from '../constants/config'
 import ProgressiveImage from './ProgressiveImage'
 import QuickTagButton from './gallery/QuickTagButton'
@@ -17,18 +17,18 @@ import QuickTagButton from './gallery/QuickTagButton'
  * @param {string} props.photo.date - ISO date string
  * @param {Function} props.onClick - Click handler for viewing photo
  */
-export default function PhotoGridItem({ photo, onClick }) {
+function PhotoGridItem({ photo, onClick }) {
   const [isHovered, setIsHovered] = useState(false)
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false)
 
-  const handlePhotoClick = () => {
+  const handlePhotoClick = useCallback(() => {
     if (isTagDropdownOpen) {
       // Close dropdown when clicking photo area
       setIsTagDropdownOpen(false)
     } else {
       onClick(photo)
     }
-  }
+  }, [isTagDropdownOpen, onClick, photo])
 
   return (
     <div
@@ -72,3 +72,5 @@ export default function PhotoGridItem({ photo, onClick }) {
     </div>
   )
 }
+
+export default memo(PhotoGridItem)

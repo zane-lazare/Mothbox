@@ -5,6 +5,7 @@ import { XMarkIcon, CheckIcon, MagnifyingGlassIcon } from '@heroicons/react/20/s
 import TagChip from './TagChip'
 import useTags from '../../hooks/useTags'
 import useSidecarMetadata from '../../hooks/useSidecarMetadata'
+import { METADATA_VALIDATION } from '../../constants/config'
 
 function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
   const dropdownRef = useRef(null)
@@ -264,6 +265,7 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
                 value={searchQuery}
                 onChange={handleSearchChange}
                 onKeyDown={handleSearchKeyDown}
+                maxLength={METADATA_VALIDATION.MAX_TAG_LENGTH}
                 className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600
                            rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
                            focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

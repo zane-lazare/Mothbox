@@ -238,13 +238,233 @@ class TestSchemaVersion:
         """SCHEMA_VERSION should be a string."""
         assert isinstance(SCHEMA_VERSION, str)
 
-    def test_schema_version_is_1_0(self):
-        """SCHEMA_VERSION should be '1.0' for initial release."""
-        assert SCHEMA_VERSION == "1.0"
+    def test_schema_version_is_1_1(self):
+        """SCHEMA_VERSION should be '1.1' for current release (Issue #109)."""
+        assert SCHEMA_VERSION == "1.1"
 
     def test_backup_extension_constant(self):
         """BACKUP_EXTENSION should be '.bak'."""
         assert BACKUP_EXTENSION == ".bak"
+
+
+# ============================================================================
+# Test Schema v1.1 New Fields (Issue #109 - TDD)
+# ============================================================================
+
+class TestSchemaV11NewFields:
+    """Tests for new fields in schema version 1.1 (Issue #109)."""
+
+    def test_schema_accepts_species_confidence(self, sample_photo):
+        """Schema should accept species_confidence field with valid enum values."""
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {},
+            "species": "Actias luna",
+            "species_confidence": "certain"
+        }
+        # Should not raise ValidationError
+        assert validate_schema(metadata_dict) is True
+
+    def test_schema_accepts_common_name(self, sample_photo):
+        """Schema should accept species_common_name field."""
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {},
+            "species_common_name": "Luna Moth"
+        }
+        # Should not raise ValidationError
+        assert validate_schema(metadata_dict) is True
+
+    def test_schema_accepts_reference_url(self, sample_photo):
+        """Schema should accept species_reference_url field with valid URL."""
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {},
+            "species_reference_url": "https://inaturalist.org/taxa/47921"
+        }
+        # Should not raise ValidationError
+        assert validate_schema(metadata_dict) is True
+
+    def test_schema_rejects_invalid_confidence(self, sample_photo):
+        """Schema should reject species_confidence with invalid enum value."""
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {},
+            "species_confidence": "maybe"  # Invalid - not in enum
+        }
+        with pytest.raises(ValidationError) as exc_info:
+            validate_schema(metadata_dict)
+        assert "species_confidence" in str(exc_info.value).lower()
+
+    def test_schema_rejects_invalid_reference_url(self, sample_photo):
+        """Schema should reject species_reference_url with non-http URL."""
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {},
+            "species_reference_url": "ftp://example.com"  # Invalid - not http/https
+        }
+        with pytest.raises(ValidationError) as exc_info:
+            validate_schema(metadata_dict)
+        assert "reference_url" in str(exc_info.value).lower()
+
+    def test_schema_rejects_url_without_hostname(self, sample_photo):
+        """Schema should reject species_reference_url without hostname."""
+        # Test http:// without hostname
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {},
+            "species_reference_url": "http://"  # Invalid - no hostname
+        }
+        with pytest.raises(ValidationError) as exc_info:
+            validate_schema(metadata_dict)
+        assert "reference_url" in str(exc_info.value).lower()
+
+        # Test https:// without hostname
+        metadata_dict["species_reference_url"] = "https://"
+        with pytest.raises(ValidationError) as exc_info:
+            validate_schema(metadata_dict)
+        assert "reference_url" in str(exc_info.value).lower()
+
+    def test_schema_rejects_url_with_spaces(self, sample_photo):
+        """Schema should reject species_reference_url with spaces in hostname."""
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {},
+            "species_reference_url": "http://not a valid url"  # Invalid - spaces
+        }
+        with pytest.raises(ValidationError) as exc_info:
+            validate_schema(metadata_dict)
+        assert "reference_url" in str(exc_info.value).lower()
+
+    def test_schema_accepts_valid_url_with_path(self, sample_photo):
+        """Schema should accept valid URL with path."""
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {},
+            "species_reference_url": "https://example.com/path/to/resource"
+        }
+        assert validate_schema(metadata_dict) is True
+
+    def test_schema_accepts_valid_url_with_query(self, sample_photo):
+        """Schema should accept valid URL with query parameters."""
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {},
+            "species_reference_url": "https://example.com?q=search&page=1"
+        }
+        assert validate_schema(metadata_dict) is True
+
+    def test_confidence_enum_values(self, sample_photo):
+        """All valid species_confidence enum values should be accepted."""
+        valid_values = ["certain", "probable", "possible", "unknown"]
+
+        for confidence in valid_values:
+            metadata_dict = {
+                "version": "1.1",
+                "photo_filename": "test.jpg",
+                "created_at": "2024-11-06T10:30:00Z",
+                "modified_at": "2024-11-06T10:30:00Z",
+                "tags": [],
+                "custom": {},
+                "species_confidence": confidence
+            }
+            # Should not raise ValidationError for any valid enum value
+            assert validate_schema(metadata_dict) is True
+
+    def test_schema_version_1_1(self, sample_photo):
+        """Schema should accept version field with '1.1'."""
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {}
+        }
+        # Should not raise ValidationError
+        assert validate_schema(metadata_dict) is True
+
+    def test_all_v11_fields_together(self, sample_photo):
+        """Schema should accept all v1.1 fields together."""
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": ["moth"],
+            "species": "Actias luna",
+            "species_confidence": "certain",
+            "species_common_name": "Luna Moth",
+            "species_reference_url": "https://inaturalist.org/taxa/47921",
+            "custom": {"location": "backyard"}
+        }
+        # Should not raise ValidationError
+        assert validate_schema(metadata_dict) is True
+
+    def test_v11_fields_are_optional(self, sample_photo):
+        """New v1.1 fields should be optional."""
+        # Minimal v1.1 metadata without new fields
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {}
+        }
+        # Should not raise ValidationError
+        assert validate_schema(metadata_dict) is True
+
+    def test_common_name_max_length(self, sample_photo):
+        """species_common_name should respect max length constraint."""
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {},
+            "species_common_name": "a" * 201  # Exceeds 200 char limit
+        }
+        with pytest.raises(ValidationError) as exc_info:
+            validate_schema(metadata_dict)
+        assert "common_name" in str(exc_info.value).lower()
 
 
 # ============================================================================

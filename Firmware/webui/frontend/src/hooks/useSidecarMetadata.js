@@ -1,17 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
 import { getPhotoSidecarMetadata, updatePhotoSidecarMetadata } from '../utils/api'
-
-// Module-level timeout for debouncing tags cache invalidation
-// Batches rapid tag operations into a single refetch after 1 second of inactivity
-let tagsInvalidationTimeout = null
-
-// Export for test cleanup - clears pending debounced invalidation
-export function clearTagsInvalidationTimeout() {
-  if (tagsInvalidationTimeout) {
-    clearTimeout(tagsInvalidationTimeout)
-    tagsInvalidationTimeout = null
-  }
-}
 
 /**
  * Custom hook for fetching and mutating photo sidecar metadata
@@ -59,6 +48,21 @@ export function clearTagsInvalidationTimeout() {
  */
 export default function useSidecarMetadata(filename) {
   const queryClient = useQueryClient()
+
+  // Per-component ref for debouncing tags cache invalidation
+  // Batches rapid tag operations into a single refetch after 1 second of inactivity
+  const tagsInvalidationTimeoutRef = useRef(null)
+
+  // Cleanup pending tags invalidation timeout on unmount
+  // Prevents memory leaks in fast navigation scenarios
+  useEffect(() => {
+    return () => {
+      if (tagsInvalidationTimeoutRef.current) {
+        clearTimeout(tagsInvalidationTimeoutRef.current)
+        tagsInvalidationTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   /**
    * Query for fetching sidecar metadata
@@ -113,12 +117,12 @@ export default function useSidecarMetadata(filename) {
       // Debounce tags invalidation - wait 1 second after last update
       // This batches rapid tag operations into a single tags refetch,
       // preventing excessive network requests when user rapidly tags photos
-      if (tagsInvalidationTimeout) {
-        clearTimeout(tagsInvalidationTimeout)
+      if (tagsInvalidationTimeoutRef.current) {
+        clearTimeout(tagsInvalidationTimeoutRef.current)
       }
-      tagsInvalidationTimeout = setTimeout(() => {
+      tagsInvalidationTimeoutRef.current = setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['tags'] })
-        tagsInvalidationTimeout = null
+        tagsInvalidationTimeoutRef.current = null
       }, 1000)
     },
   })
@@ -184,6 +188,18 @@ export default function useSidecarMetadata(filename) {
     updateMutation.mutate({ notes })
   }
 
+  /**
+   * Generic update function for any sidecar metadata fields
+   * Useful for updating multiple fields at once or custom fields
+   * Returns a promise for async/await usage (uses mutateAsync)
+   *
+   * @param {object} updates - Metadata fields to update
+   * @returns {Promise} Resolves on success, rejects on error
+   */
+  const updateMetadata = (updates) => {
+    return updateMutation.mutateAsync(updates)
+  }
+
   return {
     // Query state
     data: query.data,
@@ -198,6 +214,7 @@ export default function useSidecarMetadata(filename) {
     removeTag,
     updateSpecies,
     updateNotes,
+    updateMetadata,
 
     // Mutation state
     isUpdating: updateMutation.isPending,

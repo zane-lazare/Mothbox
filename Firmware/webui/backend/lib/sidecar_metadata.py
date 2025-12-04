@@ -1,5 +1,5 @@
 """
-Sidecar Metadata Library for Mothbox Photo Gallery (Issue #102)
+Sidecar Metadata Library for Mothbox Photo Gallery (Issue #102, #109)
 
 Stores photo-level metadata (tags, species, notes) in JSON sidecar files.
 Each photo can have an associated {photo}.json file with structured metadata.
@@ -8,8 +8,8 @@ File Naming:
 - Photo: photo.jpg
 - Sidecar: photo.jpg.json
 
-Schema Version: 1.0
-- version: Schema version (string, "1.0")
+Schema Version: 1.1 (backward compatible with 1.0)
+- version: Schema version (string, "1.0" or "1.1")
 - photo_filename: Original photo filename (string)
 - created_at: Timestamp of sidecar creation (ISO 8601 string)
 - modified_at: Timestamp of last modification (ISO 8601 string)
@@ -18,6 +18,9 @@ Schema Version: 1.0
 - notes: User notes (string | None, max 10000 chars)
 - custom: Custom key-value metadata (dict, max 100 keys)
 - modified_by: User identifier for last modification (string | None)
+- species_confidence: Confidence level (string | None, enum: "certain", "probable", "possible", "unknown") [v1.1+]
+- species_common_name: Common name for species (string | None, max 200 chars) [v1.1+]
+- species_reference_url: Reference URL (string | None, valid http/https URL with hostname) [v1.1+]
 
 Usage:
     from webui.backend.lib.sidecar_metadata import (
@@ -30,6 +33,15 @@ Usage:
 
     # Create new metadata
     metadata = create_metadata("photo.jpg", tags=["moth", "night"])
+
+    # Create with v1.1 fields
+    metadata = create_metadata(
+        "photo.jpg",
+        species="Actias luna",
+        species_confidence="certain",
+        species_common_name="Luna Moth",
+        species_reference_url="https://inaturalist.org/taxa/47921"
+    )
 
     # Read existing metadata
     metadata = read_metadata("photo.jpg")
@@ -52,6 +64,7 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +72,8 @@ logger = logging.getLogger(__name__)
 # Constants
 # ============================================================================
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"  # Current schema version
+SUPPORTED_VERSIONS = ["1.0", "1.1"]  # All supported versions for backward compatibility
 BACKUP_EXTENSION = ".bak"
 
 # Validation limits
@@ -68,6 +82,11 @@ MAX_SPECIES_LENGTH = 200
 MAX_NOTES_LENGTH = 10000
 MAX_CUSTOM_KEYS = 100
 MAX_CUSTOM_DEPTH = 5  # Maximum nesting depth for custom values
+MAX_COMMON_NAME_LENGTH = 200  # Maximum length for species_common_name
+MAX_REFERENCE_URL_LENGTH = 500  # Maximum length for species_reference_url
+
+# Enum values for species_confidence (Issue #109)
+SPECIES_CONFIDENCE_VALUES = ["certain", "probable", "possible", "unknown"]
 
 # API limits
 MAX_BULK_FILES = 100  # Maximum files per bulk update request
@@ -95,7 +114,7 @@ class SidecarMetadata:
     """Photo sidecar metadata structure.
 
     Attributes:
-        version: Schema version (currently "1.0")
+        version: Schema version (currently "1.1")
         photo_filename: Original photo filename
         created_at: ISO 8601 timestamp of creation
         modified_at: ISO 8601 timestamp of last modification
@@ -104,6 +123,9 @@ class SidecarMetadata:
         notes: User notes (optional)
         custom: Custom metadata dictionary (optional)
         modified_by: User identifier for last modification (optional)
+        species_confidence: Confidence level for species ID (optional, v1.1+)
+        species_common_name: Common name for species (optional, v1.1+)
+        species_reference_url: Reference URL for species (optional, v1.1+)
     """
     version: str
     photo_filename: str
@@ -114,6 +136,9 @@ class SidecarMetadata:
     notes: str | None
     custom: dict
     modified_by: str | None
+    species_confidence: str | None = None
+    species_common_name: str | None = None
+    species_reference_url: str | None = None
 
     def to_dict(self) -> dict:
         """Convert metadata to dictionary for JSON serialization.
@@ -142,7 +167,10 @@ class SidecarMetadata:
             species=data.get("species"),
             notes=data.get("notes"),
             custom=data.get("custom", {}),
-            modified_by=data.get("modified_by")
+            modified_by=data.get("modified_by"),
+            species_confidence=data.get("species_confidence"),
+            species_common_name=data.get("species_common_name"),
+            species_reference_url=data.get("species_reference_url")
         )
 
 
@@ -297,6 +325,8 @@ def validate_schema(data: dict) -> bool:
     Example:
         >>> validate_schema({"version": "1.0", "tags": [], ...})
         True
+        >>> validate_schema({"version": "1.1", "tags": [], ...})
+        True
     """
     # Check required fields
     required_fields = ["version", "photo_filename", "created_at", "modified_at", "tags", "custom"]
@@ -304,9 +334,9 @@ def validate_schema(data: dict) -> bool:
         if field not in data:
             raise ValidationError(f"Missing required field: {field}")
 
-    # Check version support
-    if data["version"] != SCHEMA_VERSION:
-        raise ValidationError(f"Unsupported schema version: {data['version']} (supported: {SCHEMA_VERSION})")
+    # Check version support (allow both 1.0 and 1.1 for backward compatibility)
+    if data["version"] not in SUPPORTED_VERSIONS:
+        raise ValidationError(f"Unsupported schema version: {data['version']} (supported: {', '.join(SUPPORTED_VERSIONS)})")
 
     # Validate tags
     if not isinstance(data["tags"], list):
@@ -338,6 +368,32 @@ def validate_schema(data: dict) -> bool:
 
         if not _is_valid_custom_value(value):
             raise ValidationError(f"custom value type not allowed for key '{key}'")
+
+    # Validate schema v1.1 fields (Issue #109)
+    if data.get("species_confidence") is not None:
+        if data["species_confidence"] not in SPECIES_CONFIDENCE_VALUES:
+            raise ValidationError(
+                f"species_confidence must be one of {SPECIES_CONFIDENCE_VALUES}, got '{data['species_confidence']}'"
+            )
+
+    if data.get("species_common_name") is not None:
+        if len(data["species_common_name"]) > MAX_COMMON_NAME_LENGTH:
+            raise ValidationError(f"species_common_name exceeds maximum length ({MAX_COMMON_NAME_LENGTH} chars)")
+
+    if data.get("species_reference_url") is not None:
+        url = data["species_reference_url"]
+        if len(url) > MAX_REFERENCE_URL_LENGTH:
+            raise ValidationError(f"species_reference_url exceeds maximum length ({MAX_REFERENCE_URL_LENGTH} chars)")
+        # Validate URL format using urlparse (not just prefix check)
+        # Also check for spaces in URL (urlparse accepts them but they're invalid)
+        if ' ' in url:
+            raise ValidationError("species_reference_url must be a valid http:// or https:// URL")
+        try:
+            parsed = urlparse(url)
+            if not (parsed.scheme in ('http', 'https') and parsed.netloc):
+                raise ValidationError("species_reference_url must be a valid http:// or https:// URL")
+        except ValueError:
+            raise ValidationError("species_reference_url must be a valid http:// or https:// URL")
 
     return True
 
@@ -544,7 +600,10 @@ def create_metadata(
     species: str | None = None,
     notes: str | None = None,
     custom: dict | None = None,
-    modified_by: str | None = None
+    modified_by: str | None = None,
+    species_confidence: str | None = None,
+    species_common_name: str | None = None,
+    species_reference_url: str | None = None
 ) -> SidecarMetadata:
     """Create new metadata for photo.
 
@@ -557,6 +616,9 @@ def create_metadata(
         notes: User notes
         custom: Custom metadata dictionary
         modified_by: User identifier
+        species_confidence: Confidence level (v1.1+)
+        species_common_name: Common name (v1.1+)
+        species_reference_url: Reference URL (v1.1+)
 
     Returns:
         New SidecarMetadata instance
@@ -583,7 +645,10 @@ def create_metadata(
         species=species,
         notes=notes,
         custom=custom or {},
-        modified_by=modified_by
+        modified_by=modified_by,
+        species_confidence=species_confidence,
+        species_common_name=species_common_name,
+        species_reference_url=species_reference_url
     )
 
 
@@ -841,7 +906,9 @@ __all__ = [
     "SidecarMetadata",
     # Constants
     "SCHEMA_VERSION",
+    "SUPPORTED_VERSIONS",
     "BACKUP_EXTENSION",
+    "SPECIES_CONFIDENCE_VALUES",
     # Exceptions
     "ValidationError",
     "LockTimeoutError",

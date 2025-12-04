@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, memo } from 'react'
 import PropTypes from 'prop-types'
 import { TagIcon } from '@heroicons/react/24/outline'
 import QuickTagDropdown from './QuickTagDropdown'
@@ -108,4 +108,4 @@ QuickTagButton.propTypes = {
   onDropdownOpenChange: PropTypes.func,
 }
 
-export default QuickTagButton
+export default memo(QuickTagButton)

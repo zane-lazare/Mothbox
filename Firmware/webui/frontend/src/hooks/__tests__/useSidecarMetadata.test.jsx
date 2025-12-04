@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import useSidecarMetadata, { clearTagsInvalidationTimeout } from '../useSidecarMetadata'
+import useSidecarMetadata from '../useSidecarMetadata'
 import * as api from '../../utils/api'
 
 // Mock the API module
@@ -39,8 +39,8 @@ describe('useSidecarMetadata', () => {
 
   afterEach(() => {
     queryClient.clear()
-    // Clear any pending debounced tags invalidation to prevent test interference
-    clearTagsInvalidationTimeout()
+    // Note: Tags invalidation timeout is now managed by useRef inside the hook,
+    // so cleanup happens automatically when the hook unmounts
   })
 
   /**

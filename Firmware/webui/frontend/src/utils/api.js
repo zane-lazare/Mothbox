@@ -137,6 +137,7 @@ export const updateGpsConfig = (config) => api.put('/gps/config', config)
 
 // Sidecar Metadata APIs
 export const getAllTags = (params = {}) => api.get('/sidecar/tags', { params })
+export const getAllSpecies = (params = {}) => api.get('/sidecar/species', { params })
 export const getPhotoSidecarMetadata = (filename) => api.get(`/sidecar/photos/${encodeURIComponent(filename)}`)
 export const updatePhotoSidecarMetadata = (filename, updates) => api.patch(`/sidecar/photos/${encodeURIComponent(filename)}`, updates)
 export const bulkUpdateSidecarMetadata = (filenames, updates) => api.post('/sidecar/bulk', { filenames, updates })

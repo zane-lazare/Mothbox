@@ -1,7 +1,16 @@
 import PropTypes from 'prop-types'
-import { useCallback } from 'react'
+import { useCallback, memo } from 'react'
 import LazyImage from './LazyImage'
 import { GALLERY_CONFIG } from '../constants/config'
+
+// Move constants outside component to prevent recreation on each render
+const Z_INDEX_CLASSES = ['z-10', 'z-20', 'z-30']
+const OFFSETS = [
+  'translate-x-2 translate-y-2',
+  'translate-x-1 translate-y-1',
+  'translate-x-0 translate-y-0',
+]
+const SHADOWS = ['shadow-sm', 'shadow-md', 'shadow-lg']
 
 /**
  * StackedPhotoCard Component
@@ -33,7 +42,7 @@ import { GALLERY_CONFIG } from '../constants/config'
  * @param {Function} [props.onPhotoClick] - Handler when opening photo (receives cover photo)
  * @param {boolean} [props.isLoading=false] - Show loading skeleton state
  */
-export default function StackedPhotoCard({
+function StackedPhotoCard({
   series,
   onCardClick,
   onPhotoClick,
@@ -122,17 +131,6 @@ export default function StackedPhotoCard({
     )
   }
 
-  // Z-index values for proper stacking order (back to front)
-  const zIndexClasses = ['z-10', 'z-20', 'z-30']
-  // Offset values for stacked effect (back to front)
-  const offsets = [
-    'translate-x-2 translate-y-2',
-    'translate-x-1 translate-y-1',
-    'translate-x-0 translate-y-0',
-  ]
-  // Shadow intensity (back to front)
-  const shadows = ['shadow-sm', 'shadow-md', 'shadow-lg']
-
   // Reverse for rendering (back layers first, front last)
   const renderOrder = [...stackedPhotos].reverse()
 
@@ -149,9 +147,9 @@ export default function StackedPhotoCard({
       {renderOrder.map((photo, renderIndex) => {
         // Calculate actual index (reverse of render order)
         const actualIndex = stackedPhotos.length - 1 - renderIndex
-        const zIndex = zIndexClasses[actualIndex] || 'z-10'
-        const offset = offsets[actualIndex] || offsets[0]
-        const shadow = shadows[actualIndex] || shadows[0]
+        const zIndex = Z_INDEX_CLASSES[actualIndex] || 'z-10'
+        const offset = OFFSETS[actualIndex] || OFFSETS[0]
+        const shadow = SHADOWS[actualIndex] || SHADOWS[0]
         const isFront = actualIndex === stackedPhotos.length - 1
         // Handle both string paths and photo objects for key
         const photoKey = typeof photo === 'string' ? photo : photo.path
@@ -203,3 +201,5 @@ StackedPhotoCard.propTypes = {
   onPhotoClick: PropTypes.func,
   isLoading: PropTypes.bool,
 }
+
+export default memo(StackedPhotoCard)
