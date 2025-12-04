@@ -230,11 +230,30 @@ describe('MetadataSpecies', () => {
 
     const referenceInput = screen.getByPlaceholderText(/https:\/\/inaturalist.org\/.../)
 
-    // Invalid URL (no protocol)
+    // Invalid URL (no protocol) - parsed as relative URL, throws error
     fireEvent.change(referenceInput, { target: { value: 'inaturalist.org/taxa/47924' } })
 
-    expect(screen.getByText('URL must start with http:// or https://')).toBeInTheDocument()
+    expect(screen.getByText('Invalid URL format')).toBeInTheDocument()
     expect(mockOnChange).toHaveBeenCalledWith('referenceUrl', 'inaturalist.org/taxa/47924')
+  })
+
+  it('test_validates_url_protocol', () => {
+    render(
+      <MetadataSpecies
+        species="Actias luna"
+        confidence="certain"
+        referenceUrl=""
+        onChange={mockOnChange}
+      />,
+      { wrapper: createWrapper() }
+    )
+
+    const referenceInput = screen.getByPlaceholderText(/https:\/\/inaturalist.org\/.../)
+
+    // Invalid protocol (ftp)
+    fireEvent.change(referenceInput, { target: { value: 'ftp://example.com/file' } })
+
+    expect(screen.getByText('URL must start with http:// or https://')).toBeInTheDocument()
   })
 
   it('test_species_blur_triggers_onChange', () => {
@@ -295,13 +314,13 @@ describe('MetadataSpecies', () => {
 
     const referenceInput = screen.getByPlaceholderText(/https:\/\/inaturalist.org\/.../)
 
-    // Invalid URL first
+    // Invalid URL first (no protocol, will be caught by URL parser)
     fireEvent.change(referenceInput, { target: { value: 'inaturalist.org' } })
-    expect(screen.getByText('URL must start with http:// or https://')).toBeInTheDocument()
+    expect(screen.getByText('Invalid URL format')).toBeInTheDocument()
 
     // Valid URL should clear error
     fireEvent.change(referenceInput, { target: { value: 'https://inaturalist.org/taxa/47924' } })
-    expect(screen.queryByText('URL must start with http:// or https://')).not.toBeInTheDocument()
+    expect(screen.queryByText('Invalid URL format')).not.toBeInTheDocument()
   })
 
   it('test_empty_url_clears_error', async () => {
@@ -317,18 +336,18 @@ describe('MetadataSpecies', () => {
 
     const referenceInput = screen.getByPlaceholderText(/https:\/\/inaturalist.org\/.../)
 
-    // Set invalid URL first
+    // Set invalid URL first (no protocol, will be caught by URL parser)
     fireEvent.change(referenceInput, { target: { value: 'invalid' } })
 
     await waitFor(() => {
-      expect(screen.getByText('URL must start with http:// or https://')).toBeInTheDocument()
+      expect(screen.getByText('Invalid URL format')).toBeInTheDocument()
     })
 
     // Empty URL should clear error
     fireEvent.change(referenceInput, { target: { value: '' } })
 
     await waitFor(() => {
-      expect(screen.queryByText('URL must start with http:// or https://')).not.toBeInTheDocument()
+      expect(screen.queryByText('Invalid URL format')).not.toBeInTheDocument()
     })
   })
 })

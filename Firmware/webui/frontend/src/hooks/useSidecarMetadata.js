@@ -1,18 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { getPhotoSidecarMetadata, updatePhotoSidecarMetadata } from '../utils/api'
-
-// Module-level timeout for debouncing tags cache invalidation
-// Batches rapid tag operations into a single refetch after 1 second of inactivity
-let tagsInvalidationTimeout = null
-
-// Export for test cleanup - clears pending debounced invalidation
-export function clearTagsInvalidationTimeout() {
-  if (tagsInvalidationTimeout) {
-    clearTimeout(tagsInvalidationTimeout)
-    tagsInvalidationTimeout = null
-  }
-}
 
 /**
  * Custom hook for fetching and mutating photo sidecar metadata
@@ -61,10 +49,19 @@ export function clearTagsInvalidationTimeout() {
 export default function useSidecarMetadata(filename) {
   const queryClient = useQueryClient()
 
+  // Per-component ref for debouncing tags cache invalidation
+  // Batches rapid tag operations into a single refetch after 1 second of inactivity
+  const tagsInvalidationTimeoutRef = useRef(null)
+
   // Cleanup pending tags invalidation timeout on unmount
   // Prevents memory leaks in fast navigation scenarios
   useEffect(() => {
-    return () => clearTagsInvalidationTimeout()
+    return () => {
+      if (tagsInvalidationTimeoutRef.current) {
+        clearTimeout(tagsInvalidationTimeoutRef.current)
+        tagsInvalidationTimeoutRef.current = null
+      }
+    }
   }, [])
 
   /**
@@ -120,12 +117,12 @@ export default function useSidecarMetadata(filename) {
       // Debounce tags invalidation - wait 1 second after last update
       // This batches rapid tag operations into a single tags refetch,
       // preventing excessive network requests when user rapidly tags photos
-      if (tagsInvalidationTimeout) {
-        clearTimeout(tagsInvalidationTimeout)
+      if (tagsInvalidationTimeoutRef.current) {
+        clearTimeout(tagsInvalidationTimeoutRef.current)
       }
-      tagsInvalidationTimeout = setTimeout(() => {
+      tagsInvalidationTimeoutRef.current = setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['tags'] })
-        tagsInvalidationTimeout = null
+        tagsInvalidationTimeoutRef.current = null
       }, 1000)
     },
   })

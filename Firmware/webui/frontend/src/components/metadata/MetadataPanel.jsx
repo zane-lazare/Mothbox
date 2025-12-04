@@ -133,22 +133,22 @@ export default function MetadataPanel({ photoPath, className = '', onClose }) {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
-  // Update handlers for each section
-  const handleTagAdd = (tag) => {
+  // Update handlers for each section - memoized to prevent child re-renders
+  const handleTagAdd = useCallback((tag) => {
     setEditableData(prev => ({
       ...prev,
       tags: [...prev.tags, tag]
     }))
-  }
+  }, [])
 
-  const handleTagRemove = (tag) => {
+  const handleTagRemove = useCallback((tag) => {
     setEditableData(prev => ({
       ...prev,
       tags: prev.tags.filter(t => t !== tag)
     }))
-  }
+  }, [])
 
-  const handleSpeciesChange = (field, value) => {
+  const handleSpeciesChange = useCallback((field, value) => {
     setEditableData(prev => {
       // Map field names to state keys
       const fieldMap = {
@@ -160,15 +160,15 @@ export default function MetadataPanel({ photoPath, className = '', onClose }) {
       const stateKey = fieldMap[field] || field
       return { ...prev, [stateKey]: value }
     })
-  }
+  }, [])
 
-  const handleNotesChange = (value) => {
+  const handleNotesChange = useCallback((value) => {
     setEditableData(prev => ({ ...prev, notes: value }))
-  }
+  }, [])
 
-  const handleCustomFieldsChange = (fields) => {
+  const handleCustomFieldsChange = useCallback((fields) => {
     setEditableData(prev => ({ ...prev, custom: fields }))
-  }
+  }, [])
 
   const isLoading = exifLoading || sidecarLoading
 

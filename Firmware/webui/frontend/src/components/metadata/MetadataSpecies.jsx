@@ -1,15 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import PropTypes from 'prop-types'
-import { MagnifyingGlassIcon, LinkIcon } from '@heroicons/react/24/outline'
+import { MagnifyingGlassIcon, LinkIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import useSpecies from '../../hooks/useSpecies'
-import { METADATA_VALIDATION } from '../../constants/config'
-
-const CONFIDENCE_OPTIONS = [
-  { value: 'certain', label: 'Certain' },
-  { value: 'probable', label: 'Probable' },
-  { value: 'possible', label: 'Possible' },
-  { value: 'unknown', label: 'Unknown' },
-]
+import { METADATA_VALIDATION, SPECIES_CONFIG } from '../../constants/config'
 
 export default function MetadataSpecies({
   species = '',
@@ -55,12 +48,22 @@ export default function MetadataSpecies({
       setUrlError('')
       return true
     }
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      setUrlError('URL must start with http:// or https://')
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        setUrlError('URL must start with http:// or https://')
+        return false
+      }
+      if (!parsed.hostname) {
+        setUrlError('URL must include a hostname')
+        return false
+      }
+      setUrlError('')
+      return true
+    } catch {
+      setUrlError('Invalid URL format')
       return false
     }
-    setUrlError('')
-    return true
   }, [])
 
   const handleUrlChange = useCallback((value) => {
@@ -82,6 +85,11 @@ export default function MetadataSpecies({
           </div>
           <input
             type="text"
+            role="combobox"
+            aria-expanded={showSuggestions && suggestions.length > 0 && !!inputValue}
+            aria-controls="species-suggestions"
+            aria-autocomplete="list"
+            aria-haspopup="listbox"
             value={inputValue}
             onChange={(e) => {
               setInputValue(e.target.value)
@@ -99,10 +107,17 @@ export default function MetadataSpecies({
           />
 
           {showSuggestions && suggestions.length > 0 && inputValue && (
-            <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg dark:bg-gray-800 dark:border-gray-600 max-h-48 overflow-auto">
+            <ul
+              id="species-suggestions"
+              role="listbox"
+              aria-label="Species suggestions"
+              className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg dark:bg-gray-800 dark:border-gray-600 max-h-48 overflow-auto"
+            >
               {suggestions.map((s) => (
                 <li
                   key={s.name}
+                  role="option"
+                  aria-selected={false}
                   onMouseDown={(e) => {
                     e.preventDefault() // Prevents blur before selection
                     handleSelectSuggestion(s.name)
@@ -144,7 +159,7 @@ export default function MetadataSpecies({
           disabled={disabled}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
         >
-          {CONFIDENCE_OPTIONS.map((opt) => (
+          {SPECIES_CONFIG.CONFIDENCE_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
@@ -168,10 +183,21 @@ export default function MetadataSpecies({
             placeholder="https://inaturalist.org/..."
             disabled={disabled}
             maxLength={METADATA_VALIDATION.MAX_REFERENCE_URL_LENGTH}
-            className={`w-full pl-9 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 ${
+            className={`w-full pl-9 ${urlInputValue && !urlError ? 'pr-10' : 'pr-3'} py-2 border rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 ${
               urlError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
             }`}
           />
+          {urlInputValue && !urlError && (
+            <a
+              href={urlInputValue}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-blue-500 hover:text-blue-700"
+              aria-label="Visit reference link"
+            >
+              <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+            </a>
+          )}
         </div>
         {urlError && (
           <p className="mt-1 text-xs text-red-500">{urlError}</p>

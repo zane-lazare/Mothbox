@@ -3,7 +3,6 @@ import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import MetadataPanel from '../MetadataPanel'
-import { clearTagsInvalidationTimeout } from '../../../hooks/useSidecarMetadata'
 
 // Mock the API layer ONLY - not hooks or components
 // This tests the real integration between MetadataPanel, useAutoSave, useSidecarMetadata, etc.
@@ -83,7 +82,8 @@ describe('MetadataPanel Integration Tests', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    clearTagsInvalidationTimeout()
+    // Note: Tags invalidation timeout is now managed by useRef inside the hook,
+    // so cleanup happens automatically when the component unmounts
     if (queryClient) {
       queryClient.clear()
     }

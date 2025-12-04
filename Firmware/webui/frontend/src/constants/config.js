@@ -339,3 +339,21 @@ export const METADATA_VALIDATION = {
   MAX_NOTES_LENGTH: 10000,
   MAX_REFERENCE_URL_LENGTH: 500,
 }
+
+/**
+ * Species Identification Configuration
+ *
+ * Configuration for species identification metadata fields.
+ *
+ * @property {Array<Object>} CONFIDENCE_OPTIONS - Available confidence levels for species ID
+ *   - value: Internal value stored in metadata
+ *   - label: User-facing display label
+ */
+export const SPECIES_CONFIG = {
+  CONFIDENCE_OPTIONS: [
+    { value: 'certain', label: 'Certain' },
+    { value: 'probable', label: 'Probable' },
+    { value: 'possible', label: 'Possible' },
+    { value: 'unknown', label: 'Unknown' },
+  ],
+}
