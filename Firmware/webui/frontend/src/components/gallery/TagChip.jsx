@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react'
 import PropTypes from 'prop-types'
 import { XMarkIcon } from '@heroicons/react/20/solid'
 
@@ -34,39 +35,44 @@ function TagChip({
   size = 'sm',
   className = '',
 }) {
-  const sizeClasses = {
-    sm: 'text-xs px-2 py-0.5',
-    md: 'text-sm px-3 py-1',
-  }
+  // Memoize computed class strings
+  const { baseClasses, stateClasses } = useMemo(() => {
+    const sizeClasses = {
+      sm: 'text-xs px-2 py-0.5',
+      md: 'text-sm px-3 py-1',
+    }
 
-  const baseClasses = `
-    inline-flex items-center gap-1 rounded-full font-medium
-    transition-colors duration-150
-    ${sizeClasses[size]}
-  `.trim().replace(/\s+/g, ' ')
+    const base = `
+      inline-flex items-center gap-1 rounded-full font-medium
+      transition-colors duration-150
+      ${sizeClasses[size]}
+    `.trim().replace(/\s+/g, ' ')
 
-  const stateClasses = selected
-    ? 'bg-blue-500 text-white dark:bg-blue-600'
-    : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-800'
+    const state = selected
+      ? 'bg-blue-500 text-white dark:bg-blue-600'
+      : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-800'
 
-  const handleClick = () => {
+    return { baseClasses: base, stateClasses: state }
+  }, [size, selected])
+
+  const handleClick = useCallback(() => {
     if (onClick) {
       onClick()
     }
-  }
+  }, [onClick])
 
-  const handleRemove = (e) => {
+  const handleRemove = useCallback((e) => {
     e.stopPropagation()
     if (onRemove) {
       onRemove()
     }
-  }
+  }, [onRemove])
 
-  const handleRemoveKeyDown = (e) => {
+  const handleRemoveKeyDown = useCallback((e) => {
     if (e.key === 'Enter') {
       handleRemove(e)
     }
-  }
+  }, [handleRemove])
 
   return (
     <button
@@ -115,4 +121,4 @@ TagChip.propTypes = {
   className: PropTypes.string,
 }
 
-export default TagChip
+export default memo(TagChip)

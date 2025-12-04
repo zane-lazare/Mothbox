@@ -47,8 +47,8 @@ describe('MetadataNotes', () => {
     const testValue = 'Hello World'
     render(<MetadataNotes value={testValue} onChange={mockOnChange} />)
 
-    // Should show character count
-    expect(screen.getByText(/11.*5,000 characters/i)).toBeInTheDocument()
+    // Should show character count (default max is 10,000 from METADATA_VALIDATION.MAX_NOTES_LENGTH)
+    expect(screen.getByText(/11.*10,000 characters/i)).toBeInTheDocument()
   })
 
   it('test_calls_onChange_on_input', async () => {

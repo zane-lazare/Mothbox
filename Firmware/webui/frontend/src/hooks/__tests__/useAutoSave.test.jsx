@@ -395,6 +395,46 @@ describe('useAutoSave', () => {
     expect(result.current.status).toBe('idle')
   })
 
+  it('test_detects_equality_regardless_of_key_order', async () => {
+    // Regression test: JSON.stringify would fail this because key order differs
+    const onSave = vi.fn().mockResolvedValue()
+    const { rerender } = renderHook(
+      ({ data }) => useAutoSave({ data, onSave }),
+      { initialProps: { data: { a: 1, b: 2 } } }
+    )
+
+    // Same data but different key order (would fail with JSON.stringify)
+    rerender({ data: { b: 2, a: 1 } })
+
+    await act(async () => {
+      vi.advanceTimersByTime(2000)
+      await Promise.resolve()
+    })
+
+    // Should NOT save since data is semantically equal
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('test_detects_equality_with_nested_objects_different_key_order', async () => {
+    // More complex case with nested objects
+    const onSave = vi.fn().mockResolvedValue()
+    const { rerender } = renderHook(
+      ({ data }) => useAutoSave({ data, onSave }),
+      { initialProps: { data: { outer: { a: 1, b: 2 }, c: 3 } } }
+    )
+
+    // Same data but different key order at multiple levels
+    rerender({ data: { c: 3, outer: { b: 2, a: 1 } } })
+
+    await act(async () => {
+      vi.advanceTimersByTime(2000)
+      await Promise.resolve()
+    })
+
+    // Should NOT save since data is semantically equal
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
   it('test_status_returns_to_idle_after_saved', async () => {
     const onSave = vi.fn().mockResolvedValue()
     const { result, rerender } = renderHook(

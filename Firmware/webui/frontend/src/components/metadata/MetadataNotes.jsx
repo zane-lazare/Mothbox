@@ -1,11 +1,12 @@
 import { useRef, useEffect, useCallback } from 'react'
 import PropTypes from 'prop-types'
 import { ClockIcon } from '@heroicons/react/24/outline'
+import { METADATA_VALIDATION } from '../../constants/config'
 
 export default function MetadataNotes({
   value = '',
   onChange,
-  maxLength = 5000,
+  maxLength = METADATA_VALIDATION.MAX_NOTES_LENGTH,
   disabled = false
 }) {
   const textareaRef = useRef(null)

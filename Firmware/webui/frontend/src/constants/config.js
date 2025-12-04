@@ -319,3 +319,23 @@ export const HOVER_POPUP_CONFIG = {
   SWIPE_THRESHOLD: 50,
   ANIMATION_DURATION: 100,
 }
+
+/**
+ * Metadata Field Validation Limits
+ *
+ * Maximum character lengths for metadata fields.
+ * Must match backend sidecar_metadata.py constants.
+ *
+ * @property {number} MAX_TAG_LENGTH - Maximum length for individual tags (50 chars)
+ * @property {number} MAX_SPECIES_LENGTH - Maximum length for species scientific name (200 chars)
+ * @property {number} MAX_COMMON_NAME_LENGTH - Maximum length for species common name (200 chars)
+ * @property {number} MAX_NOTES_LENGTH - Maximum length for notes field (10000 chars)
+ * @property {number} MAX_REFERENCE_URL_LENGTH - Maximum length for reference URL (500 chars)
+ */
+export const METADATA_VALIDATION = {
+  MAX_TAG_LENGTH: 50,
+  MAX_SPECIES_LENGTH: 200,
+  MAX_COMMON_NAME_LENGTH: 200,
+  MAX_NOTES_LENGTH: 10000,
+  MAX_REFERENCE_URL_LENGTH: 500,
+}

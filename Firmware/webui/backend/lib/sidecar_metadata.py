@@ -20,7 +20,7 @@ Schema Version: 1.1 (backward compatible with 1.0)
 - modified_by: User identifier for last modification (string | None)
 - species_confidence: Confidence level (string | None, enum: "certain", "probable", "possible", "unknown") [v1.1+]
 - species_common_name: Common name for species (string | None, max 200 chars) [v1.1+]
-- species_reference_url: Reference URL (string | None, must start with http:// or https://) [v1.1+]
+- species_reference_url: Reference URL (string | None, valid http/https URL with hostname) [v1.1+]
 
 Usage:
     from webui.backend.lib.sidecar_metadata import (
@@ -64,6 +64,7 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -383,9 +384,16 @@ def validate_schema(data: dict) -> bool:
         url = data["species_reference_url"]
         if len(url) > MAX_REFERENCE_URL_LENGTH:
             raise ValidationError(f"species_reference_url exceeds maximum length ({MAX_REFERENCE_URL_LENGTH} chars)")
-        # Validate URL starts with http:// or https://
-        if not (url.startswith("http://") or url.startswith("https://")):
-            raise ValidationError("species_reference_url must start with http:// or https://")
+        # Validate URL format using urlparse (not just prefix check)
+        # Also check for spaces in URL (urlparse accepts them but they're invalid)
+        if ' ' in url:
+            raise ValidationError("species_reference_url must be a valid http:// or https:// URL")
+        try:
+            parsed = urlparse(url)
+            if not (parsed.scheme in ('http', 'https') and parsed.netloc):
+                raise ValidationError("species_reference_url must be a valid http:// or https:// URL")
+        except ValueError:
+            raise ValidationError("species_reference_url must be a valid http:// or https:// URL")
 
     return True
 

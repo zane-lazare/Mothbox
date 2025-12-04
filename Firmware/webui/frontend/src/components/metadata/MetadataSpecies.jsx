@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import PropTypes from 'prop-types'
 import { MagnifyingGlassIcon, LinkIcon } from '@heroicons/react/24/outline'
 import useSpecies from '../../hooks/useSpecies'
+import { METADATA_VALIDATION } from '../../constants/config'
 
 const CONFIDENCE_OPTIONS = [
   { value: 'certain', label: 'Certain' },
@@ -26,30 +27,30 @@ export default function MetadataSpecies({
   // Sync local state with prop changes (e.g., when sidecar data loads async)
   useEffect(() => {
     setInputValue(species)
-  }, [species])
-
-  useEffect(() => {
     setUrlInputValue(referenceUrl)
-  }, [referenceUrl])
+  }, [species, referenceUrl])
 
   const { data: speciesData } = useSpecies({ sort: 'count', order: 'desc', limit: 20 })
 
-  const suggestions = speciesData?.species
-    ?.filter(s => s.name.toLowerCase().includes(inputValue.toLowerCase()))
-    ?.slice(0, 5) || []
+  // Memoize filtered suggestions to avoid recalculation on every render
+  const suggestions = useMemo(() =>
+    speciesData?.species
+      ?.filter(s => s.name.toLowerCase().includes(inputValue.toLowerCase()))
+      ?.slice(0, 5) || []
+  , [speciesData, inputValue])
 
-  const handleSpeciesChange = (value) => {
+  const handleSpeciesChange = useCallback((value) => {
     setInputValue(value)
     onChange('species', value)
-  }
+  }, [onChange])
 
-  const handleSelectSuggestion = (name) => {
+  const handleSelectSuggestion = useCallback((name) => {
     setInputValue(name)
     onChange('species', name)
     setShowSuggestions(false)
-  }
+  }, [onChange])
 
-  const validateUrl = (url) => {
+  const validateUrl = useCallback((url) => {
     if (!url) {
       setUrlError('')
       return true
@@ -60,13 +61,13 @@ export default function MetadataSpecies({
     }
     setUrlError('')
     return true
-  }
+  }, [])
 
-  const handleUrlChange = (value) => {
+  const handleUrlChange = useCallback((value) => {
     setUrlInputValue(value)
     validateUrl(value)
     onChange('referenceUrl', value)
-  }
+  }, [onChange, validateUrl])
 
   return (
     <div className="space-y-3">
@@ -87,12 +88,13 @@ export default function MetadataSpecies({
               setShowSuggestions(true)
             }}
             onBlur={() => {
-              setTimeout(() => setShowSuggestions(false), 200)
+              setShowSuggestions(false)
               handleSpeciesChange(inputValue)
             }}
             onFocus={() => setShowSuggestions(true)}
             placeholder="e.g., Actias luna"
             disabled={disabled}
+            maxLength={METADATA_VALIDATION.MAX_SPECIES_LENGTH}
             className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
           />
 
@@ -101,7 +103,10 @@ export default function MetadataSpecies({
               {suggestions.map((s) => (
                 <li
                   key={s.name}
-                  onClick={() => handleSelectSuggestion(s.name)}
+                  onMouseDown={(e) => {
+                    e.preventDefault() // Prevents blur before selection
+                    handleSelectSuggestion(s.name)
+                  }}
                   className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   {s.name} <span className="text-gray-400">({s.count})</span>
@@ -123,6 +128,7 @@ export default function MetadataSpecies({
           onChange={(e) => onChange('commonName', e.target.value)}
           placeholder="e.g., Luna Moth"
           disabled={disabled}
+          maxLength={METADATA_VALIDATION.MAX_COMMON_NAME_LENGTH}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
         />
       </div>
@@ -161,6 +167,7 @@ export default function MetadataSpecies({
             onChange={(e) => handleUrlChange(e.target.value)}
             placeholder="https://inaturalist.org/..."
             disabled={disabled}
+            maxLength={METADATA_VALIDATION.MAX_REFERENCE_URL_LENGTH}
             className={`w-full pl-9 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 ${
               urlError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
             }`}

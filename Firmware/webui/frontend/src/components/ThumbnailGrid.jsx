@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useMemo, memo } from 'react'
 import PropTypes from 'prop-types'
 import ThumbnailSkeleton from './ThumbnailSkeleton'
 import { HOVER_POPUP_CONFIG } from '../constants/config'
@@ -77,14 +77,18 @@ function ThumbnailGrid({
     visibleItems: maxPhotos,
   })
 
-  // Display photos based on swipe navigation or simple slice
-  const displayPhotos = enableSwipe
-    ? photos?.slice(startIndex, endIndex) || []
-    : photos?.slice(0, maxPhotos) || []
+  // Memoize display photos and remaining count to avoid recalculation
+  const { displayPhotos, remainingCount } = useMemo(() => {
+    const display = enableSwipe
+      ? photos?.slice(startIndex, endIndex) || []
+      : photos?.slice(0, maxPhotos) || []
 
-  const remainingCount = enableSwipe
-    ? (photos?.length || 0) - endIndex
-    : (photos?.length || 0) - maxPhotos
+    const remaining = enableSwipe
+      ? (photos?.length || 0) - endIndex
+      : (photos?.length || 0) - maxPhotos
+
+    return { displayPhotos: display, remainingCount: remaining }
+  }, [photos, enableSwipe, startIndex, endIndex, maxPhotos])
 
   /**
    * Handle keyboard navigation within the grid
@@ -223,4 +227,4 @@ ThumbnailGrid.propTypes = {
   showPagination: PropTypes.bool,
 }
 
-export default ThumbnailGrid
+export default memo(ThumbnailGrid)

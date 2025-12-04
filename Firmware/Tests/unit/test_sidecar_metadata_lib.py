@@ -327,6 +327,69 @@ class TestSchemaV11NewFields:
             validate_schema(metadata_dict)
         assert "reference_url" in str(exc_info.value).lower()
 
+    def test_schema_rejects_url_without_hostname(self, sample_photo):
+        """Schema should reject species_reference_url without hostname."""
+        # Test http:// without hostname
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {},
+            "species_reference_url": "http://"  # Invalid - no hostname
+        }
+        with pytest.raises(ValidationError) as exc_info:
+            validate_schema(metadata_dict)
+        assert "reference_url" in str(exc_info.value).lower()
+
+        # Test https:// without hostname
+        metadata_dict["species_reference_url"] = "https://"
+        with pytest.raises(ValidationError) as exc_info:
+            validate_schema(metadata_dict)
+        assert "reference_url" in str(exc_info.value).lower()
+
+    def test_schema_rejects_url_with_spaces(self, sample_photo):
+        """Schema should reject species_reference_url with spaces in hostname."""
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {},
+            "species_reference_url": "http://not a valid url"  # Invalid - spaces
+        }
+        with pytest.raises(ValidationError) as exc_info:
+            validate_schema(metadata_dict)
+        assert "reference_url" in str(exc_info.value).lower()
+
+    def test_schema_accepts_valid_url_with_path(self, sample_photo):
+        """Schema should accept valid URL with path."""
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {},
+            "species_reference_url": "https://example.com/path/to/resource"
+        }
+        assert validate_schema(metadata_dict) is True
+
+    def test_schema_accepts_valid_url_with_query(self, sample_photo):
+        """Schema should accept valid URL with query parameters."""
+        metadata_dict = {
+            "version": "1.1",
+            "photo_filename": "test.jpg",
+            "created_at": "2024-11-06T10:30:00Z",
+            "modified_at": "2024-11-06T10:30:00Z",
+            "tags": [],
+            "custom": {},
+            "species_reference_url": "https://example.com?q=search&page=1"
+        }
+        assert validate_schema(metadata_dict) is True
+
     def test_confidence_enum_values(self, sample_photo):
         """All valid species_confidence enum values should be accepted."""
         valid_values = ["certain", "probable", "possible", "unknown"]

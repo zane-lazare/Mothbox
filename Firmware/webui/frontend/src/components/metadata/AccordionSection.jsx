@@ -40,12 +40,15 @@ export default function AccordionSection({
           className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
         />
       </div>
+      {/* Using grid-template-rows for smoother animation than max-height */}
       <div
         id={contentId}
-        className={`overflow-hidden transition-all duration-200 ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}
+        className={`grid transition-[grid-template-rows,opacity] duration-200 ${isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
       >
-        <div className="p-3 pt-0">
-          {children}
+        <div className="overflow-hidden">
+          <div className="p-3 pt-0">
+            {children}
+          </div>
         </div>
       </div>
     </div>

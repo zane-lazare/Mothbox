@@ -99,7 +99,7 @@ describe('MetadataSpecies', () => {
     })
 
     const suggestion = screen.getByText(/Actias luna/)
-    fireEvent.click(suggestion)
+    fireEvent.mouseDown(suggestion)
 
     // Input should be updated
     await waitFor(() => {

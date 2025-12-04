@@ -243,7 +243,7 @@ class TestReadWhileWrite:
             # Each read should be valid
             assert isinstance(result.tags, list), "tags should be list"
             assert isinstance(result.species, str), "species should be string"
-            assert result.version == "1.0", "version should be valid"
+            assert result.version == "1.1", "version should be valid"
 
     def test_concurrent_readers_during_write(self, tmp_path):
         """Multiple readers during write should all get consistent data."""
@@ -290,7 +290,7 @@ class TestReadWhileWrite:
         assert len(valid_reads) > 0, "Should have some valid reads"
 
         for result in valid_reads:
-            assert result.version == "1.0"
+            assert result.version == "1.1"
             assert isinstance(result.tags, list)
 
 

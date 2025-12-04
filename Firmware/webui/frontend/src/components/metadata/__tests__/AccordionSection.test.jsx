@@ -47,9 +47,9 @@ describe('AccordionSection', () => {
     const header = screen.getByRole('button')
     expect(header).toHaveAttribute('aria-expanded', 'false')
 
-    // Content div should have max-h-0 class when collapsed
-    const contentContainer = screen.getByText('Test Content').parentElement.parentElement
-    expect(contentContainer.className).toContain('max-h-0')
+    // Content grid should have grid-rows-[0fr] class when collapsed
+    const contentContainer = screen.getByText('Test Content').parentElement.parentElement.parentElement
+    expect(contentContainer.className).toContain('grid-rows-[0fr]')
   })
 
   it('test_toggles_on_header_click', () => {

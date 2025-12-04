@@ -1,7 +1,8 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo, useCallback } from 'react'
 import PropTypes from 'prop-types'
 import { XMarkIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline'
 import useTags from '../../hooks/useTags'
+import { METADATA_VALIDATION } from '../../constants/config'
 
 export default function MetadataTags({
   tags = [],
@@ -17,14 +18,15 @@ export default function MetadataTags({
   // Fetch available tags for autocomplete
   const { data: tagsData } = useTags({ sort: 'count', order: 'desc', limit: 20 })
 
-  // Filter suggestions based on input
-  const suggestions =
+  // Memoize filtered suggestions to avoid expensive filtering on every render
+  const suggestions = useMemo(() =>
     tagsData?.tags
       ?.filter((t) => t.name.toLowerCase().includes(inputValue.toLowerCase()))
       ?.filter((t) => !tags.some((existing) => existing.toLowerCase() === t.name.toLowerCase()))
       ?.slice(0, 5) || []
+  , [tagsData, inputValue, tags])
 
-  const handleAddTag = (tag) => {
+  const handleAddTag = useCallback((tag) => {
     const trimmed = tag.trim()
     // Reject empty/whitespace tags
     if (!trimmed) return
@@ -34,14 +36,14 @@ export default function MetadataTags({
     onAddTag(trimmed)
     setInputValue('')
     setShowSuggestions(false)
-  }
+  }, [tags, onAddTag])
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = useCallback((e) => {
     if (e.key === ',' || e.key === 'Enter') {
       e.preventDefault()
       handleAddTag(inputValue)
     }
-  }
+  }, [handleAddTag, inputValue])
 
   return (
     <div className="space-y-2">
@@ -81,9 +83,10 @@ export default function MetadataTags({
           }}
           onKeyDown={handleKeyDown}
           onFocus={() => setShowSuggestions(true)}
-          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+          onBlur={() => setShowSuggestions(false)}
           placeholder="Type to add tags..."
           disabled={disabled}
+          maxLength={METADATA_VALIDATION.MAX_TAG_LENGTH}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
         />
 
@@ -93,7 +96,10 @@ export default function MetadataTags({
             {suggestions.map((suggestion) => (
               <li
                 key={suggestion.name}
-                onClick={() => handleAddTag(suggestion.name)}
+                onMouseDown={(e) => {
+                  e.preventDefault() // Prevents blur before selection
+                  handleAddTag(suggestion.name)
+                }}
                 className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 flex justify-between items-center"
               >
                 <span>{suggestion.name}</span>

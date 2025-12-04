@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import deepEqual from '../utils/deepEqual'
 
 /**
  * Auto-save hook with debouncing
@@ -37,7 +38,7 @@ export default function useAutoSave({
     if (!enabled) return
 
     // Don't save if data hasn't changed from initial
-    if (JSON.stringify(dataRef.current) === JSON.stringify(initialDataRef.current)) {
+    if (deepEqual(dataRef.current, initialDataRef.current)) {
       return
     }
 
@@ -72,7 +73,7 @@ export default function useAutoSave({
     }
 
     // Don't set timer if data hasn't changed
-    if (JSON.stringify(data) === JSON.stringify(initialDataRef.current)) {
+    if (deepEqual(data, initialDataRef.current)) {
       return
     }
 

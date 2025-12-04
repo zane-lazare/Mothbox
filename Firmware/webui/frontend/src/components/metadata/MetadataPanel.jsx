@@ -101,9 +101,11 @@ export default function MetadataPanel({ photoPath, className = '', onClose }) {
 
   // Keyboard shortcut handler
   const handleKeyDown = useCallback((e) => {
-    // Check if the event originated from within the panel
+    // Focus check required: This handler is attached to document (not panel element)
+    // because we need to intercept Ctrl+S before browser's save dialog. Without this
+    // check, shortcuts would trigger even when focus is outside the panel (e.g., gallery).
     if (!panelRef.current?.contains(document.activeElement)) {
-      return  // Don't handle shortcuts if panel isn't focused
+      return
     }
 
     // Ctrl+S or Cmd+S - Immediate save

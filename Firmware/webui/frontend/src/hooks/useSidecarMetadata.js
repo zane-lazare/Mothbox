@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { getPhotoSidecarMetadata, updatePhotoSidecarMetadata } from '../utils/api'
 
 // Module-level timeout for debouncing tags cache invalidation
@@ -59,6 +60,12 @@ export function clearTagsInvalidationTimeout() {
  */
 export default function useSidecarMetadata(filename) {
   const queryClient = useQueryClient()
+
+  // Cleanup pending tags invalidation timeout on unmount
+  // Prevents memory leaks in fast navigation scenarios
+  useEffect(() => {
+    return () => clearTagsInvalidationTimeout()
+  }, [])
 
   /**
    * Query for fetching sidecar metadata
