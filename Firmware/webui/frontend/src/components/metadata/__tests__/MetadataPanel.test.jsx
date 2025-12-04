@@ -496,8 +496,8 @@ describe('MetadataPanel (Accordion Refactor)', () => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // Existing custom fields should be displayed
-      expect(screen.getByTestId('custom-field-observer')).toBeInTheDocument()
+      // Wait for custom fields to appear after sidecar data syncs to local state
+      expect(await screen.findByTestId('custom-field-observer')).toBeInTheDocument()
       expect(screen.getByTestId('custom-field-weather')).toBeInTheDocument()
 
       // Add a custom field
