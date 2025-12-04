@@ -184,6 +184,18 @@ export default function useSidecarMetadata(filename) {
     updateMutation.mutate({ notes })
   }
 
+  /**
+   * Generic update function for any sidecar metadata fields
+   * Useful for updating multiple fields at once or custom fields
+   * Returns a promise for async/await usage (uses mutateAsync)
+   *
+   * @param {object} updates - Metadata fields to update
+   * @returns {Promise} Resolves on success, rejects on error
+   */
+  const updateMetadata = (updates) => {
+    return updateMutation.mutateAsync(updates)
+  }
+
   return {
     // Query state
     data: query.data,
@@ -198,6 +210,7 @@ export default function useSidecarMetadata(filename) {
     removeTag,
     updateSpecies,
     updateNotes,
+    updateMetadata,
 
     // Mutation state
     isUpdating: updateMutation.isPending,

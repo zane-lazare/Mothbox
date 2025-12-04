@@ -1,46 +1,141 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import MetadataPanel from '../MetadataPanel'
-import { api } from '../../../utils/api'
+import * as apiModule from '../../../utils/api'
 
 // Mock the API module
 vi.mock('../../../utils/api', () => ({
   api: {
     get: vi.fn(),
+    put: vi.fn(),
   },
+  getPhotoSidecarMetadata: vi.fn(),
+  updatePhotoSidecarMetadata: vi.fn(),
 }))
 
-// Mock the child components
-vi.mock('../CameraTab', () => ({
-  default: ({ data }) => (
-    <div data-testid="camera-tab">
-      Camera Tab: {data ? 'loaded' : 'no data'}
+// Get mocked functions for use in tests
+const mockApiGet = vi.mocked(apiModule.api.get)
+const mockApiPut = vi.mocked(apiModule.api.put)
+const mockGetPhotoSidecarMetadata = vi.mocked(apiModule.getPhotoSidecarMetadata)
+const mockUpdatePhotoSidecarMetadata = vi.mocked(apiModule.updatePhotoSidecarMetadata)
+
+// Mock the AccordionSection component
+vi.mock('../AccordionSection', () => ({
+  default: ({ title, icon, children, defaultExpanded }) => (
+    <div data-testid={`accordion-section-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+      <div data-testid="accordion-header" data-expanded={defaultExpanded}>
+        {icon}
+        <span>{title}</span>
+      </div>
+      <div data-testid="accordion-content">{children}</div>
     </div>
   ),
 }))
 
-// LocationTab is no longer used - merged into DeploymentTab
-
-vi.mock('../CaptureTab', () => ({
-  default: ({ data }) => (
-    <div data-testid="capture-tab">
-      Capture Tab: {data ? 'loaded' : 'no data'}
+// Mock the SaveStatusIndicator component
+vi.mock('../SaveStatusIndicator', () => ({
+  default: ({ status, onRetry, errorMessage }) => (
+    <div data-testid="save-status-indicator" data-status={status}>
+      {status === 'saving' && <span>Saving...</span>}
+      {status === 'saved' && <span>Saved</span>}
+      {status === 'error' && (
+        <>
+          <span>{errorMessage || 'Save failed'}</span>
+          {onRetry && (
+            <button onClick={onRetry} data-testid="retry-save-button">
+              Retry
+            </button>
+          )}
+        </>
+      )}
     </div>
   ),
 }))
 
-vi.mock('../TagsTab', () => ({
-  default: ({ data }) => (
-    <div data-testid="tags-tab">Tags Tab: {data ? 'loaded' : 'no data'}</div>
+// Mock the section components
+vi.mock('../MetadataTags', () => ({
+  default: ({ tags, onAddTag, onRemoveTag }) => (
+    <div data-testid="metadata-tags">
+      <div data-testid="tags-list">
+        {tags.map((tag) => (
+          <span key={tag} data-testid={`tag-${tag}`}>
+            {tag}
+            <button onClick={() => onRemoveTag(tag)}>Remove {tag}</button>
+          </span>
+        ))}
+      </div>
+      <button onClick={() => onAddTag('new-tag')}>Add Tag</button>
+    </div>
   ),
 }))
 
-vi.mock('../DeploymentTab', () => ({
+vi.mock('../MetadataSpecies', () => ({
+  default: ({ species, confidence, commonName, referenceUrl, onChange }) => (
+    <div data-testid="metadata-species">
+      <input
+        data-testid="species-input"
+        value={species}
+        onChange={(e) => onChange('species', e.target.value)}
+      />
+      <select
+        data-testid="confidence-select"
+        value={confidence}
+        onChange={(e) => onChange('confidence', e.target.value)}
+      >
+        <option value="certain">Certain</option>
+        <option value="probable">Probable</option>
+        <option value="possible">Possible</option>
+        <option value="unknown">Unknown</option>
+      </select>
+      <input
+        data-testid="common-name-input"
+        value={commonName}
+        onChange={(e) => onChange('commonName', e.target.value)}
+      />
+      <input
+        data-testid="reference-url-input"
+        value={referenceUrl}
+        onChange={(e) => onChange('referenceUrl', e.target.value)}
+      />
+    </div>
+  ),
+}))
+
+vi.mock('../MetadataNotes', () => ({
+  default: ({ value, onChange }) => (
+    <div data-testid="metadata-notes">
+      <textarea
+        data-testid="notes-textarea"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  ),
+}))
+
+vi.mock('../MetadataCustomFields', () => ({
+  default: ({ fields, onChange }) => (
+    <div data-testid="metadata-custom-fields">
+      <div data-testid="custom-fields-list">
+        {Object.entries(fields || {}).map(([key, value]) => (
+          <div key={key} data-testid={`custom-field-${key}`}>
+            {key}: {value}
+          </div>
+        ))}
+      </div>
+      <button onClick={() => onChange({ ...fields, newField: 'newValue' })}>
+        Add Custom Field
+      </button>
+    </div>
+  ),
+}))
+
+vi.mock('../MetadataEXIF', () => ({
   default: ({ data }) => (
-    <div data-testid="deployment-tab">
-      Deployment Tab: {data ? 'loaded' : 'no data'}
+    <div data-testid="metadata-exif">
+      <div>EXIF Data: {data ? 'loaded' : 'no data'}</div>
     </div>
   ),
 }))
@@ -54,55 +149,36 @@ vi.mock('../MetadataSkeleton', () => ({
 }))
 
 /**
- * Complete mock metadata structure
+ * Mock EXIF metadata structure
  */
-const mockMetadata = {
+const mockExifMetadata = {
   camera: {
-    camera: {
-      make: 'Arducam',
-      model: 'OwlSight 64MP',
-      lens_make: 'Arducam',
-      lens_model: '6mm Wide Angle',
-    },
-    iso: 400,
-    aperture: 2.8,
-    shutter_speed: 0.033333,
-    focal_length: 6.0,
-    exposure_mode: 'Manual',
-    metering_mode: 'CenterWeighted',
+    make: 'Arducam',
+    model: 'OwlSight 64MP',
+    lens_make: 'Arducam',
+    lens_model: '6mm Wide Angle',
   },
-  location: {
-    gps: {
-      lat: 45.5231,
-      lon: -122.6765,
-      altitude: 50,
-    },
-    location: {
-      city: 'Portland',
-      state: 'Oregon',
-      country: 'USA',
-    },
-  },
-  capture: {
-    datetime: '2024-01-15T22:30:45',
-    timezone: 'America/Los_Angeles',
-    flash: true,
-    hdr: false,
-    focus_bracket: true,
-    focus_bracket_count: 5,
-    focus_bracket_step: 0.5,
-  },
-  tags: {
-    species: ['Actias luna', 'Antheraea polyphemus'],
-    notes: 'Clear night, high moth activity',
+  iso: 400,
+  aperture: 2.8,
+  shutter_speed: 0.033333,
+  focal_length: 6.0,
+  exposure_mode: 'Manual',
+  metering_mode: 'CenterWeighted',
+}
+
+/**
+ * Mock sidecar metadata structure
+ */
+const mockSidecarMetadata = {
+  user_tags: ['moth', 'nocturnal'],
+  species: 'Actias luna',
+  species_confidence: 'probable',
+  species_common_name: 'Luna Moth',
+  species_reference_url: 'https://inaturalist.org/taxa/actias-luna',
+  notes: 'Clear night, high moth activity',
+  custom: {
     observer: 'Jane Doe',
-    quality: 'excellent',
-  },
-  deployment: {
-    device_id: 'mothbox-forest-01',
-    location_name: 'Forest Grove Research Station',
-    deployment_date: '2024-01-01',
-    habitat: 'deciduous forest',
+    weather: 'clear',
   },
 }
 
@@ -116,6 +192,9 @@ function createTestQueryClient() {
         retry: false,
         gcTime: 0,
         staleTime: 0,
+      },
+      mutations: {
+        retry: false,
       },
     },
   })
@@ -131,23 +210,21 @@ function TestWrapper({ children }) {
   )
 }
 
-describe('MetadataPanel', () => {
+describe('MetadataPanel (Accordion Refactor)', () => {
   beforeEach(() => {
-    // Clear all mocks before each test
     vi.clearAllMocks()
   })
 
   afterEach(() => {
-    // Clear all mocks after each test
     vi.clearAllMocks()
   })
 
-  describe('Rendering', () => {
-    it('renders all 4 tab triggers (Camera, Capture, Tags, Deployment)', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
+  describe('Rendering - Accordion Structure', () => {
+    it('renders accordion sections not tabs', async () => {
+      // Mock EXIF metadata fetch (usePhotoMetadata uses api.get)
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      // Mock sidecar metadata fetch (useSidecarMetadata uses getPhotoSidecarMetadata)
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
 
       render(
         <TestWrapper>
@@ -155,26 +232,95 @@ describe('MetadataPanel', () => {
         </TestWrapper>
       )
 
-      // Wait for loading to complete
       await waitFor(() => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // Check all tab triggers are present (Location merged into Deployment)
-      expect(screen.getByRole('tab', { name: /camera/i })).toBeInTheDocument()
-      expect(screen.getByRole('tab', { name: /capture/i })).toBeInTheDocument()
-      expect(screen.getByRole('tab', { name: /tags/i })).toBeInTheDocument()
-      expect(
-        screen.getByRole('tab', { name: /deployment/i })
-      ).toBeInTheDocument()
+      // Should NOT have tabs
+      expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+      expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+
+      // Should have accordion sections
+      expect(screen.getByTestId('accordion-section-tags')).toBeInTheDocument()
+      expect(screen.getByTestId('accordion-section-species')).toBeInTheDocument()
+      expect(screen.getByTestId('accordion-section-notes')).toBeInTheDocument()
+      expect(screen.getByTestId('accordion-section-exif-data')).toBeInTheDocument()
+      expect(screen.getByTestId('accordion-section-custom-fields')).toBeInTheDocument()
     })
 
-    it('shows loading skeleton initially while fetching metadata', () => {
-      api.get.mockImplementation(
+    it('tags section is expanded by default', async () => {
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
+
+      render(
+        <TestWrapper>
+          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
+        </TestWrapper>
+      )
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
+      })
+
+      const tagsSection = screen.getByTestId('accordion-section-tags')
+      const tagsHeader = within(tagsSection).getByTestId('accordion-header')
+
+      // Tags section should be expanded by default
+      expect(tagsHeader).toHaveAttribute('data-expanded', 'true')
+    })
+
+    it('all sections present', async () => {
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
+
+      render(
+        <TestWrapper>
+          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
+        </TestWrapper>
+      )
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
+      })
+
+      // All 5 sections should be present
+      expect(screen.getByTestId('accordion-section-tags')).toBeInTheDocument()
+      expect(screen.getByTestId('accordion-section-species')).toBeInTheDocument()
+      expect(screen.getByTestId('accordion-section-notes')).toBeInTheDocument()
+      expect(screen.getByTestId('accordion-section-exif-data')).toBeInTheDocument()
+      expect(screen.getByTestId('accordion-section-custom-fields')).toBeInTheDocument()
+
+      // Verify section components are rendered
+      expect(screen.getByTestId('metadata-tags')).toBeInTheDocument()
+      expect(screen.getByTestId('metadata-species')).toBeInTheDocument()
+      expect(screen.getByTestId('metadata-notes')).toBeInTheDocument()
+      expect(screen.getByTestId('metadata-exif')).toBeInTheDocument()
+      expect(screen.getByTestId('metadata-custom-fields')).toBeInTheDocument()
+    })
+
+    it('shows save status indicator', async () => {
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
+
+      render(
+        <TestWrapper>
+          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
+        </TestWrapper>
+      )
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
+      })
+
+      // SaveStatusIndicator should be visible
+      expect(screen.getByTestId('save-status-indicator')).toBeInTheDocument()
+    })
+
+    it('loading state shows skeleton', () => {
+      mockApiGet.mockImplementation(
         () =>
           new Promise((resolve) => {
-            // Don't resolve immediately to keep loading state
-            setTimeout(() => resolve({ ok: true, json: async () => mockMetadata }), 100)
+            setTimeout(() => resolve({ data: mockExifMetadata }), 100)
           })
       )
 
@@ -189,57 +335,10 @@ describe('MetadataPanel', () => {
       expect(screen.getByRole('status')).toBeInTheDocument()
     })
 
-    it('displays Camera tab content by default after loading', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      // Wait for loading to complete
-      await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-      })
-
-      // Camera tab should be visible
-      expect(screen.getByTestId('camera-tab')).toBeVisible()
-
-      // Other tabs should not be visible (only Camera tab is active)
-      expect(screen.queryByTestId('capture-tab')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('tags-tab')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('deployment-tab')).not.toBeInTheDocument()
-    })
-
-    it('hides tab content until metadata is loaded', () => {
-      api.get.mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            // Keep loading indefinitely
-            setTimeout(() => resolve({ ok: true, json: async () => mockMetadata }), 10000)
-          })
-      )
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      // Should only show skeleton, no tab content
-      expect(screen.getByTestId('metadata-skeleton')).toBeInTheDocument()
-      expect(screen.queryByTestId('camera-tab')).not.toBeInTheDocument()
-    })
-
-    it('renders tab list with proper ARIA role', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
+    it('error state shows retry', async () => {
+      mockApiGet.mockRejectedValueOnce(new Error('Network error'))
+      // Mock sidecar to succeed so it doesn't hang
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
 
       render(
         <TestWrapper>
@@ -248,42 +347,20 @@ describe('MetadataPanel', () => {
       )
 
       await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
+        expect(screen.getByText(/failed to load metadata/i)).toBeInTheDocument()
       })
 
-      const tabList = screen.getByRole('tablist')
-      expect(tabList).toBeInTheDocument()
-      expect(tabList).toHaveAttribute('aria-label', 'Photo metadata tabs')
-    })
-
-    it('renders tab panels with proper ARIA role', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-      })
-
-      // Should have at least one visible tab panel
-      const tabPanels = screen.getAllByRole('tabpanel')
-      expect(tabPanels.length).toBeGreaterThan(0)
+      // Should show retry button
+      const retryButton = screen.getByRole('button', { name: /retry/i })
+      expect(retryButton).toBeInTheDocument()
     })
   })
 
-  describe('Tab Switching', () => {
-    it('switches to Capture tab when clicked', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
+  describe('Auto-Save Functionality', () => {
+    it('auto-save triggers on change', async () => {
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
+      mockUpdatePhotoSidecarMetadata.mockResolvedValue({ data: { success: true } })
 
       const user = userEvent.setup()
 
@@ -297,20 +374,59 @@ describe('MetadataPanel', () => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // Click Capture tab
-      const captureTab = screen.getByRole('tab', { name: /capture/i })
-      await user.click(captureTab)
+      // Add a tag
+      const addTagButton = screen.getByText('Add Tag')
+      await user.click(addTagButton)
 
-      // Capture tab content should now be visible
-      expect(screen.getByTestId('capture-tab')).toBeVisible()
-      expect(screen.queryByTestId('camera-tab')).not.toBeInTheDocument()
+      // Wait for debounced save (2 seconds)
+      await waitFor(
+        () => {
+          const saveIndicator = screen.getByTestId('save-status-indicator')
+          // Should show saving or saved status
+          const status = saveIndicator.getAttribute('data-status')
+          expect(['saving', 'saved']).toContain(status)
+        },
+        { timeout: 3000 }
+      )
+    })
+  })
+
+  describe('Editable Sections', () => {
+    it('editable sections call update on tags', async () => {
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
+      mockUpdatePhotoSidecarMetadata.mockResolvedValue({ data: { success: true } })
+
+      const user = userEvent.setup()
+
+      render(
+        <TestWrapper>
+          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
+        </TestWrapper>
+      )
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
+      })
+
+      // Existing tags should be displayed
+      expect(screen.getByTestId('tag-moth')).toBeInTheDocument()
+      expect(screen.getByTestId('tag-nocturnal')).toBeInTheDocument()
+
+      // Add a tag
+      const addTagButton = screen.getByText('Add Tag')
+      await user.click(addTagButton)
+
+      // Should update local state immediately
+      await waitFor(() => {
+        expect(screen.getByTestId('tag-new-tag')).toBeInTheDocument()
+      })
     })
 
-    it('switches to Tags tab when clicked', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
+    it('editable sections call update on species', async () => {
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
+      mockUpdatePhotoSidecarMetadata.mockResolvedValue({ data: { success: true } })
 
       const user = userEvent.setup()
 
@@ -324,20 +440,21 @@ describe('MetadataPanel', () => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // Click Tags tab
-      const tagsTab = screen.getByRole('tab', { name: /tags/i })
-      await user.click(tagsTab)
+      // Change species
+      const speciesInput = screen.getByTestId('species-input')
+      expect(speciesInput).toHaveValue('Actias luna')
 
-      // Tags tab content should now be visible
-      expect(screen.getByTestId('tags-tab')).toBeVisible()
-      expect(screen.queryByTestId('camera-tab')).not.toBeInTheDocument()
+      await user.clear(speciesInput)
+      await user.type(speciesInput, 'Antheraea polyphemus')
+
+      // Should update local state
+      expect(speciesInput).toHaveValue('Antheraea polyphemus')
     })
 
-    it('switches to Deployment tab when clicked', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
+    it('editable sections call update on notes', async () => {
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
+      mockUpdatePhotoSidecarMetadata.mockResolvedValue({ data: { success: true } })
 
       const user = userEvent.setup()
 
@@ -351,50 +468,21 @@ describe('MetadataPanel', () => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // Click Deployment tab
-      const deploymentTab = screen.getByRole('tab', { name: /deployment/i })
-      await user.click(deploymentTab)
+      // Change notes
+      const notesTextarea = screen.getByTestId('notes-textarea')
+      expect(notesTextarea).toHaveValue('Clear night, high moth activity')
 
-      // Deployment tab content should now be visible
-      expect(screen.getByTestId('deployment-tab')).toBeVisible()
-      expect(screen.queryByTestId('camera-tab')).not.toBeInTheDocument()
+      await user.clear(notesTextarea)
+      await user.type(notesTextarea, 'Updated notes')
+
+      // Should update local state
+      expect(notesTextarea).toHaveValue('Updated notes')
     })
 
-    it('tab switching completes within 100ms (performance requirement)', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
-
-      const user = userEvent.setup()
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-      })
-
-      // Measure tab switch performance
-      const captureTab = screen.getByRole('tab', { name: /capture/i })
-      const startTime = performance.now()
-      await user.click(captureTab)
-      const endTime = performance.now()
-
-      const switchTime = endTime - startTime
-
-      // Should complete within 100ms
-      expect(switchTime).toBeLessThan(100)
-    })
-
-    it('active tab has proper aria-selected attribute', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
+    it('editable sections call update on custom fields', async () => {
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
+      mockUpdatePhotoSidecarMetadata.mockResolvedValue({ data: { success: true } })
 
       const user = userEvent.setup()
 
@@ -408,50 +496,28 @@ describe('MetadataPanel', () => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // Camera tab should be selected initially
-      const cameraTab = screen.getByRole('tab', { name: /camera/i })
-      expect(cameraTab).toHaveAttribute('aria-selected', 'true')
+      // Existing custom fields should be displayed
+      expect(screen.getByTestId('custom-field-observer')).toBeInTheDocument()
+      expect(screen.getByTestId('custom-field-weather')).toBeInTheDocument()
 
-      // Deployment tab should not be selected
-      const deploymentTab = screen.getByRole('tab', { name: /deployment/i })
-      expect(deploymentTab).toHaveAttribute('aria-selected', 'false')
+      // Add a custom field
+      const addCustomFieldButton = screen.getByText('Add Custom Field')
+      await user.click(addCustomFieldButton)
 
-      // Click Deployment tab
-      await user.click(deploymentTab)
-
-      // Now Deployment tab should be selected
-      expect(deploymentTab).toHaveAttribute('aria-selected', 'true')
-      expect(cameraTab).toHaveAttribute('aria-selected', 'false')
+      // Should update local state immediately
+      await waitFor(() => {
+        expect(screen.getByTestId('custom-field-newField')).toBeInTheDocument()
+      })
     })
   })
 
   describe('Data Loading', () => {
-    it('fetches metadata using usePhotoMetadata hook', async () => {
+    it('fetches EXIF and sidecar metadata on mount', async () => {
       const photoPath = '/var/lib/mothbox/photos/test.jpg'
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
+      const filename = 'test.jpg'
 
-      })
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath={photoPath} />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(api.get).toHaveBeenCalledWith(
-          `/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
-        )
-      })
-    })
-
-    it('passes photoPath to usePhotoMetadata correctly', async () => {
-      const photoPath = '/var/lib/mothbox/photos/special-path/image.jpg'
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
 
       render(
         <TestWrapper>
@@ -460,36 +526,18 @@ describe('MetadataPanel', () => {
       )
 
       await waitFor(() => {
-        expect(api.get).toHaveBeenCalledWith(
+        // Should fetch EXIF metadata
+        expect(mockApiGet).toHaveBeenCalledWith(
           `/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
         )
+        // Should fetch sidecar metadata
+        expect(mockGetPhotoSidecarMetadata).toHaveBeenCalledWith(filename)
       })
     })
 
-    it('loading state shows MetadataSkeleton', () => {
-      api.get.mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            setTimeout(() => resolve({ ok: true, json: async () => mockMetadata }), 1000)
-          })
-      )
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      // Should show skeleton
-      expect(screen.getByTestId('metadata-skeleton')).toBeInTheDocument()
-      expect(screen.getByRole('status')).toBeInTheDocument()
-    })
-
-    it('success state shows tab content', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
+    it('passes EXIF data to MetadataEXIF component', async () => {
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
 
       render(
         <TestWrapper>
@@ -501,125 +549,17 @@ describe('MetadataPanel', () => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // Should show tab content
-      expect(screen.getByTestId('camera-tab')).toBeInTheDocument()
-      expect(screen.getByRole('tablist')).toBeInTheDocument()
-    })
-
-    it('passes metadata to tabs correctly', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
-
-      const user = userEvent.setup()
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-      })
-
-      // Check Camera tab receives data
-      expect(screen.getByTestId('camera-tab')).toHaveTextContent('loaded')
-
-      // Switch to Capture tab
-      await user.click(screen.getByRole('tab', { name: /capture/i }))
-      expect(screen.getByTestId('capture-tab')).toHaveTextContent('loaded')
-
-      // Switch to Tags tab
-      await user.click(screen.getByRole('tab', { name: /tags/i }))
-      expect(screen.getByTestId('tags-tab')).toHaveTextContent('loaded')
-
-      // Switch to Deployment tab (now includes location data)
-      await user.click(screen.getByRole('tab', { name: /deployment/i }))
-      expect(screen.getByTestId('deployment-tab')).toHaveTextContent('loaded')
+      // EXIF component should receive data
+      const exifComponent = screen.getByTestId('metadata-exif')
+      expect(exifComponent).toHaveTextContent('loaded')
     })
   })
 
   describe('Error Handling', () => {
-    it('handles API 404 errors gracefully', async () => {
-      const error = new Error('Request failed with status code 404')
-      error.response = {
-        status: 404,
-        statusText: 'Not Found',
-      }
-      api.get.mockRejectedValueOnce(error)
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/missing.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.getByText(/failed to load metadata/i)).toBeInTheDocument()
-      })
-    })
-
-    it('handles API 500 errors gracefully', async () => {
-      const error = new Error('Request failed with status code 500')
-      error.response = {
-        status: 500,
-        statusText: 'Internal Server Error',
-      }
-      api.get.mockRejectedValueOnce(error)
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.getByText(/failed to load metadata/i)).toBeInTheDocument()
-      })
-    })
-
-    it('shows "Failed to load metadata" message on error', async () => {
-      api.get.mockRejectedValueOnce(new Error('Network error'))
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.getByText(/failed to load metadata/i)).toBeInTheDocument()
-      })
-    })
-
-    it('shows retry suggestion on error', async () => {
-      const error = new Error('Request failed with status code 500')
-      error.response = {
-        status: 500,
-        statusText: 'Internal Server Error',
-      }
-      api.get.mockRejectedValueOnce(error)
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.getByText(/try again/i)).toBeInTheDocument()
-      })
-    })
-
-    it('error state shows error message instead of tabs', async () => {
-      const error = new Error('Request failed with status code 500')
-      error.response = {
-        status: 500,
-        statusText: 'Internal Server Error',
-      }
-      api.get.mockRejectedValueOnce(error)
+    it('handles EXIF fetch error gracefully', async () => {
+      mockApiGet.mockRejectedValueOnce(new Error('Network error'))
+      // Mock sidecar to succeed so it doesn't hang
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
 
       render(
         <TestWrapper>
@@ -631,287 +571,46 @@ describe('MetadataPanel', () => {
         expect(screen.getByText(/failed to load metadata/i)).toBeInTheDocument()
       })
 
-      // Should not show tabs
-      expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('camera-tab')).not.toBeInTheDocument()
+      // Should show retry button
+      expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
     })
 
-    it('shows retry button on error that triggers refetch', async () => {
+    it('retry button refetches data', async () => {
       // First call fails
-      api.get.mockRejectedValueOnce(new Error('Network error'))
+      mockApiGet.mockRejectedValueOnce(new Error('Network error'))
+      // Mock sidecar to succeed so it doesn't hang
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
 
-      const { rerender } = render(
+      render(
         <TestWrapper>
           <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
         </TestWrapper>
       )
 
-      // Wait for error state
       await waitFor(() => {
         expect(screen.getByText(/failed to load metadata/i)).toBeInTheDocument()
       })
-
-      // Retry button should be visible
-      const retryButton = screen.getByRole('button', { name: /retry/i })
-      expect(retryButton).toBeInTheDocument()
 
       // Second call succeeds
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
 
-      })
-
-      // Click retry button
+      // Click retry
+      const retryButton = screen.getByRole('button', { name: /retry/i })
       await userEvent.click(retryButton)
 
-      // Should eventually show the tabs after successful refetch
+      // Should show accordion sections after successful retry
       await waitFor(() => {
-        expect(screen.getByRole('tablist')).toBeInTheDocument()
+        expect(screen.getByTestId('accordion-section-tags')).toBeInTheDocument()
       })
-
-      // Error message should be gone
-      expect(screen.queryByText(/failed to load metadata/i)).not.toBeInTheDocument()
-    })
-  })
-
-  describe('Responsive Layout', () => {
-    it('applies responsive layout classes', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
-
-      const { container } = render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-      })
-
-      // Check for responsive flex classes
-      const tabsRoot = container.querySelector('[role="tablist"]').parentElement
-      expect(tabsRoot).toHaveClass('flex')
-    })
-  })
-
-  describe('Accessibility', () => {
-    it('all tabs have accessible labels', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-      })
-
-      // All tabs should have accessible names (4 tabs: Camera, Capture, Tags, Deployment)
-      expect(screen.getByRole('tab', { name: /camera/i })).toBeInTheDocument()
-      expect(screen.getByRole('tab', { name: /capture/i })).toBeInTheDocument()
-      expect(screen.getByRole('tab', { name: /tags/i })).toBeInTheDocument()
-      expect(
-        screen.getByRole('tab', { name: /deployment/i })
-      ).toBeInTheDocument()
-    })
-
-    it('tab list has proper ARIA attributes', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-      })
-
-      const tabList = screen.getByRole('tablist')
-      expect(tabList).toHaveAttribute('aria-label', 'Photo metadata tabs')
-    })
-
-    it('keyboard navigation works (test aria-selected changes)', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
-
-      const user = userEvent.setup()
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-      })
-
-      const cameraTab = screen.getByRole('tab', { name: /camera/i })
-      const deploymentTab = screen.getByRole('tab', { name: /deployment/i })
-
-      // Initially Camera tab should be selected
-      expect(cameraTab).toHaveAttribute('aria-selected', 'true')
-
-      // Focus the deployment tab and press Space to activate it
-      deploymentTab.focus()
-      await user.keyboard('{Space}')
-
-      // Deployment tab should now be selected
-      await waitFor(() => {
-        expect(deploymentTab).toHaveAttribute('aria-selected', 'true')
-        expect(cameraTab).toHaveAttribute('aria-selected', 'false')
-      })
-    })
-
-    it('each tab has proper aria-controls', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-      })
-
-      // Each tab should have aria-controls attribute
-      const tabs = screen.getAllByRole('tab')
-      tabs.forEach((tab) => {
-        expect(tab).toHaveAttribute('aria-controls')
-        expect(tab.getAttribute('aria-controls')).toBeTruthy()
-      })
-    })
-  })
-
-  describe('State Management', () => {
-    it('remembers selected tab when photoPath changes', async () => {
-      api.get.mockResolvedValue({
-        data: mockMetadata,
-
-      })
-
-      const user = userEvent.setup()
-
-      const { rerender } = render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/photo1.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-      })
-
-      // Switch to Deployment tab
-      await user.click(screen.getByRole('tab', { name: /deployment/i }))
-      expect(screen.getByTestId('deployment-tab')).toBeVisible()
-
-      // Change photo path (should remember Deployment tab)
-      rerender(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/photo2.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-      })
-
-      // Should still be on Deployment tab
-      expect(screen.getByTestId('deployment-tab')).toBeVisible()
-      expect(
-        screen.getByRole('tab', { name: /deployment/i })
-      ).toHaveAttribute('aria-selected', 'true')
-    })
-
-    it('defaults to camera tab on initial render', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-      })
-
-      // Camera tab should be selected
-      expect(screen.getByRole('tab', { name: /camera/i })).toHaveAttribute(
-        'aria-selected',
-        'true'
-      )
-      expect(screen.getByTestId('camera-tab')).toBeVisible()
-    })
-
-    it('tab state persists across re-renders', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-
-      })
-
-      const user = userEvent.setup()
-
-      const { rerender } = render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-      })
-
-      // Switch to Capture tab
-      await user.click(screen.getByRole('tab', { name: /capture/i }))
-      expect(screen.getByTestId('capture-tab')).toBeVisible()
-
-      // Force re-render with same props
-      rerender(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      // Should still be on Capture tab
-      expect(screen.getByTestId('capture-tab')).toBeVisible()
-      expect(screen.getByRole('tab', { name: /capture/i })).toHaveAttribute(
-        'aria-selected',
-        'true'
-      )
     })
   })
 
   describe('Edge Cases', () => {
-    it('handles null metadata gracefully', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-        data: null,
-      })
+    it('handles empty sidecar data gracefully', async () => {
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockApiGet.mockResolvedValueOnce({ data: {} })
 
       render(
         <TestWrapper>
@@ -923,73 +622,17 @@ describe('MetadataPanel', () => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // Should still render tabs but with no data
-      expect(screen.getByRole('tablist')).toBeInTheDocument()
-      expect(screen.getByTestId('camera-tab')).toHaveTextContent('no data')
-    })
-
-    it('handles partial metadata gracefully', async () => {
-      const partialMetadata = {
-        camera: mockMetadata.camera,
-        // Missing other sections
-      }
-
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
-        data: partialMetadata,
-      })
-
-      const user = userEvent.setup()
-
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
-        </TestWrapper>
-      )
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-      })
-
-      // Camera tab should have data
-      expect(screen.getByTestId('camera-tab')).toHaveTextContent('loaded')
-    })
-
-    it('handles empty photoPath gracefully', () => {
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath="" />
-        </TestWrapper>
-      )
-
-      // Should not make API request
-      expect(api.get).not.toHaveBeenCalled()
-
-      // Should not show skeleton (query is disabled)
-      expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
-    })
-
-    it('handles undefined photoPath gracefully', () => {
-      render(
-        <TestWrapper>
-          <MetadataPanel photoPath={undefined} />
-        </TestWrapper>
-      )
-
-      // Should not make API request
-      expect(api.get).not.toHaveBeenCalled()
-
-      // Should not show skeleton (query is disabled)
-      expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
+      // Should still render all sections with empty/default values
+      expect(screen.getByTestId('metadata-tags')).toBeInTheDocument()
+      expect(screen.getByTestId('metadata-species')).toBeInTheDocument()
+      expect(screen.getByTestId('metadata-notes')).toBeInTheDocument()
     })
 
     it('applies custom className prop', async () => {
-      api.get.mockResolvedValueOnce({
-        data: mockMetadata,
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
 
-      })
-
-      const { container } = render(
+      render(
         <TestWrapper>
           <MetadataPanel
             photoPath="/var/lib/mothbox/photos/test.jpg"
@@ -1002,8 +645,263 @@ describe('MetadataPanel', () => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // Root element should have custom class
-      expect(container.firstChild).toHaveClass('custom-class')
+      // Panel element should have custom class
+      const panel = screen.getByTestId('metadata-panel')
+      expect(panel).toHaveClass('custom-class')
+    })
+  })
+
+  describe('Keyboard Shortcuts', () => {
+    it('ctrl+s triggers manual save', async () => {
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
+      mockUpdatePhotoSidecarMetadata.mockResolvedValue({ data: { success: true } })
+
+      const user = userEvent.setup()
+
+      render(
+        <TestWrapper>
+          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
+        </TestWrapper>
+      )
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
+      })
+
+      // Make a change first
+      const notesTextarea = screen.getByTestId('notes-textarea')
+      await user.clear(notesTextarea)
+      await user.type(notesTextarea, 'New notes')
+
+      // Clear previous API calls
+      mockUpdatePhotoSidecarMetadata.mockClear()
+
+      // Press Ctrl+S
+      await user.keyboard('{Control>}s{/Control}')
+
+      // Should trigger immediate save (not wait for debounce)
+      await waitFor(
+        () => {
+          expect(mockUpdatePhotoSidecarMetadata).toHaveBeenCalled()
+        },
+        { timeout: 500 } // Should be much faster than 2 second debounce
+      )
+    })
+
+    it('cmd+s triggers manual save on mac', async () => {
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
+      mockUpdatePhotoSidecarMetadata.mockResolvedValue({ data: { success: true } })
+
+      const user = userEvent.setup()
+
+      render(
+        <TestWrapper>
+          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
+        </TestWrapper>
+      )
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
+      })
+
+      // Make a change first
+      const notesTextarea = screen.getByTestId('notes-textarea')
+      await user.clear(notesTextarea)
+      await user.type(notesTextarea, 'New notes')
+
+      // Clear previous API calls
+      mockUpdatePhotoSidecarMetadata.mockClear()
+
+      // Press Cmd+S (Meta key for Mac)
+      await user.keyboard('{Meta>}s{/Meta}')
+
+      // Should trigger immediate save
+      await waitFor(
+        () => {
+          expect(mockUpdatePhotoSidecarMetadata).toHaveBeenCalled()
+        },
+        { timeout: 500 }
+      )
+    })
+
+    it('ctrl+enter saves and closes panel', async () => {
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
+      mockUpdatePhotoSidecarMetadata.mockResolvedValue({ data: { success: true } })
+
+      const onCloseMock = vi.fn()
+      const user = userEvent.setup()
+
+      render(
+        <TestWrapper>
+          <MetadataPanel
+            photoPath="/var/lib/mothbox/photos/test.jpg"
+            onClose={onCloseMock}
+          />
+        </TestWrapper>
+      )
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
+      })
+
+      // Make a change first
+      const notesTextarea = screen.getByTestId('notes-textarea')
+      await user.clear(notesTextarea)
+      await user.type(notesTextarea, 'New notes')
+
+      // Clear previous API calls
+      mockUpdatePhotoSidecarMetadata.mockClear()
+
+      // Press Ctrl+Enter
+      await user.keyboard('{Control>}{Enter}{/Control}')
+
+      // Should trigger save
+      await waitFor(
+        () => {
+          expect(mockUpdatePhotoSidecarMetadata).toHaveBeenCalled()
+        },
+        { timeout: 500 }
+      )
+
+      // Should call onClose
+      expect(onCloseMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('esc closes panel', async () => {
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
+
+      const onCloseMock = vi.fn()
+      const user = userEvent.setup()
+
+      render(
+        <TestWrapper>
+          <MetadataPanel
+            photoPath="/var/lib/mothbox/photos/test.jpg"
+            onClose={onCloseMock}
+          />
+        </TestWrapper>
+      )
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
+      })
+
+      // Focus inside the panel to activate shortcuts
+      const notesTextarea = screen.getByTestId('notes-textarea')
+      notesTextarea.focus()
+
+      // Press Escape
+      await user.keyboard('{Escape}')
+
+      // Should call onClose
+      expect(onCloseMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('prevents default browser save dialog', async () => {
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
+      mockUpdatePhotoSidecarMetadata.mockResolvedValue({ data: { success: true } })
+
+      render(
+        <TestWrapper>
+          <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
+        </TestWrapper>
+      )
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
+      })
+
+      // Focus inside the panel to activate shortcuts
+      const notesTextarea = screen.getByTestId('notes-textarea')
+      notesTextarea.focus()
+
+      // Create a spy for preventDefault
+      const preventDefaultSpy = vi.fn()
+
+      // Manually fire keydown event with Ctrl+S
+      const event = new KeyboardEvent('keydown', {
+        key: 's',
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      })
+
+      // Spy on preventDefault
+      Object.defineProperty(event, 'preventDefault', {
+        value: preventDefaultSpy,
+        writable: true,
+      })
+
+      document.dispatchEvent(event)
+
+      // Should prevent default behavior
+      await waitFor(() => {
+        expect(preventDefaultSpy).toHaveBeenCalled()
+      })
+    })
+
+    it('shortcuts only active when panel is focused or child is focused', async () => {
+      mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
+      mockUpdatePhotoSidecarMetadata.mockResolvedValue({ data: { success: true } })
+
+      const onCloseMock = vi.fn()
+
+      render(
+        <TestWrapper>
+          <div>
+            <MetadataPanel
+              photoPath="/var/lib/mothbox/photos/test.jpg"
+              onClose={onCloseMock}
+            />
+            <button data-testid="outside-button">Outside Button</button>
+          </div>
+        </TestWrapper>
+      )
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
+      })
+
+      // Focus on element outside the panel
+      const outsideButton = screen.getByTestId('outside-button')
+      outsideButton.focus()
+
+      // Press Escape while focused outside
+      const event = new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      })
+      document.dispatchEvent(event)
+
+      // Wait a bit
+      await new Promise((resolve) => setTimeout(resolve, 100))
+
+      // onClose should NOT be called since focus is outside panel
+      expect(onCloseMock).not.toHaveBeenCalled()
+
+      // Now focus inside the panel
+      const notesTextarea = screen.getByTestId('notes-textarea')
+      notesTextarea.focus()
+
+      // Press Escape while focused inside
+      const event2 = new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      })
+      document.dispatchEvent(event2)
+
+      // Should call onClose now
+      await waitFor(() => {
+        expect(onCloseMock).toHaveBeenCalledTimes(1)
+      })
     })
   })
 })

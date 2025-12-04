@@ -18,6 +18,7 @@ export default function MetadataSkeleton({ rows = 6, className = '' }) {
       className={`animate-pulse ${className}`}
       role="status"
       aria-label="Loading photo metadata"
+      data-testid="metadata-skeleton"
     >
       <div className="space-y-3">
         {Array.from({ length: rows }).map((_, index) => (
