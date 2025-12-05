@@ -192,7 +192,7 @@ except Exception as e:
     app.config['SIDECAR_SERVICE'] = None
 
 # Initialize tag autocomplete engine (Issue #124)
-from lib.tag_autocomplete import TagAutocompleteEngine
+from webui.backend.lib.tag_autocomplete import TagAutocompleteEngine
 
 try:
     sidecar_service = app.config.get('SIDECAR_SERVICE')
