@@ -50,6 +50,23 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
   const appliedTags = sidecarData?.tags || []
   const quickTags = useMemo(() => allTags.slice(0, 8), [allTags])
 
+  // Event handlers (must be before early return for hooks rules)
+  const handleToggleTag = useCallback((tagName) => {
+    if (appliedTags.includes(tagName)) {
+      removeTag(tagName)
+    } else {
+      addTag(tagName)
+    }
+  }, [appliedTags, addTag, removeTag])
+
+  const handleCreateTag = useCallback((tagName) => {
+    const trimmedTag = tagName.trim()
+    if (trimmedTag && !appliedTags.includes(trimmedTag)) {
+      addTag(trimmedTag)
+      setSearchQuery('')
+    }
+  }, [appliedTags, addTag])
+
   // Keep refs updated with latest prop values
   useEffect(() => {
     onCloseRef.current = onClose
@@ -124,22 +141,6 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
 
   // Show create option if search query is not empty and doesn't match exactly
   const showCreateOption = searchQuery.trim() && !exactMatch
-
-  const handleToggleTag = useCallback((tagName) => {
-    if (appliedTags.includes(tagName)) {
-      removeTag(tagName)
-    } else {
-      addTag(tagName)
-    }
-  }, [appliedTags, addTag, removeTag])
-
-  const handleCreateTag = useCallback((tagName) => {
-    const trimmedTag = tagName.trim()
-    if (trimmedTag && !appliedTags.includes(trimmedTag)) {
-      addTag(trimmedTag)
-      setSearchQuery('') // Clear search after creating
-    }
-  }, [appliedTags, addTag])
 
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value)
