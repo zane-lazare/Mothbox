@@ -1,16 +1,9 @@
 import PropTypes from 'prop-types'
 import { useCallback, memo } from 'react'
 import LazyImage from './LazyImage'
-import { GALLERY_CONFIG } from '../constants/config'
+import { GALLERY_CONFIG, STACKED_CARD_CONFIG } from '../constants/config'
 
-// Move constants outside component to prevent recreation on each render
-const Z_INDEX_CLASSES = ['z-10', 'z-20', 'z-30']
-const OFFSETS = [
-  'translate-x-2 translate-y-2',
-  'translate-x-1 translate-y-1',
-  'translate-x-0 translate-y-0',
-]
-const SHADOWS = ['shadow-sm', 'shadow-md', 'shadow-lg']
+const { Z_INDEX_CLASSES, OFFSETS, SHADOWS } = STACKED_CARD_CONFIG
 
 /**
  * StackedPhotoCard Component

@@ -97,6 +97,19 @@ def invalidate_aggregation_cache():
         logger.debug("Aggregation cache invalidated")
 
 
+def invalidate_tag_autocomplete_cache():
+    """
+    Invalidate tag autocomplete cache.
+
+    Called after metadata updates (PATCH, DELETE, bulk) to ensure
+    autocomplete suggestions reflect the latest tags.
+    """
+    engine = current_app.config.get('TAG_AUTOCOMPLETE_ENGINE')
+    if engine:
+        engine.invalidate_cache()
+        logger.debug("Tag autocomplete cache invalidated")
+
+
 # ============================================================================
 # Helper Functions
 # ============================================================================
@@ -370,6 +383,7 @@ def update_photo_metadata(filename: str):
 
         # Invalidate aggregation cache since tags/species may have changed
         invalidate_aggregation_cache()
+        invalidate_tag_autocomplete_cache()
 
         return jsonify(updated_metadata.to_dict()), 200
 
@@ -435,6 +449,7 @@ def delete_photo_metadata(filename: str):
 
         # Invalidate aggregation cache since tags/species may have changed
         invalidate_aggregation_cache()
+        invalidate_tag_autocomplete_cache()
 
         return jsonify({"success": True}), 200
 
@@ -730,6 +745,7 @@ def bulk_update_metadata():
         # Invalidate aggregation cache if any updates succeeded
         if success_list:
             invalidate_aggregation_cache()
+            invalidate_tag_autocomplete_cache()
 
         # Build response
         return jsonify({

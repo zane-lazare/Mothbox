@@ -1,30 +1,38 @@
 """
-Metadata API endpoints (Issue #99)
+Metadata API endpoints (Issue #99, Issue #124)
 
-Provides REST API for extracting comprehensive EXIF metadata from photos.
-Supports single photo and batch metadata extraction.
+Provides REST API for extracting comprehensive EXIF metadata from photos
+and tag autocomplete functionality.
 
 Endpoints:
 - GET /api/metadata/photo/<path:photo_path>/metadata - Get metadata for single photo
 - POST /api/metadata/batch/metadata - Get metadata for multiple photos (batch)
+- GET /api/metadata/tags/autocomplete - Tag autocomplete with fuzzy matching
 
 Security:
 - Path traversal protection via validate_photo_path() with multiple security layers
 - CSRF protection (Flask-WTF) applied automatically to all POST endpoints
-- Input validation on photo paths
+- Input validation on photo paths and query parameters
 - Sanitized error messages (no stack trace exposure)
 """
 
-from flask import Blueprint, jsonify, request
+import logging
+from flask import Blueprint, current_app, jsonify, request
 from security_utils import sanitize_error_message, validate_photo_path
 from services.metadata_service import MetadataService
 
 from mothbox_paths import PHOTOS_DIR
 
+logger = logging.getLogger(__name__)
+
 metadata_bp = Blueprint("metadata", __name__)
 
 # Initialize metadata service (stateless)
 metadata_service = MetadataService()
+
+# Constants for tag autocomplete
+MAX_AUTOCOMPLETE_LIMIT = 50
+DEFAULT_AUTOCOMPLETE_LIMIT = 10
 
 
 @metadata_bp.route("/photo/<path:photo_path>/metadata", methods=["GET"])
@@ -179,4 +187,112 @@ def get_batch_metadata():
     except Exception as e:
         # Log full error, return sanitized message
         error_msg = sanitize_error_message(e, "Batch processing failed")
+        return jsonify({"error": error_msg}), 500
+
+
+# ============================================================================
+# GET /tags/autocomplete - Tag autocomplete (Issue #124)
+# ============================================================================
+
+@metadata_bp.route("/tags/autocomplete", methods=["GET"])
+def get_tag_autocomplete():
+    """
+    Get tag autocomplete suggestions with fuzzy matching.
+
+    Query Parameters:
+        q (str): Search query (required)
+        limit (int): Maximum number of suggestions (default: 10, max: 50)
+        exclude_tags (str): Comma-separated list of tags to exclude from results
+
+    Returns:
+        JSON response with:
+        - suggestions: List of suggestion dictionaries with tag, count, last_used, match_score
+        - query: The search query
+        - total: Number of suggestions returned
+
+    Status Codes:
+        200: Success
+        400: Missing required parameter
+        500: Internal server error
+        503: Service unavailable
+
+    Example:
+        GET /api/metadata/tags/autocomplete?q=moth&limit=10
+
+        Response:
+        {
+            "suggestions": [
+                {
+                    "tag": "luna_moth",
+                    "count": 45,
+                    "last_used": "2024-11-05T10:30:00Z",
+                    "match_score": 0.95
+                },
+                {
+                    "tag": "sphinx_moth",
+                    "count": 23,
+                    "last_used": "2024-11-01T08:00:00Z",
+                    "match_score": 0.82
+                }
+            ],
+            "query": "moth",
+            "total": 2
+        }
+    """
+    try:
+        # Get autocomplete engine
+        engine = current_app.config.get('TAG_AUTOCOMPLETE_ENGINE')
+        if engine is None:
+            return jsonify({"error": "Service unavailable"}), 503
+
+        # Get query parameter (required)
+        query = request.args.get('q')
+        if query is None:
+            return jsonify({"error": "Missing required parameter: q"}), 400
+
+        # Get limit parameter (optional, default: 10, max: 50)
+        try:
+            limit = request.args.get('limit', DEFAULT_AUTOCOMPLETE_LIMIT, type=int)
+        except (ValueError, TypeError):
+            # If conversion fails, use default
+            limit = DEFAULT_AUTOCOMPLETE_LIMIT
+
+        # Validate and cap limit
+        if limit < 1:
+            limit = DEFAULT_AUTOCOMPLETE_LIMIT
+        if limit > MAX_AUTOCOMPLETE_LIMIT:
+            limit = MAX_AUTOCOMPLETE_LIMIT
+
+        # Get exclude_tags parameter (optional)
+        exclude_tags_param = request.args.get('exclude_tags', '')
+        excluded_tags = set(
+            tag.strip().lower() for tag in exclude_tags_param.split(',') if tag.strip()
+        ) if exclude_tags_param else set()
+
+        # Search for suggestions
+        suggestions = engine.search(query, limit=limit)
+
+        # Filter out excluded tags
+        if excluded_tags:
+            suggestions = [s for s in suggestions if s.tag.lower() not in excluded_tags]
+
+        # Format response
+        formatted_suggestions = []
+        for suggestion in suggestions:
+            formatted_suggestions.append({
+                "tag": suggestion.tag,
+                "count": suggestion.count,
+                "last_used": suggestion.last_used.isoformat() if suggestion.last_used else None,
+                "match_score": suggestion.match_score
+            })
+
+        return jsonify({
+            "suggestions": formatted_suggestions,
+            "query": query,
+            "total": len(formatted_suggestions)
+        }), 200
+
+    except Exception as e:
+        error_msg = sanitize_error_message(e, "Failed to get tag suggestions")
+        logger.error(f"Tag autocomplete error: {e}")
         return jsonify({"error": error_msg}), 500

@@ -706,3 +706,58 @@ class TestPerformance:
 
         avg_ms = (elapsed / 100) * 1000
         assert avg_ms < 10, f"L1 cache hit avg {avg_ms:.2f}ms exceeds 10ms target"
+
+
+# ============================================================================
+# Test list_all_sidecars (Issue #124 - Tag Autocomplete)
+# ============================================================================
+
+class TestListAllSidecars:
+    """Tests for list_all_sidecars method."""
+
+    def test_list_all_sidecars_empty_directory(self, service, photos_dir):
+        """list_all_sidecars should return empty list for directory with no sidecars."""
+        results = service.list_all_sidecars(photos_dir)
+        assert results == []
+
+    def test_list_all_sidecars_with_photos(self, service, multiple_photos_with_sidecars, photos_dir):
+        """list_all_sidecars should return all metadata objects."""
+        results = service.list_all_sidecars(photos_dir)
+
+        assert len(results) == len(multiple_photos_with_sidecars)
+        # All results should be SidecarMetadata objects (not dicts)
+        from webui.backend.lib.sidecar_metadata import SidecarMetadata
+        assert all(isinstance(r, SidecarMetadata) for r in results)
+
+    def test_list_all_sidecars_nonexistent_directory(self, service, tmp_path):
+        """list_all_sidecars should return empty list for nonexistent directory."""
+        results = service.list_all_sidecars(tmp_path / "nonexistent")
+        assert results == []
+
+    def test_list_all_sidecars_uses_cache(self, service, sample_photo_with_sidecar, photos_dir):
+        """list_all_sidecars should populate cache for efficient repeat access."""
+        # First call - should populate cache
+        results1 = service.list_all_sidecars(photos_dir)
+        stats1 = service.get_statistics()
+
+        # Access same photo - should be L1 hit
+        service.get_metadata(str(sample_photo_with_sidecar))
+        stats2 = service.get_statistics()
+
+        # Should have L1 hit since list_all_sidecars populated the cache
+        assert stats2['l1_hits'] > stats1['l1_hits']
+
+    def test_list_all_sidecars_returns_metadata_with_tags(self, service, photos_dir):
+        """list_all_sidecars should return metadata with tags for TagAutocompleteEngine."""
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        # Create photo with tags
+        photo = photos_dir / "tagged_photo.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+        metadata = create_metadata(photo, tags=["moth", "luna", "nocturnal"])
+        write_metadata(photo, metadata)
+
+        results = service.list_all_sidecars(photos_dir)
+
+        assert len(results) == 1
+        assert results[0].tags == ["moth", "luna", "nocturnal"]

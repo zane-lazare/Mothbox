@@ -477,6 +477,39 @@ class SidecarService:
             results.append(metadata is not None)
         return results
 
+    def list_all_sidecars(self, photos_dir: Path | str | None = None) -> list[SidecarMetadata]:
+        """
+        List all sidecar metadata across the photos directory.
+
+        Used by TagAutocompleteEngine to build the tag index.
+
+        Args:
+            photos_dir: Root photos directory. If None, uses PHOTOS_DIR from mothbox_paths.
+
+        Returns:
+            List of SidecarMetadata objects for all photos with sidecars.
+        """
+        if photos_dir is None:
+            from mothbox_paths import PHOTOS_DIR
+            photos_dir = PHOTOS_DIR
+
+        photos_dir = Path(photos_dir)
+
+        if not photos_dir.exists():
+            return []
+
+        # Get all photos with sidecars
+        photos_with_sidecars = list_photos_with_sidecars(photos_dir)
+
+        # Get metadata for each (using cache when available)
+        results = []
+        for photo_path in photos_with_sidecars:
+            metadata = self.get_metadata(str(photo_path))
+            if metadata:
+                results.append(metadata)
+
+        return results
+
     # ========================================================================
     # Private Helper Methods
     # ========================================================================

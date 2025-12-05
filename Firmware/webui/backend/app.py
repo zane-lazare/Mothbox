@@ -191,6 +191,24 @@ except Exception as e:
     print(f"⚠️  Failed to initialize sidecar service: {e}")
     app.config['SIDECAR_SERVICE'] = None
 
+# Initialize tag autocomplete engine (Issue #124)
+from lib.tag_autocomplete import TagAutocompleteEngine
+
+try:
+    sidecar_service = app.config.get('SIDECAR_SERVICE')
+    if sidecar_service:
+        app.config['TAG_AUTOCOMPLETE_ENGINE'] = TagAutocompleteEngine(
+            sidecar_service=sidecar_service,
+            cache_ttl=300  # 5 minutes
+        )
+        print("✓ Tag autocomplete engine initialized")
+    else:
+        app.config['TAG_AUTOCOMPLETE_ENGINE'] = None
+        print("⚠️  Tag autocomplete engine not initialized (sidecar service unavailable)")
+except Exception as e:
+    print(f"⚠️  Failed to initialize tag autocomplete engine: {e}")
+    app.config['TAG_AUTOCOMPLETE_ENGINE'] = None
+
 # Import route blueprints
 from routes.camera import camera_bp
 from routes.config import config_bp
@@ -251,7 +269,11 @@ limiter.limit("10 per minute")(app.view_functions["sidecar.bulk_update_metadata"
 limiter.limit("30 per minute")(app.view_functions["sidecar.update_photo_metadata"])
 limiter.limit("30 per minute")(app.view_functions["sidecar.delete_photo_metadata"])
 
-print("✓ Rate limiting applied to sidecar endpoints")
+# Tag autocomplete rate limiting (Issue #124)
+# 60 per minute (1 per second) - autocomplete endpoints are chatty with typing
+limiter.limit("60 per minute")(app.view_functions["metadata.get_tag_autocomplete"])
+
+print("✓ Rate limiting applied to sidecar and metadata endpoints")
 
 
 # CSRF token endpoint

@@ -357,3 +357,41 @@ export const SPECIES_CONFIG = {
     { value: 'unknown', label: 'Unknown' },
   ],
 }
+
+/**
+ * Stacked Photo Card Configuration
+ *
+ * Visual styling for stacked photo cards (HDR, Focus Bracket series).
+ *
+ * @property {Array<string>} Z_INDEX_CLASSES - Z-index Tailwind classes for stacking order
+ * @property {Array<string>} OFFSETS - Transform classes for visual offset (back to front)
+ * @property {Array<string>} SHADOWS - Shadow classes for depth effect (back to front)
+ */
+export const STACKED_CARD_CONFIG = {
+  Z_INDEX_CLASSES: ['z-10', 'z-20', 'z-30'],
+  OFFSETS: [
+    'translate-x-2 translate-y-2',
+    'translate-x-1 translate-y-1',
+    'translate-x-0 translate-y-0',
+  ],
+  SHADOWS: ['shadow-sm', 'shadow-md', 'shadow-lg'],
+}
+
+/**
+ * Tag Autocomplete Configuration
+ *
+ * Configuration for tag autocomplete/suggestion functionality.
+ *
+ * @property {number} DEBOUNCE_MS - Debounce delay for API calls (ms)
+ * @property {number} MIN_CHARS - Minimum characters before fetching suggestions
+ * @property {number} MAX_SUGGESTIONS - Maximum number of suggestions to return
+ * @property {number} CACHE_STALE_TIME - Cache stale time in ms (5 minutes)
+ * @property {number} CACHE_GC_TIME - Cache garbage collection time in ms (10 minutes)
+ */
+export const TAG_AUTOCOMPLETE_CONFIG = {
+  DEBOUNCE_MS: 200,
+  MIN_CHARS: 2,
+  MAX_SUGGESTIONS: 10,
+  CACHE_STALE_TIME: 5 * 60 * 1000,  // 5 minutes
+  CACHE_GC_TIME: 10 * 60 * 1000,    // 10 minutes
+}
