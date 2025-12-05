@@ -201,7 +201,7 @@ class TagAutocompleteEngine:
                 self._index[tag_name] = TagMetadata(
                     name=tag_name,
                     count=data['count'],
-                    last_used=data['last_used'] or datetime.now(UTC),
+                    last_used=data['last_used'] or datetime.min.replace(tzinfo=UTC),
                     photos=data['photos']
                 )
 
