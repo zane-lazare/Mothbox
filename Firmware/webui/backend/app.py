@@ -5,6 +5,7 @@ Flask API server for Mothbox control and monitoring
 """
 
 import atexit
+import logging
 import signal
 import sys
 from pathlib import Path
@@ -19,6 +20,10 @@ from flask_socketio import SocketIO
 from flask_wtf.csrf import CSRFError, CSRFProtect
 
 config = get_config()
+
+# Reduce Werkzeug request logging verbosity
+# Only show warnings and errors, not every request
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
 # Setup path to import mothbox modules
 # mothbox_paths.py is in the Firmware root directory, three levels up from this file
