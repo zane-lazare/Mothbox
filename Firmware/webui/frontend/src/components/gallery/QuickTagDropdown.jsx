@@ -45,6 +45,11 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
     whileElementsMounted: autoUpdate,
   })
 
+  // Derive tag data from queries (must be before early return for hooks rules)
+  const allTags = tagsData?.tags || []
+  const appliedTags = sidecarData?.tags || []
+  const quickTags = useMemo(() => allTags.slice(0, 8), [allTags])
+
   // Keep refs updated with latest prop values
   useEffect(() => {
     onCloseRef.current = onClose
@@ -104,10 +109,6 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
   }, [isOpen])  // Only isOpen as dependency - refs are always current
 
   if (!isOpen) return null
-
-  const allTags = tagsData?.tags || []
-  const appliedTags = sidecarData?.tags || []
-  const quickTags = useMemo(() => allTags.slice(0, 8), [allTags])
 
   // Filter tags based on search query
   // Pre-compute lowercase search query once, not per-tag in filter callback
