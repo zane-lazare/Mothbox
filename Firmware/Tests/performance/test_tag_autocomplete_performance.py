@@ -474,16 +474,29 @@ class TestMemoryEfficiency:
 class TestPerformanceRegressions:
     """Prevent known performance regressions."""
 
-    def test_rapidfuzz_partial_ratio_used(self):
-        """Should use rapidfuzz.fuzz.partial_ratio for better substring matching."""
-        # This is a code quality check
-        from webui.backend.lib import tag_autocomplete
-        import inspect
+    def test_substring_matching_works(self):
+        """Should match query as substring within tag names (partial_ratio behavior)."""
+        # Create a mock service with specific tags to test substring matching
+        service = Mock()
+        metadata = Mock()
+        metadata.photo_filename = "photo_001.jpg"
+        # Include tags where the query would appear in the middle
+        metadata.tags = ["luna_moth", "hawk_moth", "sphinx_moth", "butterfly", "moth_species"]
+        metadata.modified_at = datetime.now(UTC).isoformat()
+        service.list_all_sidecars.return_value = [metadata]
 
-        source = inspect.getsource(tag_autocomplete.TagAutocompleteEngine.search)
+        engine = TagAutocompleteEngine(service, cache_ttl=300)
 
-        # Should use partial_ratio (better for substring matches like "moth" in "luna_moth")
-        assert "partial_ratio" in source, "Should use fuzz.partial_ratio for better matching"
+        # Search for "moth" - should find tags with "moth" anywhere (not just prefix)
+        # Note: Queries >= 3 chars use fuzzy partial matching
+        results = engine.search("moth", limit=10)
+        result_tags = [r.tag for r in results]
+
+        # Should find tags where 'moth' appears anywhere
+        assert "luna_moth" in result_tags, "Should match 'moth' in 'luna_moth'"
+        assert "hawk_moth" in result_tags, "Should match 'moth' in 'hawk_moth'"
+        assert "sphinx_moth" in result_tags, "Should match 'moth' in 'sphinx_moth'"
+        assert "moth_species" in result_tags, "Should match prefix 'moth_species'"
 
     def test_no_redundant_index_builds(self, service_10000_tags):
         """Multiple searches should not trigger redundant index builds."""

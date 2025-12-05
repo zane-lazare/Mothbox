@@ -74,9 +74,19 @@ function TagAutocomplete({
    * TODO: Remove tags prop support in next major version.
    */
   const shouldUseFuzzySearch = useTagAutocomplete !== null && !tags.length
-  const fuzzySearchResult = shouldUseFuzzySearch
+  const rawFuzzyResult = shouldUseFuzzySearch
     ? useTagAutocomplete(inputValue, { enabled: inputValue.trim().length > 0 })
     : { suggestions: [], isLoading: false, error: null }
+
+  // Normalize fuzzy search results: API returns {tag, count, match_score} but component uses {name, count, score}
+  const fuzzySearchResult = {
+    ...rawFuzzyResult,
+    suggestions: rawFuzzyResult.suggestions.map((s) => ({
+      name: s.tag,  // Normalize 'tag' to 'name' for consistency with local tags prop
+      count: s.count,
+      score: s.match_score,  // Normalize 'match_score' to 'score'
+    })),
+  }
 
   // Cleanup blur timeout on unmount to prevent memory leak
   useEffect(() => {
@@ -85,6 +95,17 @@ function TagAutocomplete({
         clearTimeout(blurTimeoutRef.current)
       }
     }
+  }, [])
+
+  // Deprecation warning for tags prop (only warn once on mount)
+  useEffect(() => {
+    if (tags.length > 0) {
+      console.warn(
+        '[TagAutocomplete] The `tags` prop is deprecated and will be removed in a future version. ' +
+        'Use the fuzzy search API instead (omit the tags prop to enable).'
+      )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Scroll highlighted item into view during keyboard navigation
@@ -289,6 +310,32 @@ function TagAutocomplete({
               />
             </svg>
             <span className="text-gray-600 dark:text-gray-400">Loading suggestions...</span>
+          </div>
+        </div>
+      )}
+
+      {isOpen && fuzzySearchResult.error && !isLoading && (
+        <div
+          role="alert"
+          className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border
+                     border-red-300 dark:border-red-600 rounded-md shadow-lg p-3"
+        >
+          <div className="flex items-center justify-center gap-2">
+            <svg
+              className="h-5 w-5 text-red-500"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+            <span className="text-red-600 dark:text-red-400">Failed to load suggestions</span>
           </div>
         </div>
       )}

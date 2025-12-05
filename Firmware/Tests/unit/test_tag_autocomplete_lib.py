@@ -453,6 +453,39 @@ class TestCacheManagement:
         # Should have same results (data hasn't changed)
         assert len(first_search) == len(second_search)
 
+    def test_cache_ttl_enforcement(self, mock_sidecar_service):
+        """Cache should expire after TTL and rebuild on next search."""
+        from datetime import datetime, timedelta
+        from unittest.mock import patch
+
+        # Create engine with very short TTL (1 second)
+        engine = TagAutocompleteEngine(mock_sidecar_service, cache_ttl=1)
+        engine.build_index()
+
+        # Verify cache is fresh
+        assert not engine._is_cache_stale()
+
+        # Simulate time passing (2 seconds)
+        with patch.object(engine, '_last_updated', datetime.now(UTC) - timedelta(seconds=2)):
+            # Cache should now be stale
+            assert engine._is_cache_stale()
+
+    def test_cache_ttl_not_stale_within_ttl(self, mock_sidecar_service):
+        """Cache should not be stale if within TTL period."""
+        # Create engine with 5 minute TTL
+        engine = TagAutocompleteEngine(mock_sidecar_service, cache_ttl=300)
+        engine.build_index()
+
+        # Cache should not be stale immediately after building
+        assert not engine._is_cache_stale()
+
+    def test_is_cache_stale_before_build(self, mock_sidecar_service):
+        """_is_cache_stale should return True before index is built."""
+        engine = TagAutocompleteEngine(mock_sidecar_service, cache_ttl=300)
+
+        # Before building, cache should be considered stale
+        assert engine._is_cache_stale()
+
 
 # ============================================================================
 # Test Statistics
@@ -477,6 +510,75 @@ class TestStatistics:
 
         assert 'total_tags' in stats
         assert stats['total_tags'] == 0
+
+
+# ============================================================================
+# Test Short Query Handling
+# ============================================================================
+
+class TestShortQueryHandling:
+    """Tests for prefix-only matching on short queries.
+
+    Short queries (1-2 chars) use prefix matching only instead of fuzzy matching
+    to prevent over-matching (e.g., 'a' matching 'anything' because it contains 'a').
+    """
+
+    def test_single_char_query_only_matches_prefix(self, engine):
+        """Single character query should only match tags starting with that char."""
+        engine.build_index()
+
+        # 'l' should match "luna_moth" and "large" (start with 'l')
+        # but NOT "nocturnal" (contains 'l' but doesn't start with it)
+        results = engine.search("l", limit=20)
+        tag_names = [r.tag for r in results]
+
+        assert "luna_moth" in tag_names
+        assert "large" in tag_names
+        assert "nocturnal" not in tag_names  # Contains 'l' but doesn't start with it
+
+    def test_two_char_query_only_matches_prefix(self, engine):
+        """Two character query should only match tags starting with those chars."""
+        engine.build_index()
+
+        # 'mo' should match "moth_species" (starts with 'mo')
+        # but NOT "luna_moth" or "sphinx_moth" (contain 'mo' but don't start with it)
+        results = engine.search("mo", limit=20)
+        tag_names = [r.tag for r in results]
+
+        assert "moth_species" in tag_names
+        assert "luna_moth" not in tag_names
+        assert "sphinx_moth" not in tag_names
+
+    def test_three_char_query_uses_fuzzy_matching(self, engine):
+        """Three+ character queries should use partial_ratio for substring matching."""
+        engine.build_index()
+
+        # 'mot' with partial_ratio finds "moth" as substring in luna_moth, sphinx_moth
+        results = engine.search("mot", limit=20)
+        tag_names = [r.tag for r in results]
+
+        # Should find all moth-related tags via partial matching
+        assert "moth_species" in tag_names
+        assert "luna_moth" in tag_names
+        assert "sphinx_moth" in tag_names
+
+    def test_transition_from_prefix_to_fuzzy(self, engine):
+        """Transitioning from 2 to 3 chars should expand to fuzzy matching."""
+        engine.build_index()
+
+        # 2-char query: prefix-only (strict)
+        results_2char = engine.search("mo", limit=20)
+        tags_2char = set(r.tag for r in results_2char)
+
+        # 3-char query: fuzzy partial (finds substrings)
+        results_3char = engine.search("mot", limit=20)
+        tags_3char = set(r.tag for r in results_3char)
+
+        # 3-char should find more tags because it uses fuzzy matching
+        assert "moth_species" in tags_3char
+        # luna_moth and sphinx_moth should appear in 3-char but not 2-char
+        assert "luna_moth" in tags_3char
+        assert "luna_moth" not in tags_2char
 
 
 # ============================================================================
@@ -520,14 +622,14 @@ class TestIntegrationScenarios:
 
     def test_typical_autocomplete_workflow(self, engine):
         """Test typical user autocomplete workflow."""
-        # User starts typing "no"
-        results = engine.search("no", limit=5)
+        # User starts typing "noc" (3 chars triggers fuzzy matching)
+        results = engine.search("noc", limit=5)
 
-        # Should get suggestions
+        # Should get suggestions (fuzzy matching active at 3+ chars)
         assert len(results) > 0
 
-        # User continues typing "noc"
-        results = engine.search("noc", limit=5)
+        # User continues typing "noctu"
+        results = engine.search("noctu", limit=5)
 
         # Should narrow down results
         tag_names = [r.tag for r in results]

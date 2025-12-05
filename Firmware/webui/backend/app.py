@@ -269,7 +269,11 @@ limiter.limit("10 per minute")(app.view_functions["sidecar.bulk_update_metadata"
 limiter.limit("30 per minute")(app.view_functions["sidecar.update_photo_metadata"])
 limiter.limit("30 per minute")(app.view_functions["sidecar.delete_photo_metadata"])
 
-print("✓ Rate limiting applied to sidecar endpoints")
+# Tag autocomplete rate limiting (Issue #124)
+# 60 per minute (1 per second) - autocomplete endpoints are chatty with typing
+limiter.limit("60 per minute")(app.view_functions["metadata.get_tag_autocomplete"])
+
+print("✓ Rate limiting applied to sidecar and metadata endpoints")
 
 
 # CSRF token endpoint

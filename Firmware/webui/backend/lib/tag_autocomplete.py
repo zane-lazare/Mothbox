@@ -115,7 +115,21 @@ class TagAutocompleteEngine:
         self._last_updated: Optional[datetime] = None
         self._lock = threading.RLock()
 
+        # Pre-computed top tags for empty query optimization
+        self._top_tags_cache: List[AutocompleteSuggestion] = []
+
         logger.debug(f"TagAutocompleteEngine initialized with cache_ttl={cache_ttl}s")
+
+    def _is_cache_stale(self) -> bool:
+        """Check if cache has expired based on TTL.
+
+        Returns:
+            True if cache should be rebuilt, False otherwise.
+        """
+        if not self._last_updated:
+            return True
+        age = (datetime.now(UTC) - self._last_updated).total_seconds()
+        return age > self.cache_ttl
 
     def build_index(self):
         """Build tag index from all sidecar metadata.
@@ -193,6 +207,23 @@ class TagAutocompleteEngine:
 
             self._last_updated = datetime.now(UTC)
 
+            # Pre-compute top 50 tags by frequency for empty query optimization
+            sorted_tags = sorted(
+                self._index.values(),
+                key=lambda t: t.count,
+                reverse=True
+            )[:50]
+
+            self._top_tags_cache = [
+                AutocompleteSuggestion(
+                    tag=tag.name,
+                    count=tag.count,
+                    last_used=tag.last_used,
+                    match_score=float(tag.count)
+                )
+                for tag in sorted_tags
+            ]
+
             logger.debug(f"Tag index built: {len(self._index)} unique tags")
 
     def search(self, query: str, limit: int = 10) -> List[AutocompleteSuggestion]:
@@ -216,8 +247,8 @@ class TagAutocompleteEngine:
         Thread-safe with read lock.
         """
         with self._lock:
-            # Build index if empty
-            if not self._index:
+            # Build index if empty or stale
+            if not self._index or self._is_cache_stale():
                 self.build_index()
 
             query_normalized = query.lower().strip()
@@ -236,13 +267,21 @@ class TagAutocompleteEngine:
                 max_log_count = math.log10(max_count + 1)
 
             for tag_name, tag_metadata in self._index.items():
-                # Calculate fuzzy match score using partial_ratio for better substring matching
-                # This handles cases like "moth" matching "luna_moth" or "sphi" matching "sphinx_moth"
-                fuzzy_score = fuzz.partial_ratio(query_normalized, tag_name)
-
-                # Filter by minimum threshold
-                if fuzzy_score < MINIMUM_MATCH_SCORE:
-                    continue
+                # For short queries (1-2 chars), only match if tag starts with query
+                # This prevents over-matching (e.g., 'a' matching 'anything' at 100%)
+                # For 3+ chars, use partial_ratio for substring matching
+                if len(query_normalized) <= 2:
+                    # Short queries: require prefix match
+                    if not tag_name.startswith(query_normalized):
+                        continue
+                    # Give high base score for prefix matches
+                    fuzzy_score = 100.0
+                else:
+                    # Longer queries: use fuzzy partial matching
+                    fuzzy_score = fuzz.partial_ratio(query_normalized, tag_name)
+                    # Filter by minimum threshold
+                    if fuzzy_score < MINIMUM_MATCH_SCORE:
+                        continue
 
                 # Normalize fuzzy score to 0-1
                 fuzzy_normalized = fuzzy_score / 100.0
@@ -283,27 +322,15 @@ class TagAutocompleteEngine:
     def _get_top_tags_by_frequency(self, limit: int) -> List[AutocompleteSuggestion]:
         """Get top tags sorted by frequency (for empty query).
 
+        Uses pre-computed cache for O(1) lookup.
+
         Args:
             limit: Maximum number of tags to return
 
         Returns:
             List of AutocompleteSuggestion sorted by count (descending)
         """
-        suggestions = []
-
-        for tag_name, tag_metadata in self._index.items():
-            suggestion = AutocompleteSuggestion(
-                tag=tag_name,
-                count=tag_metadata.count,
-                last_used=tag_metadata.last_used,
-                match_score=float(tag_metadata.count)  # Use count as score
-            )
-            suggestions.append(suggestion)
-
-        # Sort by count (descending)
-        suggestions.sort(key=lambda x: x.count, reverse=True)
-
-        return suggestions[:limit]
+        return self._top_tags_cache[:limit]
 
     def _calculate_recency_boost(self, last_used: datetime) -> float:
         """Calculate recency boost using exponential decay.
@@ -352,6 +379,7 @@ class TagAutocompleteEngine:
         with self._lock:
             self._index = {}
             self._last_updated = None
+            self._top_tags_cache = []
             logger.debug("Tag autocomplete index cache invalidated")
 
 
