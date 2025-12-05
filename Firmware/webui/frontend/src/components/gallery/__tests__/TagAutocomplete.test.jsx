@@ -1,8 +1,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import TagAutocomplete from '../TagAutocomplete'
 import { METADATA_VALIDATION } from '../../../constants/config'
+
+// Create QueryClient wrapper for tests (required since hook is always called)
+const createTestQueryClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        gcTime: 0,
+      },
+    },
+  })
+
+const renderWithQueryClient = (ui, options = {}) => {
+  const testQueryClient = createTestQueryClient()
+  return render(
+    <QueryClientProvider client={testQueryClient}>{ui}</QueryClientProvider>,
+    options
+  )
+}
 
 const mockTags = [
   { name: 'moth', count: 15 },
@@ -31,24 +51,24 @@ describe('TagAutocomplete', () => {
   // Rendering
   describe('Rendering', () => {
     it('renders input field', () => {
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
       expect(input).toBeInTheDocument()
     })
 
     it('renders placeholder text', () => {
-      render(<TagAutocomplete {...defaultProps} placeholder="Type to search..." />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} placeholder="Type to search..." />)
       expect(screen.getByPlaceholderText('Type to search...')).toBeInTheDocument()
     })
 
     it('renders default placeholder when none provided', () => {
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       expect(screen.getByPlaceholderText('Search or create tags...')).toBeInTheDocument()
     })
 
     it('shows dropdown when input is focused and has text', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'm')
@@ -60,7 +80,7 @@ describe('TagAutocomplete', () => {
 
     it('hides dropdown when input loses focus', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -77,7 +97,7 @@ describe('TagAutocomplete', () => {
 
     it('does not show dropdown when input is empty', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.click(input)
@@ -90,7 +110,7 @@ describe('TagAutocomplete', () => {
   describe('Filtering', () => {
     it('filters tags based on input (case-insensitive)', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -107,7 +127,7 @@ describe('TagAutocomplete', () => {
 
     it('filters tags case-insensitively', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'MOTH')
@@ -121,7 +141,7 @@ describe('TagAutocomplete', () => {
 
     it('shows all matching tags in dropdown', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'e')
@@ -135,7 +155,7 @@ describe('TagAutocomplete', () => {
 
     it('shows "Create tag" option when no exact match', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'newtagname')
@@ -148,7 +168,7 @@ describe('TagAutocomplete', () => {
 
     it('does not show create option when exact match exists', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -161,7 +181,7 @@ describe('TagAutocomplete', () => {
 
     it('does not show already selected tags', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} selectedTags={['moth']} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} selectedTags={['moth']} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -175,7 +195,7 @@ describe('TagAutocomplete', () => {
 
     it('shows tag counts in suggestions', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -191,7 +211,7 @@ describe('TagAutocomplete', () => {
   describe('Selection', () => {
     it('calls onSelect when clicking a tag', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -210,7 +230,7 @@ describe('TagAutocomplete', () => {
 
     it('clears input after selection', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -228,7 +248,7 @@ describe('TagAutocomplete', () => {
 
     it('closes dropdown after selection', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -248,7 +268,7 @@ describe('TagAutocomplete', () => {
 
     it('refocuses input after selection', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -271,7 +291,7 @@ describe('TagAutocomplete', () => {
   describe('Tag Creation', () => {
     it('calls onCreate when Enter pressed with no exact match', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'newtagname{Enter}')
@@ -281,7 +301,7 @@ describe('TagAutocomplete', () => {
 
     it('calls onCreate when clicking "Create tag" option', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'newtagname')
@@ -298,7 +318,7 @@ describe('TagAutocomplete', () => {
 
     it('does not allow creating duplicate tags', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} selectedTags={['existingtag']} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} selectedTags={['existingtag']} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'existingtag{Enter}')
@@ -308,7 +328,7 @@ describe('TagAutocomplete', () => {
 
     it('trims whitespace when creating tags', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, '  spacytag  {Enter}')
@@ -318,7 +338,7 @@ describe('TagAutocomplete', () => {
 
     it('does not create empty tags', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, '   {Enter}')
@@ -328,7 +348,7 @@ describe('TagAutocomplete', () => {
 
     it('clears input after creating tag', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'newtagname{Enter}')
@@ -341,7 +361,7 @@ describe('TagAutocomplete', () => {
   describe('Keyboard Navigation', () => {
     it('navigates down with Arrow Down', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'm')
@@ -359,7 +379,7 @@ describe('TagAutocomplete', () => {
 
     it('navigates up with Arrow Up', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'm')
@@ -379,7 +399,7 @@ describe('TagAutocomplete', () => {
 
     it('selects highlighted tag with Enter', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -395,7 +415,7 @@ describe('TagAutocomplete', () => {
 
     it('closes dropdown with Escape', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -412,7 +432,7 @@ describe('TagAutocomplete', () => {
 
     it('wraps around when navigating past end', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'm')
@@ -437,7 +457,7 @@ describe('TagAutocomplete', () => {
 
     it('wraps around when navigating up from first item', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'm')
@@ -456,7 +476,7 @@ describe('TagAutocomplete', () => {
 
     it('opens dropdown with ArrowDown when closed', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -477,13 +497,13 @@ describe('TagAutocomplete', () => {
   // Accessibility
   describe('Accessibility', () => {
     it('has combobox role', () => {
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       expect(screen.getByRole('combobox')).toBeInTheDocument()
     })
 
     it('has aria-expanded when open', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       expect(input).toHaveAttribute('aria-expanded', 'false')
@@ -497,7 +517,7 @@ describe('TagAutocomplete', () => {
 
     it('has aria-activedescendant for highlighted item', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -513,14 +533,14 @@ describe('TagAutocomplete', () => {
     })
 
     it('has aria-autocomplete list', () => {
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
       expect(input).toHaveAttribute('aria-autocomplete', 'list')
     })
 
     it('has aria-controls pointing to listbox', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -533,7 +553,7 @@ describe('TagAutocomplete', () => {
 
     it('announces highlighted item to screen readers', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -554,7 +574,7 @@ describe('TagAutocomplete', () => {
   describe('Edge Cases', () => {
     it('handles empty tags list', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} tags={[]} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} tags={[]} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'anything')
@@ -565,14 +585,14 @@ describe('TagAutocomplete', () => {
     })
 
     it('handles disabled state', () => {
-      render(<TagAutocomplete {...defaultProps} disabled />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} disabled />)
       const input = screen.getByRole('combobox')
       expect(input).toBeDisabled()
     })
 
     it('does not open dropdown when disabled', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} disabled />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} disabled />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -581,14 +601,14 @@ describe('TagAutocomplete', () => {
     })
 
     it('handles custom className', () => {
-      const { container } = render(<TagAutocomplete {...defaultProps} className="custom-class" />)
+      const { container } = renderWithQueryClient(<TagAutocomplete {...defaultProps} className="custom-class" />)
       expect(container.querySelector('.custom-class')).toBeInTheDocument()
     })
 
     it('handles tags with special characters', async () => {
       const user = userEvent.setup()
       const specialTags = [{ name: 'tag-with-dash', count: 5 }, { name: 'tag_with_underscore', count: 3 }]
-      render(<TagAutocomplete {...defaultProps} tags={specialTags} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} tags={specialTags} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'tag')
@@ -602,7 +622,7 @@ describe('TagAutocomplete', () => {
 
     it('handles no results', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'xyz123notfound')
@@ -616,7 +636,7 @@ describe('TagAutocomplete', () => {
 
     it('handles mouse hover changing highlight', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'm')
@@ -637,7 +657,7 @@ describe('TagAutocomplete', () => {
 
     it('clears highlighted index when input changes', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -664,7 +684,7 @@ describe('TagAutocomplete', () => {
       // This test will pass when the hook is available
       // For now, just test that the component works with empty tags (fallback)
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} tags={[]} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} tags={[]} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'newtag')
@@ -677,7 +697,7 @@ describe('TagAutocomplete', () => {
 
     it('falls back to local filtering when tags prop is provided', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -695,7 +715,7 @@ describe('TagAutocomplete', () => {
       // This test will be properly tested when the hook is integrated
       // For now, verify that with local filtering, no loading spinner appears
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -708,7 +728,7 @@ describe('TagAutocomplete', () => {
 
     it('hides loading spinner when suggestions loaded', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -722,7 +742,7 @@ describe('TagAutocomplete', () => {
   describe('Match Highlighting', () => {
     it('highlights matching characters in suggestions', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -735,7 +755,7 @@ describe('TagAutocomplete', () => {
 
     it('highlights multiple matches in same tag', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'mo')
@@ -752,7 +772,7 @@ describe('TagAutocomplete', () => {
 
     it('highlights are case-insensitive', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'MOTH')
@@ -767,7 +787,7 @@ describe('TagAutocomplete', () => {
   describe('Tab Key Handling', () => {
     it('tab key selects current suggestion and moves focus', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -786,7 +806,7 @@ describe('TagAutocomplete', () => {
 
     it('tab without selection just moves focus', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -805,7 +825,7 @@ describe('TagAutocomplete', () => {
 
     it('tab selects create option when highlighted', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'newtagname')
@@ -830,7 +850,7 @@ describe('TagAutocomplete', () => {
       // This test will properly work when the hook is integrated
       // For now, verify that local filtering doesn't show scores
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -843,7 +863,7 @@ describe('TagAutocomplete', () => {
 
     it('does not show score for local filtering', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       await user.type(input, 'moth')
@@ -859,7 +879,7 @@ describe('TagAutocomplete', () => {
     it('validates tag length and shows error', async () => {
       const onValidationError = vi.fn()
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} onValidationError={onValidationError} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} onValidationError={onValidationError} />)
       const input = screen.getByRole('combobox')
 
       // Use config constant + 1 to exceed max length
@@ -874,7 +894,7 @@ describe('TagAutocomplete', () => {
 
     it('allows tags up to max length', async () => {
       const user = userEvent.setup()
-      render(<TagAutocomplete {...defaultProps} />)
+      renderWithQueryClient(<TagAutocomplete {...defaultProps} />)
       const input = screen.getByRole('combobox')
 
       // Use exact max length from config

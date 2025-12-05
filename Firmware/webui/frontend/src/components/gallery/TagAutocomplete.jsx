@@ -2,14 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { METADATA_VALIDATION } from '../../constants/config'
 
-// Try to import the fuzzy search hook (graceful fallback if not available)
-let useTagAutocomplete = null
-try {
-  useTagAutocomplete = require('../../../hooks/useTagAutocomplete').default
-} catch (e) {
-  // Hook not available yet - will use prop-based filtering
-  useTagAutocomplete = null
-}
+// Import the fuzzy search hook for API-based autocomplete
+import useTagAutocomplete from '../../hooks/useTagAutocomplete'
 
 /**
  * HighlightedMatch - Highlights the matched portion of a tag
@@ -73,20 +67,12 @@ function TagAutocomplete({
    * This is deprecated - new code should rely on fuzzy search API.
    * TODO: Remove tags prop support in next major version.
    */
-  const shouldUseFuzzySearch = useTagAutocomplete !== null && !tags.length
-  const rawFuzzyResult = shouldUseFuzzySearch
-    ? useTagAutocomplete(inputValue, { enabled: inputValue.trim().length > 0 })
-    : { suggestions: [], isLoading: false, error: null }
-
-  // Normalize fuzzy search results: API returns {tag, count, match_score} but component uses {name, count, score}
-  const fuzzySearchResult = {
-    ...rawFuzzyResult,
-    suggestions: rawFuzzyResult.suggestions.map((s) => ({
-      name: s.tag,  // Normalize 'tag' to 'name' for consistency with local tags prop
-      count: s.count,
-      score: s.match_score,  // Normalize 'match_score' to 'score'
-    })),
-  }
+  const shouldUseFuzzySearch = !tags.length
+  // Hook returns normalized data: { name, count, score } (compatible with component expectations)
+  // Always call the hook but disable it when using local filtering (React hooks rules)
+  const fuzzySearchResult = useTagAutocomplete(inputValue, {
+    enabled: shouldUseFuzzySearch && inputValue.trim().length > 0
+  })
 
   // Cleanup blur timeout on unmount to prevent memory leak
   useEffect(() => {

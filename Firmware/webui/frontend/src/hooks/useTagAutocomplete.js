@@ -9,6 +9,10 @@ import { TAG_AUTOCOMPLETE_CONFIG } from '../constants/config'
  * Fetches tag suggestions from the backend with debouncing, minimum character
  * requirements, and caching. Returns suggestions based on fuzzy matching.
  *
+ * The hook normalizes API responses to use consistent property names:
+ * - API returns: { tag, count, last_used, match_score }
+ * - Hook returns: { name, count, score } (compatible with component expectations)
+ *
  * @param {string} query - The search query string
  * @param {Object} options - Configuration options
  * @param {number} [options.limit=10] - Maximum number of suggestions to return
@@ -16,7 +20,7 @@ import { TAG_AUTOCOMPLETE_CONFIG } from '../constants/config'
  * @param {number} [options.debounceMs=200] - Debounce delay in milliseconds
  * @param {boolean} [options.enabled=true] - Enable/disable the hook
  * @returns {Object} TanStack Query result object containing:
- *   - suggestions: Array of suggestion objects { tag, count, last_used, match_score }
+ *   - suggestions: Array of suggestion objects { name, count, score }
  *   - isLoading: Boolean indicating if the query is currently loading
  *   - isError: Boolean indicating if an error occurred
  *   - error: Error object if an error occurred, null otherwise
@@ -29,8 +33,8 @@ import { TAG_AUTOCOMPLETE_CONFIG } from '../constants/config'
  * if (suggestions.length > 0) {
  *   return (
  *     <ul>
- *       {suggestions.map(({ tag, count }) => (
- *         <li key={tag}>{tag} ({count})</li>
+ *       {suggestions.map(({ name, count }) => (
+ *         <li key={name}>{name} ({count})</li>
  *       ))}
  *     </ul>
  *   )
@@ -89,10 +93,17 @@ export default function useTagAutocomplete(query, options = {}) {
     gcTime: TAG_AUTOCOMPLETE_CONFIG.CACHE_GC_TIME,
   })
 
-  // Return normalized result with empty array as default for suggestions
-  // Defensively handle both array data and object with suggestions property
+  // Normalize API response: { tag, count, match_score } -> { name, count, score }
+  // This aligns with component expectations and the deprecated tags prop format
+  const rawSuggestions = queryResult.data?.suggestions ?? []
+  const normalizedSuggestions = rawSuggestions.map((s) => ({
+    name: s.tag,
+    count: s.count,
+    score: s.match_score,
+  }))
+
   return {
-    suggestions: queryResult.data?.suggestions || queryResult.data || [],
+    suggestions: normalizedSuggestions,
     isLoading: queryResult.isLoading,
     isError: queryResult.isError,
     error: queryResult.error,

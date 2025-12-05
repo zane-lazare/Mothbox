@@ -79,6 +79,8 @@ Returns intelligent tag suggestions based on fuzzy matching and frequency rankin
 | `limit` | integer | No | 10 | Maximum suggestions to return (max: 50) |
 | `exclude_tags` | string | No | - | Comma-separated tags to exclude from results |
 
+**Note**: When `exclude_tags` is provided, the actual result count may be less than `limit` since exclusions are applied after the search. This is expected behavior.
+
 #### Response Format
 
 ```json
