@@ -73,8 +73,9 @@ export default function useBulkOperations() {
 
           previousState[filename] = state
         } catch (error) {
-          // If fetch fails, don't include in previousState
-          // This allows partial undo support
+          // Warning: Failed fetches are silently omitted from previousState.
+          // This means undo will only restore photos with successful fetches.
+          // Partial undo is better than no undo, but callers should be aware.
           console.warn(`Failed to fetch previous state for ${filename}:`, error)
         }
       })
@@ -334,9 +335,13 @@ export default function useBulkOperations() {
   /**
    * Delete photos (destructive - NO undo)
    *
+   * Note: fetchUndo=false because delete is irreversible at filesystem level.
+   * Files are permanently removed and cannot be restored from metadata alone.
+   * To support undo, the backend would need a trash/recycle bin feature.
+   *
    * @param {string[]} filenames - Photo filenames
    * @param {Function} onProgress - Progress callback (optional)
-   * @returns {Promise<object>} Result with success/failed/errors
+   * @returns {Promise<object>} Result with success/failed/errors (no previousState)
    */
   const bulkDelete = useCallback(async (filenames, onProgress = null) => {
     const result = await batchedOperation(
@@ -348,7 +353,7 @@ export default function useBulkOperations() {
         return response.data
       },
       onProgress,
-      false // No undo for delete
+      false // No undo - files are permanently deleted from filesystem
     )
 
     // Invalidate caches on success
