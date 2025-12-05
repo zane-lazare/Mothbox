@@ -2,6 +2,7 @@ import { useState, memo, useCallback } from 'react'
 import { GALLERY_CONFIG } from '../constants/config'
 import ProgressiveImage from './ProgressiveImage'
 import QuickTagButton from './gallery/QuickTagButton'
+import useSelection from '../hooks/useSelection'
 
 /**
  * PhotoGridItem Component
@@ -9,30 +10,70 @@ import QuickTagButton from './gallery/QuickTagButton'
  * Grid view photo card with thumbnail, hover overlay, and quick-tag button.
  * Used in gallery grid view for compact photo display.
  * Features progressive loading with blur-up effect for smooth UX.
+ * Supports selection mode with checkbox overlay for bulk operations.
  *
  * @param {Object} props - Component props
  * @param {Object} props.photo - Photo data object
  * @param {string} props.photo.path - Photo file path
  * @param {string} props.photo.filename - Photo filename
  * @param {string} props.photo.date - ISO date string
- * @param {Function} props.onClick - Click handler for viewing photo
+ * @param {Function} props.onClick - Click handler for viewing photo (disabled in select mode)
+ * @param {number} [props.index] - Photo index in grid (required for Shift+Click range selection)
+ * @param {Array} [props.photos] - All photos array (required for Shift+Click range selection)
  */
-function PhotoGridItem({ photo, onClick }) {
+function PhotoGridItem({ photo, onClick, index, photos }) {
   const [isHovered, setIsHovered] = useState(false)
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false)
 
-  const handlePhotoClick = useCallback(() => {
+  // Try to use selection context, but gracefully handle if not available
+  let selectionContext = null
+  try {
+    selectionContext = useSelection()
+  } catch (error) {
+    // Not within SelectionProvider, selection features disabled
+  }
+
+  const isSelectMode = selectionContext?.isSelectMode || false
+  const isSelected = selectionContext?.isSelected(photo.path) || false
+  const togglePhoto = selectionContext?.togglePhoto
+  const selectRange = selectionContext?.selectRange
+
+  const handlePhotoClick = useCallback((e) => {
+    // In select mode, clicking photo toggles selection (not lightbox)
+    if (isSelectMode && togglePhoto) {
+      e.stopPropagation()
+
+      // Handle Shift+Click for range selection
+      if (e.shiftKey && index !== undefined && photos && selectRange) {
+        selectRange(index, photos.map(p => p.path))
+      } else {
+        togglePhoto(photo.path, index)
+      }
+      return
+    }
+
+    // Normal mode: handle tag dropdown and lightbox
     if (isTagDropdownOpen) {
       // Close dropdown when clicking photo area
       setIsTagDropdownOpen(false)
     } else {
-      onClick(photo)
+      onClick?.(photo)
     }
-  }, [isTagDropdownOpen, onClick, photo])
+  }, [isSelectMode, isTagDropdownOpen, togglePhoto, selectRange, photo, index, photos, onClick])
+
+  const handleCheckboxChange = useCallback((e) => {
+    e.stopPropagation()
+    if (togglePhoto) {
+      togglePhoto(photo.path, index)
+    }
+  }, [togglePhoto, photo.path, index])
 
   return (
     <div
-      className="relative group"
+      className={`
+        relative group
+        ${isSelectMode && isSelected ? 'ring-2 ring-blue-500 ring-offset-2 rounded-lg' : ''}
+      `}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -55,6 +96,20 @@ function PhotoGridItem({ photo, onClick }) {
           </span>
         </div>
       </button>
+
+      {/* Checkbox - positioned in top-left (only in select mode) */}
+      {isSelectMode && (
+        <div className="absolute top-2 left-2 z-10">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={handleCheckboxChange}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Select ${photo.filename}`}
+            className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+          />
+        </div>
+      )}
 
       {/* Quick Tag Button - positioned in top-right */}
       <div

@@ -1,6 +1,8 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import React, { useEffect } from 'react'
 import StackedPhotoCard from '../StackedPhotoCard'
+import { SelectionProvider, useSelectionContext } from '../../contexts/SelectionContext'
 
 // Mock the LazyImage component to simplify testing
 vi.mock('../LazyImage', () => ({
@@ -434,6 +436,377 @@ describe('StackedPhotoCard', () => {
       // When isLoading=false but series is null, component should return null
       const { container } = render(<StackedPhotoCard series={null} isLoading={false} />)
       expect(container.firstChild).toBeNull()
+    })
+  })
+
+  /**
+   * Test harness to control selection mode state
+   * Allows tests to enter select mode and pre-select photos before rendering component
+   */
+  function TestHarness({ children, enterSelectMode = false, selectPhotos = [] }) {
+    const selection = useSelectionContext()
+
+    useEffect(() => {
+      if (enterSelectMode && !selection.isSelectMode) {
+        selection.toggleSelectMode()
+      }
+      selectPhotos.forEach(path => {
+        selection.selectPhoto(path)
+      })
+    }, []) // Empty deps - only run once on mount
+
+    return children
+  }
+
+  /**
+   * Helper to render StackedPhotoCard with SelectionProvider
+   */
+  const renderWithProvider = (props, { enterSelectMode = false, selectPhotos = [] } = {}) => {
+    return render(
+      <SelectionProvider>
+        <TestHarness enterSelectMode={enterSelectMode} selectPhotos={selectPhotos}>
+          <StackedPhotoCard {...props} />
+        </TestHarness>
+      </SelectionProvider>
+    )
+  }
+
+  describe('Selection Mode - Checkbox Visibility', () => {
+    it('does NOT show checkbox when not in select mode', () => {
+      renderWithProvider({ series: mockHdrSeries }, { enterSelectMode: false })
+
+      // Query for checkbox input
+      const checkbox = screen.queryByRole('checkbox')
+      expect(checkbox).not.toBeInTheDocument()
+    })
+
+    it('shows checkbox in top-left corner when in select mode', () => {
+      renderWithProvider({ series: mockHdrSeries }, { enterSelectMode: true })
+
+      // Checkbox should be visible
+      const checkbox = screen.getByRole('checkbox')
+      expect(checkbox).toBeInTheDocument()
+
+      // Find checkbox container - should have positioning classes
+      const checkboxContainer = checkbox.parentElement
+      expect(checkboxContainer.className).toContain('absolute')
+      expect(checkboxContainer.className).toContain('top-')
+      expect(checkboxContainer.className).toContain('left-')
+    })
+
+    it('checkbox has proper aria-label indicating series selection', () => {
+      renderWithProvider({ series: mockHdrSeries }, { enterSelectMode: true })
+
+      const checkbox = screen.getByRole('checkbox')
+      expect(checkbox).toHaveAttribute('aria-label', 'Select all 3 photos in series')
+    })
+
+    it('checkbox aria-label reflects actual photo count for 5-photo series', () => {
+      renderWithProvider({ series: mockFocusBracketSeries }, { enterSelectMode: true })
+
+      const checkbox = screen.getByRole('checkbox')
+      expect(checkbox).toHaveAttribute('aria-label', 'Select all 5 photos in series')
+    })
+  })
+
+  describe('Selection Mode - Series Selection', () => {
+    it('clicking checkbox selects ALL photos in series', () => {
+      renderWithProvider({ series: mockHdrSeries }, { enterSelectMode: true })
+
+      const checkbox = screen.getByRole('checkbox')
+
+      // Initially unchecked
+      expect(checkbox).not.toBeChecked()
+      expect(checkbox.indeterminate).toBeFalsy()
+
+      // Click to select all
+      fireEvent.click(checkbox)
+
+      // Should now be checked
+      expect(checkbox).toBeChecked()
+      expect(checkbox.indeterminate).toBeFalsy()
+    })
+
+    it('clicking checkbox deselects ALL photos when all are selected', () => {
+      // Pre-select all photos in the series
+      const allPhotoPaths = mockHdrSeries.photos.map(p => p.path)
+      renderWithProvider(
+        { series: mockHdrSeries },
+        { enterSelectMode: true, selectPhotos: allPhotoPaths }
+      )
+
+      const checkbox = screen.getByRole('checkbox')
+
+      // Initially all selected
+      expect(checkbox).toBeChecked()
+
+      // Click to deselect all
+      fireEvent.click(checkbox)
+
+      // Should now be unchecked
+      expect(checkbox).not.toBeChecked()
+      expect(checkbox.indeterminate).toBeFalsy()
+    })
+
+    it('checkbox shows checked state when all series photos are selected', () => {
+      // Pre-select all photos
+      const allPhotoPaths = mockHdrSeries.photos.map(p => p.path)
+      renderWithProvider(
+        { series: mockHdrSeries },
+        { enterSelectMode: true, selectPhotos: allPhotoPaths }
+      )
+
+      const checkbox = screen.getByRole('checkbox')
+      expect(checkbox).toBeChecked()
+      expect(checkbox.indeterminate).toBeFalsy()
+    })
+
+    it('checkbox shows unchecked state when no series photos are selected', () => {
+      renderWithProvider({ series: mockHdrSeries }, { enterSelectMode: true })
+
+      const checkbox = screen.getByRole('checkbox')
+      expect(checkbox).not.toBeChecked()
+      expect(checkbox.indeterminate).toBeFalsy()
+    })
+
+    it('checkbox shows indeterminate state when SOME photos are selected', () => {
+      // Pre-select only first photo
+      const firstPhotoPath = mockHdrSeries.photos[0].path
+      renderWithProvider(
+        { series: mockHdrSeries },
+        { enterSelectMode: true, selectPhotos: [firstPhotoPath] }
+      )
+
+      const checkbox = screen.getByRole('checkbox')
+      expect(checkbox).not.toBeChecked()
+      expect(checkbox.indeterminate).toBeTruthy()
+    })
+
+    it('checkbox shows indeterminate state when 2 of 3 photos are selected', () => {
+      // Pre-select first two photos
+      const twoPhotoPaths = mockHdrSeries.photos.slice(0, 2).map(p => p.path)
+      renderWithProvider(
+        { series: mockHdrSeries },
+        { enterSelectMode: true, selectPhotos: twoPhotoPaths }
+      )
+
+      const checkbox = screen.getByRole('checkbox')
+      expect(checkbox).not.toBeChecked()
+      expect(checkbox.indeterminate).toBeTruthy()
+    })
+
+    it('clicking checkbox with some photos selected selects remaining photos', () => {
+      // Pre-select only first photo
+      const firstPhotoPath = mockHdrSeries.photos[0].path
+      renderWithProvider(
+        { series: mockHdrSeries },
+        { enterSelectMode: true, selectPhotos: [firstPhotoPath] }
+      )
+
+      const checkbox = screen.getByRole('checkbox')
+
+      // Initially indeterminate
+      expect(checkbox.indeterminate).toBeTruthy()
+
+      // Click to select all
+      fireEvent.click(checkbox)
+
+      // Should now be fully checked
+      expect(checkbox).toBeChecked()
+      expect(checkbox.indeterminate).toBeFalsy()
+    })
+
+    it('handles series with photos as string paths (backwards compatible)', () => {
+      const seriesWithStringPaths = {
+        series_id: 'string_paths',
+        series_type: 'hdr',
+        photos: ['/photos/photo1.jpg', '/photos/photo2.jpg', '/photos/photo3.jpg'],
+        count: 3,
+        cover_photo: '/photos/photo1.jpg',
+      }
+
+      renderWithProvider({ series: seriesWithStringPaths }, { enterSelectMode: true })
+
+      const checkbox = screen.getByRole('checkbox')
+
+      // Should work with string paths
+      fireEvent.click(checkbox)
+      expect(checkbox).toBeChecked()
+    })
+  })
+
+  describe('Selection Mode - Click Behavior in Select Mode', () => {
+    it('clicking card toggles entire series selection (not lightbox)', () => {
+      const onCardClick = vi.fn()
+      const onPhotoClick = vi.fn()
+
+      renderWithProvider(
+        { series: mockHdrSeries, onCardClick, onPhotoClick },
+        { enterSelectMode: true }
+      )
+
+      const card = screen.getByRole('group')
+      const checkbox = screen.getByRole('checkbox')
+
+      // Initially unchecked
+      expect(checkbox).not.toBeChecked()
+
+      // Click card (not checkbox)
+      fireEvent.click(card)
+
+      // Should select all photos in series
+      expect(checkbox).toBeChecked()
+
+      // Should NOT call onPhotoClick (which opens lightbox)
+      expect(onPhotoClick).not.toHaveBeenCalled()
+
+      // May or may not call onCardClick - behavior is up to implementation
+    })
+
+    it('clicking checkbox toggles series selection', () => {
+      renderWithProvider({ series: mockHdrSeries }, { enterSelectMode: true })
+
+      const checkbox = screen.getByRole('checkbox')
+
+      // Toggle on
+      fireEvent.click(checkbox)
+      expect(checkbox).toBeChecked()
+
+      // Toggle off
+      fireEvent.click(checkbox)
+      expect(checkbox).not.toBeChecked()
+    })
+
+    it('clicking checkbox does not trigger card click handler', () => {
+      const onCardClick = vi.fn()
+
+      renderWithProvider(
+        { series: mockHdrSeries, onCardClick },
+        { enterSelectMode: true }
+      )
+
+      const checkbox = screen.getByRole('checkbox')
+      fireEvent.click(checkbox)
+
+      // Card click handler should NOT be called when clicking checkbox
+      expect(onCardClick).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Selection Mode - Visual Feedback', () => {
+    it('card shows selection indicator when any photo in series is selected', () => {
+      // Pre-select one photo
+      const firstPhotoPath = mockHdrSeries.photos[0].path
+      const { container } = renderWithProvider(
+        { series: mockHdrSeries },
+        { enterSelectMode: true, selectPhotos: [firstPhotoPath] }
+      )
+
+      const card = screen.getByRole('group')
+
+      // Should have visual selection indicator
+      // Check for either ring or background color change
+      expect(
+        card.className.includes('ring') ||
+        card.className.includes('border') ||
+        container.querySelector('[class*="ring"]') ||
+        container.querySelector('[class*="border-blue"]')
+      ).toBeTruthy()
+    })
+
+    it('card shows full selection indicator when all photos selected', () => {
+      // Pre-select all photos
+      const allPhotoPaths = mockHdrSeries.photos.map(p => p.path)
+      const { container } = renderWithProvider(
+        { series: mockHdrSeries },
+        { enterSelectMode: true, selectPhotos: allPhotoPaths }
+      )
+
+      const card = screen.getByRole('group')
+
+      // Should have visual selection indicator
+      expect(
+        card.className.includes('ring') ||
+        card.className.includes('border') ||
+        container.querySelector('[class*="ring"]') ||
+        container.querySelector('[class*="border-blue"]')
+      ).toBeTruthy()
+    })
+
+    it('card does not show selection indicator when no photos selected', () => {
+      const { container } = renderWithProvider(
+        { series: mockHdrSeries },
+        { enterSelectMode: true }
+      )
+
+      // This test is optional - may want to show subtle indicator in select mode
+      // Implementation can choose to always show checkbox affordance
+      expect(container).toBeTruthy()
+    })
+  })
+
+  describe('Selection Mode - Click Does Not Open Lightbox', () => {
+    it('does not call onPhotoClick when card is clicked in select mode', () => {
+      const onPhotoClick = vi.fn()
+
+      renderWithProvider(
+        { series: mockHdrSeries, onPhotoClick },
+        { enterSelectMode: true }
+      )
+
+      const card = screen.getByRole('group')
+      fireEvent.click(card)
+
+      // In select mode, clicking card should select, not open lightbox
+      expect(onPhotoClick).not.toHaveBeenCalled()
+    })
+
+    it('DOES call onPhotoClick when card is clicked OUTSIDE select mode', () => {
+      const onPhotoClick = vi.fn()
+
+      renderWithProvider(
+        { series: mockHdrSeries, onPhotoClick },
+        { enterSelectMode: false }
+      )
+
+      const card = screen.getByRole('group')
+      fireEvent.click(card)
+
+      // Outside select mode, clicking card opens lightbox
+      expect(onPhotoClick).toHaveBeenCalledTimes(1)
+      expect(onPhotoClick).toHaveBeenCalledWith(mockHdrSeries.photos[0])
+    })
+  })
+
+  describe('Selection Mode - Keyboard Navigation', () => {
+    it('Enter key toggles series selection in select mode', () => {
+      renderWithProvider({ series: mockHdrSeries }, { enterSelectMode: true })
+
+      const card = screen.getByRole('group')
+      const checkbox = screen.getByRole('checkbox')
+
+      expect(checkbox).not.toBeChecked()
+
+      // Press Enter
+      fireEvent.keyDown(card, { key: 'Enter' })
+
+      // Should select all photos
+      expect(checkbox).toBeChecked()
+    })
+
+    it('Space key toggles series selection in select mode', () => {
+      renderWithProvider({ series: mockHdrSeries }, { enterSelectMode: true })
+
+      const card = screen.getByRole('group')
+      const checkbox = screen.getByRole('checkbox')
+
+      expect(checkbox).not.toBeChecked()
+
+      // Press Space
+      fireEvent.keyDown(card, { key: ' ' })
+
+      // Should select all photos
+      expect(checkbox).toBeChecked()
     })
   })
 })

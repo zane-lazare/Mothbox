@@ -9,6 +9,8 @@ import { useViewMode } from '../hooks/useViewMode'
 import { useSeries } from '../hooks/useSeries'
 import { usePhotoLocations } from '../hooks/usePhotoLocations'
 import useScrollRestoration from '../hooks/useScrollRestoration'
+import useBulkOperations from '../hooks/useBulkOperations'
+import useUndoToast from '../hooks/useUndoToast'
 import PhotoSkeleton from '../components/PhotoSkeleton'
 import PhotoGridItem from '../components/PhotoGridItem'
 import PhotoListItem from '../components/PhotoListItem'
@@ -19,15 +21,63 @@ import MapView from '../components/MapView'
 import ErrorBoundary from '../components/ErrorBoundary'
 import LightboxErrorFallback from '../components/LightboxErrorFallback'
 import ViewModeToggle from '../components/ViewModeToggle'
+import SelectModeToggle from '../components/gallery/SelectModeToggle'
+import BulkActionsToolbar from '../components/gallery/BulkActionsToolbar'
+import BulkTagModal from '../components/gallery/BulkTagModal'
+import BulkSpeciesModal from '../components/gallery/BulkSpeciesModal'
+import BulkDeleteConfirmModal from '../components/gallery/BulkDeleteConfirmModal'
+import BulkProgressModal from '../components/gallery/BulkProgressModal'
 import EmptyStateMessage from '../components/EmptyStateMessage'
+import { SelectionProvider, useSelectionContext } from '../contexts/SelectionContext'
 import { GALLERY_CONFIG, GALLERY_MESSAGES } from '../constants/config'
 import { formatErrorMessage } from '../utils/helpers'
 import toast from 'react-hot-toast'
 
-export default function Gallery() {
+/**
+ * Inner Gallery component that uses selection context
+ * Separated to allow SelectionProvider wrapping
+ */
+function GalleryContent() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const { viewMode, setViewMode, isLoading: isLoadingPreference } = useViewMode()
   const navigate = useNavigate()
+
+  // Selection context for bulk operations
+  const {
+    isSelectMode,
+    selectedPhotos,
+    selectedCount,
+    toggleSelectMode,
+    selectAll,
+    deselectAll,
+    togglePhoto,
+    selectRange,
+    lastClickedIndex,
+  } = useSelectionContext()
+
+  // Bulk operations
+  const {
+    bulkAddTags,
+    bulkReplaceTags,
+    bulkRemoveTags,
+    bulkUpdateSpecies,
+    bulkDelete,
+    isProcessing,
+  } = useBulkOperations()
+
+  const { showUndoToast } = useUndoToast()
+
+  // Modal state
+  const [tagModalOpen, setTagModalOpen] = useState(false)
+  const [speciesModalOpen, setSpeciesModalOpen] = useState(false)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [progressModalOpen, setProgressModalOpen] = useState(false)
+  const [progressState, setProgressState] = useState({
+    status: 'processing',
+    current: 0,
+    total: 0,
+    message: '',
+  })
 
   // Scroll restoration for virtualized grid
   const { scrollRef, saveScrollPosition } = useScrollRestoration('gallery-main')
@@ -216,6 +266,228 @@ export default function Gallery() {
     }
   }, [isSeriesError, hasShownSeriesErrorToast])
 
+  // Keyboard shortcuts for bulk selection
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Only handle shortcuts when in select mode
+      if (!isSelectMode) return
+
+      // Escape - exit select mode
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        toggleSelectMode()
+        return
+      }
+
+      // Ctrl+A - select all photos
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault()
+        selectAll(photos.map(p => p.path))
+        return
+      }
+
+      // Delete - open delete confirmation modal (only if photos selected)
+      if (e.key === 'Delete' && selectedCount > 0) {
+        e.preventDefault()
+        setDeleteModalOpen(true)
+        return
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isSelectMode, toggleSelectMode, selectAll, photos, selectedCount])
+
+  // Bulk operation handlers
+  const handleBulkTagApply = useCallback(async (tags, mode) => {
+    setTagModalOpen(false)
+    setProgressModalOpen(true)
+    setProgressState({
+      status: 'processing',
+      current: 0,
+      total: selectedCount,
+      message: `Applying tags to ${selectedCount} photos...`,
+    })
+
+    const filenames = Array.from(selectedPhotos)
+    let result
+
+    const onProgress = (progress) => {
+      setProgressState({
+        status: 'processing',
+        current: progress.processedCount,
+        total: filenames.length,
+        message: `Processing batch ${progress.currentBatch} of ${progress.totalBatches}...`,
+      })
+    }
+
+    try {
+      if (mode === 'add') {
+        result = await bulkAddTags(filenames, tags, onProgress)
+      } else if (mode === 'replace') {
+        result = await bulkReplaceTags(filenames, tags, onProgress)
+      } else if (mode === 'remove') {
+        result = await bulkRemoveTags(filenames, tags, onProgress)
+      }
+
+      if (result.success.length > 0) {
+        setProgressState({
+          status: 'success',
+          current: result.success.length,
+          total: filenames.length,
+          message: `Successfully updated ${result.success.length} photos`,
+        })
+
+        // Show undo toast with undo callback
+        if (result.previousState) {
+          showUndoToast(`Updated tags on ${result.success.length} photos`, async () => {
+            // Restore previous tags
+            for (const [filename, state] of Object.entries(result.previousState)) {
+              await bulkReplaceTags([filename], state.tags || [])
+            }
+            toast.success('Tags restored')
+          })
+        }
+
+        deselectAll()
+      } else {
+        setProgressState({
+          status: 'error',
+          current: 0,
+          total: filenames.length,
+          message: 'Failed to update any photos',
+        })
+      }
+    } catch (error) {
+      setProgressState({
+        status: 'error',
+        current: 0,
+        total: filenames.length,
+        message: error.message || 'An error occurred',
+      })
+    }
+  }, [selectedPhotos, selectedCount, bulkAddTags, bulkReplaceTags, bulkRemoveTags, showUndoToast, deselectAll])
+
+  const handleBulkSpeciesApply = useCallback(async (speciesData) => {
+    setSpeciesModalOpen(false)
+    setProgressModalOpen(true)
+    setProgressState({
+      status: 'processing',
+      current: 0,
+      total: selectedCount,
+      message: `Updating species on ${selectedCount} photos...`,
+    })
+
+    const filenames = Array.from(selectedPhotos)
+
+    const onProgress = (progress) => {
+      setProgressState({
+        status: 'processing',
+        current: progress.processedCount,
+        total: filenames.length,
+        message: `Processing batch ${progress.currentBatch} of ${progress.totalBatches}...`,
+      })
+    }
+
+    try {
+      const result = await bulkUpdateSpecies(filenames, speciesData, onProgress)
+
+      if (result.success.length > 0) {
+        setProgressState({
+          status: 'success',
+          current: result.success.length,
+          total: filenames.length,
+          message: `Successfully updated ${result.success.length} photos`,
+        })
+
+        // Show undo toast
+        if (result.previousState) {
+          showUndoToast(`Updated species on ${result.success.length} photos`, async () => {
+            for (const [filename, state] of Object.entries(result.previousState)) {
+              await bulkUpdateSpecies([filename], state.species || null)
+            }
+            toast.success('Species restored')
+          })
+        }
+
+        deselectAll()
+      } else {
+        setProgressState({
+          status: 'error',
+          current: 0,
+          total: filenames.length,
+          message: 'Failed to update any photos',
+        })
+      }
+    } catch (error) {
+      setProgressState({
+        status: 'error',
+        current: 0,
+        total: filenames.length,
+        message: error.message || 'An error occurred',
+      })
+    }
+  }, [selectedPhotos, selectedCount, bulkUpdateSpecies, showUndoToast, deselectAll])
+
+  const handleBulkDeleteConfirm = useCallback(async () => {
+    setDeleteModalOpen(false)
+    setProgressModalOpen(true)
+    setProgressState({
+      status: 'processing',
+      current: 0,
+      total: selectedCount,
+      message: `Deleting ${selectedCount} photos...`,
+    })
+
+    const filenames = Array.from(selectedPhotos)
+
+    const onProgress = (progress) => {
+      setProgressState({
+        status: 'processing',
+        current: progress.processedCount,
+        total: filenames.length,
+        message: `Processing batch ${progress.currentBatch} of ${progress.totalBatches}...`,
+      })
+    }
+
+    try {
+      const result = await bulkDelete(filenames, onProgress)
+
+      if (result.success.length > 0) {
+        setProgressState({
+          status: 'success',
+          current: result.success.length,
+          total: filenames.length,
+          message: `Successfully deleted ${result.success.length} photos`,
+        })
+
+        // No undo for delete - it's permanent
+        toast.success(`Deleted ${result.success.length} photos`)
+        deselectAll()
+        refetch() // Refresh photo list
+      } else {
+        setProgressState({
+          status: 'error',
+          current: 0,
+          total: filenames.length,
+          message: 'Failed to delete any photos',
+        })
+      }
+    } catch (error) {
+      setProgressState({
+        status: 'error',
+        current: 0,
+        total: filenames.length,
+        message: error.message || 'An error occurred',
+      })
+    }
+  }, [selectedPhotos, selectedCount, bulkDelete, deselectAll, refetch])
+
+  // Toolbar action handlers
+  const handleTagClick = useCallback(() => setTagModalOpen(true), [])
+  const handleSpeciesClick = useCallback(() => setSpeciesModalOpen(true), [])
+  const handleDeleteClick = useCallback(() => setDeleteModalOpen(true), [])
+
   if (isLoading) {
     return <div className="text-center py-12">{GALLERY_MESSAGES.LOADING.INITIAL}</div>
   }
@@ -245,6 +517,7 @@ export default function Gallery() {
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Photo Gallery</h2>
         <div className="flex items-center gap-3">
+          <SelectModeToggle />
           <ViewModeToggle
             currentView={viewMode}
             onViewChange={setViewMode}
@@ -345,7 +618,7 @@ export default function Gallery() {
         ) : (
           /* Traditional Photo Grid (for smaller galleries) */
           <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
-            {displayPhotos.map((photo) => {
+            {displayPhotos.map((photo, index) => {
               const series = seriesLookup.get(photo.path)
 
               // If this photo is a series cover, render as StackedPhotoCard
@@ -354,14 +627,20 @@ export default function Gallery() {
                   <StackedPhotoCard
                     key={photo.path}
                     series={series}
-                    onPhotoClick={handleSeriesPhotoClick}
+                    onPhotoClick={isSelectMode ? undefined : handleSeriesPhotoClick}
                   />
                 )
               }
 
               // Regular single photo
               return (
-                <PhotoGridItem key={photo.path} photo={photo} onClick={setSelectedPhoto} />
+                <PhotoGridItem
+                  key={photo.path}
+                  photo={photo}
+                  onClick={isSelectMode ? undefined : setSelectedPhoto}
+                  index={index}
+                  photos={displayPhotos}
+                />
               )
             })}
 
@@ -422,6 +701,60 @@ export default function Gallery() {
           onNavigate={handleNavigate}
         />
       </ErrorBoundary>
+
+      {/* Bulk Actions Toolbar (fixed at bottom when photos selected) */}
+      <BulkActionsToolbar
+        selectedCount={selectedCount}
+        onTagClick={handleTagClick}
+        onSpeciesClick={handleSpeciesClick}
+        onDeleteClick={handleDeleteClick}
+        onDeselectAll={deselectAll}
+      />
+
+      {/* Bulk Tag Modal */}
+      <BulkTagModal
+        isOpen={tagModalOpen}
+        onClose={() => setTagModalOpen(false)}
+        onApply={handleBulkTagApply}
+        selectedCount={selectedCount}
+      />
+
+      {/* Bulk Species Modal */}
+      <BulkSpeciesModal
+        isOpen={speciesModalOpen}
+        onClose={() => setSpeciesModalOpen(false)}
+        onApply={handleBulkSpeciesApply}
+        selectedCount={selectedCount}
+      />
+
+      {/* Bulk Delete Confirmation Modal */}
+      <BulkDeleteConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={handleBulkDeleteConfirm}
+        selectedPhotos={Array.from(selectedPhotos)}
+      />
+
+      {/* Bulk Progress Modal */}
+      <BulkProgressModal
+        isOpen={progressModalOpen}
+        status={progressState.status}
+        current={progressState.current}
+        total={progressState.total}
+        message={progressState.message}
+        onClose={() => setProgressModalOpen(false)}
+      />
     </div>
+  )
+}
+
+/**
+ * Gallery page wrapper with SelectionProvider
+ */
+export default function Gallery() {
+  return (
+    <SelectionProvider>
+      <GalleryContent />
+    </SelectionProvider>
   )
 }

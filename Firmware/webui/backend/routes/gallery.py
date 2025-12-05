@@ -27,6 +27,7 @@ Endpoints:
 - GET /locations/clustered - Get clustered photo locations (Issue #115)
 - GET /locations/clustered/stats - Get clustering cache statistics
 - POST /locations/clustered/cache/invalidate - Invalidate clustering cache
+- DELETE /photos/bulk - Bulk delete photos and sidecar files
 """
 
 import logging
@@ -1320,3 +1321,107 @@ def invalidate_clustered_locations_cache():
     except Exception as e:
         logger.error(f"Error invalidating clustering cache: {e}", exc_info=True)
         return jsonify({"error": "Failed to invalidate cache"}), 500
+
+
+# ============================================================================
+# DELETE /photos/bulk - Bulk delete photos and sidecar files
+# ============================================================================
+
+# Maximum files per bulk delete request
+MAX_BULK_DELETE = 100
+
+
+@gallery_bp.route('/photos/bulk', methods=['DELETE'])
+def bulk_delete_photos():
+    """
+    Delete multiple photos and their sidecar metadata files.
+
+    Request body:
+        {
+            "filenames": ["photo1.jpg", "photo2.jpg", ...]
+        }
+
+    Response:
+        {
+            "success": ["photo1.jpg"],
+            "failed": ["photo2.jpg"],
+            "errors": {"photo2.jpg": "File not found"},
+            "total": 2,
+            "success_count": 1,
+            "failed_count": 1
+        }
+
+    Security:
+        - Path traversal protection via validate_photo_path()
+        - Maximum 100 files per request
+        - Deletes both photo and sidecar (.json) files
+
+    Returns:
+        200: Bulk delete results (partial success allowed)
+        400: Invalid request (missing filenames, exceeds limit, etc.)
+    """
+    data = request.get_json()
+
+    if not data or 'filenames' not in data:
+        return jsonify({'error': 'filenames array required'}), 400
+
+    filenames = data['filenames']
+
+    if not filenames or not isinstance(filenames, list):
+        return jsonify({'error': 'filenames must be non-empty array'}), 400
+
+    if len(filenames) > MAX_BULK_DELETE:
+        return jsonify({
+            'error': f'Maximum {MAX_BULK_DELETE} files per request'
+        }), 400
+
+    success = []
+    failed = []
+    errors = {}
+
+    for filename in filenames:
+        # Validate path (prevent traversal)
+        photo_path = validate_photo_path(filename, PHOTOS_DIR)
+        if photo_path is None:
+            failed.append(filename)
+            errors[filename] = 'Invalid path'
+            continue
+
+        try:
+            # Delete photo file
+            if photo_path.exists():
+                photo_path.unlink()
+            else:
+                failed.append(filename)
+                errors[filename] = 'File not found'
+                continue
+
+            # Delete sidecar file if exists
+            sidecar_path = photo_path.with_suffix(photo_path.suffix + '.json')
+            if sidecar_path.exists():
+                sidecar_path.unlink()
+
+            success.append(filename)
+
+        except Exception as e:
+            failed.append(filename)
+            errors[filename] = str(e)
+            logger.error(f"Failed to delete {filename}: {e}")
+
+    # Invalidate caches if any files deleted
+    if success:
+        # Invalidate sidecar aggregation cache
+        try:
+            from routes.sidecar import invalidate_aggregation_cache
+            invalidate_aggregation_cache()
+        except Exception as e:
+            logger.warning(f"Failed to invalidate sidecar cache: {e}")
+
+    return jsonify({
+        'success': success,
+        'failed': failed,
+        'errors': errors,
+        'total': len(filenames),
+        'success_count': len(success),
+        'failed_count': len(failed)
+    })

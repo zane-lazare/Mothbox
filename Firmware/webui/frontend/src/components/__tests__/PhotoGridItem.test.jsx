@@ -1,3 +1,4 @@
+import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -98,7 +99,7 @@ describe('PhotoGridItem', () => {
     render(<PhotoGridItem photo={mockPhoto} onClick={vi.fn()} />, { wrapper: createWrapper() })
 
     const tagButton = screen.getByTestId('quick-tag-button')
-    expect(tagButton).toHaveAttribute('data-filename', 'test-photo.jpg')
+    expect(tagButton).toHaveAttribute('data-filename', '20250106/test-photo.jpg')
   })
 
   it('QuickTagButton is independently focusable', () => {
@@ -302,13 +303,14 @@ describe('PhotoGridItem', () => {
   it('handles photo with special characters in filename', () => {
     const specialPhoto = {
       ...mockPhoto,
+      path: '20250106/test-photo (1) [copy].jpg',
       filename: 'test-photo (1) [copy].jpg',
     }
 
     render(<PhotoGridItem photo={specialPhoto} onClick={vi.fn()} />, { wrapper: createWrapper() })
 
     const tagButton = screen.getByTestId('quick-tag-button')
-    expect(tagButton).toHaveAttribute('data-filename', 'test-photo (1) [copy].jpg')
+    expect(tagButton).toHaveAttribute('data-filename', '20250106/test-photo (1) [copy].jpg')
   })
 
   it('handles long filenames gracefully', () => {
@@ -366,5 +368,501 @@ describe('PhotoGridItem', () => {
 
     // Should not crash
     expect(gridItem).toBeInTheDocument()
+  })
+})
+
+// ========================================
+// === SELECTION MODE TESTS (Phase 2.1) ===
+// ========================================
+
+import { SelectionProvider, useSelectionContext } from '../../contexts/SelectionContext'
+
+// Create a wrapper that includes SelectionProvider
+const createSelectionWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } }
+  })
+  return ({ children }) => (
+    <QueryClientProvider client={queryClient}>
+      <SelectionProvider>
+        {children}
+      </SelectionProvider>
+    </QueryClientProvider>
+  )
+}
+
+
+describe('PhotoGridItem Selection Mode', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  // === Selection Mode Visibility ===
+  describe('Selection Mode Visibility', () => {
+    it('does NOT show checkbox when not in select mode', () => {
+      render(
+        <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} index={0} />,
+        { wrapper: createSelectionWrapper() }
+      )
+
+      // Should not find a checkbox
+      const checkbox = screen.queryByRole('checkbox')
+      expect(checkbox).not.toBeInTheDocument()
+    })
+
+    it('shows checkbox overlay when in select mode', async () => {
+      const TestWrapper = () => {
+        const { toggleSelectMode } = useSelectionContext()
+
+        React.useEffect(() => {
+          toggleSelectMode()
+        }, [toggleSelectMode])
+
+        return <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} index={0} />
+      }
+
+      render(<TestWrapper />, { wrapper: createSelectionWrapper() })
+
+      // Wait for checkbox to appear after entering select mode
+      await waitFor(() => {
+        const checkbox = screen.getByRole('checkbox')
+        expect(checkbox).toBeInTheDocument()
+      })
+    })
+
+    it('checkbox is positioned in top-left corner', async () => {
+      const TestWrapper = () => {
+        const { toggleSelectMode } = useSelectionContext()
+
+        React.useEffect(() => {
+          toggleSelectMode()
+        }, [toggleSelectMode])
+
+        return <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} index={0} />
+      }
+
+      render(<TestWrapper />, { wrapper: createSelectionWrapper() })
+
+      await waitFor(() => {
+        const checkbox = screen.getByRole('checkbox')
+        const checkboxContainer = checkbox.parentElement
+        expect(checkboxContainer).toHaveClass('absolute', 'top-2', 'left-2', 'z-10')
+      })
+    })
+
+    it('checkbox has proper aria-label', async () => {
+      const TestWrapper = () => {
+        const { toggleSelectMode } = useSelectionContext()
+
+        React.useEffect(() => {
+          toggleSelectMode()
+        }, [toggleSelectMode])
+
+        return <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} index={0} />
+      }
+
+      render(<TestWrapper />, { wrapper: createSelectionWrapper() })
+
+      await waitFor(() => {
+        const checkbox = screen.getByLabelText(/select test-photo.jpg/i)
+        expect(checkbox).toBeInTheDocument()
+      })
+    })
+  })
+
+  // === Selection State ===
+  describe('Selection State', () => {
+    it('checkbox is unchecked for unselected photos', async () => {
+      const TestWrapper = () => {
+        const { toggleSelectMode } = useSelectionContext()
+
+        React.useEffect(() => {
+          toggleSelectMode()
+        }, [toggleSelectMode])
+
+        return <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} index={0} />
+      }
+
+      render(<TestWrapper />, { wrapper: createSelectionWrapper() })
+
+      await waitFor(() => {
+        const checkbox = screen.getByRole('checkbox')
+        expect(checkbox).not.toBeChecked()
+      })
+    })
+
+    it('checkbox is checked for selected photos', async () => {
+      const TestWrapper = () => {
+        const { toggleSelectMode, selectPhoto } = useSelectionContext()
+
+        React.useEffect(() => {
+          toggleSelectMode()
+          selectPhoto(mockPhoto.path)
+        }, [toggleSelectMode, selectPhoto])
+
+        return <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} index={0} />
+      }
+
+      render(<TestWrapper />, { wrapper: createSelectionWrapper() })
+
+      await waitFor(() => {
+        const checkbox = screen.getByRole('checkbox')
+        expect(checkbox).toBeChecked()
+      })
+    })
+
+    it('photo has visual indicator (border) when selected', async () => {
+      const TestWrapper = () => {
+        const { toggleSelectMode, selectPhoto } = useSelectionContext()
+
+        React.useEffect(() => {
+          toggleSelectMode()
+          selectPhoto(mockPhoto.path)
+        }, [toggleSelectMode, selectPhoto])
+
+        return <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} index={0} />
+      }
+
+      const { container } = render(<TestWrapper />, { wrapper: createSelectionWrapper() })
+
+      await waitFor(() => {
+        // The outer container should have ring classes when selected
+        const gridItem = container.querySelector('.ring-2')
+        expect(gridItem).toBeInTheDocument()
+        expect(gridItem).toHaveClass('ring-blue-500', 'ring-offset-2')
+      })
+    })
+  })
+
+  // === Click Behavior in Select Mode ===
+  describe('Click Behavior in Select Mode', () => {
+    it('clicking photo toggles selection (does NOT open lightbox)', async () => {
+      const onClick = vi.fn()
+      const user = userEvent.setup()
+
+      const TestWrapper = () => {
+        const { toggleSelectMode } = useSelectionContext()
+
+        React.useEffect(() => {
+          toggleSelectMode()
+        }, [toggleSelectMode])
+
+        return <PhotoGridItem photo={mockPhoto} onClick={onClick} index={0} />
+      }
+
+      render(<TestWrapper />, { wrapper: createSelectionWrapper() })
+
+      await waitFor(() => {
+        const checkbox = screen.getByRole('checkbox')
+        expect(checkbox).not.toBeChecked()
+      })
+
+      // Click the photo button
+      const photoButton = screen.getByLabelText(/view photo/i)
+      await user.click(photoButton)
+
+      // Should NOT call onClick (lightbox)
+      expect(onClick).not.toHaveBeenCalled()
+
+      // Checkbox should now be checked
+      await waitFor(() => {
+        const checkbox = screen.getByRole('checkbox')
+        expect(checkbox).toBeChecked()
+      })
+    })
+
+    it('clicking checkbox toggles selection', async () => {
+      const user = userEvent.setup()
+
+      const TestWrapper = () => {
+        const { toggleSelectMode } = useSelectionContext()
+
+        React.useEffect(() => {
+          toggleSelectMode()
+        }, [toggleSelectMode])
+
+        return <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} index={0} />
+      }
+
+      render(<TestWrapper />, { wrapper: createSelectionWrapper() })
+
+      await waitFor(() => {
+        const checkbox = screen.getByRole('checkbox')
+        expect(checkbox).not.toBeChecked()
+      })
+
+      // Click the checkbox directly
+      const checkbox = screen.getByRole('checkbox')
+      await user.click(checkbox)
+
+      // Checkbox should now be checked
+      await waitFor(() => {
+        expect(checkbox).toBeChecked()
+      })
+    })
+
+    it('event.stopPropagation prevents parent handlers', async () => {
+      const parentClickHandler = vi.fn()
+      const user = userEvent.setup()
+
+      const TestWrapper = () => {
+        const { toggleSelectMode } = useSelectionContext()
+
+        React.useEffect(() => {
+          toggleSelectMode()
+        }, [toggleSelectMode])
+
+        return (
+          <div onClick={parentClickHandler}>
+            <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} index={0} />
+          </div>
+        )
+      }
+
+      render(<TestWrapper />, { wrapper: createSelectionWrapper() })
+
+      await waitFor(() => {
+        const checkbox = screen.getByRole('checkbox')
+        expect(checkbox).toBeInTheDocument()
+      })
+
+      // Click the checkbox
+      const checkbox = screen.getByRole('checkbox')
+      await user.click(checkbox)
+
+      // Parent handler should not be called due to stopPropagation
+      expect(parentClickHandler).not.toHaveBeenCalled()
+    })
+  })
+
+  // === Shift+Click Range Selection ===
+  describe('Shift+Click Range Selection', () => {
+    it('Shift+Click calls selectRange with current index', async () => {
+      const user = userEvent.setup()
+      const photo1 = mockPhoto
+      const photo2 = { ...mockPhoto, path: 'photo2.jpg', filename: 'photo2.jpg' }
+      const photos = [photo1, photo2]
+
+      const TestWrapper = () => {
+        const { toggleSelectMode } = useSelectionContext()
+
+        React.useEffect(() => {
+          toggleSelectMode()
+        }, [toggleSelectMode])
+
+        return (
+          <>
+            <PhotoGridItem photo={photo1} onClick={vi.fn()} index={0} photos={photos} />
+            <PhotoGridItem photo={photo2} onClick={vi.fn()} index={1} photos={photos} />
+          </>
+        )
+      }
+
+      render(<TestWrapper />, { wrapper: createSelectionWrapper() })
+
+      await waitFor(() => {
+        const checkboxes = screen.getAllByRole('checkbox')
+        expect(checkboxes).toHaveLength(2)
+      })
+
+      // First click to set lastClickedIndex
+      const checkboxes = screen.getAllByRole('checkbox')
+      await user.click(checkboxes[0])
+
+      // Shift+Click second photo
+      await user.keyboard('[ShiftLeft>]')
+      const photoButton = screen.getAllByLabelText(/view photo/i)[1]
+      await user.click(photoButton)
+      await user.keyboard('[/ShiftLeft]')
+
+      // Both should be selected
+      await waitFor(() => {
+        const allCheckboxes = screen.getAllByRole('checkbox')
+        expect(allCheckboxes[0]).toBeChecked()
+        expect(allCheckboxes[1]).toBeChecked()
+      })
+    })
+
+    it('requires index prop for range selection', async () => {
+      const user = userEvent.setup()
+
+      const TestWrapper = () => {
+        const { toggleSelectMode } = useSelectionContext()
+
+        React.useEffect(() => {
+          toggleSelectMode()
+        }, [toggleSelectMode])
+
+        // PhotoGridItem WITHOUT index prop
+        return <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} />
+      }
+
+      render(<TestWrapper />, { wrapper: createSelectionWrapper() })
+
+      await waitFor(() => {
+        const checkbox = screen.getByRole('checkbox')
+        expect(checkbox).toBeInTheDocument()
+      })
+
+      // Shift+Click should still work but won't do range selection
+      await user.keyboard('[ShiftLeft>]')
+      const photoButton = screen.getByLabelText(/view photo/i)
+      await user.click(photoButton)
+      await user.keyboard('[/ShiftLeft]')
+
+      // Should still toggle selection (no crash)
+      await waitFor(() => {
+        const checkbox = screen.getByRole('checkbox')
+        expect(checkbox).toBeChecked()
+      })
+    })
+  })
+
+  // === Keyboard Accessibility ===
+  describe('Keyboard Accessibility', () => {
+    it('checkbox is focusable', async () => {
+      const TestWrapper = () => {
+        const { toggleSelectMode } = useSelectionContext()
+
+        React.useEffect(() => {
+          toggleSelectMode()
+        }, [toggleSelectMode])
+
+        return <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} index={0} />
+      }
+
+      render(<TestWrapper />, { wrapper: createSelectionWrapper() })
+
+      await waitFor(() => {
+        const checkbox = screen.getByRole('checkbox')
+        expect(checkbox).toBeInTheDocument()
+      })
+
+      const checkbox = screen.getByRole('checkbox')
+      checkbox.focus()
+      expect(checkbox).toHaveFocus()
+    })
+
+    it('Space key toggles selection', async () => {
+      const user = userEvent.setup()
+
+      const TestWrapper = () => {
+        const { toggleSelectMode } = useSelectionContext()
+
+        React.useEffect(() => {
+          toggleSelectMode()
+        }, [toggleSelectMode])
+
+        return <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} index={0} />
+      }
+
+      render(<TestWrapper />, { wrapper: createSelectionWrapper() })
+
+      await waitFor(() => {
+        const checkbox = screen.getByRole('checkbox')
+        expect(checkbox).not.toBeChecked()
+      })
+
+      const checkbox = screen.getByRole('checkbox')
+      checkbox.focus()
+
+      // Press Space key
+      await user.keyboard(' ')
+
+      // Checkbox should be checked
+      await waitFor(() => {
+        expect(checkbox).toBeChecked()
+      })
+    })
+
+    it('Enter key does not toggle selection (standard checkbox behavior)', async () => {
+      const user = userEvent.setup()
+
+      const TestWrapper = () => {
+        const { toggleSelectMode } = useSelectionContext()
+
+        React.useEffect(() => {
+          toggleSelectMode()
+        }, [toggleSelectMode])
+
+        return <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} index={0} />
+      }
+
+      render(<TestWrapper />, { wrapper: createSelectionWrapper() })
+
+      await waitFor(() => {
+        const checkbox = screen.getByRole('checkbox')
+        expect(checkbox).not.toBeChecked()
+      })
+
+      const checkbox = screen.getByRole('checkbox')
+      checkbox.focus()
+
+      // Press Enter key (standard checkboxes don't respond to Enter, only Space)
+      await user.keyboard('[Enter]')
+
+      // Checkbox should remain unchecked
+      expect(checkbox).not.toBeChecked()
+    })
+  })
+
+  // === Backwards Compatibility ===
+  describe('Backwards Compatibility', () => {
+    it('works without SelectionProvider (no crash)', () => {
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } }
+      })
+
+      // Render without SelectionProvider
+      expect(() => {
+        render(
+          <QueryClientProvider client={queryClient}>
+            <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} index={0} />
+          </QueryClientProvider>
+        )
+      }).not.toThrow()
+    })
+
+    it('works without index prop', async () => {
+      const TestWrapper = () => {
+        const { toggleSelectMode } = useSelectionContext()
+
+        React.useEffect(() => {
+          toggleSelectMode()
+        }, [toggleSelectMode])
+
+        // No index prop
+        return <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} />
+      }
+
+      expect(() => {
+        render(<TestWrapper />, { wrapper: createSelectionWrapper() })
+      }).not.toThrow()
+
+      await waitFor(() => {
+        const checkbox = screen.getByRole('checkbox')
+        expect(checkbox).toBeInTheDocument()
+      })
+    })
+
+    it('existing onClick behavior still works when NOT in select mode', async () => {
+      const onClick = vi.fn()
+      const user = userEvent.setup()
+
+      render(
+        <PhotoGridItem photo={mockPhoto} onClick={onClick} index={0} />,
+        { wrapper: createSelectionWrapper() }
+      )
+
+      // Not in select mode, should not see checkbox
+      const checkbox = screen.queryByRole('checkbox')
+      expect(checkbox).not.toBeInTheDocument()
+
+      // Click photo should trigger onClick
+      const photoButton = screen.getByLabelText(/view photo/i)
+      await user.click(photoButton)
+
+      expect(onClick).toHaveBeenCalledWith(mockPhoto)
+    })
   })
 })
