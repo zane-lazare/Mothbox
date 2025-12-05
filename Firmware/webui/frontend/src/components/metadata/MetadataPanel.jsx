@@ -70,7 +70,7 @@ export default function MetadataPanel({ photoPath, className = '', onClose }) {
   useEffect(() => {
     if (sidecarData) {
       setEditableData({
-        tags: sidecarData.user_tags || [],
+        tags: sidecarData.tags || [],
         species: sidecarData.species || '',
         species_confidence: sidecarData.species_confidence || 'unknown',
         species_common_name: sidecarData.species_common_name || '',
@@ -86,7 +86,7 @@ export default function MetadataPanel({ photoPath, className = '', onClose }) {
     data: editableData,
     onSave: async (data) => {
       await updateMetadata({
-        user_tags: data.tags,
+        tags: data.tags,
         species: data.species,
         species_confidence: data.species_confidence,
         species_common_name: data.species_common_name,
