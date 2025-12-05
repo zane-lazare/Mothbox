@@ -39,8 +39,8 @@ import MetadataSkeleton from './MetadataSkeleton'
 export default function MetadataPanel({ photoPath, className = '', onClose }) {
   // Ref for panel container to check focus
   const panelRef = useRef(null)
-  // Get filename from path for sidecar operations
-  const filename = photoPath ? photoPath.split('/').pop() : null
+  // Use full relative path for sidecar operations (supports subdirectories)
+  const filename = photoPath || null
 
   // Mobile drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)

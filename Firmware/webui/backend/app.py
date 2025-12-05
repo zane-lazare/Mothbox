@@ -259,6 +259,7 @@ limiter.limit("5 per minute")(app.view_functions["gps.sync_gps"])
 limiter.exempt(app.view_functions["gps.get_gps_status"])
 limiter.exempt(app.view_functions["gallery.get_thumbnail"])
 limiter.exempt(app.view_functions["gallery.get_photo"])
+limiter.exempt(app.view_functions["sidecar.get_photo_metadata"])
 
 print("✓ Rate limiting applied to camera, GPIO, and GPS endpoints")
 

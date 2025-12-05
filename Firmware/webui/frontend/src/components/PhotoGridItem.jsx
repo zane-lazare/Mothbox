@@ -65,7 +65,7 @@ function PhotoGridItem({ photo, onClick }) {
         `}
       >
         <QuickTagButton
-          filename={photo.filename}
+          filename={photo.path}
           onDropdownOpenChange={setIsTagDropdownOpen}
         />
       </div>
