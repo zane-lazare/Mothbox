@@ -78,7 +78,12 @@ export default function BulkProgressModal({
               />
             </div>
 
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <p
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className="text-sm text-gray-600 dark:text-gray-400 mb-4"
+            >
               Processing {processedCount} of {totalCount} photos
               {totalBatches > 1 && ` (Batch ${currentBatch} of ${totalBatches})`}
             </p>

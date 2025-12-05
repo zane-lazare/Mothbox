@@ -1415,7 +1415,7 @@ def bulk_delete_photos():
             from routes.sidecar import invalidate_aggregation_cache
             invalidate_aggregation_cache()
         except Exception as e:
-            logger.warning(f"Failed to invalidate sidecar cache: {e}")
+            logger.error(f"Failed to invalidate sidecar cache: {e}", exc_info=True)
 
     return jsonify({
         'success': success,

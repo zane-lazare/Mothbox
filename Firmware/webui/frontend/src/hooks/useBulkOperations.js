@@ -53,6 +53,11 @@ export default function useBulkOperations() {
 
   /**
    * Helper function to fetch previous state for undo support
+   *
+   * Note: There is a small window between fetching previousState and executing
+   * the operation where another process could modify the same photos. In a
+   * single-user scenario (typical for Mothbox), this is extremely unlikely.
+   * If multi-user support is added, consider optimistic locking or timestamps.
    */
   const fetchPreviousState = useCallback(async (filenames, fields = ['tags', 'species']) => {
     const previousState = {}
