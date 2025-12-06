@@ -123,6 +123,7 @@ function selectionReducer(state, action) {
       return {
         ...state,
         selectedPhotos: newSet,
+        lastClickedIndex: toIndex,
       }
     }
 
