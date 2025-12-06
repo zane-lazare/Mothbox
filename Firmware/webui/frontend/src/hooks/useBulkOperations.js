@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { api } from '../utils/api'
+import { api, getBulkSidecarMetadata } from '../utils/api'
+import { API_LIMITS } from '../constants/config'
 
-const MAX_BATCH_SIZE = 100
+const MAX_BATCH_SIZE = API_LIMITS.MAX_BATCH_SIZE
 
 /**
  * Custom hook for bulk operations on photos (tag, species, delete)
@@ -54,6 +55,9 @@ export default function useBulkOperations() {
   /**
    * Helper function to fetch previous state for undo support
    *
+   * Uses the bulk GET /api/sidecar/bulk endpoint to fetch all metadata in a
+   * single request instead of N individual API calls.
+   *
    * Note: There is a small window between fetching previousState and executing
    * the operation where another process could modify the same photos. In a
    * single-user scenario (typical for Mothbox), this is extremely unlikely.
@@ -62,29 +66,27 @@ export default function useBulkOperations() {
   const fetchPreviousState = useCallback(async (filenames, fields = ['tags', 'species']) => {
     const previousState = {}
 
-    await Promise.all(
-      filenames.map(async (filename) => {
-        try {
-          const response = await api.get(`/sidecar/photos/${encodeURIComponent(filename)}`)
-          const data = response.data
+    try {
+      // Use bulk endpoint instead of N individual requests
+      const response = await getBulkSidecarMetadata(filenames)
+      const { success } = response.data
 
-          // Extract only requested fields
-          const state = {}
-          fields.forEach(field => {
-            if (data[field] !== undefined) {
-              state[field] = data[field]
-            }
-          })
-
-          previousState[filename] = state
-        } catch (error) {
-          // Warning: Failed fetches are silently omitted from previousState.
-          // This means undo will only restore photos with successful fetches.
-          // Partial undo is better than no undo, but callers should be aware.
-          console.warn(`Failed to fetch previous state for ${filename}:`, error)
-        }
-      })
-    )
+      // Extract only requested fields from each photo's metadata
+      for (const [filename, metadata] of Object.entries(success)) {
+        const state = {}
+        fields.forEach(field => {
+          if (metadata[field] !== undefined) {
+            state[field] = metadata[field]
+          }
+        })
+        previousState[filename] = state
+      }
+    } catch (error) {
+      // Warning: If bulk fetch fails completely, return empty previousState.
+      // This means undo will not work for any photos.
+      // Partial undo is better than no undo, but callers should be aware.
+      console.warn('Failed to fetch previous state:', error)
+    }
 
     return previousState
   }, [])
@@ -226,30 +228,28 @@ export default function useBulkOperations() {
     setIsProcessing(true)
 
     try {
-      // Fetch previous state for undo
+      // Fetch previous state for undo (will also be used for current tags)
       const previousState = await fetchPreviousState(filenames, ['tags'])
 
-      // Fetch current tags for each photo
+      // Use previousState (which has current tags) to build photoUpdates
+      // This avoids a second round of N API calls
       const photoUpdates = {}
       const failedFetches = []
 
-      await Promise.all(
-        filenames.map(async (filename) => {
-          try {
-            const response = await api.get(`/sidecar/photos/${encodeURIComponent(filename)}`)
-            const currentTags = response.data.tags || []
-
-            // Filter out tags to remove
-            const filteredTags = currentTags.filter(tag => !tagsToRemove.includes(tag))
-            photoUpdates[filename] = { tags: filteredTags }
-          } catch (error) {
-            failedFetches.push({
-              filename,
-              error: error.message || 'Failed to fetch metadata'
-            })
-          }
-        })
-      )
+      for (const filename of filenames) {
+        const state = previousState[filename]
+        if (state) {
+          const currentTags = state.tags || []
+          // Filter out tags to remove
+          const filteredTags = currentTags.filter(tag => !tagsToRemove.includes(tag))
+          photoUpdates[filename] = { tags: filteredTags }
+        } else {
+          failedFetches.push({
+            filename,
+            error: 'Failed to fetch metadata'
+          })
+        }
+      }
 
       // If all fetches failed, return early
       if (Object.keys(photoUpdates).length === 0) {

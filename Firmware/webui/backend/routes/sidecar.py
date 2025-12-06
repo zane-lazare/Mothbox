@@ -12,6 +12,7 @@ Endpoints:
 - PATCH  /photos/<filename>          - Update sidecar metadata
 - DELETE /photos/<filename>          - Delete sidecar
 - GET    /photos                     - List all metadata (paginated)
+- GET    /bulk                       - Bulk fetch metadata (N files in 1 request)
 - POST   /bulk                       - Bulk update metadata (Phase 2)
 - GET    /tags                       - List all unique tags with counts
 - GET    /species                    - List all unique species with counts
@@ -759,6 +760,126 @@ def bulk_update_metadata():
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to bulk update metadata")
+        return jsonify({"error": error_msg}), 500
+
+
+# ============================================================================
+# GET /bulk - Bulk fetch metadata (Performance optimization)
+# ============================================================================
+
+@sidecar_bp.route("/bulk", methods=["GET"])
+def bulk_get_metadata():
+    """
+    Fetch metadata for multiple photos in a single request.
+
+    Reduces N+1 API calls to a single request for bulk operations
+    like fetchPreviousState() in useBulkOperations.
+
+    Query Parameters:
+        filenames (str): Comma-separated list of photo filenames (max 100)
+
+    Returns:
+        JSON response with:
+        - success: Dict mapping filename to metadata dict
+        - failed: List of filenames that failed
+        - errors: Dict mapping failed filenames to error messages
+        - total: Total number of files requested
+        - success_count: Number of successful fetches
+        - failed_count: Number of failed fetches
+
+    Status Codes:
+        200: Success (even with partial failures - check response for details)
+        400: Invalid request (missing filenames, too many files)
+        500: Internal server error
+        503: Service unavailable
+
+    Example:
+        GET /api/sidecar/bulk?filenames=photo1.jpg,photo2.jpg,photo3.jpg
+
+        Response:
+        {
+            "success": {
+                "photo1.jpg": {"tags": ["moth"], "species": "Luna moth"},
+                "photo2.jpg": {"tags": [], "species": null}
+            },
+            "failed": ["photo3.jpg"],
+            "errors": {"photo3.jpg": "Photo not found"},
+            "total": 3,
+            "success_count": 2,
+            "failed_count": 1
+        }
+    """
+    try:
+        # Get sidecar service
+        service = current_app.config.get('SIDECAR_SERVICE')
+        if service is None:
+            return jsonify({"error": "Service unavailable"}), 503
+
+        # Parse filenames from query string
+        filenames_param = request.args.get('filenames', '')
+        if not filenames_param:
+            return jsonify({"error": "Missing 'filenames' query parameter"}), 400
+
+        # Split and clean filenames
+        filenames = [f.strip() for f in filenames_param.split(',') if f.strip()]
+
+        if len(filenames) == 0:
+            return jsonify({"error": "No valid filenames provided"}), 400
+
+        if len(filenames) > MAX_BULK_FILES:
+            return jsonify({"error": f"Maximum {MAX_BULK_FILES} files per request"}), 400
+
+        # Process each file
+        success_dict = {}
+        failed_list = []
+        error_dict = {}
+
+        for filename in filenames:
+            try:
+                # Path traversal protection
+                full_path = validate_photo_path(filename, PHOTOS_DIR)
+                if full_path is None:
+                    failed_list.append(filename)
+                    error_dict[filename] = "Invalid path: Access denied"
+                    continue
+
+                # Check if photo exists
+                if not full_path.exists():
+                    failed_list.append(filename)
+                    error_dict[filename] = "Photo not found"
+                    continue
+
+                # Get metadata via service
+                metadata = service.get_metadata(str(full_path))
+
+                if metadata is None:
+                    # No sidecar file - return empty metadata
+                    success_dict[filename] = {
+                        "tags": [],
+                        "species": None,
+                        "notes": None
+                    }
+                else:
+                    # Convert to dict for JSON response
+                    success_dict[filename] = metadata.to_dict()
+
+            except Exception as e:
+                logger.warning(f"Error fetching metadata for {filename}: {e}")
+                failed_list.append(filename)
+                error_dict[filename] = "Fetch failed"
+
+        # Build response
+        return jsonify({
+            "success": success_dict,
+            "failed": failed_list,
+            "errors": error_dict,
+            "total": len(filenames),
+            "success_count": len(success_dict),
+            "failed_count": len(failed_list)
+        }), 200
+
+    except Exception as e:
+        error_msg = sanitize_error_message(e, "Failed to bulk fetch metadata")
         return jsonify({"error": error_msg}), 500
 
 

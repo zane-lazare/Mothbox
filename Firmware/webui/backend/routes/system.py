@@ -8,7 +8,7 @@ from pathlib import Path
 
 # Setup path to import mothbox_paths
 from config import get_config
-from constants import PHOTO_PATTERNS
+from constants import MAX_BULK_DELETE, MAX_BULK_FILES, PHOTO_PATTERNS
 from flask import Blueprint, jsonify
 
 from mothbox_paths import (
@@ -195,6 +195,34 @@ def get_system_info():
         # Tracebacks reveal internal paths, versions, and code structure
         # even in development mode, as the API may be accessible from network
         return jsonify({"error": "Failed to get system info"}), 500
+
+
+@system_bp.route("/config/limits", methods=["GET"])
+def get_api_limits():
+    """
+    Expose API limits for frontend synchronization.
+
+    Returns API rate limits and batch size limits so the frontend can
+    stay in sync with backend constants without hardcoding values.
+
+    Returns:
+        JSON response with:
+        - max_bulk_files: Maximum files per bulk sidecar operation
+        - max_bulk_delete: Maximum files per bulk delete operation
+
+    Example:
+        GET /api/system/config/limits
+
+        Response:
+        {
+            "max_bulk_files": 100,
+            "max_bulk_delete": 100
+        }
+    """
+    return jsonify({
+        "max_bulk_files": MAX_BULK_FILES,
+        "max_bulk_delete": MAX_BULK_DELETE
+    }), 200
 
 
 @system_bp.route("/diagnostic", methods=["GET"])

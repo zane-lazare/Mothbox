@@ -37,7 +37,7 @@ from datetime import datetime
 from itertools import chain
 from pathlib import Path
 
-from constants import PHOTO_PATTERNS
+from constants import MAX_BULK_DELETE, PHOTO_PATTERNS
 from flask import Blueprint, current_app, jsonify, request, send_file
 
 # Import will be available when app.py is created
@@ -1326,10 +1326,6 @@ def invalidate_clustered_locations_cache():
 # ============================================================================
 # DELETE /photos/bulk - Bulk delete photos and sidecar files
 # ============================================================================
-
-# Maximum files per bulk delete request
-MAX_BULK_DELETE = 100
-
 
 @gallery_bp.route('/photos/bulk', methods=['DELETE'])
 def bulk_delete_photos():

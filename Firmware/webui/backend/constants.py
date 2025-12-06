@@ -112,3 +112,9 @@ SIDECAR_PATTERNS: Final[tuple[str, ...]] = (
     "*.jpeg.json",
     "*.JPEG.json",
 )
+
+# =============================================================================
+# BULK API LIMITS (sync with frontend constants/config.js)
+# =============================================================================
+MAX_BULK_FILES: Final[int] = 100  # Max files per bulk sidecar operation
+MAX_BULK_DELETE: Final[int] = 100  # Max files per bulk delete operation

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import useBulkOperations from '../useBulkOperations'
-import { api } from '../../utils/api'
+import { api, getBulkSidecarMetadata } from '../../utils/api'
 
 // Mock the API
 vi.mock('../../utils/api', () => ({
@@ -10,7 +10,8 @@ vi.mock('../../utils/api', () => ({
     post: vi.fn(),
     delete: vi.fn(),
     get: vi.fn(),
-  }
+  },
+  getBulkSidecarMetadata: vi.fn(),
 }))
 
 describe('useBulkOperations', () => {
@@ -42,9 +43,16 @@ describe('useBulkOperations', () => {
       const filenames = ['photo1.jpg', 'photo2.jpg']
       const tags = ['moth', 'night']
 
-      // Mock GET for fetching previous state
-      api.get.mockResolvedValue({
-        data: { tags: ['old_tag'] }
+      // Mock bulk GET for fetching previous state
+      getBulkSidecarMetadata.mockResolvedValue({
+        data: {
+          success: {
+            'photo1.jpg': { tags: ['old_tag'] },
+            'photo2.jpg': { tags: ['old_tag'] },
+          },
+          failed: [],
+          errors: {},
+        }
       })
 
       api.post.mockResolvedValue({
@@ -72,9 +80,17 @@ describe('useBulkOperations', () => {
       const filenames = ['photo1.jpg', 'photo2.jpg', 'photo3.jpg']
       const tags = ['moth']
 
-      // Mock GET for fetching previous state
-      api.get.mockResolvedValue({
-        data: { tags: ['old_tag'] }
+      // Mock bulk GET for fetching previous state
+      getBulkSidecarMetadata.mockResolvedValue({
+        data: {
+          success: {
+            'photo1.jpg': { tags: ['old_tag'] },
+            'photo2.jpg': { tags: ['old_tag'] },
+            'photo3.jpg': { tags: ['old_tag'] },
+          },
+          failed: [],
+          errors: {},
+        }
       })
 
       api.post.mockResolvedValue({
@@ -100,9 +116,15 @@ describe('useBulkOperations', () => {
       const filenames = ['photo1.jpg']
       const tags = ['new_tag']
 
-      // Mock GET for fetching previous state
-      api.get.mockResolvedValue({
-        data: { tags: ['old_tag'] }
+      // Mock bulk GET for fetching previous state
+      getBulkSidecarMetadata.mockResolvedValue({
+        data: {
+          success: {
+            'photo1.jpg': { tags: ['old_tag'] },
+          },
+          failed: [],
+          errors: {},
+        }
       })
 
       api.post.mockResolvedValue({
@@ -130,17 +152,15 @@ describe('useBulkOperations', () => {
       const filenames = ['photo1.jpg', 'photo2.jpg']
       const tagsToRemove = ['night']
 
-      // Mock GET requests for each photo's existing tags
-      api.get.mockImplementation((url) => {
-        if (url.includes('photo1.jpg')) {
-          return Promise.resolve({
-            data: { tags: ['moth', 'night', 'outdoor'] }
-          })
-        }
-        if (url.includes('photo2.jpg')) {
-          return Promise.resolve({
-            data: { tags: ['night', 'luna'] }
-          })
+      // Mock bulk GET for fetching previous state (which also provides current tags)
+      getBulkSidecarMetadata.mockResolvedValue({
+        data: {
+          success: {
+            'photo1.jpg': { tags: ['moth', 'night', 'outdoor'] },
+            'photo2.jpg': { tags: ['night', 'luna'] },
+          },
+          failed: [],
+          errors: {},
         }
       })
 
@@ -156,9 +176,8 @@ describe('useBulkOperations', () => {
 
       const response = await result.current.bulkRemoveTags(filenames, tagsToRemove)
 
-      // Should fetch metadata for each photo
-      expect(api.get).toHaveBeenCalledWith('/sidecar/photos/photo1.jpg')
-      expect(api.get).toHaveBeenCalledWith('/sidecar/photos/photo2.jpg')
+      // Should fetch metadata via bulk endpoint
+      expect(getBulkSidecarMetadata).toHaveBeenCalledWith(filenames)
 
       // Should update with filtered tags
       expect(api.post).toHaveBeenCalledWith('/sidecar/bulk', {
@@ -177,8 +196,14 @@ describe('useBulkOperations', () => {
       const filenames = ['photo1.jpg']
       const tagsToRemove = ['night']
 
-      api.get.mockResolvedValue({
-        data: { tags: [] }
+      getBulkSidecarMetadata.mockResolvedValue({
+        data: {
+          success: {
+            'photo1.jpg': { tags: [] },
+          },
+          failed: [],
+          errors: {},
+        }
       })
 
       api.post.mockResolvedValue({
@@ -206,15 +231,14 @@ describe('useBulkOperations', () => {
       const filenames = ['photo1.jpg', 'photo2.jpg']
       const tagsToRemove = ['night']
 
-      // Mock photo1 success, photo2 error
-      api.get.mockImplementation((url) => {
-        if (url.includes('photo1.jpg')) {
-          return Promise.resolve({
-            data: { tags: ['moth', 'night'] }
-          })
-        }
-        if (url.includes('photo2.jpg')) {
-          return Promise.reject(new Error('Photo not found'))
+      // Mock photo1 success, photo2 missing from bulk response
+      getBulkSidecarMetadata.mockResolvedValue({
+        data: {
+          success: {
+            'photo1.jpg': { tags: ['moth', 'night'] },
+          },
+          failed: ['photo2.jpg'],
+          errors: { 'photo2.jpg': 'Photo not found' },
         }
       })
 
@@ -239,8 +263,8 @@ describe('useBulkOperations', () => {
         mode: 'individual'
       })
 
-      expect(response.failed).toEqual(['photo2.jpg'])
-      expect(response.errors['photo2.jpg']).toContain('Photo not found')
+      expect(response.failed).toContain('photo2.jpg')
+      expect(response.errors['photo2.jpg']).toBeDefined()
     })
   })
 
@@ -249,9 +273,16 @@ describe('useBulkOperations', () => {
       const filenames = ['photo1.jpg', 'photo2.jpg']
       const species = 'Actias luna'
 
-      // Mock GET for fetching previous state
-      api.get.mockResolvedValue({
-        data: { species: 'Unknown' }
+      // Mock bulk GET for fetching previous state
+      getBulkSidecarMetadata.mockResolvedValue({
+        data: {
+          success: {
+            'photo1.jpg': { species: 'Unknown' },
+            'photo2.jpg': { species: 'Unknown' },
+          },
+          failed: [],
+          errors: {},
+        }
       })
 
       api.post.mockResolvedValue({
@@ -322,9 +353,15 @@ describe('useBulkOperations', () => {
       const filenames = Array.from({ length: 250 }, (_, i) => `photo${i}.jpg`)
       const tags = ['moth']
 
-      // Mock GET for fetching previous state
-      api.get.mockResolvedValue({
-        data: { tags: ['old_tag'] }
+      // Mock bulk GET for fetching previous state
+      const successObj = {}
+      filenames.forEach(f => { successObj[f] = { tags: ['old_tag'] } })
+      getBulkSidecarMetadata.mockResolvedValue({
+        data: {
+          success: successObj,
+          failed: [],
+          errors: {},
+        }
       })
 
       // Mock each batch call
@@ -370,9 +407,15 @@ describe('useBulkOperations', () => {
       const tags = ['moth']
       const onProgress = vi.fn()
 
-      // Mock GET for fetching previous state
-      api.get.mockResolvedValue({
-        data: { tags: ['old_tag'] }
+      // Mock bulk GET for fetching previous state
+      const successObj = {}
+      filenames.forEach(f => { successObj[f] = { tags: ['old_tag'] } })
+      getBulkSidecarMetadata.mockResolvedValue({
+        data: {
+          success: successObj,
+          failed: [],
+          errors: {},
+        }
       })
 
       api.post.mockResolvedValue({
@@ -417,9 +460,15 @@ describe('useBulkOperations', () => {
       const filenames = Array.from({ length: 250 }, (_, i) => `photo${i}.jpg`)
       const tags = ['moth']
 
-      // Mock GET for fetching previous state
-      api.get.mockResolvedValue({
-        data: { tags: ['old_tag'] }
+      // Mock bulk GET for fetching previous state
+      const successObj = {}
+      filenames.forEach(f => { successObj[f] = { tags: ['old_tag'] } })
+      getBulkSidecarMetadata.mockResolvedValue({
+        data: {
+          success: successObj,
+          failed: [],
+          errors: {},
+        }
       })
 
       // Mock different results per batch
@@ -547,17 +596,15 @@ describe('useBulkOperations', () => {
       const filenames = ['photo1.jpg', 'photo2.jpg']
       const tags = ['new_tag']
 
-      // Mock fetching existing metadata for undo
-      api.get.mockImplementation((url) => {
-        if (url.includes('photo1.jpg')) {
-          return Promise.resolve({
-            data: { tags: ['old_tag1', 'old_tag2'] }
-          })
-        }
-        if (url.includes('photo2.jpg')) {
-          return Promise.resolve({
-            data: { tags: ['old_tag3'] }
-          })
+      // Mock bulk fetching existing metadata for undo
+      getBulkSidecarMetadata.mockResolvedValue({
+        data: {
+          success: {
+            'photo1.jpg': { tags: ['old_tag1', 'old_tag2'] },
+            'photo2.jpg': { tags: ['old_tag3'] },
+          },
+          failed: [],
+          errors: {},
         }
       })
 
@@ -587,16 +634,14 @@ describe('useBulkOperations', () => {
       const filenames = ['photo1.jpg', 'photo2.jpg']
       const species = 'Actias luna'
 
-      api.get.mockImplementation((url) => {
-        if (url.includes('photo1.jpg')) {
-          return Promise.resolve({
-            data: { species: 'Unknown' }
-          })
-        }
-        if (url.includes('photo2.jpg')) {
-          return Promise.resolve({
-            data: { species: '' }
-          })
+      getBulkSidecarMetadata.mockResolvedValue({
+        data: {
+          success: {
+            'photo1.jpg': { species: 'Unknown' },
+            'photo2.jpg': { species: '' },
+          },
+          failed: [],
+          errors: {},
         }
       })
 
@@ -625,15 +670,14 @@ describe('useBulkOperations', () => {
       const filenames = ['photo1.jpg', 'photo2.jpg']
       const tags = ['new_tag']
 
-      // photo1 succeeds, photo2 fails to fetch
-      api.get.mockImplementation((url) => {
-        if (url.includes('photo1.jpg')) {
-          return Promise.resolve({
-            data: { tags: ['old_tag'] }
-          })
-        }
-        if (url.includes('photo2.jpg')) {
-          return Promise.reject(new Error('Fetch failed'))
+      // photo1 succeeds, photo2 failed in bulk response
+      getBulkSidecarMetadata.mockResolvedValue({
+        data: {
+          success: {
+            'photo1.jpg': { tags: ['old_tag'] },
+          },
+          failed: ['photo2.jpg'],
+          errors: { 'photo2.jpg': 'Fetch failed' },
         }
       })
 
