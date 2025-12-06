@@ -4,22 +4,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BulkTagModal from '../BulkTagModal'
 
-// Mock TagAutocomplete since it has its own tests
-vi.mock('../TagAutocomplete', () => ({
-  default: ({ onSelect, onCreate, selectedTags, placeholder }) => (
-    <div data-testid="tag-autocomplete">
-      <input
-        placeholder={placeholder}
-        data-testid="tag-input"
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && e.target.value) {
-            onCreate(e.target.value)
-            e.target.value = ''
-          }
-        }}
-      />
-    </div>
-  )
+// Mock useTags hook to provide test tag data
+vi.mock('../../../hooks/useTags', () => ({
+  default: () => ({
+    data: {
+      tags: [
+        { name: 'moth', count: 10 },
+        { name: 'nocturnal', count: 5 },
+        { name: 'insect', count: 8 }
+      ]
+    },
+    isLoading: false,
+    error: null
+  })
 }))
 
 // Create QueryClient for tests
@@ -138,16 +135,16 @@ describe('BulkTagModal', () => {
   })
 
   describe('Tag Input', () => {
-    it('shows TagAutocomplete component for tag input', () => {
+    it('shows tag input field', () => {
       renderModal()
-      expect(screen.getByTestId('tag-autocomplete')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText(/Type to search or create tags/i)).toBeInTheDocument()
     })
 
-    it('can add tags via TagAutocomplete', async () => {
+    it('can add tags by typing and pressing Enter', async () => {
       const user = userEvent.setup()
       renderModal()
 
-      const input = screen.getByTestId('tag-input')
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
       await user.type(input, 'moth{Enter}')
 
       // Tag should be displayed as chip
@@ -158,7 +155,7 @@ describe('BulkTagModal', () => {
       const user = userEvent.setup()
       renderModal()
 
-      const input = screen.getByTestId('tag-input')
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
       await user.type(input, 'moth{Enter}')
       await user.type(input, 'nocturnal{Enter}')
 
@@ -170,7 +167,7 @@ describe('BulkTagModal', () => {
       const user = userEvent.setup()
       renderModal()
 
-      const input = screen.getByTestId('tag-input')
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
       await user.type(input, 'moth{Enter}')
 
       expect(screen.getByText('moth')).toBeInTheDocument()
@@ -182,17 +179,30 @@ describe('BulkTagModal', () => {
       expect(screen.queryByText('moth')).not.toBeInTheDocument()
     })
 
-    it('prevents duplicate tags', async () => {
+    it('prevents duplicate tags (case-insensitive)', async () => {
       const user = userEvent.setup()
       renderModal()
 
-      const input = screen.getByTestId('tag-input')
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
       await user.type(input, 'moth{Enter}')
-      await user.type(input, 'moth{Enter}')
+      await user.type(input, 'MOTH{Enter}')
 
-      // Should only have one "moth" tag
+      // Should only have one "moth" tag (case-insensitive duplicate rejected)
       const mothTags = screen.getAllByText('moth')
       expect(mothTags).toHaveLength(1)
+    })
+
+    it('shows existing tags in dropdown when typing', async () => {
+      const user = userEvent.setup()
+      renderModal()
+
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
+      await user.type(input, 'mo')
+
+      // Wait for dropdown to appear with filtered suggestions
+      await waitFor(() => {
+        expect(screen.getByText('(10)')).toBeInTheDocument() // moth count
+      })
     })
   })
 
@@ -217,7 +227,7 @@ describe('BulkTagModal', () => {
       const user = userEvent.setup()
       renderModal()
 
-      const input = screen.getByTestId('tag-input')
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
       await user.type(input, 'moth{Enter}')
 
       const applyButton = screen.getByRole('button', { name: /Apply/i })
@@ -240,7 +250,7 @@ describe('BulkTagModal', () => {
       const onApply = vi.fn()
       renderModal({ onApply })
 
-      const input = screen.getByTestId('tag-input')
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
       await user.type(input, 'moth{Enter}')
       await user.type(input, 'nocturnal{Enter}')
 
@@ -262,7 +272,7 @@ describe('BulkTagModal', () => {
       const radioGroup = screen.getByRole('radiogroup')
       await user.click(within(radioGroup).getByLabelText(/Replace tags/i))
 
-      const input = screen.getByTestId('tag-input')
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
       await user.type(input, 'new-tag{Enter}')
 
       const applyButton = screen.getByRole('button', { name: /Apply/i })
@@ -283,7 +293,7 @@ describe('BulkTagModal', () => {
       const radioGroup = screen.getByRole('radiogroup')
       await user.click(within(radioGroup).getByLabelText(/Remove tags/i))
 
-      const input = screen.getByTestId('tag-input')
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
       await user.type(input, 'unwanted-tag{Enter}')
 
       const applyButton = screen.getByRole('button', { name: /Apply/i })
@@ -349,7 +359,7 @@ describe('BulkTagModal', () => {
       const { rerender } = renderModal({ isOpen: true })
 
       // Add tags
-      const input = screen.getByTestId('tag-input')
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
       await user.type(input, 'moth{Enter}')
 
       // Change mode
@@ -391,7 +401,7 @@ describe('BulkTagModal', () => {
       renderModal({ isLoading: true })
 
       // Even if we have tags, button should be disabled
-      const input = screen.getByTestId('tag-input')
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
       await user.type(input, 'moth{Enter}')
 
       const applyButton = screen.getByRole('button', { name: /Applying.../i })
@@ -449,7 +459,7 @@ describe('BulkTagModal', () => {
       expect(closeButton).toBeInTheDocument()
     })
 
-    it('tags label is properly associated with TagAutocomplete', () => {
+    it('tags label is properly displayed', () => {
       renderModal()
       const label = screen.getByText('Tags')
       expect(label).toHaveClass('block')

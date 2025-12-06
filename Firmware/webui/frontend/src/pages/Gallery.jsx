@@ -311,7 +311,7 @@ function GalleryContent() {
   }, [isSelectMode, toggleSelectMode, selectAll, photos, selectedCount])
 
   // Bulk operation handlers
-  const handleBulkTagApply = useCallback(async (tags, mode) => {
+  const handleBulkTagApply = useCallback(async ({ tags, mode }) => {
     setTagModalOpen(false)
     setProgressModalOpen(true)
     setProgressState({

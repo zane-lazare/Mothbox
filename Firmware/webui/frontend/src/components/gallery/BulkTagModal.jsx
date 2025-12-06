@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import PropTypes from 'prop-types'
 import { XMarkIcon } from '@heroicons/react/24/outline'
-import TagAutocomplete from './TagAutocomplete'
 import TagChip from './TagChip'
+import useTags from '../../hooks/useTags'
 
 const MODES = [
   { value: 'add', label: 'Add tags', description: 'Add to existing tags' },
@@ -35,12 +35,28 @@ export default function BulkTagModal({
 }) {
   const [mode, setMode] = useState('add')
   const [tags, setTags] = useState([])
+  const [inputValue, setInputValue] = useState('')
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const inputRef = useRef(null)
+
+  // Fetch available tags for autocomplete (same as MetadataTags)
+  const { data: tagsData } = useTags({ sort: 'count', order: 'desc', limit: 20 })
+
+  // Filter suggestions based on input value
+  const suggestions = useMemo(() =>
+    tagsData?.tags
+      ?.filter((t) => t.name.toLowerCase().includes(inputValue.toLowerCase()))
+      ?.filter((t) => !tags.some((existing) => existing.toLowerCase() === t.name.toLowerCase()))
+      ?.slice(0, 8) || []
+  , [tagsData, inputValue, tags])
 
   // Reset state when modal opens/closes
   useEffect(() => {
     if (!isOpen) {
       setMode('add')
       setTags([])
+      setInputValue('')
+      setShowSuggestions(false)
     }
   }, [isOpen])
 
@@ -57,8 +73,19 @@ export default function BulkTagModal({
   if (!isOpen) return null
 
   const handleAddTag = (tag) => {
-    if (!tags.includes(tag)) {
-      setTags([...tags, tag])
+    const trimmed = tag.trim()
+    if (!trimmed) return
+    // Case-insensitive duplicate check
+    if (tags.some((t) => t.toLowerCase() === trimmed.toLowerCase())) return
+    setTags([...tags, trimmed])
+    setInputValue('')
+    setShowSuggestions(false)
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === ',' || e.key === 'Enter') {
+      e.preventDefault()
+      handleAddTag(inputValue)
     }
   }
 
@@ -141,12 +168,44 @@ export default function BulkTagModal({
         {/* Tag input */}
         <div className="mb-4">
           <label className="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">Tags</label>
-          <TagAutocomplete
-            onSelect={handleAddTag}
-            onCreate={handleAddTag}
-            selectedTags={tags}
-            placeholder="Search or create tags..."
-          />
+          <div className="relative">
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={(e) => {
+                setInputValue(e.target.value)
+                setShowSuggestions(true)
+              }}
+              onKeyDown={handleKeyDown}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              placeholder="Type to search or create tags..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+            />
+
+            {/* Suggestions Dropdown - shows existing tags */}
+            {showSuggestions && suggestions.length > 0 && (
+              <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg dark:bg-gray-700 dark:border-gray-600 max-h-48 overflow-auto">
+                {suggestions.map((suggestion) => (
+                  <li
+                    key={suggestion.name}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      handleAddTag(suggestion.name)
+                    }}
+                    className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 flex justify-between items-center text-gray-900 dark:text-gray-100"
+                  >
+                    <span>{suggestion.name}</span>
+                    <span className="text-gray-400 text-sm">({suggestion.count})</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Press Enter or comma to add tags
+          </p>
         </div>
 
         {/* Selected tags */}
