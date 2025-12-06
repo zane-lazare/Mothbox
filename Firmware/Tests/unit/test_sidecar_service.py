@@ -102,6 +102,16 @@ def multiple_photos_with_sidecars(photos_dir):
     return photos
 
 
+@pytest.fixture
+def mock_search_service():
+    """Create a mock SearchService for testing integration."""
+    from unittest.mock import Mock
+    search_service = Mock()
+    search_service.index_photo = Mock(return_value=True)
+    search_service.remove_photo = Mock(return_value=True)
+    return search_service
+
+
 # ============================================================================
 # Test Service Initialization
 # ============================================================================
@@ -761,3 +771,135 @@ class TestListAllSidecars:
 
         assert len(results) == 1
         assert results[0].tags == ["moth", "luna", "nocturnal"]
+
+
+# ============================================================================
+# Test Search Service Integration (Issue #131 - Phase 2.2)
+# ============================================================================
+
+class TestSidecarServiceSearchIntegration:
+    """Tests for search index integration."""
+
+    def test_init_without_search_service(self, tmp_path):
+        """Should work without search_service (backward compatible)."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        service = SidecarService(cache_dir=cache_dir)
+        assert service._search_service is None
+
+    def test_init_with_search_service(self, tmp_path, mock_search_service):
+        """Should accept search_service parameter."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        service = SidecarService(cache_dir=cache_dir, search_service=mock_search_service)
+        assert service._search_service is mock_search_service
+
+    def test_update_metadata_indexes_photo(self, tmp_path, mock_search_service):
+        """update_metadata should call search_service.index_photo."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        # Create sample photo
+        photo = photos_dir / "photo.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        service = SidecarService(cache_dir=cache_dir, search_service=mock_search_service)
+        service.update_metadata(str(photo), {"tags": ["moth"]})
+
+        mock_search_service.index_photo.assert_called_once()
+
+    def test_update_metadata_passes_metadata_to_search(self, tmp_path, mock_search_service):
+        """index_photo should receive the photo path and metadata."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        # Create sample photo
+        photo = photos_dir / "photo.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        service = SidecarService(cache_dir=cache_dir, search_service=mock_search_service)
+        metadata_updates = {"tags": ["luna_moth"], "species": "Actias luna"}
+        service.update_metadata(str(photo), metadata_updates)
+
+        # Should have been called once
+        assert mock_search_service.index_photo.call_count == 1
+
+        # Verify it was called with photo path
+        call_args = mock_search_service.index_photo.call_args
+        assert call_args[0][0] == str(photo)
+
+        # Verify metadata dict was passed (as second arg)
+        metadata_dict = call_args[0][1]
+        assert isinstance(metadata_dict, dict)
+        assert "tags" in metadata_dict
+        assert "luna_moth" in metadata_dict["tags"]
+
+    def test_delete_metadata_removes_from_index(self, tmp_path, mock_search_service):
+        """delete_metadata should call search_service.remove_photo."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        # Create sample photo with sidecar
+        photo = photos_dir / "photo.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        service = SidecarService(cache_dir=cache_dir, search_service=mock_search_service)
+
+        # First create a sidecar
+        service.update_metadata(str(photo), {"tags": ["test"]})
+        mock_search_service.reset_mock()
+
+        # Then delete it
+        service.delete_metadata(str(photo))
+        mock_search_service.remove_photo.assert_called_once_with(str(photo))
+
+    def test_search_service_error_does_not_break_sidecar_ops(self, tmp_path, mock_search_service):
+        """Search service errors should not prevent sidecar operations."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        # Create sample photo
+        photo = photos_dir / "photo.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        # Make search service raise an error
+        mock_search_service.index_photo.side_effect = Exception("Search error")
+
+        service = SidecarService(cache_dir=cache_dir, search_service=mock_search_service)
+
+        # Should not raise, sidecar should still be created
+        service.update_metadata(str(photo), {"tags": ["test"]})
+
+        # Verify sidecar was still created
+        metadata = service.get_metadata(str(photo))
+        assert metadata is not None
+        assert "test" in metadata.tags
+
+    def test_no_search_service_no_indexing(self, tmp_path):
+        """Without search_service, no indexing calls should happen."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        # Create sample photo
+        photo = photos_dir / "photo.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        service = SidecarService(cache_dir=cache_dir)  # No search_service
+
+        # Should not raise - no search service means no index calls
+        service.update_metadata(str(photo), {"tags": ["test"]})
+
+        # Verify sidecar was created
+        metadata = service.get_metadata(str(photo))
+        assert metadata is not None
+        assert "test" in metadata.tags

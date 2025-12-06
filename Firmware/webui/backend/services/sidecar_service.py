@@ -125,6 +125,7 @@ class SidecarService:
         l1_max_size: int = 1000,
         l2_max_size: int = 10000,
         cache_version: str = "1.0",
+        search_service: Any | None = None,
     ):
         """
         Initialize sidecar service with two-level cache.
@@ -134,11 +135,13 @@ class SidecarService:
             l1_max_size: Maximum entries in L1 memory cache
             l2_max_size: Maximum entries in L2 file cache
             cache_version: Cache format version
+            search_service: Optional SearchService for automatic index updates
         """
         self.cache_dir = Path(cache_dir)
         self.l1_max_size = l1_max_size
         self.l2_max_size = l2_max_size
         self.cache_version = cache_version
+        self._search_service = search_service
 
         # Create cache directory if it doesn't exist
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -272,6 +275,14 @@ class SidecarService:
             self._set_l1(photo_path, entry)
             self._set_l2(photo_path, entry)
 
+            # Update search index if search service is available
+            if self._search_service:
+                try:
+                    self._search_service.index_photo(photo_path, metadata.to_dict())
+                except Exception as e:
+                    logger.warning(f"Failed to index photo {photo_path}: {e}")
+                    # Don't raise - sidecar operation already succeeded
+
         return metadata
 
     def delete_metadata(self, photo_path: str) -> bool:
@@ -298,6 +309,14 @@ class SidecarService:
 
         # Always invalidate cache - file may be gone, partially deleted, or corrupted
         self.invalidate(photo_path)
+
+        # Remove from search index if search service is available
+        if self._search_service:
+            try:
+                self._search_service.remove_photo(photo_path)
+            except Exception as e:
+                logger.warning(f"Failed to remove photo {photo_path} from index: {e}")
+                # Don't raise - sidecar operation already succeeded
 
         return success
 
