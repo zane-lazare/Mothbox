@@ -199,7 +199,8 @@ except Exception as e:
 
 # Initialize search service (Issue #131)
 try:
-    app.config['SEARCH_SERVICE'] = SearchService()
+    sidecar_svc = app.config.get('SIDECAR_SERVICE')
+    app.config['SEARCH_SERVICE'] = SearchService(sidecar_service=sidecar_svc)
     print("✓ Search service initialized")
 except Exception as e:
     print(f"⚠️  Failed to initialize search service: {e}")
