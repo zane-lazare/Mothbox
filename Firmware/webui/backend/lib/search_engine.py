@@ -86,6 +86,7 @@ class SearchMatch:
         metadata: Full metadata dictionary for the photo
         bm25_score: Raw FTS5 BM25 score before field weighting
         match_type: Type of match ('exact', 'prefix', or 'phrase')
+        highlights: Dict mapping field names to highlighted text with <mark> tags
     """
     filepath: str
     filename: str
@@ -94,6 +95,7 @@ class SearchMatch:
     metadata: dict[str, Any] = field(default_factory=dict)
     bm25_score: float = 0.0
     match_type: str = 'exact'
+    highlights: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -193,9 +195,12 @@ class SearchEngine:
             self.create_index()
 
     def create_index(self):
-        """Create FTS5 virtual table if not exists.
+        """Create FTS5 virtual table and metadata tracking table if not exists.
 
         Uses Porter stemming and Unicode61 tokenizer for better search quality.
+        Also creates a regular table for tracking index metadata (mtime, indexed_at)
+        to support incremental updates.
+
         Idempotent - safe to call multiple times.
         """
         with self._lock:
@@ -216,14 +221,31 @@ class SearchEngine:
                 )
             """)
 
-            self._conn.commit()
-            logger.debug("FTS5 table created/verified")
+            # Create metadata tracking table for incremental sync
+            # This tracks when each photo was indexed and the sidecar's mtime
+            # to efficiently detect which photos need re-indexing
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS photo_index_metadata (
+                    filepath TEXT PRIMARY KEY,
+                    sidecar_mtime REAL,
+                    indexed_at REAL
+                )
+            """)
 
-    def index_photo(self, filepath: str, metadata: dict[str, Any]):
+            self._conn.commit()
+            logger.debug("FTS5 table and metadata tracking table created/verified")
+
+    def index_photo(
+        self,
+        filepath: str,
+        metadata: dict[str, Any],
+        sidecar_mtime: float | None = None
+    ):
         """Add or update photo in search index.
 
         Extracts searchable fields from metadata and indexes them in FTS5.
         If filepath already exists, updates the existing entry.
+        Also updates the metadata tracking table for incremental sync support.
 
         Args:
             filepath: Relative path from PHOTOS_DIR (used as unique key)
@@ -234,6 +256,7 @@ class SearchEngine:
                 - species_common_name: str or None
                 - notes: str or None
                 - custom_fields: dict or None
+            sidecar_mtime: Optional mtime of the sidecar file (for incremental sync)
 
         Example:
             >>> engine.index_photo("photos/moth.jpg", {
@@ -287,12 +310,20 @@ class SearchEngine:
                 date_str
             ))
 
+            # Update metadata tracking table (for incremental sync)
+            indexed_at = time.time()
+            cursor.execute("""
+                INSERT OR REPLACE INTO photo_index_metadata (filepath, sidecar_mtime, indexed_at)
+                VALUES (?, ?, ?)
+            """, (filepath, sidecar_mtime, indexed_at))
+
             self._conn.commit()
             logger.debug(f"Indexed photo: {filepath}")
 
     def remove_photo(self, filepath: str):
         """Remove photo from search index.
 
+        Also removes the entry from the metadata tracking table.
         Idempotent - safe to call even if photo doesn't exist in index.
 
         Args:
@@ -306,6 +337,12 @@ class SearchEngine:
 
             cursor.execute(
                 "DELETE FROM photo_search WHERE filepath = ?",
+                (filepath,)
+            )
+
+            # Also remove from metadata tracking table
+            cursor.execute(
+                "DELETE FROM photo_index_metadata WHERE filepath = ?",
                 (filepath,)
             )
 
@@ -361,9 +398,11 @@ class SearchEngine:
 
                 total = cursor.fetchone()['count']
 
-                # Get all results with BM25 score (we'll apply ranking and pagination after)
+                # Get all results with BM25 score and highlights
                 # Note: FTS5 bm25() returns negative scores where lower = better match
                 # We'll negate it to make higher = better for intuitive ranking
+                # Column indices for highlight(): 0=filename, 2=tags, 3=species,
+                # 4=species_common_name, 5=notes (1=filepath is UNINDEXED)
                 cursor.execute("""
                     SELECT
                         filename,
@@ -374,7 +413,12 @@ class SearchEngine:
                         notes,
                         custom_fields,
                         date,
-                        bm25(photo_search) as bm25_score
+                        bm25(photo_search) as bm25_score,
+                        highlight(photo_search, 0, '<mark>', '</mark>') as filename_hl,
+                        highlight(photo_search, 2, '<mark>', '</mark>') as tags_hl,
+                        highlight(photo_search, 3, '<mark>', '</mark>') as species_hl,
+                        highlight(photo_search, 4, '<mark>', '</mark>') as species_common_name_hl,
+                        highlight(photo_search, 5, '<mark>', '</mark>') as notes_hl
                     FROM photo_search
                     WHERE photo_search MATCH ?
                 """, (query,))
@@ -413,6 +457,9 @@ class SearchEngine:
                     # Calculate final weighted score
                     final_score = self._calculate_score(bm25_score, matched_fields, match_type)
 
+                    # Build highlights dict from FTS5 highlight() results
+                    highlights = self._build_highlights(row)
+
                     match = SearchMatch(
                         filepath=row['filepath'],
                         filename=row['filename'],
@@ -420,7 +467,8 @@ class SearchEngine:
                         matched_fields=matched_fields,
                         metadata=metadata,
                         bm25_score=bm25_score,
-                        match_type=match_type
+                        match_type=match_type,
+                        highlights=highlights
                     )
                     results.append(match)
 
@@ -531,6 +579,209 @@ class SearchEngine:
                 took_ms=took_ms
             )
 
+    def search_with_date_filter(
+        self,
+        query: str | None,
+        date_filter: dict | None,
+        limit: int = 20,
+        offset: int = 0
+    ) -> SearchResult:
+        """Search with optional FTS query and SQL date filter.
+
+        This method combines FTS5 MATCH queries with SQL WHERE clauses for
+        efficient date filtering directly in SQLite, avoiding Python-side
+        filtering that doesn't scale well for large galleries.
+
+        Args:
+            query: FTS5 search query string (optional, can be None/empty for date-only)
+            date_filter: Date filter specification with keys:
+                - operator: 'range', 'gt', 'gte', 'lt', 'lte'
+                - start_date: ISO date string for range start or comparison
+                - end_date: ISO date string for range end (only for 'range')
+            limit: Maximum number of results to return
+            offset: Number of results to skip (for pagination)
+
+        Returns:
+            SearchResult with matches, total count, and timing
+
+        Example:
+            >>> # Date-only query (no FTS)
+            >>> results = engine.search_with_date_filter(
+            ...     query=None,
+            ...     date_filter={'operator': 'range', 'start_date': '2024-01-01', 'end_date': '2024-01-31'},
+            ...     limit=50
+            ... )
+
+            >>> # Combined FTS + date filter
+            >>> results = engine.search_with_date_filter(
+            ...     query='luna moth',
+            ...     date_filter={'operator': 'gte', 'start_date': '2024-01-01'},
+            ...     limit=20
+            ... )
+        """
+        start_time = time.time()
+
+        with self._lock:
+            cursor = self._conn.cursor()
+
+            try:
+                where_clauses = []
+                params = []
+                has_fts_query = query and query.strip()
+
+                # Build date WHERE clause
+                if date_filter:
+                    operator = date_filter.get('operator')
+                    start_date = date_filter.get('start_date')
+                    end_date = date_filter.get('end_date')
+
+                    if operator == 'range' and start_date and end_date:
+                        where_clauses.append("date BETWEEN ? AND ?")
+                        params.extend([start_date, end_date])
+                    elif operator == 'gt' and start_date:
+                        where_clauses.append("date > ?")
+                        params.append(start_date)
+                    elif operator == 'gte' and start_date:
+                        where_clauses.append("date >= ?")
+                        params.append(start_date)
+                    elif operator == 'lt' and start_date:
+                        where_clauses.append("date < ?")
+                        params.append(start_date)
+                    elif operator == 'lte' and start_date:
+                        where_clauses.append("date <= ?")
+                        params.append(start_date)
+
+                # Add FTS MATCH clause if query exists
+                if has_fts_query:
+                    where_clauses.append("photo_search MATCH ?")
+                    params.append(query)
+
+                # Build WHERE clause string
+                where_sql = ""
+                if where_clauses:
+                    where_sql = "WHERE " + " AND ".join(where_clauses)
+
+                # Get total count
+                count_sql = f"SELECT COUNT(*) as count FROM photo_search {where_sql}"
+                cursor.execute(count_sql, params)
+                total = cursor.fetchone()['count']
+
+                # Build SELECT query
+                if has_fts_query:
+                    # With FTS query - include BM25 scoring and highlights
+                    select_sql = f"""
+                        SELECT
+                            filename,
+                            filepath,
+                            tags,
+                            species,
+                            species_common_name,
+                            notes,
+                            custom_fields,
+                            date,
+                            bm25(photo_search) as bm25_score,
+                            highlight(photo_search, 0, '<mark>', '</mark>') as filename_hl,
+                            highlight(photo_search, 2, '<mark>', '</mark>') as tags_hl,
+                            highlight(photo_search, 3, '<mark>', '</mark>') as species_hl,
+                            highlight(photo_search, 4, '<mark>', '</mark>') as species_common_name_hl,
+                            highlight(photo_search, 5, '<mark>', '</mark>') as notes_hl
+                        FROM photo_search
+                        {where_sql}
+                        ORDER BY bm25(photo_search)
+                        LIMIT ? OFFSET ?
+                    """
+                else:
+                    # Date-only query - no FTS scoring, order by date
+                    select_sql = f"""
+                        SELECT
+                            filename,
+                            filepath,
+                            tags,
+                            species,
+                            species_common_name,
+                            notes,
+                            custom_fields,
+                            date
+                        FROM photo_search
+                        {where_sql}
+                        ORDER BY date DESC, filename ASC
+                        LIMIT ? OFFSET ?
+                    """
+
+                # Execute with pagination params
+                cursor.execute(select_sql, params + [limit, offset])
+
+                results = []
+                match_type = self._detect_match_type(query) if has_fts_query else 'exact'
+
+                for row in cursor.fetchall():
+                    # Parse custom fields JSON
+                    custom_fields = {}
+                    if row['custom_fields']:
+                        try:
+                            custom_fields = json.loads(row['custom_fields'])
+                        except json.JSONDecodeError:
+                            logger.debug(f"Failed to parse custom_fields JSON for {row['filepath']}")
+
+                    # Parse tags back to list
+                    tags = row['tags'].split() if row['tags'] else []
+
+                    # Build metadata dictionary
+                    metadata = {
+                        'filename': row['filename'],
+                        'filepath': row['filepath'],
+                        'tags': tags,
+                        'species': row['species'] or None,
+                        'species_common_name': row['species_common_name'] or None,
+                        'notes': row['notes'] or None,
+                        'custom_fields': custom_fields,
+                        'date': row['date'] or None
+                    }
+
+                    if has_fts_query:
+                        # FTS query - use BM25 scoring
+                        bm25_score = abs(float(row['bm25_score']))
+                        matched_fields = self._get_matched_fields(row, query)
+                        final_score = self._calculate_score(bm25_score, matched_fields, match_type)
+                        highlights = self._build_highlights(row)
+                    else:
+                        # Date-only query - no scoring
+                        bm25_score = 0.0
+                        matched_fields = ['date']
+                        final_score = 1.0
+                        highlights = {}
+
+                    match = SearchMatch(
+                        filepath=row['filepath'],
+                        filename=row['filename'],
+                        score=final_score,
+                        matched_fields=matched_fields,
+                        metadata=metadata,
+                        bm25_score=bm25_score,
+                        match_type=match_type,
+                        highlights=highlights
+                    )
+                    results.append(match)
+
+                # For FTS queries, we need to re-sort by our calculated score
+                # (BM25 ordering is already applied by SQL, but we add field weights)
+                if has_fts_query:
+                    results.sort(key=lambda x: x.score, reverse=True)
+
+                took_ms = (time.time() - start_time) * 1000
+
+                return SearchResult(
+                    results=results,
+                    total=total,
+                    took_ms=took_ms
+                )
+
+            except sqlite3.OperationalError as e:
+                # Handle FTS5 query syntax errors gracefully
+                logger.warning(f"Invalid query '{query}' with date filter: {e}")
+                took_ms = (time.time() - start_time) * 1000
+                return SearchResult(results=[], total=0, took_ms=took_ms)
+
     def get_stats(self) -> dict[str, Any]:
         """Get index statistics.
 
@@ -553,6 +804,136 @@ class SearchEngine:
                 'total_documents': total_documents,
                 'db_path': str(self.db_path)
             }
+
+    def get_indexed_metadata(self) -> dict[str, float]:
+        """Get all indexed filepaths and their sidecar mtimes.
+
+        Used by incremental sync to detect which files need re-indexing.
+
+        Returns:
+            Dictionary mapping filepath to sidecar_mtime
+
+        Example:
+            >>> indexed = engine.get_indexed_metadata()
+            >>> print(indexed['photos/moth.jpg'])
+            1704067200.123  # sidecar mtime
+        """
+        with self._lock:
+            cursor = self._conn.cursor()
+
+            cursor.execute("SELECT filepath, sidecar_mtime FROM photo_index_metadata")
+
+            return {
+                row['filepath']: row['sidecar_mtime']
+                for row in cursor.fetchall()
+            }
+
+    def incremental_sync(
+        self,
+        photos: list[dict],
+        index_photo_callback: callable = None
+    ) -> dict:
+        """Sync index with filesystem changes.
+
+        Performs an incremental update of the search index:
+        1. Removes stale entries (photos deleted from filesystem)
+        2. Indexes new photos
+        3. Re-indexes modified photos (based on sidecar mtime)
+        4. Skips unchanged photos
+
+        This is much more efficient than a full rebuild for large galleries
+        where only a few files have changed.
+
+        Args:
+            photos: List of photo dictionaries with keys:
+                - filepath: str (relative path from PHOTOS_DIR)
+                - sidecar_mtime: float (os.stat().st_mtime of sidecar file)
+                - metadata: dict (photo metadata to index)
+            index_photo_callback: Optional callback function to index a single photo.
+                Called with (filepath, metadata, sidecar_mtime).
+                If not provided, uses self.index_photo directly.
+
+        Returns:
+            Statistics dictionary with:
+            - indexed: Number of new photos indexed
+            - updated: Number of modified photos re-indexed
+            - deleted: Number of stale entries removed
+            - unchanged: Number of photos skipped (no changes)
+            - errors: Number of errors encountered
+            - took_ms: Time taken in milliseconds
+
+        Example:
+            >>> photos = [
+            ...     {'filepath': 'moth.jpg', 'sidecar_mtime': 1704067200.0,
+            ...      'metadata': {'tags': ['luna']}},
+            ... ]
+            >>> stats = engine.incremental_sync(photos)
+            >>> print(f"Synced: {stats['indexed']} new, {stats['updated']} updated")
+        """
+        start_time = time.time()
+        stats = {
+            'indexed': 0,
+            'updated': 0,
+            'deleted': 0,
+            'unchanged': 0,
+            'errors': 0
+        }
+
+        with self._lock:
+            try:
+                # Get currently indexed filepaths and their mtimes
+                indexed = self.get_indexed_metadata()
+
+                # Build set of current filesystem filepaths
+                current_filepaths = {p['filepath'] for p in photos}
+
+                # 1. Find and remove stale entries (in index but not in filesystem)
+                stale_filepaths = set(indexed.keys()) - current_filepaths
+                for filepath in stale_filepaths:
+                    try:
+                        self.remove_photo(filepath)
+                        stats['deleted'] += 1
+                    except Exception as e:
+                        logger.warning(f"Error removing stale photo {filepath}: {e}")
+                        stats['errors'] += 1
+
+                # 2. Process each photo from filesystem
+                for photo in photos:
+                    filepath = photo['filepath']
+                    sidecar_mtime = photo.get('sidecar_mtime')
+                    metadata = photo.get('metadata', {})
+
+                    try:
+                        if filepath not in indexed:
+                            # NEW photo - not in index
+                            self.index_photo(filepath, metadata, sidecar_mtime)
+                            stats['indexed'] += 1
+                        elif sidecar_mtime and indexed[filepath] and sidecar_mtime > indexed[filepath]:
+                            # MODIFIED photo - sidecar mtime is newer
+                            self.index_photo(filepath, metadata, sidecar_mtime)
+                            stats['updated'] += 1
+                        else:
+                            # UNCHANGED photo - skip
+                            stats['unchanged'] += 1
+                    except Exception as e:
+                        logger.warning(f"Error syncing photo {filepath}: {e}")
+                        stats['errors'] += 1
+
+                self._conn.commit()
+
+            except Exception as e:
+                logger.error(f"Incremental sync failed: {e}")
+                stats['errors'] += 1
+
+        stats['took_ms'] = (time.time() - start_time) * 1000
+        logger.info(
+            f"Incremental sync complete: {stats['indexed']} new, "
+            f"{stats['updated']} updated, {stats['deleted']} deleted, "
+            f"{stats['unchanged']} unchanged, {stats['errors']} errors, "
+            f"{stats['took_ms']:.1f}ms"
+        )
+
+        return stats
 
     def close(self):
         """Close database connection.
@@ -648,6 +1029,42 @@ class SearchEngine:
         final_score = bm25_score * avg_field_weight * match_multiplier
 
         return final_score
+
+    def _build_highlights(self, row: sqlite3.Row) -> dict[str, str]:
+        """Build highlights dictionary from FTS5 highlight() results.
+
+        Only includes fields where the highlighted text contains <mark> tags,
+        indicating that a match was found in that field.
+
+        Args:
+            row: Database row with highlight columns (*_hl)
+
+        Returns:
+            Dictionary mapping field names to highlighted text with <mark> tags
+
+        Example:
+            >>> highlights = engine._build_highlights(row)
+            >>> print(highlights)
+            {'tags': 'nocturnal <mark>luna</mark> moth', 'species': 'Actias <mark>luna</mark>'}
+        """
+        highlights = {}
+
+        # Map of highlight column names to field names
+        highlight_fields = [
+            ('filename_hl', 'filename'),
+            ('tags_hl', 'tags'),
+            ('species_hl', 'species'),
+            ('species_common_name_hl', 'species_common_name'),
+            ('notes_hl', 'notes'),
+        ]
+
+        for hl_column, field_name in highlight_fields:
+            hl_value = row[hl_column]
+            # Only include if the field has highlighted content
+            if hl_value and '<mark>' in hl_value:
+                highlights[field_name] = hl_value
+
+        return highlights
 
     def _extract_date_from_filename(self, filename: str) -> str:
         """Extract ISO date from Mothbox filename pattern.

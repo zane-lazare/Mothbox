@@ -6,7 +6,8 @@ Provides REST endpoints for photo search functionality.
 Endpoints:
 - GET /api/photos/search - Search photos by query
 - GET /api/photos/search/stats - Get search index statistics
-- POST /api/photos/search/rebuild - Rebuild search index
+- POST /api/photos/search/rebuild - Full rebuild of search index
+- POST /api/photos/search/sync - Incremental sync of search index
 
 Author: Mothbox Team
 Date: 2024-12-06
@@ -248,6 +249,62 @@ def rebuild_index():
         }), 500
 
 
+@search_bp.route('/sync', methods=['POST'])
+@limiter.limit("10 per minute")  # Rate limit sync operation
+def sync_index():
+    """
+    Incrementally sync the search index.
+
+    This endpoint performs an incremental update of the search index,
+    only re-indexing photos that have changed since the last sync.
+    Much more efficient than rebuild for large galleries.
+
+    Returns:
+        200: Index synced successfully
+        503: Search service unavailable
+
+    Example:
+        POST /api/photos/search/sync
+
+    Response:
+        {
+            "indexed": 5,
+            "updated": 3,
+            "deleted": 1,
+            "unchanged": 1226,
+            "errors": 0,
+            "took_ms": 432.1,
+            "message": "Index synced successfully"
+        }
+    """
+    # Get search service from app context
+    search_service = current_app.config.get('SEARCH_SERVICE')
+    if not search_service:
+        return jsonify({
+            'error': 'Search service not available'
+        }), 503
+
+    try:
+        stats = search_service.sync_index()
+
+        response = {
+            'indexed': stats.get('indexed', 0),
+            'updated': stats.get('updated', 0),
+            'deleted': stats.get('deleted', 0),
+            'unchanged': stats.get('unchanged', 0),
+            'errors': stats.get('errors', 0),
+            'took_ms': stats.get('took_ms', 0),
+            'message': 'Index synced successfully'
+        }
+
+        return jsonify(response), 200
+    except Exception as e:
+        return jsonify({
+            'error': 'Index sync failed',
+            'message': str(e)
+        }), 500
+
+
 def _format_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     Format search results for API response.
@@ -259,12 +316,13 @@ def _format_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
         results: Raw search results from search service
 
     Returns:
-        Formatted results with thumbnail URLs and metadata
+        Formatted results with thumbnail URLs, metadata, and highlights
 
     Example:
         Input: [{'filename': 'IMG_001.jpg', 'filepath': '2024-11-10/IMG_001.jpg', ...}]
         Output: [{'filename': 'IMG_001.jpg', 'path': '2024-11-10/IMG_001.jpg',
-                  'thumbnail_url': '/api/gallery/thumbnail/2024-11-10/IMG_001.jpg', ...}]
+                  'thumbnail_url': '/api/gallery/thumbnail/2024-11-10/IMG_001.jpg',
+                  'highlights': {'tags': '<mark>luna</mark> moth'}, ...}]
     """
     formatted = []
 
@@ -277,7 +335,8 @@ def _format_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
             'thumbnail_url': f'/api/gallery/thumbnail/{filepath}',
             'metadata': result.get('metadata', {}),
             'score': result.get('score', 0),
-            'matched_fields': result.get('matched_fields', [])
+            'matched_fields': result.get('matched_fields', []),
+            'highlights': result.get('highlights', {})
         })
 
     return formatted

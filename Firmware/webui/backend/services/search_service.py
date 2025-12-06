@@ -233,6 +233,97 @@ class SearchService:
             'took_ms': took_ms
         }
 
+    def sync_index(self, photos_dir: Path | None = None) -> dict:
+        """Incremental index sync - only updates changed photos.
+
+        Much more efficient than build_index() for large galleries where
+        only a few files have changed. Uses sidecar file mtime to detect
+        changes.
+
+        Algorithm:
+        1. Scans photos directory for all photos with sidecars
+        2. Compares sidecar mtime with indexed mtime
+        3. Removes stale entries (photos deleted from filesystem)
+        4. Indexes new photos
+        5. Re-indexes modified photos
+        6. Skips unchanged photos
+
+        Args:
+            photos_dir: Directory to scan for photos (uses PHOTOS_DIR if None)
+
+        Returns:
+            Statistics dictionary with:
+            - indexed: Number of new photos indexed
+            - updated: Number of modified photos re-indexed
+            - deleted: Number of stale entries removed
+            - unchanged: Number of photos skipped
+            - errors: Number of errors encountered
+            - took_ms: Time taken in milliseconds
+        """
+        start_time = time.time()
+
+        # Use PHOTOS_DIR if not specified
+        if photos_dir is None:
+            from mothbox_paths import PHOTOS_DIR
+            photos_dir = PHOTOS_DIR
+        else:
+            photos_dir = Path(photos_dir)
+
+        if not photos_dir.exists():
+            logger.warning(f"Photos directory does not exist: {photos_dir}")
+            took_ms = (time.time() - start_time) * 1000
+            return {
+                'indexed': 0,
+                'updated': 0,
+                'deleted': 0,
+                'unchanged': 0,
+                'errors': 0,
+                'took_ms': took_ms
+            }
+
+        # Collect photo info with mtime
+        photos = []
+        photo_extensions = ['*.jpg', '*.JPG', '*.jpeg', '*.JPEG']
+
+        for ext in photo_extensions:
+            for photo_path in photos_dir.rglob(ext):
+                sidecar_path = photo_path.parent / f"{photo_path.name}.json"
+                if not sidecar_path.exists():
+                    continue  # Skip photos without sidecars
+
+                try:
+                    # Get sidecar mtime for change detection
+                    sidecar_mtime = sidecar_path.stat().st_mtime
+
+                    # Read metadata
+                    if self._sidecar_service:
+                        metadata_obj = self._sidecar_service.get_metadata(str(photo_path))
+                    else:
+                        from webui.backend.lib.sidecar_metadata import read_metadata
+                        metadata_obj = read_metadata(str(photo_path))
+
+                    if not metadata_obj:
+                        continue
+
+                    metadata = metadata_obj.to_dict()
+
+                    photos.append({
+                        'filepath': str(photo_path),
+                        'sidecar_mtime': sidecar_mtime,
+                        'metadata': metadata
+                    })
+
+                except Exception as e:
+                    logger.warning(f"Error reading photo {photo_path}: {e}")
+
+        logger.debug(f"Found {len(photos)} photos with sidecars in {photos_dir}")
+
+        # Perform incremental sync
+        with self._lock:
+            stats = self._engine.incremental_sync(photos)
+
+        return stats
+
     def rebuild_if_needed(self, photos_dir: Path | None = None) -> bool:
         """Rebuild index only if missing, corrupted, or empty.
 
@@ -387,8 +478,27 @@ class SearchService:
 
         with self._lock:
             try:
-                # Execute FTS5 search (only if we have a query)
-                if parsed.fts_query.strip():
+                # Use SQL-based date filtering for efficiency
+                # This avoids fetching all documents into Python memory
+                if parsed.date_filter:
+                    # Convert DateFilter to dict for search_with_date_filter
+                    date_filter_dict = {
+                        'operator': parsed.date_filter.operator,
+                        'start_date': parsed.date_filter.start_date,
+                        'end_date': parsed.date_filter.end_date
+                    }
+
+                    # Use combined FTS + SQL date filtering
+                    search_result = self._engine.search_with_date_filter(
+                        query=parsed.fts_query if parsed.fts_query.strip() else None,
+                        date_filter=date_filter_dict,
+                        limit=limit,
+                        offset=offset
+                    )
+                    filtered_results = search_result.results
+                    filtered_total = search_result.total
+                elif parsed.fts_query.strip():
+                    # FTS-only query (no date filter)
                     search_result = self._engine.search(
                         parsed.fts_query,
                         limit=limit,
@@ -397,28 +507,9 @@ class SearchService:
                     filtered_results = search_result.results
                     filtered_total = search_result.total
                 else:
-                    # Empty FTS query - return all documents if we have a date filter
-                    if parsed.date_filter:
-                        # Get all documents and apply date filtering in Python
-                        # We need to get ALL documents first, then filter by date
-                        # Use a large limit to get all documents for date filtering
-                        all_docs = self._engine.get_all_documents(limit=10000, offset=0)
-                        filtered_results = all_docs.results
-                        filtered_total = all_docs.total
-                    else:
-                        filtered_results = []
-                        filtered_total = 0
-
-                # Apply date filter if present
-                if parsed.date_filter and filtered_results:
-                    filtered_results = self._apply_date_filter(
-                        filtered_results,
-                        parsed.date_filter
-                    )
-                    filtered_total = len(filtered_results)
-
-                    # Apply pagination to filtered results
-                    filtered_results = filtered_results[offset:offset + limit]
+                    # Empty query with no date filter
+                    filtered_results = []
+                    filtered_total = 0
 
                 # Convert SearchMatch objects to dictionaries
                 results_dicts = []
@@ -430,7 +521,8 @@ class SearchService:
                         'matched_fields': match.matched_fields,
                         'metadata': match.metadata,
                         'bm25_score': match.bm25_score,
-                        'match_type': match.match_type
+                        'match_type': match.match_type,
+                        'highlights': match.highlights
                     })
 
                 # Calculate has_next

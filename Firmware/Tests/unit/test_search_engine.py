@@ -971,3 +971,773 @@ class TestSearchEngineRanking:
             # Tags have weight 2.0, notes have weight 1.0
             # So photo1 should have significantly higher score
             assert photo1.score > photo2.score
+
+
+class TestSearchEngineHighlighting:
+    """Test FTS5 search result highlighting with <mark> tags"""
+
+    def test_search_returns_highlights_dict(self, tmp_path):
+        """Search results should include a highlights dict"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth.jpg', {
+                'filename': 'moth.jpg',
+                'filepath': 'photos/moth.jpg',
+                'tags': ['luna', 'moth']
+            })
+
+            result = engine.search('luna')
+            assert result.total == 1
+
+            match = result.results[0]
+            assert hasattr(match, 'highlights')
+            assert isinstance(match.highlights, dict)
+
+    def test_highlight_marks_matched_tags(self, tmp_path):
+        """Highlights should contain <mark> tags for matched terms in tags field"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth.jpg', {
+                'filename': 'moth.jpg',
+                'filepath': 'photos/moth.jpg',
+                'tags': ['luna', 'moth', 'nocturnal']
+            })
+
+            result = engine.search('luna')
+            assert result.total == 1
+
+            match = result.results[0]
+            # Should have highlights for tags field
+            assert 'tags' in match.highlights
+            # Highlighted text should contain <mark> tags
+            assert '<mark>' in match.highlights['tags']
+            assert '</mark>' in match.highlights['tags']
+            assert 'luna' in match.highlights['tags'].lower()
+
+    def test_highlight_marks_matched_species(self, tmp_path):
+        """Highlights should contain <mark> tags for matched species"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth.jpg', {
+                'filename': 'moth.jpg',
+                'filepath': 'photos/moth.jpg',
+                'species': 'Actias luna',
+                'species_common_name': 'Luna Moth'
+            })
+
+            result = engine.search('luna')
+            assert result.total == 1
+
+            match = result.results[0]
+            # Should have highlights for species field
+            assert 'species' in match.highlights
+            assert '<mark>' in match.highlights['species']
+
+    def test_highlight_marks_matched_notes(self, tmp_path):
+        """Highlights should contain <mark> tags for matched notes"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth.jpg', {
+                'filename': 'moth.jpg',
+                'filepath': 'photos/moth.jpg',
+                'notes': 'Beautiful luna moth spotted near the porch light'
+            })
+
+            result = engine.search('luna')
+            assert result.total == 1
+
+            match = result.results[0]
+            # Should have highlights for notes field
+            assert 'notes' in match.highlights
+            assert '<mark>' in match.highlights['notes']
+
+    def test_no_highlights_for_unmatched_fields(self, tmp_path):
+        """Fields without matches should not appear in highlights dict"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth.jpg', {
+                'filename': 'moth.jpg',
+                'filepath': 'photos/moth.jpg',
+                'tags': ['luna'],
+                'notes': 'Some unrelated content here',
+                'species': 'Unknown species'
+            })
+
+            result = engine.search('luna')
+            assert result.total == 1
+
+            match = result.results[0]
+            # Tags should be highlighted
+            assert 'tags' in match.highlights
+            # Notes and species should NOT be in highlights (no match)
+            assert 'notes' not in match.highlights
+            assert 'species' not in match.highlights
+
+    def test_empty_highlights_when_no_match(self, tmp_path):
+        """Highlights should be empty dict when query doesn't match any field"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth.jpg', {
+                'filename': 'moth_2024_01_15__10_30_00.jpg',
+                'filepath': 'photos/moth.jpg',
+                'tags': ['nocturnal']
+            })
+
+            # Search by date (which is indexed but not highlighted)
+            result = engine.search('"2024-01-15"')
+            # If matched, highlights may or may not include date field
+            # But no text content should have <mark> tags
+
+    def test_multiple_fields_highlighted(self, tmp_path):
+        """Multiple fields with matches should all be highlighted"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth.jpg', {
+                'filename': 'luna_moth.jpg',
+                'filepath': 'photos/moth.jpg',
+                'tags': ['luna', 'moth'],
+                'species': 'Actias luna',
+                'notes': 'Luna moth observation'
+            })
+
+            result = engine.search('luna')
+            assert result.total == 1
+
+            match = result.results[0]
+            # All fields with "luna" should be highlighted
+            assert 'tags' in match.highlights
+            assert 'species' in match.highlights
+            assert 'notes' in match.highlights
+            # Each should have <mark> tags
+            for field in ['tags', 'species', 'notes']:
+                assert '<mark>' in match.highlights[field]
+
+    def test_highlight_preserves_surrounding_text(self, tmp_path):
+        """Highlighted text should preserve context around the match"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth.jpg', {
+                'filename': 'moth.jpg',
+                'filepath': 'photos/moth.jpg',
+                'notes': 'Beautiful green luna moth near the porch'
+            })
+
+            result = engine.search('luna')
+            assert result.total == 1
+
+            match = result.results[0]
+            # Full context should be preserved with highlight
+            assert 'notes' in match.highlights
+            highlighted_notes = match.highlights['notes']
+            # Should contain surrounding words
+            assert 'green' in highlighted_notes or 'moth' in highlighted_notes
+
+    def test_highlight_species_common_name(self, tmp_path):
+        """Species common name field should be highlighted"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth.jpg', {
+                'filename': 'moth.jpg',
+                'filepath': 'photos/moth.jpg',
+                'species_common_name': 'Luna Moth'
+            })
+
+            result = engine.search('luna')
+            assert result.total == 1
+
+            match = result.results[0]
+            assert 'species_common_name' in match.highlights
+            assert '<mark>' in match.highlights['species_common_name']
+
+    def test_prefix_search_highlights(self, tmp_path):
+        """Prefix search should also produce highlights"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth.jpg', {
+                'filename': 'moth.jpg',
+                'filepath': 'photos/moth.jpg',
+                'tags': ['luna', 'lunar']
+            })
+
+            result = engine.search('lun*')
+            assert result.total == 1
+
+            match = result.results[0]
+            # Prefix matches should also be highlighted
+            assert 'tags' in match.highlights
+            assert '<mark>' in match.highlights['tags']
+
+
+class TestSearchWithDateFilter:
+    """Test SQL-based date filtering for efficient large-scale queries"""
+
+    def test_date_range_filter(self, tmp_path):
+        """Should filter by date range using SQL BETWEEN"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            # Index photos with different dates
+            engine.index_photo('photos/moth1.jpg', {
+                'filename': 'moth_2024_01_01__12_00_00.jpg',
+                'filepath': 'photos/moth1.jpg',
+                'tags': ['moth']
+            })
+            engine.index_photo('photos/moth2.jpg', {
+                'filename': 'moth_2024_01_15__12_00_00.jpg',
+                'filepath': 'photos/moth2.jpg',
+                'tags': ['moth']
+            })
+            engine.index_photo('photos/moth3.jpg', {
+                'filename': 'moth_2024_02_01__12_00_00.jpg',
+                'filepath': 'photos/moth3.jpg',
+                'tags': ['moth']
+            })
+
+            # Date range filter: Jan 1 - Jan 31
+            result = engine.search_with_date_filter(
+                query=None,
+                date_filter={
+                    'operator': 'range',
+                    'start_date': '2024-01-01',
+                    'end_date': '2024-01-31'
+                }
+            )
+
+            assert result.total == 2
+            filepaths = [r.filepath for r in result.results]
+            assert 'photos/moth1.jpg' in filepaths
+            assert 'photos/moth2.jpg' in filepaths
+            assert 'photos/moth3.jpg' not in filepaths
+
+    def test_date_gt_filter(self, tmp_path):
+        """Should filter by date > start_date"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth1.jpg', {
+                'filename': 'moth_2024_01_01__12_00_00.jpg',
+                'filepath': 'photos/moth1.jpg'
+            })
+            engine.index_photo('photos/moth2.jpg', {
+                'filename': 'moth_2024_01_15__12_00_00.jpg',
+                'filepath': 'photos/moth2.jpg'
+            })
+
+            result = engine.search_with_date_filter(
+                query=None,
+                date_filter={
+                    'operator': 'gt',
+                    'start_date': '2024-01-01'
+                }
+            )
+
+            assert result.total == 1
+            assert result.results[0].filepath == 'photos/moth2.jpg'
+
+    def test_date_gte_filter(self, tmp_path):
+        """Should filter by date >= start_date"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth1.jpg', {
+                'filename': 'moth_2024_01_01__12_00_00.jpg',
+                'filepath': 'photos/moth1.jpg'
+            })
+            engine.index_photo('photos/moth2.jpg', {
+                'filename': 'moth_2024_01_15__12_00_00.jpg',
+                'filepath': 'photos/moth2.jpg'
+            })
+
+            result = engine.search_with_date_filter(
+                query=None,
+                date_filter={
+                    'operator': 'gte',
+                    'start_date': '2024-01-01'
+                }
+            )
+
+            assert result.total == 2
+
+    def test_date_lt_filter(self, tmp_path):
+        """Should filter by date < start_date"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth1.jpg', {
+                'filename': 'moth_2024_01_01__12_00_00.jpg',
+                'filepath': 'photos/moth1.jpg'
+            })
+            engine.index_photo('photos/moth2.jpg', {
+                'filename': 'moth_2024_01_15__12_00_00.jpg',
+                'filepath': 'photos/moth2.jpg'
+            })
+
+            result = engine.search_with_date_filter(
+                query=None,
+                date_filter={
+                    'operator': 'lt',
+                    'start_date': '2024-01-15'
+                }
+            )
+
+            assert result.total == 1
+            assert result.results[0].filepath == 'photos/moth1.jpg'
+
+    def test_date_lte_filter(self, tmp_path):
+        """Should filter by date <= start_date"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth1.jpg', {
+                'filename': 'moth_2024_01_01__12_00_00.jpg',
+                'filepath': 'photos/moth1.jpg'
+            })
+            engine.index_photo('photos/moth2.jpg', {
+                'filename': 'moth_2024_01_15__12_00_00.jpg',
+                'filepath': 'photos/moth2.jpg'
+            })
+
+            result = engine.search_with_date_filter(
+                query=None,
+                date_filter={
+                    'operator': 'lte',
+                    'start_date': '2024-01-15'
+                }
+            )
+
+            assert result.total == 2
+
+    def test_combined_fts_and_date_filter(self, tmp_path):
+        """Should combine FTS query with date filter"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth1.jpg', {
+                'filename': 'moth_2024_01_01__12_00_00.jpg',
+                'filepath': 'photos/moth1.jpg',
+                'tags': ['luna']
+            })
+            engine.index_photo('photos/moth2.jpg', {
+                'filename': 'moth_2024_01_15__12_00_00.jpg',
+                'filepath': 'photos/moth2.jpg',
+                'tags': ['luna']
+            })
+            engine.index_photo('photos/moth3.jpg', {
+                'filename': 'moth_2024_01_15__12_00_00.jpg',
+                'filepath': 'photos/moth3.jpg',
+                'tags': ['sphinx']
+            })
+
+            # Combined: FTS for 'luna' AND date after Jan 10
+            result = engine.search_with_date_filter(
+                query='luna',
+                date_filter={
+                    'operator': 'gt',
+                    'start_date': '2024-01-10'
+                }
+            )
+
+            assert result.total == 1
+            assert result.results[0].filepath == 'photos/moth2.jpg'
+
+    def test_date_filter_with_pagination(self, tmp_path):
+        """Should support pagination with date filter"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            # Index 10 photos in January
+            for i in range(10):
+                engine.index_photo(f'photos/moth{i}.jpg', {
+                    'filename': f'moth_2024_01_{i+1:02d}__12_00_00.jpg',
+                    'filepath': f'photos/moth{i}.jpg'
+                })
+
+            result = engine.search_with_date_filter(
+                query=None,
+                date_filter={
+                    'operator': 'range',
+                    'start_date': '2024-01-01',
+                    'end_date': '2024-01-31'
+                },
+                limit=5,
+                offset=0
+            )
+
+            assert result.total == 10
+            assert len(result.results) == 5
+
+            # Get next page
+            result2 = engine.search_with_date_filter(
+                query=None,
+                date_filter={
+                    'operator': 'range',
+                    'start_date': '2024-01-01',
+                    'end_date': '2024-01-31'
+                },
+                limit=5,
+                offset=5
+            )
+
+            assert result2.total == 10
+            assert len(result2.results) == 5
+
+    def test_date_filter_returns_highlights_for_fts(self, tmp_path):
+        """Combined FTS + date filter should return highlights"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth.jpg', {
+                'filename': 'moth_2024_01_15__12_00_00.jpg',
+                'filepath': 'photos/moth.jpg',
+                'tags': ['luna', 'moth']
+            })
+
+            result = engine.search_with_date_filter(
+                query='luna',
+                date_filter={
+                    'operator': 'gte',
+                    'start_date': '2024-01-01'
+                }
+            )
+
+            assert result.total == 1
+            match = result.results[0]
+            assert 'tags' in match.highlights
+            assert '<mark>' in match.highlights['tags']
+
+    def test_date_only_query_no_highlights(self, tmp_path):
+        """Date-only query should not have FTS highlights"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth.jpg', {
+                'filename': 'moth_2024_01_15__12_00_00.jpg',
+                'filepath': 'photos/moth.jpg',
+                'tags': ['luna']
+            })
+
+            result = engine.search_with_date_filter(
+                query=None,
+                date_filter={
+                    'operator': 'gte',
+                    'start_date': '2024-01-01'
+                }
+            )
+
+            assert result.total == 1
+            match = result.results[0]
+            # No FTS query means no highlights
+            assert match.highlights == {}
+
+    def test_empty_date_filter(self, tmp_path):
+        """Null/empty date filter should return all documents"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth1.jpg', {
+                'filename': 'moth1.jpg',
+                'filepath': 'photos/moth1.jpg',
+                'tags': ['luna']
+            })
+            engine.index_photo('photos/moth2.jpg', {
+                'filename': 'moth2.jpg',
+                'filepath': 'photos/moth2.jpg',
+                'tags': ['luna']
+            })
+
+            result = engine.search_with_date_filter(
+                query='luna',
+                date_filter=None
+            )
+
+            assert result.total == 2
+
+
+class TestIndexMetadataTracking:
+    """Test photo_index_metadata table for incremental sync"""
+
+    def test_index_photo_records_mtime(self, tmp_path):
+        """index_photo should record sidecar_mtime in tracking table"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            sidecar_mtime = 1704067200.123
+
+            engine.index_photo('photos/moth.jpg', {
+                'filename': 'moth.jpg',
+                'filepath': 'photos/moth.jpg'
+            }, sidecar_mtime=sidecar_mtime)
+
+            metadata = engine.get_indexed_metadata()
+
+            assert 'photos/moth.jpg' in metadata
+            assert metadata['photos/moth.jpg'] == sidecar_mtime
+
+    def test_get_indexed_metadata_empty(self, tmp_path):
+        """get_indexed_metadata on empty index should return empty dict"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            metadata = engine.get_indexed_metadata()
+
+            assert isinstance(metadata, dict)
+            assert len(metadata) == 0
+
+    def test_get_indexed_metadata_multiple(self, tmp_path):
+        """get_indexed_metadata should return all indexed filepaths with mtimes"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth1.jpg', {
+                'filename': 'moth1.jpg',
+                'filepath': 'photos/moth1.jpg'
+            }, sidecar_mtime=1000.0)
+
+            engine.index_photo('photos/moth2.jpg', {
+                'filename': 'moth2.jpg',
+                'filepath': 'photos/moth2.jpg'
+            }, sidecar_mtime=2000.0)
+
+            metadata = engine.get_indexed_metadata()
+
+            assert len(metadata) == 2
+            assert metadata['photos/moth1.jpg'] == 1000.0
+            assert metadata['photos/moth2.jpg'] == 2000.0
+
+    def test_remove_photo_cleans_metadata(self, tmp_path):
+        """remove_photo should also remove from metadata tracking table"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            engine.index_photo('photos/moth.jpg', {
+                'filename': 'moth.jpg',
+                'filepath': 'photos/moth.jpg'
+            }, sidecar_mtime=1000.0)
+
+            assert 'photos/moth.jpg' in engine.get_indexed_metadata()
+
+            engine.remove_photo('photos/moth.jpg')
+
+            assert 'photos/moth.jpg' not in engine.get_indexed_metadata()
+
+
+class TestIncrementalSync:
+    """Test incremental_sync for efficient index updates"""
+
+    def test_incremental_sync_new_photos(self, tmp_path):
+        """incremental_sync should index new photos"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            photos = [
+                {
+                    'filepath': 'photos/moth1.jpg',
+                    'sidecar_mtime': 1000.0,
+                    'metadata': {'filename': 'moth1.jpg', 'tags': ['luna']}
+                },
+                {
+                    'filepath': 'photos/moth2.jpg',
+                    'sidecar_mtime': 2000.0,
+                    'metadata': {'filename': 'moth2.jpg', 'tags': ['sphinx']}
+                }
+            ]
+
+            stats = engine.incremental_sync(photos)
+
+            assert stats['indexed'] == 2
+            assert stats['updated'] == 0
+            assert stats['deleted'] == 0
+            assert stats['unchanged'] == 0
+            assert stats['errors'] == 0
+            assert 'took_ms' in stats
+
+            # Verify photos are searchable
+            result = engine.search('luna')
+            assert result.total == 1
+
+    def test_incremental_sync_updated_photos(self, tmp_path):
+        """incremental_sync should re-index modified photos"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            # First sync
+            photos1 = [
+                {
+                    'filepath': 'photos/moth.jpg',
+                    'sidecar_mtime': 1000.0,
+                    'metadata': {'filename': 'moth.jpg', 'tags': ['luna']}
+                }
+            ]
+            engine.incremental_sync(photos1)
+
+            # Second sync with updated mtime
+            photos2 = [
+                {
+                    'filepath': 'photos/moth.jpg',
+                    'sidecar_mtime': 2000.0,  # Newer mtime
+                    'metadata': {'filename': 'moth.jpg', 'tags': ['luna', 'updated']}
+                }
+            ]
+            stats = engine.incremental_sync(photos2)
+
+            assert stats['indexed'] == 0
+            assert stats['updated'] == 1
+            assert stats['unchanged'] == 0
+
+            # Verify updated content is searchable
+            result = engine.search('updated')
+            assert result.total == 1
+
+    def test_incremental_sync_unchanged_photos(self, tmp_path):
+        """incremental_sync should skip unchanged photos"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            photos = [
+                {
+                    'filepath': 'photos/moth.jpg',
+                    'sidecar_mtime': 1000.0,
+                    'metadata': {'filename': 'moth.jpg', 'tags': ['luna']}
+                }
+            ]
+
+            # First sync
+            engine.incremental_sync(photos)
+
+            # Second sync with same mtime
+            stats = engine.incremental_sync(photos)
+
+            assert stats['indexed'] == 0
+            assert stats['updated'] == 0
+            assert stats['unchanged'] == 1
+
+    def test_incremental_sync_deleted_photos(self, tmp_path):
+        """incremental_sync should remove stale entries"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            # First sync with 2 photos
+            photos1 = [
+                {
+                    'filepath': 'photos/moth1.jpg',
+                    'sidecar_mtime': 1000.0,
+                    'metadata': {'filename': 'moth1.jpg', 'tags': ['luna']}
+                },
+                {
+                    'filepath': 'photos/moth2.jpg',
+                    'sidecar_mtime': 2000.0,
+                    'metadata': {'filename': 'moth2.jpg', 'tags': ['sphinx']}
+                }
+            ]
+            engine.incremental_sync(photos1)
+
+            # Second sync with only 1 photo (moth2 was deleted from filesystem)
+            photos2 = [
+                {
+                    'filepath': 'photos/moth1.jpg',
+                    'sidecar_mtime': 1000.0,
+                    'metadata': {'filename': 'moth1.jpg', 'tags': ['luna']}
+                }
+            ]
+            stats = engine.incremental_sync(photos2)
+
+            assert stats['deleted'] == 1
+            assert stats['unchanged'] == 1
+
+            # Verify deleted photo is no longer searchable
+            result = engine.search('sphinx')
+            assert result.total == 0
+
+    def test_incremental_sync_mixed_operations(self, tmp_path):
+        """incremental_sync should handle mixed new/updated/deleted/unchanged"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            # Initial state: 3 photos
+            photos1 = [
+                {
+                    'filepath': 'photos/unchanged.jpg',
+                    'sidecar_mtime': 1000.0,
+                    'metadata': {'filename': 'unchanged.jpg', 'tags': ['unchanged']}
+                },
+                {
+                    'filepath': 'photos/to_update.jpg',
+                    'sidecar_mtime': 1000.0,
+                    'metadata': {'filename': 'to_update.jpg', 'tags': ['old']}
+                },
+                {
+                    'filepath': 'photos/to_delete.jpg',
+                    'sidecar_mtime': 1000.0,
+                    'metadata': {'filename': 'to_delete.jpg', 'tags': ['deleted']}
+                }
+            ]
+            engine.incremental_sync(photos1)
+
+            # New state: 1 unchanged, 1 updated, 1 deleted, 1 new
+            photos2 = [
+                {
+                    'filepath': 'photos/unchanged.jpg',
+                    'sidecar_mtime': 1000.0,  # Same mtime
+                    'metadata': {'filename': 'unchanged.jpg', 'tags': ['unchanged']}
+                },
+                {
+                    'filepath': 'photos/to_update.jpg',
+                    'sidecar_mtime': 2000.0,  # Updated mtime
+                    'metadata': {'filename': 'to_update.jpg', 'tags': ['updated']}
+                },
+                # to_delete.jpg is missing
+                {
+                    'filepath': 'photos/new.jpg',
+                    'sidecar_mtime': 3000.0,
+                    'metadata': {'filename': 'new.jpg', 'tags': ['new']}
+                }
+            ]
+            stats = engine.incremental_sync(photos2)
+
+            assert stats['indexed'] == 1  # new.jpg
+            assert stats['updated'] == 1  # to_update.jpg
+            assert stats['deleted'] == 1  # to_delete.jpg
+            assert stats['unchanged'] == 1  # unchanged.jpg
+            assert stats['errors'] == 0
+
+    def test_incremental_sync_empty_photos_clears_index(self, tmp_path):
+        """incremental_sync with empty list should remove all entries"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            # Index some photos
+            photos = [
+                {
+                    'filepath': 'photos/moth.jpg',
+                    'sidecar_mtime': 1000.0,
+                    'metadata': {'filename': 'moth.jpg', 'tags': ['luna']}
+                }
+            ]
+            engine.incremental_sync(photos)
+
+            # Sync with empty list
+            stats = engine.incremental_sync([])
+
+            assert stats['deleted'] == 1
+            assert engine.get_stats()['total_documents'] == 0
+
+    def test_incremental_sync_returns_took_ms(self, tmp_path):
+        """incremental_sync should return timing info"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            stats = engine.incremental_sync([])
+
+            assert 'took_ms' in stats
+            assert isinstance(stats['took_ms'], float)
+            assert stats['took_ms'] >= 0
