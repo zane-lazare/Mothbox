@@ -40,15 +40,8 @@ function PhotoGridItem({ photo, onClick, index, photos }) {
 
       // Handle Shift+Click for range selection
       if (e.shiftKey && index !== undefined && photos && selectRange) {
-        console.log('[PhotoGridItem] Shift+click detected', {
-          index,
-          photosLength: photos?.length,
-          hasSelectRange: !!selectRange,
-          shiftKey: e.shiftKey
-        })
         selectRange(index, photos.map(p => p.path))
       } else {
-        console.log('[PhotoGridItem] Normal click', { index, path: photo.path, shiftKey: e.shiftKey })
         togglePhoto(photo.path, index)
       }
       return
@@ -66,9 +59,14 @@ function PhotoGridItem({ photo, onClick, index, photos }) {
   const handleCheckboxChange = useCallback((e) => {
     e.stopPropagation()
     if (togglePhoto) {
-      togglePhoto(photo.path, index)
+      // Handle Shift+Click for range selection on checkbox
+      if (e.shiftKey && index !== undefined && photos && selectRange) {
+        selectRange(index, photos.map(p => p.path))
+      } else {
+        togglePhoto(photo.path, index)
+      }
     }
-  }, [togglePhoto, photo.path, index])
+  }, [togglePhoto, selectRange, photo.path, index, photos])
 
   return (
     <div

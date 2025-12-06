@@ -61,9 +61,14 @@ function PhotoListItem({ photo, onClick, index, photos }) {
   const handleCheckboxChange = useCallback((e) => {
     e.stopPropagation()
     if (togglePhoto) {
-      togglePhoto(photo.path, index)
+      // Handle Shift+Click for range selection on checkbox
+      if (e.shiftKey && index !== undefined && photos && selectRange) {
+        selectRange(index, photos.map(p => p.path))
+      } else {
+        togglePhoto(photo.path, index)
+      }
     }
-  }, [togglePhoto, photo.path, index])
+  }, [togglePhoto, selectRange, photo.path, index, photos])
 
   return (
     <div
