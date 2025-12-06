@@ -406,6 +406,70 @@ class TestSearchEngineSearch:
             assert engine.search('LUNA').total == 1
             assert engine.search('Luna').total == 1
 
+    def test_get_all_documents(self, tmp_path):
+        """get_all_documents should return all indexed photos"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            # Index multiple photos
+            engine.index_photo('photos/moth1.jpg', {
+                'filename': 'moth_2024_11_01__12_00_00.jpg',
+                'filepath': 'photos/moth1.jpg',
+                'tags': ['luna']
+            })
+            engine.index_photo('photos/moth2.jpg', {
+                'filename': 'moth_2024_11_02__12_00_00.jpg',
+                'filepath': 'photos/moth2.jpg',
+                'tags': ['actias']
+            })
+            engine.index_photo('photos/moth3.jpg', {
+                'filename': 'moth_2024_11_03__12_00_00.jpg',
+                'filepath': 'photos/moth3.jpg',
+                'tags': ['sphinx']
+            })
+
+            # Get all documents
+            result = engine.get_all_documents()
+
+            assert isinstance(result, SearchResult)
+            assert result.total == 3
+            assert len(result.results) == 3
+            assert result.took_ms >= 0
+
+    def test_get_all_documents_pagination(self, tmp_path):
+        """get_all_documents should support pagination"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            # Index 5 photos
+            for i in range(5):
+                engine.index_photo(f'photos/moth{i}.jpg', {
+                    'filename': f'moth_2024_11_{i+1:02d}__12_00_00.jpg',
+                    'filepath': f'photos/moth{i}.jpg',
+                    'tags': [f'tag{i}']
+                })
+
+            # Get with limit
+            result = engine.get_all_documents(limit=2)
+            assert result.total == 5
+            assert len(result.results) == 2
+
+            # Get with offset
+            result = engine.get_all_documents(limit=2, offset=3)
+            assert result.total == 5
+            assert len(result.results) == 2
+
+    def test_get_all_documents_empty_index(self, tmp_path):
+        """get_all_documents on empty index should return empty results"""
+        db_path = tmp_path / "search.db"
+
+        with SearchEngine(db_path) as engine:
+            result = engine.get_all_documents()
+
+            assert isinstance(result, SearchResult)
+            assert result.total == 0
+            assert len(result.results) == 0
+
 
 class TestSearchEngineStats:
     """Test index statistics"""

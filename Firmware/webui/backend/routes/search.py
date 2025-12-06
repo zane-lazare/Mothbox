@@ -12,8 +12,25 @@ Author: Mothbox Team
 Date: 2024-12-06
 """
 
-from flask import Blueprint, request, jsonify, current_app
-from typing import Dict, Any, List
+from typing import Any
+
+from flask import Blueprint, current_app, jsonify, request
+
+# Rate limiter setup (follows pattern from gallery.py)
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+
+    limiter = Limiter(key_func=get_remote_address)
+except ImportError:
+    # Stub for testing without flask_limiter
+    class LimiterStub:
+        def limit(self, *args, **kwargs):
+            def decorator(f):
+                return f
+            return decorator
+
+    limiter = LimiterStub()
 
 # Create blueprint
 search_bp = Blueprint('search', __name__, url_prefix='/api/photos/search')
@@ -22,21 +39,24 @@ search_bp = Blueprint('search', __name__, url_prefix='/api/photos/search')
 MAX_LIMIT = 100
 DEFAULT_LIMIT = 20
 DEFAULT_OFFSET = 0
+MAX_QUERY_LENGTH = 500  # Prevent abuse with excessively long queries
 
 
 @search_bp.route('', methods=['GET'])
+@limiter.limit("60 per minute")  # Rate limit search queries
 def search_photos():
     """
     Search photos by query string.
 
     Query Parameters:
-        q (str, required): Search query
+        q (str, required): Search query (max 500 chars)
         limit (int, optional): Results per page (default: 20, max: 100)
         offset (int, optional): Skip N results (default: 0)
 
     Returns:
         200: Search results with pagination
         400: Invalid query or parameters
+        429: Rate limit exceeded
         503: Search service unavailable
 
     Example:
@@ -63,6 +83,13 @@ def search_photos():
         return jsonify({
             'error': 'Missing query',
             'message': "Query parameter 'q' is required"
+        }), 400
+
+    # Validate query length to prevent abuse
+    if len(query) > MAX_QUERY_LENGTH:
+        return jsonify({
+            'error': 'Query too long',
+            'message': f'Query must be {MAX_QUERY_LENGTH} characters or less'
         }), 400
 
     # Parse and validate limit parameter
@@ -173,6 +200,7 @@ def search_stats():
 
 
 @search_bp.route('/rebuild', methods=['POST'])
+@limiter.limit("5 per minute")  # Rate limit expensive rebuild operation
 def rebuild_index():
     """
     Rebuild the search index.
@@ -220,7 +248,7 @@ def rebuild_index():
         }), 500
 
 
-def _format_results(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _format_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     Format search results for API response.
 

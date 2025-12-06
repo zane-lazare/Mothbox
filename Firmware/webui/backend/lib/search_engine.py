@@ -28,7 +28,6 @@ Usage:
         results = engine.search("luna")
 """
 
-import contextlib
 import json
 import logging
 import re
@@ -388,8 +387,10 @@ class SearchEngine:
                     # Parse custom fields JSON
                     custom_fields = {}
                     if row['custom_fields']:
-                        with contextlib.suppress(json.JSONDecodeError):
+                        try:
                             custom_fields = json.loads(row['custom_fields'])
+                        except json.JSONDecodeError:
+                            logger.debug(f"Failed to parse custom_fields JSON for {row['filepath']}")
 
                     # Parse tags back to list
                     tags = row['tags'].split() if row['tags'] else []
@@ -442,6 +443,93 @@ class SearchEngine:
                 logger.warning(f"Invalid FTS5 query '{query}': {e}")
                 took_ms = (time.time() - start_time) * 1000
                 return SearchResult(results=[], total=0, took_ms=took_ms)
+
+    def get_all_documents(self, limit: int = 1000, offset: int = 0) -> SearchResult:
+        """Get all documents from the index.
+
+        Used for date-only queries where we need to fetch all documents
+        and apply date filtering in Python rather than FTS5.
+
+        Args:
+            limit: Maximum number of results to return
+            offset: Number of results to skip (for pagination)
+
+        Returns:
+            SearchResult with all matches (no FTS scoring)
+
+        Example:
+            >>> all_docs = engine.get_all_documents(limit=100)
+            >>> for match in all_docs.results:
+            ...     print(f"{match.filename}: {match.metadata['date']}")
+        """
+        start_time = time.time()
+
+        with self._lock:
+            cursor = self._conn.cursor()
+
+            # Get total count
+            cursor.execute("SELECT COUNT(*) as count FROM photo_search")
+            total = cursor.fetchone()['count']
+
+            # Get all documents with pagination
+            cursor.execute("""
+                SELECT
+                    filename,
+                    filepath,
+                    tags,
+                    species,
+                    species_common_name,
+                    notes,
+                    custom_fields,
+                    date
+                FROM photo_search
+                ORDER BY date DESC, filename ASC
+                LIMIT ? OFFSET ?
+            """, (limit, offset))
+
+            results = []
+            for row in cursor.fetchall():
+                # Parse custom fields JSON
+                custom_fields = {}
+                if row['custom_fields']:
+                    try:
+                        custom_fields = json.loads(row['custom_fields'])
+                    except json.JSONDecodeError:
+                        logger.debug(f"Failed to parse custom_fields JSON for {row['filepath']}")
+
+                # Parse tags back to list
+                tags = row['tags'].split() if row['tags'] else []
+
+                # Build metadata dictionary
+                metadata = {
+                    'filename': row['filename'],
+                    'filepath': row['filepath'],
+                    'tags': tags,
+                    'species': row['species'] or None,
+                    'species_common_name': row['species_common_name'] or None,
+                    'notes': row['notes'] or None,
+                    'custom_fields': custom_fields,
+                    'date': row['date'] or None
+                }
+
+                match = SearchMatch(
+                    filepath=row['filepath'],
+                    filename=row['filename'],
+                    score=1.0,  # No FTS scoring for date-only queries
+                    matched_fields=['date'],
+                    metadata=metadata,
+                    bm25_score=0.0,
+                    match_type='exact'
+                )
+                results.append(match)
+
+            took_ms = (time.time() - start_time) * 1000
+
+            return SearchResult(
+                results=results,
+                total=total,
+                took_ms=took_ms
+            )
 
     def get_stats(self) -> dict[str, Any]:
         """Get index statistics.
@@ -585,15 +673,26 @@ class SearchEngine:
     def _get_matched_fields(self, row: sqlite3.Row, query: str) -> list[str]:
         """Determine which fields matched the search query.
 
-        Simple heuristic: check if query terms appear in each field.
-        This is approximate - FTS5 doesn't expose per-field match info easily.
+        KNOWN LIMITATION: This uses a simple heuristic that checks if query
+        terms appear in each field's text. SQLite FTS5 does not expose
+        per-field match information directly, so this is an approximation.
+
+        The heuristic may:
+        - Report false positives if a term appears in a field but wasn't
+          actually matched by FTS5 (e.g., due to stemming differences)
+        - Miss matches that FTS5 found through advanced tokenization
+        - Not correctly identify matches for complex queries with operators
+
+        For most common search queries (simple terms, phrases), this provides
+        accurate results. The limitation mainly affects edge cases with
+        Porter stemming or complex boolean expressions.
 
         Args:
             row: Database row with search result
             query: Original search query
 
         Returns:
-            List of field names that likely matched
+            List of field names that likely matched (approximate)
 
         Example:
             >>> engine._get_matched_fields(row, "luna moth")

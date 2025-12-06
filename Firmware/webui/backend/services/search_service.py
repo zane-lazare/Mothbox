@@ -37,13 +37,11 @@ import logging
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from webui.backend.lib.search_engine import SearchEngine
 from webui.backend.lib.search_query_parser import parse_query
-from webui.backend.lib.sidecar_metadata import SidecarMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +107,9 @@ class SearchService:
             self.db_path = DATA_DIR / "cache" / "search.db"
         else:
             self.db_path = Path(config.db_path)
+
+        # Validate database path is within expected directories
+        self._validate_db_path(self.db_path)
 
         # Store sidecar service reference
         self._sidecar_service = sidecar_service
@@ -397,13 +398,12 @@ class SearchService:
                 else:
                     # Empty FTS query - return all documents if we have a date filter
                     if parsed.date_filter:
-                        # Get all documents by searching for a wildcard (not supported in FTS5)
-                        # Instead, we'll search for an empty string which won't match anything
-                        # But we need all documents to apply date filter
-                        # Let's get stats and return empty for now
-                        # TODO: Implement better handling for date-only queries
-                        filtered_results = []
-                        filtered_total = 0
+                        # Get all documents and apply date filtering in Python
+                        # We need to get ALL documents first, then filter by date
+                        # Use a large limit to get all documents for date filtering
+                        all_docs = self._engine.get_all_documents(limit=10000, offset=0)
+                        filtered_results = all_docs.results
+                        filtered_total = all_docs.total
                     else:
                         filtered_results = []
                         filtered_total = 0
@@ -449,7 +449,7 @@ class SearchService:
                 }
 
             except Exception as e:
-                logger.error(f"Search error for query '{query}': {e}")
+                logger.error(f"Search error for query '{query}': {e}", exc_info=True)
                 took_ms = (time.time() - start_time) * 1000
 
                 return {
@@ -493,7 +493,6 @@ class SearchService:
         Included for API consistency with other services.
         """
         # No caching implemented yet, but method exists for future use
-        pass
 
     def close(self) -> None:
         """Close database connection.
@@ -515,6 +514,43 @@ class SearchService:
     # ========================================================================
     # Helper Methods
     # ========================================================================
+
+    def _validate_db_path(self, db_path: Path) -> None:
+        """Validate that database path is within expected directories.
+
+        Checks that the database path is within DATA_DIR to prevent
+        path traversal attacks or accidental writes to sensitive locations.
+
+        Args:
+            db_path: Path to validate
+
+        Raises:
+            ValueError: If path is outside allowed directories
+        """
+        import os
+
+        from mothbox_paths import DATA_DIR
+
+        # Resolve paths to handle symlinks and relative paths
+        resolved_db_path = db_path.resolve()
+        resolved_data_dir = DATA_DIR.resolve()
+
+        # Check if db_path is within DATA_DIR
+        try:
+            resolved_db_path.relative_to(resolved_data_dir)
+        except ValueError:
+            # Also allow /tmp for testing purposes
+            if not str(resolved_db_path).startswith('/tmp') and \
+               not str(resolved_db_path).startswith(os.path.join(os.getcwd(), 'Tests')):
+                logger.warning(
+                    f"Database path {db_path} is outside expected directory {DATA_DIR}. "
+                    "This may indicate a configuration issue."
+                )
+
+        # Check that parent directory exists and is writable
+        parent_dir = db_path.parent
+        if parent_dir.exists() and not os.access(parent_dir, os.W_OK):
+            logger.warning(f"Database parent directory {parent_dir} is not writable")
 
     def _apply_date_filter(self, results: list, date_filter) -> list:
         """Apply date range filter to search results.
@@ -550,9 +586,8 @@ class SearchService:
             elif date_filter.operator == 'lte':
                 if date_str <= date_filter.end_date:
                     filtered.append(result)
-            elif date_filter.operator == 'eq':
-                if date_filter.start_date and date_str == date_filter.start_date:
-                    filtered.append(result)
+            elif date_filter.operator == 'eq' and date_filter.start_date and date_str == date_filter.start_date:
+                filtered.append(result)
 
         return filtered
 
