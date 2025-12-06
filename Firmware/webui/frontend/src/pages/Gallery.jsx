@@ -728,8 +728,14 @@ function GalleryContent() {
       ) : (
         /* Photo List */
         <div className="flex flex-col gap-4">
-          {photos.map((photo) => (
-            <PhotoListItem key={photo.path} photo={photo} onClick={setSelectedPhoto} />
+          {displayPhotos.map((photo, index) => (
+            <PhotoListItem
+              key={photo.path}
+              photo={photo}
+              onClick={isSelectMode ? undefined : setSelectedPhoto}
+              index={index}
+              photos={displayPhotos}
+            />
           ))}
         </div>
       )}

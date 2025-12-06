@@ -2,7 +2,7 @@ import { useState, memo, useCallback } from 'react'
 import { GALLERY_CONFIG, Z_INDEX } from '../constants/config'
 import ProgressiveImage from './ProgressiveImage'
 import QuickTagButton from './gallery/QuickTagButton'
-import useSelection from '../hooks/useSelection'
+import { useSelectionContext } from '../contexts/SelectionContext'
 
 /**
  * PhotoGridItem Component
@@ -25,13 +25,8 @@ function PhotoGridItem({ photo, onClick, index, photos }) {
   const [isHovered, setIsHovered] = useState(false)
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false)
 
-  // Try to use selection context, but gracefully handle if not available
-  let selectionContext = null
-  try {
-    selectionContext = useSelection()
-  } catch (error) {
-    // Not within SelectionProvider, selection features disabled
-  }
+  // Use selection context directly (returns null when not in provider)
+  const selectionContext = useSelectionContext()
 
   const isSelectMode = selectionContext?.isSelectMode || false
   const isSelected = selectionContext?.isSelected(photo.path) || false
