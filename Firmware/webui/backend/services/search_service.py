@@ -34,6 +34,7 @@ Usage:
 """
 
 import logging
+import tempfile
 import threading
 import time
 from dataclasses import dataclass
@@ -539,8 +540,8 @@ class SearchService:
         try:
             resolved_db_path.relative_to(resolved_data_dir)
         except ValueError:
-            # Also allow /tmp for testing purposes
-            if not str(resolved_db_path).startswith('/tmp') and \
+            # Also allow temp directory for testing purposes
+            if not str(resolved_db_path).startswith(tempfile.gettempdir()) and \
                not str(resolved_db_path).startswith(os.path.join(os.getcwd(), 'Tests')):
                 logger.warning(
                     f"Database path {db_path} is outside expected directory {DATA_DIR}. "
