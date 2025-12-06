@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import PropTypes from 'prop-types'
 import { MagnifyingGlassIcon, LinkIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import useSpecies from '../../hooks/useSpecies'
-import { METADATA_VALIDATION, SPECIES_CONFIG } from '../../constants/config'
+import { METADATA_VALIDATION, SPECIES_CONFIG, Z_INDEX } from '../../constants/config'
 
 export default function MetadataSpecies({
   species = '',
@@ -111,7 +111,7 @@ export default function MetadataSpecies({
               id="species-suggestions"
               role="listbox"
               aria-label="Species suggestions"
-              className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg dark:bg-gray-800 dark:border-gray-600 max-h-48 overflow-auto"
+              className={`absolute ${Z_INDEX.DROPDOWN} w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg dark:bg-gray-800 dark:border-gray-600 max-h-48 overflow-auto`}
             >
               {suggestions.map((s) => (
                 <li

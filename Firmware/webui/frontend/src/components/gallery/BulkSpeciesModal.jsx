@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import PropTypes from 'prop-types'
 import { XMarkIcon } from '@heroicons/react/24/outline'
-import { SPECIES_CONFIG } from '@/constants/config'
+import { SPECIES_CONFIG, Z_INDEX } from '@/constants/config'
 
 /**
  * BulkSpeciesModal Component
@@ -73,7 +73,7 @@ export default function BulkSpeciesModal({
   const isApplyDisabled = !species.trim() || isLoading
 
   const modal = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className={`fixed inset-0 ${Z_INDEX.MODAL} flex items-center justify-center`}>
       {/* Backdrop with click-to-close */}
       <div
         className="absolute inset-0 bg-black/50"

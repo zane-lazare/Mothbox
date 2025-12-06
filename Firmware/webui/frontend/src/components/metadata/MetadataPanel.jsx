@@ -12,6 +12,7 @@ import MetadataNotes from './MetadataNotes'
 import MetadataCustomFields from './MetadataCustomFields'
 import MetadataEXIF from './MetadataEXIF'
 import MetadataSkeleton from './MetadataSkeleton'
+import { Z_INDEX } from '../../constants/config'
 
 /**
  * MetadataPanel - Container component for photo metadata display and editing
@@ -203,7 +204,7 @@ export default function MetadataPanel({ photoPath, className = '', onClose }) {
       {/* Mobile Toggle Button */}
       <button
         onClick={() => setIsDrawerOpen(true)}
-        className="md:hidden fixed bottom-4 right-4 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors"
+        className={`md:hidden fixed bottom-4 right-4 ${Z_INDEX.TOOLBAR} p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors`}
         aria-label="Open metadata panel"
         data-testid="mobile-toggle-button"
       >
@@ -213,7 +214,7 @@ export default function MetadataPanel({ photoPath, className = '', onClose }) {
       {/* Mobile Overlay */}
       {isDrawerOpen && (
         <div
-          className="md:hidden fixed inset-0 bg-black/50 z-40"
+          className={`md:hidden fixed inset-0 bg-black/50 ${Z_INDEX.TOOLBAR}`}
           onClick={() => setIsDrawerOpen(false)}
           data-testid="mobile-overlay"
           aria-hidden="true"
@@ -228,7 +229,7 @@ export default function MetadataPanel({ photoPath, className = '', onClose }) {
         aria-label="Photo metadata"
         className={`
           ${className}
-          ${isDrawerOpen ? 'fixed inset-x-0 bottom-0 z-50 max-h-[80vh] bg-white dark:bg-gray-900 rounded-t-2xl shadow-lg transform translate-y-0 transition-transform' : 'hidden'}
+          ${isDrawerOpen ? `fixed inset-x-0 bottom-0 ${Z_INDEX.MODAL} max-h-[80vh] bg-white dark:bg-gray-900 rounded-t-2xl shadow-lg transform translate-y-0 transition-transform` : 'hidden'}
           md:block md:relative md:bg-white md:dark:bg-gray-900 flex flex-col
         `}
         tabIndex={-1}

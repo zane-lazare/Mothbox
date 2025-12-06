@@ -1,7 +1,7 @@
 import PropTypes from 'prop-types'
 import { useCallback, memo, useRef, useEffect } from 'react'
 import LazyImage from './LazyImage'
-import { GALLERY_CONFIG, STACKED_CARD_CONFIG } from '../constants/config'
+import { GALLERY_CONFIG, STACKED_CARD_CONFIG, Z_INDEX } from '../constants/config'
 import useSelection from '../hooks/useSelection'
 
 const { Z_INDEX_CLASSES, OFFSETS, SHADOWS } = STACKED_CARD_CONFIG
@@ -236,7 +236,7 @@ function StackedPhotoCard({
 
       {/* Selection checkbox - top left corner (only in select mode) */}
       {isSelectMode && (
-        <div className="absolute top-2 left-2 z-50">
+        <div className={`absolute top-2 left-2 ${Z_INDEX.MODAL}`}>
           <input
             type="checkbox"
             ref={checkboxRef}
@@ -250,7 +250,7 @@ function StackedPhotoCard({
       )}
 
       {/* Series badge - bottom right corner */}
-      <div className="absolute bottom-2 right-2 z-40 px-2 py-1 bg-black/80 text-white text-xs font-medium rounded">
+      <div className={`absolute bottom-2 right-2 ${Z_INDEX.TOOLBAR} px-2 py-1 bg-black/80 text-white text-xs font-medium rounded`}>
         {count} {formatSeriesType(series_type)}
       </div>
     </div>

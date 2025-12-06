@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom'
+import { Z_INDEX } from '../constants/config'
 
 /**
  * Error fallback component for PhotoLightbox errors.
@@ -22,7 +23,7 @@ import { createPortal } from 'react-dom'
 function LightboxErrorFallback({ error, onClose, onRetry }) {
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center"
+      className={`fixed inset-0 bg-black/90 ${Z_INDEX.MODAL} flex items-center justify-center`}
       role="alertdialog"
       aria-labelledby="lightbox-error-title"
       aria-describedby="lightbox-error-description"

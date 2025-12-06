@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import PropTypes from 'prop-types'
-import { METADATA_VALIDATION } from '../../constants/config'
+import { METADATA_VALIDATION, Z_INDEX } from '../../constants/config'
 
 // Import the fuzzy search hook for API-based autocomplete
 import useTagAutocomplete from '../../hooks/useTagAutocomplete'
@@ -271,8 +271,8 @@ function TagAutocomplete({
       {isOpen && isLoading && (
         <div
           role="status"
-          className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border
-                     border-gray-300 dark:border-gray-600 rounded-md shadow-lg p-3"
+          className={`absolute ${Z_INDEX.DROPDOWN} w-full mt-1 bg-white dark:bg-gray-800 border
+                     border-gray-300 dark:border-gray-600 rounded-md shadow-lg p-3`}
         >
           <div className="flex items-center justify-center gap-2">
             <svg
@@ -303,8 +303,8 @@ function TagAutocomplete({
       {isOpen && fuzzySearchResult.error && !isLoading && (
         <div
           role="alert"
-          className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border
-                     border-red-300 dark:border-red-600 rounded-md shadow-lg p-3"
+          className={`absolute ${Z_INDEX.DROPDOWN} w-full mt-1 bg-white dark:bg-gray-800 border
+                     border-red-300 dark:border-red-600 rounded-md shadow-lg p-3`}
         >
           <div className="flex items-center justify-center gap-2">
             <svg
@@ -331,9 +331,9 @@ function TagAutocomplete({
           id="tag-listbox"
           role="listbox"
           ref={listRef}
-          className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border
+          className={`absolute ${Z_INDEX.DROPDOWN} w-full mt-1 bg-white dark:bg-gray-800 border
                      border-gray-300 dark:border-gray-600 rounded-md shadow-lg
-                     max-h-60 overflow-auto"
+                     max-h-60 overflow-auto`}
         >
           {filteredTags.map((tag, index) => (
             <li

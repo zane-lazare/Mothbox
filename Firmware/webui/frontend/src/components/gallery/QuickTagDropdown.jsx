@@ -5,7 +5,7 @@ import { XMarkIcon, CheckIcon, MagnifyingGlassIcon } from '@heroicons/react/20/s
 import TagChip from './TagChip'
 import useTags from '../../hooks/useTags'
 import useSidecarMetadata from '../../hooks/useSidecarMetadata'
-import { METADATA_VALIDATION } from '../../constants/config'
+import { METADATA_VALIDATION, Z_INDEX } from '../../constants/config'
 
 function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
   const dropdownRef = useRef(null)
@@ -204,7 +204,7 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
       }}
       style={floatingStyles}
       className={`
-        z-50 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-xl
+        ${Z_INDEX.MODAL} w-72 bg-white dark:bg-gray-800 rounded-lg shadow-xl
         border border-gray-200 dark:border-gray-700
         transition-all duration-150 origin-top-left
         ${isOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}

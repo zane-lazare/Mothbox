@@ -5,7 +5,7 @@ import L from 'leaflet'
 import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerIconRetina from 'leaflet/dist/images/marker-icon-2x.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
-import { MAP_CONFIG, CLUSTERING_CONFIG } from '../constants/config'
+import { MAP_CONFIG, CLUSTERING_CONFIG, Z_INDEX } from '../constants/config'
 import MarkerHoverPopup from './MarkerHoverPopup'
 import ErrorBoundary from './ErrorBoundary'
 import { useHoverPopup } from '../hooks/useHoverPopup'
@@ -19,7 +19,7 @@ import { getThumbnailUrl } from '../utils/thumbnailUrl'
  */
 function ClusteringControls({ settings, onEnabledChange, onRadiusChange }) {
   return (
-    <div className="absolute top-4 right-4 z-[1000] bg-white rounded-lg shadow-lg p-3 min-w-[200px]">
+    <div className={`absolute top-4 right-4 ${Z_INDEX.MAP_CONTROLS} bg-white rounded-lg shadow-lg p-3 min-w-[200px]`}>
       <h3 className="font-medium text-sm mb-2">Geographic Clustering</h3>
 
       <label className="flex items-center gap-2 mb-2 cursor-pointer">

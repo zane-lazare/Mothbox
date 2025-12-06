@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { XMarkIcon } from '@heroicons/react/24/outline'
+import { Z_INDEX } from '../../constants/config'
 
 // Field options for the dropdown
 const FIELD_OPTIONS = [
@@ -165,7 +166,7 @@ export function AdvancedSearchBuilder({
   const queryPreview = generateQuery()
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center ${Z_INDEX.MODAL}`}>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">

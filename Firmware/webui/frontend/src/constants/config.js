@@ -303,7 +303,7 @@ export const CLUSTERING_CONFIG = {
  * @property {number} HIDE_DELAY_MS - Delay before hiding popup to prevent flicker (ms)
  * @property {number} MAX_PHOTOS - Maximum photos to display in grid
  * @property {number} POPUP_WIDTH - Popup container width in pixels
- * @property {number} Z_INDEX - Z-index for popup layering (above map, below lightbox)
+ * @property {number} Z_INDEX - Z-index for popup layering (must match Z_INDEX.MAP_POPUP)
  * @property {number} SWIPE_THRESHOLD - Minimum swipe distance for mobile navigation (px)
  * @property {number} ANIMATION_DURATION - Fade animation duration (ms)
  */
@@ -410,4 +410,34 @@ export const TAG_AUTOCOMPLETE_CONFIG = {
 export const API_LIMITS = {
   MAX_BATCH_SIZE: 100,    // Backend: MAX_BULK_FILES
   MAX_BULK_DELETE: 100,   // Backend: MAX_BULK_DELETE
+}
+
+/**
+ * Z-Index Layer System
+ *
+ * Centralized z-index values to prevent layering conflicts.
+ * Higher numbers appear above lower numbers.
+ *
+ * Layer hierarchy (bottom to top):
+ * 1. PHOTO_CONTROLS (10) - Checkboxes, quick actions on photo cards
+ * 2. DROPDOWN (30) - Search bar, autocomplete dropdowns
+ * 3. TOOLBAR (40) - Floating action bars
+ * 4. MODAL (50) - Modals, lightbox, full overlays
+ * 5. MAP_CONTROLS (1000) - Leaflet map controls
+ * 6. MAP_POPUP (1100) - Map hover popups (above Leaflet)
+ *
+ * @property {string} PHOTO_CONTROLS - Photo overlay elements (checkboxes, quick actions)
+ * @property {string} DROPDOWN - Dropdowns that need to appear above photo content
+ * @property {string} TOOLBAR - Floating toolbars (bulk actions)
+ * @property {string} MODAL - Full-screen overlays (lightbox, modals)
+ * @property {string} MAP_CONTROLS - Leaflet map control layer
+ * @property {number} MAP_POPUP - Map hover popup (numeric for inline style)
+ */
+export const Z_INDEX = {
+  PHOTO_CONTROLS: 'z-10',    // Checkboxes, quick tag buttons on photos
+  DROPDOWN: 'z-30',          // Search bar dropdowns, autocomplete
+  TOOLBAR: 'z-40',           // Bulk actions toolbar, floating buttons
+  MODAL: 'z-50',             // Modals, lightbox, overlays
+  MAP_CONTROLS: 'z-[1000]',  // Leaflet map controls layer
+  MAP_POPUP: 1100,           // Map hover popup (numeric for inline style)
 }

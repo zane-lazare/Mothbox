@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { MagnifyingGlassIcon, XMarkIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline'
 import { SearchHelp } from './SearchHelp'
+import { Z_INDEX } from '../../constants/config'
 
 const MAX_RECENT_SEARCHES = 5
 const RECENT_SEARCHES_KEY = 'recentSearches'
@@ -259,9 +260,9 @@ export function SearchBar({
         <div
           ref={recentSearchesRef}
           role="listbox"
-          className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border
+          className={`absolute ${Z_INDEX.DROPDOWN} w-full mt-1 bg-white dark:bg-gray-800 border
                      border-gray-300 dark:border-gray-600 rounded-md shadow-lg
-                     max-h-60 overflow-auto"
+                     max-h-60 overflow-auto`}
         >
           {recentSearches.slice(0, MAX_RECENT_SEARCHES).map((query, index) => (
             <div

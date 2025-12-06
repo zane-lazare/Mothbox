@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { LIGHTBOX_CONFIG } from '../constants/config'
+import { LIGHTBOX_CONFIG, Z_INDEX } from '../constants/config'
 import useZoomPan from '../hooks/useZoomPan'
 import useTouchGestures from '../hooks/useTouchGestures'
 import useImagePreload from '../hooks/useImagePreload'
@@ -546,7 +546,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
       aria-modal="true"
       aria-labelledby="lightbox-title"
       aria-describedby="lightbox-description"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90 transition-opacity duration-200 ease-out"
+      className={`fixed inset-0 ${Z_INDEX.MODAL} flex items-center justify-center bg-black bg-opacity-90 transition-opacity duration-200 ease-out`}
       onClick={handleBackdropClick}
     >
       {/* Screen reader title */}

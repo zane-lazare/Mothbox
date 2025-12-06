@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Z_INDEX } from '../constants/config'
 
 export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, defaultWorkflow = 'both' }) {
   const [presetName, setPresetName] = useState('')
@@ -73,7 +74,7 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, def
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className={`fixed inset-0 ${Z_INDEX.MODAL} overflow-y-auto`}>
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"

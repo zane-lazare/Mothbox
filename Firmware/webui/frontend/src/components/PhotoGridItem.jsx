@@ -1,5 +1,5 @@
 import { useState, memo, useCallback } from 'react'
-import { GALLERY_CONFIG } from '../constants/config'
+import { GALLERY_CONFIG, Z_INDEX } from '../constants/config'
 import ProgressiveImage from './ProgressiveImage'
 import QuickTagButton from './gallery/QuickTagButton'
 import useSelection from '../hooks/useSelection'
@@ -99,7 +99,7 @@ function PhotoGridItem({ photo, onClick, index, photos }) {
 
       {/* Checkbox - positioned in top-left (only in select mode) */}
       {isSelectMode && (
-        <div className="absolute top-2 left-2 z-10">
+        <div className={`absolute top-2 left-2 ${Z_INDEX.PHOTO_CONTROLS}`}>
           <input
             type="checkbox"
             checked={isSelected}
@@ -114,7 +114,7 @@ function PhotoGridItem({ photo, onClick, index, photos }) {
       {/* Quick Tag Button - positioned in top-right */}
       <div
         className={`
-          absolute top-2 right-2 z-10
+          absolute top-2 right-2 ${Z_INDEX.PHOTO_CONTROLS}
           transition-opacity duration-150
           ${isHovered || isTagDropdownOpen ? 'opacity-100' : 'opacity-0'}
         `}

@@ -4,6 +4,7 @@ import PropTypes from 'prop-types'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import TagChip from './TagChip'
 import useTags from '../../hooks/useTags'
+import { Z_INDEX } from '../../constants/config'
 
 const MODES = [
   { value: 'add', label: 'Add tags', description: 'Add to existing tags' },
@@ -106,7 +107,7 @@ export default function BulkTagModal({
   }
 
   const modal = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className={`fixed inset-0 ${Z_INDEX.MODAL} flex items-center justify-center`}>
       {/* Backdrop with click-to-close */}
       <div
         className="absolute inset-0 bg-black/50"
@@ -186,7 +187,7 @@ export default function BulkTagModal({
 
             {/* Suggestions Dropdown - shows existing tags */}
             {showSuggestions && suggestions.length > 0 && (
-              <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg dark:bg-gray-700 dark:border-gray-600 max-h-48 overflow-auto">
+              <ul className={`absolute ${Z_INDEX.DROPDOWN} w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg dark:bg-gray-700 dark:border-gray-600 max-h-48 overflow-auto`}>
                 {suggestions.map((suggestion) => (
                   <li
                     key={suggestion.name}

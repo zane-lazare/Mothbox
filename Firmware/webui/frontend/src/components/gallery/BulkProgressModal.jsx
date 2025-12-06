@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom'
 import { XMarkIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline'
+import { Z_INDEX } from '../../constants/config'
 
 /**
  * BulkProgressModal - Displays progress during bulk operations (tag, species, delete)
@@ -49,7 +50,7 @@ export default function BulkProgressModal({
   }
 
   const modal = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className={`fixed inset-0 ${Z_INDEX.MODAL} flex items-center justify-center`}>
       {/* Backdrop - non-interactive during processing */}
       <div className="absolute inset-0 bg-black/50" />
 

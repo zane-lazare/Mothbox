@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom'
 import { TagIcon, BeakerIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import useSelection from '../../hooks/useSelection'
+import { Z_INDEX } from '../../constants/config'
 
 export default function BulkActionsToolbar({
   onTagClick,
@@ -16,10 +17,10 @@ export default function BulkActionsToolbar({
     <div
       role="toolbar"
       aria-label="Bulk actions for selected photos"
-      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40
+      className={`fixed bottom-4 left-1/2 -translate-x-1/2 ${Z_INDEX.TOOLBAR}
                  flex items-center gap-3 px-4 py-3
                  bg-white dark:bg-gray-800
-                 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
+                 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700`}
     >
       {/* Selection count */}
       <span

@@ -2,7 +2,7 @@ import { useState, useRef, useMemo, useCallback } from 'react'
 import PropTypes from 'prop-types'
 import { XMarkIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline'
 import useTags from '../../hooks/useTags'
-import { METADATA_VALIDATION } from '../../constants/config'
+import { METADATA_VALIDATION, Z_INDEX } from '../../constants/config'
 
 export default function MetadataTags({
   tags = [],
@@ -92,7 +92,7 @@ export default function MetadataTags({
 
         {/* Suggestions Dropdown */}
         {showSuggestions && suggestions.length > 0 && inputValue && !disabled && (
-          <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg dark:bg-gray-800 dark:border-gray-600 max-h-60 overflow-auto">
+          <ul className={`absolute ${Z_INDEX.DROPDOWN} w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg dark:bg-gray-800 dark:border-gray-600 max-h-60 overflow-auto`}>
             {suggestions.map((suggestion) => (
               <li
                 key={suggestion.name}
