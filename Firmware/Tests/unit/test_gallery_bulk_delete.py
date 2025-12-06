@@ -251,7 +251,8 @@ class TestBulkDeleteEndpoint:
         assert response.status_code == 200
         data = response.get_json()
         assert 'readonly.jpg' in data['failed']
-        assert 'Permission denied' in data['errors']['readonly.jpg']
+        # Error messages are generic for security (no internal details exposed)
+        assert data['errors']['readonly.jpg'] == 'Failed to delete photo'
 
     def test_delete_invalidates_sidecar_cache(self, client, temp_photos_dir, monkeypatch):
         """DELETE invalidates sidecar cache when files are deleted."""

@@ -141,5 +141,8 @@ export const getAllSpecies = (params = {}) => api.get('/sidecar/species', { para
 export const getPhotoSidecarMetadata = (filename) => api.get(`/sidecar/photos/${encodeURIComponent(filename)}`)
 export const updatePhotoSidecarMetadata = (filename, updates) => api.patch(`/sidecar/photos/${encodeURIComponent(filename)}`, updates)
 export const bulkUpdateSidecarMetadata = (filenames, updates) => api.post('/sidecar/bulk', { filenames, updates })
-export const getBulkSidecarMetadata = (filenames) => api.get('/sidecar/bulk', { params: { filenames: filenames.join(',') } })
+export const getBulkSidecarMetadata = (filenames, options = {}) => api.get('/sidecar/bulk', {
+  params: { filenames: filenames.join(',') },
+  timeout: options.timeout || 30000
+})
 export const getTagAutocomplete = (query, limit = 10) => api.get('/metadata/tags/autocomplete', { params: { q: query, limit } })

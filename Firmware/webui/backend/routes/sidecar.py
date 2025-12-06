@@ -22,7 +22,7 @@ Security:
 - Path traversal protection via validate_photo_path()
 - Input validation (tag length, notes length, etc.)
 - Sanitized error messages (no stack trace exposure)
-- Rate limiting (10/minute suggested for bulk endpoint - to be enforced later)
+- Rate limiting (10/minute for bulk POST, 60/minute for bulk GET)
 
 Authentication Modes:
 1. CSRF token (web UI requests): X-CSRFToken header
@@ -37,6 +37,22 @@ from collections import Counter
 from itertools import chain
 
 from flask import Blueprint, current_app, jsonify, request
+
+# Rate limiting
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+
+    limiter = Limiter(key_func=get_remote_address)
+except ImportError:
+    # Stub for testing without flask_limiter
+    class LimiterStub:
+        def limit(self, *args, **kwargs):
+            def decorator(f):
+                return f
+            return decorator
+
+    limiter = LimiterStub()
 
 from mothbox_paths import PHOTOS_DIR
 from webui.backend.constants import SIDECAR_PATTERNS
@@ -562,6 +578,7 @@ def list_all_metadata():
 # ============================================================================
 
 @sidecar_bp.route("/bulk", methods=["POST"])
+@limiter.limit("10 per minute")
 def bulk_update_metadata():
     """
     Bulk update metadata for multiple photos.
@@ -768,6 +785,7 @@ def bulk_update_metadata():
 # ============================================================================
 
 @sidecar_bp.route("/bulk", methods=["GET"])
+@limiter.limit("60 per minute")
 def bulk_get_metadata():
     """
     Fetch metadata for multiple photos in a single request.

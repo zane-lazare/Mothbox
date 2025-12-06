@@ -1380,6 +1380,12 @@ def bulk_delete_photos():
     errors = {}
 
     for filename in filenames:
+        # Validate filename length
+        if len(filename) > 255:
+            failed.append(filename)
+            errors[filename] = 'Filename too long'
+            continue
+
         # Validate path (prevent traversal)
         photo_path = validate_photo_path(filename, PHOTOS_DIR)
         if photo_path is None:
@@ -1405,8 +1411,8 @@ def bulk_delete_photos():
 
         except Exception as e:
             failed.append(filename)
-            errors[filename] = str(e)
-            logger.error(f"Failed to delete {filename}: {e}")
+            errors[filename] = "Failed to delete photo"
+            logger.error(f"Failed to delete {filename}: {e}", exc_info=True)
 
     # Invalidate caches if any files deleted
     if success:
@@ -1415,7 +1421,7 @@ def bulk_delete_photos():
             from routes.sidecar import invalidate_aggregation_cache
             invalidate_aggregation_cache()
         except Exception as e:
-            logger.error(f"Failed to invalidate sidecar cache: {e}", exc_info=True)
+            logger.warning(f"Failed to invalidate sidecar cache: {e}")
 
     return jsonify({
         'success': success,
