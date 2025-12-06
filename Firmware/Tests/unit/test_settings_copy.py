@@ -376,7 +376,7 @@ class TestSettingsCopyEdgeCases:
                 shutil.copy2(backup.name, WEBUI_SETTINGS_FILE)
                 Path(backup.name).unlink()
 
-    def test_corrupted_settings_data(self):
+    def test_corrupted_settings_data(self, temp_camera_settings):
         """Test copy with corrupted settings file"""
         from routes.config import config_bp
         from flask import Flask

@@ -409,9 +409,11 @@ describe('MetadataPanel (Accordion Refactor)', () => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // Existing tags should be displayed
-      expect(screen.getByTestId('tag-moth')).toBeInTheDocument()
-      expect(screen.getByTestId('tag-nocturnal')).toBeInTheDocument()
+      // Existing tags should be displayed (wait for async render)
+      await waitFor(() => {
+        expect(screen.getByTestId('tag-moth')).toBeInTheDocument()
+        expect(screen.getByTestId('tag-nocturnal')).toBeInTheDocument()
+      })
 
       // Add a tag
       const addTagButton = screen.getByText('Add Tag')
