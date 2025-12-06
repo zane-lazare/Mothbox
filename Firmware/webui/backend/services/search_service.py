@@ -127,8 +127,43 @@ class SearchService:
         # Store auto_rebuild config (will be used on first operation)
         self._auto_rebuild = config.auto_rebuild
         self._auto_rebuild_done = False
+        self._lazy_index_checked = False
 
         logger.debug(f"SearchService initialized with database: {self.db_path}")
+
+    def _ensure_indexed(self) -> None:
+        """Ensure search index is populated (lazy initialization).
+
+        On first search, if the index is empty and we have photos with sidecars,
+        automatically build the index. This provides seamless user experience
+        without requiring manual rebuild.
+
+        Thread-safe: Uses internal lock.
+        """
+        if self._lazy_index_checked:
+            return
+
+        with self._lock:
+            # Double-check after acquiring lock
+            if self._lazy_index_checked:
+                return
+
+            try:
+                # Check if index is empty
+                stats = self._engine.get_statistics()
+                if stats.document_count == 0:
+                    logger.info("Search index is empty, building automatically...")
+                    # Release lock during build (build_index acquires it)
+                    self._lock.release()
+                    try:
+                        result = self.build_index()
+                        logger.info(f"Auto-built search index: {result['indexed']} photos indexed")
+                    finally:
+                        self._lock.acquire()
+            except Exception as e:
+                logger.warning(f"Failed to auto-build search index: {e}")
+
+            self._lazy_index_checked = True
 
     def build_index(self, photos_dir: Path | None = None) -> dict:
         """Full rebuild of search index from all photos and their sidecars.
@@ -460,6 +495,9 @@ class SearchService:
             - error_message: Error description if parsing failed
         """
         start_time = time.time()
+
+        # Ensure index is populated (lazy initialization)
+        self._ensure_indexed()
 
         # Parse query
         parsed = parse_query(query)
