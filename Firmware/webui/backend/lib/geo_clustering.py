@@ -1,5 +1,5 @@
 """
-Geographic Clustering Library for Mothbox Photo Locations (Issue #115)
+Geographic Clustering Library for Mothbox Photo Locations
 
 Provides Haversine distance-based clustering of photo locations with
 configurable radius and performance optimizations.
@@ -51,7 +51,7 @@ class PhotoLocation:
         lon: Longitude in decimal degrees (-180 to 180)
         timestamp: Optional ISO format timestamp (YYYY-MM-DDTHH:MM:SS)
         filepath: Optional full path to photo file
-        tags: Optional list of tags/labels for the photo (Issue #117)
+        tags: Optional list of tags/labels for the photo
     """
     path: str
     lat: float
@@ -358,7 +358,7 @@ def cluster_locations(
         lon = loc.get("lon")
         timestamp = loc.get("timestamp")
         filepath = loc.get("filepath")
-        tags = loc.get("tags")  # Issue #117: Extract tags
+        tags = loc.get("tags")
 
         # Skip if missing required fields
         if not path or lat is None or lon is None:
@@ -375,7 +375,7 @@ def cluster_locations(
             lon=float(lon),
             timestamp=timestamp,
             filepath=Path(filepath) if filepath else None,
-            tags=tags  # Issue #117: Pass through tags
+            tags=tags
         ))
 
     n = len(photo_locations)

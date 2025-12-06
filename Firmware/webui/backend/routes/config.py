@@ -292,7 +292,7 @@ def update_webui_settings():
     try:
         new_settings = request.json
 
-        # Whitelist of allowed webui setting keys (Issue #78 - security improvement)
+        # Whitelist of allowed webui setting keys (security improvement)
         ALLOWED_WEBUI_KEYS = {  # noqa: N806 - constant defined in function scope
             # Stream/encoding settings
             "stream_width",

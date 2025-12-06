@@ -1,5 +1,5 @@
 """
-Metadata API endpoints (Issue #99, Issue #124)
+Metadata API endpoints
 
 Provides REST API for extracting comprehensive EXIF metadata from photos
 and tag autocomplete functionality.
@@ -17,6 +17,7 @@ Security:
 """
 
 import logging
+
 from flask import Blueprint, current_app, jsonify, request
 from security_utils import sanitize_error_message, validate_photo_path
 from services.metadata_service import MetadataService
@@ -191,7 +192,7 @@ def get_batch_metadata():
 
 
 # ============================================================================
-# GET /tags/autocomplete - Tag autocomplete (Issue #124)
+# GET /tags/autocomplete - Tag autocomplete
 # ============================================================================
 
 @metadata_bp.route("/tags/autocomplete", methods=["GET"])
@@ -265,9 +266,9 @@ def get_tag_autocomplete():
 
         # Get exclude_tags parameter (optional)
         exclude_tags_param = request.args.get('exclude_tags', '')
-        excluded_tags = set(
+        excluded_tags = {
             tag.strip().lower() for tag in exclude_tags_param.split(',') if tag.strip()
-        ) if exclude_tags_param else set()
+        } if exclude_tags_param else set()
 
         # Search for suggestions
         suggestions = engine.search(query, limit=limit)

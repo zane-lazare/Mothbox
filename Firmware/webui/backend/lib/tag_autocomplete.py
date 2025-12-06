@@ -1,5 +1,5 @@
 """
-Tag Autocomplete Engine for Mothbox Gallery (Issue #124)
+Tag Autocomplete Engine for Mothbox Gallery
 
 Provides intelligent tag suggestions with fuzzy matching, frequency ranking,
 and recency scoring for photo tagging workflow.
@@ -24,13 +24,14 @@ Usage:
         print(f"{suggestion.tag}: {suggestion.count} uses, score: {suggestion.match_score:.2f}")
 """
 
+from __future__ import annotations
+
 import logging
 import math
 import threading
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, UTC
-from typing import List, Dict, Set, Optional
+from datetime import UTC, datetime
 
 from rapidfuzz import fuzz
 
@@ -64,7 +65,7 @@ class TagMetadata:
     name: str
     count: int
     last_used: datetime
-    photos: Set[str]
+    photos: set[str]
 
 
 @dataclass
@@ -79,7 +80,7 @@ class AutocompleteSuggestion:
     """
     tag: str
     count: int
-    last_used: Optional[datetime]
+    last_used: datetime | None
     match_score: float
 
 
@@ -111,12 +112,12 @@ class TagAutocompleteEngine:
         self.cache_ttl = cache_ttl
 
         # Index: tag_name -> TagMetadata
-        self._index: Dict[str, TagMetadata] = {}
-        self._last_updated: Optional[datetime] = None
+        self._index: dict[str, TagMetadata] = {}
+        self._last_updated: datetime | None = None
         self._lock = threading.RLock()
 
         # Pre-computed top tags for empty query optimization
-        self._top_tags_cache: List[AutocompleteSuggestion] = []
+        self._top_tags_cache: list[AutocompleteSuggestion] = []
 
         logger.debug(f"TagAutocompleteEngine initialized with cache_ttl={cache_ttl}s")
 
@@ -145,7 +146,7 @@ class TagAutocompleteEngine:
             logger.debug("Building tag autocomplete index...")
 
             # Reset index
-            tag_data: Dict[str, Dict] = defaultdict(lambda: {
+            tag_data: dict[str, dict] = defaultdict(lambda: {
                 'count': 0,
                 'photos': set(),
                 'last_used': None
@@ -187,9 +188,8 @@ class TagAutocompleteEngine:
                         tag_entry['photos'].add(photo_filename)
 
                         # Track most recent usage
-                        if modified_at:
-                            if tag_entry['last_used'] is None or modified_at > tag_entry['last_used']:
-                                tag_entry['last_used'] = modified_at
+                        if modified_at and (tag_entry['last_used'] is None or modified_at > tag_entry['last_used']):
+                            tag_entry['last_used'] = modified_at
 
                 except Exception as e:
                     logger.debug(f"Error processing metadata for {getattr(metadata, 'photo_filename', 'unknown')}: {e}")
@@ -226,7 +226,7 @@ class TagAutocompleteEngine:
 
             logger.debug(f"Tag index built: {len(self._index)} unique tags")
 
-    def search(self, query: str, limit: int = 10) -> List[AutocompleteSuggestion]:
+    def search(self, query: str, limit: int = 10) -> list[AutocompleteSuggestion]:
         """Search for tags matching query with intelligent ranking.
 
         Ranking algorithm combines:
@@ -319,7 +319,7 @@ class TagAutocompleteEngine:
             # Apply limit
             return suggestions[:limit]
 
-    def _get_top_tags_by_frequency(self, limit: int) -> List[AutocompleteSuggestion]:
+    def _get_top_tags_by_frequency(self, limit: int) -> list[AutocompleteSuggestion]:
         """Get top tags sorted by frequency (for empty query).
 
         Uses pre-computed cache for O(1) lookup.

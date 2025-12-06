@@ -299,7 +299,6 @@ export default function Camera() {
             ...frontendControls
           })
 
-          console.log('Loaded live controls from settings:', data)
         }
       } catch (error) {
         console.error('Failed to fetch webui settings:', error)
@@ -315,19 +314,15 @@ export default function Camera() {
     const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
     const wsUrl = `${window.location.protocol}//${host}:${port}`
 
-    console.log('Connecting to WebSocket at:', wsUrl)
-
     socketRef.current = io(wsUrl, {
       transports: ['websocket', 'polling']
     })
 
     socketRef.current.on('connect', () => {
-      console.log('WebSocket connected')
       setConnected(true)
     })
 
     socketRef.current.on('disconnect', () => {
-      console.log('WebSocket disconnected')
       setConnected(false)
       setLiveViewActive(false)
     })
@@ -345,7 +340,6 @@ export default function Camera() {
     })
 
     socketRef.current.on('calibration_progress', (data) => {
-      console.log('Calibration progress:', data)
       setCalibrationProgress(data)
     })
 
@@ -387,8 +381,7 @@ export default function Camera() {
       }
     })
 
-    socketRef.current.on('settings_reloaded', async (data) => {
-      console.log('Settings reloaded, refreshing live controls:', data)
+    socketRef.current.on('settings_reloaded', async () => {
       try {
         const API_URL = import.meta.env.VITE_API_URL || '/api'
         const response = await fetch(`${API_URL}/config/webui`)
@@ -515,11 +508,9 @@ export default function Camera() {
             afRange: validatedData.af_range ?? prev.afRange,
             afSpeed: validatedData.af_speed ?? prev.afSpeed
           }))
-          console.log('Refreshed live controls from backend before preview start')
 
           // Tell backend to reload settings from file before starting stream
           // This ensures backend CameraStreamer uses fresh settings, not cached values
-          console.log('Requesting backend to reload settings before preview start')
           await new Promise((resolve) => {
             let isResolved = false
             const timeoutMs = 1000
@@ -538,8 +529,6 @@ export default function Camera() {
                   `| Socket connected: ${socketRef.current?.connected}`
                 )
                 toast.error(`Settings reload failed: ${data.error}. Stream may use cached settings.`, { duration: 5000 })
-              } else {
-                console.log('Backend settings reloaded successfully:', data)
               }
 
               resolve()  // Always resolve to allow stream start (degraded mode)
@@ -573,8 +562,6 @@ export default function Camera() {
             socketRef.current.once('settings_reloaded', handleReloaded)
             socketRef.current.emit('reload_stream_settings')
           })
-
-          console.log('Backend settings reload completed, starting preview')
         }
       } catch (error) {
         console.error('Failed to refresh settings before preview start:', error)
@@ -1011,7 +998,6 @@ export default function Camera() {
         name: presetName,
         applyTo: 'capture'
       })
-      console.log(`Initialized photo preset: ${presetName}`)
     } catch (error) {
       console.error('Failed to initialize photo preset:', error)
       const preset = presetsData?.presets?.find(p => p.name === presetName)
@@ -1078,7 +1064,6 @@ export default function Camera() {
           afSpeed: validatedData.af_speed ?? prev.afSpeed
         }))
       }
-      console.log(`Initialized video preset: ${presetName}`)
     } catch (error) {
       console.error('Failed to initialize video preset:', error)
       liveViewPresetInitialized.current = false

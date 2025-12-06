@@ -287,6 +287,109 @@ result = cluster_locations(locations, radius_m=100)
 **Documentation**:
 - `webui/docs/dev/api/gallery.md`: API documentation with Clustering Endpoints section
 
+### Full-Text Search System (Issue #131)
+
+**Overview**: SQLite FTS5-based full-text search for photo metadata with support for field-specific queries, boolean operators, and relevance ranking.
+
+**Architecture**:
+- **Library**: `webui/backend/lib/search_engine.py` - Core FTS5 search engine
+  - `SearchEngine`: SQLite FTS5 index management and query execution
+  - `index_photo()`: Add/update photo in search index
+  - `search()`: Execute search queries with pagination and ranking
+  - `get_stats()`: Retrieve index statistics (document count, size)
+  - `rebuild_index()`: Full index rebuild from photos directory
+
+- **Library**: `webui/backend/lib/search_query_parser.py` - Query parsing and transformation
+  - `SearchQueryParser`: Parse user queries to FTS5 syntax
+  - Support for field-specific queries (tag:moth, species:actias)
+  - Boolean operators (AND, OR, NOT, -)
+  - Phrase search with quotes ("luna moth")
+  - Date range queries (date:2024-11-01..2024-11-06)
+  - Prefix/wildcard search (luna*)
+
+- **Service**: `webui/backend/services/search_service.py` - Service layer with sidecar integration
+  - `SearchService`: Coordinates search engine and sidecar service
+  - Automatic index updates on metadata changes
+  - Methods: `search()`, `build_index()`, `get_statistics()`
+  - Integration with `SidecarService` for metadata updates
+
+- **API**: `webui/backend/routes/photos.py` - REST endpoints
+  - `GET /api/photos/search`: Search photos with pagination
+  - `GET /api/photos/search/stats`: Get index statistics
+  - `POST /api/photos/search/rebuild`: Rebuild search index
+
+**Performance Targets**:
+- Search query: <200ms for 10,000 photos
+- Actual: ~30ms (6x faster than target)
+- Query parsing: <0.02ms
+- Index rebuild: <10 seconds for 10,000 photos
+
+**Query Syntax**:
+```python
+# Simple search
+"moth"                          # Search all fields
+
+# Field-specific
+"tag:moth"                      # Search tags field
+"species:actias"                # Search species field
+"notes:specimen"                # Search notes field
+
+# Boolean operators
+"moth AND butterfly"            # Both required
+"moth OR butterfly"             # Either term
+"moth NOT butterfly"            # Exclude term
+"moth -butterfly"               # Shorthand NOT
+
+# Phrase search
+'"luna moth"'                   # Exact phrase
+'species:"Actias luna"'         # Phrase in field
+
+# Date ranges
+"date:2024-11-01"               # Exact date
+"date:2024-11-01..2024-11-06"   # Range
+"date:>2024-01-01"              # After date
+```
+
+**Usage**:
+```python
+from webui.backend.services.search_service import SearchService
+
+service = SearchService()
+
+# Search photos
+results = service.search(
+    query="tag:moth species:actias",
+    limit=20,
+    offset=0
+)
+# Returns: {
+#   'results': [...],
+#   'total': 45,
+#   'took_ms': 23.5,
+#   'parsed_query': 'tags:moth AND species:actias'
+# }
+
+# Rebuild index
+stats = service.build_index()
+# Returns: {'indexed': 1234, 'errors': 0, 'took_ms': 5432.1}
+```
+
+**Ranking**:
+- **BM25 algorithm** from SQLite FTS5 for relevance scoring
+- **Field weights**: tags (2.0), species (1.8), common_name (1.5), filename (1.2), notes (1.0)
+- **Match type multipliers**: phrase (1.1), exact (1.0), prefix (0.9)
+
+**Testing**:
+- Unit tests: `Tests/unit/test_search_engine.py` (40+ tests)
+- Unit tests: `Tests/unit/test_search_query_parser.py` (50+ tests)
+- Unit tests: `Tests/unit/test_search_service.py` (30+ tests)
+- Unit tests: `Tests/unit/test_search_api.py` (20+ tests)
+- Integration tests: `Tests/integration/test_search_workflow.py` (15+ tests)
+- Performance tests: `Tests/performance/test_search_performance.py` (10+ tests)
+
+**Documentation**:
+- `webui/docs/dev/api/search.md`: Complete API documentation with query syntax and examples
+
 ### Camera System
 
 Two camera workflows:
@@ -595,6 +698,9 @@ const lonDisplay = formatCoordinateDisplay(-122.4194, false);
 - `webui/backend/lib/gps_exif_lib.py`: GPS EXIF library (coordinate conversion, EXIF embedding, verification)
 - `webui/backend/lib/series_detection.py`: **Series detection library** (HDR/FB pattern matching, 97.89% coverage)
 - `webui/backend/services/series_service.py`: **Series service** (cached series queries, 91.94% coverage)
+- `webui/backend/lib/search_engine.py`: **Search engine library** (SQLite FTS5 full-text search, indexing, ranking)
+- `webui/backend/lib/search_query_parser.py`: **Search query parser** (field-specific queries, boolean operators, date ranges)
+- `webui/backend/services/search_service.py`: **Search service** (search coordination, automatic index updates)
 - `webui/shared/gps_coordinates.py`: **GPS coordinate utilities** (decimal ↔ DMS conversion, validation, formatting) - webui-shared library
 - `webui/frontend/src/utils/gpsCoordinates.ts`: **GPS coordinate utilities (TypeScript)** (identical behavior to Python)
 - `webui/backend/app.py`: Flask app initialization, CSRF, CORS, SocketIO setup
@@ -602,6 +708,7 @@ const lonDisplay = formatCoordinateDisplay(-122.4194, false);
 - `webui/backend/liveview_stream.py`: Camera streaming engine (2500+ lines)
 - `webui/backend/routes/camera.py`: Camera control API (1270+ lines)
 - `webui/backend/routes/gallery.py`: Gallery API (photos, thumbnails, series endpoints)
+- `webui/backend/routes/photos.py`: **Photos API** (photo list, search endpoints)
 - `pyproject.toml`: pytest, coverage, bandit, and ruff configuration
 - `Tests/README.md`: Comprehensive testing documentation
 - `Tests/manual/gps_exif_service/`: GPS EXIF service manual testing procedures
@@ -610,6 +717,7 @@ const lonDisplay = formatCoordinateDisplay(-122.4194, false);
 - `webui/docs/CAMERA_SETTINGS.md`: Camera settings and configuration guide
 - `webui/docs/LIVEVIEW_STREAMING.md`: LiveView streaming architecture and usage
 - `webui/docs/dev/api/gallery.md`: **Gallery API documentation** (photo, thumbnail, series endpoints)
+- `webui/docs/dev/api/search.md`: **Search API documentation** (full-text search, query syntax, ranking)
 
 ## Development Workflow
 

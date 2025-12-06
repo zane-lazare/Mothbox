@@ -129,7 +129,7 @@ except Exception as e:
     app.config['THUMBNAIL_CACHE'] = None
     thumbnail_cache = None
 
-# Initialize cache warmer (Issue #134 - Phase 3)
+# Initialize cache warmer
 from services.cache_warmer import CacheWarmer
 
 if thumbnail_cache:
@@ -166,6 +166,7 @@ from services import (
     get_series_service,
     get_sidecar_service,
 )
+from services.search_service import SearchService
 
 try:
     # Pre-initialize services and store in app.config for routes that need direct access
@@ -196,7 +197,16 @@ except Exception as e:
     print(f"⚠️  Failed to initialize sidecar service: {e}")
     app.config['SIDECAR_SERVICE'] = None
 
-# Initialize tag autocomplete engine (Issue #124)
+# Initialize search service
+try:
+    sidecar_svc = app.config.get('SIDECAR_SERVICE')
+    app.config['SEARCH_SERVICE'] = SearchService(sidecar_service=sidecar_svc)
+    print("✓ Search service initialized")
+except Exception as e:
+    print(f"⚠️  Failed to initialize search service: {e}")
+    app.config['SEARCH_SERVICE'] = None
+
+# Initialize tag autocomplete engine
 from webui.backend.lib.tag_autocomplete import TagAutocompleteEngine
 
 try:
@@ -224,6 +234,7 @@ from routes.metadata import metadata_bp
 from routes.preferences import preferences_bp
 from routes.presets import presets_bp
 from routes.scheduler import scheduler_bp
+from routes.search import search_bp
 from routes.sidecar import sidecar_bp
 from routes.system import system_bp
 
@@ -242,6 +253,7 @@ app.register_blueprint(preferences_bp, url_prefix="/api/preferences")
 app.register_blueprint(gps_bp, url_prefix="/api/gps")
 app.register_blueprint(metadata_bp, url_prefix="/api/metadata")
 app.register_blueprint(sidecar_bp, url_prefix="/api/sidecar")
+app.register_blueprint(search_bp)  # Note: search_bp already includes /api/photos/search prefix
 
 # Register WebSocket handlers
 from websocket_handlers import register_handlers
@@ -268,14 +280,14 @@ limiter.exempt(app.view_functions["sidecar.get_photo_metadata"])
 
 print("✓ Rate limiting applied to camera, GPIO, and GPS endpoints")
 
-# Sidecar API rate limiting (Issue #107 follow-up)
+# Sidecar API rate limiting
 # Bulk: 10 per minute (prevents abuse of batch operations)
 # PATCH/DELETE: 30 per minute (one per 2 seconds, reasonable for UI use)
 limiter.limit("10 per minute")(app.view_functions["sidecar.bulk_update_metadata"])
 limiter.limit("30 per minute")(app.view_functions["sidecar.update_photo_metadata"])
 limiter.limit("30 per minute")(app.view_functions["sidecar.delete_photo_metadata"])
 
-# Tag autocomplete rate limiting (Issue #124)
+# Tag autocomplete rate limiting
 # 60 per minute (1 per second) - autocomplete endpoints are chatty with typing
 limiter.limit("60 per minute")(app.view_functions["metadata.get_tag_autocomplete"])
 

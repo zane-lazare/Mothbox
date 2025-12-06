@@ -1,5 +1,5 @@
 """
-Metadata service for extracting comprehensive EXIF data from photos (Issue #99)
+Metadata service for extracting comprehensive EXIF data from photos
 
 This service provides structured metadata extraction from Mothbox photos for
 gallery display. Parses camera settings, GPS location, capture parameters,
@@ -32,7 +32,6 @@ Usage:
     results = service.batch_get_metadata(photos)
 
 Related:
-- Issue #99: Comprehensive EXIF metadata parser for gallery
 - webui/backend/lib/gps_exif_lib.py: GPS coordinate extraction (reused)
 """
 
@@ -648,7 +647,7 @@ class MetadataService:
                    series_index: 0-indexed position in series or None
         """
         try:
-            # Import series detection library (Issue #110)
+            # Import series detection library
             from webui.backend.lib.series_detection import (
                 detect_series_type,
                 get_series_id,

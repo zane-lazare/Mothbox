@@ -118,3 +118,8 @@ SIDECAR_PATTERNS: Final[tuple[str, ...]] = (
 # =============================================================================
 MAX_BULK_FILES: Final[int] = 100  # Max files per bulk sidecar operation (Frontend: MAX_BATCH_SIZE)
 MAX_BULK_DELETE: Final[int] = 100  # Max files per bulk delete operation (Frontend: MAX_BULK_DELETE)
+
+# =============================================================================
+# CACHE SETTINGS
+# =============================================================================
+DEFAULT_CACHE_TTL: Final[int] = 300  # 5 minutes - standard cache TTL for services

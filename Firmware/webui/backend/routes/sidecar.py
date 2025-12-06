@@ -1,5 +1,5 @@
 """
-Sidecar Metadata CRUD API Endpoints (Issue #107 - Phase 1.2-1.4, Phase 2, Phase 3)
+Sidecar Metadata CRUD API Endpoints
 
 Provides REST API for managing photo sidecar metadata (tags, species, notes).
 Supports CRUD operations, pagination, bulk updates, and aggregation.
@@ -13,7 +13,7 @@ Endpoints:
 - DELETE /photos/<filename>          - Delete sidecar
 - GET    /photos                     - List all metadata (paginated)
 - GET    /bulk                       - Bulk fetch metadata (N files in 1 request)
-- POST   /bulk                       - Bulk update metadata (Phase 2)
+- POST   /bulk                       - Bulk update metadata
 - GET    /tags                       - List all unique tags with counts
 - GET    /species                    - List all unique species with counts
 
@@ -70,7 +70,7 @@ logger = logging.getLogger(__name__)
 sidecar_bp = Blueprint("sidecar", __name__)
 
 # ============================================================================
-# Aggregation Cache (Issue #107 follow-up - Performance)
+# Aggregation Cache
 # ============================================================================
 # Tags and species aggregation scans all sidecar files. This cache
 # prevents repeated O(n) scans on every request.
@@ -574,7 +574,7 @@ def list_all_metadata():
 
 
 # ============================================================================
-# POST /bulk - Bulk update metadata (Phase 2)
+# POST /bulk - Bulk update metadata
 # ============================================================================
 
 @sidecar_bp.route("/bulk", methods=["POST"])
@@ -902,7 +902,7 @@ def bulk_get_metadata():
 
 
 # ============================================================================
-# GET /tags - List all unique tags with counts (Phase 3)
+# GET /tags - List all unique tags with counts
 # ============================================================================
 
 @sidecar_bp.route("/tags", methods=["GET"])
@@ -1078,7 +1078,7 @@ def get_all_tags():
 
 
 # ============================================================================
-# GET /species - List all unique species with counts (Phase 3)
+# GET /species - List all unique species with counts
 # ============================================================================
 
 @sidecar_bp.route("/species", methods=["GET"])

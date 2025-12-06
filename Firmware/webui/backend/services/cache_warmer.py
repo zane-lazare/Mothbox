@@ -1,5 +1,5 @@
 """
-Cache Warmer Service (Issue #134 - Phase 3)
+Cache Warmer Service
 
 Background cache warming service with smart triggers:
 - Manual warming via API

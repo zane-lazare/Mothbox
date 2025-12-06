@@ -146,3 +146,29 @@ export const getBulkSidecarMetadata = (filenames, options = {}) => api.get('/sid
   timeout: options.timeout || 30000
 })
 export const getTagAutocomplete = (query, limit = 10) => api.get('/metadata/tags/autocomplete', { params: { q: query, limit } })
+
+// Search APIs
+/**
+ * Search photos by query
+ * @param {string} query - Search query
+ * @param {Object} options - Search options
+ * @param {number} options.limit - Results per page (default: 20)
+ * @param {number} options.offset - Results offset (default: 0)
+ * @returns {Promise<Object>} Search results
+ */
+export async function searchPhotos(query, { limit = 20, offset = 0 } = {}) {
+  const params = new URLSearchParams({
+    q: query,
+    limit: limit.toString(),
+    offset: offset.toString()
+  })
+
+  const response = await fetch(`/api/photos/search?${params}`)
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Search failed' }))
+    throw new Error(error.message || 'Search failed')
+  }
+
+  return response.json()
+}

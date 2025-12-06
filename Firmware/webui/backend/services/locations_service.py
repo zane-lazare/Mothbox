@@ -1,13 +1,12 @@
 """
-Locations Service for Mothbox Photo Gallery (Issue #113 - Fix 6)
+Locations Service for Mothbox Photo Gallery
 
 Provides cached GPS location detection with thread-safety and efficient two-pass scanning.
 
-Addresses code review feedback:
-- Fix 6: Add LocationsService with caching (following SeriesService pattern)
-- Fix 1: Two-pass approach for accurate counts (fast count scan, then detailed build)
-- Fix 5: Avoid repeated EXIF loads (use verify_gps_exif timestamp field)
-- Fix 9: Use iterators (itertools.chain instead of list concatenation)
+Design notes:
+- Two-pass approach for accurate counts (fast count scan, then detailed build)
+- Avoids repeated EXIF loads (uses verify_gps_exif timestamp field)
+- Uses iterators (itertools.chain instead of list concatenation)
 
 Usage:
     from webui.backend.services.locations_service import LocationsService
