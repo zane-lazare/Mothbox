@@ -395,3 +395,19 @@ export const TAG_AUTOCOMPLETE_CONFIG = {
   CACHE_STALE_TIME: 5 * 60 * 1000,  // 5 minutes
   CACHE_GC_TIME: 10 * 60 * 1000,    // 10 minutes
 }
+
+/**
+ * API Limits Configuration
+ *
+ * Backend API limits for bulk operations. These values MUST match the
+ * backend constants in webui/backend/constants.py.
+ *
+ * Verify at runtime via GET /api/system/config/limits if needed.
+ *
+ * @property {number} MAX_BATCH_SIZE - Max files per bulk sidecar operation (tags, species)
+ * @property {number} MAX_BULK_DELETE - Max files per bulk delete operation
+ */
+export const API_LIMITS = {
+  MAX_BATCH_SIZE: 100,    // Backend: MAX_BULK_FILES
+  MAX_BULK_DELETE: 100,   // Backend: MAX_BULK_DELETE
+}

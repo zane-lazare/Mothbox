@@ -376,7 +376,7 @@ class TestSettingsCopyEdgeCases:
                 shutil.copy2(backup.name, WEBUI_SETTINGS_FILE)
                 Path(backup.name).unlink()
 
-    def test_corrupted_settings_data(self):
+    def test_corrupted_settings_data(self, temp_camera_settings):
         """Test copy with corrupted settings file"""
         from routes.config import config_bp
         from flask import Flask
@@ -413,39 +413,26 @@ class TestSettingsCopyEdgeCases:
                 shutil.copy2(backup.name, WEBUI_SETTINGS_FILE)
                 Path(backup.name).unlink()
 
-    def test_missing_camera_settings_file(self):
+    def test_missing_camera_settings_file(self, temp_camera_settings):
         """Test copy when camera_settings.csv doesn't exist"""
         from routes.config import config_bp
         from flask import Flask
-        from mothbox_paths import CAMERA_SETTINGS_FILE
-        import tempfile
-        import shutil
 
         app = Flask(__name__)
         app.register_blueprint(config_bp, url_prefix='/api/config')
 
-        # Backup original
-        backup = None
-        if CAMERA_SETTINGS_FILE.exists():
-            backup = tempfile.NamedTemporaryFile(delete=False)
-            shutil.copy2(CAMERA_SETTINGS_FILE, backup.name)
-            CAMERA_SETTINGS_FILE.unlink()
+        # Delete the temp file created by fixture to simulate missing file
+        temp_camera_settings.unlink()
 
-        try:
-            with app.test_client() as client:
-                response = client.post('/api/config/copy-settings', json={
-                    'direction': 'preview_to_capture'
-                })
+        with app.test_client() as client:
+            response = client.post('/api/config/copy-settings', json={
+                'direction': 'preview_to_capture'
+            })
 
-                # Should fail gracefully
-                assert response.status_code in [404, 500]
+            # Should fail gracefully
+            assert response.status_code in [404, 500]
 
-                print("\n✓ Missing capture settings handled")
-
-        finally:
-            if backup and Path(backup.name).exists():
-                shutil.copy2(backup.name, CAMERA_SETTINGS_FILE)
-                Path(backup.name).unlink()
+            print("\n✓ Missing capture settings handled")
 
 
 class TestIncompatibleSettingsCombinations:

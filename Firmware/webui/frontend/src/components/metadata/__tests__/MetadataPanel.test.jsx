@@ -170,7 +170,7 @@ const mockExifMetadata = {
  * Mock sidecar metadata structure
  */
 const mockSidecarMetadata = {
-  user_tags: ['moth', 'nocturnal'],
+  tags: ['moth', 'nocturnal'],
   species: 'Actias luna',
   species_confidence: 'probable',
   species_common_name: 'Luna Moth',
@@ -409,9 +409,11 @@ describe('MetadataPanel (Accordion Refactor)', () => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // Existing tags should be displayed
-      expect(screen.getByTestId('tag-moth')).toBeInTheDocument()
-      expect(screen.getByTestId('tag-nocturnal')).toBeInTheDocument()
+      // Existing tags should be displayed (wait for async render)
+      await waitFor(() => {
+        expect(screen.getByTestId('tag-moth')).toBeInTheDocument()
+        expect(screen.getByTestId('tag-nocturnal')).toBeInTheDocument()
+      })
 
       // Add a tag
       const addTagButton = screen.getByText('Add Tag')
@@ -514,7 +516,6 @@ describe('MetadataPanel (Accordion Refactor)', () => {
   describe('Data Loading', () => {
     it('fetches EXIF and sidecar metadata on mount', async () => {
       const photoPath = '/var/lib/mothbox/photos/test.jpg'
-      const filename = 'test.jpg'
 
       mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
       mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
@@ -530,8 +531,8 @@ describe('MetadataPanel (Accordion Refactor)', () => {
         expect(mockApiGet).toHaveBeenCalledWith(
           `/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
         )
-        // Should fetch sidecar metadata
-        expect(mockGetPhotoSidecarMetadata).toHaveBeenCalledWith(filename)
+        // Should fetch sidecar metadata (uses full path for subdirectory support)
+        expect(mockGetPhotoSidecarMetadata).toHaveBeenCalledWith(photoPath)
       })
     })
 

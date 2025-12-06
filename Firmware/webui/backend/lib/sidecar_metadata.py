@@ -88,8 +88,8 @@ MAX_REFERENCE_URL_LENGTH = 500  # Maximum length for species_reference_url
 # Enum values for species_confidence (Issue #109)
 SPECIES_CONFIDENCE_VALUES = ["certain", "probable", "possible", "unknown"]
 
-# API limits
-MAX_BULK_FILES = 100  # Maximum files per bulk update request
+# API limits (import from centralized constants, re-export for backwards compatibility)
+from webui.backend.constants import MAX_BULK_FILES  # noqa: E402
 MAX_PAGINATION_LIMIT = 200  # Maximum items per page for list endpoints
 
 

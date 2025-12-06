@@ -52,7 +52,7 @@ describe('MetadataPanel Integration Tests', () => {
   const mockSidecarData = {
     version: '1.1',
     photo_filename: 'test_photo.jpg',
-    user_tags: ['moth', 'nocturnal'],
+    tags: ['moth', 'nocturnal'],
     species: 'Actias luna',
     species_confidence: 'probable',
     species_common_name: 'Luna Moth',
@@ -99,9 +99,9 @@ describe('MetadataPanel Integration Tests', () => {
       // Should show loading state initially
       expect(screen.getByTestId('metadata-skeleton')).toBeInTheDocument()
 
-      // Wait for real data to load
+      // Wait for real data to load (uses full path for subdirectory support)
       await waitFor(() => {
-        expect(api.getPhotoSidecarMetadata).toHaveBeenCalledWith('test_photo.jpg')
+        expect(api.getPhotoSidecarMetadata).toHaveBeenCalledWith('/photos/test_photo.jpg')
       })
 
       // Verify data is displayed (from real hooks)
@@ -239,7 +239,7 @@ describe('MetadataPanel Integration Tests', () => {
         expect(api.updatePhotoSidecarMetadata).toHaveBeenCalled()
         const lastCall = api.updatePhotoSidecarMetadata.mock.calls.slice(-1)[0]
         expect(lastCall[1]).toMatchObject({
-          user_tags: expect.arrayContaining(['new-tag'])
+          tags: expect.arrayContaining(['new-tag'])
         })
       })
     })

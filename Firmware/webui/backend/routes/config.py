@@ -705,6 +705,9 @@ def copy_settings():
             csv_rows = []
             capture_settings_dict = {}
 
+            if not CAMERA_SETTINGS_FILE.exists():
+                return jsonify({"success": False, "error": "camera_settings.csv not found"}), 404
+
             with open(CAMERA_SETTINGS_FILE) as f:
                 reader = csv.DictReader(f)
                 for row in reader:

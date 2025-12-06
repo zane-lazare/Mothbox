@@ -1206,6 +1206,134 @@ class TestBulkMetadataUpdate:
 
 
 # ============================================================================
+# Test GET /api/sidecar/bulk - Bulk Fetch Endpoint (Performance optimization)
+# ============================================================================
+
+class TestBulkMetadataFetch:
+    """Tests for GET /api/sidecar/bulk endpoint."""
+
+    def test_bulk_fetch_multiple_photos(self, client, temp_photos_dir, mock_sidecar_service):
+        """Bulk fetch successfully retrieves metadata for multiple photos."""
+        # Create test photos
+        (temp_photos_dir / "photo1.jpg").write_bytes(b'\xFF\xD8\xFF\xE0')
+        (temp_photos_dir / "photo2.jpg").write_bytes(b'\xFF\xD8\xFF\xE0')
+
+        # Configure mock to return metadata
+        def mock_get_metadata(photo_path):
+            mock_metadata = Mock(spec=SidecarMetadata)
+            if "photo1.jpg" in photo_path:
+                mock_metadata.to_dict.return_value = {"tags": ["moth"], "species": "Luna moth", "notes": None}
+            else:
+                mock_metadata.to_dict.return_value = {"tags": ["night"], "species": None, "notes": "A note"}
+            return mock_metadata
+
+        mock_sidecar_service.get_metadata.side_effect = mock_get_metadata
+
+        response = client.get('/api/sidecar/bulk?filenames=photo1.jpg,photo2.jpg')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success_count'] == 2
+        assert data['failed_count'] == 0
+        assert "photo1.jpg" in data['success']
+        assert "photo2.jpg" in data['success']
+        assert data['success']['photo1.jpg']['tags'] == ["moth"]
+        assert data['success']['photo2.jpg']['tags'] == ["night"]
+
+    def test_bulk_fetch_partial_success(self, client, temp_photos_dir, mock_sidecar_service):
+        """Bulk fetch handles partial success (some photos exist, some don't)."""
+        # Create only one test photo
+        (temp_photos_dir / "exists.jpg").write_bytes(b'\xFF\xD8\xFF\xE0')
+
+        # Configure mock to return metadata only for existing photo
+        def mock_get_metadata(photo_path):
+            if "exists.jpg" in photo_path:
+                mock_metadata = Mock(spec=SidecarMetadata)
+                mock_metadata.to_dict.return_value = {"tags": ["test"], "species": None, "notes": None}
+                return mock_metadata
+            return None
+
+        mock_sidecar_service.get_metadata.side_effect = mock_get_metadata
+
+        response = client.get('/api/sidecar/bulk?filenames=exists.jpg,missing.jpg')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert "exists.jpg" in data['success']
+        assert "missing.jpg" in data['failed']
+        assert data['success_count'] == 1
+        assert data['failed_count'] == 1
+        assert "missing.jpg" in data['errors']
+
+    def test_bulk_fetch_empty_filenames_rejected(self, client):
+        """Bulk fetch rejects empty filenames parameter."""
+        response = client.get('/api/sidecar/bulk?filenames=')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'error' in data
+
+    def test_bulk_fetch_missing_filenames_rejected(self, client):
+        """Bulk fetch rejects missing filenames parameter."""
+        response = client.get('/api/sidecar/bulk')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'error' in data
+
+    def test_bulk_fetch_too_many_files_rejected(self, client):
+        """Bulk fetch rejects more than 100 files."""
+        filenames = ','.join([f"photo{i}.jpg" for i in range(101)])
+        response = client.get(f'/api/sidecar/bulk?filenames={filenames}')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'error' in data
+
+    def test_bulk_fetch_path_traversal_blocked(self, client, temp_photos_dir, mock_sidecar_service):
+        """Bulk fetch blocks path traversal in filenames."""
+        response = client.get('/api/sidecar/bulk?filenames=../../../etc/passwd')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        # Should fail the file, not error the whole request
+        assert "../../../etc/passwd" in data['failed']
+        assert data['success_count'] == 0
+        assert data['failed_count'] == 1
+
+    def test_bulk_fetch_no_sidecar_returns_empty_metadata(self, client, temp_photos_dir, mock_sidecar_service):
+        """Bulk fetch returns empty metadata when photo exists but no sidecar."""
+        # Create test photo without sidecar
+        (temp_photos_dir / "no_sidecar.jpg").write_bytes(b'\xFF\xD8\xFF\xE0')
+
+        # Configure mock to return None (no sidecar)
+        mock_sidecar_service.get_metadata.return_value = None
+
+        response = client.get('/api/sidecar/bulk?filenames=no_sidecar.jpg')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert "no_sidecar.jpg" in data['success']
+        assert data['success']['no_sidecar.jpg']['tags'] == []
+        assert data['success']['no_sidecar.jpg']['species'] is None
+
+    def test_bulk_fetch_whitespace_in_filenames_trimmed(self, client, temp_photos_dir, mock_sidecar_service):
+        """Bulk fetch trims whitespace from filenames."""
+        (temp_photos_dir / "photo.jpg").write_bytes(b'\xFF\xD8\xFF\xE0')
+
+        mock_metadata = Mock(spec=SidecarMetadata)
+        mock_metadata.to_dict.return_value = {"tags": [], "species": None, "notes": None}
+        mock_sidecar_service.get_metadata.return_value = mock_metadata
+
+        response = client.get('/api/sidecar/bulk?filenames= photo.jpg , ')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success_count'] == 1
+        assert "photo.jpg" in data['success']
+
+
+# ============================================================================
 # Test Tag Aggregation (Phase 3)
 # ============================================================================
 

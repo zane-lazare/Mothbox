@@ -1,7 +1,8 @@
 import PropTypes from 'prop-types'
-import { useCallback, memo } from 'react'
+import { useCallback, memo, useRef, useEffect } from 'react'
 import LazyImage from './LazyImage'
 import { GALLERY_CONFIG, STACKED_CARD_CONFIG } from '../constants/config'
+import useSelection from '../hooks/useSelection'
 
 const { Z_INDEX_CLASSES, OFFSETS, SHADOWS } = STACKED_CARD_CONFIG
 
@@ -41,6 +42,16 @@ function StackedPhotoCard({
   onPhotoClick,
   isLoading = false,
 }) {
+  // Get selection state from context (wrapped in try-catch for backwards compatibility)
+  let selectionState = null
+  try {
+    selectionState = useSelection()
+  } catch (e) {
+    // Not in SelectionProvider - component will work without selection features
+  }
+
+  const checkboxRef = useRef(null)
+
   // Loading skeleton state - check FIRST before accessing series
   if (isLoading) {
     return (
@@ -67,6 +78,30 @@ function StackedPhotoCard({
   // Extract cover photo for stable useCallback dependency
   const coverPhoto = stackedPhotos[0]
 
+  // Selection mode state
+  const isSelectMode = selectionState?.isSelectMode || false
+  const selectPhoto = selectionState?.selectPhoto
+  const deselectPhoto = selectionState?.deselectPhoto
+  const isSelected = selectionState?.isSelected
+
+  // Get all photo paths in series (handle both string and object formats)
+  const seriesPhotoPaths = (photos || []).map(photo =>
+    typeof photo === 'string' ? photo : photo.path
+  )
+
+  // Check selection state of series
+  const selectedInSeries = seriesPhotoPaths.filter(path => isSelected?.(path))
+  const allSelected = selectedInSeries.length === seriesPhotoPaths.length && seriesPhotoPaths.length > 0
+  const someSelected = selectedInSeries.length > 0 && !allSelected
+  const noneSelected = selectedInSeries.length === 0
+
+  // Update checkbox indeterminate state when selection changes
+  useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.indeterminate = someSelected
+    }
+  }, [someSelected])
+
   // Format series type for display
   const formatSeriesType = (type) => {
     switch (type) {
@@ -85,15 +120,41 @@ function StackedPhotoCard({
     return `${typeLabel} series: ${count} photos`
   }
 
+  // Handle series selection toggle
+  const handleSeriesSelection = useCallback((e) => {
+    e.stopPropagation()
+
+    if (!selectPhoto || !deselectPhoto) return
+
+    if (allSelected) {
+      // Deselect all in series
+      seriesPhotoPaths.forEach(path => deselectPhoto(path))
+    } else {
+      // Select all in series (up to MAX_SELECTION)
+      seriesPhotoPaths.forEach(path => {
+        if (!isSelected?.(path)) {
+          selectPhoto(path)
+        }
+      })
+    }
+  }, [allSelected, seriesPhotoPaths, selectPhoto, deselectPhoto, isSelected])
+
   // Handle click on the card
   const handleClick = useCallback(() => {
+    // In select mode, clicking card toggles series selection
+    if (isSelectMode) {
+      handleSeriesSelection({ stopPropagation: () => {} })
+      return
+    }
+
+    // Normal mode: open lightbox
     if (onPhotoClick && coverPhoto) {
       onPhotoClick(coverPhoto)
     }
     if (onCardClick) {
       onCardClick(series)
     }
-  }, [onCardClick, onPhotoClick, coverPhoto, series])
+  }, [isSelectMode, handleSeriesSelection, onCardClick, onPhotoClick, coverPhoto, series])
 
   // Handle keyboard navigation
   const handleKeyDown = useCallback(
@@ -127,12 +188,18 @@ function StackedPhotoCard({
   // Reverse for rendering (back layers first, front last)
   const renderOrder = [...stackedPhotos].reverse()
 
+  // Determine selection visual state
+  const hasSelectedPhotos = !noneSelected
+  const cardClassName = `relative w-full h-64 cursor-pointer group focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg active:scale-[0.98] transition-transform touch-manipulation ${
+    hasSelectedPhotos && isSelectMode ? 'ring-4 ring-blue-600 ring-offset-2' : ''
+  }`
+
   return (
     <div
       role="group"
       aria-label={getAriaLabel()}
       tabIndex={0}
-      className="relative w-full h-64 cursor-pointer group focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg active:scale-[0.98] transition-transform touch-manipulation"
+      className={cardClassName}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
     >
@@ -166,6 +233,21 @@ function StackedPhotoCard({
           </div>
         )
       })}
+
+      {/* Selection checkbox - top left corner (only in select mode) */}
+      {isSelectMode && (
+        <div className="absolute top-2 left-2 z-50">
+          <input
+            type="checkbox"
+            ref={checkboxRef}
+            checked={allSelected}
+            onChange={handleSeriesSelection}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Select all ${count} photos in series`}
+            className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+          />
+        </div>
+      )}
 
       {/* Series badge - bottom right corner */}
       <div className="absolute bottom-2 right-2 z-40 px-2 py-1 bg-black/80 text-white text-xs font-medium rounded">
