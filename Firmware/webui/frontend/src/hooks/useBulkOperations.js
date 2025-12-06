@@ -31,9 +31,13 @@ const MAX_BATCH_SIZE = API_LIMITS.MAX_BATCH_SIZE
  *
  *   console.log(`Success: ${result.success.length}, Failed: ${result.failed.length}`)
  *
- *   // Undo support
+ *   // Undo support with fetch metadata
  *   if (result.previousState) {
  *     // Can restore previous tags using result.previousState
+ *     // Check if some photos failed to backup for undo
+ *     if (result.undoFailedCount > 0) {
+ *       console.warn(`Undo available for ${result.undoFetchedCount} of ${filenames.length} photos`)
+ *     }
  *   }
  * }
  */
@@ -62,14 +66,18 @@ export default function useBulkOperations() {
    * the operation where another process could modify the same photos. In a
    * single-user scenario (typical for Mothbox), this is extremely unlikely.
    * If multi-user support is added, consider optimistic locking or timestamps.
+   *
+   * @returns {Object} { state: previousState, fetchedCount, failedCount }
    */
   const fetchPreviousState = useCallback(async (filenames, fields = ['tags', 'species']) => {
     const previousState = {}
+    let fetchedCount = 0
+    let failedCount = 0
 
     try {
       // Use bulk endpoint instead of N individual requests
       const response = await getBulkSidecarMetadata(filenames)
-      const { success } = response.data
+      const { success, failed } = response.data
 
       // Extract only requested fields from each photo's metadata
       for (const [filename, metadata] of Object.entries(success)) {
@@ -81,14 +89,18 @@ export default function useBulkOperations() {
         })
         previousState[filename] = state
       }
+
+      fetchedCount = Object.keys(success).length
+      failedCount = failed?.length || 0
     } catch (error) {
       // Warning: If bulk fetch fails completely, return empty previousState.
       // This means undo will not work for any photos.
       // Partial undo is better than no undo, but callers should be aware.
       console.warn('Failed to fetch previous state:', error)
+      failedCount = filenames.length
     }
 
-    return previousState
+    return { state: previousState, fetchedCount, failedCount }
   }, [])
 
   /**
@@ -106,16 +118,25 @@ export default function useBulkOperations() {
 
     try {
       // Fetch previous state for undo support if requested
-      const previousState = fetchUndo
-        ? await fetchPreviousState(filenames, undoFields)
-        : null
+      let previousState = null
+      let undoFetchedCount = 0
+      let undoFailedCount = 0
+
+      if (fetchUndo) {
+        const undoResult = await fetchPreviousState(filenames, undoFields)
+        previousState = undoResult.state
+        undoFetchedCount = undoResult.fetchedCount
+        undoFailedCount = undoResult.failedCount
+      }
 
       const batches = chunkArray(filenames, MAX_BATCH_SIZE)
       const results = {
         success: [],
         failed: [],
         errors: {},
-        previousState
+        previousState,
+        undoFetchedCount,
+        undoFailedCount
       }
 
       for (let i = 0; i < batches.length; i++) {
@@ -229,7 +250,7 @@ export default function useBulkOperations() {
 
     try {
       // Fetch previous state for undo (will also be used for current tags)
-      const previousState = await fetchPreviousState(filenames, ['tags'])
+      const { state: previousState, fetchedCount, failedCount } = await fetchPreviousState(filenames, ['tags'])
 
       // Use previousState (which has current tags) to build photoUpdates
       // This avoids a second round of N API calls
@@ -258,7 +279,9 @@ export default function useBulkOperations() {
           success: [],
           failed: failedFetches.map(f => f.filename),
           errors: Object.fromEntries(failedFetches.map(f => [f.filename, f.error])),
-          previousState
+          previousState,
+          undoFetchedCount: fetchedCount,
+          undoFailedCount: failedCount
         }
       }
 
@@ -291,6 +314,8 @@ export default function useBulkOperations() {
 
       // Restore previousState from our fetch
       result.previousState = previousState
+      result.undoFetchedCount = fetchedCount
+      result.undoFailedCount = failedCount
 
       // Invalidate caches on success
       if (result.success.length > 0) {

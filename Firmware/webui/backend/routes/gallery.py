@@ -1328,6 +1328,7 @@ def invalidate_clustered_locations_cache():
 # ============================================================================
 
 @gallery_bp.route('/photos/bulk', methods=['DELETE'])
+@limiter.limit("10 per minute")
 def bulk_delete_photos():
     """
     Delete multiple photos and their sidecar metadata files.
@@ -1365,6 +1366,9 @@ def bulk_delete_photos():
 
     if not filenames or not isinstance(filenames, list):
         return jsonify({'error': 'filenames must be non-empty array'}), 400
+
+    # Deduplicate filenames (preserves first occurrence order)
+    filenames = list(dict.fromkeys(filenames))
 
     if len(filenames) > MAX_BULK_DELETE:
         return jsonify({
