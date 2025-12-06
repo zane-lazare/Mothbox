@@ -150,8 +150,8 @@ class SearchService:
 
             try:
                 # Check if index is empty
-                stats = self._engine.get_statistics()
-                if stats.document_count == 0:
+                stats = self._engine.get_stats()
+                if stats['total_documents'] == 0:
                     logger.info("Search index is empty, building automatically...")
                     # Release lock during build (build_index acquires it)
                     self._lock.release()
