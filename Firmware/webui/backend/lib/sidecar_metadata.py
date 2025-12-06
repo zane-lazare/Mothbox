@@ -1,5 +1,5 @@
 """
-Sidecar Metadata Library for Mothbox Photo Gallery (Issue #102, #109)
+Sidecar Metadata Library for Mothbox Photo Gallery
 
 Stores photo-level metadata (tags, species, notes) in JSON sidecar files.
 Each photo can have an associated {photo}.json file with structured metadata.
@@ -85,11 +85,12 @@ MAX_CUSTOM_DEPTH = 5  # Maximum nesting depth for custom values
 MAX_COMMON_NAME_LENGTH = 200  # Maximum length for species_common_name
 MAX_REFERENCE_URL_LENGTH = 500  # Maximum length for species_reference_url
 
-# Enum values for species_confidence (Issue #109)
+# Enum values for species_confidence
 SPECIES_CONFIDENCE_VALUES = ["certain", "probable", "possible", "unknown"]
 
 # API limits (import from centralized constants, re-export for backwards compatibility)
-from webui.backend.constants import MAX_BULK_FILES  # noqa: E402
+from webui.backend.constants import MAX_BULK_FILES as MAX_BULK_FILES  # noqa: E402, F401
+
 MAX_PAGINATION_LIMIT = 200  # Maximum items per page for list endpoints
 
 
@@ -369,16 +370,14 @@ def validate_schema(data: dict) -> bool:
         if not _is_valid_custom_value(value):
             raise ValidationError(f"custom value type not allowed for key '{key}'")
 
-    # Validate schema v1.1 fields (Issue #109)
-    if data.get("species_confidence") is not None:
-        if data["species_confidence"] not in SPECIES_CONFIDENCE_VALUES:
-            raise ValidationError(
-                f"species_confidence must be one of {SPECIES_CONFIDENCE_VALUES}, got '{data['species_confidence']}'"
-            )
+    # Validate schema v1.1 fields
+    if data.get("species_confidence") is not None and data["species_confidence"] not in SPECIES_CONFIDENCE_VALUES:
+        raise ValidationError(
+            f"species_confidence must be one of {SPECIES_CONFIDENCE_VALUES}, got '{data['species_confidence']}'"
+        )
 
-    if data.get("species_common_name") is not None:
-        if len(data["species_common_name"]) > MAX_COMMON_NAME_LENGTH:
-            raise ValidationError(f"species_common_name exceeds maximum length ({MAX_COMMON_NAME_LENGTH} chars)")
+    if data.get("species_common_name") is not None and len(data["species_common_name"]) > MAX_COMMON_NAME_LENGTH:
+        raise ValidationError(f"species_common_name exceeds maximum length ({MAX_COMMON_NAME_LENGTH} chars)")
 
     if data.get("species_reference_url") is not None:
         url = data["species_reference_url"]
@@ -392,8 +391,8 @@ def validate_schema(data: dict) -> bool:
             parsed = urlparse(url)
             if not (parsed.scheme in ('http', 'https') and parsed.netloc):
                 raise ValidationError("species_reference_url must be a valid http:// or https:// URL")
-        except ValueError:
-            raise ValidationError("species_reference_url must be a valid http:// or https:// URL")
+        except ValueError as err:
+            raise ValidationError("species_reference_url must be a valid http:// or https:// URL") from err
 
     return True
 

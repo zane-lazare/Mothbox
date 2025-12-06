@@ -1,5 +1,5 @@
 """
-Metadata cache service with two-level LRU caching (Issue #100).
+Metadata cache service with two-level LRU caching.
 
 Provides fast access to photo metadata through a hybrid cache:
 - L1: In-memory cache (fast, ~1000 entries) - <10ms access

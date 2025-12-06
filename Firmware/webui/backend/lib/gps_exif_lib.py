@@ -19,7 +19,6 @@ Functions:
 - is_already_tagged(): Check if photo has GPS EXIF
 
 Related:
-- Issue #98: GPS EXIF Embedding
 - Spec: webui/docs/dev/issues/ISSUE_98_GPS_EXIF_IMPLEMENTATION_SPEC.md
 """
 

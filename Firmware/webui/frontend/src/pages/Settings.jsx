@@ -220,8 +220,7 @@ export default function Settings() {
     const wsUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port || (window.location.protocol === 'https:' ? '443' : '80')}`
     socketRef.current = io(wsUrl, { transports: ['websocket', 'polling'] })
 
-    socketRef.current.on('settings_reloaded', (data) => {
-      console.log('Stream settings reloaded:', data)
+    socketRef.current.on('settings_reloaded', () => {
       // Trigger refetch of webui settings - form will auto-sync if clean
       queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
     })
@@ -277,8 +276,6 @@ export default function Settings() {
         applyTo: 'capture'
       })
       await queryClient.invalidateQueries(QUERY_KEYS.CAMERA_SETTINGS)
-      // No toast - silent initialization
-      console.log(`Initialized photo preset: ${presetName}`)
     } catch (error) {
       console.error('Failed to initialize photo preset:', error)
       const errorMsg = error.response?.data?.error || error.message
@@ -297,7 +294,6 @@ export default function Settings() {
               applyTo: 'capture'
             })
             setSelectedPhotoPreset(fallbackPreset.name)
-            console.log(`Applied fallback photo preset: ${fallbackPreset.name}`)
           } catch (fallbackError) {
             console.error('Failed to apply fallback photo preset:', fallbackError)
             const fallbackDisplayName = fallbackPreset.display_name || fallbackPreset.name
@@ -326,8 +322,6 @@ export default function Settings() {
         applyTo: 'liveview'
       })
       await queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
-      // No toast - silent initialization
-      console.log(`Initialized live view preset: ${presetName}`)
     } catch (error) {
       console.error('Failed to initialize live view preset:', error)
       const errorMsg = error.response?.data?.error || error.message
@@ -346,7 +340,6 @@ export default function Settings() {
               applyTo: 'liveview'
             })
             setSelectedLiveViewPreset(fallbackPreset.name)
-            console.log(`Applied fallback liveview preset: ${fallbackPreset.name}`)
           } catch (fallbackError) {
             console.error('Failed to apply fallback liveview preset:', fallbackError)
             const fallbackDisplayName = fallbackPreset.display_name || fallbackPreset.name

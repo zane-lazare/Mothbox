@@ -15,6 +15,7 @@ import useUndoToast from '../hooks/useUndoToast'
 import PhotoSkeleton from '../components/PhotoSkeleton'
 import PhotoGridItem from '../components/PhotoGridItem'
 import PhotoListItem from '../components/PhotoListItem'
+import SearchResultItem from '../components/gallery/SearchResultItem'
 import StackedPhotoCard from '../components/StackedPhotoCard'
 import VirtualPhotoGrid from '../components/VirtualPhotoGrid'
 import PhotoLightbox from '../components/PhotoLightbox'
@@ -621,12 +622,12 @@ function GalleryContent() {
           {searchResults.length > 0 ? (
             <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
               {searchResults.map((result, index) => (
-                <PhotoGridItem
+                <SearchResultItem
                   key={result.path}
-                  photo={result}
+                  result={result}
                   onClick={isSelectMode ? undefined : setSelectedPhoto}
                   index={index}
-                  photos={searchResults}
+                  results={searchResults}
                 />
               ))}
             </div>

@@ -67,7 +67,6 @@ export function clearCsrfToken() {
 export async function initializeCsrf() {
   try {
     await fetchCsrfToken()
-    console.log('CSRF token initialized')
   } catch (error) {
     console.error('Failed to initialize CSRF token:', error)
   }

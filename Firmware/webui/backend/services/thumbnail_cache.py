@@ -1,5 +1,5 @@
 """
-Thumbnail Caching Service (Issue #134 - Phase 1)
+Thumbnail Caching Service
 
 Provides multi-resolution thumbnail caching with:
 - File-based locking (fcntl) for multi-process safety
@@ -80,7 +80,7 @@ class ThumbnailCache:
         # Initialize statistics
         self._load_statistics()
 
-        # Periodic flush tracking (Issue #134 - I/O optimization)
+        # Periodic flush tracking for I/O optimization
         self._stats_dirty = False
         self._last_stats_flush = time.time()
         self._stats_flush_interval = 60  # seconds

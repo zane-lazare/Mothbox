@@ -24,7 +24,7 @@ Endpoints:
 - GET /locations - Get photos with GPS coordinates for map display
 - POST /locations/cache/invalidate - Invalidate locations cache
 - GET /locations/stats - Get locations cache statistics
-- GET /locations/clustered - Get clustered photo locations (Issue #115)
+- GET /locations/clustered - Get clustered photo locations
 - GET /locations/clustered/stats - Get clustering cache statistics
 - POST /locations/clustered/cache/invalidate - Invalidate clustering cache
 - DELETE /photos/bulk - Bulk delete photos and sidecar files
@@ -335,7 +335,7 @@ def list_photos_paginated():
 
 
 # ============================================================================
-# Metadata Endpoints (Issue #100)
+# Metadata Endpoints
 # ============================================================================
 
 @gallery_bp.route("/photos/<path:photo_id>/metadata", methods=["GET"])
@@ -729,7 +729,7 @@ def _reset_cache():
 
 
 # ============================================================================
-# Series Endpoints (Issue #110 - Phase 3)
+# Series Endpoints
 # ============================================================================
 
 # Valid series types for filtering
@@ -966,7 +966,7 @@ def invalidate_series_cache():
 
 
 # ============================================================================
-# Photo Locations Endpoint (Issue #113 - Subtask 2)
+# Photo Locations Endpoint
 # ============================================================================
 
 @gallery_bp.route("/locations", methods=["GET"])
@@ -1078,7 +1078,7 @@ def get_locations_stats():
 
 
 # ============================================================================
-# Clustering Endpoints (Issue #115 - Subtask 3)
+# Clustering Endpoints
 # ============================================================================
 
 @gallery_bp.route("/locations/clustered", methods=["GET"])
@@ -1194,7 +1194,7 @@ def get_clustered_locations():
                     'lat': photo.lat,
                     'lon': photo.lon,
                     'timestamp': photo.timestamp,
-                    'tags': photo.tags  # Issue #117: Include tags
+                    'tags': photo.tags
                 })
 
             # Build cluster object
@@ -1222,7 +1222,7 @@ def get_clustered_locations():
                 'lat': photo.lat,
                 'lon': photo.lon,
                 'timestamp': photo.timestamp,
-                'tags': photo.tags  # Issue #117: Include tags
+                'tags': photo.tags
             })
 
         # Build response

@@ -1,5 +1,5 @@
 """
-Search Engine for Mothbox Photo Gallery (Issue #131 - Phase 1.1)
+Search Engine for Mothbox Photo Gallery
 
 Provides full-text search over photo metadata using SQLite FTS5.
 Indexes photo filenames, tags, species, notes, and custom fields.
@@ -661,52 +661,35 @@ class SearchEngine:
                 if where_clauses:
                     where_sql = "WHERE " + " AND ".join(where_clauses)
 
-                # Get total count
-                count_sql = f"SELECT COUNT(*) as count FROM photo_search {where_sql}"
+                # Get total count (where_sql contains only static SQL from controlled operators; user values are parameterized)
+                count_sql = f"SELECT COUNT(*) as count FROM photo_search {where_sql}"  # nosec B608
                 cursor.execute(count_sql, params)
                 total = cursor.fetchone()['count']
 
                 # Build SELECT query
                 if has_fts_query:
                     # With FTS query - include BM25 scoring and highlights
-                    select_sql = f"""
-                        SELECT
-                            filename,
-                            filepath,
-                            tags,
-                            species,
-                            species_common_name,
-                            notes,
-                            custom_fields,
-                            date,
-                            bm25(photo_search) as bm25_score,
-                            highlight(photo_search, 0, '<mark>', '</mark>') as filename_hl,
-                            highlight(photo_search, 2, '<mark>', '</mark>') as tags_hl,
-                            highlight(photo_search, 3, '<mark>', '</mark>') as species_hl,
-                            highlight(photo_search, 4, '<mark>', '</mark>') as species_common_name_hl,
-                            highlight(photo_search, 5, '<mark>', '</mark>') as notes_hl
-                        FROM photo_search
-                        {where_sql}
-                        ORDER BY bm25(photo_search)
-                        LIMIT ? OFFSET ?
-                    """
+                    # where_sql contains only static SQL from controlled operators; user values are parameterized
+                    select_sql = (
+                        f"SELECT "
+                        f"filename, filepath, tags, species, species_common_name, notes, custom_fields, date, "
+                        f"bm25(photo_search) as bm25_score, "
+                        f"highlight(photo_search, 0, '<mark>', '</mark>') as filename_hl, "
+                        f"highlight(photo_search, 2, '<mark>', '</mark>') as tags_hl, "
+                        f"highlight(photo_search, 3, '<mark>', '</mark>') as species_hl, "
+                        f"highlight(photo_search, 4, '<mark>', '</mark>') as species_common_name_hl, "
+                        f"highlight(photo_search, 5, '<mark>', '</mark>') as notes_hl "
+                        f"FROM photo_search {where_sql} "  # nosec B608
+                        f"ORDER BY bm25(photo_search) LIMIT ? OFFSET ?"
+                    )
                 else:
                     # Date-only query - no FTS scoring, order by date
-                    select_sql = f"""
-                        SELECT
-                            filename,
-                            filepath,
-                            tags,
-                            species,
-                            species_common_name,
-                            notes,
-                            custom_fields,
-                            date
-                        FROM photo_search
-                        {where_sql}
-                        ORDER BY date DESC, filename ASC
-                        LIMIT ? OFFSET ?
-                    """
+                    # where_sql contains only static SQL from controlled operators; user values are parameterized
+                    select_sql = (
+                        f"SELECT filename, filepath, tags, species, species_common_name, notes, "
+                        f"custom_fields, date FROM photo_search {where_sql} "  # nosec B608
+                        f"ORDER BY date DESC, filename ASC LIMIT ? OFFSET ?"
+                    )
 
                 # Execute with pagination params
                 cursor.execute(select_sql, params + [limit, offset])

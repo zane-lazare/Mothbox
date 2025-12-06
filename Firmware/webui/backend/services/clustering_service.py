@@ -1,5 +1,5 @@
 """
-Clustering Service for Mothbox Photo Locations (Issue #115 - Subtask 3)
+Clustering Service for Mothbox Photo Locations
 
 Provides cached geographic clustering with thread-safety and performance optimizations.
 

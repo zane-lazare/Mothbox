@@ -2,7 +2,7 @@
 
 This package contains shared library modules:
 - gps_exif_lib: GPS EXIF embedding and verification functions
-- series_detection: HDR/Focus Bracket photo series detection (Issue #110)
+- series_detection: HDR/Focus Bracket photo series detection
 """
 
 from .gps_exif_lib import (

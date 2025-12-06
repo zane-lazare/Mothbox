@@ -1,5 +1,5 @@
 """
-Sidecar Service with Two-Level Cache (Issue #102 - Phase B)
+Sidecar Service with Two-Level Cache
 
 Provides cached access to photo sidecar metadata through a hybrid cache:
 - L1: In-memory LRU cache (fast, ~1000 entries) - <10ms access

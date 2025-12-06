@@ -129,7 +129,7 @@ except Exception as e:
     app.config['THUMBNAIL_CACHE'] = None
     thumbnail_cache = None
 
-# Initialize cache warmer (Issue #134 - Phase 3)
+# Initialize cache warmer
 from services.cache_warmer import CacheWarmer
 
 if thumbnail_cache:
@@ -197,7 +197,7 @@ except Exception as e:
     print(f"⚠️  Failed to initialize sidecar service: {e}")
     app.config['SIDECAR_SERVICE'] = None
 
-# Initialize search service (Issue #131)
+# Initialize search service
 try:
     sidecar_svc = app.config.get('SIDECAR_SERVICE')
     app.config['SEARCH_SERVICE'] = SearchService(sidecar_service=sidecar_svc)
@@ -206,7 +206,7 @@ except Exception as e:
     print(f"⚠️  Failed to initialize search service: {e}")
     app.config['SEARCH_SERVICE'] = None
 
-# Initialize tag autocomplete engine (Issue #124)
+# Initialize tag autocomplete engine
 from webui.backend.lib.tag_autocomplete import TagAutocompleteEngine
 
 try:
@@ -280,14 +280,14 @@ limiter.exempt(app.view_functions["sidecar.get_photo_metadata"])
 
 print("✓ Rate limiting applied to camera, GPIO, and GPS endpoints")
 
-# Sidecar API rate limiting (Issue #107 follow-up)
+# Sidecar API rate limiting
 # Bulk: 10 per minute (prevents abuse of batch operations)
 # PATCH/DELETE: 30 per minute (one per 2 seconds, reasonable for UI use)
 limiter.limit("10 per minute")(app.view_functions["sidecar.bulk_update_metadata"])
 limiter.limit("30 per minute")(app.view_functions["sidecar.update_photo_metadata"])
 limiter.limit("30 per minute")(app.view_functions["sidecar.delete_photo_metadata"])
 
-# Tag autocomplete rate limiting (Issue #124)
+# Tag autocomplete rate limiting
 # 60 per minute (1 per second) - autocomplete endpoints are chatty with typing
 limiter.limit("60 per minute")(app.view_functions["metadata.get_tag_autocomplete"])
 

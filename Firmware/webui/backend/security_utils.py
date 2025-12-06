@@ -1,5 +1,5 @@
 """
-Security utility functions for path validation and error handling (Issue #99)
+Security utility functions for path validation and error handling
 
 Provides robust path validation to satisfy CodeQL static analysis and prevent
 path traversal attacks with multiple layers of security checks.

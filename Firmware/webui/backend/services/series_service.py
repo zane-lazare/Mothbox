@@ -1,5 +1,5 @@
 """
-Series Service for Mothbox Photo Gallery (Issue #110)
+Series Service for Mothbox Photo Gallery
 
 Provides cached series detection with thread-safety and cross-directory support.
 

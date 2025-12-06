@@ -8,9 +8,6 @@ Endpoints:
 - GET /api/photos/search/stats - Get search index statistics
 - POST /api/photos/search/rebuild - Full rebuild of search index
 - POST /api/photos/search/sync - Incremental sync of search index
-
-Author: Mothbox Team
-Date: 2024-12-06
 """
 
 from typing import Any

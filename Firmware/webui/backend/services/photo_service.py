@@ -2,7 +2,6 @@
 Photo service for gallery pagination and filtering
 
 Provides efficient photo listing with pagination, sorting, and filtering support.
-Part of Issue #135 - Gallery API Pagination implementation.
 """
 
 from datetime import datetime

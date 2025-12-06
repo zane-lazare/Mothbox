@@ -1,5 +1,5 @@
 """
-Search Service for Mothbox Photo Gallery (Issue #131 - Phase 2.1)
+Search Service for Mothbox Photo Gallery
 
 Provides cached search operations with index management and synchronization
 with sidecar metadata.

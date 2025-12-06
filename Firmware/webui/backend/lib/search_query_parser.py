@@ -1,5 +1,5 @@
 """
-Search Query Parser for Mothbox Photo Search (Issue #131 - Phase 1.2)
+Search Query Parser for Mothbox Photo Search
 
 Translates user-friendly search queries into SQLite FTS5 syntax.
 
@@ -23,10 +23,10 @@ Usage:
         print(f"Error: {result.error_message}")
 """
 
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass
-from typing import Optional
-
 
 # ============================================================================
 # Constants
@@ -60,8 +60,8 @@ class DateFilter:
         end_date: End date in ISO format YYYY-MM-DD (or None)
         operator: Filter operator ('range', 'gt', 'lt', 'eq', 'gte', 'lte')
     """
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    start_date: str | None = None
+    end_date: str | None = None
     operator: str = 'eq'
 
 
@@ -77,10 +77,10 @@ class ParsedQuery:
         error_message: Error description if parsing failed
     """
     fts_query: str
-    date_filter: Optional[DateFilter]
+    date_filter: DateFilter | None
     original_query: str
     is_valid: bool
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 # ============================================================================
@@ -161,7 +161,7 @@ def parse_query(query: str) -> ParsedQuery:
 # Helper Functions
 # ============================================================================
 
-def _extract_date_filter(query: str) -> tuple[str, Optional[DateFilter]]:
+def _extract_date_filter(query: str) -> tuple[str, DateFilter | None]:
     """Extract date filter from query and return cleaned query.
 
     Args:

@@ -1,5 +1,5 @@
 """
-Series Detection Library for Mothbox Photo Gallery (Issue #110)
+Series Detection Library for Mothbox Photo Gallery
 
 Detects and groups HDR and Focus Bracket photo series based on filename patterns.
 Supports cross-directory series detection (photos spanning date folders).
