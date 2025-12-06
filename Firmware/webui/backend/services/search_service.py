@@ -250,8 +250,8 @@ class SearchService:
                     # Convert to dict for indexing
                     metadata = metadata_obj.to_dict()
 
-                    # Index photo
-                    self._engine.index_photo(str(photo_path), metadata)
+                    # Index photo with relative path (for correct URL construction)
+                    self._engine.index_photo(str(photo_path.relative_to(photos_dir)), metadata)
                     indexed += 1
 
                 except Exception as e:
@@ -343,7 +343,7 @@ class SearchService:
                     metadata = metadata_obj.to_dict()
 
                     photos.append({
-                        'filepath': str(photo_path),
+                        'filepath': str(photo_path.relative_to(photos_dir)),
                         'sidecar_mtime': sidecar_mtime,
                         'metadata': metadata
                     })
