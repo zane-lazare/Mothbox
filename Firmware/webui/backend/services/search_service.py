@@ -178,6 +178,12 @@ class SearchService:
             ISO date string (e.g., "2024-01-15") or None if not available
         """
         try:
+            # Check file size before processing (prevent memory exhaustion)
+            file_size = photo_path.stat().st_size
+            if file_size > 50_000_000:  # 50MB limit
+                logger.debug(f"Skipping EXIF for large file ({file_size} bytes): {photo_path}")
+                return None
+
             # Use explicit file handle to ensure proper cleanup
             with open(photo_path, 'rb') as f:
                 exif_bytes = f.read()

@@ -1201,3 +1201,29 @@ class TestExifExtraction:
         assert stats['errors'] == 0
 
         service.close()
+
+    def test_extract_exif_date_skips_large_files(self, db_path, tmp_path):
+        """Should skip EXIF extraction for files over 50MB (security)."""
+        photo_path = tmp_path / "large.jpg"
+        photo_path.write_bytes(b"fake jpeg data")
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # Mock stat to return large file size (60MB)
+        # Need to patch Path.stat on the class, not the instance
+        original_stat = Path.stat
+
+        def mock_stat(self):
+            if self == photo_path:
+                from unittest.mock import MagicMock
+                result = MagicMock()
+                result.st_size = 60_000_000  # 60MB
+                return result
+            return original_stat(self)
+
+        with patch.object(Path, 'stat', mock_stat):
+            result = service._extract_exif_date(photo_path)
+
+        assert result is None
+
+        service.close()
