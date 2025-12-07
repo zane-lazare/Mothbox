@@ -298,8 +298,8 @@ class TestSearchServiceBuildIndex:
 
         service.close()
 
-    def test_build_index_skips_photos_without_sidecars(self, db_path, tmp_path):
-        """Should skip photos without sidecar files."""
+    def test_build_index_indexes_photos_without_sidecars(self, db_path, tmp_path):
+        """Should index photos even without sidecar files (minimal metadata)."""
         # Create fresh photos directory without using fixture
         photos_dir = tmp_path / "photos_no_sidecars"
         photos_dir.mkdir()
@@ -312,7 +312,9 @@ class TestSearchServiceBuildIndex:
 
         stats = service.build_index(photos_dir)
 
-        assert stats['indexed'] == 0  # No sidecars found
+        # Now indexes all photos, even without sidecars
+        assert stats['indexed'] == 1
+        assert stats['errors'] == 0
 
         service.close()
 

@@ -38,8 +38,11 @@ import tempfile
 import threading
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+import piexif
 
 from webui.backend.lib.search_engine import SearchEngine
 from webui.backend.lib.search_query_parser import parse_query
@@ -165,11 +168,36 @@ class SearchService:
 
             self._lazy_index_checked = True
 
-    def build_index(self, photos_dir: Path | None = None) -> dict:
-        """Full rebuild of search index from all photos and their sidecars.
+    def _extract_exif_date(self, photo_path: Path) -> str | None:
+        """Extract DateTimeOriginal from EXIF, return ISO date string or None.
 
-        Scans photos directory recursively for all photos with sidecars,
-        reads metadata, and rebuilds the search index.
+        Args:
+            photo_path: Path to JPEG photo file
+
+        Returns:
+            ISO date string (e.g., "2024-01-15") or None if not available
+        """
+        try:
+            exif_dict = piexif.load(str(photo_path))
+            if 'Exif' in exif_dict:
+                exif_ifd = exif_dict['Exif']
+                if piexif.ExifIFD.DateTimeOriginal in exif_ifd:
+                    dt_bytes = exif_ifd[piexif.ExifIFD.DateTimeOriginal]
+                    dt_str = dt_bytes.decode('utf-8', errors='ignore')
+                    # Convert EXIF format (YYYY:MM:DD HH:MM:SS) to ISO date
+                    dt = datetime.strptime(dt_str, '%Y:%m:%d %H:%M:%S')
+                    return dt.strftime('%Y-%m-%d')
+        except Exception:
+            # Silently fail - will fall back to filename pattern
+            pass
+        return None
+
+    def build_index(self, photos_dir: Path | None = None) -> dict:
+        """Full rebuild of search index from all photos.
+
+        Scans photos directory recursively for all JPEG photos,
+        extracts EXIF metadata (DateTimeOriginal) and merges sidecar
+        metadata (tags, species, notes) when available.
 
         Args:
             photos_dir: Directory to scan for photos (uses PHOTOS_DIR if None)
@@ -228,27 +256,35 @@ class SearchService:
 
             logger.debug(f"Found {len(photos)} photos in {photos_dir}")
 
-            # Index each photo
+            # Index each photo (with or without sidecar)
             for photo_path in photos:
                 try:
-                    # Check if sidecar exists
+                    # Build metadata from multiple sources
+                    metadata = {'filename': photo_path.name, 'tags': []}
+
+                    # 1. Try to get EXIF date (primary source for accurate timestamps)
+                    exif_date = self._extract_exif_date(photo_path)
+                    if exif_date:
+                        metadata['exif_date'] = exif_date
+
+                    # 2. Merge sidecar metadata if available (user-curated tags, species, notes)
                     sidecar_path = photo_path.parent / f"{photo_path.name}.json"
-                    if not sidecar_path.exists():
-                        continue  # Skip photos without sidecars
+                    if sidecar_path.exists():
+                        if self._sidecar_service:
+                            metadata_obj = self._sidecar_service.get_metadata(str(photo_path))
+                        else:
+                            # Read directly from file
+                            from webui.backend.lib.sidecar_metadata import read_metadata
+                            metadata_obj = read_metadata(str(photo_path))
 
-                    # Read metadata
-                    if self._sidecar_service:
-                        metadata_obj = self._sidecar_service.get_metadata(str(photo_path))
-                    else:
-                        # Read directly from file
-                        from webui.backend.lib.sidecar_metadata import read_metadata
-                        metadata_obj = read_metadata(str(photo_path))
-
-                    if not metadata_obj:
-                        continue  # Skip if metadata read failed
-
-                    # Convert to dict for indexing
-                    metadata = metadata_obj.to_dict()
+                        if metadata_obj:
+                            sidecar_data = metadata_obj.to_dict()
+                            # Merge sidecar fields into metadata
+                            metadata['tags'] = sidecar_data.get('tags', [])
+                            metadata['species'] = sidecar_data.get('species')
+                            metadata['species_common_name'] = sidecar_data.get('species_common_name')
+                            metadata['notes'] = sidecar_data.get('notes')
+                            metadata['custom_fields'] = sidecar_data.get('custom_fields', {})
 
                     # Index photo with relative path (for correct URL construction)
                     self._engine.index_photo(str(photo_path.relative_to(photos_dir)), metadata)
@@ -272,12 +308,12 @@ class SearchService:
         """Incremental index sync - only updates changed photos.
 
         Much more efficient than build_index() for large galleries where
-        only a few files have changed. Uses sidecar file mtime to detect
+        only a few files have changed. Uses photo or sidecar mtime to detect
         changes.
 
         Algorithm:
-        1. Scans photos directory for all photos with sidecars
-        2. Compares sidecar mtime with indexed mtime
+        1. Scans photos directory for all photos
+        2. Compares mtime with indexed mtime (sidecar mtime if exists, else photo mtime)
         3. Removes stale entries (photos deleted from filesystem)
         4. Indexes new photos
         5. Re-indexes modified photos
@@ -322,36 +358,50 @@ class SearchService:
 
         for ext in photo_extensions:
             for photo_path in photos_dir.rglob(ext):
-                sidecar_path = photo_path.parent / f"{photo_path.name}.json"
-                if not sidecar_path.exists():
-                    continue  # Skip photos without sidecars
-
                 try:
-                    # Get sidecar mtime for change detection
-                    sidecar_mtime = sidecar_path.stat().st_mtime
+                    sidecar_path = photo_path.parent / f"{photo_path.name}.json"
 
-                    # Read metadata
-                    if self._sidecar_service:
-                        metadata_obj = self._sidecar_service.get_metadata(str(photo_path))
+                    # Build metadata from multiple sources
+                    metadata = {'filename': photo_path.name, 'tags': []}
+
+                    # Get mtime for change detection
+                    # Use sidecar mtime if exists (changes more often), else photo mtime
+                    if sidecar_path.exists():
+                        mtime = sidecar_path.stat().st_mtime
+
+                        # Read sidecar metadata
+                        if self._sidecar_service:
+                            metadata_obj = self._sidecar_service.get_metadata(str(photo_path))
+                        else:
+                            from webui.backend.lib.sidecar_metadata import read_metadata
+                            metadata_obj = read_metadata(str(photo_path))
+
+                        if metadata_obj:
+                            sidecar_data = metadata_obj.to_dict()
+                            metadata['tags'] = sidecar_data.get('tags', [])
+                            metadata['species'] = sidecar_data.get('species')
+                            metadata['species_common_name'] = sidecar_data.get('species_common_name')
+                            metadata['notes'] = sidecar_data.get('notes')
+                            metadata['custom_fields'] = sidecar_data.get('custom_fields', {})
                     else:
-                        from webui.backend.lib.sidecar_metadata import read_metadata
-                        metadata_obj = read_metadata(str(photo_path))
+                        # No sidecar - use photo mtime
+                        mtime = photo_path.stat().st_mtime
 
-                    if not metadata_obj:
-                        continue
-
-                    metadata = metadata_obj.to_dict()
+                    # Extract EXIF date (primary source for accurate timestamps)
+                    exif_date = self._extract_exif_date(photo_path)
+                    if exif_date:
+                        metadata['exif_date'] = exif_date
 
                     photos.append({
                         'filepath': str(photo_path.relative_to(photos_dir)),
-                        'sidecar_mtime': sidecar_mtime,
+                        'sidecar_mtime': mtime,
                         'metadata': metadata
                     })
 
                 except Exception as e:
                     logger.warning(f"Error reading photo {photo_path}: {e}")
 
-        logger.debug(f"Found {len(photos)} photos with sidecars in {photos_dir}")
+        logger.debug(f"Found {len(photos)} photos in {photos_dir}")
 
         # Perform incremental sync
         with self._lock:

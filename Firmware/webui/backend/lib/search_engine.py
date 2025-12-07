@@ -283,8 +283,10 @@ class SearchEngine:
             # Serialize custom fields to JSON string
             custom_fields_str = json.dumps(custom_fields) if custom_fields else ''
 
-            # Extract date from Mothbox filename pattern
-            date_str = self._extract_date_from_filename(filename)
+            # Extract date - prefer EXIF DateTimeOriginal, fall back to filename pattern
+            date_str = metadata.get('exif_date')
+            if not date_str:
+                date_str = self._extract_date_from_filename(filename)
 
             # Delete existing entry for this filepath (if any)
             cursor.execute(
