@@ -178,7 +178,10 @@ class SearchService:
             ISO date string (e.g., "2024-01-15") or None if not available
         """
         try:
-            exif_dict = piexif.load(str(photo_path))
+            # Use explicit file handle to ensure proper cleanup
+            with open(photo_path, 'rb') as f:
+                exif_bytes = f.read()
+            exif_dict = piexif.load(exif_bytes)
             if 'Exif' in exif_dict:
                 exif_ifd = exif_dict['Exif']
                 if piexif.ExifIFD.DateTimeOriginal in exif_ifd:
@@ -268,8 +271,10 @@ class SearchService:
                         metadata['exif_date'] = exif_date
 
                     # 2. Merge sidecar metadata if available (user-curated tags, species, notes)
+                    # Also track mtime for consistency with sync_index()
                     sidecar_path = photo_path.parent / f"{photo_path.name}.json"
                     if sidecar_path.exists():
+                        mtime = sidecar_path.stat().st_mtime
                         if self._sidecar_service:
                             metadata_obj = self._sidecar_service.get_metadata(str(photo_path))
                         else:
@@ -285,9 +290,16 @@ class SearchService:
                             metadata['species_common_name'] = sidecar_data.get('species_common_name')
                             metadata['notes'] = sidecar_data.get('notes')
                             metadata['custom_fields'] = sidecar_data.get('custom_fields', {})
+                    else:
+                        # No sidecar - use photo mtime
+                        mtime = photo_path.stat().st_mtime
 
                     # Index photo with relative path (for correct URL construction)
-                    self._engine.index_photo(str(photo_path.relative_to(photos_dir)), metadata)
+                    self._engine.index_photo(
+                        str(photo_path.relative_to(photos_dir)),
+                        metadata,
+                        sidecar_mtime=mtime
+                    )
                     indexed += 1
 
                 except Exception as e:

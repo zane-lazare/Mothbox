@@ -13,7 +13,9 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
+from unittest.mock import patch, mock_open
 
+import piexif
 import pytest
 
 from webui.backend.lib.sidecar_metadata import SidecarMetadata
@@ -1071,3 +1073,131 @@ class TestSearchServiceClose:
         service.close()  # Should not raise
 
         assert True
+
+
+# ============================================================================
+# EXIF Extraction Tests
+# ============================================================================
+
+class TestExifExtraction:
+    """Tests for _extract_exif_date method."""
+
+    @pytest.fixture
+    def db_path(self, tmp_path):
+        """Create a temporary database path."""
+        return tmp_path / "test_exif.db"
+
+    @pytest.fixture
+    def photo_without_exif(self, tmp_path):
+        """Create a photo without EXIF data."""
+        photo_path = tmp_path / "photo_no_exif.jpg"
+        # Empty file - will fail to parse EXIF
+        photo_path.touch()
+        return photo_path
+
+    def test_extract_exif_date_success(self, db_path, tmp_path):
+        """Should extract DateTimeOriginal from EXIF and return ISO date."""
+        photo_path = tmp_path / "photo.jpg"
+        photo_path.write_bytes(b"fake jpeg data")
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # Mock piexif.load to return valid EXIF data
+        mock_exif = {
+            'Exif': {
+                piexif.ExifIFD.DateTimeOriginal: b"2024:06:15 14:30:00"
+            }
+        }
+        with patch('piexif.load', return_value=mock_exif):
+            result = service._extract_exif_date(photo_path)
+
+        assert result == "2024-06-15"
+
+        service.close()
+
+    def test_extract_exif_date_no_exif(self, db_path, photo_without_exif):
+        """Should return None when photo has no EXIF data."""
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        result = service._extract_exif_date(photo_without_exif)
+
+        assert result is None
+
+        service.close()
+
+    def test_extract_exif_date_corrupted_file(self, db_path, tmp_path):
+        """Should return None for corrupted files without crashing."""
+        photo_path = tmp_path / "corrupted.jpg"
+        photo_path.write_bytes(b"not a valid jpeg file")
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        result = service._extract_exif_date(photo_path)
+
+        assert result is None
+
+        service.close()
+
+    def test_extract_exif_date_missing_datetime_original(self, db_path, tmp_path):
+        """Should return None when EXIF exists but DateTimeOriginal is missing."""
+        photo_path = tmp_path / "no_datetime.jpg"
+        photo_path.write_bytes(b"fake jpeg data")
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # Mock piexif.load to return EXIF without DateTimeOriginal
+        mock_exif = {
+            'Exif': {}  # No DateTimeOriginal
+        }
+        with patch('piexif.load', return_value=mock_exif):
+            result = service._extract_exif_date(photo_path)
+
+        assert result is None
+
+        service.close()
+
+    def test_extract_exif_date_file_not_found(self, db_path, tmp_path):
+        """Should return None for non-existent files."""
+        photo_path = tmp_path / "nonexistent.jpg"
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        result = service._extract_exif_date(photo_path)
+
+        assert result is None
+
+        service.close()
+
+    def test_extract_exif_date_handles_piexif_exception(self, db_path, tmp_path):
+        """Should return None when piexif raises exception."""
+        photo_path = tmp_path / "photo.jpg"
+        photo_path.write_bytes(b"fake jpeg data")
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # Mock piexif.load to raise exception
+        with patch('piexif.load', side_effect=Exception("Invalid EXIF")):
+            result = service._extract_exif_date(photo_path)
+
+        assert result is None
+
+        service.close()
+
+    def test_build_index_extracts_exif_date(self, db_path, tmp_path):
+        """Should extract EXIF date during indexing."""
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        photo_path = photos_dir / "moth.jpg"
+        photo_path.write_bytes(b"fake jpeg data")
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # Mock _extract_exif_date to return a specific date
+        with patch.object(service, '_extract_exif_date', return_value="2024-11-20"):
+            stats = service.build_index(photos_dir)
+
+        assert stats['indexed'] == 1
+        assert stats['errors'] == 0
+
+        service.close()
