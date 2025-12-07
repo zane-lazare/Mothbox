@@ -187,9 +187,9 @@ class SearchService:
                     # Convert EXIF format (YYYY:MM:DD HH:MM:SS) to ISO date
                     dt = datetime.strptime(dt_str, '%Y:%m:%d %H:%M:%S')
                     return dt.strftime('%Y-%m-%d')
-        except Exception:
-            # Silently fail - will fall back to filename pattern
-            pass
+        except Exception as e:
+            # Debug logging for troubleshooting EXIF issues
+            logger.debug(f"EXIF extraction failed for {photo_path}: {e}")
         return None
 
     def build_index(self, photos_dir: Path | None = None) -> dict:

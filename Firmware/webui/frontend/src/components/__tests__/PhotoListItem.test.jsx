@@ -13,6 +13,23 @@ vi.mock('../../hooks/useProgressiveImage', () => ({
   }))
 }))
 
+// Mock QuickTagButton to avoid useSidecarMetadata hook dependency
+vi.mock('../gallery/QuickTagButton', () => ({
+  default: ({ filename, onDropdownOpenChange, className }) => (
+    <button
+      data-testid="quick-tag-button"
+      data-filename={filename}
+      className={className}
+      onClick={(e) => {
+        e.stopPropagation()
+        onDropdownOpenChange?.(true)
+      }}
+    >
+      Tag
+    </button>
+  )
+}))
+
 /**
  * Test suite for PhotoListItem component
  *
@@ -65,11 +82,11 @@ describe('PhotoListItem', () => {
 
   describe('Layout', () => {
     it('uses horizontal layout (image + metadata side-by-side)', () => {
-      const { container } = render(<PhotoListItem photo={mockPhoto} onClick={() => {}} />)
+      render(<PhotoListItem photo={mockPhoto} onClick={() => {}} />)
 
-      // Container should use flex layout
-      const card = container.firstChild
-      expect(card).toHaveClass('flex')
+      // Main button should use flex layout for horizontal arrangement
+      const button = screen.getByRole('button', { name: /View photo/i })
+      expect(button).toHaveClass('flex')
     })
 
     it('image is appropriately sized for list view', () => {
@@ -98,7 +115,8 @@ describe('PhotoListItem', () => {
 
       render(<PhotoListItem photo={mockPhoto} onClick={onClick} />)
 
-      const card = screen.getByRole('button')
+      // Use the main photo button (with aria-label), not the QuickTagButton
+      const card = screen.getByRole('button', { name: /View photo/i })
       await user.click(card)
 
       expect(onClick).toHaveBeenCalledWith(mockPhoto)
@@ -111,7 +129,8 @@ describe('PhotoListItem', () => {
 
       render(<PhotoListItem photo={mockPhoto} onClick={onClick} />)
 
-      const card = screen.getByRole('button')
+      // Use the main photo button (with aria-label), not the QuickTagButton
+      const card = screen.getByRole('button', { name: /View photo/i })
       card.focus()
       await user.keyboard('{Enter}')
 
@@ -123,8 +142,8 @@ describe('PhotoListItem', () => {
     it('has proper semantic HTML', () => {
       render(<PhotoListItem photo={mockPhoto} onClick={() => {}} />)
 
-      // Should be a button for click interaction
-      const button = screen.getByRole('button')
+      // Should have a main button for click interaction
+      const button = screen.getByRole('button', { name: /View photo/i })
       expect(button).toBeInTheDocument()
 
       // Image should have alt text
@@ -135,14 +154,14 @@ describe('PhotoListItem', () => {
     it('has accessible label describing the photo', () => {
       render(<PhotoListItem photo={mockPhoto} onClick={() => {}} />)
 
-      const button = screen.getByRole('button')
+      const button = screen.getByRole('button', { name: /View photo/i })
       expect(button).toHaveAttribute('aria-label', expect.stringContaining('test-photo.jpg'))
     })
 
     it('provides hover state for better UX', () => {
       render(<PhotoListItem photo={mockPhoto} onClick={() => {}} />)
 
-      const button = screen.getByRole('button')
+      const button = screen.getByRole('button', { name: /View photo/i })
 
       // Should have hover classes
       expect(button).toHaveClass('hover:shadow-md')
