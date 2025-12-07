@@ -184,22 +184,66 @@ class SearchService:
                 logger.debug(f"Skipping EXIF for large file ({file_size} bytes): {photo_path}")
                 return None
 
-            # Use explicit file handle to ensure proper cleanup
-            with open(photo_path, 'rb') as f:
-                exif_bytes = f.read()
-            exif_dict = piexif.load(exif_bytes)
+            # piexif.load(path) only reads EXIF header, not entire file
+            exif_dict = piexif.load(str(photo_path))
             if 'Exif' in exif_dict:
                 exif_ifd = exif_dict['Exif']
                 if piexif.ExifIFD.DateTimeOriginal in exif_ifd:
                     dt_bytes = exif_ifd[piexif.ExifIFD.DateTimeOriginal]
                     dt_str = dt_bytes.decode('utf-8', errors='ignore')
                     # Convert EXIF format (YYYY:MM:DD HH:MM:SS) to ISO date
-                    dt = datetime.strptime(dt_str, '%Y:%m:%d %H:%M:%S')
-                    return dt.strftime('%Y-%m-%d')
+                    try:
+                        dt = datetime.strptime(dt_str, '%Y:%m:%d %H:%M:%S')
+                        return dt.strftime('%Y-%m-%d')
+                    except ValueError:
+                        logger.debug(f"Malformed EXIF date for {photo_path}: {dt_str}")
+                        return None
         except Exception as e:
             # Debug logging for troubleshooting EXIF issues
             logger.debug(f"EXIF extraction failed for {photo_path}: {e}")
         return None
+
+    def _build_photo_metadata(self, photo_path: Path) -> tuple[dict, float]:
+        """Build metadata from EXIF and sidecar sources.
+
+        Args:
+            photo_path: Path to the photo file
+
+        Returns:
+            Tuple of (metadata dict, mtime for change detection)
+        """
+        metadata = {'filename': photo_path.name, 'tags': []}
+
+        # Get sidecar path and check existence
+        sidecar_path = photo_path.parent / f"{photo_path.name}.json"
+
+        if sidecar_path.exists():
+            mtime = sidecar_path.stat().st_mtime
+
+            # Read sidecar metadata
+            if self._sidecar_service:
+                metadata_obj = self._sidecar_service.get_metadata(str(photo_path))
+            else:
+                from webui.backend.lib.sidecar_metadata import read_metadata
+                metadata_obj = read_metadata(str(photo_path))
+
+            if metadata_obj:
+                sidecar_data = metadata_obj.to_dict()
+                metadata['tags'] = sidecar_data.get('tags', [])
+                metadata['species'] = sidecar_data.get('species')
+                metadata['species_common_name'] = sidecar_data.get('species_common_name')
+                metadata['notes'] = sidecar_data.get('notes')
+                metadata['custom_fields'] = sidecar_data.get('custom_fields', {})
+        else:
+            # No sidecar - use photo mtime
+            mtime = photo_path.stat().st_mtime
+
+        # Extract EXIF date
+        exif_date = self._extract_exif_date(photo_path)
+        if exif_date:
+            metadata['exif_date'] = exif_date
+
+        return metadata, mtime
 
     def build_index(self, photos_dir: Path | None = None) -> dict:
         """Full rebuild of search index from all photos.
@@ -268,37 +312,7 @@ class SearchService:
             # Index each photo (with or without sidecar)
             for photo_path in photos:
                 try:
-                    # Build metadata from multiple sources
-                    metadata = {'filename': photo_path.name, 'tags': []}
-
-                    # 1. Try to get EXIF date (primary source for accurate timestamps)
-                    exif_date = self._extract_exif_date(photo_path)
-                    if exif_date:
-                        metadata['exif_date'] = exif_date
-
-                    # 2. Merge sidecar metadata if available (user-curated tags, species, notes)
-                    # Also track mtime for consistency with sync_index()
-                    sidecar_path = photo_path.parent / f"{photo_path.name}.json"
-                    if sidecar_path.exists():
-                        mtime = sidecar_path.stat().st_mtime
-                        if self._sidecar_service:
-                            metadata_obj = self._sidecar_service.get_metadata(str(photo_path))
-                        else:
-                            # Read directly from file
-                            from webui.backend.lib.sidecar_metadata import read_metadata
-                            metadata_obj = read_metadata(str(photo_path))
-
-                        if metadata_obj:
-                            sidecar_data = metadata_obj.to_dict()
-                            # Merge sidecar fields into metadata
-                            metadata['tags'] = sidecar_data.get('tags', [])
-                            metadata['species'] = sidecar_data.get('species')
-                            metadata['species_common_name'] = sidecar_data.get('species_common_name')
-                            metadata['notes'] = sidecar_data.get('notes')
-                            metadata['custom_fields'] = sidecar_data.get('custom_fields', {})
-                    else:
-                        # No sidecar - use photo mtime
-                        mtime = photo_path.stat().st_mtime
+                    metadata, mtime = self._build_photo_metadata(photo_path)
 
                     # Index photo with relative path (for correct URL construction)
                     self._engine.index_photo(
@@ -377,38 +391,7 @@ class SearchService:
         for ext in photo_extensions:
             for photo_path in photos_dir.rglob(ext):
                 try:
-                    sidecar_path = photo_path.parent / f"{photo_path.name}.json"
-
-                    # Build metadata from multiple sources
-                    metadata = {'filename': photo_path.name, 'tags': []}
-
-                    # Get mtime for change detection
-                    # Use sidecar mtime if exists (changes more often), else photo mtime
-                    if sidecar_path.exists():
-                        mtime = sidecar_path.stat().st_mtime
-
-                        # Read sidecar metadata
-                        if self._sidecar_service:
-                            metadata_obj = self._sidecar_service.get_metadata(str(photo_path))
-                        else:
-                            from webui.backend.lib.sidecar_metadata import read_metadata
-                            metadata_obj = read_metadata(str(photo_path))
-
-                        if metadata_obj:
-                            sidecar_data = metadata_obj.to_dict()
-                            metadata['tags'] = sidecar_data.get('tags', [])
-                            metadata['species'] = sidecar_data.get('species')
-                            metadata['species_common_name'] = sidecar_data.get('species_common_name')
-                            metadata['notes'] = sidecar_data.get('notes')
-                            metadata['custom_fields'] = sidecar_data.get('custom_fields', {})
-                    else:
-                        # No sidecar - use photo mtime
-                        mtime = photo_path.stat().st_mtime
-
-                    # Extract EXIF date (primary source for accurate timestamps)
-                    exif_date = self._extract_exif_date(photo_path)
-                    if exif_date:
-                        metadata['exif_date'] = exif_date
+                    metadata, mtime = self._build_photo_metadata(photo_path)
 
                     photos.append({
                         'filepath': str(photo_path.relative_to(photos_dir)),
