@@ -63,24 +63,66 @@ export function AdvancedSearchBuilder({
 
   // Parse initial query into conditions
   const parseInitialQuery = (query) => {
-    // Simple parsing for tag:value patterns
-    const fieldPattern = /(\w+):([^\s]+)/
-    const match = query.match(fieldPattern)
+    let remainingQuery = query
 
-    if (match) {
-      const [, field, value] = match
-      // Map field to our internal field names
-      const fieldMapping = {
-        tag: 'tags',
-        tags: 'tags',
-        species: 'species',
-        name: 'name',
-        filename: 'filename',
-        notes: 'notes',
+    // First, extract and handle date range filter (date:YYYY-MM-DD..YYYY-MM-DD)
+    const dateRangePattern = /date:(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})/
+    const dateRangeMatch = remainingQuery.match(dateRangePattern)
+    if (dateRangeMatch) {
+      setDateFrom(dateRangeMatch[1])
+      setDateTo(dateRangeMatch[2])
+      remainingQuery = remainingQuery.replace(dateRangePattern, '').trim()
+    }
+
+    // Handle comparison operators (date:>=YYYY-MM-DD, date:<=YYYY-MM-DD, etc.)
+    const dateComparePattern = /date:([<>]=?)(\d{4}-\d{2}-\d{2})/
+    const dateCompareMatch = remainingQuery.match(dateComparePattern)
+    if (dateCompareMatch) {
+      const [, operator, dateValue] = dateCompareMatch
+      // For comparison operators, set as single boundary
+      if (operator === '>=' || operator === '>') {
+        setDateFrom(dateValue)
+      } else if (operator === '<=' || operator === '<') {
+        setDateTo(dateValue)
       }
+      remainingQuery = remainingQuery.replace(dateComparePattern, '').trim()
+    }
 
-      const mappedField = fieldMapping[field] || 'tags'
-      setConditions([{ field: mappedField, operator: 'contains', value }])
+    // Remove any trailing AND/OR from query after removing date filter
+    remainingQuery = remainingQuery.replace(/\s+(AND|OR)\s*$/i, '').trim()
+    remainingQuery = remainingQuery.replace(/^\s*(AND|OR)\s+/i, '').trim()
+
+    // Now parse remaining field:value patterns
+    const fieldPattern = /(\w+):([^\s]+)/g
+    const matches = [...remainingQuery.matchAll(fieldPattern)]
+
+    // Map field to our internal field names
+    const fieldMapping = {
+      tag: 'tags',
+      tags: 'tags',
+      species: 'species',
+      name: 'name',
+      filename: 'filename',
+      notes: 'notes',
+    }
+
+    if (matches.length > 0) {
+      const parsedConditions = matches
+        .filter(match => match[1] !== 'date') // Skip any remaining date: patterns
+        .map(match => {
+          const [, field, value] = match
+          const mappedField = fieldMapping[field] || 'any'
+          return { field: mappedField, operator: 'contains', value }
+        })
+
+      if (parsedConditions.length > 0) {
+        setConditions(parsedConditions)
+      }
+    } else if (!dateRangeMatch && !dateCompareMatch) {
+      // No field:value patterns and no date filter - might be plain text search
+      if (remainingQuery.trim()) {
+        setConditions([{ field: 'any', operator: 'contains', value: remainingQuery.trim() }])
+      }
     }
   }
 
