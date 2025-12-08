@@ -9,12 +9,14 @@ import PropTypes from 'prop-types'
  *
  * Features:
  * - Graceful degradation when a tab component crashes
- * - User-friendly error message
+ * - User-friendly error message with photo path for debugging
  * - Retry button to attempt recovery
- * - Logs errors to console for debugging
+ * - Logs errors to console with context for debugging
+ *
+ * @param {string} [photoPath] - Path to the photo being displayed (for debugging)
  *
  * @example
- * <MetadataErrorBoundary>
+ * <MetadataErrorBoundary photoPath="/path/to/photo.jpg">
  *   <MetadataPanel photoPath="/path/to/photo.jpg" />
  * </MetadataErrorBoundary>
  */
@@ -32,6 +34,10 @@ class MetadataErrorBoundary extends Component {
   componentDidCatch(error, errorInfo) {
     // Log error details to console for debugging
     console.error('MetadataPanel error:', error, errorInfo)
+    if (this.props.photoPath) {
+      console.error('Photo path:', this.props.photoPath)
+      console.error('Debug: Check sidecar file at:', `${this.props.photoPath}.json`)
+    }
   }
 
   handleReset = () => {
@@ -65,6 +71,11 @@ class MetadataErrorBoundary extends Component {
           <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
             Unable to display metadata. This may be due to corrupted data or an unexpected error.
           </p>
+          {this.props.photoPath && (
+            <p className="text-gray-500 dark:text-gray-500 text-xs mb-4 font-mono break-all">
+              Photo: {this.props.photoPath}
+            </p>
+          )}
           <button
             onClick={this.handleReset}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
@@ -81,6 +92,7 @@ class MetadataErrorBoundary extends Component {
 
 MetadataErrorBoundary.propTypes = {
   children: PropTypes.node.isRequired,
+  photoPath: PropTypes.string,
 }
 
 export default MetadataErrorBoundary

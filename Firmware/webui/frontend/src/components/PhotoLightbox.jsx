@@ -806,7 +806,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
 
         {/* Metadata panel - hidden on mobile, side panel on desktop */}
         <div className="hidden md:block md:w-96 bg-white dark:bg-gray-800 rounded-lg overflow-hidden">
-          <MetadataErrorBoundary>
+          <MetadataErrorBoundary photoPath={photo.path}>
             <MetadataPanel photoPath={photo.path} />
           </MetadataErrorBoundary>
         </div>
