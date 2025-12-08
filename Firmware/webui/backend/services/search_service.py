@@ -230,7 +230,15 @@ class SearchService:
             if metadata_obj:
                 sidecar_data = metadata_obj.to_dict()
                 metadata['tags'] = sidecar_data.get('tags', [])
-                metadata['species'] = sidecar_data.get('species')
+                # Handle malformed species field (dict instead of string)
+                # This can happen with older bulk species updates (fixed in PR #XXX)
+                species = sidecar_data.get('species')
+                if isinstance(species, dict):
+                    species = species.get('species')
+                    # Convert "None" string to actual None
+                    if species == 'None':
+                        species = None
+                metadata['species'] = species
                 metadata['species_common_name'] = sidecar_data.get('species_common_name')
                 metadata['notes'] = sidecar_data.get('notes')
                 metadata['custom_fields'] = sidecar_data.get('custom_fields', {})

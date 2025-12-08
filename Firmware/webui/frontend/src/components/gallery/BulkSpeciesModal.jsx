@@ -56,14 +56,15 @@ export default function BulkSpeciesModal({
     const trimmedCommonName = commonName.trim()
 
     if (trimmedSpecies) {
+      // Use backend field names (snake_case) for sidecar schema compatibility
       const data = {
         species: trimmedSpecies,
-        confidence
+        species_confidence: confidence
       }
 
-      // Only include commonName if it has content after trimming
+      // Only include species_common_name if it has content after trimming
       if (trimmedCommonName) {
-        data.commonName = trimmedCommonName
+        data.species_common_name = trimmedCommonName
       }
 
       onApply(data)

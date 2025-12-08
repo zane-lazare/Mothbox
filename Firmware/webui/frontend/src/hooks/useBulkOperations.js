@@ -330,27 +330,30 @@ export default function useBulkOperations() {
   }, [batchedOperation, fetchPreviousState, queryClient])
 
   /**
-   * Update species field for photos
+   * Update species fields for photos
    *
    * @param {string[]} filenames - Photo filenames
-   * @param {string} species - Species name
+   * @param {object} speciesData - Species data object with backend field names
+   * @param {string} speciesData.species - Scientific name
+   * @param {string} [speciesData.species_confidence] - Confidence level
+   * @param {string} [speciesData.species_common_name] - Common name
    * @param {Function} onProgress - Progress callback (optional)
    * @returns {Promise<object>} Result with success/failed/errors/previousState
    */
-  const bulkUpdateSpecies = useCallback(async (filenames, species, onProgress = null) => {
+  const bulkUpdateSpecies = useCallback(async (filenames, speciesData, onProgress = null) => {
     const result = await batchedOperation(
       filenames,
       async (batch) => {
         const response = await api.post('/sidecar/bulk', {
           filenames: batch,
-          updates: { species },
+          updates: speciesData,
           mode: 'replace'
         })
         return response.data
       },
       onProgress,
       true, // fetchUndo
-      ['species'] // undoFields
+      ['species', 'species_confidence', 'species_common_name'] // undoFields
     )
 
     // Invalidate caches on success

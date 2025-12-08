@@ -119,14 +119,15 @@ describe('BulkSpeciesModal', () => {
       const applyButton = screen.getByRole('button', { name: /apply/i })
       await user.click(applyButton)
 
+      // Uses snake_case field names to match backend schema
       expect(mockOnApply).toHaveBeenCalledWith({
         species: 'Danaus plexippus',
-        commonName: 'Monarch Butterfly',
-        confidence: 'probable',
+        species_common_name: 'Monarch Butterfly',
+        species_confidence: 'probable',
       })
     })
 
-    it('does not send commonName if only whitespace', async () => {
+    it('does not send species_common_name if only whitespace', async () => {
       const user = userEvent.setup()
       render(<BulkSpeciesModal {...defaultProps} />)
 
@@ -139,9 +140,10 @@ describe('BulkSpeciesModal', () => {
       const applyButton = screen.getByRole('button', { name: /apply/i })
       await user.click(applyButton)
 
+      // Uses snake_case field names to match backend schema
       expect(mockOnApply).toHaveBeenCalledWith({
         species: 'Danaus plexippus',
-        confidence: 'probable',
+        species_confidence: 'probable',
       })
     })
   })
@@ -172,10 +174,11 @@ describe('BulkSpeciesModal', () => {
       const applyButton = screen.getByRole('button', { name: /apply/i })
       await user.click(applyButton)
 
+      // Uses snake_case field names to match backend schema
       expect(mockOnApply).toHaveBeenCalledWith({
         species: 'Danaus plexippus',
-        commonName: 'Monarch Butterfly',
-        confidence: 'certain',
+        species_common_name: 'Monarch Butterfly',
+        species_confidence: 'certain',
       })
     })
 
