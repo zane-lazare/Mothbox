@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import PropTypes from 'prop-types'
 import { MagnifyingGlassIcon, LinkIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import useSpecies from '../../hooks/useSpecies'
@@ -16,11 +16,21 @@ export default function MetadataSpecies({
   const [urlInputValue, setUrlInputValue] = useState(referenceUrl)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [urlError, setUrlError] = useState('')
+  const isMountedRef = useRef(true)
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   // Sync local state with prop changes (e.g., when sidecar data loads async)
   useEffect(() => {
-    setInputValue(species)
-    setUrlInputValue(referenceUrl)
+    if (isMountedRef.current) {
+      setInputValue(species)
+      setUrlInputValue(referenceUrl)
+    }
   }, [species, referenceUrl])
 
   const { species: speciesData } = useSpecies({ sort: 'count', order: 'desc', limit: 20 })

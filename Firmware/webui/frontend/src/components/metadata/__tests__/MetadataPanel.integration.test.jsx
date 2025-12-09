@@ -80,7 +80,14 @@ describe('MetadataPanel Integration Tests', () => {
     api.getAllSpecies.mockResolvedValue({ data: { species: [{ name: 'Actias luna', count: 3 }], total: 1 } })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Flush all pending timers AND promises to prevent act() warnings from
+    // statusResetTimer in useAutoSave and async state updates in MetadataSpecies
+    await act(async () => {
+      vi.runAllTimers()
+      // Flush microtask queue (pending promises from TanStack Query)
+      await new Promise(resolve => setImmediate(resolve))
+    })
     vi.useRealTimers()
     // Note: Tags invalidation timeout is now managed by useRef inside the hook,
     // so cleanup happens automatically when the component unmounts
