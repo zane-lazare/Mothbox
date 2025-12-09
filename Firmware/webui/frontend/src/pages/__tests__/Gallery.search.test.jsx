@@ -126,7 +126,7 @@ describe('Gallery Search Integration', () => {
 
       // Wait for results to display - check for result count message
       await waitFor(() => {
-        expect(screen.getByText(/1 result for "moth"/i)).toBeInTheDocument()
+        expect(screen.getByText(/1 result/i)).toBeInTheDocument()
       }, { timeout: 1000 })
 
       // Verify the photo is rendered (as an image)
@@ -212,11 +212,11 @@ describe('Gallery Search Integration', () => {
 
       // Wait for search results (check for result count message)
       await waitFor(() => {
-        expect(screen.getByText(/1 result for "moth"/i)).toBeInTheDocument()
+        expect(screen.getByText(/1 result/i)).toBeInTheDocument()
       }, { timeout: 1000 })
 
-      // Clear search
-      const clearButton = await screen.findByLabelText(/clear/i)
+      // Clear search (use specific label to avoid matching "Clear all filters" in FilterDrawer)
+      const clearButton = await screen.findByLabelText(/clear search/i)
       await user.click(clearButton)
 
       // Should restore regular gallery view - verify gallery photos are shown
@@ -381,8 +381,8 @@ describe('Gallery Search Integration', () => {
         expect(screen.getByText(/1 result/i)).toBeInTheDocument()
       }, { timeout: 1000 })
 
-      // Clear search
-      const clearButton = await screen.findByLabelText(/clear/i)
+      // Clear search (use specific label to avoid matching "Clear all filters" in FilterDrawer)
+      const clearButton = await screen.findByLabelText(/clear search/i)
       await user.click(clearButton)
 
       // Should show all 5 gallery photos

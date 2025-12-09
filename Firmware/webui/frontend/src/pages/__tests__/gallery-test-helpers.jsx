@@ -3,6 +3,7 @@ import { render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import Gallery from '../Gallery'
+import { FilterProvider } from '../../contexts/FilterContext'
 import { GALLERY_CONFIG } from '../../constants/config'
 
 // Mock navigation function (shared across all Gallery tests)
@@ -112,7 +113,9 @@ export const renderGallery = (queryClient, props = {}) => {
   return render(
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
-        <Gallery {...props} />
+        <FilterProvider>
+          <Gallery {...props} />
+        </FilterProvider>
       </QueryClientProvider>
     </BrowserRouter>
   )
