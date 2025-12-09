@@ -14,6 +14,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/setupTests.js',
     teardownTimeout: 5000,  // Force exit after 5 seconds if cleanup stalls
+    testTimeout: 10000,  // 10 second per-test timeout to catch hanging tests
+    hookTimeout: 10000,  // 10 second timeout for beforeEach/afterEach hooks
     coverage: {
       reporter: ['text', 'json', 'html'],
       exclude: [
