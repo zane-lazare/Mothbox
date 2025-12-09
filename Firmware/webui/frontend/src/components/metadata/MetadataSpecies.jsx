@@ -23,11 +23,11 @@ export default function MetadataSpecies({
     setUrlInputValue(referenceUrl)
   }, [species, referenceUrl])
 
-  const { data: speciesData } = useSpecies({ sort: 'count', order: 'desc', limit: 20 })
+  const { species: speciesData } = useSpecies({ sort: 'count', order: 'desc', limit: 20 })
 
   // Memoize filtered suggestions to avoid recalculation on every render
   const suggestions = useMemo(() =>
-    speciesData?.species
+    speciesData
       ?.filter(s => s.name.toLowerCase().includes(inputValue.toLowerCase()))
       ?.slice(0, 5) || []
   , [speciesData, inputValue])

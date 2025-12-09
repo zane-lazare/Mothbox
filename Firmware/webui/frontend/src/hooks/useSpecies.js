@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getAllSpecies } from '../utils/api'
 
@@ -12,32 +13,36 @@ import { getAllSpecies } from '../utils/api'
  * @param {string} [params.sort] - Sort field ('name' or 'count')
  * @param {string} [params.order] - Sort order ('asc' or 'desc')
  * @param {number} [params.limit] - Maximum species to return
- * @returns {Object} TanStack Query result object containing:
- *   - data: Species data object with species array and total count
+ * @returns {Object} Enhanced query result object containing:
+ *   - species: Array of species objects (or empty array while loading)
  *   - isLoading: Boolean indicating if the query is currently loading
  *   - isError: Boolean indicating if an error occurred
- *   - isSuccess: Boolean indicating if the query was successful
  *   - error: Error object if an error occurred, null otherwise
  *   - refetch: Function to manually trigger a refetch
+ *   - filteredSpecies: Function to filter species by search term
  *
  * @example
- * const { data, isLoading, isError, error, refetch } = useSpecies()
+ * const { species, isLoading, isError, error, refetch, filteredSpecies } = useSpecies()
  *
  * if (isLoading) return <div>Loading species...</div>
  * if (isError) return <div>Error: {error.message}</div>
- * if (data) {
- *   return (
- *     <ul>
- *       {data.species.map(species => (
- *         <li key={species.name}>{species.name} ({species.count})</li>
- *       ))}
- *     </ul>
- *   )
- * }
+ *
+ * return (
+ *   <ul>
+ *     {species.map(s => (
+ *       <li key={s.name}>{s.name} ({s.count})</li>
+ *     ))}
+ *   </ul>
+ * )
+ *
+ * @example
+ * // With filtering
+ * const { species, filteredSpecies } = useSpecies()
+ * const moonMoths = filteredSpecies('luna') // Case-insensitive partial match
  *
  * @example
  * // With sorting
- * const { data } = useSpecies({ sort: 'count', order: 'desc', limit: 10 })
+ * const { species } = useSpecies({ sort: 'count', order: 'desc', limit: 10 })
  * // Returns top 10 species sorted by count in descending order
  */
 export default function useSpecies(params = {}) {
@@ -49,7 +54,7 @@ export default function useSpecies(params = {}) {
     limit: params?.limit,
   }
 
-  return useQuery({
+  const query = useQuery({
     // Query key: unique identifier for this query in the cache
     // Format: ['species', normalizedParams] - explicitly ordered for cache consistency
     queryKey: ['species', normalizedParams],
@@ -65,12 +70,40 @@ export default function useSpecies(params = {}) {
     },
 
     // Cache configuration
-    // staleTime: How long data is considered fresh (5 minutes)
+    // staleTime: How long data is considered fresh (60 seconds)
     // After this time, data is marked as stale and will be refetched in the background
-    staleTime: 5 * 60 * 1000, // 5 minutes in milliseconds
+    staleTime: 60 * 1000, // 60 seconds in milliseconds
 
-    // gcTime: How long inactive data stays in cache (10 minutes)
+    // gcTime: How long inactive data stays in cache (5 minutes)
     // After this time, unused cached data is garbage collected
-    gcTime: 10 * 60 * 1000, // 10 minutes in milliseconds
+    gcTime: 5 * 60 * 1000, // 5 minutes in milliseconds
   })
+
+  // Extract species array from data or provide empty array while loading
+  const species = useMemo(() => {
+    return query.data?.species || []
+  }, [query.data])
+
+  // Helper function to filter species by search term (case-insensitive, partial match)
+  const filteredSpecies = useMemo(() => {
+    return (searchTerm) => {
+      if (!searchTerm || searchTerm.trim() === '') {
+        return species
+      }
+
+      const normalizedSearch = searchTerm.toLowerCase().trim()
+      return species.filter(s =>
+        s.name.toLowerCase().includes(normalizedSearch)
+      )
+    }
+  }, [species])
+
+  return {
+    species,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
+    filteredSpecies,
+  }
 }

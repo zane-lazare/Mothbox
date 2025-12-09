@@ -16,6 +16,7 @@ Endpoints:
 - POST   /bulk                       - Bulk update metadata
 - GET    /tags                       - List all unique tags with counts
 - GET    /species                    - List all unique species with counts
+- GET    /custom-fields              - Discover custom metadata fields with inferred types
 
 Security:
 - CSRF protection (Flask-WTF) OR API key authentication (X-API-Key header)
@@ -84,6 +85,9 @@ _tags_cache_building = False
 _species_cache = None
 _species_cache_time = 0
 _species_cache_building = False
+_custom_fields_cache = None
+_custom_fields_cache_time = 0
+_custom_fields_cache_building = False
 _cache_lock = threading.RLock()  # Reentrant lock for nested calls
 _cache_condition = threading.Condition(_cache_lock)  # For wait/notify on first build
 _DEFAULT_AGGREGATION_CACHE_TTL = 300  # 5 minutes
@@ -92,6 +96,21 @@ _DEFAULT_AGGREGATION_CACHE_TTL = 300  # 5 minutes
 def _get_cache_ttl() -> int:
     """Get aggregation cache TTL from app config or use default."""
     return current_app.config.get('SIDECAR_AGGREGATION_CACHE_TTL', _DEFAULT_AGGREGATION_CACHE_TTL)
+
+
+def invalidate_custom_fields_cache():
+    """
+    Invalidate custom fields discovery cache.
+
+    Called after metadata updates to ensure custom fields reflect latest data.
+    """
+    global _custom_fields_cache, _custom_fields_cache_time, _custom_fields_cache_building
+    with _cache_condition:
+        _custom_fields_cache = None
+        _custom_fields_cache_time = 0
+        _custom_fields_cache_building = False
+        _cache_condition.notify_all()
+        logger.debug("Custom fields cache invalidated")
 
 
 def invalidate_aggregation_cache():
@@ -112,6 +131,9 @@ def invalidate_aggregation_cache():
         _species_cache_building = False
         _cache_condition.notify_all()  # Wake any waiters
         logger.debug("Aggregation cache invalidated")
+
+    # Also invalidate custom fields cache
+    invalidate_custom_fields_cache()
 
 
 def invalidate_tag_autocomplete_cache():
@@ -1253,6 +1275,234 @@ def get_all_species():
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to get species")
+        return jsonify({"error": error_msg}), 500
+
+
+# ============================================================================
+# GET /custom-fields - Discover custom metadata fields
+# ============================================================================
+
+@sidecar_bp.route("/custom-fields", methods=["GET"])
+def get_custom_fields():
+    """
+    Discover custom metadata fields from all sidecar files.
+
+    Scans sidecar files to identify non-standard fields in the 'custom' object
+    and infers field types based on values.
+
+    Field Types:
+        - "number": All values are numeric
+        - "select": Repeated values (good for dropdowns)
+        - "text": Everything else
+
+    Standard fields excluded:
+        - tags, species, common_name, notes, date, timestamp
+        - Fields starting with underscore (_)
+        - Schema fields: version, photo_filename, created_at, modified_at, etc.
+
+    Returns:
+        JSON response with:
+        - fields: List of field definitions
+            - name: Field name (string)
+            - type: Inferred type ("text", "number", "select")
+            - values: Sample values (list, max 20)
+            - min: Minimum value (for "number" type only)
+            - max: Maximum value (for "number" type only)
+            - options: Unique values (for "select" type only, max 20)
+        - total: Total number of custom fields discovered
+
+    Status Codes:
+        200: Success
+        500: Internal server error
+        503: Service unavailable
+
+    Caching:
+        - Results cached for 5 minutes (expensive to scan all sidecars)
+        - Cache invalidated after metadata updates
+
+    Example:
+        GET /api/sidecar/custom-fields
+
+        Response:
+        {
+            "fields": [
+                {
+                    "name": "location",
+                    "type": "text",
+                    "values": ["Forest", "Meadow", "Garden"]
+                },
+                {
+                    "name": "temperature",
+                    "type": "number",
+                    "min": -10.5,
+                    "max": 40.2,
+                    "values": [20.5, 25.3, 18.7]
+                },
+                {
+                    "name": "weather",
+                    "type": "select",
+                    "options": ["Sunny", "Cloudy", "Rainy"],
+                    "values": ["Sunny", "Cloudy", "Sunny"]
+                }
+            ],
+            "total": 3
+        }
+    """
+    try:
+        # Get sidecar service (not used directly but validates service availability)
+        service = current_app.config.get('SIDECAR_SERVICE')
+        if service is None:
+            return jsonify({"error": "Service unavailable"}), 503
+
+        # Standard fields to exclude (schema fields + common metadata fields)
+        standard_fields = {
+            # Schema fields
+            'version', 'photo_filename', 'created_at', 'modified_at', 'modified_by',
+            # Common metadata fields
+            'tags', 'species', 'notes', 'date', 'timestamp',
+            # Schema v1.1 species fields
+            'species_confidence', 'species_common_name', 'species_reference_url',
+            # Common name variations
+            'common_name', 'name',
+        }
+
+        # Use cached custom fields data if available and fresh
+        global _custom_fields_cache, _custom_fields_cache_time, _custom_fields_cache_building
+        all_fields = None
+
+        with _cache_condition:
+            cache_age = time.time() - _custom_fields_cache_time
+            if _custom_fields_cache is not None and cache_age < _get_cache_ttl():
+                all_fields = _custom_fields_cache.copy()
+                logger.debug(f"Custom fields cache hit (age: {cache_age:.1f}s)")
+            elif _custom_fields_cache_building:
+                # Another thread is building - use stale data or wait
+                if _custom_fields_cache is not None:
+                    all_fields = _custom_fields_cache.copy()
+                    logger.debug("Custom fields cache building, using stale data")
+                else:
+                    # First build - must wait
+                    logger.debug("Custom fields cache building (first build), waiting...")
+                    _cache_condition.wait(timeout=30.0)
+                    if _custom_fields_cache is not None:
+                        all_fields = _custom_fields_cache.copy()
+                        logger.debug("Custom fields cache now available after wait")
+            else:
+                # Mark as building
+                _custom_fields_cache_building = True
+
+        # Build cache outside the lock if needed
+        if all_fields is None:
+            try:
+                # Track all custom field values
+                field_values = {}  # {field_name: [values...]}
+
+                # Scan all sidecar files
+                all_sidecars = chain.from_iterable(
+                    PHOTOS_DIR.rglob(pattern) for pattern in SIDECAR_PATTERNS
+                )
+
+                for sidecar_path in all_sidecars:
+                    try:
+                        sidecar_data = json.loads(sidecar_path.read_text())
+                        custom_data = sidecar_data.get('custom', {})
+
+                        # Skip if not a dict
+                        if not isinstance(custom_data, dict):
+                            continue
+
+                        # Extract custom fields
+                        for field_name, field_value in custom_data.items():
+                            # Skip standard fields and private fields (starting with _)
+                            if field_name in standard_fields or field_name.startswith('_'):
+                                continue
+
+                            # Track value
+                            if field_name not in field_values:
+                                field_values[field_name] = []
+                            field_values[field_name].append(field_value)
+
+                    except (OSError, json.JSONDecodeError, KeyError) as e:
+                        logger.debug(f"Skipping invalid sidecar {sidecar_path}: {e}")
+                        continue
+
+                # Infer field types and build field definitions
+                all_fields = []
+
+                for field_name, values in field_values.items():
+                    # Remove None values for type inference
+                    non_null_values = [v for v in values if v is not None]
+
+                    if not non_null_values:
+                        # All values are None - treat as text
+                        all_fields.append({
+                            "name": field_name,
+                            "type": "text",
+                            "values": []
+                        })
+                        continue
+
+                    # Check if all values are numbers
+                    all_numeric = all(isinstance(v, (int, float)) for v in non_null_values)
+
+                    if all_numeric:
+                        # Number field
+                        min_val = min(non_null_values)
+                        max_val = max(non_null_values)
+                        sample_values = non_null_values[:20]  # Limit to 20 samples
+
+                        all_fields.append({
+                            "name": field_name,
+                            "type": "number",
+                            "min": min_val,
+                            "max": max_val,
+                            "values": sample_values
+                        })
+                    else:
+                        # Check if values are repeated (good for select dropdown)
+                        unique_values = list({str(v) for v in non_null_values})
+
+                        # If <= 20 unique values, treat as select
+                        if len(unique_values) <= 20:
+                            all_fields.append({
+                                "name": field_name,
+                                "type": "select",
+                                "options": sorted(unique_values),
+                                "values": [str(v) for v in non_null_values[:20]]
+                            })
+                        else:
+                            # Too many unique values - treat as text
+                            sample_values = [str(v) for v in non_null_values[:20]]
+                            all_fields.append({
+                                "name": field_name,
+                                "type": "text",
+                                "values": sample_values
+                            })
+
+                # Sort by field name
+                all_fields.sort(key=lambda x: x['name'])
+
+                # Cache the result and notify waiters
+                with _cache_condition:
+                    _custom_fields_cache = all_fields
+                    _custom_fields_cache_time = time.time()
+                    _custom_fields_cache_building = False
+                    _cache_condition.notify_all()
+                logger.debug(f"Custom fields cache built - {len(all_fields)} fields")
+            except Exception:
+                # Reset building flag on error
+                with _cache_condition:
+                    _custom_fields_cache_building = False
+                    _cache_condition.notify_all()
+                raise
+
+        return jsonify({
+            "fields": all_fields,
+            "total": len(all_fields)
+        }), 200
+
+    except Exception as e:
+        error_msg = sanitize_error_message(e, "Failed to get custom fields")
         return jsonify({"error": error_msg}), 500
 
 

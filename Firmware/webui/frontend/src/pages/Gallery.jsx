@@ -33,6 +33,9 @@ import EmptyStateMessage from '../components/EmptyStateMessage'
 import { SearchBar } from '../components/gallery/SearchBar'
 import { AdvancedSearchBuilder } from '../components/gallery/AdvancedSearchBuilder'
 import { SelectionProvider, useSelectionContext } from '../contexts/SelectionContext'
+import { FilterDrawer, FilterDrawerToggle, ActiveFilterChips } from '../components/filters'
+import { useFilters } from '../hooks/useFilters'
+import { combineWithUserSearch } from '../utils/filterQueryBuilder'
 import { GALLERY_CONFIG, GALLERY_MESSAGES } from '../constants/config'
 import { formatErrorMessage } from '../utils/helpers'
 import toast from 'react-hot-toast'
@@ -49,6 +52,14 @@ function GalleryContent() {
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
+
+  // Filter state from useFilters hook
+  const { searchQuery: filterQuery, hasFilters } = useFilters()
+
+  // Combine user search query with filter query
+  const combinedQuery = useMemo(() => {
+    return combineWithUserSearch(searchQuery, filterQuery)
+  }, [searchQuery, filterQuery])
 
   // Selection context for bulk operations
   const {
@@ -97,8 +108,8 @@ function GalleryContent() {
   const prevPaginationError = useRef(null)
 
   // Search functionality
-  const { results: searchResults, total: searchTotal, isLoading: isSearching, tookMs } = usePhotoSearch(searchQuery)
-  const isSearchActive = searchQuery.trim().length > 0
+  const { results: searchResults, total: searchTotal, isLoading: isSearching, tookMs } = usePhotoSearch(combinedQuery)
+  const isSearchActive = combinedQuery.trim().length > 0
 
   // Infinite query for paginated photos
   const {
@@ -524,320 +535,348 @@ function GalleryContent() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header with title and view mode toggle */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Photo Gallery</h2>
-        <div className="flex items-center gap-3">
-          <SelectModeToggle />
-          <ViewModeToggle
-            currentView={viewMode}
-            onViewChange={setViewMode}
-            isLoading={isLoadingPreference}
-          />
-          {/* Link to full-screen map page */}
-          {totalWithGps > 0 && (
-            <Link
-              to="/gallery/map"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              aria-label="Open full-screen map view"
-            >
-              <ArrowTopRightOnSquareIcon className="w-5 h-5" aria-hidden="true" />
-              <span className="text-sm font-medium">Full Map</span>
-            </Link>
-          )}
-        </div>
-      </div>
+    <div className="flex gap-6">
+      {/* Filter Drawer (desktop: always visible, mobile/tablet: toggleable) */}
+      <FilterDrawer />
 
-      {/* Search Bar */}
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <SearchBar
-            value={searchQuery}
-            onChange={setSearchQuery}
-            onClear={() => setSearchQuery('')}
-            isLoading={isSearching}
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowAdvancedSearch(true)}
-          aria-label="Advanced search"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <AdjustmentsHorizontalIcon className="w-5 h-5 text-gray-600" />
-          <span className="text-sm font-medium text-gray-700">Advanced</span>
-        </button>
-      </div>
-
-      {/* Series API error warning with retry */}
-      {isSeriesError && (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-yellow-700">
-              Photo series not available. Displaying all photos individually.
-            </p>
-            <button
-              onClick={() => refetchSeries()}
-              className="text-sm text-yellow-700 underline hover:text-yellow-800"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Screen reader announcements for loading states */}
-      <div aria-live="polite" aria-atomic="true" className="sr-only">
-        {isLoading && GALLERY_MESSAGES.LOADING.INITIAL}
-        {isError && photos.length === 0 && formatErrorMessage(error, GALLERY_MESSAGES.ERROR.INITIAL, GALLERY_MESSAGES.ERROR.FALLBACK)}
-        {isError && photos.length > 0 && formatErrorMessage(error, GALLERY_MESSAGES.ERROR.PAGINATION, GALLERY_MESSAGES.ERROR.FALLBACK)}
-        {!hasNextPage && photos.length > 0 && !isError && GALLERY_MESSAGES.END}
-        {isFetchingNextPage && GALLERY_MESSAGES.LOADING.MORE}
-      </div>
-
-      {photos.length === 0 && !isSearchActive && (
-        <EmptyStateMessage variant="first-time" onCtaClick={() => navigate('/camera')} />
-      )}
-
-      {/* Search Results or Normal Gallery */}
-      {isSearchActive ? (
-        /* Search Results View */
-        <div className="space-y-4">
-          {/* Search Results Header */}
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-gray-600">
-              {searchTotal === 0 ? (
-                'No results found'
-              ) : searchTotal === 1 ? (
-                `1 result for "${searchQuery}"`
-              ) : (
-                `${searchTotal} results for "${searchQuery}"`
-              )}
-              {tookMs > 0 && <span className="ml-2 text-gray-400">({tookMs}ms)</span>}
-            </p>
-          </div>
-
-          {/* Search Results Grid */}
-          {searchResults.length > 0 ? (
-            <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
-              {searchResults.map((result, index) => (
-                <SearchResultItem
-                  key={result.path}
-                  result={result}
-                  onClick={isSelectMode ? undefined : setSelectedPhoto}
-                  index={index}
-                  results={searchResults}
-                />
-              ))}
-            </div>
-          ) : searchQuery.trim().length > 0 && !isSearching ? (
-            <div className="text-center py-12 text-gray-500">
-              <p>No results found for "{searchQuery}"</p>
-              <p className="text-sm mt-2">Try different keywords or use advanced search</p>
-            </div>
-          ) : null}
-        </div>
-      ) : (
-        /* Normal Gallery View */
-        <>
-          {/* Conditional rendering: Grid view, Virtualized Grid, List view, or Map view */}
-          {viewMode === 'map' ? (
-        /* Map View */
-        <div className="h-[600px] rounded-lg overflow-hidden">
-          <MapView
-            locations={locations}
-            onPhotoClick={handleMapPhotoClick}
-            isLoading={isLoadingLocations}
-          />
-        </div>
-      ) : viewMode === 'grid' ? (
-        shouldUseVirtualization ? (
-          /* Virtualized Photo Grid (for large galleries) - wrapped in ErrorBoundary */
-          <ErrorBoundary
-            fallback={({ error, resetErrorBoundary }) => (
-              <div className="py-12">
-                <EmptyStateMessage
-                  variant="error"
-                  onCtaClick={resetErrorBoundary}
-                />
-                {/* Show technical error details in development */}
-                {import.meta.env.DEV && error && (
-                  <details className="mt-4 text-sm text-gray-600 max-w-2xl mx-auto">
-                    <summary className="cursor-pointer font-semibold">Error Details</summary>
-                    <pre className="mt-2 p-4 bg-gray-100 rounded overflow-auto">
-                      {error.message}
-                      {error.stack && `\n\n${error.stack}`}
-                    </pre>
-                  </details>
-                )}
-              </div>
-            )}
-            onReset={() => {
-              // Reset selected photo and re-fetch photos
-              setSelectedPhoto(null)
-              refetch()
-            }}
-          >
-            <VirtualPhotoGrid
-              photos={photos}
-              onPhotoClick={handlePhotoClick}
-              isLoading={isLoading}
-              isFetchingNextPage={isFetchingNextPage}
-              hasNextPage={hasNextPage}
-              viewMode={viewMode}
-              scrollRef={scrollRef}
+      {/* Main Gallery Content */}
+      <div className="flex-1 space-y-6">
+        {/* Header with title and view mode toggle */}
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-gray-900">Photo Gallery</h2>
+          <div className="flex items-center gap-3">
+            <FilterDrawerToggle />
+            <SelectModeToggle />
+            <ViewModeToggle
+              currentView={viewMode}
+              onViewChange={setViewMode}
+              isLoading={isLoadingPreference}
             />
-          </ErrorBoundary>
-        ) : (
-          /* Traditional Photo Grid (for smaller galleries) */
-          <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
-            {displayPhotos.map((photo, index) => {
-              const series = seriesLookup.get(photo.path)
-
-              // If this photo is a series cover, render as StackedPhotoCard
-              if (series && series.cover_photo === photo.path) {
-                return (
-                  <StackedPhotoCard
-                    key={photo.path}
-                    series={series}
-                    onPhotoClick={isSelectMode ? undefined : handleSeriesPhotoClick}
-                  />
-                )
-              }
-
-              // Regular single photo
-              return (
-                <PhotoGridItem
-                  key={photo.path}
-                  photo={photo}
-                  onClick={isSelectMode ? undefined : setSelectedPhoto}
-                  index={index}
-                  photos={displayPhotos}
-                />
-              )
-            })}
-
-            {/* Skeleton loading cards while fetching next page */}
-            {isFetchingNextPage &&
-              Array.from({ length: GALLERY_CONFIG.SKELETON_COUNT }).map((_, i) => (
-                <PhotoSkeleton key={`skeleton-${i}`} aria-hidden="true" />
-              ))}
-          </div>
-        )
-      ) : (
-        /* Photo List */
-        <div className="flex flex-col gap-4">
-          {displayPhotos.map((photo, index) => (
-            <PhotoListItem
-              key={photo.path}
-              photo={photo}
-              onClick={isSelectMode ? undefined : setSelectedPhoto}
-              index={index}
-              photos={displayPhotos}
-            />
-          ))}
-        </div>
-      )}
-
-          {/* Pagination error message (shows error but keeps photos visible) - not shown in map view */}
-          {viewMode !== 'map' && isError && photos.length > 0 && (
-            <div className="text-center py-4">
-              <div className="text-red-600 mb-2">
-                {formatErrorMessage(error, GALLERY_MESSAGES.ERROR.PAGINATION, GALLERY_MESSAGES.ERROR.FALLBACK)}
-              </div>
-              <button
-                onClick={() => fetchNextPage()}
-                disabled={isFetchingNextPage}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                aria-label="Retry loading more photos"
+            {/* Link to full-screen map page */}
+            {totalWithGps > 0 && (
+              <Link
+                to="/gallery/map"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                aria-label="Open full-screen map view"
               >
-                {isFetchingNextPage ? 'Retrying...' : 'Try Again'}
+                <ArrowTopRightOnSquareIcon className="w-5 h-5" aria-hidden="true" />
+                <span className="text-sm font-medium">Full Map</span>
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              onClear={() => setSearchQuery('')}
+              isLoading={isSearching}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAdvancedSearch(true)}
+            aria-label="Advanced search"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <AdjustmentsHorizontalIcon className="w-5 h-5 text-gray-600" />
+            <span className="text-sm font-medium text-gray-700">Advanced</span>
+          </button>
+        </div>
+
+        {/* Active Filter Chips */}
+        <ActiveFilterChips />
+
+        {/* Series API error warning with retry */}
+        {isSeriesError && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-yellow-700">
+                Photo series not available. Displaying all photos individually.
+              </p>
+              <button
+                onClick={() => refetchSeries()}
+                className="text-sm text-yellow-700 underline hover:text-yellow-800"
+              >
+                Retry
               </button>
             </div>
-          )}
-
-          {/* Infinite scroll sentinel - not shown in map view */}
-          {viewMode !== 'map' && <div ref={sentinelRef} className={GALLERY_CONFIG.INFINITE_SCROLL.SENTINEL_HEIGHT} />}
-
-          {/* End of photos indicator - not shown in map view */}
-          {viewMode !== 'map' && !hasNextPage && photos.length > 0 && !isError && (
-            <div className="text-center py-8 text-gray-500">
-              {GALLERY_MESSAGES.END}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Photo Lightbox with Navigation (wrapped in ErrorBoundary with custom fallback) */}
-      <ErrorBoundary
-        fallback={({ error, onClose }) => (
-          <LightboxErrorFallback error={error} onClose={onClose} />
+          </div>
         )}
-        onReset={handleCloseLightbox}
-      >
-        <PhotoLightbox
-          photo={selectedPhoto}
-          photos={photos}
-          onClose={handleCloseLightbox}
-          onNavigate={handleNavigate}
+
+        {/* Screen reader announcements for loading states */}
+        <div aria-live="polite" aria-atomic="true" className="sr-only">
+          {isLoading && GALLERY_MESSAGES.LOADING.INITIAL}
+          {isError && photos.length === 0 && formatErrorMessage(error, GALLERY_MESSAGES.ERROR.INITIAL, GALLERY_MESSAGES.ERROR.FALLBACK)}
+          {isError && photos.length > 0 && formatErrorMessage(error, GALLERY_MESSAGES.ERROR.PAGINATION, GALLERY_MESSAGES.ERROR.FALLBACK)}
+          {!hasNextPage && photos.length > 0 && !isError && GALLERY_MESSAGES.END}
+          {isFetchingNextPage && GALLERY_MESSAGES.LOADING.MORE}
+        </div>
+
+        {photos.length === 0 && !isSearchActive && (
+          <EmptyStateMessage variant="first-time" onCtaClick={() => navigate('/camera')} />
+        )}
+
+        {/* Search Results or Normal Gallery */}
+        {isSearchActive ? (
+          /* Search Results View */
+          <div className="space-y-4">
+            {/* Search Results Header */}
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-gray-600">
+                {searchTotal === 0 ? (
+                  hasFilters ? 'No photos match the selected filters' : 'No results found'
+                ) : searchTotal === 1 ? (
+                  hasFilters && !searchQuery ? (
+                    `1 photo matches the selected filters`
+                  ) : (
+                    `1 result${hasFilters ? ' with filters' : ''}`
+                  )
+                ) : (
+                  hasFilters && !searchQuery ? (
+                    `${searchTotal} photos match the selected filters`
+                  ) : (
+                    `${searchTotal} results${hasFilters ? ' with filters' : ''}`
+                  )
+                )}
+                {tookMs > 0 && <span className="ml-2 text-gray-400">({tookMs}ms)</span>}
+              </p>
+            </div>
+
+            {/* Search Results Grid */}
+            {searchResults.length > 0 ? (
+              <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
+                {searchResults.map((result, index) => (
+                  <SearchResultItem
+                    key={result.path}
+                    result={result}
+                    onClick={isSelectMode ? undefined : setSelectedPhoto}
+                    index={index}
+                    results={searchResults}
+                  />
+                ))}
+              </div>
+            ) : combinedQuery.trim().length > 0 && !isSearching ? (
+              <div className="text-center py-12 text-gray-500">
+                <p>
+                  {hasFilters && !searchQuery
+                    ? 'No photos match the selected filters'
+                    : searchQuery
+                    ? `No results found for "${searchQuery}"`
+                    : 'No results found'}
+                </p>
+                <p className="text-sm mt-2">
+                  {hasFilters
+                    ? 'Try adjusting or clearing filters'
+                    : 'Try different keywords or use advanced search'}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          /* Normal Gallery View */
+          <>
+            {/* Conditional rendering: Grid view, Virtualized Grid, List view, or Map view */}
+            {viewMode === 'map' ? (
+              /* Map View */
+              <div className="h-[600px] rounded-lg overflow-hidden">
+                <MapView
+                  locations={locations}
+                  onPhotoClick={handleMapPhotoClick}
+                  isLoading={isLoadingLocations}
+                />
+              </div>
+            ) : viewMode === 'grid' ? (
+              shouldUseVirtualization ? (
+                /* Virtualized Photo Grid (for large galleries) - wrapped in ErrorBoundary */
+                <ErrorBoundary
+                  fallback={({ error, resetErrorBoundary }) => (
+                    <div className="py-12">
+                      <EmptyStateMessage
+                        variant="error"
+                        onCtaClick={resetErrorBoundary}
+                      />
+                      {/* Show technical error details in development */}
+                      {import.meta.env.DEV && error && (
+                        <details className="mt-4 text-sm text-gray-600 max-w-2xl mx-auto">
+                          <summary className="cursor-pointer font-semibold">Error Details</summary>
+                          <pre className="mt-2 p-4 bg-gray-100 rounded overflow-auto">
+                            {error.message}
+                            {error.stack && `\n\n${error.stack}`}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  )}
+                  onReset={() => {
+                    // Reset selected photo and re-fetch photos
+                    setSelectedPhoto(null)
+                    refetch()
+                  }}
+                >
+                  <VirtualPhotoGrid
+                    photos={photos}
+                    onPhotoClick={handlePhotoClick}
+                    isLoading={isLoading}
+                    isFetchingNextPage={isFetchingNextPage}
+                    hasNextPage={hasNextPage}
+                    viewMode={viewMode}
+                    scrollRef={scrollRef}
+                  />
+                </ErrorBoundary>
+              ) : (
+                /* Traditional Photo Grid (for smaller galleries) */
+                <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
+                  {displayPhotos.map((photo, index) => {
+                    const series = seriesLookup.get(photo.path)
+
+                    // If this photo is a series cover, render as StackedPhotoCard
+                    if (series && series.cover_photo === photo.path) {
+                      return (
+                        <StackedPhotoCard
+                          key={photo.path}
+                          series={series}
+                          onPhotoClick={isSelectMode ? undefined : handleSeriesPhotoClick}
+                        />
+                      )
+                    }
+
+                    // Regular single photo
+                    return (
+                      <PhotoGridItem
+                        key={photo.path}
+                        photo={photo}
+                        onClick={isSelectMode ? undefined : setSelectedPhoto}
+                        index={index}
+                        photos={displayPhotos}
+                      />
+                    )
+                  })}
+
+                  {/* Skeleton loading cards while fetching next page */}
+                  {isFetchingNextPage &&
+                    Array.from({ length: GALLERY_CONFIG.SKELETON_COUNT }).map((_, i) => (
+                      <PhotoSkeleton key={`skeleton-${i}`} aria-hidden="true" />
+                    ))}
+                </div>
+              )
+            ) : (
+              /* Photo List */
+              <div className="flex flex-col gap-4">
+                {displayPhotos.map((photo, index) => (
+                  <PhotoListItem
+                    key={photo.path}
+                    photo={photo}
+                    onClick={isSelectMode ? undefined : setSelectedPhoto}
+                    index={index}
+                    photos={displayPhotos}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Pagination error message (shows error but keeps photos visible) - not shown in map view */}
+            {viewMode !== 'map' && isError && photos.length > 0 && (
+              <div className="text-center py-4">
+                <div className="text-red-600 mb-2">
+                  {formatErrorMessage(error, GALLERY_MESSAGES.ERROR.PAGINATION, GALLERY_MESSAGES.ERROR.FALLBACK)}
+                </div>
+                <button
+                  onClick={() => fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  aria-label="Retry loading more photos"
+                >
+                  {isFetchingNextPage ? 'Retrying...' : 'Try Again'}
+                </button>
+              </div>
+            )}
+
+            {/* Infinite scroll sentinel - not shown in map view */}
+            {viewMode !== 'map' && <div ref={sentinelRef} className={GALLERY_CONFIG.INFINITE_SCROLL.SENTINEL_HEIGHT} />}
+
+            {/* End of photos indicator - not shown in map view */}
+            {viewMode !== 'map' && !hasNextPage && photos.length > 0 && !isError && (
+              <div className="text-center py-8 text-gray-500">
+                {GALLERY_MESSAGES.END}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Photo Lightbox with Navigation (wrapped in ErrorBoundary with custom fallback) */}
+        <ErrorBoundary
+          fallback={({ error, onClose }) => (
+            <LightboxErrorFallback error={error} onClose={onClose} />
+          )}
+          onReset={handleCloseLightbox}
+        >
+          <PhotoLightbox
+            photo={selectedPhoto}
+            photos={photos}
+            onClose={handleCloseLightbox}
+            onNavigate={handleNavigate}
+          />
+        </ErrorBoundary>
+
+        {/* Bulk Actions Toolbar (fixed at bottom when photos selected) */}
+        <BulkActionsToolbar
+          selectedCount={selectedCount}
+          onTagClick={handleTagClick}
+          onSpeciesClick={handleSpeciesClick}
+          onDeleteClick={handleDeleteClick}
+          onDeselectAll={deselectAll}
         />
-      </ErrorBoundary>
 
-      {/* Bulk Actions Toolbar (fixed at bottom when photos selected) */}
-      <BulkActionsToolbar
-        selectedCount={selectedCount}
-        onTagClick={handleTagClick}
-        onSpeciesClick={handleSpeciesClick}
-        onDeleteClick={handleDeleteClick}
-        onDeselectAll={deselectAll}
-      />
-
-      {/* Bulk Tag Modal */}
-      <BulkTagModal
-        isOpen={tagModalOpen}
-        onClose={() => setTagModalOpen(false)}
-        onApply={handleBulkTagApply}
-        selectedCount={selectedCount}
-      />
-
-      {/* Bulk Species Modal */}
-      <BulkSpeciesModal
-        isOpen={speciesModalOpen}
-        onClose={() => setSpeciesModalOpen(false)}
-        onApply={handleBulkSpeciesApply}
-        selectedCount={selectedCount}
-      />
-
-      {/* Bulk Delete Confirmation Modal */}
-      <BulkDeleteConfirmModal
-        isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        onConfirm={handleBulkDeleteConfirm}
-        selectedPhotos={Array.from(selectedPhotos)}
-      />
-
-      {/* Bulk Progress Modal */}
-      <BulkProgressModal
-        isOpen={progressModalOpen}
-        status={progressState.status}
-        current={progressState.current}
-        total={progressState.total}
-        message={progressState.message}
-        onClose={() => setProgressModalOpen(false)}
-      />
-
-      {/* Advanced Search Modal */}
-      {showAdvancedSearch && (
-        <AdvancedSearchBuilder
-          onQueryChange={(query) => {
-            setSearchQuery(query)
-            setShowAdvancedSearch(false)
-          }}
-          onClose={() => setShowAdvancedSearch(false)}
-          initialQuery={searchQuery}
+        {/* Bulk Tag Modal */}
+        <BulkTagModal
+          isOpen={tagModalOpen}
+          onClose={() => setTagModalOpen(false)}
+          onApply={handleBulkTagApply}
+          selectedCount={selectedCount}
         />
-      )}
+
+        {/* Bulk Species Modal */}
+        <BulkSpeciesModal
+          isOpen={speciesModalOpen}
+          onClose={() => setSpeciesModalOpen(false)}
+          onApply={handleBulkSpeciesApply}
+          selectedCount={selectedCount}
+        />
+
+        {/* Bulk Delete Confirmation Modal */}
+        <BulkDeleteConfirmModal
+          isOpen={deleteModalOpen}
+          onClose={() => setDeleteModalOpen(false)}
+          onConfirm={handleBulkDeleteConfirm}
+          selectedPhotos={Array.from(selectedPhotos)}
+        />
+
+        {/* Bulk Progress Modal */}
+        <BulkProgressModal
+          isOpen={progressModalOpen}
+          status={progressState.status}
+          current={progressState.current}
+          total={progressState.total}
+          message={progressState.message}
+          onClose={() => setProgressModalOpen(false)}
+        />
+
+        {/* Advanced Search Modal */}
+        {showAdvancedSearch && (
+          <AdvancedSearchBuilder
+            onQueryChange={(query) => {
+              setSearchQuery(query)
+              setShowAdvancedSearch(false)
+            }}
+            onClose={() => setShowAdvancedSearch(false)}
+            initialQuery={searchQuery}
+          />
+        )}
+      </div>
     </div>
   )
 }
