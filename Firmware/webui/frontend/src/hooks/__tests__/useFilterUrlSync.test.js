@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
-import { useFilterUrlSync, parseUrlToFilterState, serializeFilterStateToUrl } from '../useFilterUrlSync'
+import { useFilterUrlSync, parseUrlToFilterState, serializeFilterStateToUrl, areFilterStatesEqual } from '../useFilterUrlSync'
 
 describe('parseUrlToFilterState', () => {
   it('returns null when no filter params are present', () => {
@@ -303,6 +303,50 @@ describe('parseUrlToFilterState', () => {
     const params = new URLSearchParams('f_species=,Actias%20luna,')
     const result = parseUrlToFilterState(params)
     expect(result.species.selected).toEqual(['Actias luna'])
+  })
+
+  describe('URL parameter limits', () => {
+    it('returns null when URL has too many parameters', () => {
+      const params = new URLSearchParams()
+      // Add more than 50 parameters
+      for (let i = 0; i < 60; i++) {
+        params.set(`f_cf_field${i}`, `value${i}`)
+      }
+
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const result = parseUrlToFilterState(params)
+
+      expect(result).toBeNull()
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Too many URL filter parameters')
+      )
+
+      consoleWarnSpy.mockRestore()
+    })
+
+    it('processes URL with exactly 50 parameters', () => {
+      const params = new URLSearchParams()
+      for (let i = 0; i < 50; i++) {
+        params.set(`f_cf_field${i}`, `value${i}`)
+      }
+
+      const result = parseUrlToFilterState(params)
+
+      expect(result).not.toBeNull()
+      expect(Object.keys(result.customFields)).toHaveLength(50)
+    })
+
+    it('processes URL with fewer than 50 parameters', () => {
+      const params = new URLSearchParams()
+      for (let i = 0; i < 10; i++) {
+        params.set(`f_cf_field${i}`, `value${i}`)
+      }
+
+      const result = parseUrlToFilterState(params)
+
+      expect(result).not.toBeNull()
+      expect(Object.keys(result.customFields)).toHaveLength(10)
+    })
   })
 })
 
@@ -886,5 +930,191 @@ describe('useFilterUrlSync hook', () => {
 
     pushStateSpy.mockRestore()
     vi.useRealTimers()
+  })
+})
+
+describe('areFilterStatesEqual', () => {
+  describe('basic equality', () => {
+    it('returns true for same reference', () => {
+      const state = { tags: { selected: ['moth'], matchMode: 'any' } }
+      expect(areFilterStatesEqual(state, state)).toBe(true)
+    })
+
+    it('returns true for both null', () => {
+      expect(areFilterStatesEqual(null, null)).toBe(true)
+    })
+
+    it('returns true for both undefined', () => {
+      expect(areFilterStatesEqual(undefined, undefined)).toBe(true)
+    })
+
+    it('returns false when one is null', () => {
+      expect(areFilterStatesEqual({ tags: { selected: ['moth'] } }, null)).toBe(false)
+      expect(areFilterStatesEqual(null, { tags: { selected: ['moth'] } })).toBe(false)
+    })
+
+    it('returns true for empty objects', () => {
+      expect(areFilterStatesEqual({}, {})).toBe(true)
+    })
+  })
+
+  describe('property order independence', () => {
+    it('returns true for tags with different property order', () => {
+      const state1 = { tags: { selected: ['moth'], matchMode: 'any' } }
+      const state2 = { tags: { matchMode: 'any', selected: ['moth'] } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(true)
+    })
+
+    it('returns true for dateRange with different property order', () => {
+      const state1 = { dateRange: { preset: '7days', startDate: '2024-01-01', endDate: '2024-01-31' } }
+      const state2 = { dateRange: { endDate: '2024-01-31', preset: '7days', startDate: '2024-01-01' } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(true)
+    })
+
+    it('returns true for species with different property order', () => {
+      const state1 = { species: { selected: ['Actias luna'], includeUnidentified: true } }
+      const state2 = { species: { includeUnidentified: true, selected: ['Actias luna'] } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(true)
+    })
+
+    it('returns true for cameraSettings with different property order', () => {
+      const state1 = { cameraSettings: { iso: { min: 100, max: 3200 }, aperture: { min: 2.8, max: 8 } } }
+      const state2 = { cameraSettings: { aperture: { min: 2.8, max: 8 }, iso: { min: 100, max: 3200 } } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(true)
+    })
+
+    it('returns true for notes with different property order', () => {
+      const state1 = { notes: { hasNotes: true, keywords: 'specimen' } }
+      const state2 = { notes: { keywords: 'specimen', hasNotes: true } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(true)
+    })
+  })
+
+  describe('array order independence', () => {
+    it('returns true for tags with same values in different order', () => {
+      const state1 = { tags: { selected: ['moth', 'luna', 'actias'], matchMode: 'any' } }
+      const state2 = { tags: { selected: ['actias', 'moth', 'luna'], matchMode: 'any' } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(true)
+    })
+
+    it('returns true for species with same values in different order', () => {
+      const state1 = { species: { selected: ['Actias luna', 'Papilio'] } }
+      const state2 = { species: { selected: ['Papilio', 'Actias luna'] } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(true)
+    })
+
+    it('returns true for fileTypes with same values in different order', () => {
+      const state1 = { fileTypes: { selected: ['jpg', 'png', 'raw'] } }
+      const state2 = { fileTypes: { selected: ['raw', 'jpg', 'png'] } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(true)
+    })
+  })
+
+  describe('difference detection', () => {
+    it('returns false for different tag selections', () => {
+      const state1 = { tags: { selected: ['moth'], matchMode: 'any' } }
+      const state2 = { tags: { selected: ['luna'], matchMode: 'any' } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(false)
+    })
+
+    it('returns false for different tag match modes', () => {
+      const state1 = { tags: { selected: ['moth'], matchMode: 'any' } }
+      const state2 = { tags: { selected: ['moth'], matchMode: 'all' } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(false)
+    })
+
+    it('returns false for different dateRange presets', () => {
+      const state1 = { dateRange: { preset: '7days' } }
+      const state2 = { dateRange: { preset: '30days' } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(false)
+    })
+
+    it('returns false for different camera settings', () => {
+      const state1 = { cameraSettings: { iso: { min: 100, max: 3200 } } }
+      const state2 = { cameraSettings: { iso: { min: 200, max: 3200 } } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(false)
+    })
+
+    it('returns false for different custom fields', () => {
+      const state1 = { customFields: { location: 'forest' } }
+      const state2 = { customFields: { location: 'meadow' } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(false)
+    })
+
+    it('returns false for different number of custom fields', () => {
+      const state1 = { customFields: { location: 'forest' } }
+      const state2 = { customFields: { location: 'forest', weather: 'sunny' } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(false)
+    })
+  })
+
+  describe('null vs undefined vs missing', () => {
+    it('returns true when both tags are missing', () => {
+      const state1 = { dateRange: { preset: '7days' } }
+      const state2 = { dateRange: { preset: '7days' } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(true)
+    })
+
+    it('returns false when one has tags and other does not', () => {
+      const state1 = { tags: { selected: ['moth'], matchMode: 'any' } }
+      const state2 = {}
+      expect(areFilterStatesEqual(state1, state2)).toBe(false)
+    })
+
+    it('handles empty arrays correctly', () => {
+      const state1 = { tags: { selected: [], matchMode: 'any' } }
+      const state2 = { tags: { selected: [], matchMode: 'any' } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(true)
+    })
+
+    it('returns false for empty vs non-empty arrays', () => {
+      const state1 = { tags: { selected: [], matchMode: 'any' } }
+      const state2 = { tags: { selected: ['moth'], matchMode: 'any' } }
+      expect(areFilterStatesEqual(state1, state2)).toBe(false)
+    })
+  })
+
+  describe('complex combined states', () => {
+    it('returns true for identical complex states', () => {
+      const state1 = {
+        dateRange: { preset: '7days' },
+        tags: { selected: ['moth', 'luna'], matchMode: 'all' },
+        species: { selected: ['Actias luna'], includeUnidentified: true },
+        fileTypes: { selected: ['jpg', 'png'] },
+        cameraSettings: {
+          iso: { min: 100, max: 3200 },
+          aperture: { min: 2.8, max: 8 },
+        },
+        notes: { hasNotes: true, keywords: 'specimen' },
+        customFields: { location: 'forest', weather: 'sunny' },
+      }
+      const state2 = {
+        dateRange: { preset: '7days' },
+        tags: { selected: ['moth', 'luna'], matchMode: 'all' },
+        species: { selected: ['Actias luna'], includeUnidentified: true },
+        fileTypes: { selected: ['jpg', 'png'] },
+        cameraSettings: {
+          iso: { min: 100, max: 3200 },
+          aperture: { min: 2.8, max: 8 },
+        },
+        notes: { hasNotes: true, keywords: 'specimen' },
+        customFields: { location: 'forest', weather: 'sunny' },
+      }
+      expect(areFilterStatesEqual(state1, state2)).toBe(true)
+    })
+
+    it('returns true for complex states with different property/array order', () => {
+      const state1 = {
+        dateRange: { preset: '7days' },
+        tags: { selected: ['moth', 'luna'], matchMode: 'all' },
+        species: { selected: ['Actias luna', 'Papilio'] },
+      }
+      const state2 = {
+        species: { selected: ['Papilio', 'Actias luna'] },
+        tags: { matchMode: 'all', selected: ['luna', 'moth'] },
+        dateRange: { preset: '7days' },
+      }
+      expect(areFilterStatesEqual(state1, state2)).toBe(true)
+    })
   })
 })

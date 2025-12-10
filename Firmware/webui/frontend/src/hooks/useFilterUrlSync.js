@@ -35,6 +35,7 @@ const URL_KEYS = {
 }
 
 const DEBOUNCE_MS = 300
+const MAX_URL_PARAMS = 50
 
 /**
  * Parse URL search parameters to filter state object
@@ -43,6 +44,15 @@ const DEBOUNCE_MS = 300
  * @returns {Object|null} Filter state object or null if no filters in URL
  */
 export function parseUrlToFilterState(searchParams) {
+  // Prevent memory exhaustion from malicious URLs with many parameters
+  const paramCount = Array.from(searchParams.keys()).length
+  if (paramCount > MAX_URL_PARAMS) {
+    console.warn(
+      `Too many URL filter parameters (${paramCount}), ignoring URL state`
+    )
+    return null
+  }
+
   let hasAnyFilter = false
   const filterState = {}
 
@@ -339,14 +349,112 @@ function serializeRange(range) {
 /**
  * Check if two filter states are equal (for preventing sync loops)
  *
+ * Uses explicit property comparison instead of JSON.stringify to avoid:
+ * - Property order sensitivity ({a:1, b:2} vs {b:2, a:1})
+ * - Special value handling (undefined, NaN, Infinity)
+ * - Performance overhead of serialization
+ *
  * @param {Object} state1 - First filter state
  * @param {Object} state2 - Second filter state
  * @returns {boolean} True if states are equal
  */
 function areFilterStatesEqual(state1, state2) {
-  // Simple JSON comparison for deep equality
-  // This works because filter state is a plain object
-  return JSON.stringify(state1) === JSON.stringify(state2)
+  // Fast path: same reference
+  if (state1 === state2) return true
+
+  // Null/undefined check
+  if (!state1 || !state2) return !state1 && !state2
+
+  // Compare dateRange
+  if (!areDateRangesEqual(state1.dateRange, state2.dateRange)) return false
+
+  // Compare tags (array order independent)
+  if (!areTagsEqual(state1.tags, state2.tags)) return false
+
+  // Compare species
+  if (!areSpeciesEqual(state1.species, state2.species)) return false
+
+  // Compare fileTypes
+  if (!areArraySelectionsEqual(state1.fileTypes?.selected, state2.fileTypes?.selected)) return false
+
+  // Compare cameraSettings
+  if (!areCameraSettingsEqual(state1.cameraSettings, state2.cameraSettings)) return false
+
+  // Compare notes
+  if (!areNotesEqual(state1.notes, state2.notes)) return false
+
+  // Compare customFields
+  if (!areCustomFieldsEqual(state1.customFields, state2.customFields)) return false
+
+  return true
+}
+
+// Helper: Compare date ranges
+function areDateRangesEqual(dr1, dr2) {
+  if (!dr1 && !dr2) return true
+  if (!dr1 || !dr2) return false
+  return dr1.preset === dr2.preset &&
+         dr1.startDate === dr2.startDate &&
+         dr1.endDate === dr2.endDate
+}
+
+// Helper: Compare tags (sort arrays for order-independent comparison)
+function areTagsEqual(t1, t2) {
+  if (!t1 && !t2) return true
+  if (!t1 || !t2) return false
+  if (t1.matchMode !== t2.matchMode) return false
+  return areArraySelectionsEqual(t1.selected, t2.selected)
+}
+
+// Helper: Compare species
+function areSpeciesEqual(s1, s2) {
+  if (!s1 && !s2) return true
+  if (!s1 || !s2) return false
+  if (s1.includeUnidentified !== s2.includeUnidentified) return false
+  return areArraySelectionsEqual(s1.selected, s2.selected)
+}
+
+// Helper: Compare sorted arrays (order-independent)
+function areArraySelectionsEqual(arr1, arr2) {
+  if (!arr1 && !arr2) return true
+  if (!arr1 || !arr2) return false
+  if (arr1.length !== arr2.length) return false
+  const sorted1 = [...arr1].sort()
+  const sorted2 = [...arr2].sort()
+  return sorted1.every((v, i) => v === sorted2[i])
+}
+
+// Helper: Compare camera settings (range objects)
+function areCameraSettingsEqual(cs1, cs2) {
+  if (!cs1 && !cs2) return true
+  if (!cs1 || !cs2) return false
+  return areRangesEqual(cs1.iso, cs2.iso) &&
+         areRangesEqual(cs1.aperture, cs2.aperture) &&
+         areRangesEqual(cs1.shutterSpeed, cs2.shutterSpeed)
+}
+
+// Helper: Compare range objects
+function areRangesEqual(r1, r2) {
+  if (!r1 && !r2) return true
+  if (!r1 || !r2) return false
+  return r1.min === r2.min && r1.max === r2.max
+}
+
+// Helper: Compare notes
+function areNotesEqual(n1, n2) {
+  if (!n1 && !n2) return true
+  if (!n1 || !n2) return false
+  return n1.hasNotes === n2.hasNotes && n1.keywords === n2.keywords
+}
+
+// Helper: Compare custom fields objects
+function areCustomFieldsEqual(cf1, cf2) {
+  if (!cf1 && !cf2) return true
+  if (!cf1 || !cf2) return false
+  const keys1 = Object.keys(cf1)
+  const keys2 = Object.keys(cf2)
+  if (keys1.length !== keys2.length) return false
+  return keys1.every(key => cf1[key] === cf2[key])
 }
 
 /**
@@ -424,3 +532,6 @@ export function useFilterUrlSync(filterState, loadState) {
     }
   }, [filterState])
 }
+
+// Export for testing
+export { areFilterStatesEqual }

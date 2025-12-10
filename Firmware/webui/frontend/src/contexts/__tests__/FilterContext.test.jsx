@@ -85,9 +85,9 @@ describe('FilterContext', () => {
       expect(ctx.customFields).toEqual({})
     })
 
-    it('should have isDrawerOpen false initially', async () => {
+    it('should have isDrawerOpen true initially', async () => {
       await setupContext()
-      expect(ctx.isDrawerOpen).toBe(false)
+      expect(ctx.isDrawerOpen).toBe(true)
     })
 
     it('should have expandedSections with dateRange initially', async () => {
@@ -131,21 +131,42 @@ describe('FilterContext', () => {
       expect(ctx.dateRange.endDate).toBe('2024-01-31')
     })
 
-    it('should preserve date range when all null (use clearFilter to reset)', async () => {
+    it('should preserve date range when all undefined (use clearFilter to reset)', async () => {
       await setupContext()
 
       // Set a date range first
       act(() => {
-        ctx.setDateRange('7days', null, null)
+        ctx.setDateRange('7days', undefined, undefined)
       })
       expect(ctx.dateRange.preset).toBe('7days')
 
-      // Passing null preserves existing values (nullish coalescing)
+      // Passing undefined preserves existing values
+      act(() => {
+        ctx.setDateRange(undefined, undefined, undefined)
+      })
+
+      expect(ctx.dateRange.preset).toBe('7days') // Preserved
+      expect(ctx.dateRange.startDate).toBe(null) // Was already null
+      expect(ctx.dateRange.endDate).toBe(null) // Was already null
+    })
+
+    it('should allow setting values to null explicitly', async () => {
+      await setupContext()
+
+      // Set a date range first
+      act(() => {
+        ctx.setDateRange('custom', '2024-01-01', '2024-01-31')
+      })
+      expect(ctx.dateRange.preset).toBe('custom')
+      expect(ctx.dateRange.startDate).toBe('2024-01-01')
+      expect(ctx.dateRange.endDate).toBe('2024-01-31')
+
+      // Passing null explicitly clears the values
       act(() => {
         ctx.setDateRange(null, null, null)
       })
 
-      expect(ctx.dateRange.preset).toBe('7days') // Preserved
+      expect(ctx.dateRange.preset).toBe(null)
       expect(ctx.dateRange.startDate).toBe(null)
       expect(ctx.dateRange.endDate).toBe(null)
     })
@@ -157,9 +178,9 @@ describe('FilterContext', () => {
         ctx.setDateRange('custom', '2024-01-01', '2024-01-31')
       })
 
-      // Update only preset
+      // Update only preset (use undefined to preserve other fields)
       act(() => {
-        ctx.setDateRange('7days', null, null)
+        ctx.setDateRange('7days', undefined, undefined)
       })
 
       expect(ctx.dateRange.preset).toBe('7days')
@@ -173,7 +194,7 @@ describe('FilterContext', () => {
       await setupContext()
 
       act(() => {
-        ctx.setTags(['moth', 'butterfly'], null)
+        ctx.setTags(['moth', 'butterfly'], undefined)
       })
 
       expect(ctx.tags.selected).toEqual(['moth', 'butterfly'])
@@ -184,7 +205,7 @@ describe('FilterContext', () => {
       await setupContext()
 
       act(() => {
-        ctx.setTags(null, 'all')
+        ctx.setTags(undefined, 'all')
       })
 
       expect(ctx.tags.selected).toEqual([]) // Preserved
@@ -202,7 +223,7 @@ describe('FilterContext', () => {
       expect(ctx.tags.matchMode).toBe('all')
     })
 
-    it('should preserve existing values when passed null', async () => {
+    it('should preserve existing values when passed undefined', async () => {
       await setupContext()
 
       act(() => {
@@ -210,11 +231,26 @@ describe('FilterContext', () => {
       })
 
       act(() => {
-        ctx.setTags(null, null)
+        ctx.setTags(undefined, undefined)
       })
 
       expect(ctx.tags.selected).toEqual(['initial'])
       expect(ctx.tags.matchMode).toBe('any')
+    })
+
+    it('should allow setting values to null explicitly', async () => {
+      await setupContext()
+
+      act(() => {
+        ctx.setTags(['initial'], 'all')
+      })
+
+      act(() => {
+        ctx.setTags(null, null)
+      })
+
+      expect(ctx.tags.selected).toBe(null)
+      expect(ctx.tags.matchMode).toBe(null)
     })
   })
 
@@ -223,7 +259,7 @@ describe('FilterContext', () => {
       await setupContext()
 
       act(() => {
-        ctx.setSpecies(['Actias luna', 'Papilio glaucus'], null)
+        ctx.setSpecies(['Actias luna', 'Papilio glaucus'], undefined)
       })
 
       expect(ctx.species.selected).toEqual(['Actias luna', 'Papilio glaucus'])
@@ -234,7 +270,7 @@ describe('FilterContext', () => {
       await setupContext()
 
       act(() => {
-        ctx.setSpecies(null, true)
+        ctx.setSpecies(undefined, true)
       })
 
       expect(ctx.species.selected).toEqual([]) // Preserved
@@ -252,7 +288,7 @@ describe('FilterContext', () => {
       expect(ctx.species.includeUnidentified).toBe(true)
     })
 
-    it('should preserve existing values when passed null', async () => {
+    it('should preserve existing values when passed undefined', async () => {
       await setupContext()
 
       act(() => {
@@ -260,11 +296,26 @@ describe('FilterContext', () => {
       })
 
       act(() => {
-        ctx.setSpecies(null, null)
+        ctx.setSpecies(undefined, undefined)
       })
 
       expect(ctx.species.selected).toEqual(['initial species'])
       expect(ctx.species.includeUnidentified).toBe(false)
+    })
+
+    it('should allow setting values to null explicitly', async () => {
+      await setupContext()
+
+      act(() => {
+        ctx.setSpecies(['initial species'], true)
+      })
+
+      act(() => {
+        ctx.setSpecies(null, null)
+      })
+
+      expect(ctx.species.selected).toBe(null)
+      expect(ctx.species.includeUnidentified).toBe(null)
     })
   })
 
@@ -390,7 +441,7 @@ describe('FilterContext', () => {
       await setupContext()
 
       act(() => {
-        ctx.setNotes(true, null)
+        ctx.setNotes(true, undefined)
       })
 
       expect(ctx.notes.hasNotes).toBe(true)
@@ -401,7 +452,7 @@ describe('FilterContext', () => {
       await setupContext()
 
       act(() => {
-        ctx.setNotes(null, 'specimen collected')
+        ctx.setNotes(undefined, 'specimen collected')
       })
 
       expect(ctx.notes.hasNotes).toBe(null) // Preserved
@@ -423,13 +474,28 @@ describe('FilterContext', () => {
       await setupContext()
 
       act(() => {
-        ctx.setNotes(false, null)
+        ctx.setNotes(false, undefined)
       })
 
       expect(ctx.notes.hasNotes).toBe(false)
     })
 
-    it('should preserve existing values when passed null', async () => {
+    it('should preserve existing values when passed undefined', async () => {
+      await setupContext()
+
+      act(() => {
+        ctx.setNotes(true, 'initial')
+      })
+
+      act(() => {
+        ctx.setNotes(undefined, undefined)
+      })
+
+      expect(ctx.notes.hasNotes).toBe(true)
+      expect(ctx.notes.keywords).toBe('initial')
+    })
+
+    it('should allow setting values to null explicitly', async () => {
       await setupContext()
 
       act(() => {
@@ -440,8 +506,8 @@ describe('FilterContext', () => {
         ctx.setNotes(null, null)
       })
 
-      expect(ctx.notes.hasNotes).toBe(true)
-      expect(ctx.notes.keywords).toBe('initial')
+      expect(ctx.notes.hasNotes).toBe(null)
+      expect(ctx.notes.keywords).toBe(null)
     })
   })
 
@@ -715,24 +781,10 @@ describe('FilterContext', () => {
   })
 
   describe('toggleDrawer action', () => {
-    it('should toggle isDrawerOpen from false to true', async () => {
-      await setupContext()
-
-      expect(ctx.isDrawerOpen).toBe(false)
-
-      act(() => {
-        ctx.toggleDrawer()
-      })
-
-      expect(ctx.isDrawerOpen).toBe(true)
-    })
-
     it('should toggle isDrawerOpen from true to false', async () => {
       await setupContext()
 
-      act(() => {
-        ctx.toggleDrawer()
-      })
+      // Initial state is now true (drawer open by default)
       expect(ctx.isDrawerOpen).toBe(true)
 
       act(() => {
@@ -740,16 +792,29 @@ describe('FilterContext', () => {
       })
 
       expect(ctx.isDrawerOpen).toBe(false)
+    })
+
+    it('should toggle isDrawerOpen from false to true', async () => {
+      await setupContext()
+
+      // First toggle: true -> false
+      act(() => {
+        ctx.toggleDrawer()
+      })
+      expect(ctx.isDrawerOpen).toBe(false)
+
+      // Second toggle: false -> true
+      act(() => {
+        ctx.toggleDrawer()
+      })
+
+      expect(ctx.isDrawerOpen).toBe(true)
     })
 
     it('should toggle multiple times', async () => {
       await setupContext()
 
-      act(() => {
-        ctx.toggleDrawer()
-      })
-      expect(ctx.isDrawerOpen).toBe(true)
-
+      // Initial: true
       act(() => {
         ctx.toggleDrawer()
       })
@@ -759,6 +824,11 @@ describe('FilterContext', () => {
         ctx.toggleDrawer()
       })
       expect(ctx.isDrawerOpen).toBe(true)
+
+      act(() => {
+        ctx.toggleDrawer()
+      })
+      expect(ctx.isDrawerOpen).toBe(false)
     })
   })
 
@@ -878,9 +948,11 @@ describe('FilterContext', () => {
     it('should merge state objects correctly', async () => {
       await setupContext()
 
+      // Initial state: isDrawerOpen is true
+      // Toggle it to false, then set a date range
       act(() => {
         ctx.setDateRange('7days', null, null)
-        ctx.toggleDrawer()
+        ctx.toggleDrawer() // true -> false
       })
 
       act(() => {
@@ -893,7 +965,7 @@ describe('FilterContext', () => {
       expect(ctx.tags).toEqual({ selected: ['loaded'], matchMode: 'all' })
       // Existing state preserved
       expect(ctx.dateRange.preset).toBe('7days')
-      expect(ctx.isDrawerOpen).toBe(true)
+      expect(ctx.isDrawerOpen).toBe(false) // Toggled from true to false
     })
   })
 
@@ -932,7 +1004,7 @@ describe('FilterContext', () => {
       await setupContext()
 
       act(() => {
-        ctx.setTags(['moth'], null)
+        ctx.setTags(['moth'], undefined)
       })
 
       expect(ctx.activeFilterCount).toBe(1)
@@ -942,7 +1014,7 @@ describe('FilterContext', () => {
       await setupContext()
 
       act(() => {
-        ctx.setSpecies(['Actias luna'], null)
+        ctx.setSpecies(['Actias luna'], undefined)
       })
 
       expect(ctx.activeFilterCount).toBe(1)
@@ -952,7 +1024,7 @@ describe('FilterContext', () => {
       await setupContext()
 
       act(() => {
-        ctx.setSpecies(null, true)
+        ctx.setSpecies(undefined, true)
       })
 
       expect(ctx.activeFilterCount).toBe(1)

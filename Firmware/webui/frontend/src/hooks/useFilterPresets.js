@@ -64,15 +64,24 @@ function loadPresetsFromStorage() {
 
 /**
  * Save presets to localStorage
- * Handles storage errors gracefully
+ * Handles storage errors gracefully and returns status
  *
  * @param {Array} presets - Array of preset objects
+ * @returns {{success: boolean, error?: string}} Status object
  */
 function savePresetsToStorage(presets) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(presets))
+    return { success: true }
   } catch (e) {
     console.error('Failed to save filter presets to localStorage:', e)
+    if (e.name === 'QuotaExceededError') {
+      return {
+        success: false,
+        error: 'Storage quota exceeded. Please delete old presets.',
+      }
+    }
+    return { success: false, error: 'Failed to save preset' }
   }
 }
 
@@ -144,7 +153,7 @@ export function useFilterPresets() {
    *
    * @param {string} name - Preset name
    * @param {Object} filterState - Complete filter state to save
-   * @returns {Object} The created preset object
+   * @returns {{preset: Object, success: boolean, error?: string}} Result object with preset and status
    */
   const savePreset = useCallback(
     (name, filterState) => {
@@ -176,9 +185,9 @@ export function useFilterPresets() {
       }
 
       setPresets(updatedPresets)
-      savePresetsToStorage(updatedPresets)
+      const result = savePresetsToStorage(updatedPresets)
 
-      return newPreset
+      return { preset: newPreset, ...result }
     },
     [presets]
   )
@@ -210,6 +219,7 @@ export function useFilterPresets() {
    * Delete a preset by ID
    *
    * @param {string} presetId - Preset ID to delete
+   * @returns {{success: boolean, error?: string}} Status object
    */
   const deletePreset = useCallback(
     (presetId) => {
@@ -219,7 +229,7 @@ export function useFilterPresets() {
 
       const updatedPresets = presets.filter((p) => p.id !== presetId)
       setPresets(updatedPresets)
-      savePresetsToStorage(updatedPresets)
+      return savePresetsToStorage(updatedPresets)
     },
     [presets]
   )
@@ -229,6 +239,7 @@ export function useFilterPresets() {
    *
    * @param {string} presetId - Preset ID to rename
    * @param {string} newName - New preset name
+   * @returns {{success: boolean, error?: string}|undefined} Status object, or undefined if no change needed
    */
   const renamePreset = useCallback(
     (presetId, newName) => {
@@ -250,7 +261,7 @@ export function useFilterPresets() {
       const currentName = presets[presetIndex].name
       if (currentName.toLowerCase().trim() === newName.toLowerCase().trim()) {
         // No change needed
-        return
+        return { success: true }
       }
 
       // Generate unique name if needed (excluding current preset)
@@ -265,7 +276,7 @@ export function useFilterPresets() {
       }
 
       setPresets(updatedPresets)
-      savePresetsToStorage(updatedPresets)
+      return savePresetsToStorage(updatedPresets)
     },
     [presets]
   )

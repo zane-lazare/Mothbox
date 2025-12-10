@@ -62,7 +62,7 @@ const initialState = {
   customFields: {}, // Dynamic: { fieldName: value }
 
   // UI State
-  isDrawerOpen: false,
+  isDrawerOpen: true,
   expandedSections: ['dateRange'], // Which accordion sections are open
 }
 
@@ -96,9 +96,9 @@ function filterReducer(state, action) {
       return {
         ...state,
         dateRange: {
-          preset: preset ?? state.dateRange.preset,
-          startDate: startDate ?? state.dateRange.startDate,
-          endDate: endDate ?? state.dateRange.endDate,
+          preset: preset !== undefined ? preset : state.dateRange.preset,
+          startDate: startDate !== undefined ? startDate : state.dateRange.startDate,
+          endDate: endDate !== undefined ? endDate : state.dateRange.endDate,
         },
       }
     }
@@ -108,8 +108,8 @@ function filterReducer(state, action) {
       return {
         ...state,
         tags: {
-          selected: selected ?? state.tags.selected,
-          matchMode: matchMode ?? state.tags.matchMode,
+          selected: selected !== undefined ? selected : state.tags.selected,
+          matchMode: matchMode !== undefined ? matchMode : state.tags.matchMode,
         },
       }
     }
@@ -119,8 +119,8 @@ function filterReducer(state, action) {
       return {
         ...state,
         species: {
-          selected: selected ?? state.species.selected,
-          includeUnidentified: includeUnidentified ?? state.species.includeUnidentified,
+          selected: selected !== undefined ? selected : state.species.selected,
+          includeUnidentified: includeUnidentified !== undefined ? includeUnidentified : state.species.includeUnidentified,
         },
       }
     }
@@ -130,7 +130,7 @@ function filterReducer(state, action) {
       return {
         ...state,
         fileTypes: {
-          selected: selected ?? state.fileTypes.selected,
+          selected: selected !== undefined ? selected : state.fileTypes.selected,
         },
       }
     }
@@ -151,8 +151,8 @@ function filterReducer(state, action) {
       return {
         ...state,
         notes: {
-          hasNotes: hasNotes ?? state.notes.hasNotes,
-          keywords: keywords ?? state.notes.keywords,
+          hasNotes: hasNotes !== undefined ? hasNotes : state.notes.hasNotes,
+          keywords: keywords !== undefined ? keywords : state.notes.keywords,
         },
       }
     }
@@ -319,17 +319,17 @@ export function FilterProvider({ children }) {
     }
 
     // Tags
-    if (state.tags.selected.length > 0) {
+    if (state.tags.selected?.length > 0) {
       count++
     }
 
     // Species
-    if (state.species.selected.length > 0 || state.species.includeUnidentified) {
+    if (state.species.selected?.length > 0 || state.species.includeUnidentified) {
       count++
     }
 
     // File types
-    if (state.fileTypes.selected.length > 0) {
+    if (state.fileTypes.selected?.length > 0) {
       count++
     }
 

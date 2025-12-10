@@ -59,6 +59,8 @@ from mothbox_paths import PHOTOS_DIR
 from webui.backend.constants import SIDECAR_PATTERNS
 from webui.backend.lib.sidecar_metadata import (
     MAX_BULK_FILES,
+    MAX_CUSTOM_DEPTH,
+    MAX_CUSTOM_KEYS,
     MAX_NOTES_LENGTH,
     MAX_PAGINATION_LIMIT,
     MAX_TAG_LENGTH,
@@ -91,6 +93,11 @@ _custom_fields_cache_building = False
 _cache_lock = threading.RLock()  # Reentrant lock for nested calls
 _cache_condition = threading.Condition(_cache_lock)  # For wait/notify on first build
 _DEFAULT_AGGREGATION_CACHE_TTL = 300  # 5 minutes
+_MAX_CACHE_BUILD_TIME = 30.0  # seconds - timeout for cache building to prevent blocking
+
+# Custom field validation limits
+MAX_CUSTOM_FIELD_NAME_LENGTH = 100
+MAX_CUSTOM_FIELD_VALUE_LENGTH = 10000  # Same as MAX_NOTES_LENGTH
 
 
 def _get_cache_ttl() -> int:
@@ -168,6 +175,50 @@ def check_api_key() -> bool:
     return bool(api_key and expected_key and api_key == expected_key)
 
 
+def _validate_custom_value(value, depth: int = 0) -> tuple[bool, str | None]:
+    """
+    Recursively validate a custom field value.
+
+    Args:
+        value: The value to validate
+        depth: Current nesting depth (max MAX_CUSTOM_DEPTH)
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if depth > MAX_CUSTOM_DEPTH:
+        return False, f"Custom field nesting exceeds maximum depth ({MAX_CUSTOM_DEPTH})"
+
+    if value is None:
+        return True, None
+    if isinstance(value, bool):
+        return True, None
+    if isinstance(value, (int, float)):
+        return True, None
+    if isinstance(value, str):
+        if len(value) > MAX_CUSTOM_FIELD_VALUE_LENGTH:
+            return False, f"Custom field string value too long (max {MAX_CUSTOM_FIELD_VALUE_LENGTH})"
+        return True, None
+    if isinstance(value, list):
+        for item in value:
+            valid, err = _validate_custom_value(item, depth + 1)
+            if not valid:
+                return False, err
+        return True, None
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if not isinstance(k, str):
+                return False, "Custom field dict keys must be strings"
+            if len(k) > MAX_CUSTOM_FIELD_NAME_LENGTH:
+                return False, f"Custom field key too long: {k[:50]}..."
+            valid, err = _validate_custom_value(v, depth + 1)
+            if not valid:
+                return False, err
+        return True, None
+
+    return False, f"Invalid custom field value type: {type(value).__name__}"
+
+
 def validate_metadata_input(data: dict) -> tuple[bool, str | None]:
     """
     Validate metadata input data.
@@ -197,6 +248,21 @@ def validate_metadata_input(data: dict) -> tuple[bool, str | None]:
             return False, "Notes must be a string"
         if len(data['notes']) > MAX_NOTES_LENGTH:
             return False, f"Notes exceeds maximum length ({MAX_NOTES_LENGTH} characters)"
+
+    # Validate custom fields
+    if 'custom' in data:
+        if not isinstance(data['custom'], dict):
+            return False, "Custom fields must be an object"
+        if len(data['custom']) > MAX_CUSTOM_KEYS:
+            return False, f"Too many custom fields (max {MAX_CUSTOM_KEYS})"
+        for key, value in data['custom'].items():
+            if not isinstance(key, str):
+                return False, "Custom field names must be strings"
+            if len(key) > MAX_CUSTOM_FIELD_NAME_LENGTH:
+                return False, f"Custom field name too long: {key[:50]}..."
+            valid, err = _validate_custom_value(value)
+            if not valid:
+                return False, err
 
     return True, None
 
@@ -1402,7 +1468,17 @@ def get_custom_fields():
                     PHOTOS_DIR.rglob(pattern) for pattern in SIDECAR_PATTERNS
                 )
 
+                # Track start time for timeout
+                cache_build_start = time.time()
+
                 for sidecar_path in all_sidecars:
+                    # Check for timeout to prevent blocking thread too long
+                    if time.time() - cache_build_start > _MAX_CACHE_BUILD_TIME:
+                        logger.warning(
+                            f"Custom fields cache build timeout after "
+                            f"{_MAX_CACHE_BUILD_TIME}s, partial results returned"
+                        )
+                        break
                     try:
                         sidecar_data = json.loads(sidecar_path.read_text())
                         custom_data = sidecar_data.get('custom', {})
@@ -1415,6 +1491,13 @@ def get_custom_fields():
                         for field_name, field_value in custom_data.items():
                             # Skip standard fields and private fields (starting with _)
                             if field_name in standard_fields or field_name.startswith('_'):
+                                continue
+
+                            # Validate field name - must be string, max 100 chars, alphanumeric with _ and -
+                            if not isinstance(field_name, str) or len(field_name) > 100:
+                                continue
+                            if not field_name.replace('_', '').replace('-', '').isalnum():
+                                logger.warning(f"Skipping field with invalid name: {field_name[:50]}")
                                 continue
 
                             # Track value

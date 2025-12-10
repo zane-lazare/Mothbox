@@ -27,6 +27,19 @@ const RangeSlider = ({
   const [hoveredHandle, setHoveredHandle] = useState(null);
   const trackRef = useRef(null);
 
+  // Local state for controlled inputs
+  const [minInputValue, setMinInputValue] = useState(value.min.toString());
+  const [maxInputValue, setMaxInputValue] = useState(value.max.toString());
+
+  // Sync local input state when prop values change
+  useEffect(() => {
+    setMinInputValue(value.min.toString());
+  }, [value.min]);
+
+  useEffect(() => {
+    setMaxInputValue(value.max.toString());
+  }, [value.max]);
+
   // Clamp value to valid range
   const clamp = useCallback((val) => {
     return Math.max(min, Math.min(max, val));
@@ -75,13 +88,13 @@ const RangeSlider = ({
     const newValue = getValueFromPosition(clientX);
 
     if (isDragging === 'min') {
-      // Min handle cannot exceed max handle
-      onChange({ min: Math.min(newValue, value.max), max: value.max });
+      // Min handle cannot exceed max handle (maintain step gap)
+      onChange({ min: Math.min(newValue, value.max - step), max: value.max });
     } else if (isDragging === 'max') {
-      // Max handle cannot go below min handle
-      onChange({ min: value.min, max: Math.max(newValue, value.min) });
+      // Max handle cannot go below min handle (maintain step gap)
+      onChange({ min: value.min, max: Math.max(newValue, value.min + step) });
     }
-  }, [isDragging, disabled, getValueFromPosition, value, onChange]);
+  }, [isDragging, disabled, getValueFromPosition, value, onChange, step]);
 
   // Mouse/touch event handlers
   useEffect(() => {
@@ -114,34 +127,43 @@ const RangeSlider = ({
     };
   }, [isDragging, handleDragMove]);
 
-  // Handle input field changes - use onBlur for final validation
-  const handleMinInputBlur = useCallback((e) => {
+  // Handle controlled input changes
+  const handleMinInputChange = useCallback((e) => {
+    setMinInputValue(e.target.value);
+  }, []);
+
+  const handleMaxInputChange = useCallback((e) => {
+    setMaxInputValue(e.target.value);
+  }, []);
+
+  // Handle input field blur - validate and apply changes
+  const handleMinInputBlur = useCallback(() => {
     if (disabled) return;
 
-    const newMin = parseFloat(e.target.value);
+    const newMin = parseFloat(minInputValue);
     if (isNaN(newMin)) {
       // Reset to current value if invalid
-      e.target.value = value.min;
+      setMinInputValue(value.min.toString());
       return;
     }
 
     const clampedMin = clamp(roundToStep(newMin));
     onChange({ min: Math.min(clampedMin, value.max), max: value.max });
-  }, [disabled, clamp, roundToStep, value.min, value.max, onChange]);
+  }, [disabled, minInputValue, clamp, roundToStep, value.min, value.max, onChange]);
 
-  const handleMaxInputBlur = useCallback((e) => {
+  const handleMaxInputBlur = useCallback(() => {
     if (disabled) return;
 
-    const newMax = parseFloat(e.target.value);
+    const newMax = parseFloat(maxInputValue);
     if (isNaN(newMax)) {
       // Reset to current value if invalid
-      e.target.value = value.max;
+      setMaxInputValue(value.max.toString());
       return;
     }
 
     const clampedMax = clamp(roundToStep(newMax));
     onChange({ min: value.min, max: Math.max(clampedMax, value.min) });
-  }, [disabled, clamp, roundToStep, value.min, value.max, onChange]);
+  }, [disabled, maxInputValue, clamp, roundToStep, value.min, value.max, onChange]);
 
   // Keyboard navigation
   const handleKeyDown = useCallback((e, handle) => {
@@ -271,8 +293,8 @@ const RangeSlider = ({
         <div className="flex items-center gap-2 text-sm">
           <input
             type="number"
-            key={`min-${value.min}`}
-            defaultValue={value.min}
+            value={minInputValue}
+            onChange={handleMinInputChange}
             onBlur={handleMinInputBlur}
             min={min}
             max={max}
@@ -292,8 +314,8 @@ const RangeSlider = ({
           <span className="text-gray-500 dark:text-gray-400">to</span>
           <input
             type="number"
-            key={`max-${value.max}`}
-            defaultValue={value.max}
+            value={maxInputValue}
+            onChange={handleMaxInputChange}
             onBlur={handleMaxInputBlur}
             min={min}
             max={max}

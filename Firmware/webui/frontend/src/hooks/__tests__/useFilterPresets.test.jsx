@@ -98,29 +98,29 @@ describe('useFilterPresets', () => {
         dateRange: { preset: 'today' },
       }
 
-      let savedPreset
+      let saveResult
       act(() => {
-        savedPreset = result.current.savePreset('My Filter', filterState)
+        saveResult = result.current.savePreset('My Filter', filterState)
       })
 
       expect(result.current.presets).toHaveLength(1)
-      expect(savedPreset).toBeDefined()
-      expect(savedPreset.name).toBe('My Filter')
-      expect(savedPreset.filters).toEqual(filterState)
-      expect(savedPreset.id).toBeDefined()
-      expect(savedPreset.createdAt).toBeDefined()
+      expect(saveResult.preset).toBeDefined()
+      expect(saveResult.preset.name).toBe('My Filter')
+      expect(saveResult.preset.filters).toEqual(filterState)
+      expect(saveResult.preset.id).toBeDefined()
+      expect(saveResult.preset.createdAt).toBeDefined()
     })
 
     it('should generate unique preset ID', () => {
       const { result } = renderHook(() => useFilterPresets())
 
-      let preset1, preset2
+      let result1, result2
       act(() => {
-        preset1 = result.current.savePreset('Preset 1', { tags: ['moth'] })
-        preset2 = result.current.savePreset('Preset 2', { tags: ['butterfly'] })
+        result1 = result.current.savePreset('Preset 1', { tags: ['moth'] })
+        result2 = result.current.savePreset('Preset 2', { tags: ['butterfly'] })
       })
 
-      expect(preset1.id).not.toBe(preset2.id)
+      expect(result1.preset.id).not.toBe(result2.preset.id)
     })
 
     it('should save preset to localStorage', () => {
@@ -355,7 +355,7 @@ describe('useFilterPresets', () => {
       let presetId
       act(() => {
         const saved = result.current.savePreset('Test', filterState)
-        presetId = saved.id
+        presetId = saved.preset.id
       })
 
       const loaded = result.current.loadPreset(presetId)
@@ -395,7 +395,7 @@ describe('useFilterPresets', () => {
       let presetId
       act(() => {
         const saved = result.current.savePreset('Test', { tags: ['moth'] })
-        presetId = saved.id
+        presetId = saved.preset.id
       })
 
       expect(result.current.presets).toHaveLength(1)
@@ -413,7 +413,7 @@ describe('useFilterPresets', () => {
       let presetId
       act(() => {
         const saved = result.current.savePreset('Test', { tags: ['moth'] })
-        presetId = saved.id
+        presetId = saved.preset.id
       })
 
       vi.clearAllMocks()
@@ -463,7 +463,7 @@ describe('useFilterPresets', () => {
       let presetId
       act(() => {
         const saved = result.current.savePreset('Old Name', { tags: ['moth'] })
-        presetId = saved.id
+        presetId = saved.preset.id
       })
 
       act(() => {
@@ -479,7 +479,7 @@ describe('useFilterPresets', () => {
       let presetId
       act(() => {
         const saved = result.current.savePreset('Old Name', { tags: ['moth'] })
-        presetId = saved.id
+        presetId = saved.preset.id
       })
 
       vi.clearAllMocks()
@@ -519,7 +519,7 @@ describe('useFilterPresets', () => {
       let presetId
       act(() => {
         const saved = result.current.savePreset('Test', { tags: ['moth'] })
-        presetId = saved.id
+        presetId = saved.preset.id
       })
 
       expect(() => {
@@ -545,7 +545,7 @@ describe('useFilterPresets', () => {
 
       act(() => {
         const p2 = result.current.savePreset('Preset 2', { tags: ['b'] })
-        preset2Id = p2.id
+        preset2Id = p2.preset.id
       })
 
       act(() => {
@@ -563,7 +563,7 @@ describe('useFilterPresets', () => {
       let presetId
       act(() => {
         const saved = result.current.savePreset('Test', { tags: ['moth'] })
-        presetId = saved.id
+        presetId = saved.preset.id
       })
 
       vi.clearAllMocks()
@@ -582,7 +582,7 @@ describe('useFilterPresets', () => {
       let presetId
       act(() => {
         const saved = result.current.savePreset('Test', { tags: ['moth'] })
-        presetId = saved.id
+        presetId = saved.preset.id
       })
 
       act(() => {
@@ -646,7 +646,7 @@ describe('useFilterPresets', () => {
   })
 
   describe('Error Handling', () => {
-    it('should handle localStorage setItem errors gracefully', () => {
+    it('should return error status when localStorage setItem fails', () => {
       const { result } = renderHook(() => useFilterPresets())
 
       const consoleErrorSpy = vi
@@ -657,12 +657,111 @@ describe('useFilterPresets', () => {
         throw new Error('Storage quota exceeded')
       })
 
-      // Should not throw
+      let saveResult
       act(() => {
-        result.current.savePreset('Test', { tags: ['moth'] })
+        saveResult = result.current.savePreset('Test', { tags: ['moth'] })
       })
 
+      expect(saveResult.success).toBe(false)
+      expect(saveResult.error).toBe('Failed to save preset')
+      expect(saveResult.preset).toBeDefined()
       expect(consoleErrorSpy).toHaveBeenCalled()
+
+      consoleErrorSpy.mockRestore()
+    })
+
+    it('should return quota-specific error message for QuotaExceededError', () => {
+      const { result } = renderHook(() => useFilterPresets())
+
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {})
+
+      const quotaError = new Error('Storage quota exceeded')
+      quotaError.name = 'QuotaExceededError'
+
+      localStorageMock.setItem.mockImplementationOnce(() => {
+        throw quotaError
+      })
+
+      let saveResult
+      act(() => {
+        saveResult = result.current.savePreset('Test', { tags: ['moth'] })
+      })
+
+      expect(saveResult.success).toBe(false)
+      expect(saveResult.error).toContain('quota')
+      expect(saveResult.preset).toBeDefined()
+
+      consoleErrorSpy.mockRestore()
+    })
+
+    it('should return success status on successful save', () => {
+      const { result } = renderHook(() => useFilterPresets())
+
+      let saveResult
+      act(() => {
+        saveResult = result.current.savePreset('Test', { tags: ['moth'] })
+      })
+
+      expect(saveResult.success).toBe(true)
+      expect(saveResult.error).toBeUndefined()
+      expect(saveResult.preset).toBeDefined()
+      expect(saveResult.preset.name).toBe('Test')
+    })
+
+    it('should return error status from deletePreset on storage failure', () => {
+      const { result } = renderHook(() => useFilterPresets())
+
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {})
+
+      let presetId
+      act(() => {
+        const saved = result.current.savePreset('Test', { tags: ['moth'] })
+        presetId = saved.preset.id
+      })
+
+      localStorageMock.setItem.mockImplementationOnce(() => {
+        throw new Error('Storage error')
+      })
+
+      let deleteResult
+      act(() => {
+        deleteResult = result.current.deletePreset(presetId)
+      })
+
+      expect(deleteResult.success).toBe(false)
+      expect(deleteResult.error).toBe('Failed to save preset')
+
+      consoleErrorSpy.mockRestore()
+    })
+
+    it('should return error status from renamePreset on storage failure', () => {
+      const { result } = renderHook(() => useFilterPresets())
+
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {})
+
+      let presetId
+      act(() => {
+        const saved = result.current.savePreset('Test', { tags: ['moth'] })
+        presetId = saved.preset.id
+      })
+
+      localStorageMock.setItem.mockImplementationOnce(() => {
+        throw new Error('Storage error')
+      })
+
+      let renameResult
+      act(() => {
+        renameResult = result.current.renamePreset(presetId, 'New Name')
+      })
+
+      expect(renameResult.success).toBe(false)
+      expect(renameResult.error).toBe('Failed to save preset')
 
       consoleErrorSpy.mockRestore()
     })

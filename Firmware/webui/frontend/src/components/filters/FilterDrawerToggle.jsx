@@ -23,8 +23,7 @@ export function FilterDrawerToggle() {
       aria-label={`Show filters${hasActiveFilters ? ` (${activeFilterCount} active)` : ''}`}
       className="relative p-2 rounded-md text-gray-700 dark:text-gray-300
                  hover:bg-gray-100 dark:hover:bg-gray-700
-                 focus:outline-none focus:ring-2 focus:ring-blue-500
-                 lg:hidden"
+                 focus:outline-none focus:ring-2 focus:ring-blue-500"
     >
       <FunnelIcon className="h-5 w-5" aria-hidden="true" />
 

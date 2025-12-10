@@ -30,6 +30,35 @@ vi.mock('../FilterSection', () => ({
   ),
 }))
 
+// Mock filter components (they have their own test suites)
+vi.mock('../DateRangeFilter', () => ({
+  DateRangeFilter: () => <div data-testid="date-range-filter">Date Range Filter</div>,
+}))
+
+vi.mock('../TagFilter', () => ({
+  TagFilter: () => <div data-testid="tag-filter">Tag Filter</div>,
+}))
+
+vi.mock('../SpeciesFilter', () => ({
+  SpeciesFilter: () => <div data-testid="species-filter">Species Filter</div>,
+}))
+
+vi.mock('../FileTypeFilter', () => ({
+  FileTypeFilter: () => <div data-testid="file-type-filter">File Type Filter</div>,
+}))
+
+vi.mock('../CameraSettingsFilter', () => ({
+  CameraSettingsFilter: () => <div data-testid="camera-settings-filter">Camera Settings Filter</div>,
+}))
+
+vi.mock('../NotesFilter', () => ({
+  NotesFilter: () => <div data-testid="notes-filter">Notes Filter</div>,
+}))
+
+vi.mock('../CustomFieldsFilter', () => ({
+  CustomFieldsFilter: () => <div data-testid="custom-fields-filter">Custom Fields Filter</div>,
+}))
+
 // Helper to render with FilterProvider
 function renderWithProvider(ui) {
   return render(<FilterProvider>{ui}</FilterProvider>)
@@ -75,31 +104,21 @@ describe('FilterDrawer', () => {
   })
 
   describe('Visibility and Responsive Behavior', () => {
-    it('applies hidden translation class when closed on mobile', () => {
-      renderWithProvider(<FilterDrawer />)
-
-      const drawer = screen.getByRole('complementary', { name: 'Filters' })
-      expect(drawer).toHaveClass('max-md:translate-y-full')
-    })
-
     it('applies visible translation class when open on mobile', () => {
       renderWithProvider(<FilterDrawer />)
 
       const drawer = screen.getByRole('complementary', { name: 'Filters' })
 
-      // Initial state: drawer is closed
-      expect(drawer).toHaveClass('max-md:translate-y-full')
-
-      // Click to open drawer (this would be done via FilterDrawerToggle in real usage)
-      // For this test, we'll verify the class exists when drawer should be open
-      // Note: FilterProvider initializes with isDrawerOpen: false
+      // Initial state: drawer is open (isDrawerOpen: true by default)
+      expect(drawer).toHaveClass('max-md:translate-y-0')
     })
 
-    it('applies desktop fixed sidebar classes', () => {
+    it('applies desktop collapsible sidebar classes', () => {
       renderWithProvider(<FilterDrawer />)
 
       const drawer = screen.getByRole('complementary', { name: 'Filters' })
-      expect(drawer).toHaveClass('lg:static', 'lg:translate-x-0', 'lg:w-80')
+      // Desktop drawer is now collapsible - no longer uses lg:static
+      expect(drawer).toHaveClass('lg:translate-x-0', 'lg:w-80')
     })
 
     it('applies tablet overlay drawer classes', () => {
@@ -118,35 +137,29 @@ describe('FilterDrawer', () => {
   })
 
   describe('Backdrop', () => {
-    it('does not render backdrop when drawer is closed', () => {
+    it('renders backdrop when drawer is open', () => {
       renderWithProvider(<FilterDrawer />)
 
-      // Backdrop should not be in the document when closed
-      const backdrops = document.querySelectorAll('.bg-black\\/50')
-      expect(backdrops.length).toBe(0)
+      // Drawer is open by default, so backdrop should be present
+      const backdrop = document.querySelector('.bg-black\\/50')
+      expect(backdrop).toBeInTheDocument()
     })
 
     it('backdrop has correct ARIA attributes', () => {
       renderWithProvider(<FilterDrawer />)
 
-      // When drawer is closed, no backdrop
-      const backdrops = document.querySelectorAll('[aria-hidden="true"]')
-      // Filter for only backdrop elements (not other aria-hidden elements)
-      const backdropElements = Array.from(backdrops).filter(el =>
-        el.classList.contains('bg-black/50') || el.className.includes('bg-black\\/50')
-      )
-      expect(backdropElements.length).toBe(0)
+      // Drawer is open by default, so backdrop should be present with aria-hidden
+      const backdrop = document.querySelector('.bg-black\\/50')
+      expect(backdrop).toHaveAttribute('aria-hidden', 'true')
     })
   })
 
   describe('Body Scroll Locking', () => {
     it('sets body overflow to hidden when drawer is open', () => {
-      // This test would require actually opening the drawer
-      // For now, we'll test the initial state
       renderWithProvider(<FilterDrawer />)
 
-      // Initially drawer is closed, so body should not be locked
-      expect(document.body.style.overflow).toBe('')
+      // Drawer is open by default, so body should be locked
+      expect(document.body.style.overflow).toBe('hidden')
     })
 
     it('restores body overflow when component unmounts', () => {
@@ -169,7 +182,7 @@ describe('FilterDrawer', () => {
 
       // Since drawer is initially closed, dispatching Escape should not cause errors
       // Verify component is still rendered properly
-      expect(screen.getByTestId('filter-drawer-container')).toBeInTheDocument()
+      expect(screen.getByRole('complementary', { name: 'Filters' })).toBeInTheDocument()
     })
 
     it('does not interfere with other keyboard events', () => {

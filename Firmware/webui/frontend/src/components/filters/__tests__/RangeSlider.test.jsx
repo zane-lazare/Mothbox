@@ -159,12 +159,14 @@ describe('RangeSlider', () => {
       const originalValue = minInput.value;
       await user.clear(minInput);
       await user.type(minInput, 'abc');
-      minInput.blur();
+      fireEvent.blur(minInput);
 
       // onChange should not be called for invalid input
       expect(defaultProps.onChange).not.toHaveBeenCalled();
-      // Input should be reset to original value
-      expect(minInput.value).toBe(originalValue);
+      // Input should be reset to original value (wait for state update)
+      await waitFor(() => {
+        expect(minInput.value).toBe(originalValue);
+      });
     });
   });
 

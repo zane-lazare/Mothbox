@@ -20,9 +20,15 @@ Test-Driven Development (TDD) Protocol:
 import pytest
 from webui.backend.lib.search_query_parser import (
     parse_query,
+    validate_query,
     ParsedQuery,
     DateFilter,
     FIELD_MAPPINGS,
+    MAX_QUERY_LENGTH,
+    MAX_QUERY_TERMS,
+    MAX_TERM_LENGTH,
+    MAX_PHRASE_LENGTH,
+    MAX_PARENTHESIS_DEPTH,
 )
 
 
@@ -412,3 +418,175 @@ class TestFieldMappings:
         """FIELD_MAPPINGS keys should be lowercase"""
         for key in FIELD_MAPPINGS:
             assert key == key.lower()
+
+
+class TestQueryValidation:
+    """Test query validation (defense in depth)"""
+
+    def test_validate_query_valid_simple(self):
+        """Simple valid query should pass validation"""
+        is_valid, error = validate_query("moth")
+        assert is_valid
+        assert error is None
+
+    def test_validate_query_valid_complex(self):
+        """Complex valid query should pass validation"""
+        is_valid, error = validate_query("tag:moth species:actias AND nocturnal")
+        assert is_valid
+        assert error is None
+
+    def test_validate_query_empty(self):
+        """Empty query should fail validation"""
+        is_valid, error = validate_query("")
+        assert not is_valid
+        assert "empty" in error.lower()
+
+    def test_validate_query_whitespace_only(self):
+        """Whitespace-only query should fail validation"""
+        is_valid, error = validate_query("   ")
+        assert not is_valid
+        assert "empty" in error.lower()
+
+    def test_validate_query_too_long(self):
+        """Query exceeding max length should fail"""
+        query = "moth " * 150  # ~750 chars, exceeds MAX_QUERY_LENGTH (500)
+        is_valid, error = validate_query(query)
+        assert not is_valid
+        assert "too long" in error.lower()
+        assert str(MAX_QUERY_LENGTH) in error
+
+    def test_validate_query_too_many_terms(self):
+        """Query with too many terms should fail"""
+        # Create query with more than MAX_QUERY_TERMS (20)
+        terms = [f"term{i}" for i in range(25)]
+        query = " ".join(terms)
+        is_valid, error = validate_query(query)
+        assert not is_valid
+        assert "too many" in error.lower()
+
+    def test_validate_query_term_too_long(self):
+        """Query with very long term should fail"""
+        query = "a" * 150  # Exceeds MAX_TERM_LENGTH (100)
+        is_valid, error = validate_query(query)
+        assert not is_valid
+        assert "term too long" in error.lower()
+
+    def test_validate_query_phrase_too_long(self):
+        """Query with very long phrase should fail"""
+        # Use multiple short words within a phrase to exceed MAX_PHRASE_LENGTH (200)
+        # but stay under MAX_QUERY_TERMS (20) and MAX_TERM_LENGTH (100)
+        # We need a single quoted phrase that exceeds 200 chars
+        words = ["word" for _ in range(60)]  # 60 words * 5 chars each = 300 chars + spaces
+        long_phrase = " ".join(words)  # Creates phrase like "word word word..."
+        query = f'"{long_phrase}"'
+        is_valid, error = validate_query(query)
+        assert not is_valid
+        assert "phrase too long" in error.lower()
+
+    def test_validate_query_deep_nesting(self):
+        """Query with too deep parenthesis nesting should fail"""
+        # MAX_PARENTHESIS_DEPTH is 3, so 4 levels should fail
+        query = "((((moth))))"
+        is_valid, error = validate_query(query)
+        assert not is_valid
+        assert "too complex" in error.lower() or "nesting" in error.lower()
+
+    def test_validate_query_unbalanced_parens(self):
+        """Query with unbalanced parentheses should fail"""
+        query = "(moth AND (luna)"
+        is_valid, error = validate_query(query)
+        assert not is_valid
+        assert "unbalanced" in error.lower()
+
+    def test_validate_query_valid_nesting(self):
+        """Query with acceptable nesting should pass"""
+        # MAX_PARENTHESIS_DEPTH is 3, so 3 levels should pass
+        query = "(((moth)))"
+        is_valid, error = validate_query(query)
+        assert is_valid
+        assert error is None
+
+    def test_validate_query_operators_not_counted(self):
+        """Boolean operators should not count toward term limit"""
+        # Create query with operators between terms
+        terms = [f"term{i}" for i in range(15)]
+        query = " AND ".join(terms)  # 15 terms with AND between
+        is_valid, error = validate_query(query)
+        assert is_valid
+        assert error is None
+
+    def test_validate_query_field_prefix_stripped(self):
+        """Field prefix should be stripped when checking term length"""
+        # Field:value where value is within limit
+        query = "tag:" + "a" * 50  # 50 char value, within MAX_TERM_LENGTH (100)
+        is_valid, error = validate_query(query)
+        assert is_valid
+        assert error is None
+
+    def test_validate_query_field_prefix_with_long_value(self):
+        """Field:value where value exceeds limit should fail"""
+        query = "tag:" + "a" * 150  # 150 char value, exceeds MAX_TERM_LENGTH
+        is_valid, error = validate_query(query)
+        assert not is_valid
+        assert "term too long" in error.lower()
+
+
+class TestParseQueryWithValidation:
+    """Test that parse_query uses validation correctly"""
+
+    def test_parse_query_returns_error_for_invalid(self):
+        """parse_query should return invalid result for bad queries"""
+        query = "a" * 600  # Too long
+        result = parse_query(query)
+        assert not result.is_valid
+        assert result.error_message is not None
+        assert "too long" in result.error_message.lower()
+
+    def test_parse_query_preserves_original_on_validation_error(self):
+        """parse_query should preserve original query on validation error"""
+        query = "((((deep))))"  # Too deep nesting
+        result = parse_query(query)
+        assert result.original_query == query
+
+    def test_parse_query_empty_fts_on_validation_error(self):
+        """parse_query should return empty fts_query on validation error"""
+        query = " ".join([f"term{i}" for i in range(25)])  # Too many terms
+        result = parse_query(query)
+        assert not result.is_valid
+        assert result.fts_query == ""
+
+    def test_parse_query_no_date_filter_on_validation_error(self):
+        """parse_query should return None date_filter on validation error"""
+        query = "((((moth))))"  # Too deep nesting
+        result = parse_query(query)
+        assert not result.is_valid
+        assert result.date_filter is None
+
+
+class TestValidationConstants:
+    """Test that validation constants are sensible"""
+
+    def test_max_query_length_reasonable(self):
+        """MAX_QUERY_LENGTH should be a reasonable value"""
+        assert MAX_QUERY_LENGTH >= 100  # At least 100 chars
+        assert MAX_QUERY_LENGTH <= 10000  # Not too large
+
+    def test_max_query_terms_reasonable(self):
+        """MAX_QUERY_TERMS should be a reasonable value"""
+        assert MAX_QUERY_TERMS >= 5  # At least 5 terms
+        assert MAX_QUERY_TERMS <= 100  # Not too many
+
+    def test_max_term_length_reasonable(self):
+        """MAX_TERM_LENGTH should be a reasonable value"""
+        assert MAX_TERM_LENGTH >= 50  # At least 50 chars
+        assert MAX_TERM_LENGTH <= 500  # Not too long
+
+    def test_max_phrase_length_reasonable(self):
+        """MAX_PHRASE_LENGTH should be a reasonable value"""
+        assert MAX_PHRASE_LENGTH >= 100  # At least 100 chars
+        assert MAX_PHRASE_LENGTH <= 1000  # Not too long
+
+    def test_max_parenthesis_depth_reasonable(self):
+        """MAX_PARENTHESIS_DEPTH should be a reasonable value"""
+        assert MAX_PARENTHESIS_DEPTH >= 2  # At least 2 levels
+        assert MAX_PARENTHESIS_DEPTH <= 10  # Not too deep
