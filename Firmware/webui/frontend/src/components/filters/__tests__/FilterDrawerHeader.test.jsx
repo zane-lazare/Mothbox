@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import React from 'react'
 import { FilterDrawerHeader } from '../FilterDrawerHeader'
 import { FilterProvider, useFilterContext } from '../../../contexts/FilterContext'
@@ -138,7 +138,7 @@ describe('FilterDrawerHeader', () => {
     })
 
     it('calls clearAllFilters when clicked', async () => {
-      const { container } = renderWithProvider(<FilterDrawerHeader />, { activeFilters: 1 })
+      renderWithProvider(<FilterDrawerHeader />, { activeFilters: 1 })
 
       await new Promise(resolve => setTimeout(resolve, 50))
 

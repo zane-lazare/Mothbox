@@ -307,7 +307,7 @@ describe('StackedPhotoCard', () => {
     })
 
     it('badge has semi-transparent background', () => {
-      const { container } = render(<StackedPhotoCard series={mockHdrSeries} />)
+      render(<StackedPhotoCard series={mockHdrSeries} />)
 
       // Badge should have dark background
       const badge = screen.getByText('3 HDR')

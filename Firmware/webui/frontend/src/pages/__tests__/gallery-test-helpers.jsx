@@ -21,7 +21,7 @@ vi.mock('react-router-dom', async () => {
 // Mock useProgressiveImage hook for all Gallery tests
 // Progressive loading works with real backend API, but tests need mocked responses
 vi.mock('../../hooks/useProgressiveImage', () => ({
-  default: vi.fn((photoPath, options) => {
+  default: vi.fn((photoPath) => {
     // Return thumbnail URL immediately for testing
     // In real app, this goes through thumbnail → full image stages
     if (!photoPath) {

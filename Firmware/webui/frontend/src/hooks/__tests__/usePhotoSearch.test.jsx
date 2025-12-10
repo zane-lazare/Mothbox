@@ -523,7 +523,7 @@ describe('usePhotoSearch', () => {
       const wrapper = createWrapper()
 
       // First render
-      const { result: result1, unmount: unmount1 } = renderHook(
+      const { unmount: unmount1 } = renderHook(
         () => usePhotoSearch('moth', { debounceMs: 10 }),
         { wrapper }
       )

@@ -33,7 +33,7 @@ vi.mock('leaflet', () => ({
 vi.mock('react-leaflet', () => ({
   MapContainer: ({ children, ...props }) => {
     // Filter out Leaflet-specific props that would cause React warnings
-    const { minZoom, maxZoom, tap, tapTolerance, touchZoom, dragging, scrollWheelZoom, doubleClickZoom, attributionControl, ...cleanProps } = props
+    const { minZoom: _minZoom, maxZoom: _maxZoom, tap: _tap, tapTolerance: _tapTolerance, touchZoom: _touchZoom, dragging: _dragging, scrollWheelZoom: _scrollWheelZoom, doubleClickZoom: _doubleClickZoom, attributionControl: _attributionControl, ...cleanProps } = props
     return (
       <div data-testid="map-container" {...cleanProps}>
         {children}

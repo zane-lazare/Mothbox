@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import * as api from '../../utils/api'
 import {
@@ -39,11 +39,9 @@ vi.mock('../../components/metadata/MetadataPanel', () => ({
 
 describe('Gallery Search Integration', () => {
   let queryClient
-  let observerMocks
-
   beforeEach(() => {
     queryClient = createTestQueryClient()
-    observerMocks = setupIntersectionObserver()
+    setupIntersectionObserver()
     vi.clearAllMocks()
 
     // Setup default API responses

@@ -533,11 +533,10 @@ describe('useFilterPresets', () => {
       vi.useFakeTimers()
 
       const { result } = renderHook(() => useFilterPresets())
+      let preset2Id
 
-      let preset1Id, preset2Id
       act(() => {
-        const p1 = result.current.savePreset('Preset 1', { tags: ['a'] })
-        preset1Id = p1.id
+        result.current.savePreset('Preset 1', { tags: ['a'] })
       })
 
       act(() => {

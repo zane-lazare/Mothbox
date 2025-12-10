@@ -29,7 +29,7 @@ export default function InstantCaptureButton({ className = '', disabled = false 
 
     try {
       const response = await instantCapture()
-      const { photo_path, metadata, timestamp } = response.data
+      const { photo_path } = response.data
 
       // Extract filename from path for display
       const filename = photo_path.split('/').pop()

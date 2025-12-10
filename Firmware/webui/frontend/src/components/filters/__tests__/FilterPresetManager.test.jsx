@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { FilterPresetManager } from '../FilterPresetManager'
 import { FilterProvider } from '../../../contexts/FilterContext'
@@ -157,7 +157,7 @@ describe('FilterPresetManager', () => {
       const { container } = renderWithProvider(<FilterPresetManager />)
 
       // For this test, we'll manually enable the button for testing purposes
-      const saveButton = screen.getByText('Save as Preset')
+      screen.getByText('Save as Preset')
 
       // Since button is disabled by default, let's test the modal functionality separately
       // by checking if the modal component would be rendered when showSaveModal is true

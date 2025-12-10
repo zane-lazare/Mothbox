@@ -278,7 +278,7 @@ describe('useProgressiveImage', () => {
 
     it('does not crash on error', async () => {
       expect(() => {
-        const { result } = renderHook(() =>
+        renderHook(() =>
           useProgressiveImage('/photos/test.jpg')
         );
       }).not.toThrow();

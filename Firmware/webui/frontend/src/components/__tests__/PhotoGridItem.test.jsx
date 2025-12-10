@@ -86,7 +86,7 @@ describe('PhotoGridItem', () => {
   })
 
   it('positions QuickTagButton in top-right corner', () => {
-    const { container } = render(
+    render(
       <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} />,
       { wrapper: createWrapper() }
     )

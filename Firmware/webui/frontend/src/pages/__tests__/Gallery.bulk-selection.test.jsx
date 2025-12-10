@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, within, act } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
@@ -45,9 +45,9 @@ vi.mock('../../hooks/useProgressiveImage', () => ({
 
 // Mock react-hot-toast
 vi.mock('react-hot-toast', () => {
-  const mockToast = vi.fn((content, options) => `toast-${Date.now()}`)
-  mockToast.success = vi.fn((message, options) => `toast-success-${Date.now()}`)
-  mockToast.error = vi.fn((message, options) => `toast-error-${Date.now()}`)
+  const mockToast = vi.fn(() => `toast-${Date.now()}`)
+  mockToast.success = vi.fn(() => `toast-success-${Date.now()}`)
+  mockToast.error = vi.fn(() => `toast-error-${Date.now()}`)
   mockToast.dismiss = vi.fn()
   return {
     default: mockToast,

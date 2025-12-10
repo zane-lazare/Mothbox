@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import React from 'react'
 import ActiveFilterChips from '../ActiveFilterChips'
 import { FilterProvider, useFilterContext } from '../../../contexts/FilterContext'

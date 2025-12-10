@@ -28,6 +28,13 @@ export default defineConfig([
     },
   },
   {
+    // Context files export both Provider and hooks - this is a valid pattern
+    files: ['**/contexts/**/*.{js,jsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+  {
     // Test files configuration with Vitest plugin
     files: ['**/__tests__/**/*.{js,jsx}', '**/*.test.{js,jsx}', '**/*.spec.{js,jsx}'],
     plugins: {

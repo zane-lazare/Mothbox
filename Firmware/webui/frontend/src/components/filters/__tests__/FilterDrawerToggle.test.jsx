@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import React from 'react'
 import { FilterDrawerToggle } from '../FilterDrawerToggle'
 import { FilterProvider, useFilterContext } from '../../../contexts/FilterContext'

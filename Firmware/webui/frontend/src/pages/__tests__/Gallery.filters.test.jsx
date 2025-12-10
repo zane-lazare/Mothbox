@@ -59,11 +59,9 @@ const renderGalleryWithFilters = (queryClient, props = {}) => {
 
 describe('Gallery Filter Integration', () => {
   let queryClient
-  let observerMocks
-
   beforeEach(() => {
     queryClient = createTestQueryClient()
-    observerMocks = setupIntersectionObserver()
+    setupIntersectionObserver()
     vi.clearAllMocks()
 
     // Setup default API responses using helpers

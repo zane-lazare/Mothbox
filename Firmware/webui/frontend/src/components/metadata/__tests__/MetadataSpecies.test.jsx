@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import MetadataSpecies from '../MetadataSpecies'
 
@@ -146,8 +145,6 @@ describe('MetadataSpecies', () => {
       />,
       { wrapper: createWrapper() }
     )
-
-    const confidenceSelect = screen.getByDisplayValue('Certain')
 
     // Check all options are present
     expect(screen.getByRole('option', { name: 'Certain' })).toBeInTheDocument()

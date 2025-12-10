@@ -446,7 +446,6 @@ describe('RangeSlider', () => {
     });
 
     it('handles fractional step values', async () => {
-      const user = userEvent.setup();
       render(<RangeSlider {...defaultProps} step={0.5} />);
 
       const minHandle = screen.getByTestId('range-slider-min-handle');

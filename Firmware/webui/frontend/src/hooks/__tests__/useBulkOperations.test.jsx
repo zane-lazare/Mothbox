@@ -216,7 +216,7 @@ describe('useBulkOperations', () => {
 
       const { result } = renderHook(() => useBulkOperations(), { wrapper })
 
-      const response = await result.current.bulkRemoveTags(filenames, tagsToRemove)
+      await result.current.bulkRemoveTags(filenames, tagsToRemove)
 
       expect(api.post).toHaveBeenCalledWith('/sidecar/bulk', {
         filenames,

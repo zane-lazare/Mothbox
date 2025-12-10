@@ -17,7 +17,7 @@ vi.mock('../../../utils/api', () => ({
 
 // Get mocked functions for use in tests
 const mockApiGet = vi.mocked(apiModule.api.get)
-const mockApiPut = vi.mocked(apiModule.api.put)
+vi.mocked(apiModule.api.put)
 const mockGetPhotoSidecarMetadata = vi.mocked(apiModule.getPhotoSidecarMetadata)
 const mockUpdatePhotoSidecarMetadata = vi.mocked(apiModule.updatePhotoSidecarMetadata)
 

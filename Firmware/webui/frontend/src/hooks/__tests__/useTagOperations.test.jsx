@@ -24,7 +24,6 @@ describe('useTagOperations', () => {
   let queryClient
 
   const createWrapper = () => {
-    // eslint-disable-next-line react/prop-types
     const Wrapper = ({ children }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     )

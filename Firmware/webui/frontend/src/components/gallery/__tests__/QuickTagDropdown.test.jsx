@@ -299,7 +299,6 @@ describe('QuickTagDropdown', () => {
   })
 
   it('traps focus within dropdown', async () => {
-    const user = userEvent.setup()
     render(<QuickTagDropdown {...defaultProps} />, { wrapper: createWrapper() })
 
     const searchInput = screen.getByPlaceholderText(/search or create tag/i)
@@ -344,7 +343,6 @@ describe('QuickTagDropdown', () => {
   })
 
   it('announces tag changes to screen readers', async () => {
-    const user = userEvent.setup()
     render(<QuickTagDropdown {...defaultProps} />, { wrapper: createWrapper() })
 
     // Check that tag buttons are accessible

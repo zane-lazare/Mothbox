@@ -12,7 +12,7 @@ Element.prototype.scrollIntoView = vi.fn()
 
 // Mock fetch globally - tests should explicitly mock API calls
 // This prevents hanging tests when fetch is accidentally called without mocking
-global.fetch = vi.fn(() =>
+globalThis.fetch = vi.fn(() =>
   Promise.reject(new Error('Unmocked fetch call in test - please mock the API'))
 )
 
@@ -53,7 +53,7 @@ const createMockXHR = () => ({
     onerror: null,
   },
 })
-global.XMLHttpRequest = vi.fn(() => createMockXHR())
+globalThis.XMLHttpRequest = vi.fn(() => createMockXHR())
 
 // Auto cleanup after each test
 afterEach(() => {

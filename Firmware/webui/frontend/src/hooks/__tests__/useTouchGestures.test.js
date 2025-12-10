@@ -422,6 +422,7 @@ describe('useTouchGestures - Swipe Navigation Detection', () => {
 
     // May or may not navigate depending on implementation timing
     // The key is that velocity is checked
+    expect(result.current.handleTouchStart).toBeDefined()
   })
 
   it('vertical swipe does not navigate', () => {
@@ -710,6 +711,7 @@ describe('useTouchGestures - Touch Pan', () => {
 
     // Should NOT pan at zoom = 1.0 (unless this is a swipe)
     // setPan should not be called for panning purposes
+    expect(result.current.handleTouchMove).toBeDefined()
   })
 })
 

@@ -1,5 +1,5 @@
-import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
 import { FilterDrawer } from '../FilterDrawer'
 import { FilterProvider } from '../../../contexts/FilterContext'
 import React from 'react'
@@ -31,7 +31,7 @@ vi.mock('../FilterSection', () => ({
 }))
 
 // Helper to render with FilterProvider
-function renderWithProvider(ui, { initialState = {} } = {}) {
+function renderWithProvider(ui) {
   return render(<FilterProvider>{ui}</FilterProvider>)
 }
 
@@ -83,7 +83,7 @@ describe('FilterDrawer', () => {
     })
 
     it('applies visible translation class when open on mobile', () => {
-      const { container } = renderWithProvider(<FilterDrawer />)
+      renderWithProvider(<FilterDrawer />)
 
       const drawer = screen.getByRole('complementary', { name: 'Filters' })
 
@@ -167,8 +167,9 @@ describe('FilterDrawer', () => {
       const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
       document.dispatchEvent(escapeEvent)
 
-      // Since drawer is initially closed, nothing should happen
-      // (We can't easily test the actual closing without more complex setup)
+      // Since drawer is initially closed, dispatching Escape should not cause errors
+      // Verify component is still rendered properly
+      expect(screen.getByTestId('filter-drawer-container')).toBeInTheDocument()
     })
 
     it('does not interfere with other keyboard events', () => {

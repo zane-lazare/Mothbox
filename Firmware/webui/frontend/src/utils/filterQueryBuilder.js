@@ -229,7 +229,7 @@ export function buildCustomFieldsQuery(customFields) {
 
   const parts = []
 
-  for (const [fieldName, value] of Object.entries(customFields)) {
+  for (const [, value] of Object.entries(customFields)) {
     if (value !== null && value !== undefined && value !== '') {
       // Custom fields are stored in the 'custom' column in the search index
       // We search for the value in the custom fields content

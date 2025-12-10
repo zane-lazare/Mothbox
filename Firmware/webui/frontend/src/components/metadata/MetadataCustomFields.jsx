@@ -15,7 +15,7 @@ export default function MetadataCustomFields({
 
   const handleKeyChange = (oldKey, newKey) => {
     // Check for duplicate keys
-    if (newKey && newKey !== oldKey && fields.hasOwnProperty(newKey)) {
+    if (newKey && newKey !== oldKey && Object.prototype.hasOwnProperty.call(fields, newKey)) {
       setKeyError(`Key "${newKey}" already exists`)
       return
     }
@@ -39,7 +39,7 @@ export default function MetadataCustomFields({
     // Generate unique temp key
     let tempKey = 'field_1'
     let i = 1
-    while (fields.hasOwnProperty(tempKey)) {
+    while (Object.prototype.hasOwnProperty.call(fields, tempKey)) {
       i++
       tempKey = `field_${i}`
     }

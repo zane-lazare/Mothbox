@@ -69,9 +69,6 @@ function GalleryContent() {
     toggleSelectMode,
     selectAll,
     deselectAll,
-    togglePhoto,
-    selectRange,
-    lastClickedIndex,
   } = useSelectionContext()
 
   // Bulk operations
@@ -81,7 +78,6 @@ function GalleryContent() {
     bulkRemoveTags,
     bulkUpdateSpecies,
     bulkDelete,
-    isProcessing,
   } = useBulkOperations()
 
   const { showUndoToast } = useUndoToast()
@@ -146,7 +142,6 @@ function GalleryContent() {
     locations,
     isLoading: isLoadingLocations,
     totalWithGps,
-    totalWithoutGps,
   } = usePhotoLocations({}, { enabled: viewMode === 'map' })
 
   // Set up infinite scroll sentinel

@@ -1302,14 +1302,14 @@ describe('filterQueryBuilder', () => {
     })
 
     it('all presets have label property', () => {
-      Object.entries(DATE_PRESETS).forEach(([key, preset]) => {
+      Object.entries(DATE_PRESETS).forEach(([, preset]) => {
         expect(preset.label).toBeDefined()
         expect(typeof preset.label).toBe('string')
       })
     })
 
     it('all presets have getRange function', () => {
-      Object.entries(DATE_PRESETS).forEach(([key, preset]) => {
+      Object.entries(DATE_PRESETS).forEach(([, preset]) => {
         expect(preset.getRange).toBeDefined()
         expect(typeof preset.getRange).toBe('function')
       })

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import MapView from '../MapView'
 
 // Mock react-leaflet components (Leaflet has issues in jsdom)
@@ -62,7 +61,7 @@ vi.mock('leaflet', () => ({
 
 // Mock MarkerHoverPopup component
 vi.mock('../MarkerHoverPopup', () => ({
-  default: ({ cluster, isVisible, position, onPhotoClick, onClose }) => (
+  default: ({ cluster, isVisible }) => (
     <div
       data-testid="marker-hover-popup"
       data-visible={isVisible}
