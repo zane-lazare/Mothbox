@@ -35,6 +35,15 @@ export default defineConfig([
     },
   },
   {
+    // Config files run in Node.js environment
+    files: ['*.config.js', '*.config.mjs'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+  {
     // Test files configuration with Vitest plugin
     files: ['**/__tests__/**/*.{js,jsx}', '**/*.test.{js,jsx}', '**/*.spec.{js,jsx}'],
     plugins: {
