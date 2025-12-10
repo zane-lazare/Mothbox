@@ -4,12 +4,12 @@ import React from 'react'
 import { FilterDrawerToggle } from '../FilterDrawerToggle'
 import { FilterProvider, useFilterContext } from '../../../contexts/FilterContext'
 
-// Helper component to manipulate filter context for testing
-function TestWrapper({ children, activeFilters = 0 }) {
+// Helper component that sets up filters synchronously before children render
+function FilterSetup({ children, activeFilters = 0 }) {
   const ctx = useFilterContext()
-
-  React.useEffect(() => {
-    // Set filters based on activeFilters prop
+  // Call setup synchronously during render (not in useEffect)
+  const hasSetup = React.useRef(false)
+  if (!hasSetup.current && activeFilters > 0) {
     if (activeFilters >= 1) {
       ctx.setDateRange('7days', null, null)
     }
@@ -19,8 +19,8 @@ function TestWrapper({ children, activeFilters = 0 }) {
     if (activeFilters >= 3) {
       ctx.setSpecies(['Actias luna'], null)
     }
-  }, [activeFilters, ctx])
-
+    hasSetup.current = true
+  }
   return children
 }
 
@@ -28,7 +28,7 @@ function TestWrapper({ children, activeFilters = 0 }) {
 function renderWithProvider(ui, { activeFilters = 0 } = {}) {
   return render(
     <FilterProvider>
-      <TestWrapper activeFilters={activeFilters}>{ui}</TestWrapper>
+      <FilterSetup activeFilters={activeFilters}>{ui}</FilterSetup>
     </FilterProvider>
   )
 }
@@ -106,9 +106,9 @@ describe('FilterDrawerToggle', () => {
       // Update to 2 filters
       rerender(
         <FilterProvider>
-          <TestWrapper activeFilters={2}>
+          <FilterSetup activeFilters={2}>
             <FilterDrawerToggle />
-          </TestWrapper>
+          </FilterSetup>
         </FilterProvider>
       )
 
@@ -146,9 +146,9 @@ describe('FilterDrawerToggle', () => {
       // Update to 3 filters
       rerender(
         <FilterProvider>
-          <TestWrapper activeFilters={3}>
+          <FilterSetup activeFilters={3}>
             <FilterDrawerToggle />
-          </TestWrapper>
+          </FilterSetup>
         </FilterProvider>
       )
 

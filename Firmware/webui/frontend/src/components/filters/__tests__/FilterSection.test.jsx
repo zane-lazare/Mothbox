@@ -4,16 +4,16 @@ import React from 'react'
 import { FilterSection } from '../FilterSection'
 import { FilterProvider, useFilterContext } from '../../../contexts/FilterContext'
 
-// Helper component to manipulate filter context for testing
-function TestWrapper({ children, setupFilters = null }) {
+// Helper component that sets up filters synchronously before children render
+function FilterSetup({ setupFilters = null, children }) {
   const ctx = useFilterContext()
-
-  React.useEffect(() => {
-    if (setupFilters) {
-      setupFilters(ctx)
-    }
-  }, [setupFilters, ctx])
-
+  // Call setupFilters synchronously during render (not in useEffect)
+  // This is safe because it only happens once during initial render
+  const hasSetup = React.useRef(false)
+  if (!hasSetup.current && setupFilters) {
+    setupFilters(ctx)
+    hasSetup.current = true
+  }
   return children
 }
 
@@ -21,7 +21,7 @@ function TestWrapper({ children, setupFilters = null }) {
 function renderWithProvider(ui, { setupFilters = null } = {}) {
   return render(
     <FilterProvider>
-      <TestWrapper setupFilters={setupFilters}>{ui}</TestWrapper>
+      <FilterSetup setupFilters={setupFilters}>{ui}</FilterSetup>
     </FilterProvider>
   )
 }

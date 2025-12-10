@@ -14,7 +14,7 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    environment: 'jsdom',
+    environment: 'happy-dom',  // happy-dom uses less memory than jsdom
     setupFiles: './src/setupTests.js',
     teardownTimeout: 5000,  // Force exit after 5 seconds if cleanup stalls
     testTimeout: 10000,  // 10 second per-test timeout to catch hanging tests
@@ -26,10 +26,14 @@ export default defineConfig({
     poolOptions: {
       forks: {
         minForks: 1,
-        maxForks: 2,  // Limited to prevent memory exhaustion in CI
+        maxForks: process.env.CI ? 1 : 2,  // Single fork in CI for memory safety
+        isolate: true,  // Fresh process per test file - prevents memory accumulation
       }
     },
     fileParallelism: true,  // Run test files in parallel
+    // Force vitest to exit when tests finish, even if async operations are pending
+    // This prevents hanging when tests don't properly clean up timers/promises
+    forceExit: true,
     coverage: {
       reporter: ['text', 'json', 'html'],
       exclude: [

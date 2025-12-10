@@ -55,9 +55,11 @@ const createMockXHR = () => ({
 })
 globalThis.XMLHttpRequest = vi.fn(() => createMockXHR())
 
-// Auto cleanup after each test
+// Auto cleanup after each test - aggressive cleanup to prevent memory leaks
 afterEach(() => {
   cleanup()
+  vi.clearAllTimers()
+  vi.clearAllMocks()
 })
 
 // Force clear all timers after all tests to prevent hanging

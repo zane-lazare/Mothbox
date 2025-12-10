@@ -1,20 +1,20 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import React from 'react'
 import ActiveFilterChips from '../ActiveFilterChips'
 import { FilterProvider, useFilterContext } from '../../../contexts/FilterContext'
 
-// Helper component to manipulate filter context for testing
-function TestWrapper({ children, setupFilters }) {
+// Helper component that sets up filters synchronously before children render
+function FilterSetup({ setupFilters, children }) {
   const ctx = useFilterContext()
-
-  React.useEffect(() => {
-    if (setupFilters) {
-      setupFilters(ctx)
-    }
-  }, [setupFilters, ctx])
-
+  // Call setupFilters synchronously during render (not in useEffect)
+  // This is safe because it only happens once during initial render
+  const hasSetup = React.useRef(false)
+  if (!hasSetup.current && setupFilters) {
+    setupFilters(ctx)
+    hasSetup.current = true
+  }
   return children
 }
 
@@ -22,7 +22,7 @@ function TestWrapper({ children, setupFilters }) {
 function renderWithProvider(ui, { setupFilters } = {}) {
   return render(
     <FilterProvider>
-      <TestWrapper setupFilters={setupFilters}>{ui}</TestWrapper>
+      <FilterSetup setupFilters={setupFilters}>{ui}</FilterSetup>
     </FilterProvider>
   )
 }
@@ -462,9 +462,9 @@ describe('ActiveFilterChips', () => {
 
       rerender(
         <FilterProvider>
-          <TestWrapper setupFilters={(ctx) => ctx.setDateRange('30days', null, null)}>
+          <FilterSetup setupFilters={(ctx) => ctx.setDateRange('30days', null, null)}>
             <ActiveFilterChips />
-          </TestWrapper>
+          </FilterSetup>
         </FilterProvider>
       )
 
