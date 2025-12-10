@@ -17,11 +17,13 @@ export default defineConfig({
     testTimeout: 10000,  // 10 second per-test timeout to catch hanging tests
     hookTimeout: 10000,  // 10 second timeout for beforeEach/afterEach hooks
     // Parallelization settings for improved test performance
-    pool: 'threads',  // Use worker threads (faster than forks for jsdom tests)
+    // Using forks (separate processes) instead of threads to avoid memory issues
+    // Threads share heap memory which causes OOM errors with large test suites
+    pool: 'forks',
     poolOptions: {
-      threads: {
-        minThreads: 1,
-        maxThreads: 4,  // Adjust based on available CPU cores
+      forks: {
+        minForks: 1,
+        maxForks: 2,  // Limited to prevent memory exhaustion in CI
       }
     },
     fileParallelism: true,  // Run test files in parallel
