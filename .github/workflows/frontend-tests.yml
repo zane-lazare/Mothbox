@@ -52,6 +52,8 @@ jobs:
 
       - name: Run tests (shard ${{ matrix.shard }}/4)
         working-directory: Firmware/webui/frontend
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
         run: npm run test:run -- --shard=${{ matrix.shard }}/4 --reporter=verbose
 
       - name: Upload test results
