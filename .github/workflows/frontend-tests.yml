@@ -3,11 +3,11 @@ name: Frontend Tests
 on:
   pull_request:
     paths:
-      - 'webui/frontend/**'
+      - 'Firmware/webui/frontend/**'
   push:
     branches: [main, dev]
     paths:
-      - 'webui/frontend/**'
+      - 'Firmware/webui/frontend/**'
 
 jobs:
   lint:
@@ -20,14 +20,14 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: 'webui/frontend/package-lock.json'
+          cache-dependency-path: 'Firmware/webui/frontend/package-lock.json'
 
       - name: Install dependencies
-        working-directory: webui/frontend
+        working-directory: Firmware/webui/frontend
         run: npm ci
 
       - name: Run ESLint
-        working-directory: webui/frontend
+        working-directory: Firmware/webui/frontend
         run: npm run lint
 
   test:
@@ -44,14 +44,14 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: 'webui/frontend/package-lock.json'
+          cache-dependency-path: 'Firmware/webui/frontend/package-lock.json'
 
       - name: Install dependencies
-        working-directory: webui/frontend
+        working-directory: Firmware/webui/frontend
         run: npm ci
 
       - name: Run tests (shard ${{ matrix.shard }}/4)
-        working-directory: webui/frontend
+        working-directory: Firmware/webui/frontend
         run: npm run test:run -- --shard=${{ matrix.shard }}/4 --reporter=verbose
 
       - name: Upload test results
@@ -59,7 +59,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-shard-${{ matrix.shard }}
-          path: webui/frontend/test-results/
+          path: Firmware/webui/frontend/test-results/
           if-no-files-found: ignore
 
   test-summary:
