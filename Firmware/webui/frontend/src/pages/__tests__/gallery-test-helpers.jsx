@@ -3,6 +3,7 @@ import { render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import Gallery from '../Gallery'
+import { FilterProvider } from '../../contexts/FilterContext'
 import { GALLERY_CONFIG } from '../../constants/config'
 
 // Mock navigation function (shared across all Gallery tests)
@@ -20,7 +21,7 @@ vi.mock('react-router-dom', async () => {
 // Mock useProgressiveImage hook for all Gallery tests
 // Progressive loading works with real backend API, but tests need mocked responses
 vi.mock('../../hooks/useProgressiveImage', () => ({
-  default: vi.fn((photoPath, options) => {
+  default: vi.fn((photoPath) => {
     // Return thumbnail URL immediately for testing
     // In real app, this goes through thumbnail → full image stages
     if (!photoPath) {
@@ -112,7 +113,9 @@ export const renderGallery = (queryClient, props = {}) => {
   return render(
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
-        <Gallery {...props} />
+        <FilterProvider>
+          <Gallery {...props} />
+        </FilterProvider>
       </QueryClientProvider>
     </BrowserRouter>
   )

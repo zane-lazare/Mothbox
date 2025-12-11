@@ -571,12 +571,14 @@ class TestSearchEdgeCases:
         assert result['total'] == 0
 
     def test_very_long_query(self, empty_index):
-        """Very long query should be handled gracefully"""
-        long_query = "moth " * 100
+        """Very long query should be rejected if it exceeds term limits"""
+        long_query = "moth " * 100  # 100 terms, exceeds MAX_QUERY_TERMS=20
 
         result = empty_index.search(long_query)
 
-        assert result['is_valid'] is True
+        # Query should be rejected due to exceeding term limit (DoS protection)
+        assert result['is_valid'] is False
+        assert 'too many' in result.get('error_message', '').lower()
 
     def test_unicode_query(self, empty_index):
         """Unicode characters in query should work"""

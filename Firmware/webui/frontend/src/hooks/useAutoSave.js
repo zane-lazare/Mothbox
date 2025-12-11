@@ -28,6 +28,7 @@ export default function useAutoSave({
   const dataRef = useRef(data)
   const initialDataRef = useRef(data)
   const statusResetTimerRef = useRef(null)
+  const isMountedRef = useRef(true)
 
   // Keep data ref updated
   useEffect(() => {
@@ -55,7 +56,10 @@ export default function useAutoSave({
         clearTimeout(statusResetTimerRef.current)
       }
       statusResetTimerRef.current = setTimeout(() => {
-        setStatus('idle')
+        // Guard against state updates after unmount
+        if (isMountedRef.current) {
+          setStatus('idle')
+        }
       }, 1500)
     } catch (err) {
       setStatus('error')
@@ -92,6 +96,7 @@ export default function useAutoSave({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      isMountedRef.current = false
       if (timerRef.current) {
         clearTimeout(timerRef.current)
       }

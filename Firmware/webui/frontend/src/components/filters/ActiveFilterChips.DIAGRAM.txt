@@ -1,0 +1,218 @@
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ActiveFilterChips Component                         │
+│                                                                             │
+│  Visual Layout:                                                            │
+│  ┌───────────────────────────────────────────────────────────────────────┐ │
+│  │  [Date: Last 7 Days ×] [Tags: 2 (any) ×] [Species: 1 selected ×]     │ │
+│  │  [ISO: 100-800 ×] [Notes: Has notes ×]  [Clear all]                  │ │
+│  └───────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            Component Architecture                           │
+│                                                                             │
+│   ┌─────────────────┐                                                       │
+│   │ FilterProvider  │  (Context)                                            │
+│   └────────┬────────┘                                                       │
+│            │                                                                 │
+│            ▼                                                                 │
+│   ┌─────────────────┐                                                       │
+│   │ useFilterContext│  (Hook)                                               │
+│   └────────┬────────┘                                                       │
+│            │                                                                 │
+│            ├─► clearFilter(type)                                            │
+│            ├─► clearAllFilters()                                            │
+│            └─► filterState { dateRange, tags, species, ... }               │
+│                      │                                                       │
+│                      ▼                                                       │
+│          ┌────────────────────────┐                                         │
+│          │ getActiveFilterSummaries│  (Utils)                               │
+│          └───────────┬────────────┘                                         │
+│                      │                                                       │
+│                      ▼                                                       │
+│          [{ type: 'dateRange',                                              │
+│             label: 'Date',                                                  │
+│             value: 'Last 7 Days' }, ...]                                    │
+│                      │                                                       │
+│                      ▼                                                       │
+│          ┌───────────────────────┐                                          │
+│          │  ActiveFilterChips    │                                          │
+│          │  ┌─────────────────┐  │                                          │
+│          │  │  FilterChip     │  │  (for each summary)                      │
+│          │  │  ┌───────────┐  │  │                                          │
+│          │  │  │ Label     │  │  │  "Date:"                                 │
+│          │  │  ├───────────┤  │  │                                          │
+│          │  │  │ Value     │  │  │  "Last 7 Days"                           │
+│          │  │  ├───────────┤  │  │                                          │
+│          │  │  │ Remove [×]│──┼──┼─► clearFilter('dateRange')               │
+│          │  │  └───────────┘  │  │                                          │
+│          │  └─────────────────┘  │                                          │
+│          │  ┌─────────────────┐  │                                          │
+│          │  │ Clear all       │──┼─► clearAllFilters()                      │
+│          │  └─────────────────┘  │                                          │
+│          └───────────────────────┘                                          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              Data Flow Diagram                              │
+│                                                                             │
+│   User applies filters in FilterDrawer                                      │
+│                │                                                             │
+│                ▼                                                             │
+│   FilterContext state updates                                               │
+│                │                                                             │
+│                ├─► dateRange: { preset: '7days' }                           │
+│                ├─► tags: { selected: ['moth', 'nocturnal'], matchMode: 'any'}│
+│                ├─► species: { selected: ['Actias luna'] }                   │
+│                ├─► cameraSettings: { iso: { min: 100, max: 800 } }          │
+│                └─► notes: { hasNotes: true }                                │
+│                │                                                             │
+│                ▼                                                             │
+│   getActiveFilterSummaries() processes filter state                         │
+│                │                                                             │
+│                ▼                                                             │
+│   Returns array of summaries:                                               │
+│   [                                                                          │
+│     { type: 'dateRange', label: 'Date', value: 'Last 7 Days' },             │
+│     { type: 'tags', label: 'Tags', value: '2 (any)' },                      │
+│     { type: 'species', label: 'Species', value: '1 selected' },             │
+│     { type: 'cameraSettings', label: 'ISO', value: '100 - 800' },           │
+│     { type: 'notes', label: 'Notes', value: 'Has notes' }                   │
+│   ]                                                                          │
+│                │                                                             │
+│                ▼                                                             │
+│   ActiveFilterChips renders chips for each summary                          │
+│                │                                                             │
+│                ▼                                                             │
+│   User clicks remove (×) button                                             │
+│                │                                                             │
+│                ▼                                                             │
+│   clearFilter(type) called                                                  │
+│                │                                                             │
+│                ▼                                                             │
+│   FilterContext state resets that filter                                    │
+│                │                                                             │
+│                ▼                                                             │
+│   Component re-renders without that chip                                    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          FilterChip Anatomy                                 │
+│                                                                             │
+│   ┌────────────────────────────────────────────────────────────┐            │
+│   │  ┌──────┐ ┌──────────────────────┐ ┌──────────────────┐   │            │
+│   │  │Label:│ │Value (truncated)     │ │[×] Remove Button │   │            │
+│   │  └──────┘ └──────────────────────┘ └──────────────────┘   │            │
+│   │   Date:    Last 7 Days              ×                      │            │
+│   │                                                             │            │
+│   │  ┌─────────────────────────────────────────────────────┐   │            │
+│   │  │ CSS Classes:                                        │   │            │
+│   │  │ - bg-blue-100 dark:bg-blue-900                      │   │            │
+│   │  │ - text-blue-800 dark:text-blue-200                  │   │            │
+│   │  │ - rounded-full                                      │   │            │
+│   │  │ - text-xs font-medium                               │   │            │
+│   │  │ - transition-colors duration-150                    │   │            │
+│   │  └─────────────────────────────────────────────────────┘   │            │
+│   │                                                             │            │
+│   │  ARIA Attributes:                                          │            │
+│   │  - role="status"                                           │            │
+│   │  - aria-label="Filter: Date: Last 7 Days"                 │            │
+│   │                                                             │            │
+│   │  Remove Button:                                            │            │
+│   │  - tabIndex={0}                                            │            │
+│   │  - aria-label="Remove Date filter"                        │            │
+│   │  - onClick={handleRemove}                                 │            │
+│   │  - onKeyDown={handleRemoveKeyDown} (Enter/Space)          │            │
+│   └────────────────────────────────────────────────────────────┘            │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Responsive Behavior                                 │
+│                                                                             │
+│  Mobile (< 640px):                                                          │
+│  ┌─────────────────────────────────────────────────┐                        │
+│  │ [Date: Last 7 Days ×]                           │                        │
+│  │ [Tags: 2 (any) ×]                               │                        │
+│  │ [Species: 1 selected ×]                         │                        │
+│  │ [Clear all]                                     │                        │
+│  └─────────────────────────────────────────────────┘                        │
+│  (Wraps to multiple rows)                                                   │
+│                                                                             │
+│  Tablet/Desktop (≥ 640px):                                                  │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ [Date: Last 7 Days ×] [Tags: 2 (any) ×] [Species: 1 selected ×]    │    │
+│  │ [Clear all]                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│  (Horizontal row with wrapping)                                             │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         State Transitions                                   │
+│                                                                             │
+│  No Filters Active:                                                         │
+│  ┌───────────────┐                                                          │
+│  │   (empty)     │  ← Component returns null                                │
+│  └───────────────┘                                                          │
+│                                                                             │
+│  Single Filter Active:                                                      │
+│  ┌───────────────────────────┐                                              │
+│  │ [Date: Today ×]           │  ← No "Clear all" button                     │
+│  └───────────────────────────┘                                              │
+│                                                                             │
+│  Multiple Filters Active:                                                   │
+│  ┌─────────────────────────────────────────────┐                            │
+│  │ [Date: Today ×] [Tags: 1 (any) ×]          │                            │
+│  │ [Clear all]                                 │  ← Shows "Clear all"       │
+│  └─────────────────────────────────────────────┘                            │
+│                                                                             │
+│  After Remove Click:                                                        │
+│  ┌───────────────────────────┐                                              │
+│  │ [Tags: 1 (any) ×]         │  ← Date filter removed                       │
+│  └───────────────────────────┘                                              │
+│                                                                             │
+│  After Clear All:                                                           │
+│  ┌───────────────┐                                                          │
+│  │   (empty)     │  ← All filters cleared                                   │
+│  └───────────────┘                                                          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Integration Example                                 │
+│                                                                             │
+│  Gallery Page Structure:                                                    │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ ┌─────────────────────────────────────────────────────────────────┐ │    │
+│  │ │                         Header                                  │ │    │
+│  │ │  "Photo Gallery"                              [Grid] [List]     │ │    │
+│  │ └─────────────────────────────────────────────────────────────────┘ │    │
+│  │                                                                     │    │
+│  │ ┌─────────────────────────────────────────────────────────────────┐ │    │
+│  │ │ <ActiveFilterChips />                                           │ │    │
+│  │ │ [Date: Last 7 Days ×] [Tags: moth ×] [Clear all]               │ │    │
+│  │ └─────────────────────────────────────────────────────────────────┘ │    │
+│  │                                                                     │    │
+│  │ ┌─────────────────────────────────────────────────────────────────┐ │    │
+│  │ │                     Photo Grid                                  │ │    │
+│  │ │  [Photo] [Photo] [Photo] [Photo]                               │ │    │
+│  │ │  [Photo] [Photo] [Photo] [Photo]                               │ │    │
+│  │ └─────────────────────────────────────────────────────────────────┘ │    │
+│  │                                                                     │    │
+│  │ ┌─────────────────────────────────────────────────────────────────┐ │    │
+│  │ │ <FilterDrawer />                              [Filter Button]   │ │    │
+│  │ └─────────────────────────────────────────────────────────────────┘ │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Legend:
+  ×  = Remove button (XMarkIcon)
+  [ ] = Interactive button/chip
+  ┌─┐ = Component boundary
+  │ │ = Container
+  ▼  = Data flow direction

@@ -1814,7 +1814,7 @@ describe('PhotoLightbox - MetadataPanel Integration', () => {
   })
 
   it('MetadataPanel receives photoPath prop', () => {
-    const { container } = render(
+    render(
       <PhotoLightbox
         photo={mockPhoto}
         photos={mockPhotos}
@@ -2424,8 +2424,6 @@ describe('PhotoLightbox - Location Header', () => {
   })
 
   it('location header is not clickable when onLocationClick not provided', async () => {
-    const user = userEvent.setup()
-
     const photoWithGPS = {
       path: '2024-11-10/photo_001.jpg',
       filename: 'photo_001.jpg',

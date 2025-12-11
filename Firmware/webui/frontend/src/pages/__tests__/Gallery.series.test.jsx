@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import * as api from '../../utils/api'
 import { GALLERY_CONFIG } from '../../constants/config'
@@ -71,6 +71,7 @@ const createMockSeries = (type, baseId, count) => {
  * @param {Array} series - Array of series objects
  * @returns {Object} Mock API response
  */
+// eslint-disable-next-line no-unused-vars
 const createSeriesResponse = (series) => ({
   data: {
     series,

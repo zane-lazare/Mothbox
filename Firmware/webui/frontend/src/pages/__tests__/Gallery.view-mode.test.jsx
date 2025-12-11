@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import Gallery from '../Gallery'
+import { FilterProvider } from '../../contexts/FilterContext'
 import * as api from '../../utils/api'
 
 // Mock API module
@@ -83,7 +84,9 @@ describe('Gallery - View Mode Integration', () => {
     return render(
       <BrowserRouter>
         <QueryClientProvider client={queryClient}>
-          <Gallery />
+          <FilterProvider>
+            <Gallery />
+          </FilterProvider>
         </QueryClientProvider>
       </BrowserRouter>
     )
@@ -281,8 +284,8 @@ describe('Gallery - View Mode Integration', () => {
       const photo = await screen.findByText('photo-1.jpg')
       expect(photo).toBeInTheDocument()
 
-      // List view should NOT have grid class
-      const gridContainer = container.querySelector('.grid.grid-cols-2')
+      // List view should NOT have photo grid - use data-testid to avoid matching FilterDrawer grids
+      const gridContainer = container.querySelector('[data-testid="photo-grid"]')
       expect(gridContainer).not.toBeInTheDocument()
     })
 

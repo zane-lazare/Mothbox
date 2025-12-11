@@ -19,6 +19,9 @@ vi.mock('../LazyImage', () => ({
   ),
 }))
 
+// Note: renderWithProvider is defined inside the describe block (line ~476)
+// to support selection mode testing with TestHarness
+
 /**
  * Test suite for StackedPhotoCard component
  *
@@ -59,33 +62,33 @@ describe('StackedPhotoCard', () => {
 
   describe('Rendering', () => {
     it('renders with HDR series data', () => {
-      render(<StackedPhotoCard series={mockHdrSeries} />)
+      renderWithProvider({ series: mockHdrSeries })
 
       // Should render the component
       expect(screen.getByRole('group')).toBeInTheDocument()
     })
 
     it('renders with Focus Bracket series data', () => {
-      render(<StackedPhotoCard series={mockFocusBracketSeries} />)
+      renderWithProvider({ series: mockFocusBracketSeries })
 
       expect(screen.getByRole('group')).toBeInTheDocument()
     })
 
     it('displays series badge with count and type', () => {
-      render(<StackedPhotoCard series={mockHdrSeries} />)
+      renderWithProvider({ series: mockHdrSeries })
 
       // Badge should show count and type
       expect(screen.getByText('3 HDR')).toBeInTheDocument()
     })
 
     it('displays correct badge for Focus Bracket', () => {
-      render(<StackedPhotoCard series={mockFocusBracketSeries} />)
+      renderWithProvider({ series: mockFocusBracketSeries })
 
       expect(screen.getByText('5 FB')).toBeInTheDocument()
     })
 
     it('shows first 3 photos stacked for 3-photo series', () => {
-      render(<StackedPhotoCard series={mockHdrSeries} />)
+      renderWithProvider({ series: mockHdrSeries })
 
       // All 3 photos should be rendered
       expect(screen.getByTestId('lazy-image-/photos/moth_2024_01_15__10_00_00_HDR0.jpg')).toBeInTheDocument()
@@ -94,7 +97,7 @@ describe('StackedPhotoCard', () => {
     })
 
     it('shows only first 3 photos for series with more than 3 photos', () => {
-      render(<StackedPhotoCard series={mockFocusBracketSeries} />)
+      renderWithProvider({ series: mockFocusBracketSeries })
 
       // Only first 3 should be rendered (FB0, FB1, FB2)
       expect(screen.getByTestId('lazy-image-/photos/ManFocus_moth_FB0.jpg')).toBeInTheDocument()
@@ -117,7 +120,7 @@ describe('StackedPhotoCard', () => {
         cover_photo: '/photos/single.jpg',
       }
 
-      render(<StackedPhotoCard series={singlePhotoSeries} />)
+      renderWithProvider({ series: singlePhotoSeries })
 
       expect(screen.getByTestId('lazy-image-/photos/single.jpg')).toBeInTheDocument()
       expect(screen.getByText('1 HDR')).toBeInTheDocument()
@@ -135,7 +138,7 @@ describe('StackedPhotoCard', () => {
         cover_photo: '/photos/photo1.jpg',
       }
 
-      render(<StackedPhotoCard series={twoPhotoSeries} />)
+      renderWithProvider({ series: twoPhotoSeries })
 
       expect(screen.getByTestId('lazy-image-/photos/photo1.jpg')).toBeInTheDocument()
       expect(screen.getByTestId('lazy-image-/photos/photo2.jpg')).toBeInTheDocument()
@@ -147,7 +150,7 @@ describe('StackedPhotoCard', () => {
     it('calls onCardClick when card is clicked', () => {
       const onCardClick = vi.fn()
 
-      render(<StackedPhotoCard series={mockHdrSeries} onCardClick={onCardClick} />)
+      renderWithProvider({ series: mockHdrSeries, onCardClick })
 
       fireEvent.click(screen.getByRole('group'))
 
@@ -156,7 +159,7 @@ describe('StackedPhotoCard', () => {
     })
 
     it('does not throw when clicked without onCardClick handler', () => {
-      render(<StackedPhotoCard series={mockHdrSeries} />)
+      renderWithProvider({ series: mockHdrSeries })
 
       expect(() => fireEvent.click(screen.getByRole('group'))).not.toThrow()
     })
@@ -164,7 +167,7 @@ describe('StackedPhotoCard', () => {
     it('calls onPhotoClick when provided', () => {
       const onPhotoClick = vi.fn()
 
-      render(<StackedPhotoCard series={mockHdrSeries} onPhotoClick={onPhotoClick} />)
+      renderWithProvider({ series: mockHdrSeries, onPhotoClick })
 
       // Click on the card (which represents clicking the cover photo)
       fireEvent.click(screen.getByRole('group'))
@@ -177,7 +180,7 @@ describe('StackedPhotoCard', () => {
 
   describe('Keyboard Navigation', () => {
     it('is focusable with tabIndex', () => {
-      render(<StackedPhotoCard series={mockHdrSeries} />)
+      renderWithProvider({ series: mockHdrSeries })
 
       const card = screen.getByRole('group')
       expect(card).toHaveAttribute('tabIndex', '0')
@@ -186,7 +189,7 @@ describe('StackedPhotoCard', () => {
     it('calls onCardClick on Enter key', () => {
       const onCardClick = vi.fn()
 
-      render(<StackedPhotoCard series={mockHdrSeries} onCardClick={onCardClick} />)
+      renderWithProvider({ series: mockHdrSeries, onCardClick })
 
       const card = screen.getByRole('group')
       fireEvent.keyDown(card, { key: 'Enter' })
@@ -197,7 +200,7 @@ describe('StackedPhotoCard', () => {
     it('calls onCardClick on Space key', () => {
       const onCardClick = vi.fn()
 
-      render(<StackedPhotoCard series={mockHdrSeries} onCardClick={onCardClick} />)
+      renderWithProvider({ series: mockHdrSeries, onCardClick })
 
       const card = screen.getByRole('group')
       fireEvent.keyDown(card, { key: ' ' })
@@ -208,7 +211,7 @@ describe('StackedPhotoCard', () => {
     it('does not call handler on other keys', () => {
       const onCardClick = vi.fn()
 
-      render(<StackedPhotoCard series={mockHdrSeries} onCardClick={onCardClick} />)
+      renderWithProvider({ series: mockHdrSeries, onCardClick })
 
       const card = screen.getByRole('group')
       fireEvent.keyDown(card, { key: 'a' })
@@ -221,21 +224,21 @@ describe('StackedPhotoCard', () => {
 
   describe('Accessibility', () => {
     it('has correct ARIA label for HDR series', () => {
-      render(<StackedPhotoCard series={mockHdrSeries} />)
+      renderWithProvider({ series: mockHdrSeries })
 
       const card = screen.getByRole('group')
       expect(card).toHaveAttribute('aria-label', 'HDR series: 3 photos')
     })
 
     it('has correct ARIA label for Focus Bracket series', () => {
-      render(<StackedPhotoCard series={mockFocusBracketSeries} />)
+      renderWithProvider({ series: mockFocusBracketSeries })
 
       const card = screen.getByRole('group')
       expect(card).toHaveAttribute('aria-label', 'Focus bracket series: 5 photos')
     })
 
     it('has visible focus ring when focused', () => {
-      render(<StackedPhotoCard series={mockHdrSeries} />)
+      renderWithProvider({ series: mockHdrSeries })
 
       const card = screen.getByRole('group')
       // Check for focus ring classes in the className
@@ -245,21 +248,21 @@ describe('StackedPhotoCard', () => {
 
   describe('Visual Styling', () => {
     it('applies hover scale effect class', () => {
-      render(<StackedPhotoCard series={mockHdrSeries} />)
+      renderWithProvider({ series: mockHdrSeries })
 
       const card = screen.getByRole('group')
       expect(card.className).toContain('group')
     })
 
     it('has cursor-pointer class', () => {
-      render(<StackedPhotoCard series={mockHdrSeries} />)
+      renderWithProvider({ series: mockHdrSeries })
 
       const card = screen.getByRole('group')
       expect(card.className).toContain('cursor-pointer')
     })
 
     it('applies correct z-index stacking order (z-10 back, z-20 middle, z-30 front)', () => {
-      const { container } = render(<StackedPhotoCard series={mockHdrSeries} />)
+      const { container } = renderWithProvider({ series: mockHdrSeries })
 
       // Get the photo layer containers (divs with absolute positioning that contain LazyImage)
       // DOM order is: front (z-30) first, back (z-10) last (due to reverse() in render)
@@ -288,7 +291,7 @@ describe('StackedPhotoCard', () => {
     })
 
     it('has touch-friendly active state', () => {
-      render(<StackedPhotoCard series={mockHdrSeries} />)
+      renderWithProvider({ series: mockHdrSeries })
 
       const card = screen.getByRole('group')
       // Check for active state scale and touch-manipulation
@@ -299,7 +302,7 @@ describe('StackedPhotoCard', () => {
 
   describe('Badge Display', () => {
     it('shows badge in bottom-right corner', () => {
-      const { container } = render(<StackedPhotoCard series={mockHdrSeries} />)
+      const { container } = renderWithProvider({ series: mockHdrSeries })
 
       // Find badge element
       const badge = container.querySelector('[class*="bottom-"][class*="right-"]')
@@ -307,7 +310,7 @@ describe('StackedPhotoCard', () => {
     })
 
     it('badge has semi-transparent background', () => {
-      const { container } = render(<StackedPhotoCard series={mockHdrSeries} />)
+      renderWithProvider({ series: mockHdrSeries })
 
       // Badge should have dark background
       const badge = screen.getByText('3 HDR')
@@ -315,7 +318,7 @@ describe('StackedPhotoCard', () => {
     })
 
     it('badge text is readable (white on dark)', () => {
-      render(<StackedPhotoCard series={mockHdrSeries} />)
+      renderWithProvider({ series: mockHdrSeries })
 
       const badge = screen.getByText('3 HDR')
       expect(badge.className).toContain('text-white')
@@ -324,13 +327,13 @@ describe('StackedPhotoCard', () => {
 
   describe('Series Type Display', () => {
     it('formats HDR type correctly', () => {
-      render(<StackedPhotoCard series={mockHdrSeries} />)
+      renderWithProvider({ series: mockHdrSeries })
 
       expect(screen.getByText('3 HDR')).toBeInTheDocument()
     })
 
     it('formats focus_bracket type as FB', () => {
-      render(<StackedPhotoCard series={mockFocusBracketSeries} />)
+      renderWithProvider({ series: mockFocusBracketSeries })
 
       expect(screen.getByText('5 FB')).toBeInTheDocument()
     })
@@ -341,7 +344,7 @@ describe('StackedPhotoCard', () => {
         series_type: 'unknown_type',
       }
 
-      render(<StackedPhotoCard series={unknownSeries} />)
+      renderWithProvider({ series: unknownSeries })
 
       // Should display the type as-is
       expect(screen.getByText('3 unknown_type')).toBeInTheDocument()
@@ -350,15 +353,18 @@ describe('StackedPhotoCard', () => {
 
   describe('Loading State', () => {
     it('renders skeleton when isLoading is true', () => {
-      const { container } = render(<StackedPhotoCard series={mockHdrSeries} isLoading />)
+      const { container } = renderWithProvider({ series: mockHdrSeries, isLoading: true })
 
-      // Should have skeleton/shimmer classes
-      const skeletons = container.querySelectorAll('[class*="animate-pulse"]')
-      expect(skeletons.length).toBeGreaterThan(0)
+      // Should have skeleton/shimmer classes - the loading state renders
+      // a container div with 3 skeleton layer divs that have animate-pulse
+      const skeletonContainer = container.querySelector('.h-64')
+      expect(skeletonContainer).toBeInTheDocument()
+      const skeletons = skeletonContainer?.querySelectorAll('.animate-pulse') || []
+      expect(skeletons.length).toBe(3)
     })
 
     it('does not render images when loading', () => {
-      render(<StackedPhotoCard series={mockHdrSeries} isLoading />)
+      renderWithProvider({ series: mockHdrSeries, isLoading: true })
 
       // LazyImage components should not be rendered
       expect(screen.queryByTestId('lazy-image-/photos/moth_2024_01_15__10_00_00_HDR0.jpg')).not.toBeInTheDocument()
@@ -367,12 +373,12 @@ describe('StackedPhotoCard', () => {
     it('handles isLoading with undefined series without throwing', () => {
       // Should render skeleton without throwing - this tests the fix for
       // accessing series properties before checking isLoading state
-      expect(() => render(<StackedPhotoCard isLoading series={undefined} />)).not.toThrow()
+      expect(() => renderWithProvider({ isLoading: true, series: undefined })).not.toThrow()
     })
 
     it('handles isLoading with null series without throwing', () => {
       // Should render skeleton without throwing
-      expect(() => render(<StackedPhotoCard isLoading series={null} />)).not.toThrow()
+      expect(() => renderWithProvider({ isLoading: true, series: null })).not.toThrow()
     })
   })
 
@@ -387,7 +393,7 @@ describe('StackedPhotoCard', () => {
       }
 
       // Should not throw
-      expect(() => render(<StackedPhotoCard series={emptySeries} />)).not.toThrow()
+      expect(() => renderWithProvider({ series: emptySeries })).not.toThrow()
     })
 
     it('handles missing cover_photo', () => {
@@ -397,7 +403,7 @@ describe('StackedPhotoCard', () => {
       }
 
       // Should not throw and render normally
-      expect(() => render(<StackedPhotoCard series={noCoverSeries} />)).not.toThrow()
+      expect(() => renderWithProvider({ series: noCoverSeries })).not.toThrow()
     })
 
     it('handles undefined photos property without throwing', () => {
@@ -410,7 +416,7 @@ describe('StackedPhotoCard', () => {
       }
 
       // Should not throw - photos.slice guard handles this
-      expect(() => render(<StackedPhotoCard series={undefinedPhotosSeries} />)).not.toThrow()
+      expect(() => renderWithProvider({ series: undefinedPhotosSeries })).not.toThrow()
     })
 
     it('handles null photos property without throwing', () => {
@@ -423,18 +429,18 @@ describe('StackedPhotoCard', () => {
       }
 
       // Should not throw - photos.slice guard handles this
-      expect(() => render(<StackedPhotoCard series={nullPhotosSeries} />)).not.toThrow()
+      expect(() => renderWithProvider({ series: nullPhotosSeries })).not.toThrow()
     })
 
     it('returns null when series is undefined after loading completes', () => {
       // When isLoading=false but series is still undefined, component should return null
-      const { container } = render(<StackedPhotoCard series={undefined} isLoading={false} />)
+      const { container } = renderWithProvider({ series: undefined, isLoading: false })
       expect(container.firstChild).toBeNull()
     })
 
     it('returns null when series is null after loading completes', () => {
       // When isLoading=false but series is null, component should return null
-      const { container } = render(<StackedPhotoCard series={null} isLoading={false} />)
+      const { container } = renderWithProvider({ series: null, isLoading: false })
       expect(container.firstChild).toBeNull()
     })
   })

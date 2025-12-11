@@ -42,50 +42,35 @@ function StackedPhotoCard({
   onPhotoClick,
   isLoading = false,
 }) {
-  // Get selection state from context (wrapped in try-catch for backwards compatibility)
-  let selectionState = null
-  try {
-    selectionState = useSelection()
-  } catch (e) {
-    // Not in SelectionProvider - component will work without selection features
-  }
+  // === ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS ===
+  // React's rules of hooks require hooks to be called in the same order every render
 
   const checkboxRef = useRef(null)
 
-  // Loading skeleton state - check FIRST before accessing series
-  if (isLoading) {
-    return (
-      <div className="relative w-full h-64">
-        {/* Skeleton stacked layers */}
-        <div className="absolute inset-0 transform translate-x-2 translate-y-2 rounded-lg bg-gray-200 animate-pulse" />
-        <div className="absolute inset-0 transform translate-x-1 translate-y-1 rounded-lg bg-gray-200 animate-pulse" />
-        <div className="absolute inset-0 rounded-lg bg-gray-300 animate-pulse" />
-      </div>
-    )
-  }
+  // Get selection state from context
+  // Note: This will throw if not wrapped in SelectionProvider, which is the correct behavior
+  // The component should be wrapped in SelectionProvider at the app level
+  const selectionState = useSelection()
 
-  // Guard against undefined/null series after loading
-  if (!series) {
-    return null
-  }
+  // Derive values safely (series may be null/undefined)
+  const photos = series?.photos || []
+  const count = series?.count || 0
+  const series_type = series?.series_type || ''
 
-  // Now safe to destructure series
-  const { series_type, photos, count } = series
-
-  // Get up to 3 photos for stacking (guard against undefined/null photos)
-  const stackedPhotos = (photos || []).slice(0, 3)
+  // Get up to 3 photos for stacking
+  const stackedPhotos = photos.slice(0, 3)
 
   // Extract cover photo for stable useCallback dependency
   const coverPhoto = stackedPhotos[0]
 
-  // Selection mode state
+  // Selection mode state (with safe defaults)
   const isSelectMode = selectionState?.isSelectMode || false
   const selectPhoto = selectionState?.selectPhoto
   const deselectPhoto = selectionState?.deselectPhoto
   const isSelected = selectionState?.isSelected
 
   // Get all photo paths in series (handle both string and object formats)
-  const seriesPhotoPaths = (photos || []).map(photo =>
+  const seriesPhotoPaths = photos.map(photo =>
     typeof photo === 'string' ? photo : photo.path
   )
 
@@ -101,24 +86,6 @@ function StackedPhotoCard({
       checkboxRef.current.indeterminate = someSelected
     }
   }, [someSelected])
-
-  // Format series type for display
-  const formatSeriesType = (type) => {
-    switch (type) {
-      case 'hdr':
-        return 'HDR'
-      case 'focus_bracket':
-        return 'FB'
-      default:
-        return type
-    }
-  }
-
-  // Format ARIA label for accessibility
-  const getAriaLabel = () => {
-    const typeLabel = series_type === 'focus_bracket' ? 'Focus bracket' : 'HDR'
-    return `${typeLabel} series: ${count} photos`
-  }
 
   // Handle series selection toggle
   const handleSeriesSelection = useCallback((e) => {
@@ -166,6 +133,43 @@ function StackedPhotoCard({
     },
     [handleClick]
   )
+
+  // === CONDITIONAL RETURNS AFTER ALL HOOKS ===
+
+  // Loading skeleton state
+  if (isLoading) {
+    return (
+      <div className="relative w-full h-64">
+        {/* Skeleton stacked layers */}
+        <div className="absolute inset-0 transform translate-x-2 translate-y-2 rounded-lg bg-gray-200 animate-pulse" />
+        <div className="absolute inset-0 transform translate-x-1 translate-y-1 rounded-lg bg-gray-200 animate-pulse" />
+        <div className="absolute inset-0 rounded-lg bg-gray-300 animate-pulse" />
+      </div>
+    )
+  }
+
+  // Guard against undefined/null series after loading
+  if (!series) {
+    return null
+  }
+
+  // Format series type for display
+  const formatSeriesType = (type) => {
+    switch (type) {
+      case 'hdr':
+        return 'HDR'
+      case 'focus_bracket':
+        return 'FB'
+      default:
+        return type
+    }
+  }
+
+  // Format ARIA label for accessibility
+  const getAriaLabel = () => {
+    const typeLabel = series_type === 'focus_bracket' ? 'Focus bracket' : 'HDR'
+    return `${typeLabel} series: ${count} photos`
+  }
 
   // Handle empty series edge case
   if (!photos || photos.length === 0) {

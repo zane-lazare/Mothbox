@@ -103,7 +103,7 @@ export default function useScrollRestoration(key = 'default') {
         // Invalid structure - clear corrupted data
         try {
           sessionStorage.removeItem(getStorageKey(key));
-        } catch (e) {
+        } catch {
           // Ignore errors when clearing (privacy mode)
         }
         return;
@@ -117,7 +117,7 @@ export default function useScrollRestoration(key = 'default') {
         // Clear stale or mismatched position
         try {
           sessionStorage.removeItem(getStorageKey(key));
-        } catch (e) {
+        } catch {
           // Ignore errors when clearing (privacy mode)
         }
         return;

@@ -12,7 +12,6 @@ function parseHighlight(text) {
   if (!text) return []
 
   const segments = []
-  let remaining = text
   const markRegex = /<mark>(.*?)<\/mark>/gi
 
   let lastIndex = 0
@@ -67,7 +66,7 @@ function SearchHighlight({ highlights, maxFields = 2, className = '' }) {
     if (!highlights || typeof highlights !== 'object') return []
 
     const entries = Object.entries(highlights)
-      .filter(([_, value]) => value && value.includes('<mark>'))
+      .filter(([, value]) => value && value.includes('<mark>'))
       .slice(0, maxFields)
 
     return entries.map(([field, text]) => ({

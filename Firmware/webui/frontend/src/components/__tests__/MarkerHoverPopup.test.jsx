@@ -400,8 +400,6 @@ describe('MarkerHoverPopup', () => {
     })
 
     it('attempts to focus when visible', async () => {
-      const focusSpy = vi.fn()
-
       render(
         <MarkerHoverPopup
           cluster={mockCluster}

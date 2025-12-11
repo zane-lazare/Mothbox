@@ -304,7 +304,8 @@ describe('Dashboard', () => {
 
   it('disables capture button while capturing', async () => {
     const user = userEvent.setup()
-    api.capturePhoto.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 1000)))
+    // Use a never-resolving promise to test the "in progress" state
+    api.capturePhoto.mockImplementation(() => new Promise(() => {}))
 
     renderComponent()
 
@@ -320,7 +321,8 @@ describe('Dashboard', () => {
 
   it('disables sync button while syncing', async () => {
     const user = userEvent.setup()
-    api.syncGps.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 1000)))
+    // Use a never-resolving promise to test the "in progress" state
+    api.syncGps.mockImplementation(() => new Promise(() => {}))
 
     renderComponent()
 

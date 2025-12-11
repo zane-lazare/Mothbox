@@ -40,7 +40,7 @@ export default function ProgressiveImage({
 
   const {
     src: progressiveSrc,
-    isLoading,
+    isLoading: _isLoading,
     error,
     stage
   } = useProgressiveImage(shouldUseProgressive ? photoPath : null, {

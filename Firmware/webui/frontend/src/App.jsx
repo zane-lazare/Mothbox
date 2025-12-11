@@ -10,6 +10,7 @@ import Settings from './pages/Settings'
 import Camera from './pages/Camera'
 import GPIO from './pages/GPIO'
 import Scheduler from './pages/Scheduler'
+import { FilterProvider } from './contexts/FilterContext'
 
 const queryClient = new QueryClient()
 
@@ -161,9 +162,11 @@ function App() {
             },
           }}
         />
-        <Router>
-          <AppLayout />
-        </Router>
+        <FilterProvider>
+          <Router>
+            <AppLayout />
+          </Router>
+        </FilterProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   )

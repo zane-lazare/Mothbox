@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { renderHook, act, waitFor } from '@testing-library/react'
+import { renderHook, act } from '@testing-library/react'
 import useAutoSave from '../useAutoSave'
 
 describe('useAutoSave', () => {
@@ -49,7 +49,7 @@ describe('useAutoSave', () => {
 
   it('test_cancels_pending_save_on_new_change', async () => {
     const onSave = vi.fn().mockResolvedValue()
-    const { result, rerender } = renderHook(
+    const { rerender } = renderHook(
       ({ data }) => useAutoSave({ data, onSave }),
       { initialProps: { data: { value: 1 } } }
     )
@@ -226,7 +226,7 @@ describe('useAutoSave', () => {
   it('test_calls_onSave_with_current_data', async () => {
     const onSave = vi.fn().mockResolvedValue()
     const testData = { id: 1, name: 'Test', tags: ['tag1', 'tag2'] }
-    const { result, rerender } = renderHook(
+    const { rerender } = renderHook(
       ({ data }) => useAutoSave({ data, onSave }),
       { initialProps: { data: { value: 1 } } }
     )

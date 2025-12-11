@@ -1,7 +1,7 @@
-import { render, screen, act } from '@testing-library/react'
+import { render, act } from '@testing-library/react'
 import { describe, it, expect, beforeEach } from 'vitest'
 import React from 'react'
-import { SelectionProvider, useSelectionContext, MAX_SELECTION } from '../SelectionContext'
+import { SelectionProvider, MAX_SELECTION } from '../SelectionContext'
 import useSelection from '../../hooks/useSelection'
 
 // Test component to access context

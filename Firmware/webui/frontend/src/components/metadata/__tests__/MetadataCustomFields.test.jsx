@@ -173,7 +173,7 @@ describe('MetadataCustomFields', () => {
 
     // Re-render with the new field
     const newFields = onChange.mock.calls[0][0]
-    const { rerender } = render(<MetadataCustomFields fields={newFields} onChange={onChange} />)
+    render(<MetadataCustomFields fields={newFields} onChange={onChange} />)
 
     // Should show "Field name" placeholder
     const keyInput = screen.getByPlaceholderText('Field name')
@@ -191,7 +191,7 @@ describe('MetadataCustomFields', () => {
 
     // Re-render with the new field
     const newFields = onChange.mock.calls[0][0]
-    const { rerender } = render(<MetadataCustomFields fields={newFields} onChange={onChange} />)
+    render(<MetadataCustomFields fields={newFields} onChange={onChange} />)
 
     // Should show "Value" placeholder
     const valueInput = screen.getByPlaceholderText('Value')

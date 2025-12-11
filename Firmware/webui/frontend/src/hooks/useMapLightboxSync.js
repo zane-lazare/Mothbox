@@ -90,7 +90,7 @@ function useMapLightboxSync({ mapRef }) {
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
   const [currentPhoto, setCurrentPhoto] = useState(null)
   const [highlightedPhotoPath, setHighlightedPhotoPath] = useState(null)
-  const [currentClusterMarker, setCurrentClusterMarker] = useState(null)
+  const [, setCurrentClusterMarker] = useState(null)
 
   // Cluster navigation state (delegated to useClusterNavigation)
   const {

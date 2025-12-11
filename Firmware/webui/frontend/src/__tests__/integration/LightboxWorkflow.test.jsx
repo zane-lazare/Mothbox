@@ -682,6 +682,8 @@ describe('LightboxWorkflow Integration Tests', () => {
       )
 
       // Navigation buttons should still render (they check internally)
+      // Component renders without crashing even with missing callback
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
       const nextBtn = screen.getByLabelText(/next photo/i)
       const prevBtn = screen.getByLabelText(/previous photo/i)
 

@@ -32,6 +32,13 @@ from dataclasses import dataclass
 # Constants
 # ============================================================================
 
+# Query validation limits (defense in depth)
+MAX_QUERY_LENGTH = 500    # Max total query length (also in routes/search.py)
+MAX_QUERY_TERMS = 20      # Max number of search terms
+MAX_TERM_LENGTH = 100     # Max length of individual term
+MAX_PHRASE_LENGTH = 200   # Max length of phrase in quotes
+MAX_PARENTHESIS_DEPTH = 3 # Max nesting of parentheses
+
 # Field name mappings (user-friendly → FTS5 column)
 FIELD_MAPPINGS = {
     'tag': 'tags',
@@ -84,6 +91,97 @@ class ParsedQuery:
 
 
 # ============================================================================
+# Query Validation
+# ============================================================================
+
+def validate_query(query: str) -> tuple[bool, str | None]:
+    """Validate FTS5 query structure to prevent injection and DoS.
+
+    Performs defense-in-depth validation of search queries:
+    - Length limits (total query, individual terms, phrases)
+    - Complexity limits (number of terms, nesting depth)
+    - Structural validation (balanced parentheses)
+
+    Args:
+        query: Raw user query string
+
+    Returns:
+        Tuple of (is_valid, error_message or None)
+
+    Examples:
+        >>> validate_query("moth")
+        (True, None)
+        >>> validate_query("a" * 600)
+        (False, "Query too long (max 500 chars)")
+        >>> validate_query("((((moth))))")
+        (False, "Query too complex (max nesting depth 3)")
+    """
+    if not query or not query.strip():
+        return False, "Query cannot be empty"
+
+    if len(query) > MAX_QUERY_LENGTH:
+        return False, f"Query too long (max {MAX_QUERY_LENGTH} chars)"
+
+    # Check phrase lengths first (before term count, since phrases count as single terms)
+    phrases = re.findall(r'"([^"]*)"', query)
+    for phrase in phrases:
+        if len(phrase) > MAX_PHRASE_LENGTH:
+            return False, f"Phrase too long (max {MAX_PHRASE_LENGTH} chars)"
+
+    # Remove quoted phrases for term counting (they count as 1 term each)
+    query_for_terms = re.sub(r'"[^"]*"', '__PHRASE__', query)
+
+    # Count terms (split by whitespace, excluding operators)
+    operators = {'AND', 'OR', 'NOT', 'and', 'or', 'not'}
+    terms = [t for t in query_for_terms.split() if t not in operators and not t.startswith('-')]
+    if len(terms) > MAX_QUERY_TERMS:
+        return False, f"Too many search terms (max {MAX_QUERY_TERMS})"
+
+    # Check individual term lengths (use original query terms, not placeholders)
+    original_terms = [t for t in query.split() if t not in operators and not t.startswith('-')]
+    for term in original_terms:
+        # Skip if this term is part of a quoted phrase (starts or ends with quote)
+        if term.startswith('"') and not term.endswith('"'):
+            continue  # Start of multi-word phrase
+        if term.endswith('"') and not term.startswith('"'):
+            continue  # End of multi-word phrase
+        if not term.startswith('"') and not term.endswith('"'):
+            # Check if we're inside a quote - find position and check
+            pos = query.find(term)
+            if pos > 0:
+                # Check if there's an unclosed quote before this term
+                before = query[:pos]
+                if before.count('"') % 2 == 1:
+                    continue  # Inside a quoted phrase
+        clean_term = term
+        # Remove field prefix if present
+        if ':' in clean_term:
+            clean_term = clean_term.split(':', 1)[1]
+        # Remove quotes and parentheses
+        clean_term = clean_term.strip('"()')
+        if len(clean_term) > MAX_TERM_LENGTH:
+            return False, f"Search term too long (max {MAX_TERM_LENGTH} chars)"
+
+    # Check parenthesis nesting depth
+    depth = 0
+    max_depth = 0
+    for char in query:
+        if char == '(':
+            depth += 1
+            max_depth = max(max_depth, depth)
+        elif char == ')':
+            depth -= 1
+
+    if depth != 0:
+        return False, "Unbalanced parentheses"
+
+    if max_depth > MAX_PARENTHESIS_DEPTH:
+        return False, f"Query too complex (max nesting depth {MAX_PARENTHESIS_DEPTH})"
+
+    return True, None
+
+
+# ============================================================================
 # Query Parser
 # ============================================================================
 
@@ -116,14 +214,15 @@ def parse_query(query: str) -> ParsedQuery:
     # Store original query
     original_query = query
 
-    # Validate query is not empty
-    if not query or not query.strip():
+    # Validate query structure (defense in depth)
+    is_valid, error_message = validate_query(query)
+    if not is_valid:
         return ParsedQuery(
             fts_query='',
             date_filter=None,
             original_query=original_query,
             is_valid=False,
-            error_message='Query cannot be empty'
+            error_message=error_message
         )
 
     # Normalize whitespace
@@ -370,7 +469,13 @@ def _add_implicit_and(query: str) -> str:
 
 __all__ = [
     'parse_query',
+    'validate_query',
     'ParsedQuery',
     'DateFilter',
     'FIELD_MAPPINGS',
+    'MAX_QUERY_LENGTH',
+    'MAX_QUERY_TERMS',
+    'MAX_TERM_LENGTH',
+    'MAX_PHRASE_LENGTH',
+    'MAX_PARENTHESIS_DEPTH',
 ]

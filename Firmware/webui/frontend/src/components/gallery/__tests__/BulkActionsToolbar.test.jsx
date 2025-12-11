@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SelectionProvider, useSelectionContext } from '../../../contexts/SelectionContext'
@@ -692,8 +692,7 @@ describe('BulkActionsToolbar', () => {
 
     it('updates count when selection changes', async () => {
       const user = userEvent.setup()
-
-      const { rerender } = render(
+      render(
         <SelectionProvider>
           <TestHarness selectPhotos={['photo1.jpg']}>
             <BulkActionsToolbar

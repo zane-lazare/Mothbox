@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import MetadataField from './MetadataField';
-import { formatISO, formatAperture, formatExposureTime, formatFocalLength } from '../../utils/metadataFormatters';
+import { formatISO, formatAperture } from '../../utils/metadataFormatters';
 
 /**
  * CameraTab Component

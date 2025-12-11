@@ -1,23 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import MetadataSpecies from '../MetadataSpecies'
 
 // Mock the useSpecies hook
 vi.mock('../../../hooks/useSpecies', () => ({
   default: vi.fn(() => ({
-    data: {
-      species: [
+    species: [
+      { name: 'Actias luna', count: 42 },
+      { name: 'Actias selene', count: 18 },
+      { name: 'Antheraea polyphemus', count: 35 },
+      { name: 'Automeris io', count: 27 },
+      { name: 'Callosamia promethea', count: 12 },
+    ],
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+    filteredSpecies: vi.fn((searchTerm) => {
+      const allSpecies = [
         { name: 'Actias luna', count: 42 },
         { name: 'Actias selene', count: 18 },
         { name: 'Antheraea polyphemus', count: 35 },
         { name: 'Automeris io', count: 27 },
         { name: 'Callosamia promethea', count: 12 },
-      ],
-    },
-    isLoading: false,
-    error: null,
+      ]
+      if (!searchTerm) return allSpecies
+      const query = searchTerm.toLowerCase()
+      return allSpecies.filter(s => s.name.toLowerCase().includes(query))
+    }),
   })),
 }))
 
@@ -134,8 +145,6 @@ describe('MetadataSpecies', () => {
       />,
       { wrapper: createWrapper() }
     )
-
-    const confidenceSelect = screen.getByDisplayValue('Certain')
 
     // Check all options are present
     expect(screen.getByRole('option', { name: 'Certain' })).toBeInTheDocument()

@@ -23,6 +23,14 @@ describe('useScrollRestoration', () => {
 
     global.sessionStorage = mockSessionStorage;
 
+    // Mock requestAnimationFrame to work with fake timers
+    // The hook uses rAF for scroll restoration, but vi.advanceTimersByTime
+    // only advances setTimeout/setInterval, not requestAnimationFrame.
+    // We queue rAF callbacks via setTimeout(cb, 0) so they fire when timers advance.
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      return setTimeout(cb, 0);
+    });
+
     // Mock console methods to suppress expected logs in tests
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ThumbnailGrid from '../ThumbnailGrid'
 import { HOVER_POPUP_CONFIG } from '../../constants/config'
@@ -223,7 +223,7 @@ describe('ThumbnailGrid', () => {
       expect(screen.getByText('+2 more photos')).toBeInTheDocument()
 
       // 11 total photos, 5 max = +6 more
-      const { rerender } = render(
+      render(
         <ThumbnailGrid photos={mockPhotos} maxPhotos={5} onPhotoClick={mockOnPhotoClick} />
       )
       expect(screen.getByText('+6 more photos')).toBeInTheDocument()
