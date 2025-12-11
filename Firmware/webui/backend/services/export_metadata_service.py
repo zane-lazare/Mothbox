@@ -49,9 +49,13 @@ from collections.abc import Generator
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from webui.backend.services.metadata_service import MetadataService
 from webui.backend.services.sidecar_service import SidecarMetadata, SidecarService
+
+if TYPE_CHECKING:
+    from webui.backend.services.series_service import SeriesService
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +152,7 @@ class ExportMetadataService:
         cache_ttl: int = 300,
         metadata_service: MetadataService | None = None,
         sidecar_service: SidecarService | None = None,
-        series_service = None,
+        series_service: "SeriesService | None" = None,
     ):
         """Initialize with optional dependency injection for testing.
 
@@ -191,7 +195,7 @@ class ExportMetadataService:
             self._sidecar_service = get_sidecar_service()
         return self._sidecar_service
 
-    def _get_series_service(self):
+    def _get_series_service(self) -> "SeriesService":
         """Get SeriesService instance (lazy load if needed)."""
         if self._series_service is None:
             from webui.backend.services import get_series_service
@@ -247,7 +251,7 @@ class ExportMetadataService:
             else:
                 if key in self._cache:
                     del self._cache[key]
-                    logger.debug(f"Invalidated cache for {key}")
+                    logger.debug("Invalidated cache for %s", key)
             self._stats['cache_entries'] = len(self._cache)
 
     # ========================================================================
@@ -281,10 +285,15 @@ class ExportMetadataService:
         with self._lock:
             self._stats['total_exports'] += 1
 
-        # Note: We intentionally don't do an early exists() check here
-        # because that would prevent catching PermissionError from services
-        # (test case: metadata service raises PermissionError for unreadable file)
-        # Instead, we check file existence later in the error handling logic
+        # Fail fast: Check if file exists before processing
+        if not photo_path.exists():
+            error_result = {
+                'error': 'Photo not found',
+                'photo_path': str(photo_path)
+            }
+            with self._lock:
+                self._stats['errors'] += 1
+            return error_result
 
         # Track if we encounter specific errors
         permission_error_occurred = False
@@ -302,24 +311,19 @@ class ExportMetadataService:
                 if exif_data and 'error' not in exif_data:
                     self._merge_exif_data(export_metadata, exif_data)
             except PermissionError as e:
-                logger.warning(f"Failed to get EXIF metadata for {photo_path.name}: {e}")
+                logger.warning("Failed to get EXIF metadata for %s: %s", photo_path.name, e)
                 permission_error_occurred = True
             except Exception as e:
-                logger.warning(f"Failed to get EXIF metadata for {photo_path.name}: {e}")
+                logger.warning("Failed to get EXIF metadata for %s: %s", photo_path.name, e)
 
             # Get sidecar metadata
             try:
                 sidecar_service = self._get_sidecar_service()
-                # Check if this is a mock with get_sidecar_metadata (for tests)
-                # or real service with get_metadata
-                if hasattr(sidecar_service, 'get_sidecar_metadata'):
-                    sidecar_data = sidecar_service.get_sidecar_metadata(str(photo_path))
-                else:
-                    sidecar_data = sidecar_service.get_metadata(str(photo_path))
+                sidecar_data = sidecar_service.get_metadata(str(photo_path))
                 if sidecar_data:
                     self._merge_sidecar_data(export_metadata, sidecar_data)
             except Exception as e:
-                logger.warning(f"Failed to get sidecar metadata for {photo_path.name}: {e}")
+                logger.warning("Failed to get sidecar metadata for %s: %s", photo_path.name, e)
 
             # Get series information
             try:
@@ -340,71 +344,15 @@ class ExportMetadataService:
                         )
                         if series_data:
                             export_metadata.series_count = series_data.count
-                else:
-                    # Fallback: try to get series from service even if filename doesn't match pattern
-                    # This handles cases where series service has additional logic (or test mocks)
-                    try:
-                        series_service = self._get_series_service()
-                        # Try constructing potential series IDs based on filename patterns
-                        base_name = photo_path.stem
-                        for series_type in ['hdr', 'focus_bracket']:
-                            test_id = f"{series_type}_{base_name}"
-                            series_data = series_service.get_series_by_id(
-                                test_id,
-                                directory=photo_path.parent
-                            )
-                            if series_data:
-                                export_metadata.series_type = series_data.series_type
-                                export_metadata.series_index = 0  # Unknown index
-                                export_metadata.series_count = series_data.count
-                                break
-                    except Exception:
-                        pass  # Fallback failed, leave series fields as None
             except Exception as e:
-                logger.warning(f"Failed to get series info for {photo_path.name}: {e}")
+                logger.warning("Failed to get series info for %s: %s", photo_path.name, e)
 
-            # Check if we got any real data (not just empty fields)
-            # If all fields are None/empty, consider it a failure
-            has_data = any([
-                export_metadata.timestamp,
-                export_metadata.latitude,
-                export_metadata.camera_make,
-                export_metadata.species,
-                export_metadata.tags,
-                export_metadata.file_size > 0,
-            ])
-
-            # Determine appropriate error message based on what went wrong
-            # Special case: If we have data but file doesn't exist, this is likely
-            # a test with mock services - prefer "not found" error
-            if has_data and not photo_path.exists():
+            # Handle case where permission error occurred during metadata extraction
+            if permission_error_occurred:
                 error_result = {
-                    'error': 'Photo not found',
+                    'error': 'Permission denied',
                     'photo_path': str(photo_path)
                 }
-                with self._lock:
-                    self._stats['errors'] += 1
-                return error_result
-
-            if not has_data:
-                # Prioritize permission error if it occurred
-                if permission_error_occurred:
-                    error_result = {
-                        'error': 'Permission denied',
-                        'photo_path': str(photo_path)
-                    }
-                # Check if file doesn't exist
-                elif not photo_path.exists():
-                    error_result = {
-                        'error': 'Photo not found',
-                        'photo_path': str(photo_path)
-                    }
-                # Generic failure
-                else:
-                    error_result = {
-                        'error': 'No metadata could be extracted',
-                        'photo_path': str(photo_path)
-                    }
                 with self._lock:
                     self._stats['errors'] += 1
                 return error_result
@@ -415,7 +363,7 @@ class ExportMetadataService:
             return export_metadata
 
         except PermissionError:
-            logger.error(f"Permission denied accessing {photo_path}", exc_info=True)
+            logger.error("Permission denied accessing %s", photo_path, exc_info=True)
             error_result = {
                 'error': 'Permission denied',
                 'photo_path': str(photo_path)
@@ -425,7 +373,7 @@ class ExportMetadataService:
             return error_result
 
         except FileNotFoundError:
-            logger.error(f"Photo not found: {photo_path}", exc_info=True)
+            logger.error("Photo not found: %s", photo_path, exc_info=True)
             error_result = {
                 'error': 'Photo not found',
                 'photo_path': str(photo_path)
@@ -435,7 +383,7 @@ class ExportMetadataService:
             return error_result
 
         except Exception as e:
-            logger.error(f"Unexpected error processing {photo_path}: {e}", exc_info=True)
+            logger.error("Unexpected error processing %s: %s", photo_path, e, exc_info=True)
             error_result = {
                 'error': 'Failed to process metadata',
                 'photo_path': str(photo_path)
@@ -493,11 +441,7 @@ class ExportMetadataService:
             export_metadata: ExportMetadata to update
             sidecar_data: SidecarMetadata from SidecarService
         """
-        # Skip if sidecar_data is a Mock object (from tests)
-        if sidecar_data.__class__.__name__ == 'Mock':
-            return
-
-        # Handle both dataclass and dict-like objects (for test compatibility)
+        # Handle both dataclass and dict-like objects
         if hasattr(sidecar_data, 'species'):
             export_metadata.species = sidecar_data.species
             export_metadata.species_common_name = sidecar_data.common_name

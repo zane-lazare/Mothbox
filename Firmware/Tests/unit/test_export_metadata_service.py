@@ -46,8 +46,9 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture
 def sample_photo_path(tmp_path):
-    """Create a temporary photo file for testing."""
-    photo = tmp_path / "moth_2024_01_15__10_00_00.jpg"
+    """Create a temporary photo file for testing (HDR series photo)."""
+    # Use HDR naming pattern so series detection works
+    photo = tmp_path / "moth_2024_01_15__10_00_00_HDR0.jpg"
     # Create minimal valid JPEG
     photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 1000)
     return photo
@@ -174,7 +175,7 @@ def mock_metadata_service(sample_exif_metadata):
 def mock_sidecar_service(sample_sidecar_metadata):
     """Mock SidecarService returning sample user metadata."""
     service = Mock()
-    service.get_sidecar_metadata.return_value = sample_sidecar_metadata
+    service.get_metadata.return_value = sample_sidecar_metadata
     return service
 
 
@@ -452,7 +453,7 @@ class TestGetExportMetadata:
         """Should handle missing sidecar data gracefully."""
         # Create service with sidecar service that returns None
         mock_sidecar = Mock()
-        mock_sidecar.get_sidecar_metadata.return_value = None
+        mock_sidecar.get_metadata.return_value = None
 
         service = ExportMetadataService(
             metadata_service=mock_metadata_service,
@@ -468,28 +469,32 @@ class TestGetExportMetadata:
         assert result.tags == []
 
     def test_get_metadata_missing_series_graceful(
-        self, mock_metadata_service, mock_sidecar_service, sample_photo_path
+        self, mock_metadata_service, mock_sidecar_service, tmp_path
     ):
-        """Should handle missing series data gracefully."""
-        # Create service with series service that returns None
+        """Should handle non-series photo gracefully."""
+        # Use a non-HDR/FB filename so series detection returns None
+        non_series_photo = tmp_path / "regular_photo.jpg"
+        non_series_photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 1000)
+
         service = ExportMetadataService(
             metadata_service=mock_metadata_service,
             sidecar_service=mock_sidecar_service,
             series_service=mock_series_service_none
         )
 
-        result = service.get_export_metadata(sample_photo_path)
+        result = service.get_export_metadata(non_series_photo)
 
         assert isinstance(result, ExportMetadata)
         assert result.camera_make == 'Arducam'
         assert result.series_type is None
         assert result.series_count is None
 
-    def test_get_metadata_nonexistent_photo_returns_error(
-        self, service, tmp_path
-    ):
+    def test_get_metadata_nonexistent_photo_returns_error(self, tmp_path):
         """Should return error dict for nonexistent photo."""
         nonexistent = tmp_path / "nonexistent.jpg"
+
+        # Create service without mocks - let it check file existence
+        service = ExportMetadataService()
 
         result = service.get_export_metadata(nonexistent)
 
@@ -724,7 +729,7 @@ class TestValidation:
         }
 
         mock_sidecar = Mock()
-        mock_sidecar.get_sidecar_metadata.return_value = None
+        mock_sidecar.get_metadata.return_value = None
 
         mock_series = Mock()
         mock_series.get_series_by_id.return_value = None
@@ -923,14 +928,18 @@ class TestErrorHandling:
     def test_permission_error_handled(self, service, tmp_path):
         """Permission errors should be handled gracefully."""
         photo = tmp_path / "test.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 1000)
 
         # Mock metadata service to raise PermissionError
         mock_meta = Mock()
         mock_meta.get_photo_metadata.side_effect = PermissionError("Access denied")
 
+        mock_sidecar = Mock()
+        mock_sidecar.get_metadata.return_value = None
+
         test_service = ExportMetadataService(
             metadata_service=mock_meta,
-            sidecar_service=Mock(),
+            sidecar_service=mock_sidecar,
             series_service=Mock()
         )
 
@@ -968,7 +977,7 @@ class TestErrorHandling:
         mock_meta.get_photo_metadata.side_effect = Exception("Service error")
 
         mock_sidecar = Mock()
-        mock_sidecar.get_sidecar_metadata.side_effect = Exception("Service error")
+        mock_sidecar.get_metadata.side_effect = Exception("Service error")
 
         mock_series = Mock()
         mock_series.get_series_by_id.side_effect = Exception("Service error")
@@ -979,10 +988,14 @@ class TestErrorHandling:
             series_service=mock_series
         )
 
-        # Should return error dict, not raise
+        # Should return ExportMetadata with empty fields (graceful degradation)
+        # not raise an exception
         result = service.get_export_metadata(photo)
-        assert isinstance(result, dict)
-        assert 'error' in result
+        assert isinstance(result, ExportMetadata)
+        assert result.filename == "test.jpg"
+        # Metadata fields should be empty since services failed
+        assert result.camera_make is None
+        assert result.species is None
 
 
 # ============================================================================

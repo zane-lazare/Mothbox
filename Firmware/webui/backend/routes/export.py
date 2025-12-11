@@ -17,6 +17,7 @@ Security:
 """
 
 import logging
+from dataclasses import asdict
 
 from flask import Blueprint, current_app, jsonify, request
 from security_utils import validate_photo_path
@@ -42,6 +43,9 @@ except ImportError:
     limiter = LimiterStub()
 
 logger = logging.getLogger(__name__)
+
+# Maximum number of photos allowed in a single batch request
+MAX_BATCH_SIZE = 1000
 
 export_bp = Blueprint("export", __name__)
 
@@ -113,8 +117,7 @@ def get_export_metadata(photo_path: str):
             # Convert to flat structure for CSV
             from webui.backend.services.export_metadata_service import ExportMetadata
             if isinstance(result, ExportMetadata):
-                # Use dataclass __dict__ for flat structure
-                flat_data = dict(result.__dict__.items())
+                flat_data = asdict(result)
                 return jsonify(flat_data), 200
             else:
                 return jsonify(result), 200
@@ -122,8 +125,7 @@ def get_export_metadata(photo_path: str):
             # JSON format (default)
             from webui.backend.services.export_metadata_service import ExportMetadata
             if isinstance(result, ExportMetadata):
-                # Convert dataclass to dict
-                return jsonify(result.__dict__), 200
+                return jsonify(asdict(result)), 200
             else:
                 return jsonify(result), 200
 
@@ -192,6 +194,11 @@ def get_batch_export_metadata():
         if len(photo_paths) == 0:
             return jsonify({"results": [], "total": 0, "successful": 0, "failed": 0}), 200
 
+        if len(photo_paths) > MAX_BATCH_SIZE:
+            return jsonify({
+                "error": f"Batch size exceeds maximum limit of {MAX_BATCH_SIZE} photos"
+            }), 400
+
         # Get format parameter (default: json)
         format_param = data.get('format', 'json').lower()
         if format_param not in ('json', 'csv'):
@@ -220,7 +227,7 @@ def get_batch_export_metadata():
 
                 # Convert ExportMetadata to dict
                 if isinstance(result, ExportMetadata):
-                    results.append(result.__dict__)
+                    results.append(asdict(result))
                 else:
                     # Error dict
                     results.append(result)

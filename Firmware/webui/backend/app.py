@@ -228,7 +228,8 @@ except Exception as e:
 from webui.backend.services.export_metadata_service import ExportMetadataService
 
 try:
-    app.config['EXPORT_METADATA_SERVICE'] = ExportMetadataService(cache_ttl=300)
+    cache_ttl = app.config.get('EXPORT_CACHE_TTL', 300)
+    app.config['EXPORT_METADATA_SERVICE'] = ExportMetadataService(cache_ttl=cache_ttl)
     print("✓ Export metadata service initialized")
 except Exception as e:
     print(f"⚠️  Failed to initialize export metadata service: {e}")
