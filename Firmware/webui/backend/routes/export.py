@@ -20,9 +20,9 @@ import logging
 from dataclasses import asdict
 
 from flask import Blueprint, current_app, jsonify, request
-from security_utils import validate_photo_path
 
 from mothbox_paths import PHOTOS_DIR
+from webui.backend.security_utils import validate_photo_path
 
 # Import will be available when app.py is created
 # For now, using a simple limiter stub
