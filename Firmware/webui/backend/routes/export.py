@@ -44,9 +44,6 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Maximum number of photos allowed in a single batch request
-MAX_BATCH_SIZE = 1000
-
 export_bp = Blueprint("export", __name__)
 
 
@@ -194,9 +191,12 @@ def get_batch_export_metadata():
         if len(photo_paths) == 0:
             return jsonify({"results": [], "total": 0, "successful": 0, "failed": 0}), 200
 
-        if len(photo_paths) > MAX_BATCH_SIZE:
+        # Get configurable batch size limit
+        max_batch_size = current_app.config.get('EXPORT_MAX_BATCH_SIZE', 1000)
+
+        if len(photo_paths) > max_batch_size:
             return jsonify({
-                "error": f"Batch size exceeds maximum limit of {MAX_BATCH_SIZE} photos"
+                "error": f"Batch size exceeds maximum limit of {max_batch_size} photos"
             }), 400
 
         # Get format parameter (default: json)

@@ -150,6 +150,7 @@ class ExportMetadataService:
     def __init__(
         self,
         cache_ttl: int = 300,
+        max_cache_size: int = 500,
         metadata_service: MetadataService | None = None,
         sidecar_service: SidecarService | None = None,
         series_service: "SeriesService | None" = None,
@@ -158,11 +159,13 @@ class ExportMetadataService:
 
         Args:
             cache_ttl: Cache time-to-live in seconds (default 5 minutes)
+            max_cache_size: Maximum cache entries before LRU eviction (default 500)
             metadata_service: MetadataService instance (or None for lazy load)
             sidecar_service: SidecarService instance (or None for lazy load)
             series_service: SeriesService instance (or None for lazy load)
         """
         self._cache_ttl = cache_ttl
+        self._max_cache_size = max_cache_size
         self._cache: dict[str, tuple[ExportMetadata, float]] = {}
         self._lock = threading.RLock()
         self._stats = {
@@ -228,13 +231,18 @@ class ExportMetadataService:
             return None
 
     def _add_to_cache(self, key: str, metadata: ExportMetadata) -> None:
-        """Add metadata to cache.
+        """Add metadata to cache with LRU eviction.
 
         Args:
             key: Cache key (photo path)
             metadata: ExportMetadata to cache
         """
         with self._lock:
+            # Evict oldest entry if at capacity (LRU eviction)
+            if len(self._cache) >= self._max_cache_size and key not in self._cache:
+                oldest_key = min(self._cache.keys(), key=lambda k: self._cache[k][1])
+                del self._cache[oldest_key]
+
             self._cache[key] = (metadata, time.time())
             self._stats['cache_entries'] = len(self._cache)
 
@@ -295,9 +303,6 @@ class ExportMetadataService:
                 self._stats['errors'] += 1
             return error_result
 
-        # Track if we encounter specific errors
-        permission_error_occurred = False
-
         try:
             # Initialize result with required fields
             export_metadata = ExportMetadata(
@@ -312,7 +317,12 @@ class ExportMetadataService:
                     self._merge_exif_data(export_metadata, exif_data)
             except PermissionError as e:
                 logger.warning("Failed to get EXIF metadata for %s: %s", photo_path.name, e)
-                permission_error_occurred = True
+                with self._lock:
+                    self._stats['errors'] += 1
+                return {
+                    'error': 'Permission denied',
+                    'photo_path': str(photo_path)
+                }
             except Exception as e:
                 logger.warning("Failed to get EXIF metadata for %s: %s", photo_path.name, e)
 
@@ -346,16 +356,6 @@ class ExportMetadataService:
                             export_metadata.series_count = series_data.count
             except Exception as e:
                 logger.warning("Failed to get series info for %s: %s", photo_path.name, e)
-
-            # Handle case where permission error occurred during metadata extraction
-            if permission_error_occurred:
-                error_result = {
-                    'error': 'Permission denied',
-                    'photo_path': str(photo_path)
-                }
-                with self._lock:
-                    self._stats['errors'] += 1
-                return error_result
 
             # Cache the result
             self._add_to_cache(cache_key, export_metadata)
@@ -463,7 +463,7 @@ class ExportMetadataService:
         self,
         photo_paths: list[Path | str],
         stream: bool = False,
-    ) -> list[ExportMetadata | dict] | Generator:
+    ) -> list[ExportMetadata | dict] | Generator[ExportMetadata | dict]:
         """Get metadata for multiple photos.
 
         Args:
@@ -649,10 +649,23 @@ class ExportMetadataService:
             if value is None:
                 missing.append(field_name)
 
+        # Add warning for stub formats (validation is incomplete)
+        warnings = []
+        if format == ExportFormat.DARWIN_CORE:
+            warnings.append(
+                "Darwin Core validation is incomplete (stub). "
+                "Full validation will be implemented in Issue #116."
+            )
+        elif format == ExportFormat.INATURALIST:
+            warnings.append(
+                "iNaturalist validation is incomplete (stub). "
+                "Full validation will be implemented in Issue #118."
+            )
+
         return ValidationResult(
             is_valid=len(missing) == 0,
             missing_fields=missing,
-            warnings=[]
+            warnings=warnings
         )
 
     # ========================================================================
