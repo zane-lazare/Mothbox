@@ -243,6 +243,65 @@ export function buildCustomFieldsQuery(customFields) {
 }
 
 /**
+ * Build FTS5 query for file type filter
+ * @param {Object} fileTypes - { selected: ['jpg', 'png', 'raw', 'video'] }
+ * @returns {string} FTS5 query string
+ */
+export function buildFileTypeQuery(fileTypes) {
+  if (!fileTypes?.selected?.length) return ''
+
+  // Map UI values to file extensions
+  const extensionMap = {
+    jpg: ['jpg', 'jpeg'],
+    png: ['png'],
+    raw: ['dng', 'cr2', 'nef', 'arw', 'orf', 'rw2'],
+    video: ['mp4', 'mov', 'avi', 'mkv'],
+  }
+
+  const extensions = fileTypes.selected.flatMap((type) => extensionMap[type] || [type])
+
+  if (extensions.length === 0) return ''
+  if (extensions.length === 1) return `ext:${extensions[0]}`
+
+  // Multiple extensions with OR logic
+  return `(${extensions.map((ext) => `ext:${ext}`).join(' OR ')})`
+}
+
+/**
+ * Build FTS5 query for camera settings (EXIF) filter
+ * @param {Object} cameraSettings - { iso: {min, max}, aperture: {min, max}, shutterSpeed: {min, max} }
+ * @returns {string} FTS5 query string
+ */
+export function buildCameraSettingsQuery(cameraSettings) {
+  if (!cameraSettings) return ''
+
+  const parts = []
+
+  // ISO range query (e.g., iso:100-3200)
+  if (cameraSettings.iso?.min != null || cameraSettings.iso?.max != null) {
+    const min = cameraSettings.iso.min ?? 0
+    const max = cameraSettings.iso.max ?? 999999
+    parts.push(`iso:${min}-${max}`)
+  }
+
+  // Aperture range query (e.g., aperture:2.8-8)
+  if (cameraSettings.aperture?.min != null || cameraSettings.aperture?.max != null) {
+    const min = cameraSettings.aperture.min ?? 0
+    const max = cameraSettings.aperture.max ?? 99
+    parts.push(`aperture:${min}-${max}`)
+  }
+
+  // Shutter speed range query (e.g., shutter:0.001-30)
+  if (cameraSettings.shutterSpeed?.min != null || cameraSettings.shutterSpeed?.max != null) {
+    const min = cameraSettings.shutterSpeed.min ?? 0
+    const max = cameraSettings.shutterSpeed.max ?? 9999
+    parts.push(`shutter:${min}-${max}`)
+  }
+
+  return parts.join(' ')
+}
+
+/**
  * Build complete filter query from filter state
  * @param {Object} filterState - Complete filter state object
  * @returns {string} Combined FTS5 query string
@@ -271,6 +330,14 @@ export function buildFilterQuery(filterState) {
   // Custom fields
   const customQuery = buildCustomFieldsQuery(filterState.customFields)
   if (customQuery) queryParts.push(customQuery)
+
+  // File types
+  const fileTypeQuery = buildFileTypeQuery(filterState.fileTypes)
+  if (fileTypeQuery) queryParts.push(fileTypeQuery)
+
+  // Camera settings
+  const cameraQuery = buildCameraSettingsQuery(filterState.cameraSettings)
+  if (cameraQuery) queryParts.push(cameraQuery)
 
   // Join all parts with AND
   if (queryParts.length === 0) return ''

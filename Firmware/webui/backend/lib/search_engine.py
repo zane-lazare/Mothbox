@@ -60,6 +60,10 @@ DEFAULT_FIELD_WEIGHTS = {
     'notes': 1.0,          # Notes are general context
     'custom_fields': 0.8,  # Custom fields lower priority
     'date': 0.5,           # Date rarely searched directly
+    'file_ext': 0.5,       # Low priority - file type rarely primary search criteria
+    'exif_iso': 0.3,       # EXIF ISO value
+    'exif_aperture': 0.3,  # EXIF aperture (f-stop)
+    'exif_shutter': 0.3,   # EXIF shutter speed
 }
 
 # Match type multipliers for ranking
@@ -131,6 +135,10 @@ class SearchEngine:
         - notes: Full-text notes
         - custom_fields: JSON-serialized custom data
         - date: ISO date extracted from filename
+        - file_ext: File extension (jpg, png, dng, mp4, etc.)
+        - exif_iso: ISO value from EXIF (e.g., "3200")
+        - exif_aperture: Aperture f-number from EXIF (e.g., "2.8")
+        - exif_shutter: Shutter speed in seconds from EXIF (e.g., "0.001")
 
     Example:
         >>> engine = SearchEngine(Path("/var/lib/mothbox/cache/search.db"))
@@ -217,6 +225,10 @@ class SearchEngine:
                     notes,
                     custom_fields,
                     date,
+                    file_ext,
+                    exif_iso,
+                    exif_aperture,
+                    exif_shutter,
                     tokenize='porter unicode61'
                 )
             """)
@@ -234,6 +246,64 @@ class SearchEngine:
 
             self._conn.commit()
             logger.debug("FTS5 table and metadata tracking table created/verified")
+
+
+    def _extract_exif_from_photo(self, photo_path: Path) -> dict[str, str]:
+        """Extract EXIF camera settings from photo file.
+
+        Extracts ISO, aperture (f-number), and shutter speed from EXIF data.
+        Returns empty strings if EXIF not available or extraction fails.
+
+        Args:
+            photo_path: Path to photo file
+
+        Returns:
+            Dictionary with keys 'iso', 'aperture', 'shutter' (all strings)
+
+        Example:
+            >>> exif = engine._extract_exif_from_photo(Path("photo.jpg"))
+            >>> print(exif)
+            {'iso': '3200', 'aperture': '2.8', 'shutter': '0.001'}
+        """
+        try:
+            from PIL import Image
+            from PIL.ExifTags import TAGS
+
+            with Image.open(photo_path) as img:
+                exif_data = img._getexif()
+                if not exif_data:
+                    return {'iso': '', 'aperture': '', 'shutter': ''}
+
+                result = {'iso': '', 'aperture': '', 'shutter': ''}
+
+                for tag_id, value in exif_data.items():
+                    tag = TAGS.get(tag_id, tag_id)
+
+                    if tag == 'ISOSpeedRatings':
+                        # ISO can be int or tuple
+                        iso = value[0] if isinstance(value, (tuple, list)) else value
+                        result['iso'] = str(iso)
+                    elif tag == 'FNumber':
+                        # FNumber is a ratio (e.g., (28, 10) for f/2.8)
+                        if isinstance(value, tuple) and len(value) == 2:
+                            result['aperture'] = str(float(value[0]) / float(value[1]))
+                        elif hasattr(value, 'numerator') and hasattr(value, 'denominator'):
+                            result['aperture'] = str(float(value.numerator) / float(value.denominator))
+                        else:
+                            result['aperture'] = str(value)
+                    elif tag == 'ExposureTime':
+                        # ExposureTime is a ratio (e.g., (1, 1000) for 1/1000s)
+                        if isinstance(value, tuple) and len(value) == 2:
+                            result['shutter'] = str(float(value[0]) / float(value[1]))
+                        elif hasattr(value, 'numerator') and hasattr(value, 'denominator'):
+                            result['shutter'] = str(float(value.numerator) / float(value.denominator))
+                        else:
+                            result['shutter'] = str(value)
+
+                return result
+        except Exception as e:
+            logger.debug(f"Failed to extract EXIF from {photo_path}: {e}")
+            return {'iso': '', 'aperture': '', 'shutter': ''}
 
     def index_photo(
         self,
@@ -288,19 +358,28 @@ class SearchEngine:
             if not date_str:
                 date_str = self._extract_date_from_filename(filename)
 
+            # Extract file extension (lowercase, without dot)
+            file_ext = Path(filename).suffix.lower().lstrip('.') if '.' in filename else ''
+
             # Delete existing entry for this filepath (if any)
             cursor.execute(
                 "DELETE FROM photo_search WHERE filepath = ?",
                 (filepath,)
             )
 
+            # Extract EXIF camera settings from photo file
+            from mothbox_paths import PHOTOS_DIR
+            photo_path = PHOTOS_DIR / filepath
+            exif_data = self._extract_exif_from_photo(photo_path)
+
             # Insert new entry
             cursor.execute("""
                 INSERT INTO photo_search (
                     filename, filepath, tags, species, species_common_name,
-                    notes, custom_fields, date
+                    notes, custom_fields, date, file_ext,
+                    exif_iso, exif_aperture, exif_shutter
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 filename,
                 filepath,
@@ -309,7 +388,11 @@ class SearchEngine:
                 species_common_name or '',
                 notes or '',
                 custom_fields_str,
-                date_str
+                date_str,
+                file_ext,
+                exif_data['iso'],
+                exif_data['aperture'],
+                exif_data['shutter']
             ))
 
             # Update metadata tracking table (for incremental sync)
@@ -404,7 +487,8 @@ class SearchEngine:
                 # Note: FTS5 bm25() returns negative scores where lower = better match
                 # We'll negate it to make higher = better for intuitive ranking
                 # Column indices for highlight(): 0=filename, 2=tags, 3=species,
-                # 4=species_common_name, 5=notes (1=filepath is UNINDEXED)
+                # 4=species_common_name, 5=notes, 8=file_ext, 9=exif_iso,
+                # 10=exif_aperture, 11=exif_shutter (1=filepath is UNINDEXED)
                 cursor.execute("""
                     SELECT
                         filename,
@@ -415,12 +499,20 @@ class SearchEngine:
                         notes,
                         custom_fields,
                         date,
+                        file_ext,
+                        exif_iso,
+                        exif_aperture,
+                        exif_shutter,
                         bm25(photo_search) as bm25_score,
                         highlight(photo_search, 0, '<mark>', '</mark>') as filename_hl,
                         highlight(photo_search, 2, '<mark>', '</mark>') as tags_hl,
                         highlight(photo_search, 3, '<mark>', '</mark>') as species_hl,
                         highlight(photo_search, 4, '<mark>', '</mark>') as species_common_name_hl,
-                        highlight(photo_search, 5, '<mark>', '</mark>') as notes_hl
+                        highlight(photo_search, 5, '<mark>', '</mark>') as notes_hl,
+                        highlight(photo_search, 8, '<mark>', '</mark>') as file_ext_hl,
+                        highlight(photo_search, 9, '<mark>', '</mark>') as exif_iso_hl,
+                        highlight(photo_search, 10, '<mark>', '</mark>') as exif_aperture_hl,
+                        highlight(photo_search, 11, '<mark>', '</mark>') as exif_shutter_hl
                     FROM photo_search
                     WHERE photo_search MATCH ?
                 """, (query,))
@@ -450,7 +542,8 @@ class SearchEngine:
                         'species_common_name': row['species_common_name'] or None,
                         'notes': row['notes'] or None,
                         'custom_fields': custom_fields,
-                        'date': row['date'] or None
+                        'date': row['date'] or None,
+                        'file_ext': row['file_ext'] or None
                     }
 
                     # Get raw BM25 score (negate since FTS5 uses negative scores)
@@ -531,7 +624,8 @@ class SearchEngine:
                     species_common_name,
                     notes,
                     custom_fields,
-                    date
+                    date,
+                    file_ext
                 FROM photo_search
                 ORDER BY date DESC, filename ASC
                 LIMIT ? OFFSET ?
@@ -559,7 +653,8 @@ class SearchEngine:
                     'species_common_name': row['species_common_name'] or None,
                     'notes': row['notes'] or None,
                     'custom_fields': custom_fields,
-                    'date': row['date'] or None
+                    'date': row['date'] or None,
+                    'file_ext': row['file_ext'] or None
                 }
 
                 match = SearchMatch(
@@ -674,13 +769,14 @@ class SearchEngine:
                     # where_sql contains only static SQL from controlled operators; user values are parameterized
                     select_sql = (
                         f"SELECT "
-                        f"filename, filepath, tags, species, species_common_name, notes, custom_fields, date, "
+                        f"filename, filepath, tags, species, species_common_name, notes, custom_fields, date, file_ext, "
                         f"bm25(photo_search) as bm25_score, "
                         f"highlight(photo_search, 0, '<mark>', '</mark>') as filename_hl, "
                         f"highlight(photo_search, 2, '<mark>', '</mark>') as tags_hl, "
                         f"highlight(photo_search, 3, '<mark>', '</mark>') as species_hl, "
                         f"highlight(photo_search, 4, '<mark>', '</mark>') as species_common_name_hl, "
-                        f"highlight(photo_search, 5, '<mark>', '</mark>') as notes_hl "
+                        f"highlight(photo_search, 5, '<mark>', '</mark>') as notes_hl, "
+                        f"highlight(photo_search, 8, '<mark>', '</mark>') as file_ext_hl "
                         f"FROM photo_search {where_sql} "  # nosec B608
                         f"ORDER BY bm25(photo_search) LIMIT ? OFFSET ?"
                     )
@@ -689,7 +785,7 @@ class SearchEngine:
                     # where_sql contains only static SQL from controlled operators; user values are parameterized
                     select_sql = (
                         f"SELECT filename, filepath, tags, species, species_common_name, notes, "
-                        f"custom_fields, date FROM photo_search {where_sql} "  # nosec B608
+                        f"custom_fields, date, file_ext FROM photo_search {where_sql} "  # nosec B608
                         f"ORDER BY date DESC, filename ASC LIMIT ? OFFSET ?"
                     )
 
@@ -720,7 +816,8 @@ class SearchEngine:
                         'species_common_name': row['species_common_name'] or None,
                         'notes': row['notes'] or None,
                         'custom_fields': custom_fields,
-                        'date': row['date'] or None
+                        'date': row['date'] or None,
+                        'file_ext': row['file_ext'] or None
                     }
 
                     if has_fts_query:
@@ -1041,6 +1138,7 @@ class SearchEngine:
             ('species_hl', 'species'),
             ('species_common_name_hl', 'species_common_name'),
             ('notes_hl', 'notes'),
+            ('file_ext_hl', 'file_ext'),
         ]
 
         for hl_column, field_name in highlight_fields:
@@ -1114,7 +1212,8 @@ class SearchEngine:
             ('species_common_name', row['species_common_name']),
             ('notes', row['notes']),
             ('custom_fields', row['custom_fields']),
-            ('date', row['date'])
+            ('date', row['date']),
+            ('file_ext', row['file_ext'])
         ]
 
         for field_name, field_value in fields_to_check:
