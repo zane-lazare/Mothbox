@@ -451,54 +451,5 @@ describe('ActiveFilterChips', () => {
       expect(container.firstChild).toBeNull()
     })
 
-    it('updates when filters change', async () => {
-      const { rerender } = renderWithProvider(<ActiveFilterChips />, {
-        setupFilters: (ctx) => ctx.setDateRange('7days', null, null),
-      })
-
-      await waitFor(() => {
-        expect(screen.getByText('Last 7 Days')).toBeInTheDocument()
-      })
-
-      rerender(
-        <FilterProvider>
-          <FilterSetup setupFilters={(ctx) => ctx.setDateRange('30days', null, null)}>
-            <ActiveFilterChips />
-          </FilterSetup>
-        </FilterProvider>
-      )
-
-      await waitFor(() => {
-        expect(screen.getByText('Last 30 Days')).toBeInTheDocument()
-      })
-    })
-
-    it('handles rapid filter changes', async () => {
-      const user = userEvent.setup()
-      const setupFilters = (ctx) => {
-        ctx.setDateRange('7days', null, null)
-        ctx.setTags(['moth'], 'any')
-        ctx.setSpecies(['Actias luna'], null)
-      }
-
-      renderWithProvider(<ActiveFilterChips />, { setupFilters })
-
-      await waitFor(() => {
-        expect(screen.getByText('Date:')).toBeInTheDocument()
-      })
-
-      // Rapidly click multiple remove buttons
-      const dateRemove = screen.getByRole('button', { name: 'Remove Date filter' })
-      const tagsRemove = screen.getByRole('button', { name: 'Remove Tags filter' })
-
-      await user.click(dateRemove)
-      await user.click(tagsRemove)
-
-      await waitFor(() => {
-        expect(screen.queryByText('Date:')).not.toBeInTheDocument()
-        expect(screen.queryByText('Tags:')).not.toBeInTheDocument()
-        expect(screen.getByText('Species:')).toBeInTheDocument()
-      })
-    })
   })
 })

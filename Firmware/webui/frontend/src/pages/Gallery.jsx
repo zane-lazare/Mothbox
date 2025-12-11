@@ -33,7 +33,7 @@ import EmptyStateMessage from '../components/EmptyStateMessage'
 import { SearchBar } from '../components/gallery/SearchBar'
 import { AdvancedSearchBuilder } from '../components/gallery/AdvancedSearchBuilder'
 import { SelectionProvider, useSelectionContext } from '../contexts/SelectionContext'
-import { FilterDrawer, FilterDrawerToggle, ActiveFilterChips } from '../components/filters'
+import { FilterDrawer, FilterDrawerToggle, ActiveFilterChips, FilterErrorFallback } from '../components/filters'
 import { useFilters } from '../hooks/useFilters'
 import { combineWithUserSearch } from '../utils/filterQueryBuilder'
 import { GALLERY_CONFIG, GALLERY_MESSAGES } from '../constants/config'
@@ -532,7 +532,13 @@ function GalleryContent() {
   return (
     <div className="flex gap-6">
       {/* Filter Drawer (desktop: always visible, mobile/tablet: toggleable) */}
-      <FilterDrawer />
+      <ErrorBoundary
+        fallback={({ onClose }) => (
+          <FilterErrorFallback onRetry={onClose} />
+        )}
+      >
+        <FilterDrawer />
+      </ErrorBoundary>
 
       {/* Main Gallery Content */}
       <div className="flex-1 space-y-6">

@@ -2,6 +2,21 @@ import { useEffect, useRef } from 'react'
 import { DATE_PRESETS } from '../utils/filterQueryBuilder'
 
 /**
+ * Filter URL Synchronization Hook
+ *
+ * This hook provides bidirectional sync between filter state and URL parameters.
+ *
+ * DESIGN DECISION: Filter state intentionally persists in URL when navigating away.
+ * This enables:
+ * - Bookmarkable filtered views (users can save/share specific filter combinations)
+ * - Browser back/forward navigation through filter states
+ * - Page refresh preserves current filters
+ *
+ * If you need to clear filters when leaving Gallery, call clearAllFilters() from
+ * FilterContext before navigation, or use the "Clear All" button in the UI.
+ */
+
+/**
  * URL parameter keys for filter state synchronization
  */
 const URL_KEYS = {

@@ -93,7 +93,8 @@ _custom_fields_cache_building = False
 _cache_lock = threading.RLock()  # Reentrant lock for nested calls
 _cache_condition = threading.Condition(_cache_lock)  # For wait/notify on first build
 _DEFAULT_AGGREGATION_CACHE_TTL = 300  # 5 minutes
-_MAX_CACHE_BUILD_TIME = 30.0  # seconds - timeout for cache building to prevent blocking
+_MAX_CACHE_BUILD_TIME = 15.0  # seconds - timeout for cache building (reduced from 30s)
+_MAX_SIDECAR_FILE_SIZE = 1_048_576  # 1MB - skip oversized files to prevent DoS
 
 # Custom field validation limits
 MAX_CUSTOM_FIELD_NAME_LENGTH = 100
@@ -103,6 +104,48 @@ MAX_CUSTOM_FIELD_VALUE_LENGTH = 10000  # Same as MAX_NOTES_LENGTH
 def _get_cache_ttl() -> int:
     """Get aggregation cache TTL from app config or use default."""
     return current_app.config.get('SIDECAR_AGGREGATION_CACHE_TTL', _DEFAULT_AGGREGATION_CACHE_TTL)
+
+
+def _iter_sidecar_files():
+    """
+    Iterate over all sidecar files with size validation.
+
+    Yields valid sidecar file paths, skipping:
+    - Files larger than _MAX_SIDECAR_FILE_SIZE (DoS protection)
+    - Files that don't match SIDECAR_PATTERNS
+
+    Yields:
+        Path: Valid sidecar file path
+    """
+    all_sidecars = chain.from_iterable(
+        PHOTOS_DIR.rglob(pattern) for pattern in SIDECAR_PATTERNS
+    )
+    for sidecar_path in all_sidecars:
+        try:
+            if sidecar_path.stat().st_size > _MAX_SIDECAR_FILE_SIZE:
+                logger.warning(f"Skipping oversized sidecar {sidecar_path}")
+                continue
+            yield sidecar_path
+        except OSError as e:
+            logger.debug(f"Cannot stat sidecar {sidecar_path}: {e}")
+            continue
+
+
+def _read_sidecar_json(sidecar_path):
+    """
+    Read and parse a sidecar JSON file.
+
+    Args:
+        sidecar_path: Path to sidecar file
+
+    Returns:
+        dict: Parsed JSON data, or None if read/parse fails
+    """
+    try:
+        return json.loads(sidecar_path.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        logger.debug(f"Skipping invalid sidecar {sidecar_path}: {e}")
+        return None
 
 
 def invalidate_custom_fields_cache():
@@ -1102,20 +1145,14 @@ def get_all_tags():
         if all_tags is None:
             try:
                 # Aggregate tags from all sidecar files
-                # Use chain.from_iterable to scan directory once for all patterns
                 tag_counter = Counter()
 
-                all_sidecars = chain.from_iterable(
-                    PHOTOS_DIR.rglob(pattern) for pattern in SIDECAR_PATTERNS
-                )
-                for sidecar_path in all_sidecars:
-                    try:
-                        sidecar_data = json.loads(sidecar_path.read_text())
-                        for tag in sidecar_data.get('tags', []):
-                            tag_counter[tag] += 1
-                    except (OSError, json.JSONDecodeError, KeyError) as e:
-                        logger.debug(f"Skipping invalid sidecar {sidecar_path}: {e}")
+                for sidecar_path in _iter_sidecar_files():
+                    sidecar_data = _read_sidecar_json(sidecar_path)
+                    if sidecar_data is None:
                         continue
+                    for tag in sidecar_data.get('tags', []):
+                        tag_counter[tag] += 1
 
                 # Convert to list of {name, count} dicts
                 all_tags = [{"name": tag, "count": count} for tag, count in tag_counter.items()]
@@ -1278,23 +1315,17 @@ def get_all_species():
         if all_species is None:
             try:
                 # Aggregate species from all sidecar files
-                # Use chain.from_iterable to scan directory once for all patterns
                 species_counter = Counter()
 
-                all_sidecars = chain.from_iterable(
-                    PHOTOS_DIR.rglob(pattern) for pattern in SIDECAR_PATTERNS
-                )
-                for sidecar_path in all_sidecars:
-                    try:
-                        sidecar_data = json.loads(sidecar_path.read_text())
-                        species_name = sidecar_data.get('species')
-
-                        # Only count non-null species
-                        if species_name is not None:
-                            species_counter[species_name] += 1
-                    except (OSError, json.JSONDecodeError, KeyError) as e:
-                        logger.debug(f"Skipping invalid sidecar {sidecar_path}: {e}")
+                for sidecar_path in _iter_sidecar_files():
+                    sidecar_data = _read_sidecar_json(sidecar_path)
+                    if sidecar_data is None:
                         continue
+                    species_name = sidecar_data.get('species')
+
+                    # Only count non-null species
+                    if species_name is not None:
+                        species_counter[species_name] += 1
 
                 # Convert to list of {name, count} dicts
                 all_species = [{"name": species, "count": count} for species, count in species_counter.items()]
@@ -1463,15 +1494,10 @@ def get_custom_fields():
                 # Track all custom field values
                 field_values = {}  # {field_name: [values...]}
 
-                # Scan all sidecar files
-                all_sidecars = chain.from_iterable(
-                    PHOTOS_DIR.rglob(pattern) for pattern in SIDECAR_PATTERNS
-                )
-
                 # Track start time for timeout
                 cache_build_start = time.time()
 
-                for sidecar_path in all_sidecars:
+                for sidecar_path in _iter_sidecar_files():
                     # Check for timeout to prevent blocking thread too long
                     if time.time() - cache_build_start > _MAX_CACHE_BUILD_TIME:
                         logger.warning(
@@ -1479,35 +1505,33 @@ def get_custom_fields():
                             f"{_MAX_CACHE_BUILD_TIME}s, partial results returned"
                         )
                         break
-                    try:
-                        sidecar_data = json.loads(sidecar_path.read_text())
-                        custom_data = sidecar_data.get('custom', {})
 
-                        # Skip if not a dict
-                        if not isinstance(custom_data, dict):
+                    sidecar_data = _read_sidecar_json(sidecar_path)
+                    if sidecar_data is None:
+                        continue
+                    custom_data = sidecar_data.get('custom', {})
+
+                    # Skip if not a dict
+                    if not isinstance(custom_data, dict):
+                        continue
+
+                    # Extract custom fields
+                    for field_name, field_value in custom_data.items():
+                        # Skip standard fields and private fields (starting with _)
+                        if field_name in standard_fields or field_name.startswith('_'):
                             continue
 
-                        # Extract custom fields
-                        for field_name, field_value in custom_data.items():
-                            # Skip standard fields and private fields (starting with _)
-                            if field_name in standard_fields or field_name.startswith('_'):
-                                continue
+                        # Validate field name - must be string, max 100 chars, alphanumeric with _ and -
+                        if not isinstance(field_name, str) or len(field_name) > 100:
+                            continue
+                        if not field_name.replace('_', '').replace('-', '').isalnum():
+                            logger.warning(f"Skipping field with invalid name: {field_name[:50]}")
+                            continue
 
-                            # Validate field name - must be string, max 100 chars, alphanumeric with _ and -
-                            if not isinstance(field_name, str) or len(field_name) > 100:
-                                continue
-                            if not field_name.replace('_', '').replace('-', '').isalnum():
-                                logger.warning(f"Skipping field with invalid name: {field_name[:50]}")
-                                continue
-
-                            # Track value
-                            if field_name not in field_values:
-                                field_values[field_name] = []
-                            field_values[field_name].append(field_value)
-
-                    except (OSError, json.JSONDecodeError, KeyError) as e:
-                        logger.debug(f"Skipping invalid sidecar {sidecar_path}: {e}")
-                        continue
+                        # Track value
+                        if field_name not in field_values:
+                            field_values[field_name] = []
+                        field_values[field_name].append(field_value)
 
                 # Infer field types and build field definitions
                 all_fields = []

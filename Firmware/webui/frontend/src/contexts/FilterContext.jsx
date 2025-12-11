@@ -90,6 +90,10 @@ function getInitialFilterState(filterType) {
 }
 
 // Reducer
+// NOTE: We use `!== undefined` checks (not `!= null`) intentionally.
+// - Pass `null` to explicitly clear/reset a field to its empty state
+// - Omit the field (undefined) to preserve the current value
+// This allows partial updates: setDateRange({ preset: 'today' }) updates only preset
 function filterReducer(state, action) {
   switch (action.type) {
     case ActionTypes.SET_DATE_RANGE: {

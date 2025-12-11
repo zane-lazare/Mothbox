@@ -67,7 +67,7 @@ describe('Gallery Search Integration', () => {
       renderGallery(queryClient)
 
       await waitFor(() => {
-        expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument()
+        expect(screen.getByRole('searchbox')).toBeInTheDocument()
       })
     })
   })

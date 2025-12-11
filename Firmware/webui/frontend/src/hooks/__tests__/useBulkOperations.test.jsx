@@ -271,7 +271,7 @@ describe('useBulkOperations', () => {
   describe('bulkUpdateSpecies', () => {
     it('calls API with species data', async () => {
       const filenames = ['photo1.jpg', 'photo2.jpg']
-      const species = 'Actias luna'
+      const speciesData = { species: 'Actias luna' }
 
       // Mock bulk GET for fetching previous state
       getBulkSidecarMetadata.mockResolvedValue({
@@ -295,11 +295,11 @@ describe('useBulkOperations', () => {
 
       const { result } = renderHook(() => useBulkOperations(), { wrapper })
 
-      await result.current.bulkUpdateSpecies(filenames, species)
+      await result.current.bulkUpdateSpecies(filenames, speciesData)
 
       expect(api.post).toHaveBeenCalledWith('/sidecar/bulk', {
         filenames,
-        updates: { species },
+        updates: speciesData,
         mode: 'replace'
       })
     })

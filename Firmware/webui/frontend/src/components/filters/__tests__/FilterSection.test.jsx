@@ -242,7 +242,7 @@ describe('FilterSection', () => {
 
     it('shows active indicator when includeUnidentified is true', async () => {
       const setupFilters = (ctx) => {
-        ctx.setSpecies(null, true)
+        ctx.setSpecies([], true)
       }
 
       const { container } = renderWithProvider(
