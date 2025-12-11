@@ -1,5 +1,6 @@
 import React, { createContext, useReducer, useMemo, useCallback } from 'react'
 import PropTypes from 'prop-types'
+import { countActiveFilters } from '../utils/filterQueryBuilder'
 
 const FilterContext = createContext(null)
 
@@ -309,62 +310,11 @@ export function FilterProvider({ children }) {
     })
   }, [])
 
-  // Computed values - count active filters
-  const activeFilterCount = useMemo(() => {
-    let count = 0
-
-    // Date range
-    if (state.dateRange.preset || state.dateRange.startDate || state.dateRange.endDate) {
-      count++
-    }
-
-    // Tags
-    if (state.tags.selected?.length > 0) {
-      count++
-    }
-
-    // Species
-    if (state.species.selected?.length > 0 || state.species.includeUnidentified) {
-      count++
-    }
-
-    // File types
-    if (state.fileTypes.selected?.length > 0) {
-      count++
-    }
-
-    // Camera settings
-    if (
-      state.cameraSettings.iso.min !== null ||
-      state.cameraSettings.iso.max !== null ||
-      state.cameraSettings.aperture.min !== null ||
-      state.cameraSettings.aperture.max !== null ||
-      state.cameraSettings.shutterSpeed.min !== null ||
-      state.cameraSettings.shutterSpeed.max !== null
-    ) {
-      count++
-    }
-
-    // Notes
-    if (state.notes.hasNotes !== null || state.notes.keywords) {
-      count++
-    }
-
-    // Custom fields
-    if (Object.keys(state.customFields).length > 0) {
-      count++
-    }
-
-    return count
-  }, [
-    state.dateRange,
-    state.tags,
-    state.species,
-    state.fileTypes,
-    state.cameraSettings,
-    state.notes,
-    state.customFields,
-  ])
+  // Computed values - count active filters (uses shared utility to avoid duplication)
+  const activeFilterCount = useMemo(
+    () => countActiveFilters(state),
+    [state.dateRange, state.tags, state.species, state.fileTypes, state.cameraSettings, state.notes, state.customFields]
+  )
 
   // Helper to check if any filters are active
   const hasActiveFilters = activeFilterCount > 0
