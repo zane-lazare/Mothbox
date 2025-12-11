@@ -8,6 +8,8 @@ import {
   buildSpeciesQuery,
   buildNotesQuery,
   buildCustomFieldsQuery,
+  buildFileTypeQuery,
+  buildCameraSettingsQuery,
   buildFilterQuery,
   combineWithUserSearch,
   hasActiveFilters,
@@ -374,6 +376,145 @@ describe('filterQueryBuilder', () => {
     })
   })
 
+  describe('buildFileTypeQuery', () => {
+    it('returns empty string for null fileTypes', () => {
+      expect(buildFileTypeQuery(null)).toBe('')
+    })
+
+    it('returns empty string for undefined fileTypes', () => {
+      expect(buildFileTypeQuery(undefined)).toBe('')
+    })
+
+    it('returns empty string for empty selected array', () => {
+      expect(buildFileTypeQuery({ selected: [] })).toBe('')
+    })
+
+    it('returns empty string when selected is missing', () => {
+      expect(buildFileTypeQuery({})).toBe('')
+    })
+
+    it('builds query for single jpg type', () => {
+      expect(buildFileTypeQuery({ selected: ['jpg'] })).toBe('(ext:jpg OR ext:jpeg)')
+    })
+
+    it('builds query for single png type', () => {
+      expect(buildFileTypeQuery({ selected: ['png'] })).toBe('ext:png')
+    })
+
+    it('builds query for raw type', () => {
+      expect(buildFileTypeQuery({ selected: ['raw'] })).toBe(
+        '(ext:dng OR ext:cr2 OR ext:nef OR ext:arw OR ext:orf OR ext:rw2)'
+      )
+    })
+
+    it('builds query for video type', () => {
+      expect(buildFileTypeQuery({ selected: ['video'] })).toBe(
+        '(ext:mp4 OR ext:mov OR ext:avi OR ext:mkv)'
+      )
+    })
+
+    it('builds OR query for multiple types', () => {
+      expect(buildFileTypeQuery({ selected: ['jpg', 'png'] })).toBe(
+        '(ext:jpg OR ext:jpeg OR ext:png)'
+      )
+    })
+
+    it('builds OR query for all types', () => {
+      expect(buildFileTypeQuery({ selected: ['jpg', 'png', 'raw', 'video'] })).toBe(
+        '(ext:jpg OR ext:jpeg OR ext:png OR ext:dng OR ext:cr2 OR ext:nef OR ext:arw OR ext:orf OR ext:rw2 OR ext:mp4 OR ext:mov OR ext:avi OR ext:mkv)'
+      )
+    })
+
+    it('handles unknown types by passing them through', () => {
+      expect(buildFileTypeQuery({ selected: ['custom'] })).toBe('ext:custom')
+    })
+  })
+
+  describe('buildCameraSettingsQuery', () => {
+    it('returns empty string for null cameraSettings', () => {
+      expect(buildCameraSettingsQuery(null)).toBe('')
+    })
+
+    it('returns empty string for undefined cameraSettings', () => {
+      expect(buildCameraSettingsQuery(undefined)).toBe('')
+    })
+
+    it('returns empty string for empty object', () => {
+      expect(buildCameraSettingsQuery({})).toBe('')
+    })
+
+    it('builds query for ISO min and max', () => {
+      expect(buildCameraSettingsQuery({ iso: { min: 100, max: 3200 } })).toBe('iso:100-3200')
+    })
+
+    it('builds query for ISO with only min', () => {
+      expect(buildCameraSettingsQuery({ iso: { min: 100 } })).toBe('iso:100-999999')
+    })
+
+    it('builds query for ISO with only max', () => {
+      expect(buildCameraSettingsQuery({ iso: { max: 3200 } })).toBe('iso:0-3200')
+    })
+
+    it('builds query for aperture min and max', () => {
+      expect(buildCameraSettingsQuery({ aperture: { min: 2.8, max: 16 } })).toBe(
+        'aperture:2.8-16'
+      )
+    })
+
+    it('builds query for aperture with only min', () => {
+      expect(buildCameraSettingsQuery({ aperture: { min: 2.8 } })).toBe('aperture:2.8-99')
+    })
+
+    it('builds query for aperture with only max', () => {
+      expect(buildCameraSettingsQuery({ aperture: { max: 16 } })).toBe('aperture:0-16')
+    })
+
+    it('builds query for shutter speed min and max', () => {
+      expect(buildCameraSettingsQuery({ shutterSpeed: { min: 0.001, max: 1 } })).toBe(
+        'shutter:0.001-1'
+      )
+    })
+
+    it('builds query for shutter speed with only min', () => {
+      expect(buildCameraSettingsQuery({ shutterSpeed: { min: 0.001 } })).toBe('shutter:0.001-9999')
+    })
+
+    it('builds query for shutter speed with only max', () => {
+      expect(buildCameraSettingsQuery({ shutterSpeed: { max: 1 } })).toBe('shutter:0-1')
+    })
+
+    it('combines multiple camera settings with space', () => {
+      expect(
+        buildCameraSettingsQuery({
+          iso: { min: 100, max: 3200 },
+          aperture: { min: 2.8, max: 16 },
+          shutterSpeed: { min: 0.001, max: 1 },
+        })
+      ).toBe('iso:100-3200 aperture:2.8-16 shutter:0.001-1')
+    })
+
+    it('handles zero values correctly', () => {
+      expect(buildCameraSettingsQuery({ iso: { min: 0, max: 0 } })).toBe('iso:0-0')
+    })
+
+    it('ignores null values in range', () => {
+      expect(
+        buildCameraSettingsQuery({
+          iso: { min: null, max: null },
+          aperture: { min: null, max: null },
+        })
+      ).toBe('')
+    })
+
+    it('treats undefined as null', () => {
+      expect(
+        buildCameraSettingsQuery({
+          iso: { min: undefined, max: undefined },
+        })
+      ).toBe('')
+    })
+  })
+
   describe('buildFilterQuery', () => {
     it('returns empty string for null filterState', () => {
       expect(buildFilterQuery(null)).toBe('')
@@ -432,6 +573,24 @@ describe('filterQueryBuilder', () => {
         },
       }
       expect(buildFilterQuery(filterState)).toBe('custom:"backyard"')
+    })
+
+    it('builds query with only file types filter', () => {
+      const filterState = {
+        fileTypes: {
+          selected: ['jpg'],
+        },
+      }
+      expect(buildFilterQuery(filterState)).toBe('(ext:jpg OR ext:jpeg)')
+    })
+
+    it('builds query with only camera settings filter', () => {
+      const filterState = {
+        cameraSettings: {
+          iso: { min: 100, max: 3200 },
+        },
+      }
+      expect(buildFilterQuery(filterState)).toBe('iso:100-3200')
     })
 
     it('combines multiple filters with AND', () => {
@@ -493,6 +652,38 @@ describe('filterQueryBuilder', () => {
       }
       expect(buildFilterQuery(filterState)).toBe(
         'date:2024-01-01..2024-01-31 AND (tag:"moth" OR tag:"butterfly") AND species:"Actias luna" AND notes:specimen AND custom:"backyard"'
+      )
+    })
+
+    it('combines all filter types including fileTypes and cameraSettings', () => {
+      const filterState = {
+        dateRange: {
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        },
+        tags: {
+          selected: ['moth'],
+          matchMode: 'any',
+        },
+        species: {
+          selected: ['Actias luna'],
+        },
+        notes: {
+          keywords: 'specimen',
+        },
+        customFields: {
+          location: 'backyard',
+        },
+        fileTypes: {
+          selected: ['jpg'],
+        },
+        cameraSettings: {
+          iso: { min: 100, max: 3200 },
+          aperture: { min: 2.8, max: 16 },
+        },
+      }
+      expect(buildFilterQuery(filterState)).toBe(
+        'date:2024-01-01..2024-01-31 AND tag:"moth" AND species:"Actias luna" AND notes:specimen AND custom:"backyard" AND (ext:jpg OR ext:jpeg) AND iso:100-3200 aperture:2.8-16'
       )
     })
   })

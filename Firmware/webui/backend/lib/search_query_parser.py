@@ -5,11 +5,19 @@ Translates user-friendly search queries into SQLite FTS5 syntax.
 
 Features:
 - Field-specific queries: tag:moth, species:actias, notes:specimen
+- EXIF camera settings: iso:3200, aperture:2.8, shutter:0.001
 - Boolean operators: AND, OR, NOT, - (minus shorthand)
 - Phrase search: "luna moth"
 - Prefix/wildcard: luna*, act*
 - Date filters: date:2024-11-01, date:>2024-01-01, date:2024-11-01..2024-11-06
 - Combined queries: tag:moth species:actias "luna moth"
+
+EXIF Range Queries:
+    Range syntax (iso:100-3200, aperture:2.8-16, shutter:0.001-30) is accepted
+    by the parser and passed through to FTS5. However, FTS5 stores EXIF values
+    as text and does not support native numeric range filtering. For actual
+    numeric range filtering, post-process search results in Python or use
+    SQL WHERE clauses with CAST().
 
 Usage:
     from webui.backend.lib.search_query_parser import parse_query
@@ -51,6 +59,17 @@ FIELD_MAPPINGS = {
     'filename': 'filename',
     'file': 'filename',
     'date': 'date',
+    'ext': 'file_ext',
+    'extension': 'file_ext',
+    'filetype': 'file_ext',
+    'type': 'file_ext',
+    'iso': 'exif_iso',
+    'aperture': 'exif_aperture',
+    'fstop': 'exif_aperture',
+    'f': 'exif_aperture',
+    'shutter': 'exif_shutter',
+    'exposure': 'exif_shutter',
+    'shutterspeed': 'exif_shutter',
 }
 
 

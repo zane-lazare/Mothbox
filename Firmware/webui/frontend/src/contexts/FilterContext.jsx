@@ -1,8 +1,40 @@
-import React, { createContext, useReducer, useMemo, useCallback } from 'react'
+import React, { createContext, useReducer, useMemo, useCallback, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { countActiveFilters } from '../utils/filterQueryBuilder'
 
 const FilterContext = createContext(null)
+
+// localStorage keys for persisting UI state
+const STORAGE_KEY_DRAWER = 'mothbox-filter-drawer-open'
+const STORAGE_KEY_SECTIONS = 'mothbox-filter-sections'
+
+/**
+ * Load a value from localStorage with fallback to default
+ * @param {string} key - localStorage key
+ * @param {*} defaultValue - Default value if key not found or error occurs
+ * @returns {*} Parsed value or defaultValue
+ */
+function loadFromStorage(key, defaultValue) {
+  try {
+    const stored = localStorage.getItem(key)
+    return stored ? JSON.parse(stored) : defaultValue
+  } catch {
+    return defaultValue
+  }
+}
+
+/**
+ * Save a value to localStorage with error handling
+ * @param {string} key - localStorage key
+ * @param {*} value - Value to save (will be JSON stringified)
+ */
+function saveToStorage(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // Ignore storage errors (e.g., quota exceeded, private browsing)
+  }
+}
 
 // Action types
 const ActionTypes = {
@@ -62,9 +94,9 @@ const initialState = {
   // Custom Fields Filter
   customFields: {}, // Dynamic: { fieldName: value }
 
-  // UI State
-  isDrawerOpen: true,
-  expandedSections: ['dateRange'], // Which accordion sections are open
+  // UI State - loaded from localStorage with defaults
+  isDrawerOpen: loadFromStorage(STORAGE_KEY_DRAWER, true),
+  expandedSections: loadFromStorage(STORAGE_KEY_SECTIONS, ['dateRange']), // Which accordion sections are open
 }
 
 // Helper function to reset a specific filter to initial state
@@ -234,6 +266,16 @@ function filterReducer(state, action) {
 
 export function FilterProvider({ children }) {
   const [state, dispatch] = useReducer(filterReducer, initialState)
+
+  // Persist drawer open/closed state to localStorage
+  useEffect(() => {
+    saveToStorage(STORAGE_KEY_DRAWER, state.isDrawerOpen)
+  }, [state.isDrawerOpen])
+
+  // Persist expanded sections to localStorage
+  useEffect(() => {
+    saveToStorage(STORAGE_KEY_SECTIONS, state.expandedSections)
+  }, [state.expandedSections])
 
   // Actions
   const setDateRange = useCallback((preset, startDate, endDate) => {
