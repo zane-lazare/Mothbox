@@ -93,7 +93,7 @@ export default function SavePresetModal({
     onSave(name.trim())
   }
 
-  const handleKeyPress = (e) => {
+  const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault()
       handleSave()
@@ -156,7 +156,7 @@ export default function SavePresetModal({
             type="text"
             value={name}
             onChange={handleNameChange}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyDown}
             placeholder="Enter preset name..."
             maxLength={50}
             aria-invalid={!!error}

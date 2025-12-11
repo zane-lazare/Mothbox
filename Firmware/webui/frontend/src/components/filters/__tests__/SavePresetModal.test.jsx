@@ -258,7 +258,7 @@ describe('SavePresetModal', () => {
 
       const input = screen.getByLabelText('Preset Name')
       fireEvent.change(input, { target: { value: 'My Preset' } })
-      fireEvent.keyPress(input, { key: 'Enter', code: 'Enter', charCode: 13 })
+      fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' })
 
       expect(mockOnSave).toHaveBeenCalledWith('My Preset')
     })

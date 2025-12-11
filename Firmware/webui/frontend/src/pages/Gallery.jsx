@@ -649,7 +649,7 @@ function GalleryContent() {
 
             {/* Search Results Grid */}
             {searchResults.length > 0 ? (
-              <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
+              <div data-testid="photo-grid" className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
                 {searchResults.map((result, index) => (
                   <SearchResultItem
                     key={result.path}
@@ -730,7 +730,7 @@ function GalleryContent() {
                 </ErrorBoundary>
               ) : (
                 /* Traditional Photo Grid (for smaller galleries) */
-                <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
+                <div data-testid="photo-grid" className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 ${GALLERY_CONFIG.LAYOUT.GRID_GAP}`}>
                   {displayPhotos.map((photo, index) => {
                     const series = seriesLookup.get(photo.path)
 
