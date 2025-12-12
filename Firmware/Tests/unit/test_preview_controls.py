@@ -462,7 +462,7 @@ class TestCombinedSettings:
 class TestWhiteBalanceEdgeCases:
     """Test white balance edge cases and all mode combinations"""
 
-    def test_awb_disabled_with_all_modes(self, client):
+    def test_awb_disabled_with_all_modes(self, client, temp_liveview_settings):
         """Test AWB disabled (manual) with each mode setting"""
         print("\n🌡️  Testing AWB disabled with all modes:")
 
@@ -477,7 +477,7 @@ class TestWhiteBalanceEdgeCases:
             assert response.status_code == 200, f"Should accept AWB disabled + mode {mode}"
             print(f"   ✓ AWB disabled + {mode_names[mode]}")
 
-    def test_awb_enabled_with_all_modes(self, client):
+    def test_awb_enabled_with_all_modes(self, client, temp_liveview_settings):
         """Test AWB enabled (auto) with each mode setting"""
         print("\n🌡️  Testing AWB enabled with all modes:")
 
@@ -492,7 +492,7 @@ class TestWhiteBalanceEdgeCases:
             assert response.status_code == 200, f"Should accept AWB enabled + mode {mode}"
             print(f"   ✓ AWB enabled + {mode_names[mode]}")
 
-    def test_awb_toggle_preserves_mode(self, client):
+    def test_awb_toggle_preserves_mode(self, client, temp_liveview_settings):
         """Test that toggling AWB enable preserves the mode setting"""
         print("\n🌡️  Testing AWB toggle preserves mode:")
 

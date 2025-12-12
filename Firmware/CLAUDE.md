@@ -439,13 +439,13 @@ stats = service.build_index()
 ```json
 {
   "version": "1.0",
-  "deployment_name": "Oak Ridge Forest Survey 2024",  // required, max 500 chars
+  "deployment_name": "Oak Ridge Forest Survey 2024",  // required, max 200 chars
   "created_at": "2024-06-01T12:00:00Z",               // required, ISO 8601
   "modified_at": "2024-08-31T15:30:00Z",              // required, ISO 8601
   "latitude": 35.9606,                                 // optional, -90.0 to 90.0
   "longitude": -83.9207,                               // optional, -180.0 to 180.0
   "altitude": 350.5,                                   // optional, meters
-  "location_name": "Oak Ridge, TN, USA",               // optional, max 200 chars
+  "location_name": "Oak Ridge, TN, USA",               // optional, max 500 chars
   "start_date": "2024-06-01",                          // optional, ISO 8601 date
   "end_date": "2024-08-31",                            // optional, ISO 8601 date
   "environmental": {                                   // optional, arbitrary JSON

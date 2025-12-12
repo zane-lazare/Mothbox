@@ -266,7 +266,7 @@ Create or completely replace deployment metadata for a directory.
 
 // 400 - Invalid custom fields
 {
-  "error": "Too many custom fields (max 50)"
+  "error": "Too many custom fields (max 100)"
 }
 ```
 
@@ -804,7 +804,7 @@ curl -X POST "http://localhost:5000/api/deployment/cache/invalidate?directory=fo
 | Field | Type | Description | Constraints |
 |-------|------|-------------|-------------|
 | `version` | string | Schema version | Always "1.0" |
-| `deployment_name` | string | Deployment name/description | Max 500 characters, non-empty |
+| `deployment_name` | string | Deployment name/description | Max 200 characters, non-empty |
 | `created_at` | string | Creation timestamp | ISO 8601 with 'Z' suffix |
 | `modified_at` | string | Last modification timestamp | ISO 8601 with 'Z' suffix |
 
@@ -815,13 +815,13 @@ curl -X POST "http://localhost:5000/api/deployment/cache/invalidate?directory=fo
 | `latitude` | float | GPS latitude | -90.0 to 90.0 |
 | `longitude` | float | GPS longitude | -180.0 to 180.0 |
 | `altitude` | float | Altitude in meters | Any numeric value |
-| `location_name` | string | Human-readable location | Max 200 characters |
+| `location_name` | string | Human-readable location | Max 500 characters |
 | `start_date` | string | Deployment start date | ISO 8601 date (YYYY-MM-DD) |
 | `end_date` | string | Deployment end date | ISO 8601 date (YYYY-MM-DD) |
 | `environmental` | object | Environmental conditions | Arbitrary JSON object |
 | `mothbox_id` | string | Unique Mothbox identifier | No length limit |
 | `firmware_version` | string | Firmware version | No length limit |
-| `custom` | object | Custom metadata | Max 50 keys, max depth 5 |
+| `custom` | object | Custom metadata | Max 100 keys, max depth 5 |
 | `modified_by` | string | User identifier | No length limit |
 
 **Example Schema**:

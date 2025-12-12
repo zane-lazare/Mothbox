@@ -93,6 +93,11 @@ try:
     YAML_AVAILABLE = True
 except ImportError:
     YAML_AVAILABLE = False
+    # Create a placeholder for yaml.YAMLError so except clauses don't raise NameError
+    class _YAMLPlaceholder:
+        class YAMLError(Exception):
+            pass
+    yaml = _YAMLPlaceholder()
 
 
 # ============================================================================

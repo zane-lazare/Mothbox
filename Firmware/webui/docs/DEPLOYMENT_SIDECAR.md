@@ -451,7 +451,7 @@ print(metadata['deployment'])
 ## Validation and Constraints
 
 ### Required Fields
-- `deployment_name`: Non-empty string, max 500 characters
+- `deployment_name`: Non-empty string, max 200 characters
 - `version`: Schema version (always "1.0")
 - `created_at`: ISO 8601 timestamp with 'Z' suffix
 - `modified_at`: ISO 8601 timestamp with 'Z' suffix
@@ -460,13 +460,13 @@ print(metadata['deployment'])
 - `latitude`: Decimal degrees, -90.0 to 90.0
 - `longitude`: Decimal degrees, -180.0 to 180.0
 - `altitude`: Meters (any numeric value)
-- `location_name`: Max 200 characters
+- `location_name`: Max 500 characters
 - `start_date`: ISO 8601 date (YYYY-MM-DD)
 - `end_date`: ISO 8601 date (YYYY-MM-DD)
 - `environmental`: Arbitrary JSON object
 - `mothbox_id`: No length limit
 - `firmware_version`: No length limit
-- `custom`: Max 50 keys, max depth 5, JSON-serializable values only
+- `custom`: Max 100 keys, max depth 5, JSON-serializable values only
 - `modified_by`: No length limit
 
 ### Custom Fields Validation
@@ -521,7 +521,7 @@ custom = {
    - Check latitude/longitude ranges
 2. **Invalid date format**: `start_date must be in ISO 8601 format (YYYY-MM-DD)`
    - Use YYYY-MM-DD format, not other date formats
-3. **Too many custom fields**: `Too many custom fields (max 50)`
+3. **Too many custom fields**: `Too many custom fields (max 100)`
    - Reduce number of custom fields or use nested objects
 4. **Nested too deep**: `Custom field nesting exceeds maximum depth (5)`
    - Flatten nested objects
