@@ -240,7 +240,9 @@ class ExportMetadataService:
         with self._lock:
             # Evict oldest entry if at capacity (LRU eviction)
             if len(self._cache) >= self._max_cache_size and key not in self._cache:
-                oldest_key = min(self._cache.keys(), key=lambda k: self._cache[k][1])
+                # Materialize items to avoid race condition during iteration
+                items = list(self._cache.items())
+                oldest_key = min(items, key=lambda item: item[1][1])[0]
                 del self._cache[oldest_key]
 
             self._cache[key] = (metadata, time.time())
@@ -404,12 +406,14 @@ class ExportMetadataService:
         export_metadata.camera_make = camera.get('make')
         export_metadata.camera_model = camera.get('model')
 
-        # Capture info
+        # Capture info (includes dimensions)
         capture = exif_data.get('capture', {})
         export_metadata.timestamp = capture.get('timestamp')
         export_metadata.exposure_time = capture.get('exposure_time')
         export_metadata.iso = capture.get('iso')
         export_metadata.focal_length = capture.get('focal_length')
+        export_metadata.width = capture.get('width')
+        export_metadata.height = capture.get('height')
 
         # Location info
         location = exif_data.get('location', {})
@@ -417,7 +421,9 @@ class ExportMetadataService:
         export_metadata.longitude = location.get('longitude')
         export_metadata.altitude = location.get('altitude')
         # Try both 'gps_accuracy' and 'hdop' (different services use different keys)
-        export_metadata.gps_accuracy = location.get('gps_accuracy') or location.get('hdop')
+        # Use explicit None check to handle gps_accuracy=0 (valid value) correctly
+        gps_accuracy = location.get('gps_accuracy')
+        export_metadata.gps_accuracy = gps_accuracy if gps_accuracy is not None else location.get('hdop')
 
         # Deployment info
         deployment = exif_data.get('deployment', {})
@@ -427,8 +433,6 @@ class ExportMetadataService:
         # File info
         file_info = exif_data.get('file', {})
         export_metadata.file_size = file_info.get('size', 0)
-        export_metadata.width = file_info.get('width')
-        export_metadata.height = file_info.get('height')
 
     def _merge_sidecar_data(
         self,
@@ -686,6 +690,20 @@ class ExportMetadataService:
                 'total_exports': self._stats['total_exports'],
                 'errors': self._stats['errors'],
             }
+
+    def reset_statistics(self) -> None:
+        """Reset all statistics counters to zero.
+
+        Useful for long-running services to prevent unbounded counter growth.
+        Cache entries count is preserved as it reflects actual cache state.
+        """
+        with self._lock:
+            self._stats['cache_hits'] = 0
+            self._stats['cache_misses'] = 0
+            self._stats['total_exports'] = 0
+            self._stats['errors'] = 0
+            # Note: cache_entries is not reset - it reflects actual cache size
+            logger.debug("Reset export metadata service statistics")
 
 
 # ============================================================================

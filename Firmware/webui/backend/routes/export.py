@@ -23,24 +23,23 @@ from flask import Blueprint, current_app, jsonify, request
 
 from mothbox_paths import PHOTOS_DIR
 from webui.backend.security_utils import validate_photo_path
+from webui.backend.services.export_metadata_service import (
+    ExportFormat,
+    ExportMetadata,
+)
 
-# Import will be available when app.py is created
-# For now, using a simple limiter stub
+# Rate limiter is configured in app.py
+# For standalone testing, provide a no-op stub
 try:
-    from flask_limiter import Limiter
-    from flask_limiter.util import get_remote_address
-
-    limiter = Limiter(key_func=get_remote_address)
+    from webui.backend.app import limiter
 except ImportError:
-    # Stub for testing without flask_limiter
-    class LimiterStub:
+    # Stub for unit testing when app is not fully initialized
+    class _LimiterStub:
         def limit(self, *args, **kwargs):
             def decorator(f):
                 return f
-
             return decorator
-
-    limiter = LimiterStub()
+    limiter = _LimiterStub()
 
 logger = logging.getLogger(__name__)
 
@@ -110,21 +109,12 @@ def get_export_metadata(photo_path: str):
                 return jsonify(result), 500
 
         # Transform to requested format
-        if format_param == 'csv':
-            # Convert to flat structure for CSV
-            from webui.backend.services.export_metadata_service import ExportMetadata
-            if isinstance(result, ExportMetadata):
-                flat_data = asdict(result)
-                return jsonify(flat_data), 200
-            else:
-                return jsonify(result), 200
+        if isinstance(result, ExportMetadata):
+            flat = (format_param == 'csv')
+            transformed = service.transform_to_generic(result, flat=flat)
+            return jsonify(transformed), 200
         else:
-            # JSON format (default)
-            from webui.backend.services.export_metadata_service import ExportMetadata
-            if isinstance(result, ExportMetadata):
-                return jsonify(asdict(result)), 200
-            else:
-                return jsonify(result), 200
+            return jsonify(result), 200
 
     except Exception as e:
         logger.error(f"Error getting export metadata for {photo_path}: {e}", exc_info=True)
@@ -188,6 +178,10 @@ def get_batch_export_metadata():
         if not isinstance(photo_paths, list):
             return jsonify({"error": "'photo_paths' must be an array"}), 400
 
+        # Validate all paths are non-empty strings
+        if not all(isinstance(p, str) and p.strip() for p in photo_paths):
+            return jsonify({"error": "All photo_paths must be non-empty strings"}), 400
+
         if len(photo_paths) == 0:
             return jsonify({"results": [], "total": 0, "successful": 0, "failed": 0}), 200
 
@@ -213,8 +207,6 @@ def get_batch_export_metadata():
 
         # Get metadata for all photos (batch processing)
         results = []
-        from webui.backend.services.export_metadata_service import ExportMetadata
-
         for original_path, validated_path in resolved_paths:
             if validated_path is None:
                 # Path validation failed
@@ -295,9 +287,6 @@ def list_export_formats():
         }
     """
     try:
-        # Import ExportFormat enum
-        from webui.backend.services.export_metadata_service import ExportFormat
-
         formats = [
             {
                 "id": ExportFormat.DARWIN_CORE.value,
@@ -368,3 +357,39 @@ def get_export_stats():
     except Exception as e:
         logger.error(f"Error getting export stats: {e}", exc_info=True)
         return jsonify({"error": "Failed to get statistics"}), 500
+
+
+@export_bp.route("/stats/reset", methods=["POST"])
+def reset_export_stats():
+    """
+    Reset export service statistics.
+
+    Resets all counters (cache_hits, cache_misses, total_exports, errors) to zero.
+    Cache entries count is preserved as it reflects actual cache state.
+
+    Returns:
+        200: JSON with success message
+        500: Export service not available
+
+    Example:
+        POST /api/export/stats/reset
+
+        Response:
+        {
+            "message": "Statistics reset successfully"
+        }
+    """
+    try:
+        # Get service from app config
+        service = current_app.config.get('EXPORT_METADATA_SERVICE')
+        if service is None:
+            return jsonify({"error": "Export service not available"}), 500
+
+        # Reset statistics
+        service.reset_statistics()
+
+        return jsonify({"message": "Statistics reset successfully"}), 200
+
+    except Exception as e:
+        logger.error(f"Error resetting export stats: {e}", exc_info=True)
+        return jsonify({"error": "Failed to reset statistics"}), 500

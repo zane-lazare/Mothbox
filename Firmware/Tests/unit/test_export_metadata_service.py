@@ -1023,3 +1023,101 @@ class TestStatistics:
 
         stats2 = service.get_statistics()
         assert stats2['total_exports'] == initial_exports + 1
+
+
+# ============================================================================
+# Test Reset Statistics
+# ============================================================================
+
+class TestResetStatistics:
+    """Tests for reset_statistics method."""
+
+    def test_reset_statistics_clears_counters(self, service, sample_photo_path):
+        """Reset should clear all counters to zero."""
+        # Generate some statistics
+        service.get_export_metadata(sample_photo_path)
+        service.get_export_metadata(sample_photo_path)  # Cache hit
+
+        stats_before = service.get_statistics()
+        assert stats_before['total_exports'] > 0
+        assert stats_before['cache_hits'] > 0 or stats_before['cache_misses'] > 0
+
+        # Reset
+        service.reset_statistics()
+
+        stats_after = service.get_statistics()
+        assert stats_after['cache_hits'] == 0
+        assert stats_after['cache_misses'] == 0
+        assert stats_after['total_exports'] == 0
+        assert stats_after['errors'] == 0
+
+    def test_reset_statistics_preserves_cache_entries(self, service, sample_photo_path):
+        """Reset should preserve cache_entries count (reflects actual cache)."""
+        # Populate cache
+        service.get_export_metadata(sample_photo_path)
+
+        stats_before = service.get_statistics()
+        cache_entries_before = stats_before['cache_entries']
+        assert cache_entries_before > 0
+
+        # Reset
+        service.reset_statistics()
+
+        stats_after = service.get_statistics()
+        # cache_entries should reflect actual cache size, not be reset
+        assert stats_after['cache_entries'] == cache_entries_before
+
+    def test_reset_statistics_after_errors(self, tmp_path):
+        """Reset should clear error counter."""
+        from webui.backend.services.export_metadata_service import ExportMetadataService
+
+        service = ExportMetadataService()
+
+        # Generate an error
+        nonexistent = tmp_path / "nonexistent.jpg"
+        service.get_export_metadata(nonexistent)
+
+        stats_before = service.get_statistics()
+        assert stats_before['errors'] > 0
+
+        # Reset
+        service.reset_statistics()
+
+        stats_after = service.get_statistics()
+        assert stats_after['errors'] == 0
+
+    def test_reset_statistics_is_thread_safe(self, service, sample_photo_path):
+        """Reset should be thread-safe."""
+        import threading
+
+        # Generate some stats first
+        service.get_export_metadata(sample_photo_path)
+
+        errors = []
+
+        def reset_worker():
+            try:
+                for _ in range(10):
+                    service.reset_statistics()
+            except Exception as e:
+                errors.append(e)
+
+        def stats_worker():
+            try:
+                for _ in range(10):
+                    service.get_statistics()
+            except Exception as e:
+                errors.append(e)
+
+        threads = [
+            threading.Thread(target=reset_worker),
+            threading.Thread(target=stats_worker),
+            threading.Thread(target=reset_worker),
+        ]
+
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(errors) == 0, f"Thread safety errors: {errors}"

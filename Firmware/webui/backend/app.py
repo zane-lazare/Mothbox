@@ -229,6 +229,9 @@ from webui.backend.services.export_metadata_service import ExportMetadataService
 
 try:
     cache_ttl = app.config.get('EXPORT_CACHE_TTL', 300)
+    if not isinstance(cache_ttl, int) or cache_ttl < 0:
+        print("⚠️  Invalid EXPORT_CACHE_TTL, using default: 300")
+        cache_ttl = 300
     app.config['EXPORT_METADATA_SERVICE'] = ExportMetadataService(cache_ttl=cache_ttl)
     print("✓ Export metadata service initialized")
 except Exception as e:
