@@ -1358,6 +1358,128 @@ class TestCustomFieldValidation:
 
 
 # ============================================================================
+# Tests for Environmental Field Validation
+# ============================================================================
+
+
+class TestEnvironmentalFieldValidation:
+    """Tests for environmental field validation in deployment metadata"""
+
+    def test_environmental_field_exceeds_depth_limit(self, deployment_client, sample_directory, temp_photos_dir):
+        """Test that deeply nested environmental fields are rejected"""
+        relative_path = sample_directory.relative_to(temp_photos_dir)
+
+        # Create a deeply nested structure (7 levels deep, exceeds MAX_CUSTOM_DEPTH=5)
+        nested = {"level7": "value"}
+        for i in range(6, 0, -1):
+            nested = {f"level{i}": nested}
+
+        response = deployment_client.put(
+            f'/api/deployment/metadata/{relative_path}',
+            json={
+                'deployment_name': 'Test',
+                'environmental': {'deeply_nested': nested}
+            }
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'error' in data
+        assert 'depth' in data['error'].lower()
+
+    def test_environmental_field_key_exceeds_length(self, deployment_client, sample_directory, temp_photos_dir):
+        """Test that environmental field keys exceeding 100 chars are rejected"""
+        relative_path = sample_directory.relative_to(temp_photos_dir)
+
+        long_key = 'k' * 101  # Exceeds 100 char limit
+
+        response = deployment_client.put(
+            f'/api/deployment/metadata/{relative_path}',
+            json={
+                'deployment_name': 'Test',
+                'environmental': {long_key: 'value'}
+            }
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'error' in data
+        assert 'environmental' in data['error'].lower()
+
+    def test_environmental_field_string_exceeds_length(self, deployment_client, sample_directory, temp_photos_dir):
+        """Test that environmental field strings exceeding 10000 chars are rejected"""
+        relative_path = sample_directory.relative_to(temp_photos_dir)
+
+        long_string = 'x' * 10001  # Exceeds 10000 char limit
+
+        response = deployment_client.put(
+            f'/api/deployment/metadata/{relative_path}',
+            json={
+                'deployment_name': 'Test',
+                'environmental': {'description': long_string}
+            }
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'error' in data
+        assert 'environmental' in data['error'].lower()
+
+    def test_environmental_field_valid_nested_structure(self, deployment_client, sample_directory, temp_photos_dir):
+        """Test that environmental with valid nesting depth is accepted"""
+        relative_path = sample_directory.relative_to(temp_photos_dir)
+
+        # Create nested structure within depth limit (5 levels)
+        nested = {"level5": "value"}
+        for i in range(4, 0, -1):
+            nested = {f"level{i}": nested}
+
+        with patch('webui.backend.lib.deployment_sidecar.create_deployment_metadata') as mock_create:
+            mock_create.return_value = DeploymentMetadata(
+                version='1.0',
+                deployment_name='Test',
+                created_at='2024-01-01T00:00:00Z',
+                modified_at='2024-01-01T00:00:00Z'
+            )
+
+            response = deployment_client.put(
+                f'/api/deployment/metadata/{relative_path}',
+                json={
+                    'deployment_name': 'Test',
+                    'environmental': {'nested_data': nested}
+                }
+            )
+
+            assert response.status_code == 200
+
+    def test_environmental_field_with_number_values(self, deployment_client, sample_directory, temp_photos_dir):
+        """Test that environmental field with int and float values is accepted"""
+        relative_path = sample_directory.relative_to(temp_photos_dir)
+
+        with patch('webui.backend.lib.deployment_sidecar.create_deployment_metadata') as mock_create:
+            mock_create.return_value = DeploymentMetadata(
+                version='1.0',
+                deployment_name='Test',
+                created_at='2024-01-01T00:00:00Z',
+                modified_at='2024-01-01T00:00:00Z'
+            )
+
+            response = deployment_client.put(
+                f'/api/deployment/metadata/{relative_path}',
+                json={
+                    'deployment_name': 'Test',
+                    'environmental': {
+                        'temperature_avg_c': 24.5,
+                        'humidity_avg_pct': 65,
+                        'rainfall_mm': 12.3
+                    }
+                }
+            )
+
+            assert response.status_code == 200
+
+
+# ============================================================================
 # Tests for Input Validation (_validate_deployment_input)
 # ============================================================================
 

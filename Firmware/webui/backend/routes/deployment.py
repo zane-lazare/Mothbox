@@ -176,10 +176,18 @@ def _validate_deployment_input(data: dict) -> tuple[bool, str | None]:
             if len(data[field]) != 10:
                 return False, f"{field} must be in ISO 8601 format (YYYY-MM-DD)"
 
-    # Validate environmental dict
+    # Validate environmental dict (same constraints as custom fields)
     if 'environmental' in data and data['environmental'] is not None:
         if not isinstance(data['environmental'], dict):
             return False, "environmental must be an object"
+        for key, value in data['environmental'].items():
+            if not isinstance(key, str):
+                return False, "environmental field names must be strings"
+            if len(key) > 100:
+                return False, f"environmental field name too long: {key[:50]}..."
+            valid, err = _validate_custom_value(value)
+            if not valid:
+                return False, err.replace("Custom field", "environmental field")
 
     # Validate custom fields
     if 'custom' in data:
