@@ -1544,6 +1544,7 @@ def pytest_collection_modifyitems(config, items):
     - Sidecar concurrent tests (use threading/tmp_path, no camera/GPIO needed)
     - Sidecar search integration tests (use mocks/tmp_path, no camera/GPIO needed)
     - Search workflow tests (use mocks/tmp_path/Flask test client, no camera/GPIO needed)
+    - Deployment workflow tests (use threading/tmp_path, no camera/GPIO needed)
     """
     for item in items:
         # Mark integration tests (except manual verification and installer) as hardware tests
@@ -1561,8 +1562,9 @@ def pytest_collection_modifyitems(config, items):
         is_sidecar_concurrent = 'test_sidecar_concurrent' in fspath_str  # Uses threading/tmp_path, no camera/GPIO
         is_sidecar_search_integration = 'test_sidecar_search_integration' in fspath_str  # Uses mocks/tmp_path, no camera/GPIO
         is_search_workflow = 'test_search_workflow' in fspath_str  # Uses mocks/tmp_path/Flask test client, no camera/GPIO
+        is_deployment_workflow = 'test_deployment_workflow' in fspath_str  # Uses threading/tmp_path, no camera/GPIO
 
-        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination and not is_gps_exif_workflow and not is_verification_workflow and not is_batch_tagging_workflow and not is_map_locations_integration and not is_clustering_workflow and not is_sidecar_concurrent and not is_sidecar_search_integration and not is_search_workflow:
+        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination and not is_gps_exif_workflow and not is_verification_workflow and not is_batch_tagging_workflow and not is_map_locations_integration and not is_clustering_workflow and not is_sidecar_concurrent and not is_sidecar_search_integration and not is_search_workflow and not is_deployment_workflow:
             item.add_marker(pytest.mark.hardware)
 
 

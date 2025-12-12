@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 # Load configuration based on environment
-from config import get_config
+from webui.backend.config import get_config
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -238,9 +238,24 @@ except Exception as e:
     print(f"⚠️  Failed to initialize export metadata service: {e}")
     app.config['EXPORT_METADATA_SERVICE'] = None
 
+# Initialize deployment service
+from webui.backend.services.deployment_service import DeploymentService
+
+try:
+    cache_ttl = app.config.get('DEPLOYMENT_CACHE_TTL', 300)
+    if not isinstance(cache_ttl, int) or cache_ttl < 0:
+        print("⚠️  Invalid DEPLOYMENT_CACHE_TTL, using default: 300")
+        cache_ttl = 300
+    app.config['DEPLOYMENT_SERVICE'] = DeploymentService(cache_ttl=cache_ttl)
+    print("✓ Deployment service initialized")
+except Exception as e:
+    print(f"⚠️  Failed to initialize deployment service: {e}")
+    app.config['DEPLOYMENT_SERVICE'] = None
+
 # Import route blueprints
 from routes.camera import camera_bp
 from routes.config import config_bp
+from routes.deployment import deployment_bp
 from routes.export import export_bp
 from routes.gallery import gallery_bp
 from routes.gpio import gpio_bp
@@ -268,6 +283,7 @@ app.register_blueprint(preferences_bp, url_prefix="/api/preferences")
 app.register_blueprint(gps_bp, url_prefix="/api/gps")
 app.register_blueprint(metadata_bp, url_prefix="/api/metadata")
 app.register_blueprint(sidecar_bp, url_prefix="/api/sidecar")
+app.register_blueprint(deployment_bp, url_prefix="/api/deployment")
 app.register_blueprint(export_bp, url_prefix="/api/export")
 app.register_blueprint(search_bp)  # Note: search_bp already includes /api/photos/search prefix
 

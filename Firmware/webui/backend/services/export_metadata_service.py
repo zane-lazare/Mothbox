@@ -5,6 +5,7 @@ Provides aggregated metadata for photo exports by combining data from:
 - MetadataService: EXIF data (camera, location, capture settings)
 - SidecarService: User annotations (tags, species, notes)
 - SeriesService: Series detection (HDR, focus bracket)
+- DeploymentService: Deployment context (location, time period, environmental conditions)
 
 Thread-safe with configurable TTL caching for performance.
 
@@ -23,6 +24,13 @@ Usage:
 
     # Single photo
     metadata = service.get_export_metadata("/photos/moth_2024_01_15__10_00_00.jpg")
+    # metadata includes: EXIF, sidecar, series, and deployment context
+
+    # Access deployment context
+    print(f"Deployment: {metadata.deployment_name}")
+    print(f"Location: {metadata.deployment_location_name}")
+    print(f"Period: {metadata.deployment_start_date} to {metadata.deployment_end_date}")
+    print(f"Environment: {metadata.environmental_conditions}")
 
     # Batch processing
     photos = ["/photos/photo1.jpg", "/photos/photo2.jpg"]
@@ -55,6 +63,7 @@ from webui.backend.services.metadata_service import MetadataService
 from webui.backend.services.sidecar_service import SidecarMetadata, SidecarService
 
 if TYPE_CHECKING:
+    from webui.backend.services.deployment_service import DeploymentService
     from webui.backend.services.series_service import SeriesService
 
 logger = logging.getLogger(__name__)
@@ -72,6 +81,7 @@ class ExportMetadata:
     - EXIF from MetadataService (camera, location, capture)
     - User data from SidecarService (tags, species, notes)
     - Series info from SeriesService (HDR/FB detection)
+    - Deployment context from DeploymentService (location, time period, environment)
     """
     photo_path: str
     filename: str
@@ -99,9 +109,16 @@ class ExportMetadata:
     tags: list[str] = field(default_factory=list)
     notes: str | None = None
 
-    # Deployment
+    # Deployment (EXIF-level)
     mothbox_id: str | None = None
     firmware_version: str | None = None
+
+    # Deployment (Context-level from DeploymentService)
+    deployment_name: str | None = None
+    deployment_location_name: str | None = None
+    deployment_start_date: str | None = None
+    deployment_end_date: str | None = None
+    environmental_conditions: dict = field(default_factory=dict)
 
     # Series
     series_type: str | None = None  # "hdr" or "focus_bracket" or None
@@ -154,6 +171,7 @@ class ExportMetadataService:
         metadata_service: MetadataService | None = None,
         sidecar_service: SidecarService | None = None,
         series_service: "SeriesService | None" = None,
+        deployment_service: "DeploymentService | None" = None,
     ):
         """Initialize with optional dependency injection for testing.
 
@@ -163,6 +181,7 @@ class ExportMetadataService:
             metadata_service: MetadataService instance (or None for lazy load)
             sidecar_service: SidecarService instance (or None for lazy load)
             series_service: SeriesService instance (or None for lazy load)
+            deployment_service: DeploymentService instance (or None for lazy load)
         """
         self._cache_ttl = cache_ttl
         self._max_cache_size = max_cache_size
@@ -180,6 +199,7 @@ class ExportMetadataService:
         self._metadata_service = metadata_service
         self._sidecar_service = sidecar_service
         self._series_service = series_service
+        self._deployment_service = deployment_service
 
     # ========================================================================
     # Service Accessors (Lazy Loading)
@@ -204,6 +224,13 @@ class ExportMetadataService:
             from webui.backend.services import get_series_service
             self._series_service = get_series_service()
         return self._series_service
+
+    def _get_deployment_service(self) -> "DeploymentService":
+        """Get DeploymentService instance (lazy load if needed)."""
+        if self._deployment_service is None:
+            from webui.backend.services.deployment_service import DeploymentService
+            self._deployment_service = DeploymentService(cache_ttl=300)
+        return self._deployment_service
 
     # ========================================================================
     # Cache Management
@@ -358,6 +385,19 @@ class ExportMetadataService:
                             export_metadata.series_count = series_data.count
             except Exception as e:
                 logger.warning("Failed to get series info for %s: %s", photo_path.name, e)
+
+            # Get deployment metadata
+            try:
+                deployment_service = self._get_deployment_service()
+                deployment = deployment_service.find_deployment_for_photo(photo_path)
+                if deployment:
+                    export_metadata.deployment_name = deployment.deployment_name
+                    export_metadata.deployment_location_name = deployment.location_name
+                    export_metadata.deployment_start_date = deployment.start_date
+                    export_metadata.deployment_end_date = deployment.end_date
+                    export_metadata.environmental_conditions = deployment.environmental or {}
+            except Exception as e:
+                logger.warning("Failed to get deployment metadata for %s: %s", photo_path.name, e)
 
             # Cache the result
             self._add_to_cache(cache_key, export_metadata)
@@ -527,6 +567,11 @@ class ExportMetadataService:
                 'notes': metadata.notes,
                 'mothbox_id': metadata.mothbox_id,
                 'firmware_version': metadata.firmware_version,
+                'deployment_name': metadata.deployment_name,
+                'deployment_location_name': metadata.deployment_location_name,
+                'deployment_start_date': metadata.deployment_start_date,
+                'deployment_end_date': metadata.deployment_end_date,
+                'environmental_conditions': str(metadata.environmental_conditions) if metadata.environmental_conditions else '',
                 'series_type': metadata.series_type,
                 'series_index': metadata.series_index,
                 'series_count': metadata.series_count,
@@ -569,6 +614,11 @@ class ExportMetadataService:
                 'deployment': {
                     'mothbox_id': metadata.mothbox_id,
                     'firmware_version': metadata.firmware_version,
+                    'name': metadata.deployment_name,
+                    'location_name': metadata.deployment_location_name,
+                    'start_date': metadata.deployment_start_date,
+                    'end_date': metadata.deployment_end_date,
+                    'environmental': metadata.environmental_conditions,
                 },
                 'series': {
                     'type': metadata.series_type,
