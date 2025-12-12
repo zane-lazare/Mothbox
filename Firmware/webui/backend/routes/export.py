@@ -17,7 +17,6 @@ Security:
 """
 
 import logging
-from dataclasses import asdict
 
 from flask import Blueprint, current_app, jsonify, request
 
@@ -217,9 +216,10 @@ def get_batch_export_metadata():
             else:
                 result = service.get_export_metadata(validated_path)
 
-                # Convert ExportMetadata to dict
+                # Transform to requested format
                 if isinstance(result, ExportMetadata):
-                    results.append(asdict(result))
+                    flat = (format_param == 'csv')
+                    results.append(service.transform_to_generic(result, flat=flat))
                 else:
                     # Error dict
                     results.append(result)
