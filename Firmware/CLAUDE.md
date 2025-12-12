@@ -390,6 +390,142 @@ stats = service.build_index()
 **Documentation**:
 - `webui/docs/dev/api/search.md`: Complete API documentation with query syntax and examples
 
+### Deployment Metadata Sidecar System (Issue #114)
+
+**Overview**: Directory-level metadata files for describing photo collections. Deployment metadata captures location, time period, environmental conditions, and project information at the collection level (not individual photos).
+
+**Architecture**:
+- **Schema**: `webui/backend/lib/deployment_schema.py` - Schema definition and validation
+  - `DeploymentMetadata`: Data class with required and optional fields
+  - `validate_deployment_schema()`: Schema validation with constraints
+  - Constants: `DEPLOYMENT_SCHEMA_VERSION`, `SUPPORTED_FORMATS` (JSON/YAML), field limits
+
+- **Library**: `webui/backend/lib/deployment_sidecar.py` - Core CRUD operations (894 lines, 95%+ coverage)
+  - `create_deployment_metadata()`: Create new deployment metadata
+  - `read_deployment_metadata()`: Read from deployment.json or deployment.yaml
+  - `write_deployment_metadata()`: Atomic write with file locking and backup
+  - `update_deployment_metadata()`: Partial update with atomic read-modify-write
+  - `delete_deployment_metadata()`: Delete with automatic backup
+  - `find_deployment_sidecar()`: Hierarchical discovery (walk up directory tree)
+  - `deployment_has_sidecar()`: Check if directory has deployment metadata
+  - Thread-safe with `FileLock` for atomic operations
+
+- **Service**: `webui/backend/services/deployment_service.py` - Cached service layer (575 lines, 95%+ coverage)
+  - `DeploymentService`: Thread-safe LRU cache with configurable TTL
+  - Methods: `get_deployment_metadata()`, `set_deployment_metadata()`, `update_deployment_metadata()`, `delete_deployment_metadata()`
+  - Discovery: `list_deployments()`, `find_deployment_for_photo()`
+  - Batch: `batch_update_deployments()`, `generate_sidecars_for_directory()`
+  - Cache management: `invalidate_cache()`, `get_statistics()`
+
+- **API**: `webui/backend/routes/deployment.py` - REST endpoints (1153 lines)
+  - `GET /api/deployment/metadata/<path:directory>`: Get deployment metadata
+  - `PUT /api/deployment/metadata/<path:directory>`: Create/replace deployment metadata
+  - `PATCH /api/deployment/metadata/<path:directory>`: Partial update deployment metadata
+  - `DELETE /api/deployment/metadata/<path:directory>`: Delete deployment metadata
+  - `GET /api/deployment/list`: List all deployments
+  - `GET /api/deployment/discover/<path:photo_path>`: Find deployment for photo
+  - `POST /api/deployment/batch`: Batch update operations (rate limited: 10/min)
+  - `POST /api/deployment/generate`: Generate sidecars for directory (rate limited: 10/min)
+  - `GET /api/deployment/stats`: Service statistics
+  - `POST /api/deployment/cache/invalidate`: Invalidate cache
+
+**File Formats**:
+- **JSON** (default): `deployment.json` - Always supported
+- **YAML** (optional): `deployment.yaml` - Requires PyYAML library
+- **Priority**: JSON has priority if both exist
+- **Backup**: `.bak` files created automatically before delete/overwrite
+
+**Schema** (v1.0):
+```json
+{
+  "version": "1.0",
+  "deployment_name": "Oak Ridge Forest Survey 2024",  // required, max 200 chars
+  "created_at": "2024-06-01T12:00:00Z",               // required, ISO 8601
+  "modified_at": "2024-08-31T15:30:00Z",              // required, ISO 8601
+  "latitude": 35.9606,                                 // optional, -90.0 to 90.0
+  "longitude": -83.9207,                               // optional, -180.0 to 180.0
+  "altitude": 350.5,                                   // optional, meters
+  "location_name": "Oak Ridge, TN, USA",               // optional, max 500 chars
+  "start_date": "2024-06-01",                          // optional, ISO 8601 date
+  "end_date": "2024-08-31",                            // optional, ISO 8601 date
+  "environmental": {                                   // optional, arbitrary JSON
+    "habitat": "deciduous forest",
+    "temperature_range": "18-28°C"
+  },
+  "mothbox_id": "mothbox-001",                         // optional
+  "firmware_version": "5.2.1",                         // optional
+  "custom": {                                          // optional, max 50 keys, max depth 5
+    "project_code": "ORNL-2024-001",
+    "permit_number": "NPS-2024-SCI-1234"
+  },
+  "modified_by": "user123"                             // optional
+}
+```
+
+**Performance Targets**:
+- Cache hit: <10ms
+- Disk read: <50ms
+- Batch processing: 100 directories < 1 second
+- Cache hit rate: >80%
+
+**Usage**:
+```python
+from webui.backend.services.deployment_service import DeploymentService
+
+service = DeploymentService(cache_ttl=300, max_cache_size=100)
+
+# Create deployment metadata
+from webui.backend.lib.deployment_sidecar import create_deployment_metadata
+
+metadata = create_deployment_metadata(
+    directory="/photos/forest_2024",
+    name="Oak Ridge Forest Survey 2024",
+    latitude=35.9606,
+    longitude=-83.9207,
+    location_name="Oak Ridge, TN, USA",
+    start_date="2024-06-01",
+    end_date="2024-08-31",
+    environmental={"habitat": "deciduous forest"},
+    custom={"project_code": "ORNL-2024-001"}
+)
+service.set_deployment_metadata("/photos/forest_2024", metadata)
+
+# Get deployment metadata (cached)
+metadata = service.get_deployment_metadata("/photos/forest_2024")
+print(f"Deployment: {metadata.deployment_name}")
+
+# Find deployment for photo (hierarchical discovery)
+metadata = service.find_deployment_for_photo("/photos/forest_2024/subfolder/photo.jpg")
+
+# Batch update
+results = service.batch_update_deployments([
+    ("/photos/forest_2024", {"end_date": "2024-09-15"}),
+    ("/photos/meadow_2024", {"end_date": "2024-09-20"}),
+])
+print(f"Updated {results['successful']} deployments")
+```
+
+**Testing**:
+- Unit tests: `Tests/unit/test_deployment_*.py` (95%+ coverage)
+  - `test_deployment_schema.py`: Schema validation (30 tests)
+  - `test_deployment_sidecar.py`: CRUD operations (50+ tests)
+  - `test_deployment_service.py`: Service layer (40+ tests)
+  - `test_deployment_api.py`: REST API endpoints (50+ tests)
+- Integration tests: `Tests/integration/test_deployment_workflow.py` (15+ tests)
+- Performance tests: `Tests/performance/test_deployment_performance.py` (10+ tests)
+
+**Documentation**:
+- `webui/docs/dev/api/deployment.md`: Complete API documentation with schema and examples
+- `webui/docs/DEPLOYMENT_SIDECAR.md`: User guide for deployment metadata
+
+**Important Notes**:
+- Thread-safe with file locking for atomic operations
+- Hierarchical discovery walks up directory tree to find nearest deployment metadata
+- JSON format always supported, YAML optional (requires PyYAML)
+- LRU cache with 300s (5 minute) TTL by default
+- Backup files created automatically before delete/overwrite
+- Integration with export system (deployment metadata included in photo exports)
+
 ### Camera System
 
 Two camera workflows:
@@ -701,6 +837,10 @@ const lonDisplay = formatCoordinateDisplay(-122.4194, false);
 - `webui/backend/lib/search_engine.py`: **Search engine library** (SQLite FTS5 full-text search, indexing, ranking)
 - `webui/backend/lib/search_query_parser.py`: **Search query parser** (field-specific queries, boolean operators, date ranges)
 - `webui/backend/services/search_service.py`: **Search service** (search coordination, automatic index updates)
+- `webui/backend/lib/deployment_schema.py`: **Deployment metadata schema** (schema definition and validation)
+- `webui/backend/lib/deployment_sidecar.py`: **Deployment sidecar library** (CRUD operations, hierarchical discovery, 95%+ coverage)
+- `webui/backend/services/deployment_service.py`: **Deployment service** (LRU cache, batch operations, 95%+ coverage)
+- `webui/backend/routes/deployment.py`: **Deployment API** (REST endpoints for deployment metadata)
 - `webui/shared/gps_coordinates.py`: **GPS coordinate utilities** (decimal ↔ DMS conversion, validation, formatting) - webui-shared library
 - `webui/frontend/src/utils/gpsCoordinates.ts`: **GPS coordinate utilities (TypeScript)** (identical behavior to Python)
 - `webui/backend/app.py`: Flask app initialization, CSRF, CORS, SocketIO setup
@@ -718,6 +858,8 @@ const lonDisplay = formatCoordinateDisplay(-122.4194, false);
 - `webui/docs/LIVEVIEW_STREAMING.md`: LiveView streaming architecture and usage
 - `webui/docs/dev/api/gallery.md`: **Gallery API documentation** (photo, thumbnail, series endpoints)
 - `webui/docs/dev/api/search.md`: **Search API documentation** (full-text search, query syntax, ranking)
+- `webui/docs/dev/api/deployment.md`: **Deployment API documentation** (deployment metadata CRUD, batch operations)
+- `webui/docs/DEPLOYMENT_SIDECAR.md`: Deployment metadata user guide
 
 ## Development Workflow
 

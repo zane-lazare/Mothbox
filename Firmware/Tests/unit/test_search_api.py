@@ -314,6 +314,17 @@ class TestSearchEndpoint(TestSearchAPIEndpoints):
         assert 'error' in data
         assert 'not available' in data['error'].lower()
 
+    def test_search_service_exception(self, client, mock_search_service):
+        """Should return 500 when search service raises exception"""
+        mock_search_service.search.side_effect = Exception("Database error")
+
+        response = client.get('/api/photos/search?q=moth')
+
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert data['error'] == 'Search failed'
+        assert 'Database error' in data['message']
+
 
 class TestSearchStatsEndpoint(TestSearchAPIEndpoints):
     """Tests for GET /api/photos/search/stats"""
@@ -368,6 +379,17 @@ class TestSearchStatsEndpoint(TestSearchAPIEndpoints):
         assert response.status_code == 503
         data = json.loads(response.data)
         assert 'error' in data
+
+    def test_stats_service_exception(self, client, mock_search_service):
+        """Should return 500 when get_statistics raises exception"""
+        mock_search_service.get_statistics.side_effect = Exception("Stats error")
+
+        response = client.get('/api/photos/search/stats')
+
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert data['error'] == 'Failed to get statistics'
+        assert 'Stats error' in data['message']
 
 
 class TestRebuildEndpoint(TestSearchAPIEndpoints):
@@ -427,6 +449,122 @@ class TestRebuildEndpoint(TestSearchAPIEndpoints):
         assert response.status_code == 503
         data = json.loads(response.data)
         assert 'error' in data
+
+    def test_rebuild_service_exception(self, client, mock_search_service):
+        """Should return 500 when build_index raises exception"""
+        mock_search_service.build_index.side_effect = Exception("Rebuild failed")
+
+        response = client.post('/api/photos/search/rebuild')
+
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert data['error'] == 'Index rebuild failed'
+        assert 'Rebuild failed' in data['message']
+
+
+class TestSyncEndpoint(TestSearchAPIEndpoints):
+    """Tests for POST /api/photos/search/sync"""
+
+    @pytest.fixture
+    def mock_search_service(self):
+        """Override base fixture to add sync_index method"""
+        service = Mock()
+        # Base service config (same as parent)
+        service.search.return_value = {
+            'results': [
+                {
+                    'filename': 'IMG_001.jpg',
+                    'filepath': '2024-11-10/IMG_001.jpg',
+                    'metadata': {
+                        'tags': ['moth', 'luna_moth'],
+                        'species': 'Actias luna',
+                        'species_common_name': 'Luna Moth',
+                        'notes': 'Large specimen near UV light'
+                    },
+                    'score': 0.95,
+                    'matched_fields': ['tags', 'species']
+                }
+            ],
+            'total': 45,
+            'took_ms': 23.5,
+            'parsed_query': 'luna AND moth',
+            'is_valid': True
+        }
+        service.get_statistics.return_value = {
+            'document_count': 1234,
+            'index_size_bytes': 245760,
+            'db_path': '/var/lib/mothbox/cache/search.db'
+        }
+        service.build_index.return_value = {
+            'indexed': 1234,
+            'errors': 0,
+            'took_ms': 5432.1
+        }
+        # Add sync_index method
+        service.sync_index.return_value = {
+            'indexed': 5,
+            'updated': 3,
+            'deleted': 1,
+            'unchanged': 1226,
+            'errors': 0,
+            'took_ms': 432.1
+        }
+        return service
+
+    def test_sync_requires_post(self, client):
+        """GET /api/photos/search/sync should return 405"""
+        response = client.get('/api/photos/search/sync')
+        assert response.status_code == 405
+
+    def test_sync_triggers_index_sync(self, client, mock_search_service):
+        """POST /api/photos/search/sync should sync index"""
+        response = client.post('/api/photos/search/sync')
+
+        assert response.status_code == 200
+        mock_search_service.sync_index.assert_called_once()
+
+    def test_sync_returns_stats(self, client):
+        """Sync should return detailed stats"""
+        response = client.post('/api/photos/search/sync')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+
+        assert 'indexed' in data
+        assert 'updated' in data
+        assert 'deleted' in data
+        assert 'unchanged' in data
+        assert 'errors' in data
+        assert 'took_ms' in data
+        assert 'message' in data
+
+        assert data['indexed'] == 5
+        assert data['updated'] == 3
+        assert data['deleted'] == 1
+        assert data['unchanged'] == 1226
+        assert 'success' in data['message'].lower()
+
+    def test_sync_service_unavailable(self, app, client):
+        """Should return 503 when search service not configured"""
+        app.config['SEARCH_SERVICE'] = None
+
+        response = client.post('/api/photos/search/sync')
+
+        assert response.status_code == 503
+        data = json.loads(response.data)
+        assert 'error' in data
+        assert 'not available' in data['error'].lower()
+
+    def test_sync_service_exception(self, client, mock_search_service):
+        """Should return 500 when sync_index raises exception"""
+        mock_search_service.sync_index.side_effect = Exception("Sync failed")
+
+        response = client.post('/api/photos/search/sync')
+
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert data['error'] == 'Index sync failed'
+        assert 'Sync failed' in data['message']
 
 
 class TestSearchFieldQueries(TestSearchAPIEndpoints):
@@ -534,11 +672,21 @@ class TestSearchEdgeCases(TestSearchAPIEndpoints):
         assert data['error'] == 'Missing query'
 
     def test_search_very_long_query(self, client, mock_search_service):
-        """Should handle very long queries"""
-        long_query = 'moth ' * 100
+        """Should handle very long queries (within limit)"""
+        long_query = 'moth ' * 100  # ~500 chars, within MAX_QUERY_LENGTH
         response = client.get(f'/api/photos/search?q={long_query}')
 
         assert response.status_code == 200
+
+    def test_search_query_exceeds_max_length(self, client):
+        """Query > 500 chars should return 400"""
+        long_query = 'a' * 501  # Exceeds MAX_QUERY_LENGTH (500)
+        response = client.get(f'/api/photos/search?q={long_query}')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['error'] == 'Query too long'
+        assert '500' in data['message']
 
     def test_search_minimum_limit(self, client, mock_search_service):
         """Should handle limit=1"""

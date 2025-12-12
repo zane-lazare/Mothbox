@@ -13,6 +13,7 @@ _clustering_service = None
 _series_service = None
 _locations_service = None
 _sidecar_service = None
+_deployment_service = None
 
 
 def get_clustering_service():
@@ -67,6 +68,18 @@ def get_sidecar_service():
     return _sidecar_service
 
 
+def get_deployment_service():
+    """
+    Get the singleton DeploymentService instance.
+    Lazily initializes on first call to avoid circular imports.
+    """
+    global _deployment_service
+    if _deployment_service is None:
+        from .deployment_service import DeploymentService
+        _deployment_service = DeploymentService(cache_ttl=300)
+    return _deployment_service
+
+
 __all__ = [
     'PhotoService',
     'PaginationError',
@@ -76,4 +89,5 @@ __all__ = [
     'get_series_service',
     'get_locations_service',
     'get_sidecar_service',
+    'get_deployment_service',
 ]

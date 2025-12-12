@@ -617,3 +617,384 @@ class TestExportRoutesIntegration:
         # Check cache hits increased
         stats = export_client.get('/api/export/stats').get_json()
         assert stats['cache_hits'] > 0
+
+
+# ============================================================================
+# Tests for Error Handling and Edge Cases
+# ============================================================================
+
+
+class TestExportMetadataErrorHandling:
+    """Tests for error handling in export metadata endpoints"""
+
+    def test_permission_denied_returns_403(self, temp_photos_dir):
+        """Test that permission denied error returns 403"""
+        from routes.export import export_bp
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(export_bp, url_prefix='/api/export')
+
+        # Create mock service that returns permission denied
+        mock_service = Mock()
+        mock_service.get_export_metadata.return_value = {
+            'error': 'Permission denied',
+            'photo_path': '/photos/test.jpg'
+        }
+        app.config['EXPORT_METADATA_SERVICE'] = mock_service
+
+        client = app.test_client()
+
+        # Create a file so path validation passes
+        test_file = temp_photos_dir / "permission_test.jpg"
+        test_file.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        response = client.get('/api/export/metadata/permission_test.jpg')
+
+        assert response.status_code == 403
+        data = response.get_json()
+        assert 'error' in data
+        assert data['error'] == 'Permission denied'
+
+    def test_generic_error_returns_500(self, temp_photos_dir):
+        """Test that generic service errors return 500"""
+        from routes.export import export_bp
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(export_bp, url_prefix='/api/export')
+
+        # Create mock service that returns generic error
+        mock_service = Mock()
+        mock_service.get_export_metadata.return_value = {
+            'error': 'Internal processing error',
+            'photo_path': '/photos/test.jpg'
+        }
+        app.config['EXPORT_METADATA_SERVICE'] = mock_service
+
+        client = app.test_client()
+
+        # Create a file so path validation passes
+        test_file = temp_photos_dir / "error_test.jpg"
+        test_file.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        response = client.get('/api/export/metadata/error_test.jpg')
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert 'error' in data
+
+    def test_dict_result_without_export_metadata(self, temp_photos_dir):
+        """Test that dict results without error are returned as-is (line 116)"""
+        from routes.export import export_bp
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(export_bp, url_prefix='/api/export')
+
+        # Create mock service that returns a dict (not ExportMetadata)
+        mock_service = Mock()
+        mock_service.get_export_metadata.return_value = {
+            'filename': 'test.jpg',
+            'custom_data': 'value'
+        }
+        app.config['EXPORT_METADATA_SERVICE'] = mock_service
+
+        client = app.test_client()
+
+        # Create a file so path validation passes
+        test_file = temp_photos_dir / "dict_test.jpg"
+        test_file.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        response = client.get('/api/export/metadata/dict_test.jpg')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['filename'] == 'test.jpg'
+        assert data['custom_data'] == 'value'
+
+    def test_exception_in_get_metadata_returns_500(self, temp_photos_dir):
+        """Test that exceptions in service call return 500"""
+        from routes.export import export_bp
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(export_bp, url_prefix='/api/export')
+
+        # Create mock service that raises exception
+        mock_service = Mock()
+        mock_service.get_export_metadata.side_effect = RuntimeError("Unexpected error")
+        app.config['EXPORT_METADATA_SERVICE'] = mock_service
+
+        client = app.test_client()
+
+        # Create a file so path validation passes
+        test_file = temp_photos_dir / "exception_test.jpg"
+        test_file.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        response = client.get('/api/export/metadata/exception_test.jpg')
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert 'error' in data
+        assert 'Failed to get export metadata' in data['error']
+
+
+class TestBatchExportMetadataEdgeCases:
+    """Tests for batch export endpoint edge cases"""
+
+    def test_non_json_request_returns_400(self, export_client):
+        """Test that non-JSON request returns 400 (line 165)"""
+        response = export_client.post(
+            '/api/export/metadata/batch',
+            data='not json at all',
+            content_type='text/plain'
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'error' in data
+        assert 'JSON' in data['error']
+
+    def test_empty_string_in_photo_paths_returns_400(self, export_client):
+        """Test that empty strings in photo_paths return 400 (line 182)"""
+        response = export_client.post(
+            '/api/export/metadata/batch',
+            json={
+                'photo_paths': ['valid.jpg', '', 'another.jpg']
+            }
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'error' in data
+        assert 'non-empty strings' in data['error']
+
+    def test_whitespace_only_in_photo_paths_returns_400(self, export_client):
+        """Test that whitespace-only strings in photo_paths return 400"""
+        response = export_client.post(
+            '/api/export/metadata/batch',
+            json={
+                'photo_paths': ['valid.jpg', '   ', 'another.jpg']
+            }
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'error' in data
+        assert 'non-empty strings' in data['error']
+
+    def test_non_string_in_photo_paths_returns_400(self, export_client):
+        """Test that non-string elements in photo_paths return 400"""
+        response = export_client.post(
+            '/api/export/metadata/batch',
+            json={
+                'photo_paths': ['valid.jpg', 123, 'another.jpg']
+            }
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'error' in data
+        assert 'non-empty strings' in data['error']
+
+    def test_batch_size_exceeds_limit_returns_400(self):
+        """Test that batch size exceeding limit returns 400 (line 191)"""
+        from routes.export import export_bp
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.config['EXPORT_MAX_BATCH_SIZE'] = 5  # Set a low limit for testing
+        app.register_blueprint(export_bp, url_prefix='/api/export')
+
+        # Create mock service
+        mock_service = Mock()
+        app.config['EXPORT_METADATA_SERVICE'] = mock_service
+
+        client = app.test_client()
+
+        # Send more photos than the limit
+        response = client.post(
+            '/api/export/metadata/batch',
+            json={
+                'photo_paths': [f'photo{i}.jpg' for i in range(10)]
+            }
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'error' in data
+        assert 'exceeds maximum limit' in data['error']
+        assert '5' in data['error']
+
+    def test_batch_exception_returns_500(self):
+        """Test that exception during batch processing returns 500 (lines 238-240)"""
+        from routes.export import export_bp
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(export_bp, url_prefix='/api/export')
+
+        # Create mock service that raises exception
+        mock_service = Mock()
+        mock_service.get_export_metadata.side_effect = RuntimeError("Batch processing failed")
+        app.config['EXPORT_METADATA_SERVICE'] = mock_service
+
+        client = app.test_client()
+
+        response = client.post(
+            '/api/export/metadata/batch',
+            json={
+                'photo_paths': ['test.jpg']
+            }
+        )
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert 'error' in data
+        assert 'Batch processing failed' in data['error']
+
+
+class TestFormatsEndpointExceptionHandling:
+    """Tests for exception handling in formats endpoint"""
+
+    def test_formats_exception_returns_500(self, monkeypatch):
+        """Test that exception in formats endpoint returns 500 (lines 321-323)"""
+        import routes.export as export_module
+
+        # Store original
+        original_ExportFormat = export_module.ExportFormat
+
+        # Create a mock ExportFormat that raises when .value is accessed
+        class MockExportFormat:
+            @property
+            def DARWIN_CORE(self):
+                raise RuntimeError("Simulated format error")
+
+            INATURALIST = Mock(value='inaturalist')
+            GENERIC_JSON = Mock(value='json')
+            GENERIC_CSV = Mock(value='csv')
+
+        # Patch the module-level ExportFormat with our mock
+        monkeypatch.setattr(export_module, 'ExportFormat', MockExportFormat())
+
+        from routes.export import export_bp
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(export_bp, url_prefix='/api/export')
+
+        client = app.test_client()
+
+        response = client.get('/api/export/formats')
+
+        # Should return 500 due to the exception
+        assert response.status_code == 500
+        data = response.get_json()
+        assert 'error' in data
+        assert 'Failed to list formats' in data['error']
+
+
+class TestStatsEndpointExceptionHandling:
+    """Tests for exception handling in stats endpoint"""
+
+    def test_stats_exception_returns_500(self):
+        """Test that exception in stats endpoint returns 500 (lines 357-359)"""
+        from routes.export import export_bp
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(export_bp, url_prefix='/api/export')
+
+        # Create mock service that raises exception on get_statistics
+        mock_service = Mock()
+        mock_service.get_statistics.side_effect = RuntimeError("Stats error")
+        app.config['EXPORT_METADATA_SERVICE'] = mock_service
+
+        client = app.test_client()
+
+        response = client.get('/api/export/stats')
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert 'error' in data
+        assert 'Failed to get statistics' in data['error']
+
+
+# ============================================================================
+# Tests for POST /api/export/stats/reset
+# ============================================================================
+
+
+class TestResetExportStats:
+    """Tests for POST /api/export/stats/reset endpoint (lines 382-395)"""
+
+    def test_reset_stats_success(self, export_client):
+        """Test that reset stats endpoint returns success"""
+        response = export_client.post('/api/export/stats/reset')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert 'message' in data
+        assert 'reset successfully' in data['message']
+
+    def test_reset_stats_clears_counters(self, export_client, sample_photo, temp_photos_dir):
+        """Test that reset actually clears statistics counters"""
+        # First make some requests to populate stats
+        relative_path = sample_photo.relative_to(temp_photos_dir)
+        export_client.get(f'/api/export/metadata/{relative_path}')
+        export_client.get(f'/api/export/metadata/{relative_path}')  # Second hit for cache
+
+        # Verify stats are non-zero
+        stats_before = export_client.get('/api/export/stats').get_json()
+        assert stats_before['total_exports'] > 0 or stats_before['cache_hits'] > 0
+
+        # Reset stats
+        response = export_client.post('/api/export/stats/reset')
+        assert response.status_code == 200
+
+        # Verify counters are reset
+        stats_after = export_client.get('/api/export/stats').get_json()
+        assert stats_after['cache_hits'] == 0
+        assert stats_after['cache_misses'] == 0
+        assert stats_after['total_exports'] == 0
+        assert stats_after['errors'] == 0
+
+    def test_reset_stats_service_unavailable_returns_500(self):
+        """Test that reset stats without service returns 500"""
+        from routes.export import export_bp
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(export_bp, url_prefix='/api/export')
+
+        client = app.test_client()
+
+        response = client.post('/api/export/stats/reset')
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert 'error' in data
+        assert 'not available' in data['error']
+
+    def test_reset_stats_exception_returns_500(self):
+        """Test that exception in reset stats returns 500"""
+        from routes.export import export_bp
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(export_bp, url_prefix='/api/export')
+
+        # Create mock service that raises exception on reset
+        mock_service = Mock()
+        mock_service.reset_statistics.side_effect = RuntimeError("Reset error")
+        app.config['EXPORT_METADATA_SERVICE'] = mock_service
+
+        client = app.test_client()
+
+        response = client.post('/api/export/stats/reset')
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert 'error' in data
+        assert 'Failed to reset statistics' in data['error']

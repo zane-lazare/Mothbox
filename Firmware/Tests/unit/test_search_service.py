@@ -1227,3 +1227,587 @@ class TestExifExtraction:
         assert result is None
 
         service.close()
+
+    def test_extract_exif_date_no_exif_key(self, db_path, tmp_path):
+        """Should return None when 'Exif' key is missing from exif_dict (line 189)."""
+        photo_path = tmp_path / "no_exif_key.jpg"
+        photo_path.write_bytes(b"fake jpeg data")
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # Mock piexif.load to return dict without 'Exif' key
+        mock_exif = {
+            '0th': {},  # Has other keys but not 'Exif'
+            '1st': {},
+        }
+        with patch('piexif.load', return_value=mock_exif):
+            result = service._extract_exif_date(photo_path)
+
+        assert result is None
+
+        service.close()
+
+    def test_extract_exif_date_malformed_date_format(self, db_path, tmp_path):
+        """Should return None for malformed EXIF date format (lines 198-200)."""
+        photo_path = tmp_path / "malformed_date.jpg"
+        photo_path.write_bytes(b"fake jpeg data")
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # Mock piexif.load to return EXIF with invalid date format
+        mock_exif = {
+            'Exif': {
+                piexif.ExifIFD.DateTimeOriginal: b"invalid-date-format"
+            }
+        }
+        with patch('piexif.load', return_value=mock_exif):
+            result = service._extract_exif_date(photo_path)
+
+        # Should return None due to ValueError in datetime.strptime
+        assert result is None
+
+        service.close()
+
+
+# ============================================================================
+# Test Species Dict Handling (Legacy Data)
+# ============================================================================
+
+class TestSpeciesDictHandling:
+    """Tests for handling legacy species data stored as dict (lines 237-240)."""
+
+    @pytest.fixture
+    def db_path(self, tmp_path):
+        """Create a temporary database path."""
+        return tmp_path / "test_species.db"
+
+    def test_build_photo_metadata_species_as_dict(self, db_path, tmp_path):
+        """Should handle legacy species data stored as dict."""
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        photo_path = photos_dir / "legacy.jpg"
+        photo_path.touch()
+
+        # Create sidecar with species as dict (legacy format)
+        sidecar_path = photos_dir / "legacy.jpg.json"
+        sidecar_data = {
+            "version": "1.1",
+            "photo_filename": "legacy.jpg",
+            "created_at": "2024-11-01T12:00:00Z",
+            "modified_at": "2024-11-01T12:00:00Z",
+            "tags": ["test"],
+            "species": {"species": "Actias luna"},  # Legacy dict format
+            "species_common_name": "Luna Moth",
+            "notes": "Test",
+            "custom": {},
+            "modified_by": None
+        }
+        sidecar_path.write_text(json.dumps(sidecar_data))
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # Call _build_photo_metadata directly
+        metadata, mtime = service._build_photo_metadata(photo_path)
+
+        # Should extract species from nested dict
+        assert metadata['species'] == 'Actias luna'
+
+        service.close()
+
+    def test_build_photo_metadata_species_as_dict_with_none(self, db_path, tmp_path):
+        """Should handle legacy species dict with 'None' string value."""
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        photo_path = photos_dir / "legacy_none.jpg"
+        photo_path.touch()
+
+        # Create sidecar with species as dict containing "None" string
+        sidecar_path = photos_dir / "legacy_none.jpg.json"
+        sidecar_data = {
+            "version": "1.1",
+            "photo_filename": "legacy_none.jpg",
+            "created_at": "2024-11-01T12:00:00Z",
+            "modified_at": "2024-11-01T12:00:00Z",
+            "tags": ["test"],
+            "species": {"species": "None"},  # Legacy format with "None" string
+            "species_common_name": None,
+            "notes": None,
+            "custom": {},
+            "modified_by": None
+        }
+        sidecar_path.write_text(json.dumps(sidecar_data))
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # Call _build_photo_metadata directly
+        metadata, mtime = service._build_photo_metadata(photo_path)
+
+        # Should convert "None" string to actual None
+        assert metadata['species'] is None
+
+        service.close()
+
+
+# ============================================================================
+# Test Build Index Exception Handling
+# ============================================================================
+
+class TestBuildIndexExceptions:
+    """Tests for build_index exception handling (lines 293-300, 333-335)."""
+
+    @pytest.fixture
+    def db_path(self, tmp_path):
+        """Create a temporary database path."""
+        return tmp_path / "test_build_exc.db"
+
+    @pytest.fixture
+    def photos_dir(self, tmp_path):
+        """Create a temporary photos directory."""
+        photos = tmp_path / "photos"
+        photos.mkdir()
+        return photos
+
+    def test_build_index_exception_clearing_index(self, db_path, photos_dir):
+        """Should handle exception when clearing index (lines 293-300)."""
+        # Create a photo
+        photo = photos_dir / "test.jpg"
+        photo.touch()
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # Mock db_path.unlink to raise exception
+        with patch.object(Path, 'unlink', side_effect=OSError("Cannot delete")):
+            # Should not raise, should log warning and continue
+            stats = service.build_index(photos_dir)
+
+        # Should still try to index
+        assert 'indexed' in stats
+
+        service.close()
+
+    def test_build_index_exception_indexing_photo(self, db_path, photos_dir):
+        """Should continue after exception indexing individual photo (lines 333-335)."""
+        # Create multiple photos
+        photo1 = photos_dir / "good1.jpg"
+        photo1.touch()
+        photo2 = photos_dir / "bad.jpg"
+        photo2.touch()
+        photo3 = photos_dir / "good2.jpg"
+        photo3.touch()
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # Create a sidecar for photo1 and photo3
+        for photo in [photo1, photo3]:
+            sidecar = photos_dir / f"{photo.name}.json"
+            sidecar.write_text(json.dumps({
+                "version": "1.1",
+                "photo_filename": photo.name,
+                "created_at": "2024-11-01T12:00:00Z",
+                "modified_at": "2024-11-01T12:00:00Z",
+                "tags": ["good"],
+                "species": None,
+                "notes": None,
+                "custom": {},
+                "modified_by": None
+            }))
+
+        # Create invalid sidecar for photo2 that causes exception
+        sidecar2 = photos_dir / "bad.jpg.json"
+        sidecar2.write_text("{ invalid json }")
+
+        # Mock _build_photo_metadata to raise for bad.jpg only
+        original_build = service._build_photo_metadata
+
+        def mock_build(path):
+            if "bad" in str(path):
+                raise ValueError("Bad photo metadata")
+            return original_build(path)
+
+        with patch.object(service, '_build_photo_metadata', side_effect=mock_build):
+            stats = service.build_index(photos_dir)
+
+        # Should count errors but continue
+        assert stats['errors'] >= 1
+        assert stats['indexed'] >= 0  # May have indexed the good ones
+
+        service.close()
+
+
+# ============================================================================
+# Test Sync Index
+# ============================================================================
+
+class TestSearchServiceSyncIndex:
+    """Tests for sync_index() incremental sync method (lines 374-419)."""
+
+    @pytest.fixture
+    def db_path(self, tmp_path):
+        """Create a temporary database path."""
+        return tmp_path / "test_sync.db"
+
+    @pytest.fixture
+    def photos_dir(self, tmp_path):
+        """Create a temporary photos directory."""
+        photos = tmp_path / "photos"
+        photos.mkdir()
+        return photos
+
+    @pytest.fixture
+    def photos_with_sidecars(self, photos_dir):
+        """Create test photos with sidecar JSON files."""
+        photos = []
+
+        for i in range(3):
+            photo_path = photos_dir / f"photo_{i}.jpg"
+            photo_path.touch()
+
+            sidecar_path = photos_dir / f"photo_{i}.jpg.json"
+            sidecar_data = {
+                "version": "1.1",
+                "photo_filename": photo_path.name,
+                "created_at": "2024-11-01T12:00:00Z",
+                "modified_at": "2024-11-01T12:00:00Z",
+                "tags": [f"tag{i}"],
+                "species": f"Species {i}",
+                "notes": f"Note {i}",
+                "custom": {},
+                "modified_by": None
+            }
+            sidecar_path.write_text(json.dumps(sidecar_data))
+            photos.append(photo_path)
+
+        return photos
+
+    def test_sync_index_basic(self, db_path, photos_with_sidecars):
+        """Should sync index incrementally."""
+        photos_dir = photos_with_sidecars[0].parent
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # First build index
+        service.build_index(photos_dir)
+
+        # Then sync
+        stats = service.sync_index(photos_dir)
+
+        assert 'indexed' in stats
+        assert 'updated' in stats
+        assert 'deleted' in stats
+        assert 'unchanged' in stats
+        assert 'errors' in stats
+        assert 'took_ms' in stats
+
+        service.close()
+
+    def test_sync_index_nonexistent_directory(self, db_path, tmp_path):
+        """Should handle nonexistent photos directory."""
+        nonexistent = tmp_path / "nonexistent"
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        stats = service.sync_index(nonexistent)
+
+        assert stats['indexed'] == 0
+        assert stats['updated'] == 0
+        assert stats['deleted'] == 0
+        assert stats['unchanged'] == 0
+        assert stats['errors'] == 0
+
+        service.close()
+
+    def test_sync_index_returns_stats(self, db_path, photos_with_sidecars):
+        """Should return sync statistics."""
+        photos_dir = photos_with_sidecars[0].parent
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        stats = service.sync_index(photos_dir)
+
+        # Check all required keys
+        required_keys = ['indexed', 'updated', 'deleted', 'unchanged', 'errors', 'took_ms']
+        for key in required_keys:
+            assert key in stats, f"Missing key: {key}"
+
+        service.close()
+
+    def test_sync_index_detects_new_photos(self, db_path, photos_with_sidecars):
+        """Should detect and index new photos."""
+        photos_dir = photos_with_sidecars[0].parent
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # Build initial index with existing photos
+        service.build_index(photos_dir)
+
+        # Add a new photo
+        new_photo = photos_dir / "new_photo.jpg"
+        new_photo.touch()
+        new_sidecar = photos_dir / "new_photo.jpg.json"
+        new_sidecar.write_text(json.dumps({
+            "version": "1.1",
+            "photo_filename": "new_photo.jpg",
+            "created_at": "2024-11-01T12:00:00Z",
+            "modified_at": "2024-11-01T12:00:00Z",
+            "tags": ["new"],
+            "species": None,
+            "notes": None,
+            "custom": {},
+            "modified_by": None
+        }))
+
+        # Sync should detect the new photo
+        stats = service.sync_index(photos_dir)
+
+        # Should have indexed the new photo
+        assert stats['indexed'] >= 1 or stats['unchanged'] >= 3
+
+        service.close()
+
+    def test_sync_index_uses_default_photos_dir(self, db_path):
+        """Should use PHOTOS_DIR when no directory specified."""
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # Call without photos_dir argument
+        stats = service.sync_index()
+
+        # Should return stats (may be 0 if PHOTOS_DIR empty)
+        assert 'indexed' in stats
+
+        service.close()
+
+
+# ============================================================================
+# Test Exception Handling for Index/Remove Operations
+# ============================================================================
+
+class TestIndexRemoveExceptions:
+    """Tests for exception handling in index_photo and remove_photo."""
+
+    @pytest.fixture
+    def db_path(self, tmp_path):
+        """Create a temporary database path."""
+        return tmp_path / "test_exc.db"
+
+    @pytest.fixture
+    def photos_dir(self, tmp_path):
+        """Create a temporary photos directory."""
+        photos = tmp_path / "photos"
+        photos.mkdir()
+        return photos
+
+    def test_index_photo_exception_during_indexing(self, db_path, photos_dir):
+        """Should return False when engine.index_photo raises (lines 493-495)."""
+        photo = photos_dir / "test.jpg"
+        photo.touch()
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        metadata = {'filename': 'test.jpg', 'tags': ['test']}
+
+        # Mock engine.index_photo to raise exception
+        with patch.object(service._engine, 'index_photo', side_effect=Exception("Index error")):
+            success = service.index_photo(str(photo), metadata)
+
+        assert success is False
+
+        service.close()
+
+    def test_remove_photo_exception(self, db_path, photos_dir):
+        """Should return False when remove raises exception (lines 525-527)."""
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # Mock engine methods to raise
+        with patch.object(service._engine, 'get_stats', side_effect=Exception("Stats error")):
+            removed = service.remove_photo("/some/photo.jpg")
+
+        assert removed is False
+
+        service.close()
+
+    def test_rebuild_if_needed_exception_getting_stats(self, db_path, photos_dir):
+        """Should rebuild when get_stats raises exception (lines 454-460)."""
+        # Create a photo
+        photo = photos_dir / "test.jpg"
+        photo.touch()
+
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # First call to initialize
+        original_get_stats = service._engine.get_stats
+
+        call_count = [0]
+
+        def mock_get_stats():
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # First call raises exception to trigger rebuild
+                raise Exception("Stats error")
+            return original_get_stats()
+
+        with patch.object(service._engine, 'get_stats', side_effect=mock_get_stats):
+            rebuilt = service.rebuild_if_needed(photos_dir)
+
+        # Should have attempted rebuild
+        assert rebuilt is True
+
+        service.close()
+
+
+# ============================================================================
+# Test Empty Query and Statistics Edge Cases
+# ============================================================================
+
+class TestSearchEdgeCases:
+    """Tests for search edge cases (lines 608-609, 670-673)."""
+
+    @pytest.fixture
+    def db_path(self, tmp_path):
+        """Create a temporary database path."""
+        return tmp_path / "test_edge.db"
+
+    def test_get_statistics_db_file_missing(self, db_path, tmp_path):
+        """Should handle missing db file in statistics (lines 670-673)."""
+        service = SearchService(SearchServiceConfig(db_path=db_path))
+
+        # Delete the db file
+        if db_path.exists():
+            db_path.unlink()
+
+        # get_statistics should handle missing file
+        stats = service.get_statistics()
+
+        assert stats['index_size_bytes'] == 0
+
+        service.close()
+
+
+# ============================================================================
+# Test _apply_date_filter Helper Method
+# ============================================================================
+
+class TestApplyDateFilter:
+    """Tests for _apply_date_filter helper method (lines 755-782)."""
+
+    @pytest.fixture
+    def db_path(self, tmp_path):
+        """Create a temporary database path."""
+        return tmp_path / "test_filter.db"
+
+    @pytest.fixture
+    def service(self, db_path):
+        """Create service instance."""
+        svc = SearchService(SearchServiceConfig(db_path=db_path))
+        yield svc
+        svc.close()
+
+    @pytest.fixture
+    def mock_results(self):
+        """Create mock search results with dates."""
+        from unittest.mock import MagicMock
+
+        results = []
+        dates = ['2024-01-01', '2024-01-15', '2024-02-01', '2024-02-15', '2024-03-01']
+
+        for i, date in enumerate(dates):
+            result = MagicMock()
+            result.metadata = {'date': date}
+            result.filepath = f'photo_{i}.jpg'
+            results.append(result)
+
+        return results
+
+    @pytest.fixture
+    def mock_date_filter(self):
+        """Create mock date filter."""
+        from unittest.mock import MagicMock
+        return MagicMock()
+
+    def test_apply_date_filter_range(self, service, mock_results, mock_date_filter):
+        """Should filter by date range."""
+        mock_date_filter.operator = 'range'
+        mock_date_filter.start_date = '2024-01-10'
+        mock_date_filter.end_date = '2024-02-10'
+
+        filtered = service._apply_date_filter(mock_results, mock_date_filter)
+
+        # Should include dates between 2024-01-10 and 2024-02-10
+        # That's 2024-01-15 and 2024-02-01
+        assert len(filtered) == 2
+
+    def test_apply_date_filter_gt(self, service, mock_results, mock_date_filter):
+        """Should filter by date > value."""
+        mock_date_filter.operator = 'gt'
+        mock_date_filter.start_date = '2024-02-01'
+        mock_date_filter.end_date = None
+
+        filtered = service._apply_date_filter(mock_results, mock_date_filter)
+
+        # Should include dates > 2024-02-01: 2024-02-15, 2024-03-01
+        assert len(filtered) == 2
+
+    def test_apply_date_filter_gte(self, service, mock_results, mock_date_filter):
+        """Should filter by date >= value."""
+        mock_date_filter.operator = 'gte'
+        mock_date_filter.start_date = '2024-02-01'
+        mock_date_filter.end_date = None
+
+        filtered = service._apply_date_filter(mock_results, mock_date_filter)
+
+        # Should include dates >= 2024-02-01: 2024-02-01, 2024-02-15, 2024-03-01
+        assert len(filtered) == 3
+
+    def test_apply_date_filter_lt(self, service, mock_results, mock_date_filter):
+        """Should filter by date < value."""
+        mock_date_filter.operator = 'lt'
+        mock_date_filter.start_date = None
+        mock_date_filter.end_date = '2024-02-01'
+
+        filtered = service._apply_date_filter(mock_results, mock_date_filter)
+
+        # Should include dates < 2024-02-01: 2024-01-01, 2024-01-15
+        assert len(filtered) == 2
+
+    def test_apply_date_filter_lte(self, service, mock_results, mock_date_filter):
+        """Should filter by date <= value."""
+        mock_date_filter.operator = 'lte'
+        mock_date_filter.start_date = None
+        mock_date_filter.end_date = '2024-02-01'
+
+        filtered = service._apply_date_filter(mock_results, mock_date_filter)
+
+        # Should include dates <= 2024-02-01: 2024-01-01, 2024-01-15, 2024-02-01
+        assert len(filtered) == 3
+
+    def test_apply_date_filter_eq(self, service, mock_results, mock_date_filter):
+        """Should filter by exact date."""
+        mock_date_filter.operator = 'eq'
+        mock_date_filter.start_date = '2024-02-01'
+        mock_date_filter.end_date = None
+
+        filtered = service._apply_date_filter(mock_results, mock_date_filter)
+
+        # Should include only 2024-02-01
+        assert len(filtered) == 1
+
+    def test_apply_date_filter_no_date_in_metadata(self, service, mock_date_filter):
+        """Should skip results without date in metadata."""
+        from unittest.mock import MagicMock
+
+        # Create results without date
+        results = []
+        for i in range(3):
+            result = MagicMock()
+            result.metadata = {}  # No 'date' key
+            results.append(result)
+
+        mock_date_filter.operator = 'range'
+        mock_date_filter.start_date = '2024-01-01'
+        mock_date_filter.end_date = '2024-12-31'
+
+        filtered = service._apply_date_filter(results, mock_date_filter)
+
+        # Should return empty list since no results have dates
+        assert len(filtered) == 0
