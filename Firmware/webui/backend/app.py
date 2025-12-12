@@ -224,9 +224,24 @@ except Exception as e:
     print(f"⚠️  Failed to initialize tag autocomplete engine: {e}")
     app.config['TAG_AUTOCOMPLETE_ENGINE'] = None
 
+# Initialize export metadata service
+from webui.backend.services.export_metadata_service import ExportMetadataService
+
+try:
+    cache_ttl = app.config.get('EXPORT_CACHE_TTL', 300)
+    if not isinstance(cache_ttl, int) or cache_ttl < 0:
+        print("⚠️  Invalid EXPORT_CACHE_TTL, using default: 300")
+        cache_ttl = 300
+    app.config['EXPORT_METADATA_SERVICE'] = ExportMetadataService(cache_ttl=cache_ttl)
+    print("✓ Export metadata service initialized")
+except Exception as e:
+    print(f"⚠️  Failed to initialize export metadata service: {e}")
+    app.config['EXPORT_METADATA_SERVICE'] = None
+
 # Import route blueprints
 from routes.camera import camera_bp
 from routes.config import config_bp
+from routes.export import export_bp
 from routes.gallery import gallery_bp
 from routes.gpio import gpio_bp
 from routes.gps import gps_bp
@@ -253,6 +268,7 @@ app.register_blueprint(preferences_bp, url_prefix="/api/preferences")
 app.register_blueprint(gps_bp, url_prefix="/api/gps")
 app.register_blueprint(metadata_bp, url_prefix="/api/metadata")
 app.register_blueprint(sidecar_bp, url_prefix="/api/sidecar")
+app.register_blueprint(export_bp, url_prefix="/api/export")
 app.register_blueprint(search_bp)  # Note: search_bp already includes /api/photos/search prefix
 
 # Register WebSocket handlers
