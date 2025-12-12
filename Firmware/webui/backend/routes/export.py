@@ -1,24 +1,28 @@
 """
-Export API routes (Issue #112)
+Export API routes (Issues #112, #116)
 
-Basic endpoints for testing export metadata service.
-Full export API will be implemented in Issue #122.
+Endpoints for export metadata service with Darwin Core CSV support.
 
 Endpoints:
 - GET /api/export/metadata/<path:photo_path> - Get export metadata for single photo
 - POST /api/export/metadata/batch - Get export metadata for multiple photos
+- POST /api/export/darwin-core/batch - Batch Darwin Core CSV export
+- GET /api/export/darwin-core/deployment/<path> - Export deployment as Darwin Core CSV
 - GET /api/export/formats - List supported export formats
 - GET /api/export/stats - Get service statistics
 
 Security:
 - Path traversal protection via validate_photo_path()
 - CSRF protection (Flask-WTF) applied automatically to all POST endpoints
-- Rate limiting on batch endpoint
+- Rate limiting on batch endpoints
 """
 
+import csv
+import io
 import logging
+from datetime import UTC, datetime
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, Response, current_app, jsonify, request
 
 from mothbox_paths import PHOTOS_DIR
 from webui.backend.security_utils import validate_photo_path
@@ -56,11 +60,11 @@ def get_export_metadata(photo_path: str):
     Get aggregated export metadata for a single photo.
 
     Query Parameters:
-        format (str): Output format - "json" (default) or "csv" (flat structure)
+        format (str): Output format - "json" (default), "csv" (flat), or "darwin_core"
 
     Returns:
         200: JSON with export metadata
-        400: Invalid format parameter
+        400: Invalid format parameter or Darwin Core validation failed
         403: Path traversal attempt blocked
         404: Photo not found
         500: Internal error
@@ -77,6 +81,19 @@ def get_export_metadata(photo_path: str):
             "longitude": -122.4194,
             ...
         }
+
+        GET /api/export/metadata/moth_2024_01_15__10_00_00.jpg?format=darwin_core
+
+        Response:
+        {
+            "occurrenceID": "mothbox:deployment:a1b2c3d4",
+            "basisOfRecord": "MachineObservation",
+            "eventDate": "2024-01-15T10:00:00",
+            "decimalLatitude": 37.7749,
+            "decimalLongitude": -122.4194,
+            "geodeticDatum": "WGS84",
+            ...
+        }
     """
     try:
         # Get service from app config
@@ -91,8 +108,8 @@ def get_export_metadata(photo_path: str):
 
         # Get format parameter (default: json)
         format_param = request.args.get('format', 'json').lower()
-        if format_param not in ('json', 'csv'):
-            return jsonify({"error": "Invalid format. Use 'json' or 'csv'"}), 400
+        if format_param not in ('json', 'csv', 'darwin_core'):
+            return jsonify({"error": "Invalid format. Use 'json', 'csv', or 'darwin_core'"}), 400
 
         # Get export metadata
         result = service.get_export_metadata(validated_path)
@@ -109,9 +126,25 @@ def get_export_metadata(photo_path: str):
 
         # Transform to requested format
         if isinstance(result, ExportMetadata):
-            flat = (format_param == 'csv')
-            transformed = service.transform_to_generic(result, flat=flat)
-            return jsonify(transformed), 200
+            if format_param == 'darwin_core':
+                # Validate for Darwin Core first
+                validation = service.validate_for_format(result, ExportFormat.DARWIN_CORE)
+                if not validation.is_valid:
+                    return jsonify({
+                        "error": "Darwin Core validation failed",
+                        "missing_fields": validation.missing_fields,
+                        "warnings": validation.warnings,
+                    }), 400
+
+                transformed = service.transform_to_darwin_core(result)
+                # Include warnings if any
+                if validation.warnings:
+                    transformed["_warnings"] = validation.warnings
+                return jsonify(transformed), 200
+            else:
+                flat = (format_param == 'csv')
+                transformed = service.transform_to_generic(result, flat=flat)
+                return jsonify(transformed), 200
         else:
             return jsonify(result), 200
 
@@ -262,8 +295,8 @@ def list_export_formats():
                 {
                     "id": "darwin_core",
                     "name": "Darwin Core",
-                    "description": "Biodiversity standard format",
-                    "implemented": false
+                    "description": "Biodiversity standard format (GBIF)",
+                    "implemented": true
                 },
                 {
                     "id": "inaturalist",
@@ -291,9 +324,8 @@ def list_export_formats():
             {
                 "id": ExportFormat.DARWIN_CORE.value,
                 "name": "Darwin Core",
-                "description": "Biodiversity standard format (DwC)",
-                "implemented": False,
-                "note": "Will be implemented in Issue #116"
+                "description": "Biodiversity standard format (DwC) for GBIF",
+                "implemented": True,
             },
             {
                 "id": ExportFormat.INATURALIST.value,
@@ -393,3 +425,372 @@ def reset_export_stats():
     except Exception as e:
         logger.error("Error resetting export stats: %s", e, exc_info=True)
         return jsonify({"error": "Failed to reset statistics"}), 500
+
+
+# ============================================================================
+# Darwin Core Export Endpoints
+# ============================================================================
+
+
+def _generate_csv_response(headers: list[str], rows: list[list[str]], filename: str) -> Response:
+    """Generate a CSV file response.
+
+    Args:
+        headers: CSV column headers
+        rows: CSV data rows
+        filename: Filename for Content-Disposition header
+
+    Returns:
+        Flask Response with CSV content
+    """
+    output = io.StringIO()
+    writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+    writer.writerow(headers)
+    writer.writerows(rows)
+
+    csv_content = output.getvalue()
+    output.close()
+
+    return Response(
+        csv_content,
+        mimetype='text/csv',
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Content-Type': 'text/csv; charset=utf-8',
+        }
+    )
+
+
+def _generate_json_csv_response(
+    headers: list[str],
+    rows: list[list[str]],
+    stats: dict,
+) -> dict:
+    """Generate JSON response containing CSV data.
+
+    Args:
+        headers: CSV column headers
+        rows: CSV data rows
+        stats: Export statistics
+
+    Returns:
+        Dictionary with CSV data and metadata
+    """
+    output = io.StringIO()
+    writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+    writer.writerow(headers)
+    writer.writerows(rows)
+
+    csv_content = output.getvalue()
+    output.close()
+
+    return {
+        "csv_data": csv_content,
+        "headers": headers,
+        "row_count": len(rows),
+        **stats
+    }
+
+
+@export_bp.route("/darwin-core/batch", methods=["POST"])
+@limiter.limit("5 per minute")
+def export_darwin_core_batch():
+    """
+    Export multiple photos as Darwin Core CSV.
+
+    Supports dual response format based on Accept header:
+    - Accept: text/csv → CSV file download
+    - Accept: application/json → JSON with CSV data as string
+
+    Request Body:
+        {
+            "photo_paths": ["photo1.jpg", "subdir/photo2.jpg", ...],
+            "validate": true,  // Optional, default true - skip invalid records
+            "include_warnings": false  // Optional - include validation warnings
+        }
+
+    Returns:
+        200: CSV file or JSON with CSV data
+        400: Invalid request body or validation errors
+        500: Internal error
+
+    Example:
+        POST /api/export/darwin-core/batch
+        Content-Type: application/json
+        Accept: text/csv
+
+        {"photo_paths": ["photo1.jpg", "photo2.jpg"]}
+
+        Response: CSV file download
+    """
+    try:
+        # Get service from app config
+        service = current_app.config.get('EXPORT_METADATA_SERVICE')
+        if service is None:
+            return jsonify({"error": "Export service not available"}), 500
+
+        # Validate request body
+        if not request.is_json:
+            return jsonify({"error": "Request must be JSON"}), 400
+
+        try:
+            data = request.get_json()
+        except Exception:
+            return jsonify({"error": "Invalid JSON in request body"}), 400
+
+        if not data or 'photo_paths' not in data:
+            return jsonify({"error": "Missing 'photo_paths' in request body"}), 400
+
+        photo_paths = data['photo_paths']
+
+        if not isinstance(photo_paths, list):
+            return jsonify({"error": "'photo_paths' must be an array"}), 400
+
+        # Validate all paths are non-empty strings
+        if not all(isinstance(p, str) and p.strip() for p in photo_paths):
+            return jsonify({"error": "All photo_paths must be non-empty strings"}), 400
+
+        if len(photo_paths) == 0:
+            return jsonify({
+                "error": "No photos provided",
+                "csv_data": "",
+                "headers": [],
+                "row_count": 0
+            }), 400
+
+        # Get configurable batch size limit
+        max_batch_size = current_app.config.get('EXPORT_MAX_BATCH_SIZE', 1000)
+
+        if len(photo_paths) > max_batch_size:
+            return jsonify({
+                "error": f"Batch size exceeds maximum limit of {max_batch_size} photos"
+            }), 400
+
+        # Options
+        validate = data.get('validate', True)
+        include_warnings = data.get('include_warnings', False)
+
+        # Collect metadata for all photos
+        metadata_list = []
+        validation_errors = []
+        warnings = []
+
+        for photo_path in photo_paths:
+            # Path traversal protection
+            validated_path = validate_photo_path(photo_path, PHOTOS_DIR)
+            if validated_path is None:
+                validation_errors.append({
+                    "photo_path": photo_path,
+                    "error": "Invalid path"
+                })
+                continue
+
+            result = service.get_export_metadata(validated_path)
+
+            if isinstance(result, dict) and 'error' in result:
+                validation_errors.append({
+                    "photo_path": photo_path,
+                    "error": result['error']
+                })
+                continue
+
+            if isinstance(result, ExportMetadata):
+                # Validate for Darwin Core
+                validation = service.validate_for_format(result, ExportFormat.DARWIN_CORE)
+
+                if not validation.is_valid:
+                    if validate:
+                        # Skip invalid records (GBIF strict mode)
+                        validation_errors.append({
+                            "photo_path": photo_path,
+                            "error": "Darwin Core validation failed",
+                            "missing_fields": validation.missing_fields
+                        })
+                        continue
+                    else:
+                        # Include invalid records anyway
+                        pass
+
+                if include_warnings and validation.warnings:
+                    warnings.extend([
+                        {"photo_path": photo_path, "warning": w}
+                        for w in validation.warnings
+                    ])
+
+                metadata_list.append(result)
+
+        # Transform to Darwin Core CSV
+        headers, rows = service.transform_batch_to_darwin_core_csv(
+            metadata_list,
+            filter_invalid=False  # Already filtered above
+        )
+
+        # Stats
+        stats = {
+            "total_requested": len(photo_paths),
+            "exported": len(rows),
+            "skipped": len(validation_errors),
+            "validation_errors": validation_errors if validation_errors else [],
+        }
+
+        if include_warnings:
+            stats["warnings"] = warnings
+
+        # Determine response format based on Accept header
+        accept = request.headers.get('Accept', 'application/json')
+
+        if 'text/csv' in accept:
+            # CSV file download
+            timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
+            filename = f"darwin_core_export_{timestamp}.csv"
+            return _generate_csv_response(headers, rows, filename)
+        else:
+            # JSON with CSV data
+            response_data = _generate_json_csv_response(headers, rows, stats)
+            return jsonify(response_data), 200
+
+    except Exception as e:
+        logger.error("Error in Darwin Core batch export: %s", e, exc_info=True)
+        return jsonify({"error": "Darwin Core batch export failed"}), 500
+
+
+@export_bp.route("/darwin-core/deployment/<path:deployment_path>", methods=["GET"])
+@limiter.limit("5 per minute")
+def export_deployment_darwin_core(deployment_path: str):
+    """
+    Export all photos in a deployment directory as Darwin Core CSV.
+
+    Supports dual response format based on Accept header:
+    - Accept: text/csv → CSV file download
+    - Accept: application/json → JSON with CSV data as string
+
+    Query Parameters:
+        validate (bool): If true (default), skip photos without GPS coordinates
+        include_warnings (bool): If true, include validation warnings
+
+    Returns:
+        200: CSV file or JSON with CSV data
+        400: Validation errors
+        403: Path traversal attempt blocked
+        404: Deployment directory not found
+        500: Internal error
+
+    Example:
+        GET /api/export/darwin-core/deployment/2024/oak-ridge?validate=true
+        Accept: text/csv
+
+        Response: CSV file download with all valid photos from deployment
+    """
+    try:
+        # Get service from app config
+        service = current_app.config.get('EXPORT_METADATA_SERVICE')
+        if service is None:
+            return jsonify({"error": "Export service not available"}), 500
+
+        # Validate path to prevent traversal attacks
+        from pathlib import Path
+        validated_path = validate_photo_path(deployment_path, PHOTOS_DIR)
+        if validated_path is None:
+            return jsonify({"error": "Invalid path"}), 403
+
+        deployment_dir = Path(validated_path)
+
+        # Check if directory exists
+        if not deployment_dir.exists():
+            return jsonify({"error": "Deployment directory not found"}), 404
+
+        if not deployment_dir.is_dir():
+            return jsonify({"error": "Path is not a directory"}), 400
+
+        # Query parameters
+        validate = request.args.get('validate', 'true').lower() == 'true'
+        include_warnings = request.args.get('include_warnings', 'false').lower() == 'true'
+
+        # Get all photos in deployment (jpg, jpeg, png)
+        photo_extensions = {'.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG'}
+        photo_paths = [
+            p for p in deployment_dir.rglob('*')
+            if p.is_file() and p.suffix in photo_extensions
+        ]
+
+        if not photo_paths:
+            return jsonify({
+                "error": "No photos found in deployment directory",
+                "csv_data": "",
+                "headers": [],
+                "row_count": 0
+            }), 400
+
+        # Collect metadata for all photos
+        metadata_list = []
+        validation_errors = []
+        warnings = []
+
+        for photo_path in photo_paths:
+            result = service.get_export_metadata(photo_path)
+
+            if isinstance(result, dict) and 'error' in result:
+                validation_errors.append({
+                    "photo_path": str(photo_path.relative_to(PHOTOS_DIR)),
+                    "error": result['error']
+                })
+                continue
+
+            if isinstance(result, ExportMetadata):
+                # Validate for Darwin Core
+                validation = service.validate_for_format(result, ExportFormat.DARWIN_CORE)
+
+                if not validation.is_valid and validate:
+                    # Skip invalid records (GBIF strict mode)
+                    validation_errors.append({
+                        "photo_path": str(photo_path.relative_to(PHOTOS_DIR)),
+                        "error": "Darwin Core validation failed",
+                        "missing_fields": validation.missing_fields
+                    })
+                    continue
+
+                if include_warnings and validation.warnings:
+                    rel_path = str(photo_path.relative_to(PHOTOS_DIR))
+                    warnings.extend([
+                        {"photo_path": rel_path, "warning": w}
+                        for w in validation.warnings
+                    ])
+
+                metadata_list.append(result)
+
+        # Transform to Darwin Core CSV
+        headers, rows = service.transform_batch_to_darwin_core_csv(
+            metadata_list,
+            filter_invalid=False  # Already filtered above
+        )
+
+        # Stats
+        stats = {
+            "deployment_path": deployment_path,
+            "total_photos": len(photo_paths),
+            "exported": len(rows),
+            "skipped": len(validation_errors),
+            "validation_errors": validation_errors if validation_errors else [],
+        }
+
+        if include_warnings:
+            stats["warnings"] = warnings
+
+        # Determine response format based on Accept header
+        accept = request.headers.get('Accept', 'application/json')
+
+        if 'text/csv' in accept:
+            # CSV file download
+            timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
+            # Sanitize deployment path for filename
+            safe_name = deployment_path.replace('/', '_').replace('\\', '_')
+            filename = f"darwin_core_{safe_name}_{timestamp}.csv"
+            return _generate_csv_response(headers, rows, filename)
+        else:
+            # JSON with CSV data
+            response_data = _generate_json_csv_response(headers, rows, stats)
+            return jsonify(response_data), 200
+
+    except Exception as e:
+        logger.error("Error in Darwin Core deployment export: %s", e, exc_info=True)
+        return jsonify({"error": "Darwin Core deployment export failed"}), 500

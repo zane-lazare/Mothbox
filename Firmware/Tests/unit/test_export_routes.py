@@ -998,3 +998,267 @@ class TestResetExportStats:
         data = response.get_json()
         assert 'error' in data
         assert 'Failed to reset statistics' in data['error']
+
+
+# ============================================================================
+# Tests for Darwin Core Export (Issue #116)
+# ============================================================================
+
+
+class TestDarwinCoreFormat:
+    """Tests for Darwin Core format support in metadata endpoint."""
+
+    def test_format_darwin_core_returns_dwc_structure(self, export_client, sample_photo, temp_photos_dir):
+        """format=darwin_core should return Darwin Core fields."""
+        relative_path = sample_photo.relative_to(temp_photos_dir)
+
+        response = export_client.get(f'/api/export/metadata/{relative_path}?format=darwin_core')
+
+        # May return 400 if GPS not present in mock data
+        assert response.status_code in (200, 400)
+
+        if response.status_code == 200:
+            data = response.get_json()
+            assert 'basisOfRecord' in data
+            assert 'geodeticDatum' in data
+            assert data['basisOfRecord'] == 'MachineObservation'
+            assert data['geodeticDatum'] == 'WGS84'
+
+    def test_darwin_core_validation_error_returns_400(self, temp_photos_dir):
+        """Missing required fields should return 400 with validation errors."""
+        from routes.export import export_bp
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(export_bp, url_prefix='/api/export')
+
+        # Create mock service that returns metadata without GPS
+        mock_service = Mock()
+        mock_service.get_export_metadata.return_value = ExportMetadata(
+            photo_path='/photos/no_gps.jpg',
+            filename='no_gps.jpg',
+            timestamp='2024-01-15T10:00:00',
+            latitude=None,  # Missing GPS
+            longitude=None,
+        )
+        mock_service.validate_for_format.return_value = Mock(
+            is_valid=False,
+            missing_fields=['decimalLatitude', 'decimalLongitude'],
+            warnings=[]
+        )
+        app.config['EXPORT_METADATA_SERVICE'] = mock_service
+
+        client = app.test_client()
+
+        # Create a test file
+        test_file = temp_photos_dir / "validation_test.jpg"
+        test_file.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        response = client.get('/api/export/metadata/validation_test.jpg?format=darwin_core')
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'error' in data
+        assert 'Darwin Core validation failed' in data['error']
+        assert 'missing_fields' in data
+
+    def test_darwin_core_format_in_formats_list(self, export_client):
+        """Darwin Core should be listed as implemented in formats endpoint."""
+        response = export_client.get('/api/export/formats')
+
+        assert response.status_code == 200
+        data = response.get_json()
+
+        darwin_core = next(
+            (f for f in data['formats'] if f['id'] == 'darwin_core'),
+            None
+        )
+        assert darwin_core is not None
+        assert darwin_core['implemented'] is True
+
+
+class TestDarwinCoreBatchExport:
+    """Tests for POST /api/export/darwin-core/batch endpoint."""
+
+    def test_batch_export_service_unavailable(self):
+        """Missing service should return 500."""
+        from routes.export import export_bp
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(export_bp, url_prefix='/api/export')
+
+        client = app.test_client()
+
+        response = client.post(
+            '/api/export/darwin-core/batch',
+            json={'photo_paths': ['test.jpg']}
+        )
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert 'error' in data
+
+    def test_batch_export_missing_photo_paths(self, export_client):
+        """Missing photo_paths should return 400."""
+        response = export_client.post(
+            '/api/export/darwin-core/batch',
+            json={'format': 'darwin_core'}
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'error' in data
+        assert 'photo_paths' in data['error']
+
+    def test_batch_export_empty_list_returns_400(self, export_client):
+        """Empty photo list should return 400."""
+        response = export_client.post(
+            '/api/export/darwin-core/batch',
+            json={'photo_paths': []}
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'error' in data
+
+    def test_batch_export_returns_csv_data(self, temp_photos_dir):
+        """Batch export should return CSV data in JSON format."""
+        from routes.export import export_bp
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(export_bp, url_prefix='/api/export')
+
+        # Create mock service
+        mock_service = Mock()
+        mock_metadata = ExportMetadata(
+            photo_path='/photos/test.jpg',
+            filename='test.jpg',
+            timestamp='2024-01-15T10:00:00',
+            latitude=37.7749,
+            longitude=-122.4194,
+            gps_accuracy=2.5,
+        )
+        mock_service.get_export_metadata.return_value = mock_metadata
+        mock_service.validate_for_format.return_value = Mock(
+            is_valid=True,
+            missing_fields=[],
+            warnings=['GPS accuracy recommended']
+        )
+
+        # Use real transformation
+        from webui.backend.lib.darwin_core_mapping import get_csv_headers, transform_to_csv_row
+        mock_service.transform_batch_to_darwin_core_csv.return_value = (
+            get_csv_headers(),
+            [transform_to_csv_row(mock_metadata)]
+        )
+
+        app.config['EXPORT_METADATA_SERVICE'] = mock_service
+
+        client = app.test_client()
+
+        # Create a test file
+        test_file = temp_photos_dir / "darwin_test.jpg"
+        test_file.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        response = client.post(
+            '/api/export/darwin-core/batch',
+            json={'photo_paths': ['darwin_test.jpg']},
+            headers={'Accept': 'application/json'}
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert 'csv_data' in data
+        assert 'headers' in data
+        assert 'row_count' in data
+        assert data['row_count'] >= 0
+
+    def test_batch_export_csv_file_download(self, temp_photos_dir):
+        """Accept: text/csv should return CSV file download."""
+        from routes.export import export_bp
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(export_bp, url_prefix='/api/export')
+
+        # Create mock service
+        mock_service = Mock()
+        mock_metadata = ExportMetadata(
+            photo_path='/photos/test.jpg',
+            filename='test.jpg',
+            timestamp='2024-01-15T10:00:00',
+            latitude=37.7749,
+            longitude=-122.4194,
+        )
+        mock_service.get_export_metadata.return_value = mock_metadata
+        mock_service.validate_for_format.return_value = Mock(
+            is_valid=True,
+            missing_fields=[],
+            warnings=[]
+        )
+
+        # Use real transformation
+        from webui.backend.lib.darwin_core_mapping import get_csv_headers, transform_to_csv_row
+        mock_service.transform_batch_to_darwin_core_csv.return_value = (
+            get_csv_headers(),
+            [transform_to_csv_row(mock_metadata)]
+        )
+
+        app.config['EXPORT_METADATA_SERVICE'] = mock_service
+
+        client = app.test_client()
+
+        # Create a test file
+        test_file = temp_photos_dir / "download_test.jpg"
+        test_file.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        response = client.post(
+            '/api/export/darwin-core/batch',
+            json={'photo_paths': ['download_test.jpg']},
+            headers={'Accept': 'text/csv'}
+        )
+
+        assert response.status_code == 200
+        assert response.content_type == 'text/csv; charset=utf-8'
+        assert 'Content-Disposition' in response.headers
+        assert 'attachment' in response.headers['Content-Disposition']
+        assert '.csv' in response.headers['Content-Disposition']
+
+
+class TestDarwinCoreDeploymentExport:
+    """Tests for GET /api/export/darwin-core/deployment/<path> endpoint."""
+
+    def test_deployment_export_service_unavailable(self):
+        """Missing service should return 500."""
+        from routes.export import export_bp
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(export_bp, url_prefix='/api/export')
+
+        client = app.test_client()
+
+        response = client.get('/api/export/darwin-core/deployment/test-deployment')
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert 'error' in data
+
+    def test_deployment_export_invalid_path(self, export_client):
+        """Path traversal should return 403."""
+        response = export_client.get('/api/export/darwin-core/deployment/../../etc/passwd')
+
+        assert response.status_code == 403
+        data = response.get_json()
+        assert 'error' in data
+        assert 'Invalid path' in data['error']
+
+    def test_deployment_export_not_found(self, export_client):
+        """Non-existent deployment should return 404."""
+        response = export_client.get('/api/export/darwin-core/deployment/nonexistent-deployment-12345')
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert 'error' in data
