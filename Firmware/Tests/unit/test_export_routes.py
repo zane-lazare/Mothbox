@@ -162,10 +162,11 @@ class TestGetExportMetadata:
         assert response.status_code == 200
         data = response.get_json()
 
-        # Verify metadata structure
-        assert 'photo_path' in data
-        assert 'filename' in data
-        assert data['filename'] == 'test_photo.jpg'
+        # Verify nested metadata structure (JSON format)
+        assert 'file' in data
+        assert 'path' in data['file']
+        assert 'filename' in data['file']
+        assert data['file']['filename'] == 'test_photo.jpg'
 
     def test_nested_photo_returns_metadata(self, export_client, nested_photo, temp_photos_dir):
         """Test that nested photo path works correctly"""
@@ -177,10 +178,10 @@ class TestGetExportMetadata:
         assert response.status_code == 200
         data = response.get_json()
 
-        assert data['filename'] == 'nested_photo.jpg'
+        assert data['file']['filename'] == 'nested_photo.jpg'
 
     def test_format_json_returns_structured_data(self, export_client, sample_photo, temp_photos_dir):
-        """Test that format=json returns structured metadata"""
+        """Test that format=json returns nested structured metadata"""
         relative_path = sample_photo.relative_to(temp_photos_dir)
 
         response = export_client.get(f'/api/export/metadata/{relative_path}?format=json')
@@ -188,9 +189,10 @@ class TestGetExportMetadata:
         assert response.status_code == 200
         data = response.get_json()
 
-        # JSON format should have structured data
+        # JSON format should have nested structure
         assert isinstance(data, dict)
-        assert 'filename' in data
+        assert 'file' in data
+        assert 'filename' in data['file']
 
     def test_format_csv_returns_flat_data(self, export_client, sample_photo, temp_photos_dir):
         """Test that format=csv returns flat structure"""

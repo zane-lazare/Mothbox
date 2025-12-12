@@ -591,43 +591,50 @@ class TestCombinedControlInteractions:
         assert response.status_code == 200
         print("   ✓ Alternating min/max values")
 
-    def test_quality_controls_with_focus_and_wb(self, client):
+    def test_quality_controls_with_focus_and_wb(self):
         """Test image quality controls combined with focus and WB settings"""
-        print("\n🎨 Testing quality + focus + WB combined:")
+        from routes.config import config_bp
+        from flask import Flask
 
-        comprehensive_settings = {
-            # Image quality
-            'sharpness': 3.5,
-            'brightness': 0.2,
-            'contrast': 1.8,
-            'saturation': 1.2,
-            # Focus
-            'af_mode': 1,      # Auto single
-            'af_speed': 1,     # Fast
-            'af_range': 1,     # Macro
-            # White balance
-            'awb_enable': False,
-            'awb_mode': 5      # Daylight
-        }
+        app = Flask(__name__)
+        app.register_blueprint(config_bp, url_prefix='/api/config')
 
-        response = client.post('/api/config/webui', json=comprehensive_settings)
-        assert response.status_code == 200
-        print("   ✓ All controls combined accepted")
+        with app.test_client() as client:
+            print("\n🎨 Testing quality + focus + WB combined:")
 
-        # Verify all persisted
-        response = client.get('/api/config/webui')
-        data = response.get_json()
+            comprehensive_settings = {
+                # Image quality
+                'sharpness': 3.5,
+                'brightness': 0.2,
+                'contrast': 1.8,
+                'saturation': 1.2,
+                # Focus
+                'af_mode': 1,      # Auto single
+                'af_speed': 1,     # Fast
+                'af_range': 1,     # Macro
+                # White balance
+                'awb_enable': False,
+                'awb_mode': 5      # Daylight
+            }
 
-        assert abs(data['sharpness'] - 3.5) < 0.01
-        assert abs(data['brightness'] - 0.2) < 0.01
-        assert abs(data['contrast'] - 1.8) < 0.01
-        assert abs(data['saturation'] - 1.2) < 0.01
-        assert data['af_mode'] == 1
-        assert data['af_speed'] == 1
-        assert data['af_range'] == 1
-        assert data['awb_enable'] == False
-        assert data['awb_mode'] == 5
-        print("   ✓ All combined settings persisted correctly")
+            response = client.post('/api/config/webui', json=comprehensive_settings)
+            assert response.status_code == 200
+            print("   ✓ All controls combined accepted")
+
+            # Verify all persisted
+            response = client.get('/api/config/webui')
+            data = response.get_json()
+
+            assert abs(data['sharpness'] - 3.5) < 0.01
+            assert abs(data['brightness'] - 0.2) < 0.01
+            assert abs(data['contrast'] - 1.8) < 0.01
+            assert abs(data['saturation'] - 1.2) < 0.01
+            assert data['af_mode'] == 1
+            assert data['af_speed'] == 1
+            assert data['af_range'] == 1
+            assert data['awb_enable'] is False
+            assert data['awb_mode'] == 5
+            print("   ✓ All combined settings persisted correctly")
 
 
 class TestSettingsValidationChains:

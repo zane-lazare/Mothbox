@@ -364,16 +364,6 @@ class ExportMetadataService:
 
             return export_metadata
 
-        except PermissionError:
-            logger.error("Permission denied accessing %s", photo_path, exc_info=True)
-            error_result = {
-                'error': 'Permission denied',
-                'photo_path': str(photo_path)
-            }
-            with self._lock:
-                self._stats['errors'] += 1
-            return error_result
-
         except FileNotFoundError:
             logger.error("Photo not found: %s", photo_path, exc_info=True)
             error_result = {

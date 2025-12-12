@@ -116,7 +116,7 @@ def get_export_metadata(photo_path: str):
             return jsonify(result), 200
 
     except Exception as e:
-        logger.error(f"Error getting export metadata for {photo_path}: {e}", exc_info=True)
+        logger.error("Error getting export metadata for %s: %s", photo_path, e, exc_info=True)
         return jsonify({"error": "Failed to get export metadata"}), 500
 
 
@@ -236,7 +236,7 @@ def get_batch_export_metadata():
         }), 200
 
     except Exception as e:
-        logger.error(f"Error in batch export metadata: {e}", exc_info=True)
+        logger.error("Error in batch export metadata: %s", e, exc_info=True)
         return jsonify({"error": "Batch processing failed"}), 500
 
 
@@ -319,7 +319,7 @@ def list_export_formats():
         return jsonify({"formats": formats}), 200
 
     except Exception as e:
-        logger.error(f"Error listing formats: {e}", exc_info=True)
+        logger.error("Error listing formats: %s", e, exc_info=True)
         return jsonify({"error": "Failed to list formats"}), 500
 
 
@@ -355,7 +355,7 @@ def get_export_stats():
         return jsonify(stats), 200
 
     except Exception as e:
-        logger.error(f"Error getting export stats: {e}", exc_info=True)
+        logger.error("Error getting export stats: %s", e, exc_info=True)
         return jsonify({"error": "Failed to get statistics"}), 500
 
 
@@ -391,5 +391,5 @@ def reset_export_stats():
         return jsonify({"message": "Statistics reset successfully"}), 200
 
     except Exception as e:
-        logger.error(f"Error resetting export stats: {e}", exc_info=True)
+        logger.error("Error resetting export stats: %s", e, exc_info=True)
         return jsonify({"error": "Failed to reset statistics"}), 500
