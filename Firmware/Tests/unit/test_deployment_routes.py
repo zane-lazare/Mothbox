@@ -2139,8 +2139,14 @@ class TestBatchEdgeCases:
 
         assert response.status_code == 200
         data = response.get_json()
-        # Path traversal should be in failed list
-        assert '../../etc/passwd' in data['failed']
+        # Path traversal should be in failed list with index info for debugging
+        failed_dirs = [f['directory'] for f in data['failed']]
+        assert '../../etc/passwd' in failed_dirs
+        # Verify index is included for debugging
+        failed_entry = next((f for f in data['failed'] if f['directory'] == '../../etc/passwd'), None)
+        assert failed_entry is not None
+        assert 'index' in failed_entry
+        assert failed_entry['index'] == 1  # Second item in the batch
         assert 'Invalid path' in data['errors'].get('../../etc/passwd', '')
 
     def test_batch_update_validation_failure(self, deployment_client, sample_directory, temp_photos_dir):

@@ -366,7 +366,7 @@ class DeploymentService:
         Returns:
             Dictionary with:
             - success: List of successful directory paths (str)
-            - failed: List of failed directory paths (str)
+            - failed: List of dicts with index, directory, and error for debugging
             - errors: Dictionary mapping failed paths to error messages
             - total: Total number of updates attempted
             - successful: Number of successful updates
@@ -376,7 +376,7 @@ class DeploymentService:
         failed = []
         errors = {}
 
-        for directory, update_dict in updates:
+        for index, (directory, update_dict) in enumerate(updates):
             directory_str = str(Path(directory).resolve())
 
             try:
@@ -384,10 +384,18 @@ class DeploymentService:
                 if metadata:
                     success.append(directory_str)
                 else:
-                    failed.append(directory_str)
+                    failed.append({
+                        "index": index,
+                        "directory": directory_str,
+                        "error": "Update returned None"
+                    })
                     errors[directory_str] = "Update returned None"
             except Exception as e:
-                failed.append(directory_str)
+                failed.append({
+                    "index": index,
+                    "directory": directory_str,
+                    "error": str(e)
+                })
                 errors[directory_str] = str(e)
 
         return {

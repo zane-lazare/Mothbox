@@ -605,7 +605,13 @@ Update multiple deployments in a single request.
 ```json
 {
   "success": ["forest_2024"],
-  "failed": ["meadow_2024"],
+  "failed": [
+    {
+      "index": 1,
+      "directory": "meadow_2024",
+      "error": "Deployment not found"
+    }
+  ],
   "errors": {
     "meadow_2024": "Deployment not found"
   },
@@ -620,8 +626,11 @@ Update multiple deployments in a single request.
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | array | List of successfully updated directory paths |
-| `failed` | array | List of failed directory paths |
-| `errors` | object | Map of failed paths to error messages |
+| `failed` | array | List of failed items with index, directory, and error for debugging |
+| `failed[].index` | integer | Index in the original request (0-based) for debugging |
+| `failed[].directory` | string | Directory path that failed |
+| `failed[].error` | string | Error message describing the failure |
+| `errors` | object | Map of failed paths to error messages (deprecated, use `failed` array) |
 | `total` | integer | Total number of updates attempted |
 | `successful` | integer | Number of successful updates |
 | `failed_count` | integer | Number of failed updates |

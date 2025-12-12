@@ -418,7 +418,11 @@ class TestBatchOperations:
         assert result['successful'] == 2
         assert result['failed_count'] == 1
         assert len(result['failed']) == 1
-        assert str(nonexistent.resolve()) in result['failed']
+        # Failed items now include index for debugging
+        failed_item = result['failed'][0]
+        assert failed_item['index'] == 1  # Second item (index 1)
+        assert failed_item['directory'] == str(nonexistent.resolve())
+        assert 'error' in failed_item
 
     def test_batch_update_empty_list(self, deployment_service):
         """batch_update_deployments with empty list should return empty result."""

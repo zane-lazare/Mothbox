@@ -850,7 +850,7 @@ def batch_update_deployments():
         failed_list = []
         error_dict = {}
 
-        for update in updates:
+        for index, update in enumerate(updates):
             directory = update['directory']
             update_data = update['data']
 
@@ -858,13 +858,21 @@ def batch_update_deployments():
                 # Path traversal protection
                 full_path = validate_photo_path(directory, PHOTOS_DIR)
                 if full_path is None:
-                    failed_list.append(directory)
+                    failed_list.append({
+                        "index": index,
+                        "directory": directory,
+                        "error": "Invalid path: Access denied"
+                    })
                     error_dict[directory] = "Invalid path: Access denied"
                     continue
 
                 # Check if directory exists
                 if not full_path.exists() or not full_path.is_dir():
-                    failed_list.append(directory)
+                    failed_list.append({
+                        "index": index,
+                        "directory": directory,
+                        "error": "Directory not found"
+                    })
                     error_dict[directory] = "Directory not found"
                     continue
 
@@ -872,7 +880,11 @@ def batch_update_deployments():
                 metadata = service.update_deployment_metadata(full_path, update_data)
 
                 if metadata is None:
-                    failed_list.append(directory)
+                    failed_list.append({
+                        "index": index,
+                        "directory": directory,
+                        "error": "Failed to update deployment metadata"
+                    })
                     error_dict[directory] = "Failed to update deployment metadata"
                     continue
 
@@ -882,7 +894,11 @@ def batch_update_deployments():
             except Exception as e:
                 # Log error but continue processing other updates
                 logger.warning(f"Error updating deployment for {directory}: {e}")
-                failed_list.append(directory)
+                failed_list.append({
+                    "index": index,
+                    "directory": directory,
+                    "error": "Update failed"
+                })
                 error_dict[directory] = "Update failed"
 
         # Build response
