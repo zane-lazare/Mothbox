@@ -7,6 +7,20 @@ Tests GPS-based country detection using geopip and system locale fallback.
 import os
 from unittest.mock import patch
 
+import pytest
+
+# Check if geopip is available for GPS-dependent tests
+try:
+    import geopip  # noqa: F401
+    HAS_GEOPIP = True
+except ImportError:
+    HAS_GEOPIP = False
+
+requires_geopip = pytest.mark.skipif(
+    not HAS_GEOPIP,
+    reason="geopip not installed - GPS country detection tests skipped"
+)
+
 
 class TestDetectCountryFromGps:
     """Tests for GPS-based country detection.
@@ -15,6 +29,7 @@ class TestDetectCountryFromGps:
     coastal cities accurately. Tests use inland locations for reliability.
     """
 
+    @requires_geopip
     def test_us_coordinates(self):
         """Chicago, IL (inland US) should return US."""
         from webui.backend.lib.country_code import detect_country_from_gps
@@ -23,6 +38,7 @@ class TestDetectCountryFromGps:
         result = detect_country_from_gps(41.8781, -87.6298)
         assert result == "US"
 
+    @requires_geopip
     def test_uk_coordinates(self):
         """London, UK should return GB."""
         from webui.backend.lib.country_code import detect_country_from_gps
@@ -30,6 +46,7 @@ class TestDetectCountryFromGps:
         result = detect_country_from_gps(51.5074, -0.1278)
         assert result == "GB"
 
+    @requires_geopip
     def test_japan_coordinates(self):
         """Nagoya, Japan (inland) should return JP."""
         from webui.backend.lib.country_code import detect_country_from_gps
@@ -38,6 +55,7 @@ class TestDetectCountryFromGps:
         result = detect_country_from_gps(35.1815, 136.9066)
         assert result == "JP"
 
+    @requires_geopip
     def test_germany_coordinates(self):
         """Munich, Germany should return DE."""
         from webui.backend.lib.country_code import detect_country_from_gps
@@ -46,6 +64,7 @@ class TestDetectCountryFromGps:
         result = detect_country_from_gps(48.1351, 11.5820)
         assert result == "DE"
 
+    @requires_geopip
     def test_brazil_coordinates(self):
         """Brasilia, Brazil (inland capital) should return BR."""
         from webui.backend.lib.country_code import detect_country_from_gps
@@ -54,6 +73,7 @@ class TestDetectCountryFromGps:
         result = detect_country_from_gps(-15.7942, -47.8825)
         assert result == "BR"
 
+    @requires_geopip
     def test_australia_coordinates(self):
         """Canberra, Australia (inland capital) should return AU."""
         from webui.backend.lib.country_code import detect_country_from_gps
@@ -62,6 +82,7 @@ class TestDetectCountryFromGps:
         result = detect_country_from_gps(-35.2809, 149.1300)
         assert result == "AU"
 
+    @requires_geopip
     def test_ocean_coordinates_returns_none(self):
         """Coordinates in the ocean should return None."""
         from webui.backend.lib.country_code import detect_country_from_gps
@@ -72,17 +93,14 @@ class TestDetectCountryFromGps:
 
     def test_geopip_import_error(self):
         """Should handle missing geopip gracefully."""
+        from webui.backend.lib.country_code import detect_country_from_gps
 
-        with patch.dict('sys.modules', {'geopip': None}):
-            # Force reimport to trigger ImportError path
-            import importlib
+        # When geopip is not available, function should return None gracefully
+        if not HAS_GEOPIP:
+            result = detect_country_from_gps(41.8781, -87.6298)
+            assert result is None
 
-            import webui.backend.lib.country_code as cc_module
-            importlib.reload(cc_module)
-
-            # The function should handle the error gracefully
-            # (actual behavior depends on how geopip is already imported)
-
+    @requires_geopip
     def test_geopip_exception_handling(self):
         """Should handle geopip exceptions gracefully."""
         from webui.backend.lib.country_code import detect_country_from_gps
@@ -180,6 +198,7 @@ class TestDetectCountryFromLocale:
 class TestDetectCountryCode:
     """Tests for the main detect_country_code function."""
 
+    @requires_geopip
     def test_gps_primary_when_available(self):
         """GPS detection should be used when coordinates provided."""
         from webui.backend.lib.country_code import detect_country_code

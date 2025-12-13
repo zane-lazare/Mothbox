@@ -34,3 +34,6 @@ piexif>=1.0.0  # GPS EXIF metadata embedding (required for GPS EXIF feature)
 
 # Tag autocomplete
 rapidfuzz>=3.0.0  # Fuzzy string matching for tag autocomplete (Issue #124)
+
+# Country code detection (Darwin Core export)
+geopip>=2.0.0  # Offline GPS-to-country lookup for Darwin Core countryCode field
