@@ -135,3 +135,11 @@ INCLUDE_CSV_SUMMARY: Final[bool] = True
 # ZIP Export Settings
 ZIP_COMPRESSION_LEVEL: Final[int] = 0  # No compression for JPEGs (already compressed)
 MAX_PHOTOS_PER_ZIP: Final[int] = 1000  # Maximum photos per ZIP export
+
+# =============================================================================
+# EXPORT JOB SETTINGS (Issue #122)
+# =============================================================================
+EXPORT_JOB_TTL_SECONDS: Final[int] = 3600  # 1 hour - jobs expire after this time
+EXPORT_JOB_TIMEOUT_SECONDS: Final[int] = 600  # 10 minutes - max time for single job
+EXPORT_JOB_MAX_CONCURRENT: Final[int] = 1  # Sequential processing (protect Pi resources)
+EXPORT_JOB_MAX_HISTORY: Final[int] = 50  # Maximum completed jobs to keep

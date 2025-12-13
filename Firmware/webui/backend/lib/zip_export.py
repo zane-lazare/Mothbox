@@ -15,13 +15,14 @@ import io
 import json
 import logging
 import time
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 from zipfile import ZIP_STORED, BadZipFile, ZipFile
 
+from webui.backend.lib.export_job_types import ExportError
 from webui.backend.lib.xmp_sidecar import generate_xmp_xml, get_xmp_sidecar_filename
 
 logger = logging.getLogger(__name__)
@@ -87,7 +88,7 @@ class ZipExportResult:
     zip_size_bytes: int
     photo_count: int
     xmp_count: int
-    errors: list[dict]
+    errors: list[ExportError]
     took_ms: float
 
 
@@ -380,6 +381,7 @@ def create_zip_export(
     metadata_list: list['ExportMetadata'],
     output_path: Path,
     options: ZipExportOptions | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> ZipExportResult:
     """Create ZIP archive with photos and XMP sidecars.
 
@@ -394,6 +396,7 @@ def create_zip_export(
         metadata_list: List of ExportMetadata instances
         output_path: Path where ZIP file will be created
         options: ZipExportOptions (uses defaults if None)
+        progress_callback: Optional callback(current, total) for progress updates
 
     Returns:
         ZipExportResult with success status and statistics
@@ -404,11 +407,14 @@ def create_zip_export(
     photo_count = 0
     xmp_count = 0
     errors = []
+    total = len(photo_paths)
 
     try:
         with ZipFile(output_path, 'w', compression=ZIP_STORED) as zf:
             # Add photos and XMP sidecars
-            for photo_path, metadata in zip(photo_paths, metadata_list, strict=True):
+            for idx, (photo_path, metadata) in enumerate(
+                zip(photo_paths, metadata_list, strict=True)
+            ):
                 result = add_photo_to_zip(
                     zf, photo_path, metadata, include_xmp=options.include_xmp_sidecars
                 )
@@ -418,10 +424,16 @@ def create_zip_export(
                     if result['xmp_filename']:
                         xmp_count += 1
                 else:
-                    errors.append({
-                        'filename': metadata.filename,
-                        'error': result.get('error', 'Unknown error'),
-                    })
+                    errors.append(ExportError(
+                        error=result.get('error', 'Unknown error'),
+                        photo_path=str(photo_path),
+                        error_type=result.get('error_type'),
+                        timestamp=time.time(),
+                    ))
+
+                # Call progress callback every 10 photos or at the end
+                if progress_callback and ((idx + 1) % 10 == 0 or idx == total - 1):
+                    progress_callback(idx + 1, total)
 
             # Add manifest.json
             if options.include_manifest:
@@ -453,7 +465,11 @@ def create_zip_export(
     except PermissionError as e:
         took_ms = (time.time() - start_time) * 1000
         logger.error("Permission denied creating ZIP at %s: %s", output_path, e)
-        errors.append({'error': 'Permission denied creating ZIP file', 'error_type': 'permission'})
+        errors.append(ExportError(
+            error='Permission denied creating ZIP file',
+            error_type='permission',
+            timestamp=time.time(),
+        ))
 
         return ZipExportResult(
             success=False,
@@ -469,7 +485,11 @@ def create_zip_export(
         took_ms = (time.time() - start_time) * 1000
         logger.error("OS error creating ZIP at %s: %s", output_path, e, exc_info=True)
         error_msg = f"File system error: {e.strerror}" if hasattr(e, 'strerror') and e.strerror else "File system error"
-        errors.append({'error': error_msg, 'error_type': 'io'})
+        errors.append(ExportError(
+            error=error_msg,
+            error_type='io',
+            timestamp=time.time(),
+        ))
 
         return ZipExportResult(
             success=False,
@@ -484,7 +504,11 @@ def create_zip_export(
     except Exception as e:
         took_ms = (time.time() - start_time) * 1000
         logger.exception("Unexpected error creating ZIP: %s", e)
-        errors.append({'error': 'Unexpected error creating ZIP', 'error_type': 'unknown'})
+        errors.append(ExportError(
+            error='Unexpected error creating ZIP',
+            error_type='unknown',
+            timestamp=time.time(),
+        ))
 
         return ZipExportResult(
             success=False,
@@ -543,10 +567,12 @@ def stream_zip_export(
                     if result['xmp_filename']:
                         xmp_count += 1
                 else:
-                    errors.append({
-                        'filename': metadata.filename,
-                        'error': result.get('error', 'Unknown error'),
-                    })
+                    errors.append(ExportError(
+                        error=result.get('error', 'Unknown error'),
+                        photo_path=str(photo_path),
+                        error_type=result.get('error_type'),
+                        timestamp=time.time(),
+                    ))
 
             # Add manifest.json
             if options.include_manifest:
@@ -588,7 +614,11 @@ def stream_zip_export(
     except PermissionError as e:
         took_ms = (time.time() - start_time) * 1000
         logger.error("Permission denied during streaming ZIP: %s", e)
-        errors.append({'error': 'Permission denied reading photo file', 'error_type': 'permission'})
+        errors.append(ExportError(
+            error='Permission denied reading photo file',
+            error_type='permission',
+            timestamp=time.time(),
+        ))
 
         yield ZipExportResult(
             success=False,
@@ -604,7 +634,11 @@ def stream_zip_export(
         took_ms = (time.time() - start_time) * 1000
         logger.error("OS error during streaming ZIP: %s", e, exc_info=True)
         error_msg = f"File system error: {e.strerror}" if hasattr(e, 'strerror') and e.strerror else "File system error"
-        errors.append({'error': error_msg, 'error_type': 'io'})
+        errors.append(ExportError(
+            error=error_msg,
+            error_type='io',
+            timestamp=time.time(),
+        ))
 
         yield ZipExportResult(
             success=False,
@@ -619,7 +653,11 @@ def stream_zip_export(
     except Exception as e:
         took_ms = (time.time() - start_time) * 1000
         logger.exception("Unexpected error during streaming ZIP: %s", e)
-        errors.append({'error': 'Unexpected error creating ZIP', 'error_type': 'unknown'})
+        errors.append(ExportError(
+            error='Unexpected error creating ZIP',
+            error_type='unknown',
+            timestamp=time.time(),
+        ))
 
         yield ZipExportResult(
             success=False,

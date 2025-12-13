@@ -390,6 +390,91 @@ stats = service.build_index()
 **Documentation**:
 - `webui/docs/dev/api/search.md`: Complete API documentation with query syntax and examples
 
+### Export Job Queue System (Issue #122)
+
+**Overview**: Async background job queue for long-running export operations with SQLite persistence. Jobs are queued, executed one at a time, and survive server restarts.
+
+**Architecture**:
+- **Types**: `webui/backend/lib/export_job_types.py` - Data structures (194 lines)
+  - `ExportJobStatus`: Job lifecycle states (PENDING, RUNNING, COMPLETED, FAILED, CANCELLED, EXPIRED)
+  - `ExportJobFormat`: Supported formats (DARWIN_CORE, INATURALIST, JSON, CSV)
+  - `ExportJobFilter`: Photo selection criteria (date range, deployment, tags, series type, explicit paths)
+  - `ExportJobProgress`: Progress tracking (current, total, percent, phase)
+  - `ExportJob`: Complete job instance with metadata, timestamps, results
+
+- **Database**: `webui/backend/lib/export_job_db.py` - SQLite persistence (450+ lines, 95%+ coverage)
+  - Thread-safe job storage with file locking
+  - CRUD operations: create_job(), get_job(), update_job(), delete_job()
+  - Query methods: list_jobs(), get_pending_jobs(), cleanup_expired_jobs()
+  - Schema migration support
+
+- **Service**: `webui/backend/services/export_job_service.py` - Job queue management (800+ lines, 95%+ coverage)
+  - Background worker thread for job execution
+  - Single job concurrency (queue-based processing)
+  - Timeout handling (default 10 minutes per job)
+  - Automatic cleanup (1-hour TTL, 50-job max history)
+  - Integration with ExportMetadataService for export execution
+  - Cancellation support and error handling
+
+- **API**: `webui/backend/routes/export.py` - REST endpoints
+  - `POST /api/export/jobs` - Create export job (rate limited: 5/min)
+  - `GET /api/export/jobs` - List jobs with filtering and pagination
+  - `GET /api/export/jobs/<id>` - Get job status and progress
+  - `GET /api/export/jobs/<id>/download` - Download completed export file
+  - `DELETE /api/export/jobs/<id>` - Delete job and output file
+  - `POST /api/export/jobs/<id>/cancel` - Cancel running job
+
+**Design Decisions**:
+- **SQLite persistence**: Jobs survive server restarts
+- **Single job concurrency**: Protects Raspberry Pi resources (CPU, memory, disk I/O)
+- **10-minute timeout**: Prevents runaway jobs, typical export < 5 minutes for 1000 photos
+- **1-hour TTL**: Balances storage vs. download window (configurable)
+- **50-job history**: Recent job visibility without unbounded growth
+- **Queue-based**: FIFO processing with status-based filtering
+
+**Export Formats**:
+- **Darwin Core**: CSV for GBIF/iDigBio (biodiversity data portals)
+- **iNaturalist**: CSV with optional photo ZIP (XMP sidecar metadata)
+- **JSON**: Generic metadata export (all fields, nested structure)
+- **CSV**: Generic metadata export (flattened fields)
+
+**Filter Options**:
+- `date_start`/`date_end`: ISO 8601 date range (YYYY-MM-DD)
+- `deployment`: Deployment directory path
+- `tags`: List of tags (any tag matches)
+- `series_type`: "hdr" or "focus_bracket"
+- `has_species`: Only photos with species identification
+- `photo_paths`: Explicit photo list (overrides other filters)
+
+**Progress Tracking**:
+- **Phases**: initializing → collecting → exporting → finalizing → completed
+- **Real-time updates**: current/total/percent for UI progress bars
+- **Error tracking**: Per-photo errors with details, high-level error message
+
+**Performance Targets**:
+- Job creation: <100ms
+- 100 photos: ~10-30 seconds (depends on format)
+- 1000 photos: ~1-5 minutes (depends on format and options)
+- Memory: <100 MB per job for 1000 photos
+
+**Testing**:
+- Unit tests: `Tests/unit/test_export_job_types.py` (30+ tests)
+- Unit tests: `Tests/unit/test_export_job_db.py` (50+ tests)
+- Unit tests: `Tests/unit/test_export_job_service.py` (60+ tests)
+- Unit tests: `Tests/unit/test_export_job_api.py` (40+ tests)
+- Integration tests: `Tests/integration/test_export_job_workflow.py` (20+ tests)
+
+**Documentation**:
+- `webui/docs/dev/api/export-jobs.md`: Complete API documentation with examples and usage patterns
+
+**Important Notes**:
+- Jobs are rate-limited (5/min) to prevent queue flooding
+- Only one job executes at a time (queue-based processing)
+- Completed jobs auto-expire after 1 hour (output files deleted)
+- Jobs survive server restarts (SQLite persistence)
+- Cancellation is graceful (job stops at next checkpoint, partial results may exist)
+- Download endpoint has path traversal protection
+
 ### Deployment Metadata Sidecar System (Issue #114)
 
 **Overview**: Directory-level metadata files for describing photo collections. Deployment metadata captures location, time period, environmental conditions, and project information at the collection level (not individual photos).

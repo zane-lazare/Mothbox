@@ -1,9 +1,10 @@
 """
-Export API routes (Issues #112, #116, #118)
+Export API routes (Issues #112, #116, #118, #122)
 
-Endpoints for export metadata service with Darwin Core CSV and iNaturalist ZIP support.
+Endpoints for export metadata service with Darwin Core CSV and iNaturalist ZIP support,
+plus async export job queue for long-running exports.
 
-Endpoints:
+Metadata Endpoints:
 - GET /api/export/metadata/<path:photo_path> - Get export metadata for single photo
 - POST /api/export/metadata/batch - Get export metadata for multiple photos
 - POST /api/export/darwin-core/batch - Batch Darwin Core CSV export
@@ -14,10 +15,18 @@ Endpoints:
 - GET /api/export/formats - List supported export formats
 - GET /api/export/stats - Get service statistics
 
+Export Job Queue Endpoints (Issue #122):
+- POST /api/export/jobs - Create async export job
+- GET /api/export/jobs - List all export jobs (with filtering and pagination)
+- GET /api/export/jobs/<job_id> - Get job status and progress
+- GET /api/export/jobs/<job_id>/download - Download completed export result
+- DELETE /api/export/jobs/<job_id> - Delete export job
+- POST /api/export/jobs/<job_id>/cancel - Cancel running export job
+
 Security:
 - Path traversal protection via validate_photo_path()
-- CSRF protection (Flask-WTF) applied automatically to all POST endpoints
-- Rate limiting on batch endpoints
+- CSRF protection (Flask-WTF) applied automatically to all POST/DELETE endpoints
+- Rate limiting on batch endpoints and job creation (5/min)
 """
 
 import csv
@@ -35,12 +44,15 @@ from webui.backend.services.export_metadata_service import (
     ExportMetadata,
 )
 
-# Rate limiter is configured in app.py
-# For standalone testing, provide a no-op stub
+# Rate limiter setup (follows pattern from gallery.py)
+# Creates uninitialized limiter that won't rate-limit until bound to Flask app
 try:
-    from webui.backend.app import limiter
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+
+    limiter = Limiter(key_func=get_remote_address)
 except ImportError:
-    # Stub for unit testing when app is not fully initialized
+    # Stub for testing without flask_limiter
     class _LimiterStub:
         def limit(self, *args, **kwargs):
             def decorator(f):
@@ -2137,3 +2149,486 @@ def export_deployment_csv(deployment_path: str):
     except Exception as e:
         logger.error("Error in deployment CSV export for %s: %s", deployment_path, e, exc_info=True)
         return jsonify({"error": "Deployment CSV export failed"}), 500
+
+
+# ============================================================================
+# Export Job Queue Endpoints (Issue #122)
+# ============================================================================
+
+
+def _serialize_job(job) -> dict:
+    """
+    Serialize ExportJob to JSON-friendly dict with ISO 8601 timestamps.
+
+    Args:
+        job: ExportJob instance to serialize
+
+    Returns:
+        Dictionary with all job fields, timestamps as ISO 8601 strings
+    """
+    job_dict = job.to_dict()
+
+    # Convert Unix timestamps to ISO 8601 strings with 'Z' suffix
+    for field in ['created_at', 'started_at', 'completed_at', 'expires_at']:
+        if job_dict.get(field) is not None:
+            timestamp = job_dict[field]
+            dt = datetime.fromtimestamp(timestamp, UTC)
+            # Use 'Z' suffix instead of '+00:00' for UTC timezone
+            job_dict[field] = dt.isoformat().replace('+00:00', 'Z')
+
+    return job_dict
+
+
+@export_bp.route("/jobs", methods=["POST"])
+@limiter.limit("5 per minute")
+def create_export_job():
+    """
+    Create a new async export job.
+
+    Request Body (JSON):
+        format (str): Required. Export format: darwin_core, inaturalist, json, csv
+        filter (dict): Optional. Photo selection criteria:
+            - date_start (str): Start date (YYYY-MM-DD)
+            - date_end (str): End date (YYYY-MM-DD)
+            - deployment (str): Deployment directory path
+            - tags (list[str]): Tags to match (any)
+            - series_type (str): Series type (hdr or focus_bracket)
+            - has_species (bool): Only photos with species ID
+            - photo_paths (list[str]): Explicit photo paths (overrides other filters)
+        options (dict): Optional. Format-specific options
+        ttl_seconds (int): Optional. Custom TTL in seconds (60-86400).
+                          Defaults to service TTL (3600s/1 hour).
+                          Larger exports may need longer download windows.
+
+    Returns:
+        202: Job created successfully
+        400: Invalid format or filter
+        500: Service unavailable
+
+    Example:
+        POST /api/export/jobs
+        {
+            "format": "darwin_core",
+            "filter": {
+                "date_start": "2024-01-01",
+                "tags": ["moth"]
+            },
+            "options": {"validate": true}
+        }
+
+        Response (202):
+        {
+            "job_id": "550e8400-e29b-41d4-a716-446655440000",
+            "status": "pending",
+            "format": "darwin_core",
+            "message": "Export job created",
+            "status_url": "/api/export/jobs/550e8400-..."
+        }
+    """
+    from webui.backend.lib.export_job_types import ExportJobFilter, ExportJobFormat
+
+    service = current_app.config.get('EXPORT_JOB_SERVICE')
+    if service is None:
+        return jsonify({"error": "Export job service not available"}), 500
+
+    try:
+        data = request.get_json()
+
+        # Validate format (required)
+        format_str = data.get('format') if data else None
+        if not format_str:
+            return jsonify({"error": "format field is required"}), 400
+
+        try:
+            format_enum = ExportJobFormat(format_str)
+        except ValueError:
+            valid_formats = [f.value for f in ExportJobFormat]
+            return jsonify({
+                "error": f"Invalid format: {format_str}. Must be one of: {', '.join(valid_formats)}"
+            }), 400
+
+        # Parse filter (optional)
+        filter_data = data.get('filter', {})
+
+        # Validate filter fields
+        valid_filter_fields = {
+            'date_start', 'date_end', 'deployment', 'tags',
+            'series_type', 'has_species', 'photo_paths'
+        }
+        invalid_fields = set(filter_data.keys()) - valid_filter_fields
+        if invalid_fields:
+            return jsonify({
+                "error": f"Invalid filter fields: {', '.join(invalid_fields)}. "
+                         f"Valid fields: {', '.join(sorted(valid_filter_fields))}"
+            }), 400
+
+        # Validate date format (ISO 8601: YYYY-MM-DD)
+        from webui.backend.lib.date_utils import validate_date_string
+
+        for date_field in ['date_start', 'date_end']:
+            date_value = filter_data.get(date_field)
+            if date_value is not None:
+                is_valid, error_msg = validate_date_string(date_value)
+                if not is_valid:
+                    return jsonify({
+                        "error": f"Invalid {date_field}: {error_msg}"
+                    }), 400
+
+        # Validate date_start <= date_end if both provided
+        if filter_data.get('date_start') and filter_data.get('date_end'):
+            from datetime import date
+            start = date.fromisoformat(filter_data['date_start'])
+            end = date.fromisoformat(filter_data['date_end'])
+            if start > end:
+                return jsonify({
+                    "error": "date_start must be before or equal to date_end"
+                }), 400
+
+        # Validate series_type is a valid SeriesType enum value
+        series_type_val = filter_data.get('series_type')
+        if series_type_val is not None:
+            from webui.backend.lib.series_detection import SeriesType
+            try:
+                SeriesType(series_type_val)
+            except ValueError:
+                valid = [st.value for st in SeriesType]
+                return jsonify({
+                    "error": f"Invalid series_type: '{series_type_val}'. Must be one of: {valid}"
+                }), 400
+
+        filter_obj = ExportJobFilter(
+            date_start=filter_data.get('date_start'),
+            date_end=filter_data.get('date_end'),
+            deployment=filter_data.get('deployment'),
+            tags=filter_data.get('tags'),
+            series_type=filter_data.get('series_type'),
+            has_species=filter_data.get('has_species'),
+            photo_paths=filter_data.get('photo_paths'),
+        )
+
+        # Parse options (optional)
+        options = data.get('options', {})
+
+        # Parse and validate ttl_seconds (optional)
+        ttl_seconds = data.get('ttl_seconds')
+        if ttl_seconds is not None:
+            if not isinstance(ttl_seconds, int):
+                return jsonify({
+                    "error": "ttl_seconds must be an integer"
+                }), 400
+            if ttl_seconds < 60:
+                return jsonify({
+                    "error": "ttl_seconds must be at least 60 seconds"
+                }), 400
+            if ttl_seconds > 86400:
+                return jsonify({
+                    "error": "ttl_seconds cannot exceed 86400 seconds (24 hours)"
+                }), 400
+
+        # Create job
+        job = service.create_job(
+            format=format_enum,
+            filter=filter_obj,
+            options=options,
+            ttl_seconds=ttl_seconds,
+        )
+
+        return jsonify({
+            "job_id": job.job_id,
+            "status": job.status.value,
+            "format": job.format.value,
+            "message": "Export job created",
+            "status_url": f"/api/export/jobs/{job.job_id}",
+        }), 202
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.error("Error creating export job: %s", e, exc_info=True)
+        return jsonify({"error": "Failed to create export job"}), 500
+
+
+@export_bp.route("/jobs", methods=["GET"])
+def list_export_jobs():
+    """
+    List all export jobs with optional filtering and pagination.
+
+    Query Parameters:
+        status (str): Filter by status (pending, running, completed, failed, cancelled, expired)
+        limit (int): Max results (default: 50, max: 100)
+        offset (int): Pagination offset (default: 0)
+
+    Returns:
+        200: List of jobs
+        400: Invalid status filter
+        500: Service unavailable
+
+    Example:
+        GET /api/export/jobs?status=completed&limit=10&offset=0
+
+        Response (200):
+        {
+            "jobs": [...],
+            "total": 25,
+            "limit": 10,
+            "offset": 0
+        }
+    """
+    from webui.backend.lib.export_job_types import ExportJobStatus
+
+    service = current_app.config.get('EXPORT_JOB_SERVICE')
+    if service is None:
+        return jsonify({"error": "Export job service not available"}), 500
+
+    try:
+        # Parse status filter (optional)
+        status = None
+        status_str = request.args.get('status')
+        if status_str:
+            try:
+                status = ExportJobStatus(status_str)
+            except ValueError:
+                valid_statuses = [s.value for s in ExportJobStatus]
+                return jsonify({
+                    "error": f"Invalid status: {status_str}. "
+                             f"Must be one of: {', '.join(valid_statuses)}"
+                }), 400
+
+        # Parse pagination parameters
+        try:
+            limit = int(request.args.get('limit', 50))
+            offset = int(request.args.get('offset', 0))
+        except ValueError:
+            return jsonify({"error": "limit and offset must be integers"}), 400
+
+        # Cap limit at 100
+        limit = min(limit, 100)
+
+        # Get jobs from service (returns tuple of jobs, total_count)
+        jobs, total = service.list_jobs(status=status, limit=limit, offset=offset)
+
+        # Serialize jobs with ISO 8601 timestamps
+        jobs_data = [_serialize_job(job) for job in jobs]
+
+        return jsonify({
+            "jobs": jobs_data,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }), 200
+
+    except Exception as e:
+        logger.error("Error listing export jobs: %s", e, exc_info=True)
+        return jsonify({"error": "Failed to list export jobs"}), 500
+
+
+@export_bp.route("/jobs/<job_id>", methods=["GET"])
+def get_export_job_status(job_id: str):
+    """
+    Get status and details of a specific export job.
+
+    Path Parameters:
+        job_id (str): Job ID
+
+    Returns:
+        200: Job details
+        404: Job not found
+        500: Service unavailable
+
+    Example:
+        GET /api/export/jobs/550e8400-e29b-41d4-a716-446655440000
+
+        Response (200):
+        {
+            "job_id": "550e8400-...",
+            "status": "running",
+            "format": "darwin_core",
+            "progress": {
+                "current": 75,
+                "total": 150,
+                "percent": 50,
+                "phase": "exporting"
+            },
+            "created_at": "2024-11-30T10:00:00Z",
+            "started_at": "2024-11-30T10:00:01Z",
+            "photo_count": 75,
+            ...
+        }
+    """
+    service = current_app.config.get('EXPORT_JOB_SERVICE')
+    if service is None:
+        return jsonify({"error": "Export job service not available"}), 500
+
+    try:
+        job = service.get_job(job_id)
+
+        if job is None:
+            return jsonify({"error": f"Job not found: {job_id}"}), 404
+
+        return jsonify(_serialize_job(job)), 200
+
+    except Exception as e:
+        logger.error("Error getting export job %s: %s", job_id, e, exc_info=True)
+        return jsonify({"error": "Failed to get export job status"}), 500
+
+
+@export_bp.route("/jobs/<job_id>/download", methods=["GET"])
+def download_export_job_result(job_id: str):
+    """
+    Download the result file of a completed export job.
+
+    Path Parameters:
+        job_id (str): Job ID
+
+    Returns:
+        200: File content (CSV, JSON, or ZIP depending on format)
+        400: Job not completed yet
+        404: Job not found or output file missing
+        500: Service unavailable
+
+    Headers:
+        Content-Type: Determined by export format
+        Content-Disposition: attachment; filename=...
+
+    Example:
+        GET /api/export/jobs/550e8400-e29b-41d4-a716-446655440000/download
+
+        Response (200): File download with appropriate Content-Type
+    """
+    from flask import send_file
+
+    from webui.backend.lib.export_job_types import ExportJobFormat, ExportJobStatus
+
+    service = current_app.config.get('EXPORT_JOB_SERVICE')
+    if service is None:
+        return jsonify({"error": "Export job service not available"}), 500
+
+    try:
+        job = service.get_job(job_id)
+
+        if job is None:
+            return jsonify({"error": f"Job not found: {job_id}"}), 404
+
+        if job.status != ExportJobStatus.COMPLETED:
+            return jsonify({
+                "error": "Job not completed",
+                "status": job.status.value,
+            }), 400
+
+        output_path = service.get_download_path(job_id)
+
+        if output_path is None or not output_path.exists():
+            return jsonify({"error": "Output file not found"}), 404
+
+        # Determine mimetype from format
+        mimetypes = {
+            ExportJobFormat.DARWIN_CORE: "text/csv",
+            ExportJobFormat.CSV: "text/csv",
+            ExportJobFormat.JSON: "application/json",
+            ExportJobFormat.INATURALIST: "application/zip",
+        }
+
+        return send_file(
+            output_path,
+            mimetype=mimetypes.get(job.format, "application/octet-stream"),
+            as_attachment=True,
+            download_name=output_path.name,
+        )
+
+    except Exception as e:
+        logger.error("Error downloading export job %s: %s", job_id, e, exc_info=True)
+        return jsonify({"error": "Failed to download export result"}), 500
+
+
+@export_bp.route("/jobs/<job_id>", methods=["DELETE"])
+def delete_export_job(job_id: str):
+    """
+    Delete an export job and its output files.
+
+    Cannot delete running jobs - must cancel first.
+
+    Path Parameters:
+        job_id (str): Job ID
+
+    Returns:
+        200: Job deleted successfully
+        400: Cannot delete running job
+        404: Job not found
+        500: Service unavailable
+
+    Example:
+        DELETE /api/export/jobs/550e8400-e29b-41d4-a716-446655440000
+
+        Response (200):
+        {
+            "success": true,
+            "message": "Job deleted"
+        }
+    """
+    service = current_app.config.get('EXPORT_JOB_SERVICE')
+    if service is None:
+        return jsonify({"error": "Export job service not available"}), 500
+
+    try:
+        success = service.delete_job(job_id)
+
+        if not success:
+            return jsonify({"error": f"Job not found: {job_id}"}), 404
+
+        return jsonify({
+            "success": True,
+            "message": "Job deleted",
+        }), 200
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.error("Error deleting export job %s: %s", job_id, e, exc_info=True)
+        return jsonify({"error": "Failed to delete export job"}), 500
+
+
+@export_bp.route("/jobs/<job_id>/cancel", methods=["POST"])
+def cancel_export_job(job_id: str):
+    """
+    Cancel a pending or running export job.
+
+    Cannot cancel already completed or failed jobs.
+
+    Path Parameters:
+        job_id (str): Job ID
+
+    Returns:
+        200: Job cancelled successfully
+        400: Cannot cancel job in current status
+        404: Job not found
+        500: Service unavailable
+
+    Example:
+        POST /api/export/jobs/550e8400-e29b-41d4-a716-446655440000/cancel
+
+        Response (200):
+        {
+            "success": true,
+            "message": "Job cancelled"
+        }
+    """
+    service = current_app.config.get('EXPORT_JOB_SERVICE')
+    if service is None:
+        return jsonify({"error": "Export job service not available"}), 500
+
+    try:
+        success = service.cancel_job(job_id)
+
+        if not success:
+            return jsonify({"error": f"Job not found: {job_id}"}), 404
+
+        return jsonify({
+            "success": True,
+            "message": "Job cancelled",
+        }), 200
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.error("Error cancelling export job %s: %s", job_id, e, exc_info=True)
+        return jsonify({"error": "Failed to cancel export job"}), 500
