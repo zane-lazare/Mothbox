@@ -1,0 +1,12 @@
+{
+  "name": "simple_json",
+  "display_name": "Simple JSON Export",
+  "export_format": "json",
+  "description": "Generic JSON metadata export for data analysis and sharing. Includes all available metadata fields in a structured format.",
+  "version": "1.0",
+  "created_at": "2024-12-14T00:00:00Z",
+  "author": "system",
+  "category": "built-in",
+  "filter": {},
+  "options": {}
+}

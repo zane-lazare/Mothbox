@@ -133,10 +133,14 @@ USER_PREFERENCES_FILE = CONFIG_DIR / "user_preferences.json"
 ISP_TUNING_DIR = CONFIG_DIR / "isp_tuning"
 ISP_DEFAULT_TUNING_FILE = ISP_TUNING_DIR / "camera_isp_tuning.json"
 
-# Preset configuration
+# Preset configuration (camera presets)
 PRESET_DIR = CONFIG_DIR / "presets"
 BUILTIN_PRESET_DIR = PRESET_DIR / "built-in"
 USER_PRESET_DIR = PRESET_DIR / "user"
+
+# Export preset configuration (unified namespace under presets/)
+EXPORT_BUILTIN_PRESET_DIR = BUILTIN_PRESET_DIR / "export"
+EXPORT_USER_PRESET_DIR = USER_PRESET_DIR / "export"
 
 
 # Helper function to parse controls.txt

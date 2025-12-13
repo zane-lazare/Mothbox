@@ -2186,8 +2186,11 @@ def create_export_job():
     Create a new async export job.
 
     Request Body (JSON):
-        format (str): Required. Export format: darwin_core, inaturalist, json, csv
-        filter (dict): Optional. Photo selection criteria:
+        preset (str): Optional. Name of export preset to use as base configuration.
+                     Preset values can be overridden by explicit parameters.
+        format (str): Required (unless preset provided). Export format:
+                     darwin_core, inaturalist, json, csv
+        filter (dict): Optional. Photo selection criteria (merged with preset filter):
             - date_start (str): Start date (YYYY-MM-DD)
             - date_end (str): End date (YYYY-MM-DD)
             - deployment (str): Deployment directory path
@@ -2195,14 +2198,14 @@ def create_export_job():
             - series_type (str): Series type (hdr or focus_bracket)
             - has_species (bool): Only photos with species ID
             - photo_paths (list[str]): Explicit photo paths (overrides other filters)
-        options (dict): Optional. Format-specific options
+        options (dict): Optional. Format-specific options (merged with preset options)
         ttl_seconds (int): Optional. Custom TTL in seconds (60-86400).
                           Defaults to service TTL (3600s/1 hour).
                           Larger exports may need longer download windows.
 
     Returns:
         202: Job created successfully
-        400: Invalid format or filter
+        400: Invalid format, filter, or preset
         500: Service unavailable
 
     Example:
@@ -2214,6 +2217,14 @@ def create_export_job():
                 "tags": ["moth"]
             },
             "options": {"validate": true}
+        }
+
+        Using preset:
+        {
+            "preset": "gbif_biodiversity",
+            "filter": {
+                "date_start": "2024-01-01"
+            }
         }
 
         Response (202):
@@ -2232,10 +2243,32 @@ def create_export_job():
         return jsonify({"error": "Export job service not available"}), 500
 
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
 
-        # Validate format (required)
-        format_str = data.get('format') if data else None
+        # Check for preset parameter
+        preset_name = data.get('preset')
+        preset = None
+        preset_filter_dict = {}
+        preset_options = {}
+
+        if preset_name:
+            preset_manager = current_app.config.get('EXPORT_PRESET_MANAGER')
+            if preset_manager:
+                preset = preset_manager.get_preset(preset_name)
+                if preset is None:
+                    return jsonify({
+                        "error": f"Preset not found: '{preset_name}'"
+                    }), 400
+
+                # Extract preset filter as dict for merging
+                if preset.filter:
+                    preset_filter_dict = preset.filter.to_dict()
+                preset_options = preset.options.copy() if preset.options else {}
+
+        # Determine format: explicit > preset > error
+        format_str = data.get('format')
+        if not format_str and preset:
+            format_str = preset.export_format.value
         if not format_str:
             return jsonify({"error": "format field is required"}), 400
 
@@ -2247,8 +2280,15 @@ def create_export_job():
                 "error": f"Invalid format: {format_str}. Must be one of: {', '.join(valid_formats)}"
             }), 400
 
-        # Parse filter (optional)
-        filter_data = data.get('filter', {})
+        # Parse filter: merge preset filter with explicit filter
+        # Explicit values override preset values
+        explicit_filter_data = data.get('filter', {})
+
+        # Start with preset filter, then overlay explicit filter
+        filter_data = preset_filter_dict.copy()
+        for key, value in explicit_filter_data.items():
+            if value is not None:
+                filter_data[key] = value
 
         # Validate filter fields
         valid_filter_fields = {
@@ -2306,8 +2346,11 @@ def create_export_job():
             photo_paths=filter_data.get('photo_paths'),
         )
 
-        # Parse options (optional)
-        options = data.get('options', {})
+        # Parse options: merge preset options with explicit options
+        # Explicit options override preset options
+        explicit_options = data.get('options', {})
+        options = preset_options.copy()
+        options.update(explicit_options)
 
         # Parse and validate ttl_seconds (optional)
         ttl_seconds = data.get('ttl_seconds')

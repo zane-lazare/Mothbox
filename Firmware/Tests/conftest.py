@@ -1567,8 +1567,9 @@ def pytest_collection_modifyitems(config, items):
         is_deployment_workflow = 'test_deployment_workflow' in fspath_str  # Uses threading/tmp_path, no camera/GPIO
         is_inaturalist_export_workflow = 'test_inaturalist_export_workflow' in fspath_str  # Uses tmp_path/zipfile, no camera/GPIO
         is_export_job_workflow = 'test_export_job_workflow' in fspath_str  # Uses tmp_path/Flask test client/threading, no camera/GPIO
+        is_export_preset_workflow = 'test_export_preset_workflow' in fspath_str  # Uses tmp_path/Flask test client, no camera/GPIO (Issue #123)
 
-        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination and not is_gps_exif_workflow and not is_verification_workflow and not is_batch_tagging_workflow and not is_map_locations_integration and not is_clustering_workflow and not is_sidecar_concurrent and not is_sidecar_search_integration and not is_search_workflow and not is_deployment_workflow and not is_inaturalist_export_workflow and not is_export_job_workflow:
+        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination and not is_gps_exif_workflow and not is_verification_workflow and not is_batch_tagging_workflow and not is_map_locations_integration and not is_clustering_workflow and not is_sidecar_concurrent and not is_sidecar_search_integration and not is_search_workflow and not is_deployment_workflow and not is_inaturalist_export_workflow and not is_export_job_workflow and not is_export_preset_workflow:
             item.add_marker(pytest.mark.hardware)
 
 

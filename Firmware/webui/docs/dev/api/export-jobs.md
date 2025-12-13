@@ -151,13 +151,28 @@ Create and queue a new export job.
 }
 ```
 
+**Using a Preset** (Issue #123):
+
+```json
+{
+  "preset": "gbif_biodiversity",
+  "filter": {
+    "date_start": "2024-01-01"
+  }
+}
+```
+
+When using a preset, the preset's format, filter, and options are used as defaults. Any explicit values override the preset defaults.
+
 **Field Descriptions**:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `format` | string | Yes | Export format (see [Export Formats](#export-formats)) |
-| `filter` | object | Yes | Photo selection criteria (see [Filter Options](#filter-options)) |
-| `options` | object | No | Format-specific options |
+| `preset` | string | No | Name of export preset to use as base configuration (see [Export Presets API](/api/export-presets.md)) |
+| `format` | string | Yes* | Export format (see [Export Formats](#export-formats)). *Not required if preset provides format. |
+| `filter` | object | No | Photo selection criteria (merged with preset filter, see [Filter Options](#filter-options)) |
+| `options` | object | No | Format-specific options (merged with preset options) |
+| `ttl_seconds` | integer | No | Custom TTL in seconds (60-86400). Defaults to 3600 (1 hour). |
 
 #### Response
 
@@ -231,6 +246,29 @@ curl -X POST "http://localhost:5000/api/export/jobs" \
     },
     "options": {
       "include_photos": true
+    }
+  }'
+
+# Create job using a preset (Issue #123)
+curl -X POST "http://localhost:5000/api/export/jobs" \
+  -H "Content-Type: application/json" \
+  -H "X-CSRFToken: YOUR_CSRF_TOKEN" \
+  -d '{
+    "preset": "gbif_biodiversity",
+    "filter": {
+      "date_start": "2024-01-01"
+    }
+  }'
+
+# Create job using preset with overrides
+curl -X POST "http://localhost:5000/api/export/jobs" \
+  -H "Content-Type: application/json" \
+  -H "X-CSRFToken: YOUR_CSRF_TOKEN" \
+  -d '{
+    "preset": "simple_csv",
+    "format": "json",
+    "filter": {
+      "deployment": "summer_2024"
     }
   }'
 ```
@@ -1134,14 +1172,17 @@ else:
 
 ## Related Documentation
 
+- **Export Presets API**: `webui/docs/dev/api/export-presets.md` - Preset management endpoints (Issue #123)
 - **Export Metadata Service**: `webui/backend/services/export_metadata_service.py` - Underlying export logic
 - **Job Types**: `webui/backend/lib/export_job_types.py` - Type definitions
+- **Preset Types**: `webui/backend/lib/export_preset_types.py` - Preset type definitions
+- **Preset Manager**: `webui/backend/export_preset_manager.py` - Preset CRUD operations
 - **Job Database**: `webui/backend/lib/export_job_db.py` - SQLite persistence
 - **Testing**: `Tests/unit/test_export_job_*.py` - Unit tests
 - **Integration Tests**: `Tests/integration/test_export_job_workflow.py` - E2E tests
 
 ---
 
-**Document Version**: 1.0.0
-**Last Validated**: 2025-12-13
-**Issue**: #122 - Export Job Queue System
+**Document Version**: 1.1.0
+**Last Validated**: 2025-12-14
+**Issues**: #122 - Export Job Queue System, #123 - Export Preset System
