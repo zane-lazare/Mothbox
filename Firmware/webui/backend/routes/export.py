@@ -930,61 +930,74 @@ def export_inaturalist_batch():
                 }), 403
             resolved_paths.append(Path(validated_path))
 
-        # Create temporary directory for ZIP file (auto-cleaned on context exit)
+        # Create temporary file for ZIP
         import tempfile
-        with tempfile.TemporaryDirectory(prefix='inaturalist_export_') as tmpdir:
-            output_path = Path(tmpdir) / "export.zip"
+        with tempfile.NamedTemporaryFile(
+            suffix='.zip', prefix='inaturalist_export_', delete=False
+        ) as temp_fd:
+            output_path = Path(temp_fd.name)
 
-            try:
-                # Generate ZIP export
-                result = service.transform_batch_to_inaturalist_zip(
-                    resolved_paths,
+        try:
+            # Generate ZIP export
+            result = service.transform_batch_to_inaturalist_zip(
+                resolved_paths,
+                output_path,
+                options
+            )
+
+            if not result.success:
+                # Clean up temp file on error
+                if output_path.exists():
+                    output_path.unlink()
+                return jsonify({
+                    "error": "ZIP export failed",
+                    "details": result.errors
+                }), 500
+
+            # Determine response format based on Accept header
+            accept = request.headers.get('Accept', 'application/json')
+
+            if 'application/zip' in accept:
+                # ZIP file download with cleanup after response
+                from flask import after_this_request, send_file
+                timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
+                filename = f"inaturalist_export_{timestamp}.zip"
+
+                @after_this_request
+                def cleanup_temp_file(response):
+                    try:
+                        if output_path.exists():
+                            output_path.unlink()
+                    except Exception:
+                        pass  # Best effort cleanup
+                    return response
+
+                return send_file(
                     output_path,
-                    options
+                    mimetype='application/zip',
+                    as_attachment=True,
+                    download_name=filename,
                 )
+            else:
+                # JSON response - clean up temp file immediately
+                zip_size = result.zip_size_bytes
+                if output_path.exists():
+                    output_path.unlink()
+                return jsonify({
+                    "success": result.success,
+                    "zip_size_bytes": zip_size,
+                    "photo_count": result.photo_count,
+                    "xmp_count": result.xmp_count,
+                    "errors": result.errors,
+                    "took_ms": result.took_ms,
+                }), 200
 
-                if not result.success:
-                    return jsonify({
-                        "error": "ZIP export failed",
-                        "details": result.errors
-                    }), 500
-
-                # Determine response format based on Accept header
-                accept = request.headers.get('Accept', 'application/json')
-
-                if 'application/zip' in accept:
-                    # ZIP file download - read into memory for response
-                    # (temp dir cleaned after response sent)
-                    import io
-
-                    from flask import send_file
-                    timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
-                    filename = f"inaturalist_export_{timestamp}.zip"
-
-                    # Read file into BytesIO to allow temp dir cleanup
-                    zip_data = io.BytesIO(output_path.read_bytes())
-                    zip_data.seek(0)
-
-                    return send_file(
-                        zip_data,
-                        mimetype='application/zip',
-                        as_attachment=True,
-                        download_name=filename,
-                    )
-                else:
-                    # JSON with status - temp file path not useful to client
-                    return jsonify({
-                        "success": result.success,
-                        "zip_size_bytes": result.zip_size_bytes,
-                        "photo_count": result.photo_count,
-                        "xmp_count": result.xmp_count,
-                        "errors": result.errors,
-                        "took_ms": result.took_ms,
-                    }), 200
-
-            except Exception as e:
-                logger.error("Error creating iNaturalist ZIP: %s", e, exc_info=True)
-                return jsonify({"error": "ZIP export failed"}), 500
+        except Exception as e:
+            logger.error("Error creating iNaturalist ZIP: %s", e, exc_info=True)
+            # Clean up temp file on error
+            if output_path.exists():
+                output_path.unlink()
+            return jsonify({"error": "ZIP export failed"}), 500
 
     except Exception as e:
         logger.error("Error in iNaturalist batch export: %s", e, exc_info=True)
@@ -1069,63 +1082,76 @@ def export_deployment_inaturalist(deployment_path: str):
             flatten_structure=False,
         )
 
-        # Create temporary directory for ZIP file (auto-cleaned on context exit)
+        # Create temporary file for ZIP
         import tempfile
-        with tempfile.TemporaryDirectory(prefix='inaturalist_deployment_') as tmpdir:
-            output_path = Path(tmpdir) / "export.zip"
+        with tempfile.NamedTemporaryFile(
+            suffix='.zip', prefix='inaturalist_deployment_', delete=False
+        ) as temp_fd:
+            output_path = Path(temp_fd.name)
 
-            try:
-                # Generate ZIP export
-                result = service.transform_batch_to_inaturalist_zip(
-                    photo_paths,
+        try:
+            # Generate ZIP export
+            result = service.transform_batch_to_inaturalist_zip(
+                photo_paths,
+                output_path,
+                options
+            )
+
+            if not result.success:
+                # Clean up temp file on error
+                if output_path.exists():
+                    output_path.unlink()
+                return jsonify({
+                    "error": "ZIP export failed",
+                    "details": result.errors
+                }), 500
+
+            # Determine response format based on Accept header
+            accept = request.headers.get('Accept', 'application/json')
+
+            if 'application/zip' in accept:
+                # ZIP file download with cleanup after response
+                from flask import after_this_request, send_file
+                timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
+                # Sanitize deployment path for filename
+                safe_name = deployment_path.replace('/', '_').replace('\\', '_')
+                filename = f"inaturalist_{safe_name}_{timestamp}.zip"
+
+                @after_this_request
+                def cleanup_deployment_temp_file(response):
+                    try:
+                        if output_path.exists():
+                            output_path.unlink()
+                    except Exception:
+                        pass  # Best effort cleanup
+                    return response
+
+                return send_file(
                     output_path,
-                    options
+                    mimetype='application/zip',
+                    as_attachment=True,
+                    download_name=filename,
                 )
+            else:
+                # JSON response - clean up temp file immediately
+                zip_size = result.zip_size_bytes
+                if output_path.exists():
+                    output_path.unlink()
+                return jsonify({
+                    "success": result.success,
+                    "zip_size_bytes": zip_size,
+                    "photo_count": result.photo_count,
+                    "xmp_count": result.xmp_count,
+                    "errors": result.errors,
+                    "took_ms": result.took_ms,
+                }), 200
 
-                if not result.success:
-                    return jsonify({
-                        "error": "ZIP export failed",
-                        "details": result.errors
-                    }), 500
-
-                # Determine response format based on Accept header
-                accept = request.headers.get('Accept', 'application/json')
-
-                if 'application/zip' in accept:
-                    # ZIP file download - read into memory for response
-                    # (temp dir cleaned after response sent)
-                    import io
-
-                    from flask import send_file
-                    timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
-                    # Sanitize deployment path for filename
-                    safe_name = deployment_path.replace('/', '_').replace('\\', '_')
-                    filename = f"inaturalist_{safe_name}_{timestamp}.zip"
-
-                    # Read file into BytesIO to allow temp dir cleanup
-                    zip_data = io.BytesIO(output_path.read_bytes())
-                    zip_data.seek(0)
-
-                    return send_file(
-                        zip_data,
-                        mimetype='application/zip',
-                        as_attachment=True,
-                        download_name=filename,
-                    )
-                else:
-                    # JSON with status - temp file path not useful to client
-                    return jsonify({
-                        "success": result.success,
-                        "zip_size_bytes": result.zip_size_bytes,
-                        "photo_count": result.photo_count,
-                        "xmp_count": result.xmp_count,
-                        "errors": result.errors,
-                        "took_ms": result.took_ms,
-                    }), 200
-
-            except Exception as e:
-                logger.error("Error creating iNaturalist ZIP: %s", e, exc_info=True)
-                return jsonify({"error": "ZIP export failed"}), 500
+        except Exception as e:
+            logger.error("Error creating iNaturalist ZIP: %s", e, exc_info=True)
+            # Clean up temp file on error
+            if output_path.exists():
+                output_path.unlink()
+            return jsonify({"error": "ZIP export failed"}), 500
 
     except Exception as e:
         logger.error("Error in iNaturalist deployment export: %s", e, exc_info=True)
