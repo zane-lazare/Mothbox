@@ -328,7 +328,10 @@ class ExportJobDB:
                 query += " WHERE status = ?"
                 params.append(status.value)
 
-            # Add ordering
+            # Add ordering (validate column to prevent SQL injection)
+            allowed_order_columns = {'created_at', 'started_at', 'completed_at', 'job_id'}
+            if order_by not in allowed_order_columns:
+                raise ValueError(f"Invalid order_by column: {order_by}")
             order_direction = "DESC" if order_desc else "ASC"
             query += f" ORDER BY {order_by} {order_direction}"
 
