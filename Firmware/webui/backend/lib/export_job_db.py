@@ -298,7 +298,7 @@ class ExportJobDB:
     def list_jobs(
         self,
         status: ExportJobStatus | None = None,
-        limit: int = 50,
+        limit: int | None = 50,
         offset: int = 0,
         order_by: str = "created_at",
         order_desc: bool = True,
@@ -308,7 +308,7 @@ class ExportJobDB:
 
         Args:
             status: Filter by job status (None = all statuses).
-            limit: Maximum number of jobs to return.
+            limit: Maximum number of jobs to return (None = no limit).
             offset: Number of jobs to skip.
             order_by: Column to order by (default: created_at).
             order_desc: If True, order descending (newest first).
@@ -322,7 +322,7 @@ class ExportJobDB:
 
             # Build query
             query = "SELECT * FROM export_jobs"
-            params = []
+            params: list = []
 
             if status is not None:
                 query += " WHERE status = ?"
@@ -335,9 +335,14 @@ class ExportJobDB:
             order_direction = "DESC" if order_desc else "ASC"
             query += f" ORDER BY {order_by} {order_direction}"
 
-            # Add pagination
-            query += " LIMIT ? OFFSET ?"
-            params.extend([limit, offset])
+            # Add pagination (only if limit specified)
+            if limit is not None:
+                query += " LIMIT ? OFFSET ?"
+                params.extend([limit, offset])
+            elif offset > 0:
+                # SQLite requires LIMIT with OFFSET, use -1 for unlimited
+                query += " LIMIT -1 OFFSET ?"
+                params.append(offset)
 
             cursor.execute(query, params)
             rows = cursor.fetchall()
@@ -382,7 +387,7 @@ class ExportJobDB:
         """
         return self.list_jobs(
             status=ExportJobStatus.PENDING,
-            limit=10000,  # Large limit to get all
+            limit=None,  # No limit - get all pending
             offset=0,
             order_by="created_at",
             order_desc=False,  # Oldest first
@@ -397,7 +402,7 @@ class ExportJobDB:
         """
         return self.list_jobs(
             status=ExportJobStatus.RUNNING,
-            limit=10000,  # Large limit to get all
+            limit=None,  # No limit - get all running
             offset=0,
         )
 
