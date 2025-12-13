@@ -24,6 +24,10 @@ coverage/
 test_debug.py
 Firmware/photos/
 
+# Runtime SQLite databases
+export_jobs.db
+*.db
+
 # Runtime configuration files (user/application-generated)
 camera_settings.csv
 liveview_settings.txt
