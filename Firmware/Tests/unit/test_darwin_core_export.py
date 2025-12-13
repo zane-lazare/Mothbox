@@ -616,3 +616,56 @@ class TestDarwinCoreIntegration:
         )
 
         assert len(rows) == 1  # Only valid photo included
+
+
+# ============================================================================
+# Tests for Country Code in Darwin Core
+# ============================================================================
+
+
+class TestCountryCodeInDarwinCore:
+    """Tests for countryCode field in Darwin Core export."""
+
+    def test_country_code_mapped_to_darwin_core(self, sample_metadata):
+        """countryCode should be mapped from ExportMetadata.country_code."""
+        sample_metadata.country_code = "US"
+        dwc = transform_metadata_to_darwin_core(sample_metadata)
+
+        assert "countryCode" in dwc
+        assert dwc["countryCode"] == "US"
+
+    def test_country_code_empty_when_none(self, minimal_metadata):
+        """countryCode should be empty string when country_code is None."""
+        minimal_metadata.country_code = None
+        dwc = transform_metadata_to_darwin_core(minimal_metadata)
+
+        assert dwc["countryCode"] == ""
+
+    def test_country_code_in_csv_row(self, sample_metadata):
+        """countryCode should appear in CSV row."""
+        sample_metadata.country_code = "GB"
+        headers = get_csv_headers()
+        row = transform_to_csv_row(sample_metadata)
+
+        country_idx = headers.index("countryCode")
+        assert row[country_idx] == "GB"
+
+    def test_country_code_in_csv_column_order(self):
+        """countryCode should be in CSV column order."""
+        assert "countryCode" in DARWIN_CORE_CSV_COLUMN_ORDER
+
+    def test_country_code_is_recommended_field(self):
+        """countryCode should be in recommended fields list."""
+        assert "countryCode" in DARWIN_CORE_RECOMMENDED_FIELDS
+
+    def test_country_code_mapping_exists(self):
+        """countryCode should have a field mapping configured."""
+        mapping = None
+        for m in DARWIN_CORE_FIELD_MAPPINGS:
+            if m.dwc_term == "countryCode":
+                mapping = m
+                break
+
+        assert mapping is not None
+        assert mapping.source_field == "country_code"
+        assert mapping.is_required is False

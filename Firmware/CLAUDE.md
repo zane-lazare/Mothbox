@@ -826,6 +826,30 @@ const lonDisplay = formatCoordinateDisplay(-122.4194, false);
 // latDisplay: "37°46'29.64\"N", lonDisplay: "122°25'9.84\"W"
 ```
 
+### GPS Accuracy Field Naming
+
+The codebase uses two names for GPS accuracy/precision, depending on context:
+
+- **`hdop`**: Technical GPS term (Horizontal Dilution of Precision). Used in:
+  - `controls.txt` as `gps_hdop`
+  - `gps_exif_lib.py` for EXIF embedding
+  - `metadata_service.py` for raw GPS data
+  - GPS routes and CLI tools
+
+- **`gps_accuracy`**: User-friendly abstraction. Used in:
+  - `ExportMetadata` dataclass for exports
+  - Darwin Core mapping (`coordinateUncertaintyInMeters`)
+  - Export service and routes
+
+The `export_metadata_service.py` bridges both conventions:
+```python
+# Accepts either field name from upstream services
+gps_accuracy = location.get('gps_accuracy')
+export_metadata.gps_accuracy = gps_accuracy if gps_accuracy is not None else location.get('hdop')
+```
+
+This allows technical GPS code to use the standard `hdop` term while export-facing code uses the more intuitive `gps_accuracy`.
+
 ## Key Files Reference
 
 - `mothbox_paths.py`: **Path resolution and hardware config** (276 lines, 97.8% coverage)

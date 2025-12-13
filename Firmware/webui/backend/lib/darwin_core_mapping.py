@@ -202,7 +202,7 @@ DARWIN_CORE_FIELD_MAPPINGS: list[DarwinCoreFieldMapping] = [
     # Location fields
     DarwinCoreFieldMapping(
         dwc_term="countryCode",
-        source_field=None,  # Not currently in ExportMetadata
+        source_field="country_code",  # Populated via geopip from GPS coordinates
         default_value="",
         is_required=False,
         description="ISO 3166-1 alpha-2 country code"

@@ -131,6 +131,9 @@ class ExportMetadata:
     width: int | None = None
     height: int | None = None
 
+    # Country (for Darwin Core export)
+    country_code: str | None = None  # ISO 3166-1 alpha-2
+
 
 @dataclass
 class ValidationResult:
@@ -399,6 +402,16 @@ class ExportMetadataService:
                     export_metadata.environmental_conditions = deployment.environmental or {}
             except Exception as e:
                 logger.warning("Failed to get deployment metadata for %s: %s", photo_path.name, e)
+
+            # Detect country code from GPS coordinates
+            try:
+                from webui.backend.lib.country_code import detect_country_code
+                export_metadata.country_code = detect_country_code(
+                    export_metadata.latitude,
+                    export_metadata.longitude
+                )
+            except Exception as e:
+                logger.warning("Failed to detect country code for %s: %s", photo_path.name, e)
 
             # Cache the result
             self._add_to_cache(cache_key, export_metadata)
