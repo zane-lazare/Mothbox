@@ -178,8 +178,12 @@ def build_taxonomy_keywords(species: str | None) -> list[str]:
 
     keywords = []
 
-    # Fixed taxonomy for Lepidoptera (moth/butterfly)
-    # All Mothbox observations are assumed to be insects
+    # LIMITATION: Hardcoded taxonomy assumes Lepidoptera (moths/butterflies)
+    # This is appropriate for Mothbox's primary use case as a moth camera trap.
+    # For mixed specimens or non-Lepidoptera, this will produce incorrect
+    # higher taxonomy. Future enhancement: integrate with GBIF Backbone
+    # Taxonomy API for dynamic hierarchical lookup based on species name.
+    # See: https://www.gbif.org/developer/species
     keywords.extend([
         f"{TAXONOMY_KEYWORD_PREFIX}kingdom=Animalia",
         f"{TAXONOMY_KEYWORD_PREFIX}phylum=Arthropoda",

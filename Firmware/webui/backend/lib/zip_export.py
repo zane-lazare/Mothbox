@@ -13,15 +13,39 @@ Performance target: 50 photos < 5 seconds
 import csv
 import io
 import json
+import logging
 import time
 from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
-from zipfile import ZIP_STORED, ZipFile
+from zipfile import ZIP_STORED, BadZipFile, ZipFile
 
 from webui.backend.lib.xmp_sidecar import generate_xmp_xml, get_xmp_sidecar_filename
+
+logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Exceptions
+# ============================================================================
+
+
+class ZipExportError(Exception):
+    """Base exception for ZIP export operations."""
+
+
+class PhotoFileError(ZipExportError):
+    """Error related to photo file access (not found, permission denied)."""
+
+
+class XMPGenerationError(ZipExportError):
+    """Error during XMP sidecar generation."""
+
+
+class ZipWriteError(ZipExportError):
+    """Error during ZIP file writing (disk full, corruption)."""
 
 if TYPE_CHECKING:
     from webui.backend.services.export_metadata_service import ExportMetadata
@@ -33,7 +57,6 @@ if TYPE_CHECKING:
 
 ZIP_COMPRESSION_LEVEL: Final[int] = 0  # No compression for JPEGs (already compressed)
 ZIP_BUFFER_SIZE: Final[int] = 8192  # 8KB streaming buffer
-MAX_ZIP_FILE_SIZE: Final[int] = 2 * 1024 * 1024 * 1024  # 2GB limit
 MANIFEST_FILENAME: Final[str] = 'manifest.json'
 SUMMARY_FILENAME: Final[str] = 'summary.csv'
 GENERATOR_VERSION: Final[str] = '5.0.0'  # Mothbox version
@@ -217,7 +240,7 @@ def add_photo_to_zip(
         include_xmp: Whether to include XMP sidecar
 
     Returns:
-        Dict with: filename, xmp_filename (if generated), size, success, error
+        Dict with: filename, xmp_filename (if generated), size, success, error, error_type
     """
     result = {
         'filename': metadata.filename,
@@ -230,6 +253,7 @@ def add_photo_to_zip(
         # Add photo to ZIP
         if not photo_path.exists():
             result['error'] = f"Photo file not found: {photo_path}"
+            result['error_type'] = 'not_found'
             return result
 
         # Write photo with no compression (already JPEG)
@@ -245,8 +269,29 @@ def add_photo_to_zip(
 
         result['success'] = True
 
+    except PermissionError as e:
+        logger.warning("Permission denied reading photo %s: %s", photo_path, e)
+        result['error'] = "Permission denied reading photo file"
+        result['error_type'] = 'permission'
+
+    except OSError as e:
+        # Covers disk full, I/O errors, etc.
+        logger.error("OS error processing photo %s: %s", photo_path, e, exc_info=True)
+        error_msg = f"File system error: {e.strerror}" if hasattr(e, 'strerror') and e.strerror else "File system error"
+        result['error'] = error_msg
+        result['error_type'] = 'io'
+
+    except (ValueError, TypeError, AttributeError) as e:
+        # XMP generation errors
+        logger.warning("XMP generation failed for %s: %s", photo_path, e)
+        result['error'] = "Failed to generate XMP metadata"
+        result['error_type'] = 'xmp'
+
     except Exception as e:
-        result['error'] = str(e)
+        # Catch-all for unexpected errors (still log for debugging)
+        logger.exception("Unexpected error processing photo %s: %s", photo_path, e)
+        result['error'] = "Unexpected error processing photo"
+        result['error_type'] = 'unknown'
 
     return result
 
@@ -274,7 +319,16 @@ def validate_zip_integrity(zip_path: Path) -> bool:
             zf.testzip()  # Returns None if OK, filename if error
             return True
 
+    except BadZipFile:
+        logger.debug("Invalid ZIP file: %s", zip_path)
+        return False
+
+    except OSError as e:
+        logger.debug("Cannot read ZIP file %s: %s", zip_path, e)
+        return False
+
     except Exception:
+        logger.debug("Unknown error validating ZIP: %s", zip_path, exc_info=True)
         return False
 
 
@@ -396,9 +450,41 @@ def create_zip_export(
             took_ms=took_ms,
         )
 
+    except PermissionError as e:
+        took_ms = (time.time() - start_time) * 1000
+        logger.error("Permission denied creating ZIP at %s: %s", output_path, e)
+        errors.append({'error': 'Permission denied creating ZIP file', 'error_type': 'permission'})
+
+        return ZipExportResult(
+            success=False,
+            zip_path=None,
+            zip_size_bytes=0,
+            photo_count=photo_count,
+            xmp_count=xmp_count,
+            errors=errors,
+            took_ms=took_ms,
+        )
+
+    except OSError as e:
+        took_ms = (time.time() - start_time) * 1000
+        logger.error("OS error creating ZIP at %s: %s", output_path, e, exc_info=True)
+        error_msg = f"File system error: {e.strerror}" if hasattr(e, 'strerror') and e.strerror else "File system error"
+        errors.append({'error': error_msg, 'error_type': 'io'})
+
+        return ZipExportResult(
+            success=False,
+            zip_path=None,
+            zip_size_bytes=0,
+            photo_count=photo_count,
+            xmp_count=xmp_count,
+            errors=errors,
+            took_ms=took_ms,
+        )
+
     except Exception as e:
         took_ms = (time.time() - start_time) * 1000
-        errors.append({'error': str(e)})
+        logger.exception("Unexpected error creating ZIP: %s", e)
+        errors.append({'error': 'Unexpected error creating ZIP', 'error_type': 'unknown'})
 
         return ZipExportResult(
             success=False,
@@ -499,9 +585,41 @@ def stream_zip_export(
             took_ms=took_ms,
         )
 
+    except PermissionError as e:
+        took_ms = (time.time() - start_time) * 1000
+        logger.error("Permission denied during streaming ZIP: %s", e)
+        errors.append({'error': 'Permission denied reading photo file', 'error_type': 'permission'})
+
+        yield ZipExportResult(
+            success=False,
+            zip_path=None,
+            zip_size_bytes=total_bytes,
+            photo_count=photo_count,
+            xmp_count=xmp_count,
+            errors=errors,
+            took_ms=took_ms,
+        )
+
+    except OSError as e:
+        took_ms = (time.time() - start_time) * 1000
+        logger.error("OS error during streaming ZIP: %s", e, exc_info=True)
+        error_msg = f"File system error: {e.strerror}" if hasattr(e, 'strerror') and e.strerror else "File system error"
+        errors.append({'error': error_msg, 'error_type': 'io'})
+
+        yield ZipExportResult(
+            success=False,
+            zip_path=None,
+            zip_size_bytes=total_bytes,
+            photo_count=photo_count,
+            xmp_count=xmp_count,
+            errors=errors,
+            took_ms=took_ms,
+        )
+
     except Exception as e:
         took_ms = (time.time() - start_time) * 1000
-        errors.append({'error': str(e)})
+        logger.exception("Unexpected error during streaming ZIP: %s", e)
+        errors.append({'error': 'Unexpected error creating ZIP', 'error_type': 'unknown'})
 
         yield ZipExportResult(
             success=False,

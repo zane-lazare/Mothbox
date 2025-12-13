@@ -134,8 +134,12 @@ def build_taxonomy_keywords(species_name: str | None) -> list[str]:
 
     keywords = []
 
-    # All Mothbox specimens are insects (moths/butterflies)
-    # This is a reasonable assumption for a moth camera trap system
+    # LIMITATION: Hardcoded taxonomy assumes Lepidoptera (moths/butterflies)
+    # This is appropriate for Mothbox's primary use case as a moth camera trap.
+    # For mixed specimens or non-Lepidoptera, this will produce incorrect
+    # higher taxonomy. Future enhancement: integrate with GBIF Backbone
+    # Taxonomy API for dynamic hierarchical lookup based on species name.
+    # See: https://www.gbif.org/developer/species
     keywords.append("taxonomy:kingdom=Animalia")
     keywords.append("taxonomy:phylum=Arthropoda")
     keywords.append("taxonomy:class=Insecta")

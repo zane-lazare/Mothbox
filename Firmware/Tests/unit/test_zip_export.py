@@ -26,12 +26,15 @@ from zipfile import ZipFile, is_zipfile
 
 from webui.backend.lib.zip_export import (
     MANIFEST_FILENAME,
-    MAX_ZIP_FILE_SIZE,
     SUMMARY_FILENAME,
     ZIP_BUFFER_SIZE,
     ZIP_COMPRESSION_LEVEL,
+    PhotoFileError,
+    XMPGenerationError,
+    ZipExportError,
     ZipExportOptions,
     ZipExportResult,
+    ZipWriteError,
     add_photo_to_zip,
     create_zip_export,
     estimate_zip_size,
@@ -96,10 +99,6 @@ class TestConstants:
     def test_zip_buffer_size(self):
         """ZIP_BUFFER_SIZE should be 8KB."""
         assert ZIP_BUFFER_SIZE == 8192
-
-    def test_max_zip_file_size(self):
-        """MAX_ZIP_FILE_SIZE should be 2GB."""
-        assert MAX_ZIP_FILE_SIZE == 2 * 1024 * 1024 * 1024
 
     def test_manifest_filename(self):
         """MANIFEST_FILENAME should be 'manifest.json'."""
@@ -800,3 +799,201 @@ class TestPerformance:
         assert result.success is True
         assert result.photo_count == 50
         assert elapsed_time < 5.0, f"Streaming took {elapsed_time:.2f}s, expected <5s"
+
+
+# ============================================================================
+# Test Custom Exception Classes
+# ============================================================================
+
+
+class TestZipExportExceptions:
+    """Test custom exception classes for ZIP export."""
+
+    def test_exception_hierarchy(self):
+        """Test exception inheritance hierarchy."""
+        assert issubclass(PhotoFileError, ZipExportError)
+        assert issubclass(XMPGenerationError, ZipExportError)
+        assert issubclass(ZipWriteError, ZipExportError)
+        assert issubclass(ZipExportError, Exception)
+
+    def test_can_catch_base_exception(self):
+        """Test catching all ZIP export errors with base class."""
+        try:
+            raise PhotoFileError("test error")
+        except ZipExportError as e:
+            assert str(e) == "test error"
+
+    def test_photo_file_error_message(self):
+        """Test PhotoFileError preserves error message."""
+        error = PhotoFileError("Permission denied")
+        assert str(error) == "Permission denied"
+
+    def test_xmp_generation_error_message(self):
+        """Test XMPGenerationError preserves error message."""
+        error = XMPGenerationError("Invalid metadata")
+        assert str(error) == "Invalid metadata"
+
+    def test_zip_write_error_message(self):
+        """Test ZipWriteError preserves error message."""
+        error = ZipWriteError("Disk full")
+        assert str(error) == "Disk full"
+
+
+# ============================================================================
+# Test Error Handling
+# ============================================================================
+
+
+class TestErrorHandling:
+    """Test specific error handling scenarios."""
+
+    def test_add_photo_permission_error(self, tmp_path, monkeypatch):
+        """Test handling of permission denied error during photo read."""
+        photo_path = tmp_path / "moth.jpg"
+        create_test_jpeg(photo_path)
+        metadata = create_test_metadata(filename="moth.jpg")
+
+        # Mock ZipFile.write to raise PermissionError
+        def mock_write(self, filename, arcname=None, compress_type=None):
+            raise PermissionError("Permission denied")
+
+        zip_path = tmp_path / "test.zip"
+        with ZipFile(zip_path, 'w') as zf:
+            monkeypatch.setattr(type(zf), 'write', mock_write)
+            result = add_photo_to_zip(zf, photo_path, metadata, include_xmp=True)
+
+        assert result['success'] is False
+        assert result['error'] == "Permission denied reading photo file"
+        assert result['error_type'] == 'permission'
+
+    def test_add_photo_oserror_disk_full(self, tmp_path, monkeypatch):
+        """Test handling of disk full error (OSError)."""
+        import errno
+
+        photo_path = tmp_path / "moth.jpg"
+        create_test_jpeg(photo_path)
+        metadata = create_test_metadata(filename="moth.jpg")
+
+        # Mock ZipFile.write to raise OSError with ENOSPC
+        def mock_write(self, filename, arcname=None, compress_type=None):
+            err = OSError(errno.ENOSPC, "No space left on device")
+            raise err
+
+        zip_path = tmp_path / "test.zip"
+        with ZipFile(zip_path, 'w') as zf:
+            monkeypatch.setattr(type(zf), 'write', mock_write)
+            result = add_photo_to_zip(zf, photo_path, metadata, include_xmp=True)
+
+        assert result['success'] is False
+        assert 'File system error' in result['error']
+        assert result['error_type'] == 'io'
+
+    def test_add_photo_xmp_generation_error(self, tmp_path, monkeypatch):
+        """Test handling of XMP generation failure."""
+        photo_path = tmp_path / "moth.jpg"
+        create_test_jpeg(photo_path)
+        metadata = create_test_metadata(filename="moth.jpg")
+
+        # Mock generate_xmp_xml to raise ValueError
+        from webui.backend.lib import zip_export
+
+        def mock_generate_xmp_xml(metadata):
+            raise ValueError("Invalid metadata field")
+
+        monkeypatch.setattr(zip_export, 'generate_xmp_xml', mock_generate_xmp_xml)
+
+        zip_path = tmp_path / "test.zip"
+        with ZipFile(zip_path, 'w') as zf:
+            result = add_photo_to_zip(zf, photo_path, metadata, include_xmp=True)
+
+        assert result['success'] is False
+        assert result['error'] == "Failed to generate XMP metadata"
+        assert result['error_type'] == 'xmp'
+
+    def test_error_type_field_not_found(self, tmp_path):
+        """Test that error_type is 'not_found' for missing files."""
+        photo_path = tmp_path / "missing.jpg"
+        metadata = create_test_metadata(filename="missing.jpg")
+
+        zip_path = tmp_path / "test.zip"
+        with ZipFile(zip_path, 'w') as zf:
+            result = add_photo_to_zip(zf, photo_path, metadata, include_xmp=True)
+
+        assert result['success'] is False
+        assert 'not found' in result['error']
+        assert result['error_type'] == 'not_found'
+
+    def test_create_zip_export_permission_error(self, tmp_path, monkeypatch):
+        """Test create_zip_export handles permission errors."""
+        photo_path = tmp_path / "moth.jpg"
+        create_test_jpeg(photo_path)
+        metadata = create_test_metadata(filename="moth.jpg")
+
+        # Use a path that will fail to create (simulate permission error)
+        output_path = tmp_path / "readonly" / "export.zip"
+
+        # Mock ZipFile to raise PermissionError
+        original_init = ZipFile.__init__
+
+        def mock_init(self, file, mode='r', *args, **kwargs):
+            if mode == 'w':
+                raise PermissionError("Permission denied")
+            return original_init(self, file, mode, *args, **kwargs)
+
+        monkeypatch.setattr(ZipFile, '__init__', mock_init)
+
+        result = create_zip_export([photo_path], [metadata], output_path)
+
+        assert result.success is False
+        assert len(result.errors) > 0
+        assert result.errors[0]['error_type'] == 'permission'
+
+    def test_user_friendly_error_messages(self, tmp_path, monkeypatch):
+        """Test that error messages are user-friendly (no raw exceptions)."""
+        photo_path = tmp_path / "moth.jpg"
+        create_test_jpeg(photo_path)
+        metadata = create_test_metadata(filename="moth.jpg")
+
+        # Mock to raise a generic exception
+        def mock_write(self, filename, arcname=None, compress_type=None):
+            raise RuntimeError("Internal error with sensitive path info")
+
+        zip_path = tmp_path / "test.zip"
+        with ZipFile(zip_path, 'w') as zf:
+            monkeypatch.setattr(type(zf), 'write', mock_write)
+            result = add_photo_to_zip(zf, photo_path, metadata, include_xmp=True)
+
+        assert result['success'] is False
+        # Should be a generic message, not the raw exception
+        assert result['error'] == "Unexpected error processing photo"
+        assert result['error_type'] == 'unknown'
+        # The raw exception message should NOT be in the error
+        assert 'sensitive path info' not in result['error']
+
+    def test_stream_zip_oserror(self, tmp_path, monkeypatch):
+        """Test stream_zip_export handles OSError."""
+        import errno
+
+        photo_path = tmp_path / "moth.jpg"
+        create_test_jpeg(photo_path)
+        metadata = create_test_metadata(filename="moth.jpg")
+
+        # Mock to raise OSError during ZIP creation
+        original_init = ZipFile.__init__
+
+        def mock_init(self, file, mode='r', *args, **kwargs):
+            if mode == 'w' and hasattr(file, 'write'):
+                raise OSError(errno.EIO, "Input/output error")
+            return original_init(self, file, mode, *args, **kwargs)
+
+        monkeypatch.setattr(ZipFile, '__init__', mock_init)
+
+        result = None
+        for chunk in stream_zip_export([photo_path], [metadata]):
+            if isinstance(chunk, ZipExportResult):
+                result = chunk
+
+        assert result is not None
+        assert result.success is False
+        assert len(result.errors) > 0
+        assert result.errors[0]['error_type'] == 'io'
