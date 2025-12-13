@@ -24,6 +24,7 @@ import csv
 import io
 import logging
 from datetime import UTC, datetime
+from pathlib import Path
 
 from flask import Blueprint, Response, current_app, jsonify, request
 
@@ -50,6 +51,17 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 export_bp = Blueprint("export", __name__)
+
+# Photo file extensions supported for export
+PHOTO_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG'}
+
+
+def find_photos_in_directory(directory: Path) -> list[Path]:
+    """Find all photo files in directory and subdirectories."""
+    return [
+        p for p in directory.rglob('*')
+        if p.is_file() and p.suffix in PHOTO_EXTENSIONS
+    ]
 
 
 @export_bp.after_request
@@ -356,14 +368,36 @@ def list_export_formats():
             {
                 "id": ExportFormat.GENERIC_JSON.value,
                 "name": "Generic JSON",
-                "description": "Generic JSON format with all metadata",
-                "implemented": True
+                "description": "Generic JSON format with nested metadata structure",
+                "implemented": True,
+                "endpoints": [
+                    "/json/<path>",
+                    "/json/batch",
+                    "/json/deployment/<path>"
+                ],
+                "features": [
+                    "Nested structure for easy parsing",
+                    "Field customization (include/exclude)",
+                    "File download support",
+                    "Single photo or batch export",
+                    "Deployment-level export"
+                ]
             },
             {
                 "id": ExportFormat.GENERIC_CSV.value,
                 "name": "Generic CSV",
                 "description": "Generic CSV format with flat structure",
-                "implemented": True
+                "implemented": True,
+                "endpoints": [
+                    "/csv/batch",
+                    "/csv/deployment/<path>"
+                ],
+                "features": [
+                    "Excel-compatible format",
+                    "UTF-8 BOM option for proper encoding",
+                    "Field customization (include/exclude)",
+                    "Batch or deployment export"
+                ]
             }
         ]
 
@@ -725,12 +759,8 @@ def export_deployment_darwin_core(deployment_path: str):
         validate = request.args.get('validate', 'true').lower() == 'true'
         include_warnings = request.args.get('include_warnings', 'false').lower() == 'true'
 
-        # Get all photos in deployment (jpg, jpeg, png)
-        photo_extensions = {'.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG'}
-        photo_paths = [
-            p for p in deployment_dir.rglob('*')
-            if p.is_file() and p.suffix in photo_extensions
-        ]
+        # Get all photos in deployment
+        photo_paths = find_photos_in_directory(deployment_dir)
 
         if not photo_paths:
             return jsonify({
@@ -1060,12 +1090,8 @@ def export_deployment_inaturalist(deployment_path: str):
         include_manifest = request.args.get('include_manifest', 'true').lower() == 'true'
         include_csv_summary = request.args.get('include_csv_summary', 'true').lower() == 'true'
 
-        # Get all photos in deployment (jpg, jpeg, png)
-        photo_extensions = {'.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG'}
-        photo_paths = [
-            p for p in deployment_dir.rglob('*')
-            if p.is_file() and p.suffix in photo_extensions
-        ]
+        # Get all photos in deployment
+        photo_paths = find_photos_in_directory(deployment_dir)
 
         if not photo_paths:
             return jsonify({
@@ -1324,3 +1350,790 @@ def preview_inaturalist_export():
     except Exception as e:
         logger.error("Error in iNaturalist preview: %s", e, exc_info=True)
         return jsonify({"error": "Preview failed"}), 500
+
+
+# ============================================================================
+# Generic JSON Export Endpoints (Issue #120)
+# ============================================================================
+
+
+def _generate_json_file_response(data: dict | list, filename: str) -> Response:
+    """Generate a JSON file download response.
+
+    Args:
+        data: JSON-serializable data
+        filename: Filename for Content-Disposition header
+
+    Returns:
+        Flask Response with JSON file download
+    """
+    import json
+    json_content = json.dumps(data, indent=2, default=str)
+
+    return Response(
+        json_content,
+        mimetype='application/json',
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Content-Type': 'application/json; charset=utf-8',
+        }
+    )
+
+
+def _parse_field_filter_params(request_obj) -> tuple[list[str] | None, list[str] | None]:
+    """Parse fields and exclude parameters from request.
+
+    Handles both query params (GET) and JSON body (POST).
+
+    Args:
+        request_obj: Flask request object
+
+    Returns:
+        Tuple of (fields, exclude) lists or None
+
+    Raises:
+        ValueError: If both fields and exclude are provided
+    """
+    # Try query params first (for GET requests)
+    fields_param = request_obj.args.get('fields')
+    exclude_param = request_obj.args.get('exclude')
+
+    # Override with JSON body if present (for POST requests)
+    if request_obj.is_json:
+        data = request_obj.get_json() or {}
+        if 'fields' in data:
+            fields_param = data['fields']
+        if 'exclude' in data:
+            exclude_param = data['exclude']
+
+    # Parse comma-separated strings to lists
+    fields = None
+    exclude = None
+
+    if fields_param:
+        if isinstance(fields_param, str):
+            fields = [f.strip() for f in fields_param.split(',') if f.strip()]
+        elif isinstance(fields_param, list):
+            fields = [str(f).strip() for f in fields_param if f]
+
+    if exclude_param:
+        if isinstance(exclude_param, str):
+            exclude = [f.strip() for f in exclude_param.split(',') if f.strip()]
+        elif isinstance(exclude_param, list):
+            exclude = [str(f).strip() for f in exclude_param if f]
+
+    # Validate mutual exclusivity
+    if fields and exclude:
+        raise ValueError("Cannot specify both 'fields' and 'exclude' parameters")
+
+    return fields, exclude
+
+
+@export_bp.route("/json/<path:photo_path>", methods=["GET"])
+def export_single_json(photo_path: str):
+    """
+    Export single photo metadata as JSON.
+
+    Query Parameters:
+        fields (str): Comma-separated field names to include
+        exclude (str): Comma-separated field names to exclude
+
+    Accept Header:
+        application/json (default): Return JSON in response body
+        application/octet-stream: Return as .json file download
+
+    Returns:
+        200: JSON metadata
+        400: Invalid parameters (both fields and exclude provided)
+        403: Path traversal attempt blocked
+        404: Photo not found
+        500: Internal error
+
+    Example:
+        GET /api/export/json/moth_2024_01_15__10_00_00.jpg
+
+        GET /api/export/json/moth_2024_01_15__10_00_00.jpg?fields=filename,latitude,longitude
+    """
+    try:
+        # Get service from app config
+        service = current_app.config.get('EXPORT_METADATA_SERVICE')
+        if service is None:
+            return jsonify({"error": "Export service not available"}), 500
+
+        # Validate path to prevent traversal attacks
+        validated_path = validate_photo_path(photo_path, PHOTOS_DIR)
+        if validated_path is None:
+            return jsonify({"error": "Invalid path"}), 403
+
+        # Parse field filtering parameters
+        try:
+            fields, exclude = _parse_field_filter_params(request)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+        # Get export metadata
+        result = service.get_export_metadata(validated_path)
+
+        # Check if result is an error dict
+        if isinstance(result, dict) and 'error' in result:
+            error_msg = result['error']
+            if error_msg == 'Photo not found':
+                return jsonify(result), 404
+            elif error_msg == 'Permission denied':
+                return jsonify(result), 403
+            else:
+                return jsonify(result), 500
+
+        # Transform to generic JSON format with optional filtering
+        if isinstance(result, ExportMetadata):
+            if fields or exclude:
+                transformed = service.transform_to_generic_filtered(
+                    result, flat=False, fields=fields, exclude=exclude
+                )
+            else:
+                transformed = service.transform_to_generic(result, flat=False)
+
+            # Determine response format based on Accept header
+            accept = request.headers.get('Accept', 'application/json')
+
+            if 'application/octet-stream' in accept:
+                # JSON file download
+                filename = Path(photo_path).stem + '_metadata.json'
+                return _generate_json_file_response(transformed, filename)
+            else:
+                # JSON in response body
+                return jsonify(transformed), 200
+        else:
+            return jsonify(result), 200
+
+    except Exception as e:
+        logger.error("Error exporting JSON for %s: %s", photo_path, e, exc_info=True)
+        return jsonify({"error": "Failed to export JSON metadata"}), 500
+
+
+@export_bp.route("/json/batch", methods=["POST"])
+@limiter.limit("10 per minute")
+def export_batch_json():
+    """
+    Export multiple photos as JSON bundle.
+
+    Request Body:
+        {
+            "photo_paths": ["photo1.jpg", "subdir/photo2.jpg", ...],
+            "fields": ["filename", "latitude"],  // optional
+            "exclude": ["notes", "tags"]  // optional, mutually exclusive with fields
+        }
+
+    Accept Header:
+        application/json (default): Return JSON in response body
+        application/octet-stream: Return as .json file download
+
+    Returns:
+        200: JSON with results array
+        400: Invalid request body or parameters
+        500: Internal error
+
+    Example:
+        POST /api/export/json/batch
+        Content-Type: application/json
+
+        {"photo_paths": ["photo1.jpg", "photo2.jpg"]}
+
+        Response:
+        {
+            "results": [
+                {"file": {...}, "location": {...}, ...},
+                {"file": {...}, "location": {...}, ...}
+            ],
+            "total": 2,
+            "successful": 2,
+            "failed": 0,
+            "errors": []
+        }
+    """
+    try:
+        # Get service from app config
+        service = current_app.config.get('EXPORT_METADATA_SERVICE')
+        if service is None:
+            return jsonify({"error": "Export service not available"}), 500
+
+        # Validate request body
+        if not request.is_json:
+            return jsonify({"error": "Request must be JSON"}), 400
+
+        try:
+            data = request.get_json()
+        except Exception:
+            return jsonify({"error": "Invalid JSON in request body"}), 400
+
+        if not data or 'photo_paths' not in data:
+            return jsonify({"error": "Missing 'photo_paths' in request body"}), 400
+
+        photo_paths = data['photo_paths']
+
+        if not isinstance(photo_paths, list):
+            return jsonify({"error": "'photo_paths' must be an array"}), 400
+
+        # Validate all paths are non-empty strings
+        if not all(isinstance(p, str) and p.strip() for p in photo_paths):
+            return jsonify({"error": "All photo_paths must be non-empty strings"}), 400
+
+        if len(photo_paths) == 0:
+            return jsonify({
+                "results": [],
+                "total": 0,
+                "successful": 0,
+                "failed": 0,
+                "errors": []
+            }), 200
+
+        # Get configurable batch size limit
+        max_batch_size = current_app.config.get('EXPORT_MAX_BATCH_SIZE', 1000)
+
+        if len(photo_paths) > max_batch_size:
+            return jsonify({
+                "error": f"Batch size exceeds maximum limit of {max_batch_size} photos"
+            }), 400
+
+        # Parse field filtering parameters
+        try:
+            fields, exclude = _parse_field_filter_params(request)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+        # Collect metadata for all photos
+        results = []
+        errors = []
+
+        for photo_path in photo_paths:
+            # Path traversal protection
+            validated_path = validate_photo_path(photo_path, PHOTOS_DIR)
+            if validated_path is None:
+                errors.append({
+                    "photo_path": photo_path,
+                    "error": "Invalid path"
+                })
+                continue
+
+            result = service.get_export_metadata(validated_path)
+
+            if isinstance(result, dict) and 'error' in result:
+                errors.append({
+                    "photo_path": photo_path,
+                    "error": result['error']
+                })
+                continue
+
+            if isinstance(result, ExportMetadata):
+                # Transform with optional filtering
+                if fields or exclude:
+                    transformed = service.transform_to_generic_filtered(
+                        result, flat=False, fields=fields, exclude=exclude
+                    )
+                else:
+                    transformed = service.transform_to_generic(result, flat=False)
+                results.append(transformed)
+
+        # Build response
+        response_data = {
+            "results": results,
+            "total": len(photo_paths),
+            "successful": len(results),
+            "failed": len(errors),
+            "errors": errors
+        }
+
+        # Determine response format based on Accept header
+        accept = request.headers.get('Accept', 'application/json')
+
+        if 'application/octet-stream' in accept:
+            # JSON file download
+            timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
+            filename = f"metadata_export_{timestamp}.json"
+            return _generate_json_file_response(response_data, filename)
+        else:
+            # JSON in response body
+            return jsonify(response_data), 200
+
+    except Exception as e:
+        logger.error("Error in batch JSON export: %s", e, exc_info=True)
+        return jsonify({"error": "Batch JSON export failed"}), 500
+
+
+@export_bp.route("/json/deployment/<path:deployment_path>", methods=["GET"])
+@limiter.limit("5 per minute")
+def export_deployment_json(deployment_path: str):
+    """
+    Export all photos in deployment directory as JSON bundle.
+
+    Query Parameters:
+        fields (str): Comma-separated field names to include
+        exclude (str): Comma-separated field names to exclude
+
+    Accept Header:
+        application/json (default): Return JSON in response body
+        application/octet-stream: Return as .json file download
+
+    Returns:
+        200: JSON with results array
+        400: Empty deployment or invalid parameters
+        403: Path traversal attempt blocked
+        404: Deployment directory not found
+        500: Internal error
+
+    Example:
+        GET /api/export/json/deployment/2024/january_survey
+    """
+    try:
+        # Get service from app config
+        service = current_app.config.get('EXPORT_METADATA_SERVICE')
+        if service is None:
+            return jsonify({"error": "Export service not available"}), 500
+
+        # Validate path to prevent traversal attacks
+        validated_path = validate_photo_path(deployment_path, PHOTOS_DIR)
+        if validated_path is None:
+            return jsonify({"error": "Invalid path"}), 403
+
+        deployment_dir = Path(validated_path)
+        if not deployment_dir.exists():
+            return jsonify({"error": "Deployment directory not found"}), 404
+
+        if not deployment_dir.is_dir():
+            return jsonify({"error": "Path is not a directory"}), 400
+
+        # Parse field filtering parameters
+        try:
+            fields, exclude = _parse_field_filter_params(request)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+        # Find all photos in deployment directory
+        photo_files = find_photos_in_directory(deployment_dir)
+
+        if not photo_files:
+            return jsonify({
+                "error": "No photos found in deployment directory",
+                "results": [],
+                "total": 0,
+                "successful": 0,
+                "failed": 0
+            }), 400
+
+        # Collect metadata for all photos
+        results = []
+        errors = []
+
+        for photo_file in photo_files:
+            result = service.get_export_metadata(photo_file)
+
+            if isinstance(result, dict) and 'error' in result:
+                errors.append({
+                    "photo_path": str(photo_file.relative_to(PHOTOS_DIR)),
+                    "error": result['error']
+                })
+                continue
+
+            if isinstance(result, ExportMetadata):
+                # Transform with optional filtering
+                if fields or exclude:
+                    transformed = service.transform_to_generic_filtered(
+                        result, flat=False, fields=fields, exclude=exclude
+                    )
+                else:
+                    transformed = service.transform_to_generic(result, flat=False)
+                results.append(transformed)
+
+        # Build response
+        response_data = {
+            "deployment_path": deployment_path,
+            "results": results,
+            "total": len(photo_files),
+            "successful": len(results),
+            "failed": len(errors),
+            "errors": errors
+        }
+
+        # Determine response format based on Accept header
+        accept = request.headers.get('Accept', 'application/json')
+
+        if 'application/octet-stream' in accept:
+            # JSON file download
+            timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
+            safe_name = deployment_path.replace('/', '_').replace('\\', '_')
+            filename = f"{safe_name}_metadata_{timestamp}.json"
+            return _generate_json_file_response(response_data, filename)
+        else:
+            # JSON in response body
+            return jsonify(response_data), 200
+
+    except Exception as e:
+        logger.error("Error in deployment JSON export for %s: %s", deployment_path, e, exc_info=True)
+        return jsonify({"error": "Deployment JSON export failed"}), 500
+
+
+# ============================================================================
+# Generic CSV Export Endpoints (Issue #120)
+# ============================================================================
+
+
+def _get_generic_csv_headers(fields: list[str] | None = None, exclude: list[str] | None = None) -> list[str]:
+    """Get CSV headers for generic export format.
+
+    Args:
+        fields: If provided, only include these fields
+        exclude: If provided, exclude these fields
+
+    Returns:
+        List of header names for CSV
+    """
+    all_headers = [
+        'photo_path', 'filename', 'timestamp',
+        'latitude', 'longitude', 'altitude', 'gps_accuracy',
+        'camera_make', 'camera_model', 'exposure_time', 'iso', 'focal_length',
+        'species', 'species_common_name', 'species_confidence',
+        'tags', 'notes',
+        'mothbox_id', 'firmware_version',
+        'deployment_name', 'deployment_location_name',
+        'deployment_start_date', 'deployment_end_date',
+        'environmental_conditions',
+        'series_type', 'series_index', 'series_count',
+        'file_size', 'width', 'height'
+    ]
+
+    if fields:
+        return [h for h in all_headers if h in fields]
+    elif exclude:
+        return [h for h in all_headers if h not in exclude]
+    else:
+        return all_headers
+
+
+def _generate_csv_with_bom(headers: list[str], rows: list[list[str]], include_bom: bool = False) -> str:
+    """Generate CSV content with optional UTF-8 BOM.
+
+    Args:
+        headers: CSV column headers
+        rows: CSV data rows
+        include_bom: If True, prepend UTF-8 BOM for Excel compatibility
+
+    Returns:
+        CSV content as string
+    """
+    output = io.StringIO()
+
+    if include_bom:
+        output.write('\ufeff')  # UTF-8 BOM
+
+    writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+    writer.writerow(headers)
+    writer.writerows(rows)
+
+    csv_content = output.getvalue()
+    output.close()
+
+    return csv_content
+
+
+@export_bp.route("/csv/batch", methods=["POST"])
+@limiter.limit("10 per minute")
+def export_batch_csv():
+    """
+    Export multiple photos as CSV.
+
+    Request Body:
+        {
+            "photo_paths": ["photo1.jpg", "subdir/photo2.jpg", ...],
+            "fields": ["filename", "latitude"],  // optional
+            "exclude": ["notes", "tags"],  // optional, mutually exclusive with fields
+            "include_bom": false  // optional, UTF-8 BOM for Excel compatibility
+        }
+
+    Accept Header:
+        text/csv: Return CSV file download
+        application/json (default): Return JSON with csv_data field
+
+    Returns:
+        200: CSV file or JSON with CSV data
+        400: Invalid request body or parameters
+        500: Internal error
+
+    Example:
+        POST /api/export/csv/batch
+        Content-Type: application/json
+        Accept: text/csv
+
+        {"photo_paths": ["photo1.jpg", "photo2.jpg"]}
+    """
+    try:
+        # Get service from app config
+        service = current_app.config.get('EXPORT_METADATA_SERVICE')
+        if service is None:
+            return jsonify({"error": "Export service not available"}), 500
+
+        # Validate request body
+        if not request.is_json:
+            return jsonify({"error": "Request must be JSON"}), 400
+
+        try:
+            data = request.get_json()
+        except Exception:
+            return jsonify({"error": "Invalid JSON in request body"}), 400
+
+        if not data or 'photo_paths' not in data:
+            return jsonify({"error": "Missing 'photo_paths' in request body"}), 400
+
+        photo_paths = data['photo_paths']
+
+        if not isinstance(photo_paths, list):
+            return jsonify({"error": "'photo_paths' must be an array"}), 400
+
+        # Validate all paths are non-empty strings
+        if not all(isinstance(p, str) and p.strip() for p in photo_paths):
+            return jsonify({"error": "All photo_paths must be non-empty strings"}), 400
+
+        if len(photo_paths) == 0:
+            return jsonify({"error": "No photos provided"}), 400
+
+        # Get configurable batch size limit
+        max_batch_size = current_app.config.get('EXPORT_MAX_BATCH_SIZE', 1000)
+
+        if len(photo_paths) > max_batch_size:
+            return jsonify({
+                "error": f"Batch size exceeds maximum limit of {max_batch_size} photos"
+            }), 400
+
+        # Parse field filtering parameters
+        try:
+            fields, exclude = _parse_field_filter_params(request)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+        include_bom = data.get('include_bom', False)
+
+        # Get headers (filtered if needed)
+        headers = _get_generic_csv_headers(fields, exclude)
+
+        # Collect metadata and build rows
+        rows = []
+        errors = []
+
+        for photo_path in photo_paths:
+            # Path traversal protection
+            validated_path = validate_photo_path(photo_path, PHOTOS_DIR)
+            if validated_path is None:
+                errors.append({
+                    "photo_path": photo_path,
+                    "error": "Invalid path"
+                })
+                continue
+
+            result = service.get_export_metadata(validated_path)
+
+            if isinstance(result, dict) and 'error' in result:
+                errors.append({
+                    "photo_path": photo_path,
+                    "error": result['error']
+                })
+                continue
+
+            if isinstance(result, ExportMetadata):
+                # Transform to flat format with optional filtering
+                if fields or exclude:
+                    flat_data = service.transform_to_generic_filtered(
+                        result, flat=True, fields=fields, exclude=exclude
+                    )
+                else:
+                    flat_data = service.transform_to_generic(result, flat=True)
+
+                # Build row in header order
+                row = [str(flat_data.get(h, '')) for h in headers]
+                rows.append(row)
+
+        # Generate CSV content
+        csv_content = _generate_csv_with_bom(headers, rows, include_bom)
+
+        # Stats
+        stats = {
+            "total": len(photo_paths),
+            "successful": len(rows),
+            "failed": len(errors),
+            "errors": errors
+        }
+
+        # Determine response format based on Accept header
+        accept = request.headers.get('Accept', 'application/json')
+
+        if 'text/csv' in accept:
+            # CSV file download
+            timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
+            filename = f"metadata_export_{timestamp}.csv"
+
+            # Handle BOM encoding
+            if include_bom:
+                csv_bytes = csv_content.encode('utf-8-sig')
+            else:
+                csv_bytes = csv_content.encode('utf-8')
+
+            return Response(
+                csv_bytes,
+                mimetype='text/csv',
+                headers={
+                    'Content-Disposition': f'attachment; filename="{filename}"',
+                    'Content-Type': 'text/csv; charset=utf-8',
+                }
+            )
+        else:
+            # JSON with CSV data
+            return jsonify({
+                "csv_data": csv_content,
+                "headers": headers,
+                "row_count": len(rows),
+                **stats
+            }), 200
+
+    except Exception as e:
+        logger.error("Error in batch CSV export: %s", e, exc_info=True)
+        return jsonify({"error": "Batch CSV export failed"}), 500
+
+
+@export_bp.route("/csv/deployment/<path:deployment_path>", methods=["GET"])
+@limiter.limit("5 per minute")
+def export_deployment_csv(deployment_path: str):
+    """
+    Export all photos in deployment directory as CSV.
+
+    Query Parameters:
+        fields (str): Comma-separated field names to include
+        exclude (str): Comma-separated field names to exclude
+        include_bom (str): "true" for UTF-8 BOM for Excel compatibility
+
+    Accept Header:
+        text/csv: Return CSV file download
+        application/json (default): Return JSON with csv_data field
+
+    Returns:
+        200: CSV file or JSON with CSV data
+        400: Empty deployment or invalid parameters
+        403: Path traversal attempt blocked
+        404: Deployment directory not found
+        500: Internal error
+
+    Example:
+        GET /api/export/csv/deployment/2024/january_survey?include_bom=true
+    """
+    try:
+        # Get service from app config
+        service = current_app.config.get('EXPORT_METADATA_SERVICE')
+        if service is None:
+            return jsonify({"error": "Export service not available"}), 500
+
+        # Validate path to prevent traversal attacks
+        validated_path = validate_photo_path(deployment_path, PHOTOS_DIR)
+        if validated_path is None:
+            return jsonify({"error": "Invalid path"}), 403
+
+        deployment_dir = Path(validated_path)
+        if not deployment_dir.exists():
+            return jsonify({"error": "Deployment directory not found"}), 404
+
+        if not deployment_dir.is_dir():
+            return jsonify({"error": "Path is not a directory"}), 400
+
+        # Parse field filtering parameters
+        try:
+            fields, exclude = _parse_field_filter_params(request)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+        include_bom = request.args.get('include_bom', 'false').lower() == 'true'
+
+        # Find all photos in deployment directory
+        photo_files = find_photos_in_directory(deployment_dir)
+
+        if not photo_files:
+            return jsonify({
+                "error": "No photos found in deployment directory",
+                "csv_data": "",
+                "headers": [],
+                "row_count": 0,
+                "total": 0
+            }), 400
+
+        # Get headers (filtered if needed)
+        headers = _get_generic_csv_headers(fields, exclude)
+
+        # Collect metadata and build rows
+        rows = []
+        errors = []
+
+        for photo_file in photo_files:
+            result = service.get_export_metadata(photo_file)
+
+            if isinstance(result, dict) and 'error' in result:
+                errors.append({
+                    "photo_path": str(photo_file.relative_to(PHOTOS_DIR)),
+                    "error": result['error']
+                })
+                continue
+
+            if isinstance(result, ExportMetadata):
+                # Transform to flat format with optional filtering
+                if fields or exclude:
+                    flat_data = service.transform_to_generic_filtered(
+                        result, flat=True, fields=fields, exclude=exclude
+                    )
+                else:
+                    flat_data = service.transform_to_generic(result, flat=True)
+
+                # Build row in header order
+                row = [str(flat_data.get(h, '')) for h in headers]
+                rows.append(row)
+
+        # Generate CSV content
+        csv_content = _generate_csv_with_bom(headers, rows, include_bom)
+
+        # Stats
+        stats = {
+            "deployment_path": deployment_path,
+            "total": len(photo_files),
+            "successful": len(rows),
+            "failed": len(errors),
+            "errors": errors
+        }
+
+        # Determine response format based on Accept header
+        accept = request.headers.get('Accept', 'application/json')
+
+        if 'text/csv' in accept:
+            # CSV file download
+            timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
+            safe_name = deployment_path.replace('/', '_').replace('\\', '_')
+            filename = f"{safe_name}_metadata_{timestamp}.csv"
+
+            # Handle BOM encoding
+            if include_bom:
+                csv_bytes = csv_content.encode('utf-8-sig')
+            else:
+                csv_bytes = csv_content.encode('utf-8')
+
+            return Response(
+                csv_bytes,
+                mimetype='text/csv',
+                headers={
+                    'Content-Disposition': f'attachment; filename="{filename}"',
+                    'Content-Type': 'text/csv; charset=utf-8',
+                }
+            )
+        else:
+            # JSON with CSV data
+            return jsonify({
+                "csv_data": csv_content,
+                "headers": headers,
+                "row_count": len(rows),
+                **stats
+            }), 200
+
+    except Exception as e:
+        logger.error("Error in deployment CSV export for %s: %s", deployment_path, e, exc_info=True)
+        return jsonify({"error": "Deployment CSV export failed"}), 500

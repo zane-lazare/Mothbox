@@ -643,6 +643,140 @@ class ExportMetadataService:
                 'timestamp': metadata.timestamp,
             }
 
+    def transform_to_generic_filtered(
+        self,
+        metadata: ExportMetadata,
+        flat: bool = False,
+        fields: list[str] | None = None,
+        exclude: list[str] | None = None,
+    ) -> dict:
+        """Transform to generic format with optional field filtering.
+
+        Args:
+            metadata: ExportMetadata to transform
+            flat: If True, flatten for CSV (no nested dicts)
+            fields: If provided, only include these fields (for nested: top-level
+                    sections like 'file', 'location', or leaf fields like 'filename')
+            exclude: If provided, exclude these fields
+
+        Returns:
+            Filtered dictionary
+
+        Raises:
+            ValueError: If both fields and exclude are provided
+
+        Example:
+            >>> # Include only specific fields
+            >>> data = service.transform_to_generic_filtered(
+            ...     metadata, flat=False, fields=['filename', 'latitude', 'longitude']
+            ... )
+
+            >>> # Exclude specific fields
+            >>> data = service.transform_to_generic_filtered(
+            ...     metadata, flat=True, exclude=['notes', 'tags']
+            ... )
+        """
+        if fields is not None and exclude is not None:
+            raise ValueError("Cannot specify both 'fields' and 'exclude' parameters")
+
+        # Get full transform first
+        full_data = self.transform_to_generic(metadata, flat=flat)
+
+        # No filtering requested
+        if fields is None and exclude is None:
+            return full_data
+
+        if flat:
+            # For flat structure, filter directly by field names
+            if fields is not None:
+                return {k: v for k, v in full_data.items() if k in fields}
+            else:  # exclude is not None
+                return {k: v for k, v in full_data.items() if k not in exclude}
+        else:
+            # For nested structure, need to handle section and leaf field filtering
+            return self._filter_nested_dict(full_data, fields, exclude)
+
+    def _filter_nested_dict(
+        self,
+        data: dict,
+        fields: list[str] | None,
+        exclude: list[str] | None,
+    ) -> dict:
+        """Filter a nested dictionary based on field names.
+
+        Supports:
+        - Top-level section names (e.g., 'file', 'location', 'camera')
+        - Leaf field names (e.g., 'filename', 'latitude')
+        - Dotted paths (e.g., 'file.filename', 'location.latitude')
+
+        Args:
+            data: Nested dictionary to filter
+            fields: Fields to include (None means include all)
+            exclude: Fields to exclude (None means exclude none)
+
+        Returns:
+            Filtered dictionary
+        """
+        if fields is not None:
+            return self._include_fields(data, fields)
+        else:  # exclude is not None
+            return self._exclude_fields(data, exclude)
+
+    def _include_fields(self, data: dict, fields: list[str]) -> dict:
+        """Include only specified fields in nested dictionary."""
+        result = {}
+
+        # Build a set of section names and leaf names for quick lookup
+        field_set = set(fields)
+
+        for key, value in data.items():
+            if key in field_set:
+                # Include entire section
+                result[key] = value
+            elif isinstance(value, dict):
+                # Check if any leaf fields in this section are requested
+                section_result = {}
+                for leaf_key, leaf_value in value.items():
+                    if leaf_key in field_set:
+                        section_result[leaf_key] = leaf_value
+                    # Check dotted path (e.g., 'file.filename')
+                    dotted = f"{key}.{leaf_key}"
+                    if dotted in field_set:
+                        section_result[leaf_key] = leaf_value
+                if section_result:
+                    result[key] = section_result
+            else:
+                # Top-level non-dict field (like timestamp)
+                if key in field_set:
+                    result[key] = value
+
+        return result
+
+    def _exclude_fields(self, data: dict, exclude: list[str]) -> dict:
+        """Exclude specified fields from nested dictionary."""
+        result = {}
+        exclude_set = set(exclude)
+
+        for key, value in data.items():
+            if key in exclude_set:
+                # Skip entire section
+                continue
+            elif isinstance(value, dict):
+                # Filter fields within section
+                section_result = {}
+                for leaf_key, leaf_value in value.items():
+                    if leaf_key not in exclude_set:
+                        dotted = f"{key}.{leaf_key}"
+                        if dotted not in exclude_set:
+                            section_result[leaf_key] = leaf_value
+                if section_result:
+                    result[key] = section_result
+            else:
+                # Top-level non-dict field
+                result[key] = value
+
+        return result
+
     def transform_to_darwin_core(self, metadata: ExportMetadata) -> dict:
         """Transform to Darwin Core format for GBIF-compatible export.
 

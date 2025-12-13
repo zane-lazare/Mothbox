@@ -7,22 +7,21 @@ TDD approach: tests written first, then implementation.
 Coverage Target: 90%+
 """
 
-import pytest
 import threading
 import time
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-from dataclasses import dataclass, asdict
-from enum import Enum
+from unittest.mock import Mock
 
+import pytest
 
 # Import will fail until implementation exists - that's expected in TDD
 try:
     from webui.backend.services.export_metadata_service import (
-        ExportMetadataService,
-        ExportMetadata,
-        ValidationResult,
         ExportFormat,
+        ExportMetadata,
+        ExportMetadataService,
+        ValidationResult,
     )
     IMPLEMENTATION_EXISTS = True
 except ImportError:
@@ -196,13 +195,22 @@ def mock_series_service_none():
 
 
 @pytest.fixture
-def service(mock_metadata_service, mock_sidecar_service, mock_series_service):
+def mock_deployment_service():
+    """Mock DeploymentService returning None (no deployment found)."""
+    service = Mock()
+    service.find_deployment_for_photo.return_value = None
+    return service
+
+
+@pytest.fixture
+def service(mock_metadata_service, mock_sidecar_service, mock_series_service, mock_deployment_service):
     """Create ExportMetadataService with mocked dependencies."""
     return ExportMetadataService(
         cache_ttl=1,  # 1 second TTL for fast testing
         metadata_service=mock_metadata_service,
         sidecar_service=mock_sidecar_service,
-        series_service=mock_series_service
+        series_service=mock_series_service,
+        deployment_service=mock_deployment_service,
     )
 
 
@@ -543,6 +551,10 @@ class TestGetExportMetadata:
         self, service, sample_photo_path
     ):
         """get_export_metadata should complete in <100ms."""
+        # Warmup call to ensure all lazy imports are loaded
+        service.get_export_metadata(sample_photo_path)
+        service.invalidate_cache()  # Clear cache so we measure actual work
+
         start = time.perf_counter()
         service.get_export_metadata(sample_photo_path)
         elapsed_ms = (time.perf_counter() - start) * 1000
