@@ -44,12 +44,15 @@ from webui.backend.services.export_metadata_service import (
     ExportMetadata,
 )
 
-# Rate limiter is configured in app.py
-# For standalone testing, provide a no-op stub
+# Rate limiter setup (follows pattern from gallery.py)
+# Creates uninitialized limiter that won't rate-limit until bound to Flask app
 try:
-    from webui.backend.app import limiter
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+
+    limiter = Limiter(key_func=get_remote_address)
 except ImportError:
-    # Stub for unit testing when app is not fully initialized
+    # Stub for testing without flask_limiter
     class _LimiterStub:
         def limit(self, *args, **kwargs):
             def decorator(f):
@@ -2255,6 +2258,28 @@ def create_export_job():
                 "error": f"Invalid filter fields: {', '.join(invalid_fields)}. "
                          f"Valid fields: {', '.join(sorted(valid_filter_fields))}"
             }), 400
+
+        # Validate date format (ISO 8601: YYYY-MM-DD)
+        from webui.backend.lib.date_utils import validate_date_string
+
+        for date_field in ['date_start', 'date_end']:
+            date_value = filter_data.get(date_field)
+            if date_value is not None:
+                is_valid, error_msg = validate_date_string(date_value)
+                if not is_valid:
+                    return jsonify({
+                        "error": f"Invalid {date_field}: {error_msg}"
+                    }), 400
+
+        # Validate date_start <= date_end if both provided
+        if filter_data.get('date_start') and filter_data.get('date_end'):
+            from datetime import date
+            start = date.fromisoformat(filter_data['date_start'])
+            end = date.fromisoformat(filter_data['date_end'])
+            if start > end:
+                return jsonify({
+                    "error": "date_start must be before or equal to date_end"
+                }), 400
 
         filter_obj = ExportJobFilter(
             date_start=filter_data.get('date_start'),

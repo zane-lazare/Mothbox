@@ -237,6 +237,130 @@ class TestCreateExportJob:
         data = response.get_json()
         assert "error" in data
 
+    def test_create_job_valid_date_filter(self, client, mock_export_job_service):
+        """Test creating job with valid date filter."""
+        job = create_test_job()
+        mock_export_job_service.create_job.return_value = job
+
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "csv",
+                "filter": {
+                    "date_start": "2024-01-01",
+                    "date_end": "2024-12-31",
+                },
+            },
+        )
+
+        assert response.status_code == 202
+        data = response.get_json()
+        assert data["job_id"] == job.job_id
+
+    def test_create_job_invalid_date_format(self, client, mock_export_job_service):
+        """Test 400 error for invalid date format."""
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "csv",
+                "filter": {
+                    "date_start": "01/15/2024",  # Wrong format
+                },
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+        assert "date_start" in data["error"]
+        assert "YYYY-MM-DD" in data["error"]
+
+    def test_create_job_invalid_date_value(self, client, mock_export_job_service):
+        """Test 400 error for invalid date value (Feb 30)."""
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "csv",
+                "filter": {
+                    "date_start": "2024-02-30",  # Invalid date
+                },
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+        assert "date_start" in data["error"]
+
+    def test_create_job_invalid_date_end(self, client, mock_export_job_service):
+        """Test 400 error for invalid date_end format."""
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "csv",
+                "filter": {
+                    "date_end": "not-a-date",
+                },
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+        assert "date_end" in data["error"]
+
+    def test_create_job_date_start_after_end(self, client, mock_export_job_service):
+        """Test 400 error when date_start is after date_end."""
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "csv",
+                "filter": {
+                    "date_start": "2024-12-31",
+                    "date_end": "2024-01-01",  # Before start
+                },
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+        assert "date_start must be before" in data["error"]
+
+    def test_create_job_date_start_only(self, client, mock_export_job_service):
+        """Test creating job with only date_start."""
+        job = create_test_job()
+        mock_export_job_service.create_job.return_value = job
+
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "csv",
+                "filter": {
+                    "date_start": "2024-06-01",
+                },
+            },
+        )
+
+        assert response.status_code == 202
+
+    def test_create_job_date_end_only(self, client, mock_export_job_service):
+        """Test creating job with only date_end."""
+        job = create_test_job()
+        mock_export_job_service.create_job.return_value = job
+
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "csv",
+                "filter": {
+                    "date_end": "2024-06-30",
+                },
+            },
+        )
+
+        assert response.status_code == 202
+
     def test_create_job_service_unavailable(self, client):
         """Test 500 error when service is not available."""
         # Create app without service configured

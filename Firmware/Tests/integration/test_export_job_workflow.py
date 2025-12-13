@@ -469,24 +469,30 @@ class TestJobQueue:
             filter=ExportJobFilter(photo_paths=sample_photos),
         )
 
-        # Wait a moment for job1 to start
-        time.sleep(1)
+        # Wait for job1 to start running (poll with timeout instead of fixed sleep)
+        # The worker thread polls every 1.0 second, so we need to wait longer than that
+        max_wait = 5  # seconds
+        start_time = time.time()
+        while time.time() - start_time < max_wait:
+            updated_job1 = export_job_service.get_job(job1.job_id)
+            if updated_job1.status in [ExportJobStatus.RUNNING, ExportJobStatus.COMPLETED]:
+                break
+            time.sleep(0.2)
 
-        # Create second job immediately
+        # Create second job after job1 has started
         job2 = export_job_service.create_job(
             format=ExportJobFormat.JSON,
             filter=ExportJobFilter(photo_paths=sample_photos),
         )
 
-        # Check job1 status
+        # Check job1 status - should have started by now
         updated_job1 = export_job_service.get_job(job1.job_id)
-        # Job1 should be RUNNING or COMPLETED
-        assert updated_job1.status in [ExportJobStatus.RUNNING, ExportJobStatus.COMPLETED]
+        assert updated_job1.status in [ExportJobStatus.RUNNING, ExportJobStatus.COMPLETED], \
+            f"Job1 should be running or completed, but is {updated_job1.status}"
 
         # Check job2 status
         updated_job2 = export_job_service.get_job(job2.job_id)
-        # Job2 should be PENDING (waiting for job1)
-        # Note: If job1 completes very quickly, job2 might already be running
+        # Job2 should be PENDING (waiting for job1) or RUNNING if job1 completed very quickly
         assert updated_job2.status in [ExportJobStatus.PENDING, ExportJobStatus.RUNNING]
 
         # Wait for both to complete

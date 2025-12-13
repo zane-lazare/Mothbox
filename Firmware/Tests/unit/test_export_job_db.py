@@ -614,6 +614,85 @@ class TestCountJobs:
         assert count == 0
 
 
+class TestCountJobsByStatus:
+    """Test count_jobs_by_status aggregate query."""
+
+    def test_count_jobs_by_status_empty_database(self, tmp_path):
+        """Test that count_jobs_by_status returns zeros for empty database."""
+        db = ExportJobDB(tmp_path / "test.db")
+        counts = db.count_jobs_by_status()
+        db.close()
+
+        assert counts['total'] == 0
+        assert counts['pending'] == 0
+        assert counts['running'] == 0
+        assert counts['completed'] == 0
+        assert counts['failed'] == 0
+        assert counts['cancelled'] == 0
+        assert counts['expired'] == 0
+
+    def test_count_jobs_by_status_with_multiple_statuses(self, tmp_path):
+        """Test counting jobs with various statuses."""
+        db = ExportJobDB(tmp_path / "test.db")
+
+        # Create jobs with different statuses
+        test_cases = [
+            (ExportJobStatus.PENDING, 3),
+            (ExportJobStatus.RUNNING, 1),
+            (ExportJobStatus.COMPLETED, 4),
+            (ExportJobStatus.FAILED, 2),
+            (ExportJobStatus.CANCELLED, 1),
+        ]
+
+        job_counter = 0
+        for status, count in test_cases:
+            for _ in range(count):
+                job = ExportJob(
+                    job_id=f"count-by-status-{job_counter}",
+                    status=status,
+                    format=ExportJobFormat.DARWIN_CORE,
+                    filter=ExportJobFilter(),
+                    progress=ExportJobProgress(),
+                    created_at=time.time(),
+                )
+                db.create_job(job)
+                job_counter += 1
+
+        counts = db.count_jobs_by_status()
+        db.close()
+
+        assert counts['total'] == 11
+        assert counts['pending'] == 3
+        assert counts['running'] == 1
+        assert counts['completed'] == 4
+        assert counts['failed'] == 2
+        assert counts['cancelled'] == 1
+        assert counts['expired'] == 0
+
+    def test_count_jobs_by_status_single_status(self, tmp_path):
+        """Test counting when all jobs have the same status."""
+        db = ExportJobDB(tmp_path / "test.db")
+
+        for i in range(5):
+            job = ExportJob(
+                job_id=f"single-status-{i}",
+                status=ExportJobStatus.COMPLETED,
+                format=ExportJobFormat.DARWIN_CORE,
+                filter=ExportJobFilter(),
+                progress=ExportJobProgress(),
+                created_at=time.time(),
+            )
+            db.create_job(job)
+
+        counts = db.count_jobs_by_status()
+        db.close()
+
+        assert counts['total'] == 5
+        assert counts['completed'] == 5
+        assert counts['pending'] == 0
+        assert counts['running'] == 0
+
+
 class TestGetPendingJobs:
     """Test getting pending jobs."""
 

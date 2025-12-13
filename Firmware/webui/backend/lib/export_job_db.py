@@ -378,6 +378,48 @@ class ExportJobDB:
         finally:
             conn.close()
 
+    def count_jobs_by_status(self) -> dict[str, int]:
+        """
+        Get job counts for all statuses in a single query.
+
+        More efficient than multiple count_jobs() calls since it uses a single
+        SQL query with GROUP BY rather than N+1 queries.
+
+        Returns:
+            Dict with 'total' and counts for each status (pending, running,
+            completed, failed, cancelled, expired).
+        """
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+
+            # Single query with GROUP BY - uses idx_jobs_status index
+            cursor.execute(
+                "SELECT status, COUNT(*) FROM export_jobs GROUP BY status"
+            )
+            rows = cursor.fetchall()
+
+            # Initialize with zeros for all statuses
+            counts: dict[str, int] = {
+                'total': 0,
+                'pending': 0,
+                'running': 0,
+                'completed': 0,
+                'failed': 0,
+                'cancelled': 0,
+                'expired': 0,
+            }
+
+            for row in rows:
+                status_value = row[0]
+                count = row[1]
+                counts['total'] += count
+                counts[status_value] = count
+
+            return counts
+        finally:
+            conn.close()
+
     def get_pending_jobs(self) -> list[ExportJob]:
         """
         Get all pending jobs ordered by creation time.

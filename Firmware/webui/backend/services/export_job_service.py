@@ -301,7 +301,8 @@ class ExportJobService:
             job_id: Job UUID
 
         Returns:
-            Path to output file, or None if job not completed or not found
+            Path to output file, or None if job not completed, not found,
+            or path fails security validation.
         """
         job = self.get_job(job_id)
         if not job:
@@ -313,7 +314,23 @@ class ExportJobService:
         if not job.output_path:
             return None
 
-        return Path(job.output_path)
+        output_path = Path(job.output_path).resolve()
+
+        # Security: Validate path is within allowed temp directory
+        # Prevents path traversal if database is compromised
+        import tempfile
+        allowed_dir = (self._temp_dir or Path(tempfile.gettempdir())).resolve()
+        try:
+            output_path.relative_to(allowed_dir)
+        except ValueError:
+            # Path is outside allowed directory - security violation
+            logger.warning(
+                "Path traversal attempt blocked: %s not in %s",
+                output_path, allowed_dir
+            )
+            return None
+
+        return output_path
 
     # =========================================================================
     # Lifecycle
@@ -390,21 +407,14 @@ class ExportJobService:
             'worker_running': self._running,
         }
 
-        # Query database for counts
-        all_jobs = self._db.list_jobs(limit=100000, offset=0)
-        stats['total_jobs'] = len(all_jobs)
-
-        for job in all_jobs:
-            if job.status == ExportJobStatus.PENDING:
-                stats['pending_jobs'] += 1
-            elif job.status == ExportJobStatus.RUNNING:
-                stats['running_jobs'] += 1
-            elif job.status == ExportJobStatus.COMPLETED:
-                stats['completed_jobs'] += 1
-            elif job.status == ExportJobStatus.FAILED:
-                stats['failed_jobs'] += 1
-            elif job.status == ExportJobStatus.CANCELLED:
-                stats['cancelled_jobs'] += 1
+        # Query database for counts using efficient aggregate query
+        counts = self._db.count_jobs_by_status()
+        stats['total_jobs'] = counts['total']
+        stats['pending_jobs'] = counts['pending']
+        stats['running_jobs'] = counts['running']
+        stats['completed_jobs'] = counts['completed']
+        stats['failed_jobs'] = counts['failed']
+        stats['cancelled_jobs'] = counts['cancelled']
 
         return stats
 
@@ -492,8 +502,14 @@ class ExportJobService:
                 if job.job_id in self._cancelled_jobs:
                     logger.info("Job cancelled after execution: id=%s", job.job_id)
                     # Clean up output file
-                    if output_path and output_path.exists():
-                        output_path.unlink()
+                    try:
+                        if output_path and output_path.exists():
+                            output_path.unlink()
+                    except OSError as e:
+                        logger.warning(
+                            "Failed to delete output file for cancelled job %s: %s",
+                            job.job_id, e
+                        )
                     return
 
             # Update job with success
@@ -547,22 +563,16 @@ class ExportJobService:
         if filter.photo_paths:
             return [Path(p) for p in filter.photo_paths]
 
-        # Otherwise, scan photos directory
+        # Otherwise, scan photos directory with single traversal
         photos = []
 
-        # Get all photos
-        for photo_path in self._photos_dir.rglob("*.jpg"):
+        for photo_path in self._photos_dir.rglob("*"):
+            # Skip non-JPEG files
+            if photo_path.suffix.lower() not in ('.jpg', '.jpeg'):
+                continue
             # Apply filters
             if not self._matches_filter(photo_path, filter):
                 continue
-
-            photos.append(photo_path)
-
-        # Also check for .jpeg extension
-        for photo_path in self._photos_dir.rglob("*.jpeg"):
-            if not self._matches_filter(photo_path, filter):
-                continue
-
             photos.append(photo_path)
 
         # Sort by name for consistent ordering
@@ -581,16 +591,43 @@ class ExportJobService:
         Returns:
             True if photo matches filter
         """
-        # Date filtering (based on file mtime)
-        # TODO: Implement proper date filtering with date parsing
-        # Currently a stub - all photos pass date filter
-        # if filter.date_start or filter.date_end:
-        #     mtime = photo_path.stat().st_mtime
-        #     # Compare mtime with date_start/date_end
+        # Date filtering (filename timestamp with mtime fallback)
+        if filter.date_start or filter.date_end:
+            from webui.backend.lib.date_utils import get_photo_date, parse_date_filter
+
+            photo_date = get_photo_date(photo_path)
+
+            # If we can't determine date and filter requires it, exclude photo
+            if photo_date is None:
+                return False
+
+            # Check date_start (inclusive)
+            if filter.date_start:
+                start_date = parse_date_filter(filter.date_start)
+                if start_date and photo_date < start_date:
+                    return False
+
+            # Check date_end (inclusive)
+            if filter.date_end:
+                end_date = parse_date_filter(filter.date_end)
+                if end_date and photo_date > end_date:
+                    return False
 
         # Deployment filtering (check if photo is in deployment directory)
-        if filter.deployment and filter.deployment not in str(photo_path.parent):  # noqa: SIM103
-            return False
+        if filter.deployment:
+            deployment_path = Path(filter.deployment)
+            photo_parents = photo_path.parents
+
+            # Check if deployment is a full path or just a directory name
+            if deployment_path.is_absolute():
+                # Full path: photo must be inside deployment directory
+                if not any(parent == deployment_path for parent in photo_parents):
+                    return False
+            else:
+                # Directory name: check if any parent has this exact name
+                deployment_name = deployment_path.name or str(deployment_path)
+                if not any(parent.name == deployment_name for parent in photo_parents):
+                    return False
 
         # TODO: Additional filters to implement
         # - Tags filtering (requires sidecar metadata)
@@ -622,26 +659,27 @@ class ExportJobService:
             filename = f"mothbox_darwin_core_{timestamp}_{job_id_short}.csv"
             output_path = self._get_output_path(filename)
 
-            # Collect metadata for all photos
-            metadata_list = []
-            for photo_path in photo_paths:
-                metadata = self._export_service.get_export_metadata(photo_path)
-                if hasattr(metadata, 'to_dict'):
-                    # ExportMetadata object
-                    metadata_list.append(metadata)
-
-            # Transform to Darwin Core CSV and write to file
+            # Stream Darwin Core CSV row-by-row to minimize memory usage
             import csv
-            headers, rows = self._export_service.transform_batch_to_darwin_core_csv(
-                metadata_list=metadata_list,
-                filter_invalid=True,
+
+            from webui.backend.lib.darwin_core_mapping import (
+                get_csv_headers,
+                is_valid_for_export,
+                transform_to_csv_row,
             )
 
-            # Write CSV file
             with open(output_path, 'w', encoding='utf-8', newline='') as f:
                 writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
-                writer.writerow(headers)
-                writer.writerows(rows)
+                writer.writerow(get_csv_headers())
+
+                for photo_path in photo_paths:
+                    metadata = self._export_service.get_export_metadata(photo_path)
+                    if not hasattr(metadata, 'to_dict'):
+                        continue
+                    # Filter invalid (no GPS) for GBIF compliance
+                    if not is_valid_for_export(metadata):
+                        continue
+                    writer.writerow(transform_to_csv_row(metadata))
 
         elif job.format == ExportJobFormat.INATURALIST:
             filename = f"mothbox_inaturalist_{timestamp}_{job_id_short}.zip"
@@ -678,9 +716,8 @@ class ExportJobService:
             filename = f"mothbox_export_{timestamp}_{job_id_short}.csv"
             output_path = self._get_output_path(filename)
 
-            # Build CSV export by collecting metadata for each photo
+            # Stream generic CSV row-by-row to minimize memory usage
             import csv
-            rows = []
             headers = [
                 'photo_path', 'filename', 'timestamp',
                 'latitude', 'longitude', 'altitude', 'gps_accuracy',
@@ -695,20 +732,17 @@ class ExportJobService:
                 'file_size', 'width', 'height'
             ]
 
-            for photo_path in photo_paths:
-                metadata = self._export_service.get_export_metadata(photo_path)
-                if hasattr(metadata, 'to_dict'):
-                    # ExportMetadata object
-                    flat_data = self._export_service.transform_to_generic(metadata, flat=True)
-                    # Build row in header order
-                    row = [str(flat_data.get(h, '')) for h in headers]
-                    rows.append(row)
-
-            # Write CSV file
             with open(output_path, 'w', encoding='utf-8', newline='') as f:
                 writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
                 writer.writerow(headers)
-                writer.writerows(rows)
+
+                for photo_path in photo_paths:
+                    metadata = self._export_service.get_export_metadata(photo_path)
+                    if not hasattr(metadata, 'to_dict'):
+                        continue
+                    flat_data = self._export_service.transform_to_generic(metadata, flat=True)
+                    row = [str(flat_data.get(h, '')) for h in headers]
+                    writer.writerow(row)
 
         else:
             raise ValueError(f"Unsupported export format: {job.format}")
