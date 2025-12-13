@@ -46,6 +46,8 @@ import logging
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 
 from webui.backend.lib.export_job_db import ExportJobDB
@@ -460,82 +462,69 @@ class ExportJobService:
             job.started_at = time.time()
             self._db.update_job(job)
 
-        # Execute with timeout
-        timeout_timer = None
-
+        # Execute with timeout using ThreadPoolExecutor
         try:
-            # Create timeout timer
-            timeout_event = threading.Event()
+            # Collect photos first (usually fast)
+            photo_paths = self._collect_photos(job.filter)
 
-            def on_timeout():
-                logger.warning("Job timeout: id=%s", job.job_id)
-                timeout_event.set()
+            # Check for cancellation after photo collection
+            with self._cancel_lock:
+                if job.job_id in self._cancelled_jobs:
+                    logger.info("Job cancelled during execution: id=%s", job.job_id)
+                    return
 
-            timeout_timer = threading.Timer(self._job_timeout_seconds, on_timeout)
-            timeout_timer.start()
+            logger.info("Collected %d photos for export: id=%s", len(photo_paths), job.job_id)
 
-            # Execute in current thread (simpler than separate thread for timeout)
-            try:
-                # Collect photos
-                photo_paths = self._collect_photos(job.filter)
+            # Execute export with proper timeout enforcement
+            output_path = None
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(self._execute_export, job, photo_paths)
+                try:
+                    output_path = future.result(timeout=self._job_timeout_seconds)
+                except FuturesTimeoutError:
+                    future.cancel()
+                    raise TimeoutError(
+                        f"Job execution timeout after {self._job_timeout_seconds}s"
+                    ) from None
 
-                # Check for cancellation
-                with self._cancel_lock:
-                    if job.job_id in self._cancelled_jobs:
-                        logger.info("Job cancelled during execution: id=%s", job.job_id)
-                        return
+            # Check for cancellation after execution
+            with self._cancel_lock:
+                if job.job_id in self._cancelled_jobs:
+                    logger.info("Job cancelled after execution: id=%s", job.job_id)
+                    # Clean up output file
+                    if output_path and output_path.exists():
+                        output_path.unlink()
+                    return
 
-                # Check timeout
-                if timeout_event.is_set():
-                    raise TimeoutError("Job execution timeout")
+            # Update job with success
+            job.output_path = str(output_path)
+            job.photo_count = len(photo_paths)
+            job.status = ExportJobStatus.COMPLETED
+            job.completed_at = time.time()
+            self._db.update_job(job)
 
-                logger.info("Collected %d photos for export: id=%s", len(photo_paths), job.job_id)
+            logger.info(
+                "Job completed: id=%s, photos=%d, output=%s",
+                job.job_id,
+                len(photo_paths),
+                output_path,
+            )
 
-                # Execute export
-                output_path = self._execute_export(job, photo_paths)
+        except TimeoutError as e:
+            logger.error("Job timeout: id=%s - %s", job.job_id, e)
+            job.status = ExportJobStatus.FAILED
+            job.completed_at = time.time()
+            job.error_message = str(e)
+            self._db.update_job(job)
 
-                # Check for cancellation
-                with self._cancel_lock:
-                    if job.job_id in self._cancelled_jobs:
-                        logger.info("Job cancelled after execution: id=%s", job.job_id)
-                        # Clean up output file
-                        if output_path and output_path.exists():
-                            output_path.unlink()
-                        return
-
-                # Update job with success
-                job.output_path = str(output_path)
-                job.photo_count = len(photo_paths)
-                job.status = ExportJobStatus.COMPLETED
-                job.completed_at = time.time()
-                self._db.update_job(job)
-
-                logger.info(
-                    "Job completed: id=%s, photos=%d, output=%s",
-                    job.job_id,
-                    len(photo_paths),
-                    output_path,
-                )
-
-            except TimeoutError as e:
-                logger.error("Job timeout: id=%s - %s", job.job_id, e)
-                job.status = ExportJobStatus.FAILED
-                job.completed_at = time.time()
-                job.error_message = f"Job execution timeout after {self._job_timeout_seconds}s"
-                self._db.update_job(job)
-
-            except Exception as e:
-                logger.error("Job failed: id=%s - %s", job.job_id, e, exc_info=True)
-                job.status = ExportJobStatus.FAILED
-                job.completed_at = time.time()
-                job.error_message = str(e)
-                self._db.update_job(job)
+        except Exception as e:
+            logger.error("Job failed: id=%s - %s", job.job_id, e, exc_info=True)
+            job.status = ExportJobStatus.FAILED
+            job.completed_at = time.time()
+            job.error_message = str(e)
+            self._db.update_job(job)
 
         finally:
-            # Cancel timeout timer
-            if timeout_timer:
-                timeout_timer.cancel()
-
             # Remove from cancelled set
             with self._cancel_lock:
                 self._cancelled_jobs.discard(job.job_id)
