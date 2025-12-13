@@ -19,7 +19,6 @@ from webui.backend.lib.xmp_sidecar import (
     build_dc_title,
     build_location_shown,
     build_xmp_document,
-    escape_xml_text,
     generate_xmp_xml,
     get_xmp_sidecar_filename,
     validate_xmp_xml,
@@ -96,33 +95,6 @@ class TestXMPConstants:
 
 class TestXMLUtilities:
     """Test XML utility functions."""
-
-    def test_escape_xml_text_basic(self):
-        """Test escaping basic XML special characters."""
-        assert escape_xml_text("Hello World") == "Hello World"
-        assert escape_xml_text("A & B") == "A &amp; B"
-        assert escape_xml_text("A < B") == "A &lt; B"
-        assert escape_xml_text("A > B") == "A &gt; B"
-        assert escape_xml_text('Say "hello"') == "Say &quot;hello&quot;"
-        assert escape_xml_text("It's here") == "It&apos;s here"
-
-    def test_escape_xml_text_multiple(self):
-        """Test escaping multiple special characters."""
-        text = '<tag attr="value">A & B</tag>'
-        escaped = escape_xml_text(text)
-        assert '&lt;' in escaped
-        assert '&gt;' in escaped
-        assert '&quot;' in escaped
-        assert '&amp;' in escaped
-
-    def test_escape_xml_text_unicode(self):
-        """Test Unicode characters are preserved."""
-        text = "Café résumé naïve 日本語"
-        assert escape_xml_text(text) == text
-
-    def test_escape_xml_text_empty(self):
-        """Test empty string handling."""
-        assert escape_xml_text("") == ""
 
     def test_validate_xmp_xml_valid(self):
         """Test validation of valid XMP XML."""
@@ -326,18 +298,18 @@ class TestIPTCExtensionElements:
         assert li is not None
         assert li.get('{http://www.w3.org/1999/02/22-rdf-syntax-ns#}parseType') == 'Resource'
 
-        # Check coordinate fields
+        # Check coordinate fields (8 decimal places for lat/lon, 2 for altitude)
         lat_elem = li.find('.//{http://iptc.org/std/Iptc4xmpExt/2008-02-29/}Latitude')
         assert lat_elem is not None
-        assert lat_elem.text == "35.9606"
+        assert lat_elem.text == "35.96060000"
 
         lon_elem = li.find('.//{http://iptc.org/std/Iptc4xmpExt/2008-02-29/}Longitude')
         assert lon_elem is not None
-        assert lon_elem.text == "-83.9207"
+        assert lon_elem.text == "-83.92070000"
 
         alt_elem = li.find('.//{http://iptc.org/std/Iptc4xmpExt/2008-02-29/}Altitude')
         assert alt_elem is not None
-        assert alt_elem.text == "350.5"
+        assert alt_elem.text == "350.50"
 
         name_elem = li.find('.//{http://iptc.org/std/Iptc4xmpExt/2008-02-29/}LocationName')
         assert name_elem is not None

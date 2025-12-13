@@ -744,9 +744,8 @@ class ExportMetadataService:
         if output_path is None:
             import tempfile
             # Create temp file securely, then use its path for ZIP creation
-            temp_fd = tempfile.NamedTemporaryFile(suffix='.zip', delete=False)
-            output_path = Path(temp_fd.name)
-            temp_fd.close()
+            with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_fd:
+                output_path = Path(temp_fd.name)
 
         # Create ZIP with default options if not provided
         if options is None:

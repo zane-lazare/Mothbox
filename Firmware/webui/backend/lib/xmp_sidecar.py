@@ -48,33 +48,6 @@ for prefix, uri in XMP_NAMESPACES.items():
 # XML Utility Functions
 # ============================================================================
 
-def escape_xml_text(text: str) -> str:
-    """
-    Escape special XML characters.
-
-    Args:
-        text: Text to escape
-
-    Returns:
-        Escaped text safe for XML content
-
-    Note:
-        ElementTree handles escaping automatically, but this function
-        is provided for manual escaping when needed.
-    """
-    if not text:
-        return text
-
-    # XML special characters
-    text = text.replace('&', '&amp;')
-    text = text.replace('<', '&lt;')
-    text = text.replace('>', '&gt;')
-    text = text.replace('"', '&quot;')
-    text = text.replace("'", '&apos;')
-
-    return text
-
-
 def validate_xmp_xml(xml_string: str) -> bool:
     """
     Validate that XML string is well-formed.
@@ -359,18 +332,18 @@ def build_location_shown(
     li = ET.SubElement(bag, f"{{{XMP_NAMESPACES['rdf']}}}li")
     li.set(f"{{{XMP_NAMESPACES['rdf']}}}parseType", 'Resource')
 
-    # Latitude (required)
+    # Latitude (required) - 8 decimal places provides ~1.1mm precision
     lat_elem = ET.SubElement(li, f"{{{XMP_NAMESPACES['Iptc4xmpExt']}}}Latitude")
-    lat_elem.text = str(lat)
+    lat_elem.text = f"{lat:.8f}"
 
-    # Longitude (required)
+    # Longitude (required) - 8 decimal places provides ~1.1mm precision
     lon_elem = ET.SubElement(li, f"{{{XMP_NAMESPACES['Iptc4xmpExt']}}}Longitude")
-    lon_elem.text = str(lon)
+    lon_elem.text = f"{lon:.8f}"
 
-    # Altitude (optional)
+    # Altitude (optional) - 2 decimal places for meters
     if alt is not None:
         alt_elem = ET.SubElement(li, f"{{{XMP_NAMESPACES['Iptc4xmpExt']}}}Altitude")
-        alt_elem.text = str(alt)
+        alt_elem.text = f"{alt:.2f}"
 
     # Location name (optional)
     if name:

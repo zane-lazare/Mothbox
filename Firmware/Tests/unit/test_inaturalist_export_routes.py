@@ -186,10 +186,10 @@ class TestExportINaturalistBatch:
         assert response.status_code == 200
         data = response.get_json()
         assert data['success'] is True
-        assert 'zip_path' in data
         assert 'photo_count' in data
         assert 'zip_size_bytes' in data
         assert 'took_ms' in data
+        # zip_path not returned since temp file is cleaned up after response
 
     def test_export_batch_requires_photos(self, client):
         """Test batch export fails without photo_paths."""
@@ -390,8 +390,8 @@ class TestExportDeploymentINaturalist:
         assert response.status_code == 200
         data = response.get_json()
         assert data['success'] is True
-        assert 'zip_path' in data
         assert 'photo_count' in data
+        # zip_path not returned since temp file is cleaned up after response
 
     def test_export_deployment_invalid_path(self, client):
         """Test deployment export validates path (path traversal protection)."""
