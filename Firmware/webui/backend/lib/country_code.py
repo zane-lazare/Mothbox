@@ -69,7 +69,7 @@ def detect_country_from_gps(latitude: float, longitude: float) -> str | None:
         logger.warning("geopip not installed - GPS country detection unavailable")
         return None
     except Exception as e:
-        logger.warning("GPS country lookup failed for (%s, %s): %s", latitude, longitude, e)
+        logger.warning("GPS country lookup failed: %s", e)
         return None
 
 
@@ -155,16 +155,16 @@ def detect_country_code(
     if latitude is not None and longitude is not None:
         # Validate coordinate ranges
         if not (-90 <= latitude <= 90):
-            logger.warning("Invalid latitude: %s (must be -90 to 90)", latitude)
+            logger.warning("Invalid latitude value (must be -90 to 90)")
         elif not (-180 <= longitude <= 180):
-            logger.warning("Invalid longitude: %s (must be -180 to 180)", longitude)
+            logger.warning("Invalid longitude value (must be -180 to 180)")
         else:
             code = detect_country_from_gps(latitude, longitude)
             if code:
-                logger.debug("GPS country detection: (%s, %s) -> %s", latitude, longitude, code)
+                logger.debug("GPS country detection successful: %s", code)
                 return code
             # GPS lookup returned None (e.g., ocean coordinates)
-            logger.debug("GPS country detection returned None for (%s, %s)", latitude, longitude)
+            logger.debug("GPS country detection returned None (coordinates may be in ocean)")
 
     # Fallback: System locale
     if use_locale_fallback:
