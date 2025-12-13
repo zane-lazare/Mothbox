@@ -123,3 +123,15 @@ MAX_BULK_DELETE: Final[int] = 100  # Max files per bulk delete operation (Fronte
 # CACHE SETTINGS
 # =============================================================================
 DEFAULT_CACHE_TTL: Final[int] = 300  # 5 minutes - standard cache TTL for services
+
+# =============================================================================
+# INATURALIST EXPORT SETTINGS (Issue #118)
+# =============================================================================
+INATURALIST_DEFAULT_LICENSE: Final[str] = "CC BY-NC 4.0"
+INATURALIST_CREATOR: Final[str] = "Mothbox"
+INCLUDE_TAXONOMY_HIERARCHY: Final[bool] = True
+INCLUDE_CSV_SUMMARY: Final[bool] = True
+
+# ZIP Export Settings
+ZIP_COMPRESSION_LEVEL: Final[int] = 0  # No compression for JPEGs (already compressed)
+MAX_PHOTOS_PER_ZIP: Final[int] = 1000  # Maximum photos per ZIP export
