@@ -243,6 +243,45 @@ except Exception as e:
     print(f"⚠️  Failed to initialize export metadata service: {e}")
     app.config['EXPORT_METADATA_SERVICE'] = None
 
+# Initialize export job service (async job queue for exports)
+from webui.backend.constants import (
+    EXPORT_JOB_MAX_HISTORY,
+    EXPORT_JOB_TIMEOUT_SECONDS,
+    EXPORT_JOB_TTL_SECONDS,
+)
+from webui.backend.services.export_job_service import ExportJobService
+
+try:
+    export_metadata_svc = app.config.get('EXPORT_METADATA_SERVICE')
+    if export_metadata_svc:
+        # Database stored in DATA_DIR for persistence across restarts
+        from mothbox_paths import DATA_DIR, PHOTOS_DIR
+        db_path = DATA_DIR / "export_jobs.db"
+        temp_dir = DATA_DIR / "export_temp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        export_job_service = ExportJobService(
+            db_path=db_path,
+            export_service=export_metadata_svc,
+            photos_dir=PHOTOS_DIR,
+            temp_dir=temp_dir,
+            job_timeout_seconds=EXPORT_JOB_TIMEOUT_SECONDS,
+            job_ttl_seconds=EXPORT_JOB_TTL_SECONDS,
+            max_history=EXPORT_JOB_MAX_HISTORY,
+        )
+        export_job_service.start()  # Start worker thread
+        app.config['EXPORT_JOB_SERVICE'] = export_job_service
+        atexit.register(export_job_service.stop)  # Cleanup on shutdown
+        print("✓ Export job service initialized")
+        print(f"  Database: {db_path}")
+        print(f"  Temp dir: {temp_dir}")
+    else:
+        app.config['EXPORT_JOB_SERVICE'] = None
+        print("⚠️  Export job service not initialized (export metadata service unavailable)")
+except Exception as e:
+    print(f"⚠️  Failed to initialize export job service: {e}")
+    app.config['EXPORT_JOB_SERVICE'] = None
+
 # Initialize deployment service
 from webui.backend.services.deployment_service import DeploymentService
 
