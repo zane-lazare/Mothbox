@@ -52,6 +52,17 @@ logger = logging.getLogger(__name__)
 
 export_bp = Blueprint("export", __name__)
 
+# Photo file extensions supported for export
+PHOTO_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG'}
+
+
+def find_photos_in_directory(directory: Path) -> list[Path]:
+    """Find all photo files in directory and subdirectories."""
+    return [
+        p for p in directory.rglob('*')
+        if p.is_file() and p.suffix in PHOTO_EXTENSIONS
+    ]
+
 
 @export_bp.after_request
 def add_etag(response):
@@ -748,12 +759,8 @@ def export_deployment_darwin_core(deployment_path: str):
         validate = request.args.get('validate', 'true').lower() == 'true'
         include_warnings = request.args.get('include_warnings', 'false').lower() == 'true'
 
-        # Get all photos in deployment (jpg, jpeg, png)
-        photo_extensions = {'.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG'}
-        photo_paths = [
-            p for p in deployment_dir.rglob('*')
-            if p.is_file() and p.suffix in photo_extensions
-        ]
+        # Get all photos in deployment
+        photo_paths = find_photos_in_directory(deployment_dir)
 
         if not photo_paths:
             return jsonify({
@@ -1083,12 +1090,8 @@ def export_deployment_inaturalist(deployment_path: str):
         include_manifest = request.args.get('include_manifest', 'true').lower() == 'true'
         include_csv_summary = request.args.get('include_csv_summary', 'true').lower() == 'true'
 
-        # Get all photos in deployment (jpg, jpeg, png)
-        photo_extensions = {'.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG'}
-        photo_paths = [
-            p for p in deployment_dir.rglob('*')
-            if p.is_file() and p.suffix in photo_extensions
-        ]
+        # Get all photos in deployment
+        photo_paths = find_photos_in_directory(deployment_dir)
 
         if not photo_paths:
             return jsonify({
@@ -1706,10 +1709,7 @@ def export_deployment_json(deployment_path: str):
             return jsonify({"error": str(e)}), 400
 
         # Find all photos in deployment directory
-        photo_patterns = ['*.jpg', '*.jpeg', '*.JPG', '*.JPEG']
-        photo_files = []
-        for pattern in photo_patterns:
-            photo_files.extend(deployment_dir.glob(f'**/{pattern}'))
+        photo_files = find_photos_in_directory(deployment_dir)
 
         if not photo_files:
             return jsonify({
@@ -1889,8 +1889,11 @@ def export_batch_csv():
             return jsonify({"error": "'photo_paths' must be an array"}), 400
 
         # Validate all paths are non-empty strings
-        if photo_paths and not all(isinstance(p, str) and p.strip() for p in photo_paths):
+        if not all(isinstance(p, str) and p.strip() for p in photo_paths):
             return jsonify({"error": "All photo_paths must be non-empty strings"}), 400
+
+        if len(photo_paths) == 0:
+            return jsonify({"error": "No photos provided"}), 400
 
         # Get configurable batch size limit
         max_batch_size = current_app.config.get('EXPORT_MAX_BATCH_SIZE', 1000)
@@ -1910,34 +1913,6 @@ def export_batch_csv():
 
         # Get headers (filtered if needed)
         headers = _get_generic_csv_headers(fields, exclude)
-
-        # Empty list handling
-        if len(photo_paths) == 0:
-            csv_content = _generate_csv_with_bom(headers, [], include_bom)
-
-            accept = request.headers.get('Accept', 'application/json')
-            if 'text/csv' in accept:
-                timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
-                filename = f"metadata_export_{timestamp}.csv"
-                response = Response(
-                    csv_content.encode('utf-8') if not include_bom else csv_content.encode('utf-8-sig'),
-                    mimetype='text/csv',
-                    headers={
-                        'Content-Disposition': f'attachment; filename="{filename}"',
-                        'Content-Type': 'text/csv; charset=utf-8',
-                    }
-                )
-                return response
-            else:
-                return jsonify({
-                    "csv_data": csv_content,
-                    "headers": headers,
-                    "row_count": 0,
-                    "total": 0,
-                    "successful": 0,
-                    "failed": 0,
-                    "errors": []
-                }), 200
 
         # Collect metadata and build rows
         rows = []
@@ -1994,9 +1969,9 @@ def export_batch_csv():
             timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
             filename = f"metadata_export_{timestamp}.csv"
 
-            # Handle BOM in bytes
+            # Handle BOM encoding
             if include_bom:
-                csv_bytes = b'\xef\xbb\xbf' + csv_content.lstrip('\ufeff').encode('utf-8')
+                csv_bytes = csv_content.encode('utf-8-sig')
             else:
                 csv_bytes = csv_content.encode('utf-8')
 
@@ -2074,10 +2049,7 @@ def export_deployment_csv(deployment_path: str):
         include_bom = request.args.get('include_bom', 'false').lower() == 'true'
 
         # Find all photos in deployment directory
-        photo_patterns = ['*.jpg', '*.jpeg', '*.JPG', '*.JPEG']
-        photo_files = []
-        for pattern in photo_patterns:
-            photo_files.extend(deployment_dir.glob(f'**/{pattern}'))
+        photo_files = find_photos_in_directory(deployment_dir)
 
         if not photo_files:
             return jsonify({
@@ -2139,9 +2111,9 @@ def export_deployment_csv(deployment_path: str):
             safe_name = deployment_path.replace('/', '_').replace('\\', '_')
             filename = f"{safe_name}_metadata_{timestamp}.csv"
 
-            # Handle BOM in bytes
+            # Handle BOM encoding
             if include_bom:
-                csv_bytes = b'\xef\xbb\xbf' + csv_content.lstrip('\ufeff').encode('utf-8')
+                csv_bytes = csv_content.encode('utf-8-sig')
             else:
                 csv_bytes = csv_content.encode('utf-8')
 
