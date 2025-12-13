@@ -13,7 +13,7 @@ Architecture:
 - Thin wrapper over existing services (no business logic duplication)
 - Generic JSON/CSV transformer implemented
 - Darwin Core transformer implemented (Issue #116)
-- iNaturalist transformer is a stub (Issue #118)
+- iNaturalist transformer implemented (Issue #118)
 
 Usage:
     from webui.backend.services.export_metadata_service import (
@@ -64,6 +64,7 @@ from webui.backend.services.metadata_service import MetadataService
 from webui.backend.services.sidecar_service import SidecarMetadata, SidecarService
 
 if TYPE_CHECKING:
+    from webui.backend.lib.zip_export import ZipExportOptions, ZipExportResult
     from webui.backend.services.deployment_service import DeploymentService
     from webui.backend.services.series_service import SeriesService
 
@@ -703,20 +704,77 @@ class ExportMetadataService:
 
         return headers, rows
 
+    def transform_batch_to_inaturalist_zip(
+        self,
+        photo_paths: list[Path],
+        output_path: Path | None = None,
+        options: "ZipExportOptions | None" = None,
+    ) -> "ZipExportResult":
+        """Export multiple photos as iNaturalist ZIP with XMP sidecars.
+
+        Creates a ZIP archive containing:
+        - Original photos (uncompressed)
+        - XMP sidecar files with iNaturalist-compatible metadata
+        - manifest.json with collection metadata
+        - summary.csv with tabular data
+
+        Args:
+            photo_paths: List of paths to photos to export
+            output_path: Path for output ZIP file. If None, uses temp file.
+            options: ZipExportOptions for customization
+
+        Returns:
+            ZipExportResult with success status and statistics
+
+        Raises:
+            ValueError: If photo_paths is empty
+        """
+        from webui.backend.lib.zip_export import (
+            ZipExportOptions,
+            create_zip_export,
+        )
+
+        if not photo_paths:
+            raise ValueError("photo_paths cannot be empty")
+
+        # Get metadata for all photos
+        metadata_list = self.batch_get_export_metadata(photo_paths)
+
+        # Use temp file if output_path not provided
+        if output_path is None:
+            import tempfile
+            # Create temp file securely, then use its path for ZIP creation
+            with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_fd:
+                output_path = Path(temp_fd.name)
+
+        # Create ZIP with default options if not provided
+        if options is None:
+            options = ZipExportOptions()
+
+        return create_zip_export(photo_paths, metadata_list, output_path, options)
+
     def transform_to_inaturalist(self, metadata: ExportMetadata) -> dict:
         """Transform to iNaturalist format.
 
-        STUB: Raises NotImplementedError - full implementation in Issue #118.
+        Maps Mothbox metadata fields to iNaturalist-compatible structure
+        for XMP sidecar generation and observation data.
 
         Args:
             metadata: ExportMetadata to transform
 
-        Raises:
-            NotImplementedError: iNaturalist transformer not yet implemented
+        Returns:
+            dict with iNaturalist-compatible fields including:
+            - title: "Common Name (Scientific Name)"
+            - notes: Combined notes and tags
+            - latitude, longitude: GPS coordinates
+            - timestamp: ISO 8601 datetime
+            - quality_grade: Mapped from species_confidence
+            - taxonomy_keywords: Hierarchical taxonomy for dc:subject
+            - license: Default CC BY-NC 4.0
+            - creator: Default "Mothbox"
         """
-        raise NotImplementedError(
-            "iNaturalist transformation will be implemented in Issue #118"
-        )
+        from webui.backend.lib.inaturalist_mapping import transform_metadata_to_inaturalist
+        return transform_metadata_to_inaturalist(metadata)
 
     # ========================================================================
     # Validation
@@ -744,31 +802,12 @@ class ExportMetadataService:
         if format == ExportFormat.DARWIN_CORE:
             return self._validate_darwin_core(metadata)
 
-        # Get required fields for other formats
-        required = {
-            ExportFormat.INATURALIST: INATURALIST_REQUIRED,
-        }.get(format, [])
-
-        # Check for missing fields
-        missing = []
-        for field_name in required:
-            value = getattr(metadata, field_name, None)
-            if value is None:
-                missing.append(field_name)
-
-        # Add warning for stub formats (validation is incomplete)
-        warnings = []
+        # iNaturalist has comprehensive validation
         if format == ExportFormat.INATURALIST:
-            warnings.append(
-                "iNaturalist validation is incomplete (stub). "
-                "Full validation will be implemented in Issue #118."
-            )
+            return self._validate_inaturalist(metadata)
 
-        return ValidationResult(
-            is_valid=len(missing) == 0,
-            missing_fields=missing,
-            warnings=warnings
-        )
+        # Unknown format - return generic validation
+        return ValidationResult(is_valid=True)
 
     def _validate_darwin_core(self, metadata: ExportMetadata) -> ValidationResult:
         """Comprehensive validation for Darwin Core export.
@@ -822,6 +861,33 @@ class ExportMetadataService:
             is_valid=len(missing_fields) == 0,
             missing_fields=missing_fields,
             warnings=warnings,
+        )
+
+    def _validate_inaturalist(self, metadata: ExportMetadata) -> ValidationResult:
+        """Validate metadata for iNaturalist export.
+
+        Checks:
+        - Required fields: latitude, longitude, timestamp
+        - Valid coordinate ranges (-90 to 90 for lat, -180 to 180 for lon)
+        - Warns for missing species/common_name
+
+        Args:
+            metadata: ExportMetadata to validate
+
+        Returns:
+            ValidationResult with validation status and details
+        """
+        from webui.backend.lib.inaturalist_mapping import validate_for_inaturalist
+
+        # Use the library's validation function
+        lib_result = validate_for_inaturalist(metadata)
+
+        # Convert library's ValidationResult to service's ValidationResult
+        # Note: Both have the same structure, but different imports
+        return ValidationResult(
+            is_valid=lib_result.is_valid,
+            missing_fields=lib_result.missing_required,
+            warnings=lib_result.warnings + [f"Missing recommended: {', '.join(lib_result.missing_recommended)}"] if lib_result.missing_recommended else lib_result.warnings,
         )
 
     # ========================================================================

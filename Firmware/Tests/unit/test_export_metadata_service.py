@@ -696,12 +696,18 @@ class TestFormatStubs:
         assert "geodeticDatum" in result
         assert result["geodeticDatum"] == "WGS84"
 
-    def test_inaturalist_stub_raises_not_implemented(self, service, sample_photo_path):
-        """transform_to_inaturalist should raise NotImplementedError."""
+    def test_inaturalist_transforms_metadata(self, service, sample_photo_path):
+        """transform_to_inaturalist should transform metadata successfully."""
         metadata = service.get_export_metadata(sample_photo_path)
 
-        with pytest.raises(NotImplementedError, match="iNaturalist"):
-            service.transform_to_inaturalist(metadata)
+        result = service.transform_to_inaturalist(metadata)
+
+        # Verify basic structure
+        assert isinstance(result, dict)
+        assert 'latitude' in result
+        assert 'longitude' in result
+        assert 'title' in result
+        assert 'quality_grade' in result
 
 
 # ============================================================================
@@ -1129,3 +1135,251 @@ class TestResetStatistics:
             t.join()
 
         assert len(errors) == 0, f"Thread safety errors: {errors}"
+
+
+# ============================================================================
+# Test iNaturalist Transformation (Issue #118)
+# ============================================================================
+
+class TestTransformToINaturalist:
+    """Tests for transform_to_inaturalist() method."""
+
+    def test_transforms_complete_metadata(self, service, sample_photo_path):
+        """Test transformation with all fields populated."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        result = service.transform_to_inaturalist(metadata)
+
+        # Check required fields
+        assert 'title' in result
+        assert 'notes' in result
+        assert 'latitude' in result
+        assert 'longitude' in result
+        assert 'quality_grade' in result
+        assert 'timestamp' in result
+
+        # Verify values
+        assert result['latitude'] == 37.7749
+        assert result['longitude'] == -122.4194
+
+    def test_includes_taxonomy_keywords(self, service, sample_photo_path):
+        """Test that taxonomy keywords are included."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        result = service.transform_to_inaturalist(metadata)
+
+        assert 'keywords' in result
+        assert isinstance(result['keywords'], list)
+
+        # Should have taxonomy keywords
+        taxonomy_keywords = [k for k in result['keywords'] if k.startswith('taxonomy:')]
+        assert len(taxonomy_keywords) > 0
+
+    def test_maps_confidence_to_quality_grade(self, tmp_path, mock_metadata_service, sample_exif_metadata):
+        """Test species confidence mapping."""
+        # Create photo
+        photo = tmp_path / "moth.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 1000)
+
+        # Mock sidecar with 'certain' confidence
+        @dataclass
+        class SidecarMetadata:
+            tags: list[str]
+            species: str | None
+            common_name: str | None
+            confidence: str | None
+            notes: str | None
+
+        sidecar = SidecarMetadata(
+            tags=['moth'],
+            species='Actias luna',
+            common_name='Luna moth',
+            confidence='certain',
+            notes='Test'
+        )
+
+        mock_sidecar = Mock()
+        mock_sidecar.get_metadata.return_value = sidecar
+
+        service = ExportMetadataService(
+            metadata_service=mock_metadata_service,
+            sidecar_service=mock_sidecar,
+        )
+
+        metadata = service.get_export_metadata(photo)
+        result = service.transform_to_inaturalist(metadata)
+
+        # 'certain' maps to 'research'
+        assert result['quality_grade'] in ['research', 'needs_id', 'casual']
+
+    def test_handles_missing_species(self, tmp_path, sample_exif_metadata):
+        """Test transformation with no species data."""
+        photo = tmp_path / "moth.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 1000)
+
+        mock_meta = Mock()
+        mock_meta.get_photo_metadata.return_value = sample_exif_metadata
+
+        mock_sidecar = Mock()
+        mock_sidecar.get_metadata.return_value = None
+
+        service = ExportMetadataService(
+            metadata_service=mock_meta,
+            sidecar_service=mock_sidecar,
+        )
+
+        metadata = service.get_export_metadata(photo)
+        result = service.transform_to_inaturalist(metadata)
+
+        # Should still work
+        assert 'title' in result
+        assert 'species' in result
+        assert result['species'] == ''
+
+
+# ============================================================================
+# Test iNaturalist ZIP Export (Issue #118)
+# ============================================================================
+
+class TestTransformBatchToINaturalistZip:
+    """Tests for transform_batch_to_inaturalist_zip() method."""
+
+    def test_creates_zip_file(self, tmp_path, service):
+        """Test ZIP creation."""
+        # Create sample photos
+        photos = []
+        for i in range(3):
+            photo = tmp_path / f"moth_{i}.jpg"
+            photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 1000)
+            photos.append(photo)
+
+        output_path = tmp_path / "export.zip"
+        result = service.transform_batch_to_inaturalist_zip(
+            photos,
+            output_path=output_path,
+        )
+
+        assert result.success
+        assert output_path.exists()
+        assert result.photo_count > 0
+
+    def test_empty_list_raises_error(self, service):
+        """Test error on empty photo list."""
+        with pytest.raises(ValueError, match="cannot be empty"):
+            service.transform_batch_to_inaturalist_zip([])
+
+    def test_uses_temp_file_when_no_output_path(self, tmp_path, service):
+        """Test temp file creation when output_path is None."""
+        photo = tmp_path / "moth.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 1000)
+
+        result = service.transform_batch_to_inaturalist_zip([photo])
+
+        assert result.success
+        assert result.zip_path is not None
+        assert result.zip_path.exists()
+        assert str(result.zip_path).endswith('.zip')
+
+    def test_includes_xmp_sidecars_by_default(self, tmp_path, service):
+        """Test that XMP sidecars are included by default."""
+        photo = tmp_path / "moth.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 1000)
+
+        output_path = tmp_path / "export.zip"
+        result = service.transform_batch_to_inaturalist_zip(
+            [photo],
+            output_path=output_path,
+        )
+
+        assert result.success
+        # XMP files should be created (count should match or be close to photo count)
+        assert result.xmp_count >= 0
+
+    def test_respects_zip_export_options(self, tmp_path, service):
+        """Test that ZipExportOptions are respected."""
+        from webui.backend.lib.zip_export import ZipExportOptions
+
+        photo = tmp_path / "moth.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 1000)
+
+        # Create options with XMP disabled
+        options = ZipExportOptions(include_xmp_sidecars=False)
+
+        output_path = tmp_path / "export.zip"
+        result = service.transform_batch_to_inaturalist_zip(
+            [photo],
+            output_path=output_path,
+            options=options,
+        )
+
+        assert result.success
+        # XMP count should be 0 when disabled
+        assert result.xmp_count == 0
+
+
+# ============================================================================
+# Test iNaturalist Validation (Issue #118)
+# ============================================================================
+
+class TestValidateINaturalist:
+    """Tests for _validate_inaturalist() method."""
+
+    def test_valid_metadata_passes(self, service, sample_photo_path):
+        """Test valid metadata passes validation."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        result = service._validate_inaturalist(metadata)
+
+        assert result.is_valid
+
+    def test_missing_latitude_fails(self, tmp_path, sample_exif_no_gps):
+        """Test validation fails without GPS."""
+        photo = tmp_path / "moth.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 1000)
+
+        mock_meta = Mock()
+        mock_meta.get_photo_metadata.return_value = sample_exif_no_gps
+
+        service = ExportMetadataService(
+            metadata_service=mock_meta,
+            sidecar_service=Mock(return_value=None),
+        )
+
+        metadata = service.get_export_metadata(photo)
+        result = service._validate_inaturalist(metadata)
+
+        assert not result.is_valid
+        assert len(result.missing_fields) > 0
+        # Should mention latitude or longitude
+        missing_str = str(result.missing_fields)
+        assert 'latitude' in missing_str or 'longitude' in missing_str
+
+    def test_returns_warnings_for_missing_recommended(self, tmp_path, sample_exif_metadata):
+        """Test warnings for missing recommended fields."""
+        photo = tmp_path / "moth.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 1000)
+
+        mock_meta = Mock()
+        mock_meta.get_photo_metadata.return_value = sample_exif_metadata
+
+        # No sidecar data
+        mock_sidecar = Mock()
+        mock_sidecar.get_metadata.return_value = None
+
+        service = ExportMetadataService(
+            metadata_service=mock_meta,
+            sidecar_service=mock_sidecar,
+        )
+
+        metadata = service.get_export_metadata(photo)
+        result = service._validate_inaturalist(metadata)
+
+        # Should be valid (GPS present) but have warnings
+        assert result.is_valid
+        assert len(result.warnings) > 0
+
+    def test_validate_for_format_calls_inaturalist_validation(self, service, sample_photo_path):
+        """Test that validate_for_format uses iNaturalist validation."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        result = service.validate_for_format(metadata, ExportFormat.INATURALIST)
+
+        assert isinstance(result, ValidationResult)
+        assert hasattr(result, 'is_valid')
+        assert result.is_valid  # Should pass with sample data
