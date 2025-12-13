@@ -57,7 +57,9 @@ from webui.backend.lib.export_job_types import (
     ExportJobFormat,
     ExportJobStatus,
 )
+from webui.backend.lib.series_detection import detect_series_type
 from webui.backend.services.export_metadata_service import ExportMetadataService
+from webui.backend.services.sidecar_service import SidecarService
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +85,7 @@ class ExportJobService:
         job_timeout_seconds: int = 600,  # 10 minutes
         job_ttl_seconds: int = 3600,  # 1 hour
         max_history: int = 50,
+        sidecar_service: SidecarService | None = None,
     ):
         """
         Initialize export job service.
@@ -95,6 +98,7 @@ class ExportJobService:
             job_timeout_seconds: Max execution time per job (default: 600 = 10 min)
             job_ttl_seconds: Time to keep completed jobs before cleanup (default: 3600 = 1 hour)
             max_history: Max number of completed jobs to keep (default: 50)
+            sidecar_service: SidecarService instance for metadata filtering (default: create new)
         """
         self._db_path = Path(db_path)
         self._export_service = export_service
@@ -103,6 +107,7 @@ class ExportJobService:
         self._job_timeout_seconds = job_timeout_seconds
         self._job_ttl_seconds = job_ttl_seconds
         self._max_history = max_history
+        self._sidecar_service = sidecar_service or SidecarService(photos_dir)
 
         # Initialize database
         self._db = ExportJobDB(self._db_path)
@@ -514,6 +519,7 @@ class ExportJobService:
 
             # Update job with success
             job.output_path = str(output_path)
+            job.output_size_bytes = output_path.stat().st_size if output_path.exists() else 0
             job.photo_count = len(photo_paths)
             job.status = ExportJobStatus.COMPLETED
             job.completed_at = time.time()
@@ -629,10 +635,27 @@ class ExportJobService:
                 if not any(parent.name == deployment_name for parent in photo_parents):
                     return False
 
-        # TODO: Additional filters to implement
-        # - Tags filtering (requires sidecar metadata)
-        # - Series type filtering (requires series detection)
-        # - Species filtering (requires sidecar metadata)
+        # Series type filtering (uses filename pattern detection)
+        if filter.series_type:
+            series_info = detect_series_type(photo_path.name)
+            if not series_info or series_info.series_type != filter.series_type:
+                return False
+
+        # Get sidecar metadata once if needed for tags or species filtering
+        metadata = None
+        if filter.tags or filter.has_species:
+            metadata = self._sidecar_service.get_metadata(str(photo_path))
+
+        # Tags filtering (any tag matches)
+        if filter.tags:
+            if not metadata or not metadata.tags:
+                return False
+            if not any(tag in metadata.tags for tag in filter.tags):
+                return False
+
+        # Species filtering (has_species = True means only include photos with species)
+        if filter.has_species and (not metadata or not metadata.species):  # noqa: SIM103
+            return False
 
         return True
 

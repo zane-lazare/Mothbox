@@ -742,3 +742,257 @@ def test_deployment_filter_similar_names(service, photos_dir):
     assert service._matches_filter(dir1 / "photo.jpg", filter_obj) is True
     assert service._matches_filter(dir2 / "photo.jpg", filter_obj) is False
     assert service._matches_filter(dir3 / "photo.jpg", filter_obj) is False
+
+
+# =============================================================================
+# Series Type Filter Tests
+# =============================================================================
+
+
+def test_series_type_filter_hdr_match(service, photos_dir):
+    """Series type filter matches HDR photos."""
+    # HDR filename pattern: {name}_{YYYY_MM_DD__HH_MM_SS}_HDR{index}.jpg
+    hdr_photo = photos_dir / "moth_2024_01_15__10_30_00_HDR0.jpg"
+    hdr_photo.write_text("hdr photo")
+
+    filter_obj = ExportJobFilter(series_type="hdr")
+    assert service._matches_filter(hdr_photo, filter_obj) is True
+
+
+def test_series_type_filter_hdr_no_match(service, photos_dir):
+    """Series type filter rejects non-HDR photos when filtering for HDR."""
+    regular_photo = photos_dir / "moth_2024_01_15__10_30_00.jpg"
+    regular_photo.write_text("regular photo")
+
+    filter_obj = ExportJobFilter(series_type="hdr")
+    assert service._matches_filter(regular_photo, filter_obj) is False
+
+
+def test_series_type_filter_focus_bracket_match(service, photos_dir):
+    """Series type filter matches focus bracket photos."""
+    # Focus bracket pattern: ManFocus_{name}_{YYYY_MM_DD__HH_MM_SS}_FB{index}.jpg
+    fb_photo = photos_dir / "ManFocus_moth_2024_01_15__10_30_00_FB0.jpg"
+    fb_photo.write_text("focus bracket photo")
+
+    filter_obj = ExportJobFilter(series_type="focus_bracket")
+    assert service._matches_filter(fb_photo, filter_obj) is True
+
+
+def test_series_type_filter_focus_bracket_no_match(service, photos_dir):
+    """Series type filter rejects non-focus-bracket photos."""
+    regular_photo = photos_dir / "moth_2024_01_15__10_30_00.jpg"
+    regular_photo.write_text("regular photo")
+
+    filter_obj = ExportJobFilter(series_type="focus_bracket")
+    assert service._matches_filter(regular_photo, filter_obj) is False
+
+
+def test_series_type_filter_hdr_not_focus_bracket(service, photos_dir):
+    """HDR photos don't match focus_bracket filter."""
+    hdr_photo = photos_dir / "moth_2024_01_15__10_30_00_HDR0.jpg"
+    hdr_photo.write_text("hdr photo")
+
+    filter_obj = ExportJobFilter(series_type="focus_bracket")
+    assert service._matches_filter(hdr_photo, filter_obj) is False
+
+
+# =============================================================================
+# Tags Filter Tests
+# =============================================================================
+
+
+def test_tags_filter_match_single(service, photos_dir):
+    """Tags filter matches when photo has the requested tag."""
+    photo = photos_dir / "photo_0.jpg"
+
+    # Mock sidecar service to return metadata with tags
+    mock_metadata = Mock()
+    mock_metadata.tags = ["moth", "nocturnal"]
+    service._sidecar_service.get_metadata = Mock(return_value=mock_metadata)
+
+    filter_obj = ExportJobFilter(tags=["moth"])
+    assert service._matches_filter(photo, filter_obj) is True
+
+
+def test_tags_filter_match_any(service, photos_dir):
+    """Tags filter matches if any requested tag is present (OR logic)."""
+    photo = photos_dir / "photo_0.jpg"
+
+    mock_metadata = Mock()
+    mock_metadata.tags = ["butterfly"]
+    service._sidecar_service.get_metadata = Mock(return_value=mock_metadata)
+
+    # Photo has "butterfly", filter asks for "moth" OR "butterfly"
+    filter_obj = ExportJobFilter(tags=["moth", "butterfly"])
+    assert service._matches_filter(photo, filter_obj) is True
+
+
+def test_tags_filter_no_match(service, photos_dir):
+    """Tags filter rejects photos without matching tags."""
+    photo = photos_dir / "photo_0.jpg"
+
+    mock_metadata = Mock()
+    mock_metadata.tags = ["beetle"]
+    service._sidecar_service.get_metadata = Mock(return_value=mock_metadata)
+
+    filter_obj = ExportJobFilter(tags=["moth", "butterfly"])
+    assert service._matches_filter(photo, filter_obj) is False
+
+
+def test_tags_filter_no_metadata(service, photos_dir):
+    """Tags filter rejects photos with no sidecar metadata."""
+    photo = photos_dir / "photo_0.jpg"
+
+    service._sidecar_service.get_metadata = Mock(return_value=None)
+
+    filter_obj = ExportJobFilter(tags=["moth"])
+    assert service._matches_filter(photo, filter_obj) is False
+
+
+def test_tags_filter_empty_tags(service, photos_dir):
+    """Tags filter rejects photos with empty tags list."""
+    photo = photos_dir / "photo_0.jpg"
+
+    mock_metadata = Mock()
+    mock_metadata.tags = []
+    service._sidecar_service.get_metadata = Mock(return_value=mock_metadata)
+
+    filter_obj = ExportJobFilter(tags=["moth"])
+    assert service._matches_filter(photo, filter_obj) is False
+
+
+def test_tags_filter_none_tags(service, photos_dir):
+    """Tags filter rejects photos with None tags."""
+    photo = photos_dir / "photo_0.jpg"
+
+    mock_metadata = Mock()
+    mock_metadata.tags = None
+    service._sidecar_service.get_metadata = Mock(return_value=mock_metadata)
+
+    filter_obj = ExportJobFilter(tags=["moth"])
+    assert service._matches_filter(photo, filter_obj) is False
+
+
+# =============================================================================
+# Species Filter Tests
+# =============================================================================
+
+
+def test_has_species_filter_match(service, photos_dir):
+    """has_species filter matches photos with species identification."""
+    photo = photos_dir / "photo_0.jpg"
+
+    mock_metadata = Mock()
+    mock_metadata.species = "Actias luna"
+    mock_metadata.tags = None  # tags not needed for this test
+    service._sidecar_service.get_metadata = Mock(return_value=mock_metadata)
+
+    filter_obj = ExportJobFilter(has_species=True)
+    assert service._matches_filter(photo, filter_obj) is True
+
+
+def test_has_species_filter_no_species(service, photos_dir):
+    """has_species filter rejects photos without species."""
+    photo = photos_dir / "photo_0.jpg"
+
+    mock_metadata = Mock()
+    mock_metadata.species = None
+    mock_metadata.tags = None
+    service._sidecar_service.get_metadata = Mock(return_value=mock_metadata)
+
+    filter_obj = ExportJobFilter(has_species=True)
+    assert service._matches_filter(photo, filter_obj) is False
+
+
+def test_has_species_filter_empty_species(service, photos_dir):
+    """has_species filter rejects photos with empty species string."""
+    photo = photos_dir / "photo_0.jpg"
+
+    mock_metadata = Mock()
+    mock_metadata.species = ""
+    mock_metadata.tags = None
+    service._sidecar_service.get_metadata = Mock(return_value=mock_metadata)
+
+    filter_obj = ExportJobFilter(has_species=True)
+    assert service._matches_filter(photo, filter_obj) is False
+
+
+def test_has_species_filter_no_metadata(service, photos_dir):
+    """has_species filter rejects photos without sidecar metadata."""
+    photo = photos_dir / "photo_0.jpg"
+
+    service._sidecar_service.get_metadata = Mock(return_value=None)
+
+    filter_obj = ExportJobFilter(has_species=True)
+    assert service._matches_filter(photo, filter_obj) is False
+
+
+# =============================================================================
+# Combined Filter Tests
+# =============================================================================
+
+
+def test_combined_tags_and_species_filter(service, photos_dir):
+    """Combined tags and species filter requires both conditions."""
+    photo = photos_dir / "photo_0.jpg"
+
+    mock_metadata = Mock()
+    mock_metadata.tags = ["moth", "nocturnal"]
+    mock_metadata.species = "Actias luna"
+    service._sidecar_service.get_metadata = Mock(return_value=mock_metadata)
+
+    filter_obj = ExportJobFilter(tags=["moth"], has_species=True)
+    assert service._matches_filter(photo, filter_obj) is True
+
+
+def test_combined_tags_and_species_fails_tags(service, photos_dir):
+    """Combined filter fails if tags don't match even with species."""
+    photo = photos_dir / "photo_0.jpg"
+
+    mock_metadata = Mock()
+    mock_metadata.tags = ["beetle"]
+    mock_metadata.species = "Actias luna"
+    service._sidecar_service.get_metadata = Mock(return_value=mock_metadata)
+
+    filter_obj = ExportJobFilter(tags=["moth"], has_species=True)
+    assert service._matches_filter(photo, filter_obj) is False
+
+
+def test_combined_tags_and_species_fails_species(service, photos_dir):
+    """Combined filter fails if species missing even with matching tags."""
+    photo = photos_dir / "photo_0.jpg"
+
+    mock_metadata = Mock()
+    mock_metadata.tags = ["moth"]
+    mock_metadata.species = None
+    service._sidecar_service.get_metadata = Mock(return_value=mock_metadata)
+
+    filter_obj = ExportJobFilter(tags=["moth"], has_species=True)
+    assert service._matches_filter(photo, filter_obj) is False
+
+
+def test_combined_series_and_tags_filter(service, photos_dir):
+    """Combined series type and tags filter requires both conditions."""
+    hdr_photo = photos_dir / "moth_2024_01_15__10_30_00_HDR0.jpg"
+    hdr_photo.write_text("hdr photo")
+
+    mock_metadata = Mock()
+    mock_metadata.tags = ["moth"]
+    mock_metadata.species = None
+    service._sidecar_service.get_metadata = Mock(return_value=mock_metadata)
+
+    filter_obj = ExportJobFilter(series_type="hdr", tags=["moth"])
+    assert service._matches_filter(hdr_photo, filter_obj) is True
+
+
+def test_combined_series_and_tags_fails_series(service, photos_dir):
+    """Combined filter fails if series type doesn't match."""
+    regular_photo = photos_dir / "moth_2024_01_15__10_30_00.jpg"
+    regular_photo.write_text("regular photo")
+
+    mock_metadata = Mock()
+    mock_metadata.tags = ["moth"]
+    service._sidecar_service.get_metadata = Mock(return_value=mock_metadata)
+
+    filter_obj = ExportJobFilter(series_type="hdr", tags=["moth"])
+    assert service._matches_filter(regular_photo, filter_obj) is False
