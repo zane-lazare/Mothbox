@@ -4,14 +4,27 @@ Mothbox Web UI Backend
 Flask API server for Mothbox control and monitoring
 """
 
-import atexit
-import logging
-import signal
+# isort: off
+# Path setup must happen before webui.* imports
 import sys
 from pathlib import Path
 
-# Load configuration based on environment
+# Setup path to import mothbox modules
+# mothbox_paths.py is in the Firmware root directory, three levels up from this file
+# This works for all installation types: production (/opt/mothbox), legacy, custom, and dev
+backend_dir = Path(__file__).resolve().parent
+webui_dir = backend_dir.parent
+firmware_root = webui_dir.parent  # backend -> webui -> Firmware (or /opt/mothbox)
+sys.path.insert(0, str(firmware_root))
+
+# Load configuration based on environment (requires sys.path setup above)
 from webui.backend.config import get_config
+# isort: on
+
+import atexit
+import logging
+import signal
+
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -24,14 +37,6 @@ config = get_config()
 # Reduce Werkzeug request logging verbosity
 # Only show warnings and errors, not every request
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
-
-# Setup path to import mothbox modules
-# mothbox_paths.py is in the Firmware root directory, three levels up from this file
-# This works for all installation types: production (/opt/mothbox), legacy, custom, and dev
-backend_dir = Path(__file__).resolve().parent
-webui_dir = backend_dir.parent
-firmware_root = webui_dir.parent  # backend -> webui -> Firmware (or /opt/mothbox)
-sys.path.insert(0, str(firmware_root))
 
 app = Flask(__name__, static_folder="../frontend/dist")
 
