@@ -16,9 +16,12 @@ Date: 2024
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
+from webui.backend.lib.series_detection import SeriesType
 
 
 class ExportJobStatus(Enum):
@@ -81,7 +84,7 @@ class ExportJobFilter:
     date_end: str | None = None
     deployment: str | None = None
     tags: list[str] | None = None
-    series_type: str | None = None
+    series_type: SeriesType | str | None = None
     has_species: bool | None = None
     photo_paths: list[str] | None = None
 
@@ -97,7 +100,7 @@ class ExportJobFilter:
             "date_end": self.date_end,
             "deployment": self.deployment,
             "tags": self.tags,
-            "series_type": self.series_type,
+            "series_type": self.series_type.value if isinstance(self.series_type, SeriesType) else self.series_type,
             "has_species": self.has_species,
             "photo_paths": self.photo_paths,
         }
@@ -113,12 +116,18 @@ class ExportJobFilter:
         Returns:
             ExportJobFilter instance
         """
+        # Parse series_type to enum if valid
+        series_type_val = data.get("series_type")
+        if series_type_val is not None:
+            with contextlib.suppress(ValueError):
+                series_type_val = SeriesType(series_type_val)
+
         return cls(
             date_start=data.get("date_start"),
             date_end=data.get("date_end"),
             deployment=data.get("deployment"),
             tags=data.get("tags"),
-            series_type=data.get("series_type"),
+            series_type=series_type_val,
             has_species=data.get("has_species"),
             photo_paths=data.get("photo_paths"),
         )
@@ -186,6 +195,62 @@ class ExportJobProgress:
 
 
 @dataclass
+class ExportError:
+    """
+    Individual error during export operation.
+
+    Attributes:
+        error: Human-readable error message
+        photo_path: Path to photo that caused error (if applicable)
+        error_type: Error category ("permission", "io", "unknown")
+        timestamp: Unix timestamp when error occurred
+    """
+
+    error: str
+    photo_path: str | None = None
+    error_type: str | None = None
+    timestamp: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize error to dictionary.
+
+        Returns:
+            Dictionary with all error fields
+        """
+        return {
+            "error": self.error,
+            "photo_path": self.photo_path,
+            "error_type": self.error_type,
+            "timestamp": self.timestamp,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ExportError:
+        """
+        Deserialize error from dictionary.
+
+        Handles legacy keys for backward compatibility:
+        - "photo" -> photo_path
+        - "filename" -> photo_path
+
+        Args:
+            data: Dictionary with error fields
+
+        Returns:
+            ExportError instance
+        """
+        # Handle legacy "photo" and "filename" keys
+        photo_path = data.get("photo_path") or data.get("photo") or data.get("filename")
+        return cls(
+            error=data.get("error", "Unknown error"),
+            photo_path=photo_path,
+            error_type=data.get("error_type"),
+            timestamp=data.get("timestamp"),
+        )
+
+
+@dataclass
 class ExportJob:
     """
     Export job instance with complete metadata.
@@ -230,7 +295,7 @@ class ExportJob:
     output_size_bytes: int = 0
     photo_count: int = 0
     error_message: str | None = None
-    errors: list[dict] = field(default_factory=list)
+    errors: list[ExportError] = field(default_factory=list)
 
     options: dict = field(default_factory=dict)
 
@@ -258,7 +323,7 @@ class ExportJob:
             "output_size_bytes": self.output_size_bytes,
             "photo_count": self.photo_count,
             "error_message": self.error_message,
-            "errors": self.errors,
+            "errors": [e.to_dict() for e in self.errors],
             "options": self.options,
         }
 
@@ -311,6 +376,6 @@ class ExportJob:
             output_size_bytes=data.get("output_size_bytes", 0),
             photo_count=data.get("photo_count", 0),
             error_message=data.get("error_message"),
-            errors=data.get("errors", []),
+            errors=[ExportError.from_dict(e) for e in data.get("errors", [])],
             options=data.get("options", {}),
         )

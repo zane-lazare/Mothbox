@@ -46,6 +46,7 @@ import logging
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
@@ -57,7 +58,7 @@ from webui.backend.lib.export_job_types import (
     ExportJobFormat,
     ExportJobStatus,
 )
-from webui.backend.lib.series_detection import detect_series_type
+from webui.backend.lib.series_detection import SeriesType, detect_series_type
 from webui.backend.services.export_metadata_service import ExportMetadataService
 from webui.backend.services.sidecar_service import SidecarService
 
@@ -138,6 +139,7 @@ class ExportJobService:
         format: ExportJobFormat,
         filter: ExportJobFilter,
         options: dict | None = None,
+        ttl_seconds: int | None = None,
     ) -> ExportJob:
         """
         Create and queue a new export job.
@@ -146,11 +148,17 @@ class ExportJobService:
             format: Export format (DARWIN_CORE, INATURALIST, JSON, CSV)
             filter: Filter criteria for photo selection
             options: Format-specific options
+            ttl_seconds: Custom TTL in seconds (uses service default if None)
 
         Returns:
             Created ExportJob with PENDING status
         """
         from webui.backend.lib.export_job_types import ExportJobProgress
+
+        # Merge user options with internal TTL setting
+        job_options = dict(options) if options else {}
+        if ttl_seconds is not None:
+            job_options['_ttl_seconds'] = ttl_seconds
 
         job = ExportJob(
             job_id=str(uuid.uuid4()),
@@ -158,7 +166,7 @@ class ExportJobService:
             format=format,
             filter=filter,
             progress=ExportJobProgress(),
-            options=options or {},
+            options=job_options,
             created_at=time.time(),
             started_at=None,
             completed_at=None,
@@ -245,6 +253,9 @@ class ExportJobService:
         # Update job status
         job.status = ExportJobStatus.CANCELLED
         job.completed_at = time.time()
+        # Cancelled jobs also expire (for cleanup)
+        job_ttl = job.options.get('_ttl_seconds', self._job_ttl_seconds)
+        job.expires_at = job.completed_at + job_ttl
         self._db.update_job(job)
 
         logger.info("Cancelled job: id=%s", job_id)
@@ -448,6 +459,51 @@ class ExportJobService:
 
         logger.info("Worker thread stopped")
 
+    # =========================================================================
+    # Progress Tracking
+    # =========================================================================
+
+    def _update_progress(
+        self,
+        job: ExportJob,
+        phase: str | None = None,
+        current: int | None = None,
+        total: int | None = None,
+    ) -> None:
+        """
+        Update job progress and persist to database.
+
+        Args:
+            job: Job to update
+            phase: New phase name (e.g., "collecting", "exporting", "finalizing")
+            current: Number of items processed
+            total: Total items to process
+        """
+        if phase is not None:
+            job.progress.phase = phase
+        if current is not None:
+            job.progress.current = current
+        if total is not None:
+            job.progress.total = total
+        job.progress.percent = job.progress.calculate_percent()
+        self._db.update_job(job)
+
+    def _make_progress_callback(
+        self, job: ExportJob
+    ) -> Callable[[int, int], None]:
+        """
+        Create a progress callback for batch operations.
+
+        Args:
+            job: Job to update progress for
+
+        Returns:
+            Callable that accepts (current, total) and updates job progress
+        """
+        def callback(current: int, total: int) -> None:
+            self._update_progress(job, current=current, total=total)
+        return callback
+
     def _get_next_pending_job(self) -> ExportJob | None:
         """Get next pending job from queue."""
         jobs = self._db.list_jobs(status=ExportJobStatus.PENDING, limit=1, offset=0)
@@ -475,6 +531,7 @@ class ExportJobService:
             # Update status to RUNNING while holding lock to prevent race
             job.status = ExportJobStatus.RUNNING
             job.started_at = time.time()
+            job.progress.phase = "collecting"
             self._db.update_job(job)
 
         # Execute with timeout using ThreadPoolExecutor
@@ -489,6 +546,9 @@ class ExportJobService:
                     return
 
             logger.info("Collected %d photos for export: id=%s", len(photo_paths), job.job_id)
+
+            # Update progress: collection complete, starting export
+            self._update_progress(job, phase="exporting", total=len(photo_paths), current=0)
 
             # Execute export with proper timeout enforcement
             output_path = None
@@ -517,25 +577,39 @@ class ExportJobService:
                         )
                     return
 
+            # Update progress: export complete, finalizing
+            self._update_progress(job, phase="finalizing", current=len(photo_paths))
+
             # Update job with success
             job.output_path = str(output_path)
             job.output_size_bytes = output_path.stat().st_size if output_path.exists() else 0
             job.photo_count = len(photo_paths)
             job.status = ExportJobStatus.COMPLETED
             job.completed_at = time.time()
+            # Set expiration based on per-job TTL or service default
+            job_ttl = job.options.get('_ttl_seconds', self._job_ttl_seconds)
+            job.expires_at = job.completed_at + job_ttl
+            # Final progress update: completed
+            job.progress.phase = "completed"
+            job.progress.current = len(photo_paths)
+            job.progress.percent = 100
             self._db.update_job(job)
 
             logger.info(
-                "Job completed: id=%s, photos=%d, output=%s",
+                "Job completed: id=%s, photos=%d, output=%s, expires_at=%s",
                 job.job_id,
                 len(photo_paths),
                 output_path,
+                job.expires_at,
             )
 
         except TimeoutError as e:
             logger.error("Job timeout: id=%s - %s", job.job_id, e)
             job.status = ExportJobStatus.FAILED
             job.completed_at = time.time()
+            # Failed jobs also expire (for cleanup)
+            job_ttl = job.options.get('_ttl_seconds', self._job_ttl_seconds)
+            job.expires_at = job.completed_at + job_ttl
             job.error_message = str(e)
             self._db.update_job(job)
 
@@ -543,6 +617,9 @@ class ExportJobService:
             logger.error("Job failed: id=%s - %s", job.job_id, e, exc_info=True)
             job.status = ExportJobStatus.FAILED
             job.completed_at = time.time()
+            # Failed jobs also expire (for cleanup)
+            job_ttl = job.options.get('_ttl_seconds', self._job_ttl_seconds)
+            job.expires_at = job.completed_at + job_ttl
             job.error_message = str(e)
             self._db.update_job(job)
 
@@ -638,7 +715,9 @@ class ExportJobService:
         # Series type filtering (uses filename pattern detection)
         if filter.series_type:
             series_info = detect_series_type(photo_path.name)
-            if not series_info or series_info.series_type != filter.series_type:
+            # Handle both SeriesType enum and string for backward compat
+            filter_value = filter.series_type.value if isinstance(filter.series_type, SeriesType) else filter.series_type
+            if not series_info or series_info.series_type != filter_value:
                 return False
 
         # Get sidecar metadata once if needed for tags or species filtering
@@ -695,7 +774,8 @@ class ExportJobService:
                 writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
                 writer.writerow(get_csv_headers())
 
-                for photo_path in photo_paths:
+                total = len(photo_paths)
+                for idx, photo_path in enumerate(photo_paths):
                     metadata = self._export_service.get_export_metadata(photo_path)
                     if not hasattr(metadata, 'to_dict'):
                         continue
@@ -703,6 +783,9 @@ class ExportJobService:
                     if not is_valid_for_export(metadata):
                         continue
                     writer.writerow(transform_to_csv_row(metadata))
+                    # Update progress every 10 photos or at the end
+                    if (idx + 1) % 10 == 0 or idx == total - 1:
+                        self._update_progress(job, current=idx + 1)
 
         elif job.format == ExportJobFormat.INATURALIST:
             filename = f"mothbox_inaturalist_{timestamp}_{job_id_short}.zip"
@@ -711,6 +794,7 @@ class ExportJobService:
             self._export_service.transform_batch_to_inaturalist_zip(
                 photo_paths=photo_paths,
                 output_path=output_path,
+                progress_callback=self._make_progress_callback(job),
             )
 
         elif job.format == ExportJobFormat.JSON:
@@ -720,12 +804,16 @@ class ExportJobService:
             # Build JSON export by collecting metadata for each photo
             import json
             results = []
-            for photo_path in photo_paths:
+            total = len(photo_paths)
+            for idx, photo_path in enumerate(photo_paths):
                 metadata = self._export_service.get_export_metadata(photo_path)
                 if hasattr(metadata, 'to_dict'):
                     # ExportMetadata object
                     transformed = self._export_service.transform_to_generic(metadata, flat=False)
                     results.append(transformed)
+                # Update progress every 10 photos or at the end
+                if (idx + 1) % 10 == 0 or idx == total - 1:
+                    self._update_progress(job, current=idx + 1)
 
             # Write JSON file
             with open(output_path, 'w', encoding='utf-8') as f:
@@ -759,13 +847,17 @@ class ExportJobService:
                 writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
                 writer.writerow(headers)
 
-                for photo_path in photo_paths:
+                total = len(photo_paths)
+                for idx, photo_path in enumerate(photo_paths):
                     metadata = self._export_service.get_export_metadata(photo_path)
                     if not hasattr(metadata, 'to_dict'):
                         continue
                     flat_data = self._export_service.transform_to_generic(metadata, flat=True)
                     row = [str(flat_data.get(h, '')) for h in headers]
                     writer.writerow(row)
+                    # Update progress every 10 photos or at the end
+                    if (idx + 1) % 10 == 0 or idx == total - 1:
+                        self._update_progress(job, current=idx + 1)
 
         else:
             raise ValueError(f"Unsupported export format: {job.format}")
@@ -786,8 +878,8 @@ class ExportJobService:
     # =========================================================================
 
     def _cleanup_expired_jobs(self) -> None:
-        """Clean up jobs older than TTL."""
-        cutoff_time = time.time() - self._job_ttl_seconds
+        """Clean up jobs that have expired based on expires_at."""
+        now = time.time()
 
         # Get all completed/failed/cancelled jobs
         for status in (
@@ -798,10 +890,25 @@ class ExportJobService:
             jobs = self._db.list_jobs(status=status, limit=1000, offset=0)
 
             for job in jobs:
-                # Check if job is expired
-                if job.created_at < cutoff_time:
-                    logger.debug("Cleaning up expired job: id=%s, age=%ds", job.job_id, time.time() - job.created_at)
-                    self.delete_job(job.job_id)
+                # Use expires_at if set, fall back to created_at + TTL for legacy jobs
+                if job.expires_at is not None:
+                    if job.expires_at < now:
+                        logger.debug(
+                            "Cleaning up expired job: id=%s, expired_at=%s",
+                            job.job_id,
+                            job.expires_at,
+                        )
+                        self.delete_job(job.job_id)
+                else:
+                    # Fallback for jobs created before this fix
+                    cutoff_time = now - self._job_ttl_seconds
+                    if job.created_at < cutoff_time:
+                        logger.debug(
+                            "Cleaning up expired job (legacy): id=%s, age=%ds",
+                            job.job_id,
+                            now - job.created_at,
+                        )
+                        self.delete_job(job.job_id)
 
     def _cleanup_old_jobs(self) -> None:
         """Enforce max_history limit."""

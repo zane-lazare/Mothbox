@@ -19,12 +19,14 @@ from typing import Any
 import pytest
 
 from webui.backend.lib.export_job_types import (
+    ExportError,
     ExportJob,
     ExportJobFilter,
     ExportJobFormat,
     ExportJobProgress,
     ExportJobStatus,
 )
+from webui.backend.lib.series_detection import SeriesType
 
 
 class TestExportJobStatusEnum:
@@ -112,7 +114,8 @@ class TestExportJobFilter:
         assert filter_obj.date_end == "2024-12-31"
         assert filter_obj.deployment == "/photos/forest_2024"
         assert filter_obj.tags == ["moth", "lepidoptera"]
-        assert filter_obj.series_type == "hdr"
+        # series_type can be either string or SeriesType enum
+        assert filter_obj.series_type in ("hdr", SeriesType.HDR)
         assert filter_obj.has_species is True
         assert filter_obj.photo_paths == ["/photos/photo1.jpg", "/photos/photo2.jpg"]
 
@@ -186,7 +189,8 @@ class TestExportJobFilter:
         assert filter_obj.date_end == "2024-12-31"
         assert filter_obj.deployment == "/photos/forest_2024"
         assert filter_obj.tags == ["moth", "butterfly"]
-        assert filter_obj.series_type == "focus_bracket"
+        # from_dict parses valid series_type to SeriesType enum
+        assert filter_obj.series_type == SeriesType.FOCUS_BRACKET
         assert filter_obj.has_species is False
         assert filter_obj.photo_paths == ["/photos/photo1.jpg", "/photos/photo2.jpg"]
 
@@ -214,6 +218,53 @@ class TestExportJobFilter:
         filter_obj = ExportJobFilter.from_dict(data)
         assert filter_obj.tags == []
         assert filter_obj.photo_paths == []
+
+    def test_series_type_enum_to_dict(self):
+        """Test that SeriesType enum serializes to string value."""
+        filter_obj = ExportJobFilter(series_type=SeriesType.HDR)
+        data = filter_obj.to_dict()
+        assert data["series_type"] == "hdr"
+        assert isinstance(data["series_type"], str)
+
+    def test_series_type_enum_focus_bracket_to_dict(self):
+        """Test that SeriesType.FOCUS_BRACKET enum serializes to string value."""
+        filter_obj = ExportJobFilter(series_type=SeriesType.FOCUS_BRACKET)
+        data = filter_obj.to_dict()
+        assert data["series_type"] == "focus_bracket"
+
+    def test_series_type_string_to_dict(self):
+        """Test that string series_type passes through to_dict unchanged."""
+        filter_obj = ExportJobFilter(series_type="hdr")
+        data = filter_obj.to_dict()
+        assert data["series_type"] == "hdr"
+
+    def test_from_dict_parses_valid_series_type_to_enum(self):
+        """Test that valid series_type string is parsed to SeriesType enum."""
+        data = {"series_type": "hdr"}
+        filter_obj = ExportJobFilter.from_dict(data)
+        assert filter_obj.series_type == SeriesType.HDR
+        assert isinstance(filter_obj.series_type, SeriesType)
+
+    def test_from_dict_parses_focus_bracket_to_enum(self):
+        """Test that focus_bracket string is parsed to SeriesType enum."""
+        data = {"series_type": "focus_bracket"}
+        filter_obj = ExportJobFilter.from_dict(data)
+        assert filter_obj.series_type == SeriesType.FOCUS_BRACKET
+
+    def test_from_dict_invalid_series_type_kept_as_string(self):
+        """Test that invalid series_type is kept as string for backward compat."""
+        data = {"series_type": "invalid_type"}
+        filter_obj = ExportJobFilter.from_dict(data)
+        assert filter_obj.series_type == "invalid_type"
+        assert isinstance(filter_obj.series_type, str)
+
+    def test_series_type_round_trip_with_enum(self):
+        """Test that enum -> to_dict -> from_dict preserves enum type."""
+        original = ExportJobFilter(series_type=SeriesType.HDR)
+        data = original.to_dict()
+        restored = ExportJobFilter.from_dict(data)
+        assert restored.series_type == SeriesType.HDR
+        assert isinstance(restored.series_type, SeriesType)
 
 
 class TestExportJobProgress:
@@ -313,6 +364,137 @@ class TestExportJobProgress:
         assert restored.phase == original.phase
 
 
+class TestExportError:
+    """Test ExportError dataclass."""
+
+    def test_instantiate_minimal(self):
+        """Test creating error with only required field."""
+        error = ExportError(error="Something went wrong")
+        assert error.error == "Something went wrong"
+        assert error.photo_path is None
+        assert error.error_type is None
+        assert error.timestamp is None
+
+    def test_instantiate_with_all_fields(self):
+        """Test creating error with all fields."""
+        now = time.time()
+        error = ExportError(
+            error="File not found",
+            photo_path="/photos/test.jpg",
+            error_type="not_found",
+            timestamp=now,
+        )
+        assert error.error == "File not found"
+        assert error.photo_path == "/photos/test.jpg"
+        assert error.error_type == "not_found"
+        assert error.timestamp == now
+
+    def test_to_dict_minimal(self):
+        """Test serialization with minimal fields."""
+        error = ExportError(error="Test error")
+        data = error.to_dict()
+        assert data == {
+            "error": "Test error",
+            "photo_path": None,
+            "error_type": None,
+            "timestamp": None,
+        }
+
+    def test_to_dict_all_fields(self):
+        """Test serialization with all fields."""
+        now = time.time()
+        error = ExportError(
+            error="Permission denied",
+            photo_path="/photos/photo.jpg",
+            error_type="permission",
+            timestamp=now,
+        )
+        data = error.to_dict()
+        assert data == {
+            "error": "Permission denied",
+            "photo_path": "/photos/photo.jpg",
+            "error_type": "permission",
+            "timestamp": now,
+        }
+
+    def test_from_dict_minimal(self):
+        """Test deserialization with minimal fields."""
+        data = {"error": "Test error"}
+        error = ExportError.from_dict(data)
+        assert error.error == "Test error"
+        assert error.photo_path is None
+        assert error.error_type is None
+        assert error.timestamp is None
+
+    def test_from_dict_all_fields(self):
+        """Test deserialization with all fields."""
+        now = time.time()
+        data = {
+            "error": "IO error",
+            "photo_path": "/photos/test.jpg",
+            "error_type": "io",
+            "timestamp": now,
+        }
+        error = ExportError.from_dict(data)
+        assert error.error == "IO error"
+        assert error.photo_path == "/photos/test.jpg"
+        assert error.error_type == "io"
+        assert error.timestamp == now
+
+    def test_from_dict_legacy_photo_key(self):
+        """Test deserialization with legacy 'photo' key."""
+        data = {
+            "photo": "/photos/legacy.jpg",
+            "error": "Legacy error",
+        }
+        error = ExportError.from_dict(data)
+        assert error.photo_path == "/photos/legacy.jpg"
+        assert error.error == "Legacy error"
+
+    def test_from_dict_legacy_filename_key(self):
+        """Test deserialization with legacy 'filename' key."""
+        data = {
+            "filename": "photo.jpg",
+            "error": "Filename error",
+        }
+        error = ExportError.from_dict(data)
+        assert error.photo_path == "photo.jpg"
+        assert error.error == "Filename error"
+
+    def test_from_dict_photo_path_priority(self):
+        """Test photo_path takes priority over legacy keys."""
+        data = {
+            "photo_path": "/correct/path.jpg",
+            "photo": "/legacy/photo.jpg",
+            "filename": "legacy.jpg",
+            "error": "Priority test",
+        }
+        error = ExportError.from_dict(data)
+        assert error.photo_path == "/correct/path.jpg"
+
+    def test_from_dict_default_error_message(self):
+        """Test default error message when missing."""
+        data = {}
+        error = ExportError.from_dict(data)
+        assert error.error == "Unknown error"
+
+    def test_round_trip_serialization(self):
+        """Test that to_dict -> from_dict preserves data."""
+        now = time.time()
+        original = ExportError(
+            error="Round trip test",
+            photo_path="/photos/roundtrip.jpg",
+            error_type="test",
+            timestamp=now,
+        )
+        data = original.to_dict()
+        restored = ExportError.from_dict(data)
+        assert restored.error == original.error
+        assert restored.photo_path == original.photo_path
+        assert restored.error_type == original.error_type
+        assert restored.timestamp == original.timestamp
+
+
 class TestExportJob:
     """Test ExportJob dataclass."""
 
@@ -392,14 +574,15 @@ class TestExportJob:
             completed_at=now + 5,
             error_message="Failed to write CSV file",
             errors=[
-                {"photo": "/photos/photo1.jpg", "error": "Permission denied"},
-                {"photo": "/photos/photo2.jpg", "error": "File not found"},
+                ExportError(error="Permission denied", photo_path="/photos/photo1.jpg"),
+                ExportError(error="File not found", photo_path="/photos/photo2.jpg"),
             ],
         )
         assert job.status == ExportJobStatus.FAILED
         assert job.error_message == "Failed to write CSV file"
         assert len(job.errors) == 2
-        assert job.errors[0]["photo"] == "/photos/photo1.jpg"
+        assert job.errors[0].photo_path == "/photos/photo1.jpg"
+        assert job.errors[0].error == "Permission denied"
 
     def test_to_dict_minimal(self):
         """Test serialization with minimal fields."""
@@ -558,7 +741,9 @@ class TestExportJob:
         assert job.status == ExportJobStatus.FAILED
         assert job.error_message == "Export process crashed"
         assert len(job.errors) == 1
-        assert job.errors[0]["error"] == "Read timeout"
+        # Tests backward compatibility - legacy "photo" key is mapped to photo_path
+        assert job.errors[0].error == "Read timeout"
+        assert job.errors[0].photo_path == "/photos/photo1.jpg"
 
     def test_round_trip_serialization(self):
         """Test that to_dict -> from_dict preserves all data."""

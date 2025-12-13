@@ -54,7 +54,7 @@ Performance Targets:
 import logging
 import threading
 import time
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -843,6 +843,7 @@ class ExportMetadataService:
         photo_paths: list[Path],
         output_path: Path | None = None,
         options: "ZipExportOptions | None" = None,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> "ZipExportResult":
         """Export multiple photos as iNaturalist ZIP with XMP sidecars.
 
@@ -856,6 +857,7 @@ class ExportMetadataService:
             photo_paths: List of paths to photos to export
             output_path: Path for output ZIP file. If None, uses temp file.
             options: ZipExportOptions for customization
+            progress_callback: Optional callback(current, total) for progress updates
 
         Returns:
             ZipExportResult with success status and statistics
@@ -885,7 +887,9 @@ class ExportMetadataService:
         if options is None:
             options = ZipExportOptions()
 
-        return create_zip_export(photo_paths, metadata_list, output_path, options)
+        return create_zip_export(
+            photo_paths, metadata_list, output_path, options, progress_callback
+        )
 
     def transform_to_inaturalist(self, metadata: ExportMetadata) -> dict:
         """Transform to iNaturalist format.

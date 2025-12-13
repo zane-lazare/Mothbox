@@ -946,7 +946,7 @@ class TestErrorHandling:
 
         assert result.success is False
         assert len(result.errors) > 0
-        assert result.errors[0]['error_type'] == 'permission'
+        assert result.errors[0].error_type == 'permission'
 
     def test_user_friendly_error_messages(self, tmp_path, monkeypatch):
         """Test that error messages are user-friendly (no raw exceptions)."""
@@ -996,4 +996,134 @@ class TestErrorHandling:
         assert result is not None
         assert result.success is False
         assert len(result.errors) > 0
-        assert result.errors[0]['error_type'] == 'io'
+        assert result.errors[0].error_type == 'io'
+
+
+# ============================================================================
+# Progress Callback Tests
+# ============================================================================
+
+
+import pytest
+
+
+class TestProgressCallback:
+    """Tests for progress callback functionality."""
+
+    def test_progress_callback_called(self, tmp_path):
+        """Test that progress callback is called during export."""
+        # Create test photos
+        photo_paths = []
+        metadata_list = []
+        for i in range(15):
+            photo_path = tmp_path / f"photo_{i}.jpg"
+            photo_path.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+            photo_paths.append(photo_path)
+            metadata_list.append(ExportMetadata(
+                photo_path=str(photo_path),
+                filename=f"photo_{i}.jpg",
+            ))
+
+        output_path = tmp_path / "output.zip"
+        progress_calls = []
+
+        def progress_callback(current: int, total: int) -> None:
+            progress_calls.append((current, total))
+
+        result = create_zip_export(
+            photo_paths,
+            metadata_list,
+            output_path,
+            progress_callback=progress_callback,
+        )
+
+        assert result.success is True
+        # Should have progress calls (at least one)
+        assert len(progress_calls) > 0
+        # Last call should have current == total
+        last_current, last_total = progress_calls[-1]
+        assert last_total == len(photo_paths)
+        assert last_current == len(photo_paths)
+
+    def test_progress_callback_every_10_photos(self, tmp_path):
+        """Test that progress callback is called every 10 photos."""
+        # Create 25 test photos
+        photo_paths = []
+        metadata_list = []
+        for i in range(25):
+            photo_path = tmp_path / f"photo_{i}.jpg"
+            photo_path.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+            photo_paths.append(photo_path)
+            metadata_list.append(ExportMetadata(
+                photo_path=str(photo_path),
+                filename=f"photo_{i}.jpg",
+            ))
+
+        output_path = tmp_path / "output.zip"
+        progress_calls = []
+
+        def progress_callback(current: int, total: int) -> None:
+            progress_calls.append((current, total))
+
+        result = create_zip_export(
+            photo_paths,
+            metadata_list,
+            output_path,
+            progress_callback=progress_callback,
+        )
+
+        assert result.success is True
+        # Should have calls at 10, 20, and 25 (end)
+        assert len(progress_calls) == 3
+        currents = [c[0] for c in progress_calls]
+        assert currents == [10, 20, 25]
+
+    def test_progress_callback_none_no_error(self, tmp_path):
+        """Test that None progress_callback doesn't cause errors."""
+        photo_path = tmp_path / "photo.jpg"
+        photo_path.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        metadata = ExportMetadata(
+            photo_path=str(photo_path),
+            filename="photo.jpg",
+        )
+
+        output_path = tmp_path / "output.zip"
+
+        # Should not raise an error
+        result = create_zip_export(
+            [photo_path],
+            [metadata],
+            output_path,
+            progress_callback=None,
+        )
+
+        assert result.success is True
+
+    def test_progress_callback_single_photo(self, tmp_path):
+        """Test progress callback with single photo."""
+        photo_path = tmp_path / "photo.jpg"
+        photo_path.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        metadata = ExportMetadata(
+            photo_path=str(photo_path),
+            filename="photo.jpg",
+        )
+
+        output_path = tmp_path / "output.zip"
+        progress_calls = []
+
+        def progress_callback(current: int, total: int) -> None:
+            progress_calls.append((current, total))
+
+        result = create_zip_export(
+            [photo_path],
+            [metadata],
+            output_path,
+            progress_callback=progress_callback,
+        )
+
+        assert result.success is True
+        # Should have one call for single photo
+        assert len(progress_calls) == 1
+        assert progress_calls[0] == (1, 1)

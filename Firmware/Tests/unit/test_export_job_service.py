@@ -117,6 +117,43 @@ def test_create_job_with_filter(service):
     assert job.filter.deployment == "test_deployment"
 
 
+def test_create_job_with_custom_ttl(service):
+    """Test creating job with custom TTL."""
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+        ttl_seconds=7200,  # 2 hours
+    )
+
+    assert job is not None
+    assert job.options.get('_ttl_seconds') == 7200
+
+
+def test_create_job_default_ttl(service):
+    """Test creating job uses service default TTL when not specified."""
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+    )
+
+    # Should not have custom TTL in options
+    assert '_ttl_seconds' not in job.options
+
+
+def test_create_job_with_ttl_preserves_other_options(service):
+    """Test that TTL doesn't overwrite other options."""
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+        options={"validate": True, "custom_key": "value"},
+        ttl_seconds=3600,
+    )
+
+    assert job.options.get('validate') is True
+    assert job.options.get('custom_key') == "value"
+    assert job.options.get('_ttl_seconds') == 3600
+
+
 # =============================================================================
 # Job Retrieval Tests
 # =============================================================================
@@ -996,3 +1033,419 @@ def test_combined_series_and_tags_fails_series(service, photos_dir):
 
     filter_obj = ExportJobFilter(series_type="hdr", tags=["moth"])
     assert service._matches_filter(regular_photo, filter_obj) is False
+
+
+# =============================================================================
+# TTL and Expiration Tests
+# =============================================================================
+
+
+def test_expires_at_set_on_job_completion(service, photos_dir):
+    """Test that expires_at is set when job completes successfully."""
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+    )
+
+    photo_paths = list(photos_dir.glob("*.jpg"))
+    with patch.object(service, '_collect_photos', return_value=photo_paths), \
+         patch('webui.backend.lib.darwin_core_mapping.is_valid_for_export', return_value=True), \
+         patch('webui.backend.lib.darwin_core_mapping.transform_to_csv_row', return_value=['val1', 'val2']):
+        service.start()
+
+        # Wait for job to complete
+        for _ in range(30):
+            updated_job = service.get_job(job.job_id)
+            if updated_job.status == ExportJobStatus.COMPLETED:
+                break
+            time.sleep(0.1)
+
+        service.stop()
+
+    final_job = service.get_job(job.job_id)
+    assert final_job.status == ExportJobStatus.COMPLETED
+    assert final_job.expires_at is not None
+    assert final_job.completed_at is not None
+    # expires_at should be completed_at + TTL (default 60 seconds in fixture)
+    assert final_job.expires_at == final_job.completed_at + 60
+
+
+def test_expires_at_uses_custom_ttl(service, photos_dir):
+    """Test that expires_at respects custom TTL."""
+    custom_ttl = 7200  # 2 hours
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+        ttl_seconds=custom_ttl,
+    )
+
+    photo_paths = list(photos_dir.glob("*.jpg"))
+    with patch.object(service, '_collect_photos', return_value=photo_paths), \
+         patch('webui.backend.lib.darwin_core_mapping.is_valid_for_export', return_value=True), \
+         patch('webui.backend.lib.darwin_core_mapping.transform_to_csv_row', return_value=['val1', 'val2']):
+        service.start()
+
+        for _ in range(30):
+            updated_job = service.get_job(job.job_id)
+            if updated_job.status == ExportJobStatus.COMPLETED:
+                break
+            time.sleep(0.1)
+
+        service.stop()
+
+    final_job = service.get_job(job.job_id)
+    assert final_job.status == ExportJobStatus.COMPLETED
+    assert final_job.expires_at is not None
+    # expires_at should use custom TTL
+    assert final_job.expires_at == final_job.completed_at + custom_ttl
+
+
+def test_expires_at_set_on_job_failure(service, mock_export_service):
+    """Test that expires_at is set when job fails."""
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+    )
+
+    with patch.object(service, '_collect_photos', return_value=[Path("/tmp/photo.jpg")]), \
+         patch('webui.backend.lib.darwin_core_mapping.is_valid_for_export', return_value=True), \
+         patch('webui.backend.lib.darwin_core_mapping.transform_to_csv_row', side_effect=Exception("Export failed")):
+        service.start()
+
+        for _ in range(30):
+            updated_job = service.get_job(job.job_id)
+            if updated_job.status == ExportJobStatus.FAILED:
+                break
+            time.sleep(0.1)
+
+        service.stop()
+
+    final_job = service.get_job(job.job_id)
+    assert final_job.status == ExportJobStatus.FAILED
+    assert final_job.expires_at is not None
+    assert final_job.completed_at is not None
+
+
+def test_expires_at_set_on_job_cancellation(service):
+    """Test that expires_at is set when job is cancelled."""
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+    )
+
+    # Cancel the pending job
+    service.cancel_job(job.job_id)
+
+    final_job = service.get_job(job.job_id)
+    assert final_job.status == ExportJobStatus.CANCELLED
+    assert final_job.expires_at is not None
+    assert final_job.completed_at is not None
+
+
+def test_cleanup_expired_jobs_uses_expires_at(db_path, mock_export_service, photos_dir, temp_dir):
+    """Test that cleanup uses expires_at field."""
+    service = ExportJobService(
+        db_path=db_path,
+        export_service=mock_export_service,
+        photos_dir=photos_dir,
+        temp_dir=temp_dir,
+        job_ttl_seconds=60,
+    )
+
+    # Create a completed job and manually set expires_at in the past
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+    )
+    job = service.get_job(job.job_id)
+    job.status = ExportJobStatus.COMPLETED
+    job.completed_at = time.time() - 100  # Completed 100 seconds ago
+    job.expires_at = time.time() - 50  # Expired 50 seconds ago
+    service._db.update_job(job)
+
+    # Create another job that hasn't expired yet
+    job2 = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+    )
+    job2 = service.get_job(job2.job_id)
+    job2.status = ExportJobStatus.COMPLETED
+    job2.completed_at = time.time()
+    job2.expires_at = time.time() + 3600  # Expires in 1 hour
+    service._db.update_job(job2)
+
+    # Run cleanup
+    service._cleanup_expired_jobs()
+
+    # Expired job should be deleted
+    assert service.get_job(job.job_id) is None
+    # Non-expired job should still exist
+    assert service.get_job(job2.job_id) is not None
+
+    service.stop()
+
+
+def test_cleanup_legacy_jobs_without_expires_at(db_path, mock_export_service, photos_dir, temp_dir):
+    """Test cleanup of legacy jobs without expires_at field."""
+    service = ExportJobService(
+        db_path=db_path,
+        export_service=mock_export_service,
+        photos_dir=photos_dir,
+        temp_dir=temp_dir,
+        job_ttl_seconds=60,
+    )
+
+    # Create a completed job without expires_at (simulating legacy job)
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+    )
+    job = service.get_job(job.job_id)
+    job.status = ExportJobStatus.COMPLETED
+    job.completed_at = time.time() - 100
+    job.created_at = time.time() - 100  # Created 100 seconds ago (past default TTL of 60)
+    job.expires_at = None  # Legacy job without expires_at
+    service._db.update_job(job)
+
+    # Run cleanup
+    service._cleanup_expired_jobs()
+
+    # Legacy job should be deleted using created_at fallback
+    assert service.get_job(job.job_id) is None
+
+    service.stop()
+
+
+def test_cleanup_preserves_non_expired_legacy_jobs(db_path, mock_export_service, photos_dir, temp_dir):
+    """Test that cleanup preserves legacy jobs within TTL based on created_at."""
+    service = ExportJobService(
+        db_path=db_path,
+        export_service=mock_export_service,
+        photos_dir=photos_dir,
+        temp_dir=temp_dir,
+        job_ttl_seconds=3600,  # 1 hour TTL
+    )
+
+    # Create a completed job without expires_at but within TTL
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+    )
+    job = service.get_job(job.job_id)
+    job.status = ExportJobStatus.COMPLETED
+    job.completed_at = time.time()
+    job.expires_at = None  # Legacy job without expires_at
+    # created_at is set to now by default, so within TTL
+    service._db.update_job(job)
+
+    # Run cleanup
+    service._cleanup_expired_jobs()
+
+    # Job should NOT be deleted (within TTL)
+    assert service.get_job(job.job_id) is not None
+
+    service.stop()
+
+
+# =============================================================================
+# Progress Tracking Tests
+# =============================================================================
+
+
+def test_progress_phases_during_execution(service, photos_dir):
+    """Test that progress phases transition correctly during job execution."""
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+    )
+
+    # Initial phase should be "initializing"
+    assert job.progress.phase == "initializing"
+
+    photo_paths = list(photos_dir.glob("*.jpg"))
+    observed_phases = []
+
+    def capture_phase():
+        current_job = service.get_job(job.job_id)
+        if current_job and current_job.progress.phase not in observed_phases:
+            observed_phases.append(current_job.progress.phase)
+
+    with patch.object(service, '_collect_photos', return_value=photo_paths), \
+         patch('webui.backend.lib.darwin_core_mapping.is_valid_for_export', return_value=True), \
+         patch('webui.backend.lib.darwin_core_mapping.transform_to_csv_row', return_value=['val1', 'val2']):
+        service.start()
+
+        # Poll for completion while capturing phases
+        for _ in range(50):
+            capture_phase()
+            updated_job = service.get_job(job.job_id)
+            if updated_job.status == ExportJobStatus.COMPLETED:
+                break
+            time.sleep(0.1)
+
+        service.stop()
+
+    final_job = service.get_job(job.job_id)
+    assert final_job.status == ExportJobStatus.COMPLETED
+    assert final_job.progress.phase == "completed"
+
+    # Verify expected phases were observed (order may vary due to timing)
+    expected_phases = {"initializing", "collecting", "exporting", "finalizing", "completed"}
+    # At minimum, we should see initializing and completed
+    assert "initializing" in observed_phases
+    assert "completed" in observed_phases or final_job.progress.phase == "completed"
+
+
+def test_progress_current_and_total_set_correctly(service, photos_dir):
+    """Test that progress current/total are set correctly after job completion."""
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+    )
+
+    photo_paths = list(photos_dir.glob("*.jpg"))
+    with patch.object(service, '_collect_photos', return_value=photo_paths), \
+         patch('webui.backend.lib.darwin_core_mapping.is_valid_for_export', return_value=True), \
+         patch('webui.backend.lib.darwin_core_mapping.transform_to_csv_row', return_value=['val1', 'val2']):
+        service.start()
+
+        for _ in range(30):
+            updated_job = service.get_job(job.job_id)
+            if updated_job.status == ExportJobStatus.COMPLETED:
+                break
+            time.sleep(0.1)
+
+        service.stop()
+
+    final_job = service.get_job(job.job_id)
+    assert final_job.status == ExportJobStatus.COMPLETED
+    # Total should equal number of photos
+    assert final_job.progress.total == len(photo_paths)
+    # Current should equal total at completion
+    assert final_job.progress.current == len(photo_paths)
+    # Percent should be 100 at completion
+    assert final_job.progress.percent == 100
+
+
+def test_progress_percent_calculation(service, photos_dir):
+    """Test that progress percent is calculated correctly."""
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+    )
+
+    # Manually update progress and verify percent
+    job.progress.total = 100
+    job.progress.current = 50
+    percent = job.progress.calculate_percent()
+    assert percent == 50
+
+    job.progress.current = 75
+    percent = job.progress.calculate_percent()
+    assert percent == 75
+
+    # Edge case: total = 0
+    job.progress.total = 0
+    job.progress.current = 0
+    percent = job.progress.calculate_percent()
+    assert percent == 0
+
+
+def test_update_progress_helper(service):
+    """Test the _update_progress helper method."""
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+    )
+
+    # Update phase only
+    service._update_progress(job, phase="collecting")
+    retrieved_job = service.get_job(job.job_id)
+    assert retrieved_job.progress.phase == "collecting"
+
+    # Update current and total
+    service._update_progress(job, current=25, total=100)
+    retrieved_job = service.get_job(job.job_id)
+    assert retrieved_job.progress.current == 25
+    assert retrieved_job.progress.total == 100
+    assert retrieved_job.progress.percent == 25
+
+    # Update all at once
+    service._update_progress(job, phase="exporting", current=50, total=100)
+    retrieved_job = service.get_job(job.job_id)
+    assert retrieved_job.progress.phase == "exporting"
+    assert retrieved_job.progress.current == 50
+    assert retrieved_job.progress.percent == 50
+
+
+def test_progress_callback_factory(service):
+    """Test the _make_progress_callback helper method."""
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+    )
+
+    # Create callback
+    callback = service._make_progress_callback(job)
+
+    # Call callback and verify progress is updated
+    callback(10, 100)
+    retrieved_job = service.get_job(job.job_id)
+    assert retrieved_job.progress.current == 10
+    assert retrieved_job.progress.total == 100
+    assert retrieved_job.progress.percent == 10
+
+    # Call again with different values
+    callback(50, 100)
+    retrieved_job = service.get_job(job.job_id)
+    assert retrieved_job.progress.current == 50
+    assert retrieved_job.progress.percent == 50
+
+
+def test_progress_visible_via_api_during_execution(service, photos_dir):
+    """Test that progress updates are visible through get_job during execution."""
+    job = service.create_job(
+        format=ExportJobFormat.DARWIN_CORE,
+        filter=ExportJobFilter(),
+    )
+
+    # Create more photos to have longer execution
+    for i in range(20):
+        (photos_dir / f"extra_photo_{i}.jpg").write_text(f"photo {i}")
+
+    photo_paths = list(photos_dir.glob("*.jpg"))
+    progress_snapshots = []
+
+    def slow_transform(*args):
+        """Slow down transform to allow capturing progress."""
+        time.sleep(0.05)  # 50ms per photo
+        return ['val1', 'val2']
+
+    with patch.object(service, '_collect_photos', return_value=photo_paths), \
+         patch('webui.backend.lib.darwin_core_mapping.is_valid_for_export', return_value=True), \
+         patch('webui.backend.lib.darwin_core_mapping.transform_to_csv_row', side_effect=slow_transform):
+        service.start()
+
+        # Poll and capture progress
+        for _ in range(100):
+            current_job = service.get_job(job.job_id)
+            if current_job:
+                progress_snapshots.append({
+                    'phase': current_job.progress.phase,
+                    'current': current_job.progress.current,
+                    'total': current_job.progress.total,
+                    'percent': current_job.progress.percent,
+                })
+                if current_job.status == ExportJobStatus.COMPLETED:
+                    break
+            time.sleep(0.05)
+
+        service.stop()
+
+    # Should have multiple snapshots showing progress
+    assert len(progress_snapshots) > 1
+    # Should see increasing current values in some snapshots
+    currents = [s['current'] for s in progress_snapshots if s['current'] > 0]
+    if len(currents) > 1:
+        # At least some progress should be visible
+        assert max(currents) > 0

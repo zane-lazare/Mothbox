@@ -2196,6 +2196,9 @@ def create_export_job():
             - has_species (bool): Only photos with species ID
             - photo_paths (list[str]): Explicit photo paths (overrides other filters)
         options (dict): Optional. Format-specific options
+        ttl_seconds (int): Optional. Custom TTL in seconds (60-86400).
+                          Defaults to service TTL (3600s/1 hour).
+                          Larger exports may need longer download windows.
 
     Returns:
         202: Job created successfully
@@ -2281,6 +2284,18 @@ def create_export_job():
                     "error": "date_start must be before or equal to date_end"
                 }), 400
 
+        # Validate series_type is a valid SeriesType enum value
+        series_type_val = filter_data.get('series_type')
+        if series_type_val is not None:
+            from webui.backend.lib.series_detection import SeriesType
+            try:
+                SeriesType(series_type_val)
+            except ValueError:
+                valid = [st.value for st in SeriesType]
+                return jsonify({
+                    "error": f"Invalid series_type: '{series_type_val}'. Must be one of: {valid}"
+                }), 400
+
         filter_obj = ExportJobFilter(
             date_start=filter_data.get('date_start'),
             date_end=filter_data.get('date_end'),
@@ -2294,11 +2309,28 @@ def create_export_job():
         # Parse options (optional)
         options = data.get('options', {})
 
+        # Parse and validate ttl_seconds (optional)
+        ttl_seconds = data.get('ttl_seconds')
+        if ttl_seconds is not None:
+            if not isinstance(ttl_seconds, int):
+                return jsonify({
+                    "error": "ttl_seconds must be an integer"
+                }), 400
+            if ttl_seconds < 60:
+                return jsonify({
+                    "error": "ttl_seconds must be at least 60 seconds"
+                }), 400
+            if ttl_seconds > 86400:
+                return jsonify({
+                    "error": "ttl_seconds cannot exceed 86400 seconds (24 hours)"
+                }), 400
+
         # Create job
         job = service.create_job(
             format=format_enum,
             filter=filter_obj,
             options=options,
+            ttl_seconds=ttl_seconds,
         )
 
         return jsonify({

@@ -13,22 +13,21 @@ Author: Mothbox Team
 Date: 2024
 """
 
-import json
-import pytest
-import tempfile
-from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
-from flask import Flask
 from datetime import datetime
+from unittest.mock import Mock
+
+import pytest
+from flask import Flask
 
 from webui.backend.lib.export_job_types import (
+    ExportError,
     ExportJob,
-    ExportJobStatus,
-    ExportJobFormat,
     ExportJobFilter,
+    ExportJobFormat,
     ExportJobProgress,
+    ExportJobStatus,
 )
-
+from webui.backend.lib.series_detection import SeriesType
 
 # ============================================================================
 # Fixtures
@@ -153,7 +152,8 @@ class TestCreateExportJob:
         assert filter_obj.date_end == "2024-12-31"
         assert filter_obj.deployment == "forest_2024"
         assert filter_obj.tags == ["moth", "identified"]
-        assert filter_obj.series_type == "hdr"
+        # series_type is passed as string to ExportJobFilter constructor
+        assert filter_obj.series_type in ("hdr", SeriesType.HDR)
         assert filter_obj.has_species is True
 
     def test_create_job_with_photo_paths(self, client, mock_export_job_service):
@@ -327,6 +327,75 @@ class TestCreateExportJob:
         assert "error" in data
         assert "date_start must be before" in data["error"]
 
+    def test_create_job_valid_series_type_hdr(self, client, mock_export_job_service):
+        """Test creating job with valid series_type 'hdr'."""
+        job = create_test_job()
+        mock_export_job_service.create_job.return_value = job
+
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "csv",
+                "filter": {
+                    "series_type": "hdr",
+                },
+            },
+        )
+
+        assert response.status_code == 202
+
+    def test_create_job_valid_series_type_focus_bracket(self, client, mock_export_job_service):
+        """Test creating job with valid series_type 'focus_bracket'."""
+        job = create_test_job()
+        mock_export_job_service.create_job.return_value = job
+
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "csv",
+                "filter": {
+                    "series_type": "focus_bracket",
+                },
+            },
+        )
+
+        assert response.status_code == 202
+
+    def test_create_job_invalid_series_type(self, client, mock_export_job_service):
+        """Test 400 error for invalid series_type value."""
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "csv",
+                "filter": {
+                    "series_type": "invalid_type",
+                },
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+        assert "Invalid series_type" in data["error"]
+        assert "invalid_type" in data["error"]
+
+    def test_create_job_invalid_series_type_uppercase(self, client, mock_export_job_service):
+        """Test 400 error for series_type with wrong case (HDR instead of hdr)."""
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "csv",
+                "filter": {
+                    "series_type": "HDR",  # Wrong case
+                },
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+        assert "Invalid series_type" in data["error"]
+
     def test_create_job_date_start_only(self, client, mock_export_job_service):
         """Test creating job with only date_start."""
         job = create_test_job()
@@ -400,6 +469,138 @@ class TestCreateExportJob:
             assert response.status_code == 202
             data = response.get_json()
             assert data["format"] == fmt
+
+    def test_create_job_with_ttl_seconds(self, client, mock_export_job_service):
+        """Test creating job with custom TTL."""
+        job = create_test_job()
+        mock_export_job_service.create_job.return_value = job
+
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "darwin_core",
+                "ttl_seconds": 7200,  # 2 hours
+            },
+        )
+
+        assert response.status_code == 202
+
+        # Verify ttl_seconds was passed to service
+        mock_export_job_service.create_job.assert_called_once()
+        call_kwargs = mock_export_job_service.create_job.call_args[1]
+        assert call_kwargs["ttl_seconds"] == 7200
+
+    def test_create_job_ttl_seconds_minimum(self, client, mock_export_job_service):
+        """Test creating job with minimum valid TTL (60 seconds)."""
+        job = create_test_job()
+        mock_export_job_service.create_job.return_value = job
+
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "darwin_core",
+                "ttl_seconds": 60,  # Minimum allowed
+            },
+        )
+
+        assert response.status_code == 202
+
+        call_kwargs = mock_export_job_service.create_job.call_args[1]
+        assert call_kwargs["ttl_seconds"] == 60
+
+    def test_create_job_ttl_seconds_maximum(self, client, mock_export_job_service):
+        """Test creating job with maximum valid TTL (86400 seconds = 24 hours)."""
+        job = create_test_job()
+        mock_export_job_service.create_job.return_value = job
+
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "darwin_core",
+                "ttl_seconds": 86400,  # Maximum allowed
+            },
+        )
+
+        assert response.status_code == 202
+
+        call_kwargs = mock_export_job_service.create_job.call_args[1]
+        assert call_kwargs["ttl_seconds"] == 86400
+
+    def test_create_job_ttl_seconds_too_low(self, client, mock_export_job_service):
+        """Test 400 error when TTL is below minimum (60 seconds)."""
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "darwin_core",
+                "ttl_seconds": 59,  # Below minimum
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+        assert "60" in data["error"]  # Should mention minimum
+
+    def test_create_job_ttl_seconds_too_high(self, client, mock_export_job_service):
+        """Test 400 error when TTL exceeds maximum (86400 seconds)."""
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "darwin_core",
+                "ttl_seconds": 86401,  # Above maximum
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+        assert "86400" in data["error"]  # Should mention maximum
+
+    def test_create_job_ttl_seconds_not_integer(self, client, mock_export_job_service):
+        """Test 400 error when TTL is not an integer."""
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "darwin_core",
+                "ttl_seconds": "3600",  # String instead of int
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+        assert "integer" in data["error"].lower()
+
+    def test_create_job_ttl_seconds_float(self, client, mock_export_job_service):
+        """Test 400 error when TTL is a float."""
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "format": "darwin_core",
+                "ttl_seconds": 3600.5,  # Float instead of int
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+        assert "integer" in data["error"].lower()
+
+    def test_create_job_without_ttl_uses_default(self, client, mock_export_job_service):
+        """Test that jobs without ttl_seconds use service default."""
+        job = create_test_job()
+        mock_export_job_service.create_job.return_value = job
+
+        response = client.post(
+            "/api/export/jobs",
+            json={"format": "darwin_core"},
+        )
+
+        assert response.status_code == 202
+
+        # Verify ttl_seconds was passed as None (service uses default)
+        call_kwargs = mock_export_job_service.create_job.call_args[1]
+        assert call_kwargs["ttl_seconds"] is None
 
 
 # ============================================================================
@@ -596,8 +797,8 @@ class TestGetJobStatus:
         job = create_test_job(status=ExportJobStatus.FAILED)
         job.error_message = "Export failed: timeout"
         job.errors = [
-            {"photo": "photo1.jpg", "error": "metadata missing"},
-            {"photo": "photo2.jpg", "error": "GPS invalid"},
+            ExportError(error="metadata missing", photo_path="photo1.jpg"),
+            ExportError(error="GPS invalid", photo_path="photo2.jpg"),
         ]
 
         mock_export_job_service.get_job.return_value = job

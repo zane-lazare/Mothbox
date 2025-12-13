@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from webui.backend.lib.export_job_types import (
+    ExportError,
     ExportJob,
     ExportJobFilter,
     ExportJobFormat,
@@ -136,7 +137,7 @@ class ExportJobDB:
             "output_size_bytes": job.output_size_bytes,
             "photo_count": job.photo_count,
             "error_message": job.error_message,
-            "errors_json": json.dumps(job.errors) if job.errors else None,
+            "errors_json": json.dumps([e.to_dict() for e in job.errors]) if job.errors else None,
             "options_json": json.dumps(job.options) if job.options else None,
         }
 
@@ -164,7 +165,7 @@ class ExportJobDB:
             output_size_bytes=row["output_size_bytes"] or 0,
             photo_count=row["photo_count"] or 0,
             error_message=row["error_message"],
-            errors=json.loads(row["errors_json"]) if row["errors_json"] else [],
+            errors=[ExportError.from_dict(e) for e in json.loads(row["errors_json"])] if row["errors_json"] else [],
             options=json.loads(row["options_json"]) if row["options_json"] else {},
         )
 

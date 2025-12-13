@@ -13,6 +13,7 @@ import pytest
 
 from webui.backend.lib.export_job_db import ExportJobDB
 from webui.backend.lib.export_job_types import (
+    ExportError,
     ExportJob,
     ExportJobFilter,
     ExportJobFormat,
@@ -179,8 +180,8 @@ class TestCreateJob:
             created_at=time.time(),
             error_message="Export failed",
             errors=[
-                {"photo": "photo1.jpg", "error": "File not found"},
-                {"photo": "photo2.jpg", "error": "Corrupt EXIF"},
+                ExportError(error="File not found", photo_path="photo1.jpg"),
+                ExportError(error="Corrupt EXIF", photo_path="photo2.jpg"),
             ],
         )
 
@@ -191,8 +192,8 @@ class TestCreateJob:
         assert retrieved is not None
         assert retrieved.error_message == "Export failed"
         assert len(retrieved.errors) == 2
-        assert retrieved.errors[0]["photo"] == "photo1.jpg"
-        assert retrieved.errors[1]["error"] == "Corrupt EXIF"
+        assert retrieved.errors[0].photo_path == "photo1.jpg"
+        assert retrieved.errors[1].error == "Corrupt EXIF"
 
     def test_create_duplicate_job_raises_error(self, tmp_path):
         """Test that creating a duplicate job_id raises an error."""
@@ -1027,7 +1028,7 @@ class TestEdgeCases:
     def test_job_with_large_errors_list(self, tmp_path):
         """Test job with large errors list."""
         db = ExportJobDB(tmp_path / "test.db")
-        errors = [{"photo": f"photo{i}.jpg", "error": "Error"} for i in range(1000)]
+        errors = [ExportError(error="Error", photo_path=f"photo{i}.jpg") for i in range(1000)]
         job = ExportJob(
             job_id="large-errors",
             status=ExportJobStatus.FAILED,
