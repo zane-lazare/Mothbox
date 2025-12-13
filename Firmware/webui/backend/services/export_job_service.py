@@ -449,16 +449,16 @@ class ExportJobService:
         """
         logger.info("Executing job: id=%s, format=%s", job.job_id, job.format.value)
 
-        # Check if cancelled before starting
+        # Check if cancelled before starting and update status atomically
         with self._cancel_lock:
             if job.job_id in self._cancelled_jobs:
                 logger.info("Job cancelled before execution: id=%s", job.job_id)
                 return
 
-        # Update status to RUNNING
-        job.status = ExportJobStatus.RUNNING
-        job.started_at = time.time()
-        self._db.update_job(job)
+            # Update status to RUNNING while holding lock to prevent race
+            job.status = ExportJobStatus.RUNNING
+            job.started_at = time.time()
+            self._db.update_job(job)
 
         # Execute with timeout
         timeout_timer = None
