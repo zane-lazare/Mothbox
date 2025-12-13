@@ -682,12 +682,19 @@ class TestGenericTransformer:
 class TestFormatStubs:
     """Tests for format transformer stubs."""
 
-    def test_darwin_core_stub_raises_not_implemented(self, service, sample_photo_path):
-        """transform_to_darwin_core should raise NotImplementedError."""
+    def test_darwin_core_transforms_to_dwc_format(self, service, sample_photo_path):
+        """transform_to_darwin_core should return Darwin Core formatted dict."""
         metadata = service.get_export_metadata(sample_photo_path)
 
-        with pytest.raises(NotImplementedError, match="Darwin Core"):
-            service.transform_to_darwin_core(metadata)
+        # Darwin Core is now implemented (Issue #116)
+        result = service.transform_to_darwin_core(metadata)
+
+        # Should return a dict with Darwin Core fields
+        assert isinstance(result, dict)
+        assert "basisOfRecord" in result
+        assert result["basisOfRecord"] == "MachineObservation"
+        assert "geodeticDatum" in result
+        assert result["geodeticDatum"] == "WGS84"
 
     def test_inaturalist_stub_raises_not_implemented(self, service, sample_photo_path):
         """transform_to_inaturalist should raise NotImplementedError."""
@@ -782,8 +789,9 @@ class TestValidation:
         result = test_service.validate_for_format(metadata, ExportFormat.DARWIN_CORE)
 
         assert not result.is_valid
-        # Should specify what's missing
-        assert 'latitude' in result.missing_fields or 'longitude' in result.missing_fields
+        # Should specify what's missing (using Darwin Core field names)
+        missing_str = str(result.missing_fields)
+        assert 'decimalLatitude' in missing_str or 'decimalLongitude' in missing_str
 
 
 # ============================================================================
