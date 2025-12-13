@@ -12,7 +12,8 @@ Thread-safe with configurable TTL caching for performance.
 Architecture:
 - Thin wrapper over existing services (no business logic duplication)
 - Generic JSON/CSV transformer implemented
-- Darwin Core/iNaturalist transformers are stubs (Issues #116, #118)
+- Darwin Core transformer implemented (Issue #116)
+- iNaturalist transformer is a stub (Issue #118)
 
 Usage:
     from webui.backend.services.export_metadata_service import (
@@ -129,6 +130,9 @@ class ExportMetadata:
     file_size: int = 0
     width: int | None = None
     height: int | None = None
+
+    # Country (for Darwin Core export)
+    country_code: str | None = None  # ISO 3166-1 alpha-2
 
 
 @dataclass
@@ -399,6 +403,16 @@ class ExportMetadataService:
             except Exception as e:
                 logger.warning("Failed to get deployment metadata for %s: %s", photo_path.name, e)
 
+            # Detect country code from GPS coordinates
+            try:
+                from webui.backend.lib.country_code import detect_country_code
+                export_metadata.country_code = detect_country_code(
+                    export_metadata.latitude,
+                    export_metadata.longitude
+                )
+            except Exception as e:
+                logger.warning("Failed to detect country code for %s: %s", photo_path.name, e)
+
             # Cache the result
             self._add_to_cache(cache_key, export_metadata)
 
@@ -629,19 +643,65 @@ class ExportMetadataService:
             }
 
     def transform_to_darwin_core(self, metadata: ExportMetadata) -> dict:
-        """Transform to Darwin Core format.
+        """Transform to Darwin Core format for GBIF-compatible export.
 
-        STUB: Raises NotImplementedError - full implementation in Issue #116.
+        Maps Mothbox metadata fields to Darwin Core standard terms.
+        See https://dwc.tdwg.org/terms/ for Darwin Core term definitions.
 
         Args:
             metadata: ExportMetadata to transform
 
-        Raises:
-            NotImplementedError: Darwin Core transformer not yet implemented
+        Returns:
+            Dictionary with Darwin Core term names as keys
+
+        Example:
+            >>> dwc = service.transform_to_darwin_core(metadata)
+            >>> dwc["basisOfRecord"]
+            'MachineObservation'
         """
-        raise NotImplementedError(
-            "Darwin Core transformation will be implemented in Issue #116"
+        from webui.backend.lib.darwin_core_mapping import transform_metadata_to_darwin_core
+        return transform_metadata_to_darwin_core(metadata)
+
+    def transform_batch_to_darwin_core_csv(
+        self,
+        metadata_list: list[ExportMetadata],
+        filter_invalid: bool = True,
+    ) -> tuple[list[str], list[list[str]]]:
+        """Transform multiple ExportMetadata to Darwin Core CSV format.
+
+        Returns headers and rows ready for CSV generation. Optionally filters
+        out photos without valid GPS coordinates (GBIF strict mode).
+
+        Args:
+            metadata_list: List of ExportMetadata instances to transform
+            filter_invalid: If True, exclude photos without GPS coordinates
+
+        Returns:
+            Tuple of (headers, rows) where:
+            - headers: List of Darwin Core term names for CSV header
+            - rows: List of lists containing string values for each row
+
+        Example:
+            >>> headers, rows = service.transform_batch_to_darwin_core_csv(metadata_list)
+            >>> len(rows) <= len(metadata_list)
+            True
+        """
+        from webui.backend.lib.darwin_core_mapping import (
+            get_csv_headers,
+            is_valid_for_export,
+            transform_to_csv_row,
         )
+
+        headers = get_csv_headers()
+        rows = []
+
+        for metadata in metadata_list:
+            # Skip invalid photos if filtering is enabled
+            if filter_invalid and not is_valid_for_export(metadata):
+                continue
+            rows.append(transform_to_csv_row(metadata))
+
+        return headers, rows
 
     def transform_to_inaturalist(self, metadata: ExportMetadata) -> dict:
         """Transform to iNaturalist format.
@@ -680,9 +740,12 @@ class ExportMetadataService:
         if format in (ExportFormat.GENERIC_JSON, ExportFormat.GENERIC_CSV):
             return ValidationResult(is_valid=True)
 
-        # Get required fields for format
+        # Darwin Core has comprehensive validation
+        if format == ExportFormat.DARWIN_CORE:
+            return self._validate_darwin_core(metadata)
+
+        # Get required fields for other formats
         required = {
-            ExportFormat.DARWIN_CORE: DARWIN_CORE_REQUIRED,
             ExportFormat.INATURALIST: INATURALIST_REQUIRED,
         }.get(format, [])
 
@@ -695,12 +758,7 @@ class ExportMetadataService:
 
         # Add warning for stub formats (validation is incomplete)
         warnings = []
-        if format == ExportFormat.DARWIN_CORE:
-            warnings.append(
-                "Darwin Core validation is incomplete (stub). "
-                "Full validation will be implemented in Issue #116."
-            )
-        elif format == ExportFormat.INATURALIST:
+        if format == ExportFormat.INATURALIST:
             warnings.append(
                 "iNaturalist validation is incomplete (stub). "
                 "Full validation will be implemented in Issue #118."
@@ -710,6 +768,60 @@ class ExportMetadataService:
             is_valid=len(missing) == 0,
             missing_fields=missing,
             warnings=warnings
+        )
+
+    def _validate_darwin_core(self, metadata: ExportMetadata) -> ValidationResult:
+        """Comprehensive validation for Darwin Core export.
+
+        Validates:
+        - Required fields presence (GPS coordinates required - GBIF strict mode)
+        - Coordinate ranges (lat: -90 to 90, lon: -180 to 180)
+        - ISO 8601 date format
+
+        Args:
+            metadata: ExportMetadata to validate
+
+        Returns:
+            ValidationResult with validation status, missing fields, and warnings
+        """
+        missing_fields = []
+        warnings = []
+
+        # Required: GPS coordinates (GBIF strict mode)
+        if metadata.latitude is None:
+            missing_fields.append("decimalLatitude (GPS latitude required for GBIF)")
+        elif not (-90 <= metadata.latitude <= 90):
+            missing_fields.append(
+                f"decimalLatitude (invalid range: {metadata.latitude}, must be -90 to 90)"
+            )
+
+        if metadata.longitude is None:
+            missing_fields.append("decimalLongitude (GPS longitude required for GBIF)")
+        elif not (-180 <= metadata.longitude <= 180):
+            missing_fields.append(
+                f"decimalLongitude (invalid range: {metadata.longitude}, must be -180 to 180)"
+            )
+
+        # Required: Event date/time
+        if not metadata.timestamp:
+            missing_fields.append("eventDate (timestamp required for GBIF)")
+
+        # Recommended: Scientific name
+        if not metadata.species:
+            warnings.append(
+                "scientificName not provided - record may have limited value for biodiversity research"
+            )
+
+        # Recommended: GPS accuracy
+        if metadata.gps_accuracy is None:
+            warnings.append(
+                "coordinateUncertaintyInMeters not provided - GPS accuracy recommended for GBIF"
+            )
+
+        return ValidationResult(
+            is_valid=len(missing_fields) == 0,
+            missing_fields=missing_fields,
+            warnings=warnings,
         )
 
     # ========================================================================
