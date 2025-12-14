@@ -2253,17 +2253,21 @@ def create_export_job():
 
         if preset_name:
             preset_manager = current_app.config.get('EXPORT_PRESET_MANAGER')
-            if preset_manager:
-                preset = preset_manager.get_preset(preset_name)
-                if preset is None:
-                    return jsonify({
-                        "error": f"Preset not found: '{preset_name}'"
-                    }), 400
+            if not preset_manager:
+                return jsonify({
+                    "error": "Preset manager not configured"
+                }), 500
 
-                # Extract preset filter as dict for merging
-                if preset.filter:
-                    preset_filter_dict = preset.filter.to_dict()
-                preset_options = preset.options.copy() if preset.options else {}
+            preset = preset_manager.get_preset(preset_name)
+            if preset is None:
+                return jsonify({
+                    "error": f"Preset not found: '{preset_name}'"
+                }), 400
+
+            # Extract preset filter as dict for merging
+            if preset.filter:
+                preset_filter_dict = preset.filter.to_dict()
+            preset_options = preset.options.copy() if preset.options else {}
 
         # Determine format: explicit > preset > error
         format_str = data.get('format')
