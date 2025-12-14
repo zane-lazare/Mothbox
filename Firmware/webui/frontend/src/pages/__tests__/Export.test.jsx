@@ -291,6 +291,28 @@ describe('Export Page', () => {
         expect(screen.getByTestId('export-job-list')).toBeInTheDocument();
       });
     });
+
+    it('disables export button when a job is running', async () => {
+      exportApi.listExportJobs.mockResolvedValue({
+        data: {
+          jobs: [{ id: 'job-123', status: 'running', progress: { percent: 45 } }],
+        },
+      });
+
+      render(<Export />, { wrapper: createWrapper() });
+
+      // Wait for jobs to load
+      await waitFor(() => {
+        expect(screen.getByTestId('export-job-progress')).toBeInTheDocument();
+      });
+
+      // Export button should be disabled due to running job
+      const exportButton = screen.getByRole('button', { name: /start export/i });
+      expect(exportButton).toBeDisabled();
+
+      // Message should explain why
+      expect(screen.getByText(/export in progress/i)).toBeInTheDocument();
+    });
   });
 
   describe('Responsive Layout', () => {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import CoordinateInput from './CoordinateInput'
+import ConfirmDialog from '../common/ConfirmDialog'
 
 /**
  * DeploymentEditor Component
@@ -50,6 +51,9 @@ export default function DeploymentEditor({
 
   // Track if form has been modified
   const [hasChanges, setHasChanges] = useState(false)
+
+  // Confirm dialog state for unsaved changes
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
   // Initialize form with existing deployment data
   useEffect(() => {
@@ -112,6 +116,17 @@ export default function DeploymentEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deploymentName, locationName, startDate, endDate])
 
+  // Handle Escape key to close editor
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !showCancelConfirm) {
+        handleCancel()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [showCancelConfirm]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSave = () => {
     if (!validate()) return
 
@@ -149,11 +164,14 @@ export default function DeploymentEditor({
 
   const handleCancel = () => {
     if (hasChanges) {
-      const confirmed = window.confirm(
-        'You have unsaved changes. Are you sure you want to cancel?'
-      )
-      if (!confirmed) return
+      setShowCancelConfirm(true)
+      return
     }
+    onCancel()
+  }
+
+  const handleConfirmCancel = () => {
+    setShowCancelConfirm(false)
     onCancel()
   }
 
@@ -167,32 +185,38 @@ export default function DeploymentEditor({
   const addEnvironmentalField = () => {
     setEnvironmental([...environmental, { key: '', value: '' }])
     setSectionsExpanded({ ...sectionsExpanded, environmental: true })
+    setHasChanges(true)
   }
 
   const removeEnvironmentalField = (index) => {
     setEnvironmental(environmental.filter((_, i) => i !== index))
+    setHasChanges(true)
   }
 
   const updateEnvironmentalField = (index, field, value) => {
     const updated = [...environmental]
     updated[index][field] = value
     setEnvironmental(updated)
+    setHasChanges(true)
   }
 
   const addCustomField = () => {
     if (customFields.length >= 50) return
     setCustomFields([...customFields, { key: '', value: '' }])
     setSectionsExpanded({ ...sectionsExpanded, custom: true })
+    setHasChanges(true)
   }
 
   const removeCustomField = (index) => {
     setCustomFields(customFields.filter((_, i) => i !== index))
+    setHasChanges(true)
   }
 
   const updateCustomField = (index, field, value) => {
     const updated = [...customFields]
     updated[index][field] = value
     setCustomFields(updated)
+    setHasChanges(true)
   }
 
   const isFormValid = !errors.deploymentName && !errors.locationName && !errors.dateRange && deploymentName.trim()
@@ -233,6 +257,7 @@ export default function DeploymentEditor({
             disabled={isLoading}
             maxLength={200}
             placeholder="e.g., Oak Ridge Forest Survey 2024"
+            autoFocus
             className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent
                        dark:bg-gray-700 dark:text-gray-100
                        ${errors.deploymentName ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}
@@ -259,7 +284,7 @@ export default function DeploymentEditor({
             id="location-name"
             type="text"
             value={locationName}
-            onChange={(e) => setLocationName(e.target.value)}
+            onChange={(e) => { setLocationName(e.target.value); setHasChanges(true) }}
             disabled={isLoading}
             maxLength={500}
             placeholder="e.g., Oak Ridge, TN, USA"
@@ -282,6 +307,7 @@ export default function DeploymentEditor({
           onChange={({ latitude, longitude }) => {
             setLatitude(latitude)
             setLongitude(longitude)
+            setHasChanges(true)
           }}
           disabled={isLoading}
         />
@@ -295,7 +321,7 @@ export default function DeploymentEditor({
             type="number"
             step="0.1"
             value={altitude}
-            onChange={(e) => setAltitude(e.target.value)}
+            onChange={(e) => { setAltitude(e.target.value); setHasChanges(true) }}
             disabled={isLoading}
             placeholder="e.g., 350.5"
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
@@ -319,7 +345,7 @@ export default function DeploymentEditor({
               id="start-date"
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => { setStartDate(e.target.value); setHasChanges(true) }}
               disabled={isLoading}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                        focus:ring-2 focus:ring-blue-500 focus:border-transparent
@@ -336,7 +362,7 @@ export default function DeploymentEditor({
               id="end-date"
               type="date"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(e) => { setEndDate(e.target.value); setHasChanges(true) }}
               disabled={isLoading}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                        focus:ring-2 focus:ring-blue-500 focus:border-transparent
@@ -448,7 +474,7 @@ export default function DeploymentEditor({
                 id="mothbox-id"
                 type="text"
                 value={mothboxId}
-                onChange={(e) => setMothboxId(e.target.value)}
+                onChange={(e) => { setMothboxId(e.target.value); setHasChanges(true) }}
                 disabled={isLoading}
                 placeholder="e.g., mothbox-001"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
@@ -466,7 +492,7 @@ export default function DeploymentEditor({
                 id="firmware-version"
                 type="text"
                 value={firmwareVersion}
-                onChange={(e) => setFirmwareVersion(e.target.value)}
+                onChange={(e) => { setFirmwareVersion(e.target.value); setHasChanges(true) }}
                 disabled={isLoading}
                 placeholder="e.g., 5.2.1"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
@@ -536,17 +562,32 @@ export default function DeploymentEditor({
               </div>
             ))}
 
-            <button
-              type="button"
-              onClick={addCustomField}
-              disabled={isLoading || customFields.length >= 50}
-              aria-label="Add custom field"
-              className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline
-                       disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <PlusIcon className="h-4 w-4" />
-              Add Field {customFields.length >= 50 && '(Max 50)'}
-            </button>
+            {customFields.length >= 50 ? (
+              <span title="Maximum of 50 custom fields allowed">
+                <button
+                  type="button"
+                  disabled
+                  aria-label="Add custom field (limit reached)"
+                  className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400
+                           opacity-50 cursor-not-allowed pointer-events-none"
+                >
+                  <PlusIcon className="h-4 w-4" />
+                  Add Field (Max 50)
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={addCustomField}
+                disabled={isLoading}
+                aria-label="Add custom field"
+                className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <PlusIcon className="h-4 w-4" />
+                Add Field
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -573,6 +614,18 @@ export default function DeploymentEditor({
           {isLoading ? 'Saving...' : 'Save'}
         </button>
       </div>
+
+      {/* Unsaved changes confirmation dialog */}
+      <ConfirmDialog
+        isOpen={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        onConfirm={handleConfirmCancel}
+        title="Discard unsaved changes?"
+        message="You have unsaved changes. Are you sure you want to discard them?"
+        confirmLabel="Discard"
+        cancelLabel="Keep Editing"
+        variant="warning"
+      />
     </div>
   )
 }

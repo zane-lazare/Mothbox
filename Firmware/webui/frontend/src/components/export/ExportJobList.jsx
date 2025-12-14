@@ -95,21 +95,27 @@ const ExportJobList = () => {
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div
+        className="bg-white rounded-lg shadow p-6"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
         <div className="animate-pulse space-y-4">
           <div className="h-4 bg-gray-200 rounded w-1/4"></div>
           <div className="h-4 bg-gray-200 rounded w-full"></div>
           <div className="h-4 bg-gray-200 rounded w-full"></div>
         </div>
+        <span className="sr-only">Loading export jobs...</span>
       </div>
     );
   }
 
   if (!jobs || jobs.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-6" role="status">
         <div className="text-center py-12">
-          <CircleStackIcon className="mx-auto h-12 w-12 text-gray-400" />
+          <CircleStackIcon className="mx-auto h-12 w-12 text-gray-400" aria-hidden="true" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No export jobs yet</h3>
           <p className="mt-1 text-sm text-gray-500">
             Start your first export using the form above

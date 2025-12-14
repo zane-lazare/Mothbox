@@ -129,7 +129,7 @@ const Export = () => {
   };
 
   // Check if export button should be enabled
-  const isExportEnabled = selectedFormat && photoCount > 0;
+  const isExportEnabled = selectedFormat && photoCount > 0 && !currentJob;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -219,6 +219,11 @@ const Export = () => {
                 No photos match the current filters
               </p>
             )}
+            {currentJob && (
+              <p className="mt-2 text-sm text-blue-600 text-center">
+                Export in progress - wait for it to complete
+              </p>
+            )}
           </div>
         </div>
 
@@ -231,6 +236,7 @@ const Export = () => {
               filter={filter}
               options={options}
               deployment={deployment}
+              selectedFields={selectedFields[selectedFormat] || []}
             />
           </div>
         </div>

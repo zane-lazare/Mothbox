@@ -13,6 +13,12 @@ const PREVIEW_TABS = [
 ]
 
 /**
+ * Separator for joining array values in CSV cells.
+ * Uses semicolon to avoid conflict with CSV field delimiter (comma).
+ */
+const CSV_ARRAY_SEPARATOR = '; '
+
+/**
  * Escape HTML entities to prevent XSS attacks.
  * Only escapes <, >, and & - quotes are left for JSON structure.
  */
@@ -85,7 +91,7 @@ function CSVPreview({ headers, data }) {
                   className="px-4 py-2 text-gray-900 dark:text-gray-100"
                 >
                   {Array.isArray(row[header])
-                    ? row[header].join(', ')
+                    ? row[header].join(CSV_ARRAY_SEPARATOR)
                     : String(row[header] ?? '')}
                 </td>
               ))}
@@ -147,7 +153,7 @@ export default function ExportPreview({ format, filter, selectedFields, onOpenMo
         const dataRows = previewData.data.map(row =>
           previewData.headers.map(h => {
             const value = row[h]
-            if (Array.isArray(value)) return `"${value.join('; ')}"`
+            if (Array.isArray(value)) return `"${value.join(CSV_ARRAY_SEPARATOR)}"`
             if (typeof value === 'string' && value.includes(',')) return `"${value}"`
             return value ?? ''
           }).join(',')
@@ -170,9 +176,13 @@ export default function ExportPreview({ format, filter, selectedFields, onOpenMo
   // Loading state
   if (isLoading) {
     return (
-      <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-8">
+      <div
+        className="border border-gray-200 dark:border-gray-700 rounded-lg p-8"
+        role="status"
+        aria-live="polite"
+      >
         <div className="flex items-center justify-center text-gray-500 dark:text-gray-400">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3" aria-hidden="true" />
           Loading preview...
         </div>
       </div>
@@ -182,7 +192,11 @@ export default function ExportPreview({ format, filter, selectedFields, onOpenMo
   // Error state
   if (isError) {
     return (
-      <div className="border border-red-200 dark:border-red-800 rounded-lg p-8">
+      <div
+        className="border border-red-200 dark:border-red-800 rounded-lg p-8"
+        role="alert"
+        aria-live="assertive"
+      >
         <div className="text-center text-red-600 dark:text-red-400">
           <p className="font-medium mb-2">Failed to load preview</p>
           <p className="text-sm">{error?.message || 'Unknown error'}</p>
@@ -194,7 +208,10 @@ export default function ExportPreview({ format, filter, selectedFields, onOpenMo
   // Empty state
   if (!previewData?.data || previewData.data.length === 0) {
     return (
-      <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-8">
+      <div
+        className="border border-gray-200 dark:border-gray-700 rounded-lg p-8"
+        role="status"
+      >
         <div className="text-center text-gray-500 dark:text-gray-400">
           <p className="font-medium mb-2">No photos found</p>
           <p className="text-sm">Adjust your filters to see a preview</p>

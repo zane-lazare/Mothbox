@@ -193,10 +193,8 @@ describe('DeploymentEditor', () => {
     });
   });
 
-  it('shows confirmation when canceling with unsaved changes', async () => {
+  it('shows confirmation dialog when canceling with unsaved changes', async () => {
     const user = userEvent.setup();
-    // Mock window.confirm
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
 
     render(
       <DeploymentEditor
@@ -213,17 +211,21 @@ describe('DeploymentEditor', () => {
     const cancelButton = screen.getByRole('button', { name: /cancel/i });
     await user.click(cancelButton);
 
-    expect(window.confirm).toHaveBeenCalledWith(
-      expect.stringContaining('unsaved changes')
-    );
-    expect(mockOnCancel).not.toHaveBeenCalled();
+    // ConfirmDialog should be shown
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText(/discard unsaved changes/i)).toBeInTheDocument();
+    expect(screen.getByText(/you have unsaved changes/i)).toBeInTheDocument();
 
-    vi.restoreAllMocks();
+    // Clicking "Keep Editing" should close dialog without calling onCancel
+    const keepEditingButton = screen.getByRole('button', { name: /keep editing/i });
+    await user.click(keepEditingButton);
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mockOnCancel).not.toHaveBeenCalled();
   });
 
-  it('shows confirmation when canceling after typing', async () => {
+  it('calls onCancel when confirming discard in dialog', async () => {
     const user = userEvent.setup();
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     render(
       <DeploymentEditor
@@ -241,12 +243,35 @@ describe('DeploymentEditor', () => {
     const cancelButton = screen.getByRole('button', { name: /cancel/i });
     await user.click(cancelButton);
 
-    expect(window.confirm).toHaveBeenCalledWith(
-      expect.stringContaining('unsaved changes')
-    );
-    expect(mockOnCancel).toHaveBeenCalled();
+    // ConfirmDialog should be shown
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
 
-    vi.restoreAllMocks();
+    // Clicking "Discard" should close dialog and call onCancel
+    const discardButton = screen.getByRole('button', { name: /discard/i });
+    await user.click(discardButton);
+
+    expect(mockOnCancel).toHaveBeenCalled();
+  });
+
+  it('does not show confirmation dialog when canceling without changes', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <DeploymentEditor
+        deployment={null}
+        directory="/photos/deployment1"
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+      />
+    );
+
+    // Cancel without making any changes
+    const cancelButton = screen.getByRole('button', { name: /cancel/i });
+    await user.click(cancelButton);
+
+    // No dialog should appear, onCancel should be called immediately
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mockOnCancel).toHaveBeenCalled();
   });
 
   it('handles environmental key-value pairs', async () => {
@@ -392,6 +417,31 @@ describe('DeploymentEditor', () => {
 
     const addButton = screen.getByRole('button', { name: /add custom field/i });
     expect(addButton).toBeDisabled();
+  });
+
+  it('shows tooltip when custom fields limit reached', async () => {
+    const user = userEvent.setup();
+    const customFields = {};
+    for (let i = 0; i < 50; i++) {
+      customFields[`key${i}`] = `value${i}`;
+    }
+
+    render(
+      <DeploymentEditor
+        deployment={{ deployment_name: 'Test', custom: customFields }}
+        directory="/photos/deployment1"
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+      />
+    );
+
+    // Expand custom section
+    const customSection = screen.getByText(/custom fields/i);
+    await user.click(customSection);
+
+    // Find the wrapper span with tooltip
+    const tooltipWrapper = screen.getByTitle(/maximum of 50 custom fields/i);
+    expect(tooltipWrapper).toBeInTheDocument();
   });
 
   it('renders collapsible sections', async () => {

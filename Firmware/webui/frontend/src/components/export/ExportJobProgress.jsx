@@ -42,10 +42,10 @@ const ExportJobProgress = ({ job, onCancel, onRetry }) => {
   // Pending state
   if (job.status === 'pending') {
     return (
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
+      <div className="bg-white rounded-lg shadow p-6 mb-6" role="status" aria-live="polite">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" aria-hidden="true"></div>
             <div>
               <h3 className="text-lg font-medium text-gray-900">Export Job Queued</h3>
               <p className="text-sm text-gray-500">Waiting to start...</p>
@@ -56,7 +56,7 @@ const ExportJobProgress = ({ job, onCancel, onRetry }) => {
             disabled={!onCancel}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <XMarkIcon className="w-4 h-4 inline mr-1" />
+            <XMarkIcon className="w-4 h-4 inline mr-1" aria-hidden="true" />
             Cancel
           </button>
         </div>
@@ -69,7 +69,7 @@ const ExportJobProgress = ({ job, onCancel, onRetry }) => {
     const { current = 0, total = 0, percent = 0, phase = 'exporting' } = job.progress || {};
 
     return (
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
+      <div className="bg-white rounded-lg shadow p-6 mb-6" role="status" aria-live="polite">
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-lg font-medium text-gray-900">Export in Progress</h3>
@@ -78,7 +78,7 @@ const ExportJobProgress = ({ job, onCancel, onRetry }) => {
               disabled={!onCancel}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <XMarkIcon className="w-4 h-4 inline mr-1" />
+              <XMarkIcon className="w-4 h-4 inline mr-1" aria-hidden="true" />
               Cancel
             </button>
           </div>
@@ -97,6 +97,7 @@ const ExportJobProgress = ({ job, onCancel, onRetry }) => {
             aria-valuenow={percent}
             aria-valuemin="0"
             aria-valuemax="100"
+            aria-label="Export progress"
           >
             <div
               className="bg-blue-600 h-4 rounded-full transition-all duration-300"
@@ -111,10 +112,10 @@ const ExportJobProgress = ({ job, onCancel, onRetry }) => {
   // Completed state
   if (job.status === 'completed') {
     return (
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
+      <div className="bg-white rounded-lg shadow p-6 mb-6" role="status" aria-live="polite">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <CheckCircleIcon className="w-6 h-6 text-green-500" />
+            <CheckCircleIcon className="w-6 h-6 text-green-500" aria-hidden="true" />
             <div>
               <h3 className="text-lg font-medium text-gray-900">Export Completed</h3>
               <p className="text-sm text-gray-500">
@@ -126,7 +127,7 @@ const ExportJobProgress = ({ job, onCancel, onRetry }) => {
             onClick={handleDownload}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
           >
-            <ArrowDownTrayIcon className="w-4 h-4 inline mr-1" />
+            <ArrowDownTrayIcon className="w-4 h-4 inline mr-1" aria-hidden="true" />
             Download
           </button>
         </div>
@@ -137,10 +138,10 @@ const ExportJobProgress = ({ job, onCancel, onRetry }) => {
   // Failed state
   if (job.status === 'failed') {
     return (
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
+      <div className="bg-white rounded-lg shadow p-6 mb-6" role="alert" aria-live="assertive">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <XCircleIcon className="w-6 h-6 text-red-500" />
+            <XCircleIcon className="w-6 h-6 text-red-500" aria-hidden="true" />
             <div>
               <h3 className="text-lg font-medium text-gray-900">Export Failed</h3>
               <p className="text-sm text-red-600">{job.error || 'An error occurred during export'}</p>
@@ -151,7 +152,7 @@ const ExportJobProgress = ({ job, onCancel, onRetry }) => {
             disabled={!onRetry}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <ArrowPathIcon className="w-4 h-4 inline mr-1" />
+            <ArrowPathIcon className="w-4 h-4 inline mr-1" aria-hidden="true" />
             Retry
           </button>
         </div>
@@ -162,9 +163,9 @@ const ExportJobProgress = ({ job, onCancel, onRetry }) => {
   // Cancelled state
   if (job.status === 'cancelled') {
     return (
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
+      <div className="bg-white rounded-lg shadow p-6 mb-6" role="status" aria-live="polite">
         <div className="flex items-center space-x-3">
-          <ExclamationCircleIcon className="w-6 h-6 text-yellow-500" />
+          <ExclamationCircleIcon className="w-6 h-6 text-yellow-500" aria-hidden="true" />
           <div>
             <h3 className="text-lg font-medium text-gray-900">Export Cancelled</h3>
             <p className="text-sm text-gray-500">This export was cancelled</p>
