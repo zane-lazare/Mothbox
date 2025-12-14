@@ -339,4 +339,118 @@ describe('ExportPreview', () => {
       expect(screen.getByText(/failed to copy/i)).toBeInTheDocument()
     })
   })
+
+  describe('XSS Prevention', () => {
+    it('escapes script tags in metadata values', () => {
+      const maliciousData = {
+        format: 'json',
+        data: [
+          {
+            filename: 'photo1.jpg',
+            tags: ['<script>alert("xss")</script>'],
+            notes: '<script>document.cookie</script>'
+          }
+        ]
+      }
+
+      useExportPreviewModule.default.mockReturnValue({
+        previewData: maliciousData,
+        isLoading: false,
+        isError: false,
+        error: null
+      })
+
+      render(<ExportPreview {...defaultProps} />, { wrapper: createWrapper() })
+
+      const previewElement = screen.getByTestId('json-preview')
+      // Should NOT contain actual script tags (they should be escaped)
+      expect(previewElement.innerHTML).not.toContain('<script>')
+      expect(previewElement.innerHTML).not.toContain('</script>')
+      // Should contain escaped versions
+      expect(previewElement.innerHTML).toContain('&lt;script&gt;')
+      expect(previewElement.innerHTML).toContain('&lt;/script&gt;')
+    })
+
+    it('escapes img tag XSS payload in metadata', () => {
+      const maliciousData = {
+        format: 'json',
+        data: [
+          {
+            filename: 'photo1.jpg',
+            tags: ['<img src=x onerror=alert(1)>'],
+            notes: '<img src="x" onerror="steal()">'
+          }
+        ]
+      }
+
+      useExportPreviewModule.default.mockReturnValue({
+        previewData: maliciousData,
+        isLoading: false,
+        isError: false,
+        error: null
+      })
+
+      render(<ExportPreview {...defaultProps} />, { wrapper: createWrapper() })
+
+      const previewElement = screen.getByTestId('json-preview')
+      // Should NOT contain actual img tags
+      expect(previewElement.innerHTML).not.toContain('<img')
+      // Should contain escaped versions
+      expect(previewElement.innerHTML).toContain('&lt;img')
+    })
+
+    it('escapes SVG onload XSS payload', () => {
+      const maliciousData = {
+        format: 'json',
+        data: [
+          {
+            filename: '<svg onload=alert(1)>.jpg',
+            species: 'Moth<svg/onload=alert(1)>'
+          }
+        ]
+      }
+
+      useExportPreviewModule.default.mockReturnValue({
+        previewData: maliciousData,
+        isLoading: false,
+        isError: false,
+        error: null
+      })
+
+      render(<ExportPreview {...defaultProps} />, { wrapper: createWrapper() })
+
+      const previewElement = screen.getByTestId('json-preview')
+      // Should NOT contain actual svg tags
+      expect(previewElement.innerHTML).not.toContain('<svg')
+      // Should contain escaped versions
+      expect(previewElement.innerHTML).toContain('&lt;svg')
+    })
+
+    it('preserves normal angle brackets display after escaping', () => {
+      const normalData = {
+        format: 'json',
+        data: [
+          {
+            filename: 'photo1.jpg',
+            notes: 'Temperature was > 20°C and < 30°C'
+          }
+        ]
+      }
+
+      useExportPreviewModule.default.mockReturnValue({
+        previewData: normalData,
+        isLoading: false,
+        isError: false,
+        error: null
+      })
+
+      render(<ExportPreview {...defaultProps} />, { wrapper: createWrapper() })
+
+      const previewElement = screen.getByTestId('json-preview')
+      // The text content should show the comparison symbols correctly
+      // (they are escaped in HTML but display correctly)
+      expect(previewElement.textContent).toContain('>')
+      expect(previewElement.textContent).toContain('<')
+    })
+  })
 })

@@ -14,10 +14,23 @@ const PREVIEW_TABS = [
 ]
 
 /**
- * Syntax highlight JSON string
+ * Escape HTML entities to prevent XSS attacks.
+ * Only escapes <, >, and & - quotes are left for JSON structure.
+ */
+function escapeHTML(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+/**
+ * Syntax highlight JSON string.
+ * HTML is escaped first to prevent XSS from malicious metadata.
  */
 function highlightJSON(jsonString) {
-  return jsonString
+  const escaped = escapeHTML(jsonString)
+  return escaped
     .replace(/("([^"\\]|\\.)*")\s*:/g, '<span class="json-key text-blue-600 dark:text-blue-400">$1</span>:')
     .replace(/:\s*("([^"\\]|\\.)*")/g, ': <span class="json-string text-green-600 dark:text-green-400">$1</span>')
     .replace(/:\s*(\d+\.?\d*)/g, ': <span class="json-number text-orange-600 dark:text-orange-400">$1</span>')
