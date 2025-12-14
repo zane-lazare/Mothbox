@@ -5,6 +5,7 @@ import {
   useCancelExportJob,
 } from '../hooks/useExportJobs';
 import { useExportPresets, useExportPreset } from '../hooks/useExportPresets';
+import { useDeployment } from '../hooks/useDeployments';
 import useExportPreview from '../hooks/useExportPreview';
 import FormatSelector from '../components/export/FormatSelector';
 import PresetDropdown from '../components/export/PresetDropdown';
@@ -24,7 +25,7 @@ const Export = () => {
   const [filter, setFilter] = useState({});
   const [options, setOptions] = useState({});
   const [selectedFields, setSelectedFields] = useState({});
-  const [deployment, setDeployment] = useState(null);
+  const [selectedDeploymentDir, setSelectedDeploymentDir] = useState(null);
   const [selectedPreset, setSelectedPreset] = useState(null);
   const [showSavePresetModal, setShowSavePresetModal] = useState(false);
   const [showDeploymentEditor, setShowDeploymentEditor] = useState(false);
@@ -37,6 +38,9 @@ const Export = () => {
   const { data: presetsData } = useExportPresets();
   const presets = presetsData?.presets || [];
   const { data: presetDetails } = useExportPreset(selectedPreset);
+
+  // Deployment data (fetched when directory is selected)
+  const { data: deploymentData } = useDeployment(selectedDeploymentDir);
 
   // Mutations
   const createJobMutation = useCreateExportJob();
@@ -116,14 +120,9 @@ const Export = () => {
     });
   };
 
-  // Handle deployment change (from selector)
-  const handleDeploymentChange = (newDeployment) => {
-    setDeployment(newDeployment);
-  };
-
   // Handle deployment save (from editor)
-  const handleDeploymentSave = (updatedDeployment) => {
-    setDeployment(updatedDeployment);
+  const handleDeploymentSave = (savedDeployment) => {
+    setSelectedDeploymentDir(savedDeployment.directory);
     setShowDeploymentEditor(false);
   };
 
@@ -143,8 +142,8 @@ const Export = () => {
     }
 
     // Add deployment if selected
-    if (deployment) {
-      jobRequest.deployment = deployment;
+    if (selectedDeploymentDir) {
+      jobRequest.deployment = selectedDeploymentDir;
     }
 
     createJobMutation.mutate(jobRequest);
@@ -201,31 +200,16 @@ const Export = () => {
           {/* Deployment Info */}
           <div className="space-y-4">
             <DeploymentSelector
-              selectedDeployment={deployment}
-              onDeploymentChange={handleDeploymentChange}
+              value={selectedDeploymentDir}
+              onChange={setSelectedDeploymentDir}
+              onCreateNew={() => setShowDeploymentEditor(true)}
+              onEdit={() => setShowDeploymentEditor(true)}
+              disabled={currentJob !== undefined}
             />
-            {deployment && !showDeploymentEditor && (
-              <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-md p-4">
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {deployment.deployment_name}
-                  </h4>
-                  {deployment.location_name && (
-                    <p className="text-xs text-gray-500">{deployment.location_name}</p>
-                  )}
-                </div>
-                <button
-                  onClick={() => setShowDeploymentEditor(true)}
-                  className="text-sm text-blue-600 hover:text-blue-700"
-                >
-                  Edit
-                </button>
-              </div>
-            )}
             {showDeploymentEditor && (
               <DeploymentEditor
-                deployment={deployment}
-                directory={deployment?.directory || filter?.deployment || ''}
+                deployment={deploymentData}
+                directory={selectedDeploymentDir || filter?.deployment || ''}
                 onSave={handleDeploymentSave}
                 onCancel={() => setShowDeploymentEditor(false)}
               />
@@ -292,7 +276,7 @@ const Export = () => {
               format={selectedFormat}
               filter={filter}
               options={options}
-              deployment={deployment}
+              deployment={deploymentData}
               selectedFields={selectedFields[selectedFormat] || []}
             />
           </div>
