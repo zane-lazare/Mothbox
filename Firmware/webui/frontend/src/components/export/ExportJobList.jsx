@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useExportJobs, useDeleteExportJob } from '../../hooks/useExportJobs';
 import {
   ArrowDownTrayIcon,
@@ -6,10 +7,13 @@ import {
   DocumentTextIcon,
   TableCellsIcon,
 } from '@heroicons/react/24/outline';
+import ConfirmDialog from '../common/ConfirmDialog';
 
 const ExportJobList = () => {
   const { data, isLoading } = useExportJobs();
   const deleteJobMutation = useDeleteExportJob();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [jobToDelete, setJobToDelete] = useState(null);
 
   const jobs = data?.jobs || [];
 
@@ -66,8 +70,18 @@ const ExportJobList = () => {
   };
 
   const handleDelete = (jobId) => {
-    if (window.confirm('Are you sure you want to delete this export job?')) {
-      deleteJobMutation.mutate(jobId);
+    setJobToDelete(jobId);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (jobToDelete) {
+      deleteJobMutation.mutate(jobToDelete, {
+        onSuccess: () => {
+          setShowDeleteConfirm(false);
+          setJobToDelete(null);
+        },
+      });
     }
   };
 
@@ -195,6 +209,21 @@ const ExportJobList = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setJobToDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Delete Export Job?"
+        message="Are you sure you want to delete this export job? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={deleteJobMutation.isPending}
+      />
     </div>
   );
 };

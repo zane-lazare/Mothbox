@@ -176,16 +176,30 @@ export function useUpdateDeployment() {
  *
  * @example
  * const { mutate, isPending } = useDeleteDeployment()
+ * const [showConfirm, setShowConfirm] = useState(false)
+ * const [directoryToDelete, setDirectoryToDelete] = useState(null)
  *
- * const handleDelete = (directory) => {
- *   if (confirm('Delete this deployment?')) {
- *     mutate(directory, {
- *       onSuccess: () => {
- *         console.log('Deleted')
- *       }
- *     })
- *   }
+ * const handleDeleteClick = (directory) => {
+ *   setDirectoryToDelete(directory)
+ *   setShowConfirm(true)
  * }
+ *
+ * const handleConfirmDelete = () => {
+ *   mutate(directoryToDelete, {
+ *     onSuccess: () => setShowConfirm(false)
+ *   })
+ * }
+ *
+ * <ConfirmDialog
+ *   isOpen={showConfirm}
+ *   onClose={() => setShowConfirm(false)}
+ *   onConfirm={handleConfirmDelete}
+ *   title="Delete Deployment?"
+ *   message="This action cannot be undone."
+ *   confirmLabel="Delete"
+ *   variant="danger"
+ *   isLoading={isPending}
+ * />
  */
 export function useDeleteDeployment() {
   const queryClient = useQueryClient()

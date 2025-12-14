@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ExportJobList from '../ExportJobList';
@@ -315,7 +315,6 @@ describe('ExportJobList', () => {
 
     it('shows confirmation dialog before delete', async () => {
       const user = userEvent.setup();
-      window.confirm = vi.fn().mockReturnValue(false);
 
       exportApi.listExportJobs.mockResolvedValue({ data: { jobs: [
         {
@@ -336,12 +335,14 @@ describe('ExportJobList', () => {
       const deleteButton = screen.getByRole('button', { name: /delete/i });
       await user.click(deleteButton);
 
-      expect(window.confirm).toHaveBeenCalled();
+      // ConfirmDialog should appear
+      await waitFor(() => {
+        expect(screen.getByText('Delete Export Job?')).toBeInTheDocument();
+      });
     });
 
     it('calls deleteExportJob when confirmed', async () => {
       const user = userEvent.setup();
-      window.confirm = vi.fn().mockReturnValue(true);
       const mockDeleteJob = vi.fn().mockResolvedValue({});
       exportApi.deleteExportJob.mockImplementation(mockDeleteJob);
 
@@ -364,6 +365,16 @@ describe('ExportJobList', () => {
       const deleteButton = screen.getByRole('button', { name: /delete/i });
       await user.click(deleteButton);
 
+      // Wait for dialog to appear
+      await waitFor(() => {
+        expect(screen.getByText('Delete Export Job?')).toBeInTheDocument();
+      });
+
+      // Click the confirm button in the dialog (the one with red background)
+      const dialog = screen.getByRole('alertdialog');
+      const confirmButton = within(dialog).getByRole('button', { name: /delete/i });
+      await user.click(confirmButton);
+
       await waitFor(() => {
         expect(mockDeleteJob).toHaveBeenCalledWith('job-1');
       });
@@ -371,7 +382,6 @@ describe('ExportJobList', () => {
 
     it('does not call deleteExportJob when cancelled', async () => {
       const user = userEvent.setup();
-      window.confirm = vi.fn().mockReturnValue(false);
       const mockDeleteJob = vi.fn();
       exportApi.deleteExportJob.mockImplementation(mockDeleteJob);
 
@@ -394,6 +404,19 @@ describe('ExportJobList', () => {
       const deleteButton = screen.getByRole('button', { name: /delete/i });
       await user.click(deleteButton);
 
+      // Wait for dialog to appear
+      await waitFor(() => {
+        expect(screen.getByText('Delete Export Job?')).toBeInTheDocument();
+      });
+
+      // Click cancel button in the dialog
+      const cancelButton = screen.getByRole('button', { name: /cancel/i });
+      await user.click(cancelButton);
+
+      // Dialog should close and delete should not be called
+      await waitFor(() => {
+        expect(screen.queryByText('Delete Export Job?')).not.toBeInTheDocument();
+      });
       expect(mockDeleteJob).not.toHaveBeenCalled();
     });
   });

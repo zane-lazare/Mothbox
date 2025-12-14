@@ -6,6 +6,7 @@ import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import CollapsibleCard from './CollapsibleCard'
+import ConfirmDialog from './common/ConfirmDialog'
 
 export default function GPSSettings() {
   const queryClient = useQueryClient()
@@ -14,6 +15,7 @@ export default function GPSSettings() {
   const [syncing, setSyncing] = useState(false)
   const [localConfig, setLocalConfig] = useState(null)
   const [validationErrors, setValidationErrors] = useState({})
+  const [showRestartConfirm, setShowRestartConfirm] = useState(false)
 
   const { data: gpsConfig, isLoading: configLoading } = useQuery({
     queryKey: QUERY_KEYS.GPS_CONFIG,
@@ -215,14 +217,15 @@ export default function GPSSettings() {
 
     if (deviceChanged || baudrateChanged) {
       // Show warning that gpsd will restart
-      const confirmed = window.confirm(
-        'Changing device or baud rate will restart the GPS service.\n' +
-        'Any GPS sync in progress will be interrupted.\n\n' +
-        'Continue?'
-      )
-      if (!confirmed) return
+      setShowRestartConfirm(true)
+      return
     }
 
+    doSaveConfig()
+  }
+
+  const doSaveConfig = () => {
+    setShowRestartConfirm(false)
     updateConfigMutation.mutate({
       gps_enabled: localConfig.enabled,
       gps_device: localConfig.device,
@@ -593,6 +596,18 @@ export default function GPSSettings() {
           </>
         )}
       </div>
+
+      {/* GPS Service Restart Confirmation */}
+      <ConfirmDialog
+        isOpen={showRestartConfirm}
+        onClose={() => setShowRestartConfirm(false)}
+        onConfirm={doSaveConfig}
+        title="Restart GPS Service?"
+        message="Changing device or baud rate will restart the GPS service. Any GPS sync in progress will be interrupted."
+        confirmLabel="Continue"
+        variant="warning"
+        isLoading={updateConfigMutation.isPending}
+      />
     </CollapsibleCard>
   )
 }

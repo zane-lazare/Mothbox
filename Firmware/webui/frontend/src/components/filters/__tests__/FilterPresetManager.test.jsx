@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { FilterPresetManager } from '../FilterPresetManager'
 import { FilterProvider } from '../../../contexts/FilterContext'
@@ -303,8 +303,6 @@ describe('FilterPresetManager', () => {
         },
       ]
 
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
-
       useFilterPresets.mockReturnValue({
         presets: mockPresets,
         savePreset: mockSavePreset,
@@ -318,9 +316,10 @@ describe('FilterPresetManager', () => {
       const deleteButton = screen.getByLabelText('Delete preset: Test Preset')
       await user.click(deleteButton)
 
-      expect(confirmSpy).toHaveBeenCalledWith('Delete preset "Test Preset"?')
-
-      confirmSpy.mockRestore()
+      // ConfirmDialog should appear
+      await waitFor(() => {
+        expect(screen.getByText('Delete Preset?')).toBeInTheDocument()
+      })
     })
 
     it('should delete preset when confirmed', async () => {
@@ -333,8 +332,6 @@ describe('FilterPresetManager', () => {
         },
       ]
 
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
-
       useFilterPresets.mockReturnValue({
         presets: mockPresets,
         savePreset: mockSavePreset,
@@ -348,9 +345,17 @@ describe('FilterPresetManager', () => {
       const deleteButton = screen.getByLabelText('Delete preset: Test Preset')
       await user.click(deleteButton)
 
-      expect(mockDeletePreset).toHaveBeenCalledWith('preset_1')
+      // Wait for dialog to appear
+      await waitFor(() => {
+        expect(screen.getByText('Delete Preset?')).toBeInTheDocument()
+      })
 
-      confirmSpy.mockRestore()
+      // Click the confirm button in the dialog
+      const dialog = screen.getByRole('alertdialog')
+      const confirmButton = within(dialog).getByRole('button', { name: /delete/i })
+      await user.click(confirmButton)
+
+      expect(mockDeletePreset).toHaveBeenCalledWith('preset_1')
     })
 
     it('should not delete preset when cancelled', async () => {
@@ -363,8 +368,6 @@ describe('FilterPresetManager', () => {
         },
       ]
 
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
-
       useFilterPresets.mockReturnValue({
         presets: mockPresets,
         savePreset: mockSavePreset,
@@ -378,9 +381,20 @@ describe('FilterPresetManager', () => {
       const deleteButton = screen.getByLabelText('Delete preset: Test Preset')
       await user.click(deleteButton)
 
-      expect(mockDeletePreset).not.toHaveBeenCalled()
+      // Wait for dialog to appear
+      await waitFor(() => {
+        expect(screen.getByText('Delete Preset?')).toBeInTheDocument()
+      })
 
-      confirmSpy.mockRestore()
+      // Click cancel button
+      const cancelButton = screen.getByRole('button', { name: /cancel/i })
+      await user.click(cancelButton)
+
+      // Dialog should close and delete should not be called
+      await waitFor(() => {
+        expect(screen.queryByText('Delete Preset?')).not.toBeInTheDocument()
+      })
+      expect(mockDeletePreset).not.toHaveBeenCalled()
     })
 
     it('should prevent event propagation when deleting', async () => {
@@ -393,8 +407,6 @@ describe('FilterPresetManager', () => {
         },
       ]
 
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
-
       useFilterPresets.mockReturnValue({
         presets: mockPresets,
         savePreset: mockSavePreset,
@@ -408,11 +420,20 @@ describe('FilterPresetManager', () => {
       const deleteButton = screen.getByLabelText('Delete preset: Test Preset')
       await user.click(deleteButton)
 
+      // Wait for dialog to appear
+      await waitFor(() => {
+        expect(screen.getByText('Delete Preset?')).toBeInTheDocument()
+      })
+
       // LoadPreset should not be called when clicking delete button
       expect(mockLoadPreset).not.toHaveBeenCalled()
-      expect(mockDeletePreset).toHaveBeenCalledWith('preset_1')
 
-      confirmSpy.mockRestore()
+      // Confirm delete
+      const dialog = screen.getByRole('alertdialog')
+      const confirmButton = within(dialog).getByRole('button', { name: /delete/i })
+      await user.click(confirmButton)
+
+      expect(mockDeletePreset).toHaveBeenCalledWith('preset_1')
     })
 
     it('should handle delete errors gracefully', async () => {
@@ -429,7 +450,6 @@ describe('FilterPresetManager', () => {
         throw new Error('Delete failed')
       })
 
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
       const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
 
       useFilterPresets.mockReturnValue({
@@ -445,11 +465,20 @@ describe('FilterPresetManager', () => {
       const deleteButton = screen.getByLabelText('Delete preset: Test Preset')
       await user.click(deleteButton)
 
+      // Wait for dialog to appear
+      await waitFor(() => {
+        expect(screen.getByText('Delete Preset?')).toBeInTheDocument()
+      })
+
+      // Confirm delete
+      const dialog = screen.getByRole('alertdialog')
+      const confirmButton = within(dialog).getByRole('button', { name: /delete/i })
+      await user.click(confirmButton)
+
       await waitFor(() => {
         expect(alertSpy).toHaveBeenCalledWith('Failed to delete preset: Delete failed')
       })
 
-      confirmSpy.mockRestore()
       alertSpy.mockRestore()
     })
   })

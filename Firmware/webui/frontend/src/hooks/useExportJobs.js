@@ -96,6 +96,8 @@ export function useExportJob(jobId) {
       // Stop polling for terminal states
       return false
     },
+    // Stop polling when tab is not visible to prevent resource waste
+    refetchIntervalInBackground: false,
   })
 }
 

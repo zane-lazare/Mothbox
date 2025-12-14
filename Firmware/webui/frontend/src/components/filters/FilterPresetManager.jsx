@@ -3,6 +3,7 @@ import PropTypes from 'prop-types'
 import { useFilterPresets } from '../../hooks/useFilterPresets'
 import { useFilterContext } from '../../contexts/FilterContext'
 import SaveFilterPresetModal from './SaveFilterPresetModal'
+import ConfirmDialog from '../common/ConfirmDialog'
 
 /**
  * FilterPresetManager Component
@@ -17,6 +18,8 @@ import SaveFilterPresetModal from './SaveFilterPresetModal'
 export function FilterPresetManager() {
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [presetToDelete, setPresetToDelete] = useState(null)
 
   const {
     presets,
@@ -81,7 +84,7 @@ export function FilterPresetManager() {
   }
 
   /**
-   * Handle deleting a preset
+   * Handle initiating preset deletion (opens confirm dialog)
    */
   const handleDeletePreset = (presetId, e) => {
     e.stopPropagation() // Prevent triggering the load action
@@ -89,13 +92,24 @@ export function FilterPresetManager() {
     const preset = presets.find((p) => p.id === presetId)
     if (!preset) return
 
-    if (window.confirm(`Delete preset "${preset.name}"?`)) {
-      try {
-        deletePreset(presetId)
-      } catch (error) {
-        console.error('Error deleting preset:', error)
-        alert(`Failed to delete preset: ${error.message}`)
-      }
+    setPresetToDelete(preset)
+    setShowDeleteConfirm(true)
+  }
+
+  /**
+   * Handle confirming preset deletion
+   */
+  const handleConfirmDelete = () => {
+    if (!presetToDelete) return
+
+    try {
+      deletePreset(presetToDelete.id)
+    } catch (error) {
+      console.error('Error deleting preset:', error)
+      alert(`Failed to delete preset: ${error.message}`)
+    } finally {
+      setShowDeleteConfirm(false)
+      setPresetToDelete(null)
     }
   }
 
@@ -213,6 +227,20 @@ export function FilterPresetManager() {
         onClose={() => setShowSaveModal(false)}
         onSave={handleSavePreset}
         isSaving={isSaving}
+      />
+
+      {/* Delete Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false)
+          setPresetToDelete(null)
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Delete Preset?"
+        message={`Are you sure you want to delete "${presetToDelete?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
       />
     </>
   )
