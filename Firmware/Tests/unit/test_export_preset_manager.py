@@ -6,9 +6,9 @@ Tests are written before implementation.
 """
 
 import json
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+
+import pytest
 
 
 @pytest.fixture
@@ -97,7 +97,7 @@ class TestExportPresetManagerInit:
 
         assert not user_dir.exists()
 
-        manager = ExportPresetManager(builtin_dir, user_dir)
+        ExportPresetManager(builtin_dir, user_dir)
 
         assert user_dir.exists()
 
@@ -172,6 +172,91 @@ class TestListPresets:
         assert result == []
 
 
+class TestCorruptedPresetHandling:
+    """Tests for handling corrupted/malformed preset files."""
+
+    def test_list_presets_skips_corrupted_user_preset(self, preset_manager):
+        """Corrupted user preset files are skipped without crashing."""
+        # Create a corrupted JSON file
+        corrupt_file = preset_manager.user_dir / "corrupt.json"
+        corrupt_file.write_text("{invalid json")
+
+        presets = preset_manager.list_presets()
+
+        # Should not crash and should not include corrupt preset
+        assert "corrupt" not in [p["name"] for p in presets]
+
+    def test_list_presets_skips_corrupted_builtin_preset(self, preset_manager):
+        """Corrupted built-in preset files are skipped without crashing."""
+        # Create a corrupted JSON file in builtin directory
+        corrupt_file = preset_manager.builtin_dir / "corrupt_builtin.json"
+        corrupt_file.write_text("not valid json at all {{{")
+
+        presets = preset_manager.list_presets()
+
+        # Should not crash and should not include corrupt preset
+        assert "corrupt_builtin" not in [p["name"] for p in presets]
+
+    def test_list_presets_returns_valid_presets_when_some_corrupted(
+        self, preset_manager, sample_user_preset
+    ):
+        """Valid presets are still returned when some files are corrupted."""
+        # Create a valid preset
+        valid_file = preset_manager.user_dir / "valid_preset.json"
+        with open(valid_file, "w") as f:
+            json.dump(sample_user_preset, f)
+
+        # Create a corrupted preset
+        corrupt_file = preset_manager.user_dir / "corrupt.json"
+        corrupt_file.write_text("{truncated")
+
+        presets = preset_manager.list_presets()
+
+        # Should include valid preset but not corrupt one
+        preset_names = [p["name"] for p in presets]
+        assert "my_preset" in preset_names
+        assert "corrupt" not in preset_names
+
+    def test_get_preset_returns_none_for_corrupted_file(self, preset_manager):
+        """get_preset returns None for corrupted preset files."""
+        # Create a corrupted JSON file
+        corrupt_file = preset_manager.user_dir / "bad_preset.json"
+        corrupt_file.write_text("{incomplete json")
+
+        result = preset_manager.get_preset("bad_preset")
+
+        assert result is None
+
+    def test_get_preset_handles_truncated_json(self, preset_manager):
+        """get_preset handles truncated JSON gracefully."""
+        # Simulate file truncated mid-write
+        truncated_file = preset_manager.user_dir / "truncated.json"
+        truncated_file.write_text('{"name": "truncated", "display_name": "Test", "export_for')
+
+        result = preset_manager.get_preset("truncated")
+
+        assert result is None
+
+    def test_get_preset_handles_empty_file(self, preset_manager):
+        """get_preset handles empty files gracefully."""
+        empty_file = preset_manager.user_dir / "empty.json"
+        empty_file.write_text("")
+
+        result = preset_manager.get_preset("empty")
+
+        assert result is None
+
+    def test_list_presets_handles_binary_garbage(self, preset_manager):
+        """list_presets handles files with binary garbage."""
+        garbage_file = preset_manager.user_dir / "garbage.json"
+        garbage_file.write_bytes(b"\x00\x01\x02\xff\xfe\xfd")
+
+        presets = preset_manager.list_presets()
+
+        # Should not crash and should not include garbage file
+        assert "garbage" not in [p["name"] for p in presets]
+
+
 class TestGetPreset:
     """Tests for get_preset method."""
 
@@ -224,8 +309,8 @@ class TestSavePreset:
 
     def test_saves_new_preset(self, preset_manager):
         """Saves new user preset successfully."""
+        from webui.backend.lib.export_job_types import ExportJobFilter, ExportJobFormat
         from webui.backend.lib.export_preset_types import ExportPreset
-        from webui.backend.lib.export_job_types import ExportJobFormat, ExportJobFilter
 
         preset = ExportPreset(
             name="new_preset",
@@ -246,8 +331,8 @@ class TestSavePreset:
 
     def test_validates_preset_name_alphanumeric(self, preset_manager):
         """Rejects invalid preset names."""
-        from webui.backend.lib.export_preset_types import ExportPreset
         from webui.backend.lib.export_job_types import ExportJobFormat
+        from webui.backend.lib.export_preset_types import ExportPreset
 
         preset = ExportPreset(
             name="invalid-name!",  # Invalid characters
@@ -262,8 +347,8 @@ class TestSavePreset:
 
     def test_allows_underscore_in_name(self, preset_manager):
         """Allows underscores in preset names."""
-        from webui.backend.lib.export_preset_types import ExportPreset
         from webui.backend.lib.export_job_types import ExportJobFormat
+        from webui.backend.lib.export_preset_types import ExportPreset
 
         preset = ExportPreset(
             name="my_custom_preset",
@@ -277,11 +362,11 @@ class TestSavePreset:
 
     def test_rejects_builtin_category(self, preset_manager):
         """Cannot save preset with built-in category."""
+        from webui.backend.lib.export_job_types import ExportJobFormat
         from webui.backend.lib.export_preset_types import (
             ExportPreset,
             ExportPresetCategory,
         )
-        from webui.backend.lib.export_job_types import ExportJobFormat
 
         preset = ExportPreset(
             name="fake_builtin",
@@ -297,8 +382,8 @@ class TestSavePreset:
 
     def test_overwrites_existing_user_preset(self, preset_manager_with_presets):
         """Can overwrite existing user preset."""
-        from webui.backend.lib.export_preset_types import ExportPreset
         from webui.backend.lib.export_job_types import ExportJobFormat
+        from webui.backend.lib.export_preset_types import ExportPreset
 
         preset = ExportPreset(
             name="my_preset",  # Same name as existing
@@ -318,8 +403,8 @@ class TestSavePreset:
 
     def test_saved_preset_contains_timestamp(self, preset_manager):
         """Saved preset contains created_at timestamp."""
-        from webui.backend.lib.export_preset_types import ExportPreset
         from webui.backend.lib.export_job_types import ExportJobFormat
+        from webui.backend.lib.export_preset_types import ExportPreset
 
         preset = ExportPreset(
             name="timestamped",
@@ -465,8 +550,9 @@ class TestFileLocking:
     def test_concurrent_saves_dont_corrupt(self, preset_manager):
         """Concurrent save operations don't corrupt files."""
         import threading
-        from webui.backend.lib.export_preset_types import ExportPreset
+
         from webui.backend.lib.export_job_types import ExportJobFormat
+        from webui.backend.lib.export_preset_types import ExportPreset
 
         errors = []
         success_count = [0]
@@ -532,7 +618,6 @@ class TestBuiltinPresets:
     @pytest.fixture
     def builtin_preset_manager(self):
         """Manager pointing to real built-in presets directory."""
-        from pathlib import Path
         from webui.backend.export_preset_manager import ExportPresetManager
 
         # Point to actual built-in presets

@@ -109,7 +109,7 @@ class ExportPresetManager:
                             "author": data.get("author", "system"),
                         }
                     )
-                except (OSError, json.JSONDecodeError) as e:
+                except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
                     logger.warning(
                         f"Could not load built-in preset {preset_file} "
                         f"({type(e).__name__}): {e}"
@@ -160,7 +160,7 @@ class ExportPresetManager:
                             "created_at": data.get("created_at", ""),
                         }
                     )
-                except (OSError, json.JSONDecodeError) as e:
+                except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
                     logger.warning(
                         f"Could not load user preset {preset_file} "
                         f"({type(e).__name__}): {e}"
@@ -196,7 +196,7 @@ class ExportPresetManager:
 
                 with open(builtin_path) as f:
                     preset_data = json.load(f)
-            except (OSError, json.JSONDecodeError) as e:
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
                 logger.error(f"Error loading built-in preset {name}: {e}")
                 return None
 
@@ -215,7 +215,7 @@ class ExportPresetManager:
 
                     with open(user_path) as f:
                         preset_data = json.load(f)
-                except (OSError, json.JSONDecodeError) as e:
+                except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
                     logger.error(f"Error loading user preset {name}: {e}")
                     return None
 
