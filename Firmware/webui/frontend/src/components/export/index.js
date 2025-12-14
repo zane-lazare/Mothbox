@@ -5,3 +5,4 @@ export { default as FormatOptionsPanel } from './FormatOptionsPanel';
 export { default as CoordinateInput } from './CoordinateInput';
 export { default as DeploymentEditor } from './DeploymentEditor';
 export { default as DeploymentSelector } from './DeploymentSelector';
+export { default as ExportOptionsMenu } from './ExportOptionsMenu';

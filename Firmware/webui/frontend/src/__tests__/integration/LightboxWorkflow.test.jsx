@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import PhotoLightbox from '../../components/PhotoLightbox'
 import { LIGHTBOX_CONFIG } from '../../constants/config'
 
@@ -14,6 +15,17 @@ vi.mock('../../components/metadata/MetadataPanel', () => ({
       <div data-testid="metadata-photo-path">{photoPath}</div>
     </div>
   ),
+}))
+
+// Mock useSinglePhotoExport to avoid QueryClient dependency in tests
+vi.mock('../../hooks/useSinglePhotoExport', () => ({
+  useSinglePhotoExport: vi.fn(() => ({
+    exportPhoto: vi.fn(),
+    isExporting: false,
+    progress: null,
+    error: null,
+    reset: vi.fn(),
+  })),
 }))
 
 /**
