@@ -92,7 +92,10 @@ class ExportPresetManager:
                         }
                     )
                 except (OSError, json.JSONDecodeError) as e:
-                    logger.warning(f"Could not load built-in preset {preset_file}: {e}")
+                    logger.warning(
+                        f"Could not load built-in preset {preset_file} "
+                        f"({type(e).__name__}): {e}"
+                    )
 
         # Load user presets
         if self.user_dir.exists():
@@ -125,7 +128,10 @@ class ExportPresetManager:
                         }
                     )
                 except (OSError, json.JSONDecodeError) as e:
-                    logger.warning(f"Could not load user preset {preset_file}: {e}")
+                    logger.warning(
+                        f"Could not load user preset {preset_file} "
+                        f"({type(e).__name__}): {e}"
+                    )
 
         return presets
 
