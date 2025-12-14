@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useExportJobs,
   useCreateExportJob,
   useCancelExportJob,
 } from '../hooks/useExportJobs';
+import { useExportPresets, useExportPreset } from '../hooks/useExportPresets';
 import useExportPreview from '../hooks/useExportPreview';
 import FormatSelector from '../components/export/FormatSelector';
 import PresetDropdown from '../components/export/PresetDropdown';
@@ -24,10 +25,18 @@ const Export = () => {
   const [options, setOptions] = useState({});
   const [selectedFields, setSelectedFields] = useState({});
   const [deployment, setDeployment] = useState(null);
+  const [selectedPreset, setSelectedPreset] = useState(null);
+  const [showSavePresetModal, setShowSavePresetModal] = useState(false);
+  const [showDeploymentEditor, setShowDeploymentEditor] = useState(false);
 
   // Export jobs
   const { data: jobsData } = useExportJobs();
   const jobs = jobsData?.jobs || [];
+
+  // Export presets
+  const { data: presetsData } = useExportPresets();
+  const presets = presetsData?.presets || [];
+  const { data: presetDetails } = useExportPreset(selectedPreset);
 
   // Mutations
   const createJobMutation = useCreateExportJob();
@@ -47,10 +56,10 @@ const Export = () => {
 
   const photoCount = previewData?.metadata?.total_photos || 0;
 
-  // Handle preset selection
+  // Handle preset selection (applies preset data to form)
   const handlePresetSelect = (preset) => {
     if (preset) {
-      setSelectedFormat(preset.format || '');
+      setSelectedFormat(preset.format || preset.export_format || '');
       setFilter(preset.filter || {});
       setOptions(preset.options || {});
 
@@ -58,10 +67,27 @@ const Export = () => {
       if (preset.selected_fields) {
         setSelectedFields({
           ...selectedFields,
-          [preset.format]: preset.selected_fields,
+          [preset.format || preset.export_format]: preset.selected_fields,
         });
       }
     }
+  };
+
+  // Handle preset dropdown change
+  const handlePresetChange = (presetName) => {
+    setSelectedPreset(presetName);
+  };
+
+  // Apply preset when details load
+  useEffect(() => {
+    if (presetDetails) {
+      handlePresetSelect(presetDetails);
+    }
+  }, [presetDetails]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle save preset modal
+  const handleSavePreset = () => {
+    setShowSavePresetModal(true);
   };
 
   // Handle format change
@@ -90,9 +116,15 @@ const Export = () => {
     });
   };
 
-  // Handle deployment change
+  // Handle deployment change (from selector)
   const handleDeploymentChange = (newDeployment) => {
     setDeployment(newDeployment);
+  };
+
+  // Handle deployment save (from editor)
+  const handleDeploymentSave = (updatedDeployment) => {
+    setDeployment(updatedDeployment);
+    setShowDeploymentEditor(false);
   };
 
   // Handle export submission
@@ -143,15 +175,20 @@ const Export = () => {
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Export Format</h2>
             <FormatSelector
-              selectedFormat={selectedFormat}
-              onFormatChange={handleFormatChange}
+              value={selectedFormat}
+              onChange={handleFormatChange}
             />
           </div>
 
           {/* Preset Selection */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Quick Start</h2>
-            <PresetDropdown onPresetSelect={handlePresetSelect} />
+            <PresetDropdown
+              value={selectedPreset}
+              onChange={handlePresetChange}
+              presets={presets}
+              onSavePreset={handleSavePreset}
+            />
           </div>
 
           {/* Photo Filters */}
@@ -167,10 +204,30 @@ const Export = () => {
               selectedDeployment={deployment}
               onDeploymentChange={handleDeploymentChange}
             />
-            {deployment && (
+            {deployment && !showDeploymentEditor && (
+              <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-md p-4">
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {deployment.deployment_name}
+                  </h4>
+                  {deployment.location_name && (
+                    <p className="text-xs text-gray-500">{deployment.location_name}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowDeploymentEditor(true)}
+                  className="text-sm text-blue-600 hover:text-blue-700"
+                >
+                  Edit
+                </button>
+              </div>
+            )}
+            {showDeploymentEditor && (
               <DeploymentEditor
                 deployment={deployment}
-                onUpdate={handleDeploymentChange}
+                directory={deployment?.directory || filter?.deployment || ''}
+                onSave={handleDeploymentSave}
+                onCancel={() => setShowDeploymentEditor(false)}
               />
             )}
           </div>

@@ -12,28 +12,28 @@ vi.mock('../../utils/deploymentApi');
 
 // Mock child components
 vi.mock('../../components/export/FormatSelector', () => ({
-  default: ({ selectedFormat, onFormatChange }) => (
+  default: ({ value, onChange }) => (
     <div data-testid="format-selector">
-      <button onClick={() => onFormatChange('darwin_core')}>Darwin Core</button>
-      <button onClick={() => onFormatChange('inaturalist')}>iNaturalist</button>
-      <button onClick={() => onFormatChange('json')}>JSON</button>
-      <button onClick={() => onFormatChange('csv')}>CSV</button>
-      <div>Selected: {selectedFormat || 'none'}</div>
+      <button onClick={() => onChange('darwin_core')}>Darwin Core</button>
+      <button onClick={() => onChange('inaturalist')}>iNaturalist</button>
+      <button onClick={() => onChange('json')}>JSON</button>
+      <button onClick={() => onChange('csv')}>CSV</button>
+      <div>Selected: {value || 'none'}</div>
     </div>
   ),
 }));
 
 vi.mock('../../components/export/PresetDropdown', () => ({
-  default: ({ onPresetSelect }) => (
+  default: ({ value, onChange, presets, onSavePreset }) => (
     <div data-testid="preset-dropdown">
-      <button onClick={() => onPresetSelect({
-        name: 'gbif_biodiversity',
-        format: 'darwin_core',
-        filter: { has_species: true },
-        options: { include_photos: false },
-      })}>
+      <button onClick={() => onChange('gbif_biodiversity')}>
         GBIF Preset
       </button>
+      {onSavePreset && (
+        <button onClick={onSavePreset}>Save Preset</button>
+      )}
+      <div>Selected Preset: {value || 'none'}</div>
+      <div>Presets Count: {presets?.length || 0}</div>
     </div>
   ),
 }));
@@ -101,6 +101,31 @@ vi.mock('../../hooks/useExportPreview', () => ({
     data: { metadata: { total_photos: 150 } },
     isLoading: false,
     error: null,
+  }),
+}));
+
+// Mock the useExportPresets hooks
+vi.mock('../../hooks/useExportPresets', () => ({
+  useExportPresets: () => ({
+    data: { presets: [
+      { name: 'gbif_biodiversity', display_name: 'GBIF', category: 'built_in' }
+    ] },
+    isLoading: false,
+    error: null,
+  }),
+  useExportPreset: (name) => ({
+    data: name === 'gbif_biodiversity' ? {
+      name: 'gbif_biodiversity',
+      export_format: 'darwin_core',
+      filter: { has_species: true },
+      options: { include_photos: false },
+    } : null,
+    isLoading: false,
+    error: null,
+  }),
+  useCreateExportPreset: () => ({
+    mutate: vi.fn(),
+    isPending: false,
   }),
 }));
 
