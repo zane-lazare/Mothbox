@@ -76,13 +76,20 @@ class ExportPresetManager:
                         )
                         continue
 
+                    # Warn if JSON name doesn't match filename
+                    json_name = data.get("name")
+                    if json_name and json_name != preset_file.stem:
+                        logger.warning(
+                            f"Preset name mismatch: file={preset_file.stem}, json={json_name}"
+                        )
+
                     # Apply format filter
                     if format_filter and data.get("export_format") != format_filter:
                         continue
 
                     presets.append(
                         {
-                            "name": data.get("name", preset_file.stem),
+                            "name": json_name or preset_file.stem,
                             "display_name": data.get("display_name", preset_file.stem),
                             "description": data.get("description", ""),
                             "category": "built-in",
@@ -111,13 +118,20 @@ class ExportPresetManager:
                         logger.warning(f"Skipping invalid user preset {preset_file.name}: {error_msg}")
                         continue
 
+                    # Warn if JSON name doesn't match filename
+                    json_name = data.get("name")
+                    if json_name and json_name != preset_file.stem:
+                        logger.warning(
+                            f"Preset name mismatch: file={preset_file.stem}, json={json_name}"
+                        )
+
                     # Apply format filter
                     if format_filter and data.get("export_format") != format_filter:
                         continue
 
                     presets.append(
                         {
-                            "name": data.get("name", preset_file.stem),
+                            "name": json_name or preset_file.stem,
                             "display_name": data.get("display_name", preset_file.stem),
                             "description": data.get("description", ""),
                             "category": "user",
