@@ -60,4 +60,16 @@ export const QUERY_KEYS = {
   // System information (kebab-case compound names)
   SYSTEM_INFO: ['system-info'],
   DIAGNOSTIC_INFO: ['diagnostic-info'],
+
+  // Export Jobs (Issue #125)
+  EXPORT_JOBS: ['export-jobs'],
+  EXPORT_JOB: (id) => ['export-jobs', id],
+
+  // Export Presets (Issue #125)
+  EXPORT_PRESETS: ['export-presets'],
+  EXPORT_PRESET: (name) => ['export-presets', name],
+
+  // Deployment Metadata (Issue #125, Subtask 3)
+  DEPLOYMENTS: ['deployments'],
+  DEPLOYMENT: (directory) => ['deployment', directory],
 }
