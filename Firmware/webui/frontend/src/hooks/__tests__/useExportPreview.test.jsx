@@ -37,7 +37,7 @@ describe('useExportPreview', () => {
   })
 
   it('returns loading state initially', () => {
-    api.get.mockResolvedValue({ data: { photos: [] } })
+    api.get.mockResolvedValue({ data: { items: [], total: 0 } })
 
     const { result } = renderHook(
       () => useExportPreview({
@@ -72,7 +72,7 @@ describe('useExportPreview', () => {
 
     api.get.mockResolvedValue({
       data: {
-        photos: mockPhotos,
+        items: mockPhotos,
         total: 2
       }
     })
@@ -97,7 +97,8 @@ describe('useExportPreview', () => {
     // Check API was called with correct parameters
     expect(api.get).toHaveBeenCalledWith('/sidecar/photos', {
       params: expect.objectContaining({
-        limit: 3,
+        per_page: 3,
+        page: 1,
         date_start: '2024-01-01',
         date_end: '2024-12-31',
         tags: 'moth'
@@ -105,6 +106,7 @@ describe('useExportPreview', () => {
     })
 
     expect(result.current.previewData).toBeDefined()
+    expect(result.current.previewData.metadata.total_photos).toBe(2)
     expect(result.current.error).toBeNull()
   })
 
@@ -122,7 +124,7 @@ describe('useExportPreview', () => {
     ]
 
     api.get.mockResolvedValue({
-      data: { photos: mockPhotos }
+      data: { items: mockPhotos, total: 1 }
     })
 
     const { result } = renderHook(
@@ -161,7 +163,7 @@ describe('useExportPreview', () => {
     ]
 
     api.get.mockResolvedValue({
-      data: { photos: mockPhotos }
+      data: { items: mockPhotos, total: 1 }
     })
 
     const selectedFields = ['filename', 'tags', 'latitude']
@@ -186,7 +188,7 @@ describe('useExportPreview', () => {
 
   it('handles empty results', async () => {
     api.get.mockResolvedValue({
-      data: { photos: [] }
+      data: { items: [], total: 0 }
     })
 
     const { result } = renderHook(
@@ -225,7 +227,7 @@ describe('useExportPreview', () => {
 
   it('uses staleTime for debouncing behavior', async () => {
     api.get.mockResolvedValue({
-      data: { photos: [] }
+      data: { items: [], total: 0 }
     })
 
     const { result } = renderHook(
@@ -254,7 +256,7 @@ describe('useExportPreview', () => {
     ]
 
     api.get.mockResolvedValue({
-      data: { photos: mockPhotos }
+      data: { items: mockPhotos, total: 1 }
     })
 
     const { result } = renderHook(
@@ -283,7 +285,7 @@ describe('useExportPreview', () => {
     }))
 
     api.get.mockResolvedValue({
-      data: { photos: mockPhotos }
+      data: { items: mockPhotos, total: 10 }
     })
 
     const { result } = renderHook(
@@ -299,17 +301,18 @@ describe('useExportPreview', () => {
       expect(result.current.isLoading).toBe(false)
     }, { timeout: 3000 })
 
-    // API should request limit of 3
+    // API should request per_page of 3
     expect(api.get).toHaveBeenCalledWith('/sidecar/photos', {
       params: expect.objectContaining({
-        limit: 3
+        per_page: 3,
+        page: 1
       })
     })
   })
 
   it('refetches when format changes', async () => {
     api.get.mockResolvedValue({
-      data: { photos: [] }
+      data: { items: [], total: 0 }
     })
 
     const { rerender } = renderHook(

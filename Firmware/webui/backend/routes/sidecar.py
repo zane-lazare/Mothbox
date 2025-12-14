@@ -613,26 +613,31 @@ def delete_photo_metadata(filename: str):
 @sidecar_bp.route("/photos", methods=["GET"])
 def list_all_metadata():
     """
-    List all sidecar metadata with pagination.
+    List all sidecar metadata with pagination and optional filtering.
 
     Query Parameters:
         page (int): Page number (1-indexed, default: 1)
         per_page (int): Items per page (1-200, default: 50, max: 200)
+        date_start (str): Filter photos on or after this date (YYYY-MM-DD)
+        date_end (str): Filter photos on or before this date (YYYY-MM-DD)
+        tags (str): Comma-separated tags to filter by (matches ANY tag)
+        series_type (str): Filter by 'hdr' or 'focus_bracket'
+        has_species (str): Filter to only photos with species ('true')
 
     Returns:
         JSON response with:
         - items: List of metadata dictionaries
-        - total: Total number of photos with sidecars
+        - total: Total number of photos matching filters
         - pagination: Pagination metadata
 
     Status Codes:
         200: Success
-        400: Invalid pagination parameters
+        400: Invalid parameters
         500: Internal server error
         503: Service unavailable
 
     Example:
-        GET /api/sidecar/photos?page=1&per_page=50
+        GET /api/sidecar/photos?page=1&per_page=50&tags=moth,luna&date_start=2024-01-01
 
         Response:
         {
@@ -676,11 +681,29 @@ def list_all_metadata():
         # Calculate offset
         offset = (page - 1) * per_page
 
-        # Get metadata from service
+        # Parse filter parameters
+        date_start = request.args.get('date_start')
+        date_end = request.args.get('date_end')
+        tags_param = request.args.get('tags')
+        tags = [t.strip() for t in tags_param.split(',') if t.strip()] if tags_param else None
+        series_type = request.args.get('series_type')
+        has_species_param = request.args.get('has_species')
+        has_species = has_species_param.lower() == 'true' if has_species_param else None
+
+        # Validate series_type if provided
+        if series_type and series_type not in ('hdr', 'focus_bracket'):
+            return jsonify({"error": "series_type must be 'hdr' or 'focus_bracket'"}), 400
+
+        # Get metadata from service with filters
         result = service.list_metadata_for_directory(
             directory=PHOTOS_DIR,
             limit=per_page,
-            offset=offset
+            offset=offset,
+            date_start=date_start,
+            date_end=date_end,
+            tags=tags,
+            series_type=series_type,
+            has_species=has_species
         )
 
         # Build pagination metadata

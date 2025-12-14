@@ -37,6 +37,7 @@ import contextlib
 import hashlib
 import json
 import logging
+import re
 import time
 from collections import OrderedDict, deque
 from dataclasses import asdict, dataclass
@@ -44,6 +45,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
+from webui.backend.lib.series_detection import detect_series_type
 from webui.backend.lib.sidecar_metadata import (
     SidecarMetadata,
     cleanup_temp_files,
@@ -54,6 +56,10 @@ from webui.backend.lib.sidecar_metadata import (
 from webui.backend.lib.sidecar_metadata import (
     update_metadata as lib_update_metadata,
 )
+
+# Pattern to extract date from Mothbox photo filenames
+# Matches: name_YYYY_MM_DD__HH_MM_SS... or ManFocus_name_YYYY_MM_DD__...
+FILENAME_DATE_PATTERN = re.compile(r'(\d{4})_(\d{2})_(\d{2})__')
 
 logger = logging.getLogger(__name__)
 
@@ -426,7 +432,12 @@ class SidecarService:
         self,
         directory: Path | str,
         limit: int = 50,
-        offset: int = 0
+        offset: int = 0,
+        date_start: str | None = None,
+        date_end: str | None = None,
+        tags: list[str] | None = None,
+        series_type: str | None = None,
+        has_species: bool | None = None
     ) -> dict:
         """
         List metadata for all photos with sidecars in directory.
@@ -435,11 +446,16 @@ class SidecarService:
             directory: Directory to search
             limit: Maximum number of results to return
             offset: Number of results to skip
+            date_start: Filter photos on or after this date (YYYY-MM-DD)
+            date_end: Filter photos on or before this date (YYYY-MM-DD)
+            tags: Filter photos that have ANY of these tags
+            series_type: Filter by series type ('hdr' or 'focus_bracket')
+            has_species: Filter to only photos with species identification
 
         Returns:
             Dictionary with:
             - items: List of metadata dictionaries (serialized)
-            - total: Total number of photos with sidecars
+            - total: Total number of photos matching filters
             - limit: Limit used
             - offset: Offset used
             - has_next: Whether there are more results
@@ -457,10 +473,55 @@ class SidecarService:
 
         # Get all photos with sidecars
         photos_with_sidecars = list_photos_with_sidecars(directory)
-        total = len(photos_with_sidecars)
+
+        # Apply filters
+        filtered_photos = []
+        for photo_path in photos_with_sidecars:
+            # Date filter - parse from filename
+            if date_start or date_end:
+                filename = photo_path.name
+                match = FILENAME_DATE_PATTERN.search(filename)
+                if match:
+                    photo_date = f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+                    if date_start and photo_date < date_start:
+                        continue
+                    if date_end and photo_date > date_end:
+                        continue
+                else:
+                    # No date in filename, skip if date filter is set
+                    continue
+
+            # Series type filter
+            if series_type:
+                series_info = detect_series_type(photo_path.name)
+                if series_info is None:
+                    continue  # Not a series photo
+                if series_info.series_type != series_type:
+                    continue
+
+            # Get metadata for tag and species filters
+            if tags or has_species:
+                metadata = self.get_metadata(str(photo_path))
+                if not metadata:
+                    continue
+
+                # Tag filter - match ANY tag
+                if tags:
+                    photo_tags = [t.lower() for t in metadata.tags]
+                    filter_tags = [t.lower() for t in tags]
+                    if not any(t in photo_tags for t in filter_tags):
+                        continue
+
+                # Has species filter
+                if has_species and not metadata.species:
+                    continue
+
+            filtered_photos.append(photo_path)
+
+        total = len(filtered_photos)
 
         # Apply pagination
-        photos_page = photos_with_sidecars[offset:offset + limit]
+        photos_page = filtered_photos[offset:offset + limit]
 
         # Get metadata for page
         items = []

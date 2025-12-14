@@ -93,33 +93,40 @@ export default function useExportPreview({ format, filter, selectedFields }) {
   const query = useQuery({
     queryKey,
     queryFn: async () => {
-      // Build query parameters from filter
+      // Build query parameters - use backend pagination params
       const params = {
-        limit: 3, // Always fetch first 3 photos for preview
-        ...filter
+        per_page: 3, // Fetch first 3 photos for preview
+        page: 1,
       }
+
+      // Add filter params if present
+      if (filter.date_start) params.date_start = filter.date_start
+      if (filter.date_end) params.date_end = filter.date_end
+      if (filter.series_type) params.series_type = filter.series_type
+      if (filter.has_species) params.has_species = 'true'
 
       // Convert tags array to comma-separated string if present
-      if (filter.tags && Array.isArray(filter.tags)) {
+      if (filter.tags && Array.isArray(filter.tags) && filter.tags.length > 0) {
         params.tags = filter.tags.join(',')
-      }
-
-      // Convert series_type to string if present
-      if (filter.series_type) {
-        params.series_type = filter.series_type
       }
 
       // Fetch sample photos from sidecar/photos endpoint
       const response = await api.get('/sidecar/photos', { params })
 
-      const photos = response.data.photos || []
+      // Backend returns 'items', not 'photos'
+      const photos = response.data.items || []
+      const total = response.data.total || 0
 
-      // Transform to preview format
-      return transformToFormat(photos, format, selectedFields)
+      // Transform to preview format and include metadata
+      const previewData = transformToFormat(photos, format, selectedFields)
+      return {
+        ...previewData,
+        metadata: { total_photos: total }
+      }
     },
 
-    // Enable query only if we have selectedFields
-    enabled: selectedFields && selectedFields.length > 0,
+    // Enable query when format is selected (not just fields)
+    enabled: !!format,
 
     // Debounce: mark data as stale after 500ms
     staleTime: 500,
