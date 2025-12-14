@@ -33,8 +33,9 @@ try:
         BACKUP_EXTENSION,
         # Path utilities
         get_sidecar_path,
-        photo_has_sidecar,
+        list_all_photos,
         list_photos_with_sidecars,
+        photo_has_sidecar,
         # Schema validation
         validate_schema,
         ValidationError,
@@ -546,6 +547,112 @@ class TestListPhotosWithSidecars:
         result = list_photos_with_sidecars(tmp_path)
         assert len(result) == 2
         assert all(isinstance(p, Path) for p in result)
+
+
+class TestListAllPhotos:
+    """Tests for list_all_photos() function - recursive photo listing with sidecar status."""
+
+    def test_list_all_photos_empty_directory(self, tmp_path):
+        """Should return empty list for empty directory."""
+        result = list_all_photos(tmp_path)
+        assert result == []
+
+    def test_list_all_photos_includes_all_photos(self, tmp_path, sample_metadata):
+        """Should return all photos, not just those with sidecars."""
+        # Create 3 photos, only 1 with sidecar
+        for i in range(3):
+            photo = tmp_path / f"photo_{i}.jpg"
+            photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+            if i == 0:  # Only first one gets sidecar
+                sidecar = tmp_path / f"photo_{i}.jpg.json"
+                sidecar.write_text(json.dumps(sample_metadata))
+
+        result = list_all_photos(tmp_path)
+        assert len(result) == 3
+        # Result is list of (path, has_sidecar) tuples
+        assert all(isinstance(p, tuple) and len(p) == 2 for p in result)
+
+    def test_list_all_photos_returns_sidecar_status(self, tmp_path, sample_metadata):
+        """Should correctly indicate which photos have sidecars."""
+        # Photo with sidecar
+        photo_with = tmp_path / "with_sidecar.jpg"
+        photo_with.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+        sidecar = tmp_path / "with_sidecar.jpg.json"
+        sidecar.write_text(json.dumps(sample_metadata))
+
+        # Photo without sidecar
+        photo_without = tmp_path / "without_sidecar.jpg"
+        photo_without.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        result = list_all_photos(tmp_path)
+        result_dict = {p.name: has_sidecar for p, has_sidecar in result}
+
+        assert result_dict["with_sidecar.jpg"] is True
+        assert result_dict["without_sidecar.jpg"] is False
+
+    def test_list_all_photos_recursive(self, tmp_path, sample_metadata):
+        """Should find photos in subdirectories when recursive=True."""
+        # Create photo in root
+        root_photo = tmp_path / "root.jpg"
+        root_photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        # Create photo in subdirectory
+        subdir = tmp_path / "test_captures"
+        subdir.mkdir()
+        sub_photo = subdir / "subdir.jpg"
+        sub_photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        result = list_all_photos(tmp_path, recursive=True)
+        assert len(result) == 2
+
+        paths = [str(p) for p, _ in result]
+        assert any("root.jpg" in p for p in paths)
+        assert any("subdir.jpg" in p for p in paths)
+
+    def test_list_all_photos_non_recursive(self, tmp_path, sample_metadata):
+        """Should NOT find photos in subdirectories when recursive=False."""
+        # Create photo in root
+        root_photo = tmp_path / "root.jpg"
+        root_photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        # Create photo in subdirectory
+        subdir = tmp_path / "test_captures"
+        subdir.mkdir()
+        sub_photo = subdir / "subdir.jpg"
+        sub_photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        result = list_all_photos(tmp_path, recursive=False)
+        assert len(result) == 1
+        assert result[0][0].name == "root.jpg"
+
+    def test_list_all_photos_sorted_by_path(self, tmp_path):
+        """Should return results sorted by path."""
+        # Create photos with unsorted names
+        for name in ["zebra.jpg", "apple.jpg", "monkey.jpg"]:
+            photo = tmp_path / name
+            photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        result = list_all_photos(tmp_path)
+        names = [p.name for p, _ in result]
+
+        assert names == sorted(names)
+
+    def test_list_all_photos_nonexistent_directory(self, tmp_path):
+        """Should return empty list for non-existent directory."""
+        nonexistent = tmp_path / "does_not_exist"
+        result = list_all_photos(nonexistent)
+        assert result == []
+
+    def test_list_all_photos_various_extensions(self, tmp_path):
+        """Should find photos with various JPEG extensions."""
+        extensions = [".jpg", ".JPG", ".jpeg", ".JPEG"]
+        for i, ext in enumerate(extensions):
+            photo = tmp_path / f"photo_{i}{ext}"
+            photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        result = list_all_photos(tmp_path)
+        assert len(result) == 4
 
 
 # ============================================================================

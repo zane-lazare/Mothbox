@@ -537,6 +537,131 @@ class TestListMetadataForDirectory:
         assert result['items'] == []
         assert result['total'] == 0
 
+    def test_list_metadata_includes_photos_without_sidecars(self, service, photos_dir):
+        """list_metadata_for_directory should include photos without sidecars."""
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        # Create photo with sidecar
+        photo_with = photos_dir / "with_sidecar.jpg"
+        photo_with.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+        metadata = create_metadata(photo_with, tags=["moth"])
+        write_metadata(photo_with, metadata)
+
+        # Create photo without sidecar
+        photo_without = photos_dir / "without_sidecar.jpg"
+        photo_without.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        result = service.list_metadata_for_directory(photos_dir)
+
+        assert result['total'] == 2
+        assert len(result['items']) == 2
+
+        # Check has_sidecar flags
+        has_sidecar_flags = {item['photo_filename']: item['has_sidecar'] for item in result['items']}
+        assert has_sidecar_flags['with_sidecar.jpg'] is True
+        assert has_sidecar_flags['without_sidecar.jpg'] is False
+
+    def test_list_metadata_has_sidecar_filter_true(self, service, photos_dir):
+        """list_metadata_for_directory should filter to only photos with sidecars."""
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        # Create photo with sidecar
+        photo_with = photos_dir / "with_sidecar.jpg"
+        photo_with.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+        metadata = create_metadata(photo_with, tags=["moth"])
+        write_metadata(photo_with, metadata)
+
+        # Create photo without sidecar
+        photo_without = photos_dir / "without_sidecar.jpg"
+        photo_without.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        result = service.list_metadata_for_directory(photos_dir, has_sidecar=True)
+
+        assert result['total'] == 1
+        assert result['items'][0]['photo_filename'] == 'with_sidecar.jpg'
+        assert result['items'][0]['has_sidecar'] is True
+
+    def test_list_metadata_has_sidecar_filter_false(self, service, photos_dir):
+        """list_metadata_for_directory should filter to only photos without sidecars."""
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        # Create photo with sidecar
+        photo_with = photos_dir / "with_sidecar.jpg"
+        photo_with.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+        metadata = create_metadata(photo_with, tags=["moth"])
+        write_metadata(photo_with, metadata)
+
+        # Create photo without sidecar
+        photo_without = photos_dir / "without_sidecar.jpg"
+        photo_without.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        result = service.list_metadata_for_directory(photos_dir, has_sidecar=False)
+
+        assert result['total'] == 1
+        assert result['items'][0]['photo_filename'] == 'without_sidecar.jpg'
+        assert result['items'][0]['has_sidecar'] is False
+
+    def test_list_metadata_recursive_subdirectory(self, service, photos_dir):
+        """list_metadata_for_directory should find photos in subdirectories."""
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        # Create photo in root
+        root_photo = photos_dir / "root.jpg"
+        root_photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+        metadata = create_metadata(root_photo, tags=["root"])
+        write_metadata(root_photo, metadata)
+
+        # Create photo in subdirectory
+        subdir = photos_dir / "test_captures"
+        subdir.mkdir()
+        sub_photo = subdir / "subdir.jpg"
+        sub_photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        result = service.list_metadata_for_directory(photos_dir)
+
+        assert result['total'] == 2
+        paths = [item['path'] for item in result['items']]
+        assert any('root.jpg' in p for p in paths)
+        assert any('test_captures' in p and 'subdir.jpg' in p for p in paths)
+
+    def test_list_metadata_includes_path_field(self, service, photos_dir):
+        """list_metadata_for_directory should include relative path field."""
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        # Create photo in subdirectory
+        subdir = photos_dir / "captures"
+        subdir.mkdir()
+        photo = subdir / "photo.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+        metadata = create_metadata(photo, tags=["test"])
+        write_metadata(photo, metadata)
+
+        result = service.list_metadata_for_directory(photos_dir)
+
+        assert result['total'] == 1
+        assert result['items'][0]['path'] == 'captures/photo.jpg'
+        assert result['items'][0]['has_sidecar'] is True
+
+    def test_list_metadata_placeholder_has_expected_fields(self, service, photos_dir):
+        """Placeholder metadata for photos without sidecars should have expected fields."""
+        # Create photo without sidecar
+        photo = photos_dir / "no_sidecar.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        result = service.list_metadata_for_directory(photos_dir)
+
+        assert result['total'] == 1
+        item = result['items'][0]
+
+        # Check placeholder fields
+        assert item['photo_filename'] == 'no_sidecar.jpg'
+        assert item['has_sidecar'] is False
+        assert item['tags'] == []
+        assert item['species'] is None
+        assert item['notes'] is None
+        assert 'file_timestamp' in item
+        assert 'path' in item
+
 
 class TestBatchUpdateMetadata:
     """Tests for batch_update_metadata method."""

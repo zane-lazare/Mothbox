@@ -41,6 +41,7 @@ import re
 import time
 from collections import OrderedDict, deque
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -49,6 +50,7 @@ from webui.backend.lib.series_detection import detect_series_type
 from webui.backend.lib.sidecar_metadata import (
     SidecarMetadata,
     cleanup_temp_files,
+    list_all_photos,
     list_photos_with_sidecars,
     read_metadata,
     write_metadata,
@@ -437,24 +439,30 @@ class SidecarService:
         date_end: str | None = None,
         tags: list[str] | None = None,
         series_type: str | None = None,
-        has_species: bool | None = None
+        has_species: bool | None = None,
+        has_sidecar: bool | None = None
     ) -> dict:
         """
-        List metadata for all photos with sidecars in directory.
+        List metadata for all photos in directory (including those without sidecars).
+
+        Searches recursively through subdirectories. Photos without sidecar files
+        are included with placeholder metadata (empty tags, null species, etc.)
+        and a `has_sidecar: false` flag.
 
         Args:
-            directory: Directory to search
+            directory: Directory to search (recursively)
             limit: Maximum number of results to return
             offset: Number of results to skip
             date_start: Filter photos on or after this date (YYYY-MM-DD)
             date_end: Filter photos on or before this date (YYYY-MM-DD)
-            tags: Filter photos that have ANY of these tags
+            tags: Filter photos that have ANY of these tags (requires sidecar)
             series_type: Filter by series type ('hdr' or 'focus_bracket')
-            has_species: Filter to only photos with species identification
+            has_species: Filter to only photos with species identification (requires sidecar)
+            has_sidecar: Filter by sidecar presence (True/False/None for any)
 
         Returns:
             Dictionary with:
-            - items: List of metadata dictionaries (serialized)
+            - items: List of metadata dictionaries with `path` and `has_sidecar` fields
             - total: Total number of photos matching filters
             - limit: Limit used
             - offset: Offset used
@@ -471,12 +479,16 @@ class SidecarService:
                 'has_next': False,
             }
 
-        # Get all photos with sidecars
-        photos_with_sidecars = list_photos_with_sidecars(directory)
+        # Get ALL photos recursively with sidecar status
+        all_photos = list_all_photos(directory, recursive=True)
 
         # Apply filters
         filtered_photos = []
-        for photo_path in photos_with_sidecars:
+        for photo_path, photo_has_sidecar in all_photos:
+            # has_sidecar filter
+            if has_sidecar is not None and photo_has_sidecar != has_sidecar:
+                continue
+
             # Date filter - parse from filename
             if date_start or date_end:
                 filename = photo_path.name
@@ -499,8 +511,12 @@ class SidecarService:
                 if series_info.series_type != series_type:
                     continue
 
-            # Get metadata for tag and species filters
+            # Get metadata for tag and species filters (requires sidecar)
             if tags or has_species:
+                # These filters require sidecar metadata
+                if not photo_has_sidecar:
+                    continue
+
                 metadata = self.get_metadata(str(photo_path))
                 if not metadata:
                     continue
@@ -516,7 +532,7 @@ class SidecarService:
                 if has_species and not metadata.species:
                     continue
 
-            filtered_photos.append(photo_path)
+            filtered_photos.append((photo_path, photo_has_sidecar))
 
         total = len(filtered_photos)
 
@@ -525,20 +541,35 @@ class SidecarService:
 
         # Get metadata for page
         items = []
-        for photo_path in photos_page:
-            metadata = self.get_metadata(str(photo_path))
-            if metadata:
-                items.append(metadata.to_dict())
+        for photo_path, photo_has_sidecar in photos_page:
+            if photo_has_sidecar:
+                metadata = self.get_metadata(str(photo_path))
+                if metadata:
+                    item = metadata.to_dict()
+                    # Add path and has_sidecar fields
+                    try:
+                        item['path'] = str(photo_path.relative_to(directory))
+                    except ValueError:
+                        item['path'] = photo_path.name
+                    item['has_sidecar'] = True
+                else:
+                    # Sidecar exists but couldn't be read - use placeholder
+                    item = self._build_placeholder_metadata(photo_path, directory)
+            else:
+                # No sidecar - use placeholder metadata
+                item = self._build_placeholder_metadata(photo_path, directory)
+
+            items.append(item)
 
         # Check if there are more results
-        has_next = (offset + limit) < total
+        has_next_page = (offset + limit) < total
 
         return {
             'items': items,
             'total': total,
             'limit': limit,
             'offset': offset,
-            'has_next': has_next,
+            'has_next': has_next_page,
         }
 
     def batch_update_metadata(self, updates: list[tuple[str, dict]]) -> list[bool]:
@@ -593,6 +624,46 @@ class SidecarService:
     # ========================================================================
     # Private Helper Methods
     # ========================================================================
+
+    def _build_placeholder_metadata(self, photo_path: Path, base_dir: Path) -> dict:
+        """Build placeholder metadata for photos without sidecars.
+
+        Args:
+            photo_path: Absolute path to the photo
+            base_dir: Base directory for computing relative path
+
+        Returns:
+            Dictionary with placeholder metadata fields
+        """
+        try:
+            stat = photo_path.stat()
+            file_timestamp = datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat().replace('+00:00', 'Z')
+        except OSError:
+            file_timestamp = None
+
+        # Compute relative path from base directory
+        try:
+            relative_path = str(photo_path.relative_to(base_dir))
+        except ValueError:
+            relative_path = photo_path.name
+
+        return {
+            'version': '1.1',
+            'photo_filename': photo_path.name,
+            'path': relative_path,
+            'has_sidecar': False,
+            'created_at': None,
+            'modified_at': None,
+            'tags': [],
+            'species': None,
+            'species_confidence': None,
+            'species_common_name': None,
+            'species_reference_url': None,
+            'notes': None,
+            'custom': {},
+            'modified_by': None,
+            'file_timestamp': file_timestamp,
+        }
 
     def _get_l1(self, photo_path: str) -> CacheEntry | None:
         """Get from L1 memory cache with LRU update."""

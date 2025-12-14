@@ -254,6 +254,47 @@ def list_photos_with_sidecars(directory: Path) -> list[Path]:
     return sorted(photos_with_sidecars)
 
 
+def list_all_photos(
+    directory: Path | str,
+    recursive: bool = True
+) -> list[tuple[Path, bool]]:
+    """List all photos in directory with sidecar existence flag.
+
+    Searches for all JPEG photos (not just those with sidecars) and returns
+    their paths along with whether they have sidecar metadata.
+
+    Args:
+        directory: Directory to search
+        recursive: If True (default), search subdirectories recursively
+
+    Returns:
+        List of tuples: (photo_path, has_sidecar) sorted by path
+
+    Example:
+        >>> photos = list_all_photos("/photos")
+        >>> for photo_path, has_sidecar in photos:
+        ...     print(f"{photo_path}: {'has' if has_sidecar else 'no'} sidecar")
+        /photos/moth.jpg: has sidecar
+        /photos/subdir/butterfly.jpg: no sidecar
+    """
+    from webui.backend.constants import PHOTO_PATTERNS
+
+    directory = Path(directory)
+    if not directory.is_dir():
+        return []
+
+    photos = []
+    glob_func = directory.rglob if recursive else directory.glob
+
+    for pattern in PHOTO_PATTERNS:
+        for photo_path in glob_func(pattern):
+            if photo_path.is_file():
+                has_sidecar = photo_has_sidecar(photo_path)
+                photos.append((photo_path, has_sidecar))
+
+    return sorted(photos, key=lambda x: x[0])
+
+
 # ============================================================================
 # Tag Normalization
 # ============================================================================
@@ -915,6 +956,7 @@ __all__ = [
     "get_sidecar_path",
     "photo_has_sidecar",
     "list_photos_with_sidecars",
+    "list_all_photos",
     # Schema validation
     "validate_schema",
     # Tag normalization

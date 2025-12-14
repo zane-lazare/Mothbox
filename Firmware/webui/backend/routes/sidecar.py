@@ -613,20 +613,25 @@ def delete_photo_metadata(filename: str):
 @sidecar_bp.route("/photos", methods=["GET"])
 def list_all_metadata():
     """
-    List all sidecar metadata with pagination and optional filtering.
+    List all photos with optional sidecar metadata (paginated).
+
+    Searches recursively through PHOTOS_DIR including subdirectories.
+    Returns ALL photos, not just those with sidecar files. Photos without
+    sidecars are included with placeholder metadata and `has_sidecar: false`.
 
     Query Parameters:
         page (int): Page number (1-indexed, default: 1)
         per_page (int): Items per page (1-200, default: 50, max: 200)
         date_start (str): Filter photos on or after this date (YYYY-MM-DD)
         date_end (str): Filter photos on or before this date (YYYY-MM-DD)
-        tags (str): Comma-separated tags to filter by (matches ANY tag)
+        tags (str): Comma-separated tags to filter by (matches ANY tag, requires sidecar)
         series_type (str): Filter by 'hdr' or 'focus_bracket'
-        has_species (str): Filter to only photos with species ('true')
+        has_species (str): Filter to only photos with species ('true', requires sidecar)
+        has_sidecar (str): Filter by sidecar presence ('true' or 'false')
 
     Returns:
         JSON response with:
-        - items: List of metadata dictionaries
+        - items: List of metadata dictionaries with `path` and `has_sidecar` fields
         - total: Total number of photos matching filters
         - pagination: Pagination metadata
 
@@ -642,14 +647,16 @@ def list_all_metadata():
         Response:
         {
             "items": [
-                {"photo_filename": "photo1.jpg", "tags": ["moth"], ...},
-                {"photo_filename": "photo2.jpg", "tags": ["butterfly"], ...}
+                {"photo_filename": "photo1.jpg", "path": "subdir/photo1.jpg",
+                 "has_sidecar": true, "tags": ["moth"], ...},
+                {"photo_filename": "photo2.jpg", "path": "photo2.jpg",
+                 "has_sidecar": false, "tags": [], "file_timestamp": "...", ...}
             ],
-            "total": 2,
+            "total": 150,
             "pagination": {
                 "page": 1,
                 "per_page": 50,
-                "has_next": false,
+                "has_next": true,
                 "has_previous": false
             }
         }
@@ -689,6 +696,10 @@ def list_all_metadata():
         series_type = request.args.get('series_type')
         has_species_param = request.args.get('has_species')
         has_species = has_species_param.lower() == 'true' if has_species_param else None
+        has_sidecar_param = request.args.get('has_sidecar')
+        has_sidecar = None
+        if has_sidecar_param:
+            has_sidecar = has_sidecar_param.lower() == 'true'
 
         # Validate series_type if provided
         if series_type and series_type not in ('hdr', 'focus_bracket'):
@@ -703,7 +714,8 @@ def list_all_metadata():
             date_end=date_end,
             tags=tags,
             series_type=series_type,
-            has_species=has_species
+            has_species=has_species,
+            has_sidecar=has_sidecar
         )
 
         # Build pagination metadata
