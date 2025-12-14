@@ -27,6 +27,9 @@ logger = logging.getLogger(__name__)
 # Maximum preset file size (1MB) - prevents loading maliciously large files
 MAX_PRESET_FILE_SIZE = 1024 * 1024
 
+# Maximum preset name length
+MAX_PRESET_NAME_LENGTH = 50
+
 
 class ExportPresetManager:
     """Manages export settings presets (built-in and user-created)."""
@@ -75,7 +78,7 @@ class ExportPresetManager:
                         )
                         continue
 
-                    with open(preset_file) as f:
+                    with open(preset_file, encoding="utf-8") as f:
                         data = json.load(f)
 
                     # Validate and normalize
@@ -87,11 +90,14 @@ class ExportPresetManager:
                         )
                         continue
 
-                    # Warn if JSON name doesn't match filename
+                    # Warn if JSON name doesn't match filename.
+                    # Note: When mismatch occurs, JSON name takes precedence for the
+                    # returned preset identifier (used in get_preset lookups).
                     json_name = data.get("name")
                     if json_name and json_name != preset_file.stem:
                         logger.warning(
-                            f"Preset name mismatch: file={preset_file.stem}, json={json_name}"
+                            f"Preset name mismatch: file={preset_file.stem}, json={json_name}. "
+                            f"Using JSON name '{json_name}' as preset identifier."
                         )
 
                     # Apply format filter
@@ -127,7 +133,7 @@ class ExportPresetManager:
                         )
                         continue
 
-                    with open(preset_file) as f:
+                    with open(preset_file, encoding="utf-8") as f:
                         data = json.load(f)
 
                     # Validate and normalize
@@ -137,11 +143,14 @@ class ExportPresetManager:
                         logger.warning(f"Skipping invalid user preset {preset_file.name}: {error_msg}")
                         continue
 
-                    # Warn if JSON name doesn't match filename
+                    # Warn if JSON name doesn't match filename.
+                    # Note: When mismatch occurs, JSON name takes precedence for the
+                    # returned preset identifier (used in get_preset lookups).
                     json_name = data.get("name")
                     if json_name and json_name != preset_file.stem:
                         logger.warning(
-                            f"Preset name mismatch: file={preset_file.stem}, json={json_name}"
+                            f"Preset name mismatch: file={preset_file.stem}, json={json_name}. "
+                            f"Using JSON name '{json_name}' as preset identifier."
                         )
 
                     # Apply format filter
@@ -194,7 +203,7 @@ class ExportPresetManager:
                     )
                     return None
 
-                with open(builtin_path) as f:
+                with open(builtin_path, encoding="utf-8") as f:
                     preset_data = json.load(f)
             except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
                 logger.error(f"Error loading built-in preset {name}: {e}")
@@ -213,7 +222,7 @@ class ExportPresetManager:
                         )
                         return None
 
-                    with open(user_path) as f:
+                    with open(user_path, encoding="utf-8") as f:
                         preset_data = json.load(f)
                 except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
                     logger.error(f"Error loading user preset {name}: {e}")
@@ -246,9 +255,12 @@ class ExportPresetManager:
         Returns:
             Tuple of (success: bool, message: str)
         """
-        # Validate name (alphanumeric + underscores only)
+        # Validate name (alphanumeric + underscores only, max length)
         if not preset.name or not all(c.isalnum() or c == "_" for c in preset.name):
             return False, "Preset name must contain only letters, numbers, and underscores"
+
+        if len(preset.name) > MAX_PRESET_NAME_LENGTH:
+            return False, f"Preset name exceeds maximum length of {MAX_PRESET_NAME_LENGTH} characters"
 
         # Built-in presets cannot be saved as built-in
         if preset.category == ExportPresetCategory.BUILT_IN:
@@ -273,7 +285,7 @@ class ExportPresetManager:
         # Save to user directory with file locking
         try:
             preset_path = self.user_dir / f"{preset.name}.json"
-            with open(preset_path, "w") as f:
+            with open(preset_path, "w", encoding="utf-8") as f:
                 try:
                     # Acquire exclusive lock
                     fcntl.flock(f.fileno(), fcntl.LOCK_EX)

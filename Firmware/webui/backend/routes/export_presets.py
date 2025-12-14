@@ -4,13 +4,20 @@ Export preset management endpoints.
 Provides REST API for managing export presets:
 - GET /api/export/presets - List all presets
 - GET /api/export/presets/<name> - Get preset details
-- POST /api/export/presets - Create user preset
+- POST /api/export/presets - Create user preset (rate limited: 10/min)
 - DELETE /api/export/presets/<name> - Delete user preset
+
+CSRF Protection:
+    All state-changing endpoints (POST, DELETE) require CSRF token validation.
+    GET endpoints are read-only and exempt from CSRF.
+    Clients must include X-CSRFToken header with valid token from /api/csrf-token.
 """
 
 import logging
 
 from flask import Blueprint, current_app, jsonify, request
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from webui.backend.lib.export_job_types import ExportJobFilter, ExportJobFormat
 from webui.backend.lib.export_preset_types import ExportPreset, ExportPresetCategory
@@ -18,6 +25,9 @@ from webui.backend.lib.export_preset_types import ExportPreset, ExportPresetCate
 logger = logging.getLogger(__name__)
 
 export_presets_bp = Blueprint("export_presets", __name__)
+
+# Rate limiter for preset endpoints
+limiter = Limiter(key_func=get_remote_address)
 
 
 def _get_preset_manager():
@@ -48,8 +58,8 @@ def list_export_presets():
         counts = preset_manager.get_preset_count()
 
         return jsonify({"presets": presets, "counts": counts})
-    except Exception as e:
-        logger.error(f"Error listing export presets: {e}")
+    except Exception:
+        logger.exception("Error listing export presets")
         return jsonify({"error": "Failed to list export presets"}), 500
 
 
@@ -73,15 +83,18 @@ def get_export_preset(name: str):
 
         # Convert ExportPreset to dict for JSON response
         return jsonify(preset.to_dict())
-    except Exception as e:
-        logger.error(f"Error getting export preset '{name}': {e}")
+    except Exception:
+        logger.exception("Error getting export preset '%s'", name)
         return jsonify({"error": "Failed to get export preset"}), 500
 
 
 @export_presets_bp.route("", methods=["POST"], strict_slashes=False)
+@limiter.limit("10 per minute")
 def create_export_preset():
     """
     Create new user export preset.
+
+    Rate limited to 10 requests per minute per IP.
 
     Request JSON:
         {
@@ -155,8 +168,8 @@ def create_export_preset():
         else:
             return jsonify({"error": message}), 400
 
-    except Exception as e:
-        logger.error(f"Error creating export preset: {e}")
+    except Exception:
+        logger.exception("Error creating export preset")
         return jsonify({"error": "Failed to create export preset"}), 500
 
 
@@ -186,6 +199,6 @@ def delete_export_preset(name: str):
             else:
                 return jsonify({"error": message}), 400
 
-    except Exception as e:
-        logger.error(f"Error deleting export preset '{name}': {e}")
+    except Exception:
+        logger.exception("Error deleting export preset '%s'", name)
         return jsonify({"error": "Failed to delete export preset"}), 500
