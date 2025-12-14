@@ -10,6 +10,7 @@ import Settings from './pages/Settings'
 import Camera from './pages/Camera'
 import GPIO from './pages/GPIO'
 import Scheduler from './pages/Scheduler'
+import Export from './pages/Export'
 import { FilterProvider } from './contexts/FilterContext'
 
 const queryClient = new QueryClient()
@@ -102,6 +103,18 @@ function AppLayout() {
                   Scheduler
                 </NavLink>
                 <NavLink
+                  to="/export"
+                  className={({ isActive }) =>
+                    `inline-flex items-center px-3 py-2 text-sm font-medium ${
+                      isActive
+                        ? 'text-blue-600 border-b-2 border-blue-600'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`
+                  }
+                >
+                  Export
+                </NavLink>
+                <NavLink
                   to="/settings"
                   className={({ isActive }) =>
                     `inline-flex items-center px-3 py-2 text-sm font-medium ${
@@ -127,6 +140,7 @@ function AppLayout() {
           <Route path="/camera" element={<Camera />} />
           <Route path="/gpio" element={<GPIO />} />
           <Route path="/scheduler" element={<Scheduler />} />
+          <Route path="/export" element={<Export />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
