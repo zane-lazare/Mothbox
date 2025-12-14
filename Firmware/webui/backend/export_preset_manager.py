@@ -24,6 +24,9 @@ from webui.backend.lib.export_preset_types import ExportPreset, ExportPresetCate
 # Setup logging
 logger = logging.getLogger(__name__)
 
+# Maximum preset file size (1MB) - prevents loading maliciously large files
+MAX_PRESET_FILE_SIZE = 1024 * 1024
+
 
 class ExportPresetManager:
     """Manages export settings presets (built-in and user-created)."""
@@ -64,6 +67,14 @@ class ExportPresetManager:
         if self.builtin_dir.exists():
             for preset_file in sorted(self.builtin_dir.glob("*.json")):
                 try:
+                    # Check file size before loading
+                    if preset_file.stat().st_size > MAX_PRESET_FILE_SIZE:
+                        logger.warning(
+                            f"Skipping oversized built-in preset {preset_file.name}: "
+                            f"exceeds {MAX_PRESET_FILE_SIZE} bytes"
+                        )
+                        continue
+
                     with open(preset_file) as f:
                         data = json.load(f)
 
@@ -108,6 +119,14 @@ class ExportPresetManager:
         if self.user_dir.exists():
             for preset_file in sorted(self.user_dir.glob("*.json")):
                 try:
+                    # Check file size before loading
+                    if preset_file.stat().st_size > MAX_PRESET_FILE_SIZE:
+                        logger.warning(
+                            f"Skipping oversized user preset {preset_file.name}: "
+                            f"exceeds {MAX_PRESET_FILE_SIZE} bytes"
+                        )
+                        continue
+
                     with open(preset_file) as f:
                         data = json.load(f)
 
@@ -167,6 +186,14 @@ class ExportPresetManager:
         builtin_path = self.builtin_dir / f"{name}.json"
         if builtin_path.exists():
             try:
+                # Check file size before loading
+                if builtin_path.stat().st_size > MAX_PRESET_FILE_SIZE:
+                    logger.error(
+                        f"Built-in preset {name} exceeds max file size "
+                        f"({MAX_PRESET_FILE_SIZE} bytes)"
+                    )
+                    return None
+
                 with open(builtin_path) as f:
                     preset_data = json.load(f)
             except (OSError, json.JSONDecodeError) as e:
@@ -178,6 +205,14 @@ class ExportPresetManager:
             user_path = self.user_dir / f"{name}.json"
             if user_path.exists():
                 try:
+                    # Check file size before loading
+                    if user_path.stat().st_size > MAX_PRESET_FILE_SIZE:
+                        logger.error(
+                            f"User preset {name} exceeds max file size "
+                            f"({MAX_PRESET_FILE_SIZE} bytes)"
+                        )
+                        return None
+
                     with open(user_path) as f:
                         preset_data = json.load(f)
                 except (OSError, json.JSONDecodeError) as e:
