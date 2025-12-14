@@ -1059,3 +1059,345 @@ class TestServiceUnavailable:
         # POST /jobs/<id>/cancel
         response = client.post("/api/export/jobs/test-job/cancel")
         assert response.status_code == 500
+
+
+# ============================================================================
+# Preset Integration Tests (Issue #123)
+# ============================================================================
+
+
+@pytest.fixture
+def mock_export_preset_manager():
+    """Mock ExportPresetManager for preset integration testing."""
+    from unittest.mock import Mock
+
+    from webui.backend.lib.export_job_types import ExportJobFilter, ExportJobFormat
+    from webui.backend.lib.export_preset_types import ExportPreset, ExportPresetCategory
+
+    manager = Mock()
+
+    # Default: no preset found
+    manager.get_preset.return_value = None
+
+    return manager
+
+
+@pytest.fixture
+def app_with_preset_manager(mock_export_job_service, mock_export_preset_manager, tmp_path):
+    """Flask app with both export job service and preset manager."""
+    from webui.backend.routes.export import export_bp
+
+    app = Flask(__name__)
+    app.config['TESTING'] = True
+    app.config['WTF_CSRF_ENABLED'] = False
+    app.config['EXPORT_JOB_SERVICE'] = mock_export_job_service
+    app.config['EXPORT_PRESET_MANAGER'] = mock_export_preset_manager
+
+    app.register_blueprint(export_bp, url_prefix='/api/export')
+
+    return app
+
+
+@pytest.fixture
+def client_with_presets(app_with_preset_manager):
+    """Test client with preset manager configured."""
+    return app_with_preset_manager.test_client()
+
+
+class TestCreateExportJobWithPreset:
+    """Tests for POST /api/export/jobs with preset parameter (Issue #123)."""
+
+    def test_create_job_with_valid_preset(
+        self, client_with_presets, mock_export_job_service, mock_export_preset_manager
+    ):
+        """Test creating job using a preset name."""
+        from webui.backend.lib.export_job_types import ExportJobFilter, ExportJobFormat
+        from webui.backend.lib.export_preset_types import ExportPreset, ExportPresetCategory
+
+        # Set up mock preset
+        preset = ExportPreset(
+            name="gbif_biodiversity",
+            display_name="GBIF Export",
+            export_format=ExportJobFormat.DARWIN_CORE,
+            description="Export for GBIF",
+            filter=ExportJobFilter(has_species=True),
+            options={"validate": True},
+            category=ExportPresetCategory.BUILT_IN,
+        )
+        mock_export_preset_manager.get_preset.return_value = preset
+
+        job = create_test_job(format=ExportJobFormat.DARWIN_CORE)
+        mock_export_job_service.create_job.return_value = job
+
+        response = client_with_presets.post(
+            "/api/export/jobs",
+            json={"preset": "gbif_biodiversity"},
+        )
+
+        assert response.status_code == 202
+        data = response.get_json()
+        assert data["job_id"] == "test-job-123"
+        assert data["format"] == "darwin_core"
+
+        # Verify preset was looked up
+        mock_export_preset_manager.get_preset.assert_called_once_with("gbif_biodiversity")
+
+        # Verify job was created with preset values
+        call_kwargs = mock_export_job_service.create_job.call_args[1]
+        assert call_kwargs["format"] == ExportJobFormat.DARWIN_CORE
+        assert call_kwargs["filter"].has_species is True
+        assert call_kwargs["options"]["validate"] is True
+
+    def test_create_job_preset_overridden_by_explicit_values(
+        self, client_with_presets, mock_export_job_service, mock_export_preset_manager
+    ):
+        """Test that explicit values override preset defaults."""
+        from webui.backend.lib.export_job_types import ExportJobFilter, ExportJobFormat
+        from webui.backend.lib.export_preset_types import ExportPreset, ExportPresetCategory
+
+        # Preset with default values
+        preset = ExportPreset(
+            name="simple_json",
+            display_name="Simple JSON",
+            export_format=ExportJobFormat.JSON,
+            filter=ExportJobFilter(has_species=False, tags=["default"]),
+            options={"pretty": True},
+        )
+        mock_export_preset_manager.get_preset.return_value = preset
+
+        job = create_test_job(format=ExportJobFormat.CSV)
+        mock_export_job_service.create_job.return_value = job
+
+        # Override format, filter, and options
+        response = client_with_presets.post(
+            "/api/export/jobs",
+            json={
+                "preset": "simple_json",
+                "format": "csv",  # Override preset format
+                "filter": {
+                    "tags": ["moth", "identified"],  # Override preset tags
+                    "date_start": "2024-01-01",  # Add new filter
+                },
+                "options": {
+                    "include_bom": True,  # Override options
+                },
+            },
+        )
+
+        assert response.status_code == 202
+
+        # Verify overrides were applied
+        call_kwargs = mock_export_job_service.create_job.call_args[1]
+        assert call_kwargs["format"] == ExportJobFormat.CSV  # Overridden
+        assert call_kwargs["filter"].tags == ["moth", "identified"]  # Overridden
+        assert call_kwargs["filter"].date_start == "2024-01-01"  # Added
+        assert call_kwargs["filter"].has_species is False  # From preset (not overridden)
+        assert call_kwargs["options"]["include_bom"] is True  # Overridden
+
+    def test_create_job_invalid_preset_name(
+        self, client_with_presets, mock_export_job_service, mock_export_preset_manager
+    ):
+        """Test 400 error for non-existent preset."""
+        mock_export_preset_manager.get_preset.return_value = None
+
+        response = client_with_presets.post(
+            "/api/export/jobs",
+            json={"preset": "nonexistent_preset"},
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+        assert "preset" in data["error"].lower()
+        assert "nonexistent_preset" in data["error"]
+
+    def test_create_job_preset_with_format_only(
+        self, client_with_presets, mock_export_job_service, mock_export_preset_manager
+    ):
+        """Test that preset provides format when not specified."""
+        from webui.backend.lib.export_job_types import ExportJobFormat
+        from webui.backend.lib.export_preset_types import ExportPreset
+
+        preset = ExportPreset(
+            name="hdr_series",
+            display_name="HDR Series",
+            export_format=ExportJobFormat.JSON,
+        )
+        mock_export_preset_manager.get_preset.return_value = preset
+
+        job = create_test_job(format=ExportJobFormat.JSON)
+        mock_export_job_service.create_job.return_value = job
+
+        # Only provide preset, no format
+        response = client_with_presets.post(
+            "/api/export/jobs",
+            json={"preset": "hdr_series"},
+        )
+
+        assert response.status_code == 202
+
+        call_kwargs = mock_export_job_service.create_job.call_args[1]
+        assert call_kwargs["format"] == ExportJobFormat.JSON
+
+    def test_create_job_preset_filter_merged_with_explicit(
+        self, client_with_presets, mock_export_job_service, mock_export_preset_manager
+    ):
+        """Test that preset filter and explicit filter are merged."""
+        from webui.backend.lib.export_job_types import ExportJobFilter, ExportJobFormat
+        from webui.backend.lib.export_preset_types import ExportPreset
+
+        # Preset with partial filter
+        preset = ExportPreset(
+            name="focus_bracket_series",
+            display_name="Focus Bracket Series",
+            export_format=ExportJobFormat.JSON,
+            filter=ExportJobFilter(series_type="focus_bracket"),
+        )
+        mock_export_preset_manager.get_preset.return_value = preset
+
+        job = create_test_job()
+        mock_export_job_service.create_job.return_value = job
+
+        # Add additional filter criteria
+        response = client_with_presets.post(
+            "/api/export/jobs",
+            json={
+                "preset": "focus_bracket_series",
+                "filter": {
+                    "date_start": "2024-06-01",
+                    "deployment": "summer_2024",
+                },
+            },
+        )
+
+        assert response.status_code == 202
+
+        call_kwargs = mock_export_job_service.create_job.call_args[1]
+        filter_obj = call_kwargs["filter"]
+        # From preset
+        assert filter_obj.series_type == "focus_bracket"
+        # From explicit filter
+        assert filter_obj.date_start == "2024-06-01"
+        assert filter_obj.deployment == "summer_2024"
+
+    def test_create_job_preset_options_merged(
+        self, client_with_presets, mock_export_job_service, mock_export_preset_manager
+    ):
+        """Test that preset options and explicit options are merged."""
+        from webui.backend.lib.export_job_types import ExportJobFormat
+        from webui.backend.lib.export_preset_types import ExportPreset
+
+        preset = ExportPreset(
+            name="simple_csv",
+            display_name="Simple CSV",
+            export_format=ExportJobFormat.CSV,
+            options={"include_bom": True, "delimiter": ","},
+        )
+        mock_export_preset_manager.get_preset.return_value = preset
+
+        job = create_test_job()
+        mock_export_job_service.create_job.return_value = job
+
+        response = client_with_presets.post(
+            "/api/export/jobs",
+            json={
+                "preset": "simple_csv",
+                "options": {
+                    "delimiter": ";",  # Override
+                    "quote_char": '"',  # Add
+                },
+            },
+        )
+
+        assert response.status_code == 202
+
+        call_kwargs = mock_export_job_service.create_job.call_args[1]
+        options = call_kwargs["options"]
+        assert options["include_bom"] is True  # From preset
+        assert options["delimiter"] == ";"  # Overridden
+        assert options["quote_char"] == '"'  # Added
+
+    def test_create_job_both_preset_and_format(
+        self, client_with_presets, mock_export_job_service, mock_export_preset_manager
+    ):
+        """Test that explicit format overrides preset format."""
+        from webui.backend.lib.export_job_types import ExportJobFormat
+        from webui.backend.lib.export_preset_types import ExportPreset
+
+        preset = ExportPreset(
+            name="gbif_biodiversity",
+            display_name="GBIF Export",
+            export_format=ExportJobFormat.DARWIN_CORE,
+        )
+        mock_export_preset_manager.get_preset.return_value = preset
+
+        job = create_test_job(format=ExportJobFormat.CSV)
+        mock_export_job_service.create_job.return_value = job
+
+        response = client_with_presets.post(
+            "/api/export/jobs",
+            json={
+                "preset": "gbif_biodiversity",
+                "format": "csv",  # Override darwin_core
+            },
+        )
+
+        assert response.status_code == 202
+
+        call_kwargs = mock_export_job_service.create_job.call_args[1]
+        assert call_kwargs["format"] == ExportJobFormat.CSV
+
+    def test_create_job_preset_with_ttl(
+        self, client_with_presets, mock_export_job_service, mock_export_preset_manager
+    ):
+        """Test that TTL can be specified with preset."""
+        from webui.backend.lib.export_job_types import ExportJobFormat
+        from webui.backend.lib.export_preset_types import ExportPreset
+
+        preset = ExportPreset(
+            name="simple_json",
+            display_name="Simple JSON",
+            export_format=ExportJobFormat.JSON,
+        )
+        mock_export_preset_manager.get_preset.return_value = preset
+
+        job = create_test_job()
+        mock_export_job_service.create_job.return_value = job
+
+        response = client_with_presets.post(
+            "/api/export/jobs",
+            json={
+                "preset": "simple_json",
+                "ttl_seconds": 7200,
+            },
+        )
+
+        assert response.status_code == 202
+
+        call_kwargs = mock_export_job_service.create_job.call_args[1]
+        assert call_kwargs["ttl_seconds"] == 7200
+
+    def test_create_job_no_preset_manager_configured(
+        self, client, mock_export_job_service
+    ):
+        """Test that preset parameter is ignored if no preset manager configured."""
+        # Use regular client (no preset manager)
+        response = client.post(
+            "/api/export/jobs",
+            json={
+                "preset": "some_preset",
+                "format": "csv",  # Must provide format since no preset manager
+            },
+        )
+
+        # Should work since format is provided
+        # Preset is silently ignored when manager not configured
+        job = create_test_job()
+        mock_export_job_service.create_job.return_value = job
+
+        response = client.post(
+            "/api/export/jobs",
+            json={"format": "csv"},
+        )
+
+        assert response.status_code == 202

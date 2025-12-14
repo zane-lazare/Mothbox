@@ -1,0 +1,14 @@
+{
+  "name": "hdr_series",
+  "display_name": "HDR Series Export",
+  "export_format": "json",
+  "description": "JSON export filtered to HDR (High Dynamic Range) series photos only. Useful for exporting bracketed exposure sequences.",
+  "version": "1.0",
+  "created_at": "2024-12-14T00:00:00Z",
+  "author": "system",
+  "category": "built-in",
+  "filter": {
+    "series_type": "hdr"
+  },
+  "options": {}
+}

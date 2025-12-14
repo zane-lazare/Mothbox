@@ -475,6 +475,75 @@ stats = service.build_index()
 - Cancellation is graceful (job stops at next checkpoint, partial results may exist)
 - Download endpoint has path traversal protection
 
+### Export Preset System (Issue #123)
+
+**Overview**: Reusable export configurations for common export scenarios. Presets store export format, filter criteria, and format-specific options that can be applied when creating export jobs.
+
+**Architecture**:
+- **Types**: `webui/backend/lib/export_preset_types.py` - Data structures
+  - `ExportPreset`: Dataclass with format, filter, options, metadata
+  - `ExportPresetCategory`: Enum (BUILT_IN, USER)
+  - Serialization: `to_dict()`, `from_dict()` methods
+
+- **Manager**: `webui/backend/export_preset_manager.py` - CRUD operations
+  - `ExportPresetManager`: Preset file management with validation
+  - Methods: `list_presets()`, `get_preset()`, `save_preset()`, `delete_preset()`
+  - File locking for concurrent access
+  - Built-in preset protection (read-only)
+
+- **API**: `webui/backend/routes/export_presets.py` - REST endpoints
+  - `GET /api/export/presets`: List all presets (with optional format filter)
+  - `GET /api/export/presets/<name>`: Get preset details
+  - `POST /api/export/presets`: Create user preset
+  - `DELETE /api/export/presets/<name>`: Delete user preset
+
+**Built-in Presets** (6 presets in `webui/backend/presets_builtin/export/`):
+- `gbif_biodiversity`: Darwin Core for GBIF submission (has_species: true)
+- `inaturalist_upload`: iNaturalist export with XMP sidecars
+- `simple_json`: Generic JSON metadata export
+- `simple_csv`: Excel-compatible CSV with UTF-8 BOM
+- `hdr_series`: JSON export for HDR photo series
+- `focus_bracket_series`: JSON export for focus bracket series
+
+**Preset Usage in Jobs**:
+```python
+# Create job using preset
+POST /api/export/jobs
+{
+    "preset": "gbif_biodiversity",
+    "filter": {"date_start": "2024-01-01"}  # Additional filter merged
+}
+```
+
+Presets provide defaults; explicit values override preset values.
+
+**Directory Structure**:
+```
+CONFIG_DIR/presets/
+├── built-in/
+│   └── export/           # Built-in export presets (read-only)
+│       ├── gbif_biodiversity.json
+│       ├── inaturalist_upload.json
+│       └── ...
+└── user/
+    └── export/           # User export presets
+```
+
+**Testing**:
+- Unit tests: `Tests/unit/test_export_preset_types.py` (21 tests)
+- Unit tests: `Tests/unit/test_export_preset_manager.py` (40 tests)
+- Unit tests: `Tests/unit/test_export_preset_routes.py` (18 tests)
+- Integration tests: `Tests/integration/test_export_preset_workflow.py` (14 tests)
+
+**Documentation**:
+- `webui/docs/dev/api/export-presets.md`: Complete API documentation
+
+**Important Notes**:
+- Built-in presets are protected (cannot be modified or deleted)
+- User presets stored in `CONFIG_DIR/presets/user/export/`
+- Presets integrate with Export Job Queue (Issue #122)
+- File locking prevents race conditions on concurrent access
+
 ### Deployment Metadata Sidecar System (Issue #114)
 
 **Overview**: Directory-level metadata files for describing photo collections. Deployment metadata captures location, time period, environmental conditions, and project information at the collection level (not individual photos).

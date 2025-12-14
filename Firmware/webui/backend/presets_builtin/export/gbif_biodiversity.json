@@ -1,0 +1,17 @@
+{
+  "name": "gbif_biodiversity",
+  "display_name": "GBIF Biodiversity Export",
+  "export_format": "darwin_core",
+  "description": "Darwin Core CSV export optimized for GBIF submission. Filters to only include photos with species identification for biodiversity data quality.",
+  "version": "1.0",
+  "created_at": "2024-12-14T00:00:00Z",
+  "author": "system",
+  "category": "built-in",
+  "filter": {
+    "has_species": true
+  },
+  "options": {
+    "validate": true,
+    "include_warnings": true
+  }
+}

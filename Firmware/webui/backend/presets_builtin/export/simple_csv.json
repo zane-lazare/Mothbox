@@ -1,0 +1,14 @@
+{
+  "name": "simple_csv",
+  "display_name": "Simple CSV Export",
+  "export_format": "csv",
+  "description": "Excel-compatible CSV metadata export with UTF-8 BOM. Includes flattened metadata fields suitable for spreadsheet analysis.",
+  "version": "1.0",
+  "created_at": "2024-12-14T00:00:00Z",
+  "author": "system",
+  "category": "built-in",
+  "filter": {},
+  "options": {
+    "include_bom": true
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "inaturalist_upload",
+  "display_name": "iNaturalist Upload Package",
+  "export_format": "inaturalist",
+  "description": "ZIP archive with XMP sidecar files for iNaturalist bulk upload. Includes CSV manifest for easy import tracking.",
+  "version": "1.0",
+  "created_at": "2024-12-14T00:00:00Z",
+  "author": "system",
+  "category": "built-in",
+  "filter": {},
+  "options": {
+    "include_xmp_sidecars": true,
+    "include_manifest": true,
+    "include_csv_summary": true
+  }
+}

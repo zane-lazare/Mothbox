@@ -296,11 +296,41 @@ except Exception as e:
     print(f"⚠️  Failed to initialize deployment service: {e}")
     app.config['DEPLOYMENT_SERVICE'] = None
 
+# Initialize export preset manager
+from webui.backend.export_preset_manager import ExportPresetManager
+from mothbox_paths import EXPORT_BUILTIN_PRESET_DIR, EXPORT_USER_PRESET_DIR
+
+try:
+    # Use built-in presets from package if production paths don't exist
+    import importlib.resources
+
+    # Check if the production path exists, otherwise use package path
+    if EXPORT_BUILTIN_PRESET_DIR.exists():
+        builtin_dir = EXPORT_BUILTIN_PRESET_DIR
+    else:
+        # Fall back to presets shipped with the package
+        builtin_dir = Path(__file__).parent / "presets_builtin" / "export"
+
+    # Ensure user directory exists
+    EXPORT_USER_PRESET_DIR.mkdir(parents=True, exist_ok=True)
+
+    export_preset_manager = ExportPresetManager(
+        builtin_dir=builtin_dir,
+        user_dir=EXPORT_USER_PRESET_DIR
+    )
+    app.config['EXPORT_PRESET_MANAGER'] = export_preset_manager
+    counts = export_preset_manager.get_preset_count()
+    print(f"✓ Export preset manager initialized ({counts['built_in']} built-in, {counts['user']} user)")
+except Exception as e:
+    print(f"⚠️  Failed to initialize export preset manager: {e}")
+    app.config['EXPORT_PRESET_MANAGER'] = None
+
 # Import route blueprints
 from routes.camera import camera_bp
 from routes.config import config_bp
 from routes.deployment import deployment_bp
 from routes.export import export_bp
+from routes.export_presets import export_presets_bp
 from routes.gallery import gallery_bp
 from routes.gpio import gpio_bp
 from routes.gps import gps_bp
@@ -329,6 +359,7 @@ app.register_blueprint(metadata_bp, url_prefix="/api/metadata")
 app.register_blueprint(sidecar_bp, url_prefix="/api/sidecar")
 app.register_blueprint(deployment_bp, url_prefix="/api/deployment")
 app.register_blueprint(export_bp, url_prefix="/api/export")
+app.register_blueprint(export_presets_bp, url_prefix="/api/export/presets")
 app.register_blueprint(search_bp)  # Note: search_bp already includes /api/photos/search prefix
 
 # Register WebSocket handlers
