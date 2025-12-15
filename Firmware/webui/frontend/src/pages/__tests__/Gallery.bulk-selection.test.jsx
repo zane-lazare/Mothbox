@@ -607,4 +607,80 @@ describe('Gallery - Bulk Selection Integration', () => {
       })
     })
   })
+
+  describe('Export Functionality (Issue #127)', () => {
+    it('Export button opens BulkExportModal when photos are selected', async () => {
+      const user = userEvent.setup()
+      renderGallery()
+
+      await screen.findByAltText('photo-1.jpg')
+
+      // Enter select mode and select a photo
+      const selectButton = screen.getByRole('button', { name: /enter selection mode/i })
+      await user.click(selectButton)
+
+      // Wait for checkboxes and select one
+      await waitFor(() => {
+        expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(0)
+      })
+      await user.click(screen.getAllByRole('checkbox')[0])
+
+      // Wait for toolbar
+      await screen.findByRole('toolbar', { name: /bulk actions/i })
+
+      // Click Export button
+      const exportButton = screen.getByRole('button', { name: /export selected/i })
+      await user.click(exportButton)
+
+      // Export modal should appear
+      await waitFor(() => {
+        expect(screen.getByRole('dialog', { name: /export/i })).toBeInTheDocument()
+      })
+    })
+
+    it('Ctrl+E opens export modal when photos are selected', async () => {
+      const user = userEvent.setup()
+      renderGallery()
+
+      await screen.findByAltText('photo-1.jpg')
+
+      // Enter select mode and select a photo
+      const selectButton = screen.getByRole('button', { name: /enter selection mode/i })
+      await user.click(selectButton)
+
+      // Wait for checkboxes and select one
+      await waitFor(() => {
+        expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(0)
+      })
+      await user.click(screen.getAllByRole('checkbox')[0])
+
+      // Wait for toolbar to appear
+      await screen.findByRole('toolbar', { name: /bulk actions/i })
+
+      // Press Ctrl+E
+      await user.keyboard('{Control>}e{/Control}')
+
+      // Export modal should appear
+      await waitFor(() => {
+        expect(screen.getByRole('dialog', { name: /export/i })).toBeInTheDocument()
+      })
+    })
+
+    it('Ctrl+E does nothing when no photos are selected', async () => {
+      const user = userEvent.setup()
+      renderGallery()
+
+      await screen.findByAltText('photo-1.jpg')
+
+      // Enter select mode but don't select any photos
+      const selectButton = screen.getByRole('button', { name: /enter selection mode/i })
+      await user.click(selectButton)
+
+      // Press Ctrl+E
+      await user.keyboard('{Control>}e{/Control}')
+
+      // Export modal should NOT appear
+      expect(screen.queryByRole('dialog', { name: /export/i })).not.toBeInTheDocument()
+    })
+  })
 })

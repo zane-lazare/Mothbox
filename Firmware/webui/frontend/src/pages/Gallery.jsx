@@ -12,6 +12,7 @@ import { usePhotoSearch } from '../hooks/usePhotoSearch'
 import useScrollRestoration from '../hooks/useScrollRestoration'
 import useBulkOperations from '../hooks/useBulkOperations'
 import useUndoToast from '../hooks/useUndoToast'
+import useBulkExport from '../hooks/useBulkExport'
 import PhotoSkeleton from '../components/PhotoSkeleton'
 import PhotoGridItem from '../components/PhotoGridItem'
 import PhotoListItem from '../components/PhotoListItem'
@@ -29,6 +30,7 @@ import BulkTagModal from '../components/gallery/BulkTagModal'
 import BulkSpeciesModal from '../components/gallery/BulkSpeciesModal'
 import BulkDeleteConfirmModal from '../components/gallery/BulkDeleteConfirmModal'
 import BulkProgressModal from '../components/gallery/BulkProgressModal'
+import BulkExportModal from '../components/gallery/BulkExportModal'
 import EmptyStateMessage from '../components/EmptyStateMessage'
 import { SearchBar } from '../components/gallery/SearchBar'
 import { AdvancedSearchBuilder } from '../components/gallery/AdvancedSearchBuilder'
@@ -82,10 +84,24 @@ function GalleryContent() {
 
   const { showUndoToast } = useUndoToast()
 
+  // Bulk export hook
+  const {
+    exportPhotos,
+    isExporting,
+    progress: exportProgress,
+    error: exportError,
+    downloadUrl,
+  } = useBulkExport({
+    onComplete: () => {
+      // Will show download button in success state
+    }
+  })
+
   // Modal state
   const [tagModalOpen, setTagModalOpen] = useState(false)
   const [speciesModalOpen, setSpeciesModalOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [exportModalOpen, setExportModalOpen] = useState(false)
   const [progressModalOpen, setProgressModalOpen] = useState(false)
   const [progressState, setProgressState] = useState({
     status: 'processing',
@@ -291,6 +307,34 @@ function GalleryContent() {
     }
   }, [isSeriesError, hasShownSeriesErrorToast])
 
+  // Track export progress and completion
+  useEffect(() => {
+    if (!isExporting && downloadUrl) {
+      // Export completed - show success with download button
+      setProgressState({
+        status: 'success',
+        current: selectedCount,
+        total: selectedCount,
+        message: 'Export complete!',
+        downloadUrl: downloadUrl, // Pass to progress modal
+      })
+    } else if (exportProgress) {
+      setProgressState(prev => ({
+        ...prev,
+        current: exportProgress.current,
+        total: exportProgress.total,
+        message: `${exportProgress.phase}... ${exportProgress.percent}%`,
+      }))
+    } else if (exportError) {
+      setProgressState({
+        status: 'error',
+        current: 0,
+        total: selectedCount,
+        message: exportError,
+      })
+    }
+  }, [isExporting, exportProgress, exportError, downloadUrl, selectedCount])
+
   // Keyboard shortcuts for bulk selection
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -308,6 +352,15 @@ function GalleryContent() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
         e.preventDefault()
         selectAll(photos.map(p => p.path))
+        return
+      }
+
+      // Ctrl+E - open export modal (only if photos selected)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+        if (selectedCount > 0) {
+          e.preventDefault()
+          setExportModalOpen(true)
+        }
         return
       }
 
@@ -508,9 +561,24 @@ function GalleryContent() {
     }
   }, [selectedPhotos, selectedCount, bulkDelete, deselectAll, refetch])
 
+  const handleBulkExport = useCallback(async (format) => {
+    setExportModalOpen(false)
+    setProgressModalOpen(true)
+    setProgressState({
+      status: 'processing',
+      current: 0,
+      total: selectedCount,
+      message: `Exporting ${selectedCount} photos...`,
+    })
+
+    const photoPaths = Array.from(selectedPhotos)
+    await exportPhotos(photoPaths, format)
+  }, [selectedPhotos, selectedCount, exportPhotos])
+
   // Toolbar action handlers
   const handleTagClick = useCallback(() => setTagModalOpen(true), [])
   const handleSpeciesClick = useCallback(() => setSpeciesModalOpen(true), [])
+  const handleExportClick = useCallback(() => setExportModalOpen(true), [])
   const handleDeleteClick = useCallback(() => setDeleteModalOpen(true), [])
 
   if (isLoading) {
@@ -839,6 +907,7 @@ function GalleryContent() {
           selectedCount={selectedCount}
           onTagClick={handleTagClick}
           onSpeciesClick={handleSpeciesClick}
+          onExportClick={handleExportClick}
           onDeleteClick={handleDeleteClick}
           onDeselectAll={deselectAll}
         />
@@ -867,6 +936,16 @@ function GalleryContent() {
           selectedPhotos={Array.from(selectedPhotos)}
         />
 
+        {/* Bulk Export Modal */}
+        <BulkExportModal
+          isOpen={exportModalOpen}
+          onClose={() => setExportModalOpen(false)}
+          onExport={handleBulkExport}
+          selectedCount={selectedCount}
+          isLoading={isExporting}
+          error={exportError}
+        />
+
         {/* Bulk Progress Modal */}
         <BulkProgressModal
           isOpen={progressModalOpen}
@@ -874,6 +953,8 @@ function GalleryContent() {
           current={progressState.current}
           total={progressState.total}
           message={progressState.message}
+          downloadUrl={progressState.downloadUrl}
+          operation="export"
           onClose={() => setProgressModalOpen(false)}
         />
 

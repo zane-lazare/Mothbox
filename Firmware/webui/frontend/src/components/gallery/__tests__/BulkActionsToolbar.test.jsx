@@ -743,6 +743,147 @@ describe('BulkActionsToolbar', () => {
     })
   })
 
+  describe('Export Button', () => {
+    it('shows "Export" button with ArrowDownTrayIcon', () => {
+      renderWithSelection(
+        {
+          onTagClick: vi.fn(),
+          onSpeciesClick: vi.fn(),
+          onDeleteClick: vi.fn(),
+          onExportClick: vi.fn(),
+        },
+        ['photo1.jpg']
+      )
+
+      const exportButton = screen.getByRole('button', { name: /export selected photos/i })
+      expect(exportButton).toBeInTheDocument()
+      expect(within(exportButton).getByText('Export')).toBeInTheDocument()
+
+      // Check for icon (SVG)
+      const svg = exportButton.querySelector('svg')
+      expect(svg).toBeInTheDocument()
+    })
+
+    it('Export button calls onExportClick prop', async () => {
+      const user = userEvent.setup()
+      const onExportClick = vi.fn()
+
+      renderWithSelection(
+        {
+          onTagClick: vi.fn(),
+          onSpeciesClick: vi.fn(),
+          onDeleteClick: vi.fn(),
+          onExportClick,
+        },
+        ['photo1.jpg']
+      )
+
+      const exportButton = screen.getByRole('button', { name: /export selected photos/i })
+      await user.click(exportButton)
+
+      expect(onExportClick).toHaveBeenCalledTimes(1)
+    })
+
+    it('Export button has correct aria-label for accessibility', () => {
+      renderWithSelection(
+        {
+          onTagClick: vi.fn(),
+          onSpeciesClick: vi.fn(),
+          onDeleteClick: vi.fn(),
+          onExportClick: vi.fn(),
+        },
+        ['photo1.jpg']
+      )
+
+      const exportButton = screen.getByRole('button', { name: /export selected photos/i })
+      expect(exportButton).toHaveAttribute('aria-label', 'Export selected photos')
+    })
+
+    it('Export button uses non-destructive styling (not red)', () => {
+      renderWithSelection(
+        {
+          onTagClick: vi.fn(),
+          onSpeciesClick: vi.fn(),
+          onDeleteClick: vi.fn(),
+          onExportClick: vi.fn(),
+        },
+        ['photo1.jpg']
+      )
+
+      const exportButton = screen.getByRole('button', { name: /export selected photos/i })
+      // Should NOT have red styling (unlike Delete button)
+      expect(exportButton.className).not.toMatch(/red/)
+      // Should have gray/neutral styling like Tag and Species buttons
+      expect(exportButton.className).toMatch(/text-gray/)
+    })
+
+    it('Export button is keyboard accessible (Enter)', async () => {
+      const user = userEvent.setup()
+      const onExportClick = vi.fn()
+
+      renderWithSelection(
+        {
+          onTagClick: vi.fn(),
+          onSpeciesClick: vi.fn(),
+          onDeleteClick: vi.fn(),
+          onExportClick,
+        },
+        ['photo1.jpg']
+      )
+
+      const exportButton = screen.getByRole('button', { name: /export selected photos/i })
+      exportButton.focus()
+      await user.keyboard('{Enter}')
+
+      expect(onExportClick).toHaveBeenCalledTimes(1)
+    })
+
+    it('Export button is keyboard accessible (Space)', async () => {
+      const user = userEvent.setup()
+      const onExportClick = vi.fn()
+
+      renderWithSelection(
+        {
+          onTagClick: vi.fn(),
+          onSpeciesClick: vi.fn(),
+          onDeleteClick: vi.fn(),
+          onExportClick,
+        },
+        ['photo1.jpg']
+      )
+
+      const exportButton = screen.getByRole('button', { name: /export selected photos/i })
+      exportButton.focus()
+      await user.keyboard(' ')
+
+      expect(onExportClick).toHaveBeenCalledTimes(1)
+    })
+
+    it('Export button is positioned between Species and Delete buttons', () => {
+      renderWithSelection(
+        {
+          onTagClick: vi.fn(),
+          onSpeciesClick: vi.fn(),
+          onDeleteClick: vi.fn(),
+          onExportClick: vi.fn(),
+        },
+        ['photo1.jpg']
+      )
+
+      const toolbar = screen.getByRole('toolbar')
+      const buttons = toolbar.querySelectorAll('button')
+      const buttonTexts = Array.from(buttons).map(btn => btn.textContent.trim())
+
+      // Order should be: Tag, Species, Export, Delete, Deselect All
+      const speciesIndex = buttonTexts.findIndex(text => text.includes('Species'))
+      const exportIndex = buttonTexts.findIndex(text => text.includes('Export'))
+      const deleteIndex = buttonTexts.findIndex(text => text.includes('Delete'))
+
+      expect(exportIndex).toBeGreaterThan(speciesIndex)
+      expect(exportIndex).toBeLessThan(deleteIndex)
+    })
+  })
+
   describe('Dark Mode Support', () => {
     it('has dark mode classes for background', () => {
       renderWithSelection(

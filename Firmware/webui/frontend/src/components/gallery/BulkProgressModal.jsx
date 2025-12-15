@@ -3,22 +3,30 @@ import { XMarkIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/re
 import { Z_INDEX } from '../../constants/config'
 
 /**
- * BulkProgressModal - Displays progress during bulk operations (tag, species, delete)
+ * BulkProgressModal - Displays progress during bulk operations (tag, species, delete, export)
+ *
+ * Supports two prop interfaces:
+ * 1. Simplified: status, current, total, message, downloadUrl
+ * 2. Detailed: status, progress, processedCount, totalCount, successCount, failedCount, errors, operation
  *
  * @param {Object} props
  * @param {boolean} props.isOpen - Whether modal is visible
  * @param {Function} props.onClose - Callback when modal closes (after completion)
  * @param {Function} [props.onCancel] - Callback when user cancels operation
  * @param {'processing'|'success'|'error'} props.status - Current operation status
- * @param {number} props.progress - Progress percentage (0-100)
+ * @param {number} [props.progress] - Progress percentage (0-100) (detailed interface)
+ * @param {number} [props.current] - Current count (simplified interface)
+ * @param {number} [props.total] - Total count (simplified interface)
+ * @param {string} [props.message] - Status message (simplified interface)
  * @param {number} [props.currentBatch] - Current batch number (for multi-batch operations)
  * @param {number} [props.totalBatches] - Total number of batches
- * @param {number} props.processedCount - Number of photos processed so far
- * @param {number} props.totalCount - Total number of photos to process
+ * @param {number} [props.processedCount] - Number of photos processed so far (detailed interface)
+ * @param {number} [props.totalCount] - Total number of photos to process (detailed interface)
  * @param {number} [props.successCount] - Number of successfully processed photos (for completion)
  * @param {number} [props.failedCount] - Number of failed photos (for completion)
  * @param {Object} [props.errors] - Map of filename -> error message
- * @param {'tag'|'species'|'delete'} [props.operation='tag'] - Type of operation
+ * @param {'tag'|'species'|'delete'|'export'} [props.operation='tag'] - Type of operation
+ * @param {string} [props.downloadUrl] - Download URL for completed export (export operation only)
  */
 export default function BulkProgressModal({
   isOpen,
@@ -26,6 +34,9 @@ export default function BulkProgressModal({
   onCancel,
   status,
   progress,
+  current,
+  total,
+  message,
   currentBatch,
   totalBatches,
   processedCount,
@@ -33,14 +44,26 @@ export default function BulkProgressModal({
   successCount,
   failedCount,
   errors,
-  operation = 'tag'
+  operation = 'tag',
+  downloadUrl
 }) {
   if (!isOpen) return null
+
+  // Support both simplified and detailed interfaces
+  const useSimplified = current !== undefined && total !== undefined
+  const displayProcessed = useSimplified ? current : processedCount
+  const displayTotal = useSimplified ? total : totalCount
+  const displayProgress = useSimplified
+    ? Math.round((current / total) * 100)
+    : progress
+  const displaySuccess = useSimplified ? current : successCount
+  const displayFailed = useSimplified ? 0 : failedCount
 
   const operationText = {
     tag: 'Tagging',
     species: 'Updating species',
-    delete: 'Deleting'
+    delete: 'Deleting',
+    export: 'Exporting'
   }[operation]
 
   const handleCancelClick = () => {
@@ -64,30 +87,32 @@ export default function BulkProgressModal({
         {status === 'processing' && (
           <>
             <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
-              {operationText} photos...
+              {useSimplified && message ? message : `${operationText} photos...`}
             </h2>
 
             {/* Progress bar */}
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mb-4">
               <div
                 className="bg-blue-600 h-2.5 rounded-full transition-all"
-                style={{ width: `${progress}%` }}
+                style={{ width: `${displayProgress}%` }}
                 role="progressbar"
-                aria-valuenow={progress}
+                aria-valuenow={displayProgress}
                 aria-valuemin={0}
                 aria-valuemax={100}
               />
             </div>
 
-            <p
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-              className="text-sm text-gray-600 dark:text-gray-400 mb-4"
-            >
-              Processing {processedCount} of {totalCount} photos
-              {totalBatches > 1 && ` (Batch ${currentBatch} of ${totalBatches})`}
-            </p>
+            {!useSimplified && (
+              <p
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                className="text-sm text-gray-600 dark:text-gray-400 mb-4"
+              >
+                Processing {displayProcessed} of {displayTotal} photos
+                {totalBatches > 1 && ` (Batch ${currentBatch} of ${totalBatches})`}
+              </p>
+            )}
 
             <button
               onClick={handleCancelClick}
@@ -103,21 +128,41 @@ export default function BulkProgressModal({
             <div className="flex items-center gap-3 mb-4">
               <CheckCircleIcon className="h-8 w-8 text-green-500" />
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                Complete!
+                {useSimplified && message ? message : 'Complete!'}
               </h2>
             </div>
 
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Successfully processed {successCount} photos
-              {failedCount > 0 && `, ${failedCount} failed`}
-            </p>
+            {!useSimplified && (
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Successfully processed {displaySuccess} photos
+                {displayFailed > 0 && `, ${displayFailed} failed`}
+              </p>
+            )}
 
-            <button
-              onClick={onClose}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              Done
-            </button>
+            {downloadUrl ? (
+              <div className="flex gap-2">
+                <a
+                  href={downloadUrl}
+                  download
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-center"
+                >
+                  Download
+                </a>
+                <button
+                  onClick={onClose}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={onClose}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Done
+              </button>
+            )}
           </>
         )}
 
@@ -131,10 +176,10 @@ export default function BulkProgressModal({
             </div>
 
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              {failedCount} photos failed to process
+              {useSimplified && message ? message : `${displayFailed} photos failed to process`}
             </p>
 
-            {errors && Object.keys(errors).length > 0 && (
+            {!useSimplified && errors && Object.keys(errors).length > 0 && (
               <div className="max-h-32 overflow-y-auto mb-4 text-sm">
                 {Object.entries(errors).slice(0, 5).map(([file, error]) => (
                   <p key={file} className="text-red-600 dark:text-red-400 mb-1">
