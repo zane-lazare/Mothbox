@@ -736,6 +736,33 @@ describe('useHoverPopup', () => {
       expect(result.current.isVisible).toBe(true)
     })
 
+    it('handles coordinates at 0,0 (valid but falsy)', () => {
+      const { result } = renderHook(() => useHoverPopup())
+      const mockEvent = { clientX: 100, clientY: 200 }
+
+      // Cluster at 0,0 (Gulf of Guinea) - valid coordinates
+      const zeroCluster = {
+        center: { lat: 0, lon: 0 },
+      }
+
+      // Open click popup for 0,0 cluster
+      act(() => {
+        result.current.handlePopupOpen(zeroCluster)
+      })
+
+      // Try to hover over same cluster - should be suppressed
+      act(() => {
+        result.current.handleMouseEnter(zeroCluster, mockEvent)
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(100)
+      })
+
+      // Should NOT show hover popup since click popup is open for same cluster
+      expect(result.current.isVisible).toBe(false)
+    })
+
     it('cancels pending show timer when click popup opens', () => {
       const { result } = renderHook(() => useHoverPopup())
       const mockCluster = {

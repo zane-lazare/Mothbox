@@ -78,10 +78,15 @@ export function useHoverPopup() {
    * @returns {string|null} Cluster identifier or null if invalid
    */
   const getClusterId = useCallback((cluster) => {
-    if (!cluster?.center?.lat || !cluster?.center?.lon) {
+    const lat = cluster?.center?.lat
+    const lon = cluster?.center?.lon
+
+    if (typeof lat !== 'number' || typeof lon !== 'number') {
       return null
     }
-    return `${cluster.center.lat},${cluster.center.lon}`
+
+    // Use colon separator and fixed precision to avoid collisions
+    return `${lat.toFixed(6)}:${lon.toFixed(6)}`
   }, [])
 
   /**
