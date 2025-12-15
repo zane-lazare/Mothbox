@@ -74,8 +74,8 @@ export default function BulkExportModal({
 
   // Handle Escape key
   useEffect(() => {
-    if (!isOpen) return
     const handleEscape = (e) => {
+      if (!isOpen) return
       if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', handleEscape)
