@@ -763,6 +763,34 @@ describe('useHoverPopup', () => {
       expect(result.current.isVisible).toBe(false)
     })
 
+    it('uses native cluster_id when available for better performance', () => {
+      const { result } = renderHook(() => useHoverPopup())
+      const mockEvent = { clientX: 100, clientY: 200 }
+
+      // Cluster with native cluster_id
+      const clusterWithId = {
+        cluster_id: 'cluster-abc-123',
+        center: { lat: 37.7749, lon: -122.4194 },
+      }
+
+      // Open click popup
+      act(() => {
+        result.current.handlePopupOpen(clusterWithId)
+      })
+
+      // Try to hover over same cluster (identified by cluster_id)
+      act(() => {
+        result.current.handleMouseEnter(clusterWithId, mockEvent)
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(100)
+      })
+
+      // Should suppress hover since cluster_id matches
+      expect(result.current.isVisible).toBe(false)
+    })
+
     it('cancels pending show timer when click popup opens', () => {
       const { result } = renderHook(() => useHoverPopup())
       const mockCluster = {

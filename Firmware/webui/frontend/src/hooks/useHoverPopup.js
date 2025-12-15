@@ -72,12 +72,18 @@ export function useHoverPopup() {
 
   /**
    * Get a unique identifier for a cluster
-   * Uses cluster center coordinates as the identifier
+   * Prefers native cluster_id, falls back to coordinate-based ID
    *
    * @param {Object} cluster - The cluster object
    * @returns {string|null} Cluster identifier or null if invalid
    */
   const getClusterId = useCallback((cluster) => {
+    // Prefer native cluster_id if available (better performance)
+    if (cluster?.cluster_id) {
+      return cluster.cluster_id
+    }
+
+    // Fallback to coordinate-based ID
     const lat = cluster?.center?.lat
     const lon = cluster?.center?.lon
 
