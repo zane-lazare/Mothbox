@@ -2,6 +2,7 @@ import { useState, memo, useCallback } from 'react'
 import { GALLERY_CONFIG, Z_INDEX } from '../constants/config'
 import ProgressiveImage from './ProgressiveImage'
 import QuickTagButton from './gallery/QuickTagButton'
+import PhotoContextMenu from './gallery/PhotoContextMenu'
 import { useSelectionContext } from '../contexts/SelectionContext'
 
 /**
@@ -24,6 +25,8 @@ import { useSelectionContext } from '../contexts/SelectionContext'
 function PhotoGridItem({ photo, onClick, index, photos }) {
   const [isHovered, setIsHovered] = useState(false)
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false)
+  const [contextMenuOpen, setContextMenuOpen] = useState(false)
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
 
   // Use selection context directly (returns null when not in provider)
   const selectionContext = useSelectionContext()
@@ -68,6 +71,12 @@ function PhotoGridItem({ photo, onClick, index, photos }) {
     }
   }, [togglePhoto, selectRange, photo.path, index, photos])
 
+  const handleContextMenu = useCallback((e) => {
+    e.preventDefault()  // Prevent browser context menu
+    setContextMenuPosition({ x: e.clientX, y: e.clientY })
+    setContextMenuOpen(true)
+  }, [])
+
   return (
     <div
       className={`
@@ -76,6 +85,7 @@ function PhotoGridItem({ photo, onClick, index, photos }) {
       `}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onContextMenu={handleContextMenu}
     >
       <button
         type="button"
@@ -124,6 +134,14 @@ function PhotoGridItem({ photo, onClick, index, photos }) {
           onDropdownOpenChange={setIsTagDropdownOpen}
         />
       </div>
+
+      {/* Context Menu */}
+      <PhotoContextMenu
+        photo={photo}
+        isOpen={contextMenuOpen}
+        onClose={() => setContextMenuOpen(false)}
+        position={contextMenuPosition}
+      />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
+import { ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 import { LIGHTBOX_CONFIG, Z_INDEX } from '../constants/config'
 import useZoomPan from '../hooks/useZoomPan'
 import useTouchGestures from '../hooks/useTouchGestures'
@@ -8,6 +9,7 @@ import { debounce, throttle } from '../utils/performance'
 import { getPhotoUrl } from '../utils/api'
 import MetadataPanel from './metadata/MetadataPanel'
 import MetadataErrorBoundary from './metadata/MetadataErrorBoundary'
+import ExportOptionsMenu from './export/ExportOptionsMenu'
 import { formatCoordinateDisplay } from '../utils/gpsCoordinates'
 
 /**
@@ -163,6 +165,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
   const containerRef = useRef(null)
   const dialogRef = useRef(null)
   const panStartRef = useRef({ x: 0, y: 0 })
+  const exportButtonRef = useRef(null)
 
   // Image and container dimensions
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 })
@@ -176,6 +179,9 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
 
   // Panning state
   const [isPanning, setIsPanning] = useState(false)
+
+  // Export menu state
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
 
   // Zoom indicator auto-hide
   const [showZoomIndicator, setShowZoomIndicator] = useState(false)
@@ -584,6 +590,26 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
           <path d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
+
+      {/* Export button - positioned next to close button */}
+      <button
+        ref={exportButtonRef}
+        type="button"
+        onClick={() => setExportMenuOpen(true)}
+        className="absolute top-4 right-20 z-10 rounded-lg bg-black bg-opacity-50 p-2 text-white transition-all hover:bg-opacity-75 focus:outline-none focus:ring-2 focus:ring-white md:p-2 min-h-[44px] min-w-[44px] flex items-center justify-center"
+        aria-label="Export photo"
+        data-testid="export-button"
+      >
+        <ArrowDownTrayIcon className="h-6 w-6" />
+      </button>
+
+      {/* Export Options Menu */}
+      <ExportOptionsMenu
+        photoPath={photo?.path}
+        isOpen={exportMenuOpen}
+        onClose={() => setExportMenuOpen(false)}
+        anchorEl={exportButtonRef.current}
+      />
 
       {/* Photo metadata */}
       <div className="absolute top-4 left-4 z-10 rounded-lg bg-black bg-opacity-50 p-3 text-white">

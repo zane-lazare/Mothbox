@@ -34,6 +34,23 @@ vi.mock('../gallery/QuickTagButton', () => ({
   )
 }))
 
+// Mock PhotoContextMenu to simplify testing
+vi.mock('../gallery/PhotoContextMenu', () => ({
+  default: vi.fn(({ isOpen, photo, position, onClose }) =>
+    isOpen ? (
+      <div
+        data-testid="photo-context-menu"
+        data-photo-path={photo?.path}
+        data-position-x={position?.x}
+        data-position-y={position?.y}
+        onClick={() => onClose()}
+      >
+        Context Menu
+      </div>
+    ) : null
+  ),
+}))
+
 const createWrapper = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } }
@@ -863,6 +880,247 @@ describe('PhotoGridItem Selection Mode', () => {
       await user.click(photoButton)
 
       expect(onClick).toHaveBeenCalledWith(mockPhoto)
+    })
+  })
+})
+
+// ========================================
+// === CONTEXT MENU TESTS (Issue #134) ===
+// ========================================
+
+describe('PhotoGridItem Context Menu', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('Opening context menu', () => {
+    it('opens context menu on right-click', async () => {
+      const user = userEvent.setup()
+      render(<PhotoGridItem photo={mockPhoto} onClick={vi.fn()} />, { wrapper: createWrapper() })
+
+      // Right-click on the photo
+      const photoButton = screen.getByLabelText(/view photo/i)
+      await user.pointer({ keys: '[MouseRight>]', target: photoButton })
+
+      // Verify PhotoContextMenu is rendered
+      await waitFor(() => {
+        const contextMenu = screen.getByTestId('photo-context-menu')
+        expect(contextMenu).toBeInTheDocument()
+      })
+    })
+
+    it('passes correct position to context menu', async () => {
+      const user = userEvent.setup()
+      const { container } = render(
+        <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} />,
+        { wrapper: createWrapper() }
+      )
+
+      // Right-click at specific coordinates
+      const gridItem = container.querySelector('.group')
+      fireEvent.contextMenu(gridItem, { clientX: 150, clientY: 200 })
+
+      // Verify position is passed correctly
+      await waitFor(() => {
+        const contextMenu = screen.getByTestId('photo-context-menu')
+        expect(contextMenu).toHaveAttribute('data-position-x', '150')
+        expect(contextMenu).toHaveAttribute('data-position-y', '200')
+      })
+    })
+
+    it('passes photo object to context menu', async () => {
+      const user = userEvent.setup()
+      const { container } = render(
+        <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} />,
+        { wrapper: createWrapper() }
+      )
+
+      // Right-click
+      const gridItem = container.querySelector('.group')
+      fireEvent.contextMenu(gridItem)
+
+      // Verify photo prop is passed to PhotoContextMenu
+      await waitFor(() => {
+        const contextMenu = screen.getByTestId('photo-context-menu')
+        expect(contextMenu).toHaveAttribute('data-photo-path', mockPhoto.path)
+      })
+    })
+
+    it('prevents default browser context menu', async () => {
+      const { container } = render(
+        <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} />,
+        { wrapper: createWrapper() }
+      )
+
+      // Right-click
+      const gridItem = container.querySelector('.group')
+      const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+      const preventDefaultSpy = vi.spyOn(event, 'preventDefault')
+
+      gridItem.dispatchEvent(event)
+
+      // Verify e.preventDefault was called
+      expect(preventDefaultSpy).toHaveBeenCalled()
+    })
+  })
+
+  describe('Closing context menu', () => {
+    it('closes context menu on onClose callback', async () => {
+      const user = userEvent.setup()
+      const { container } = render(
+        <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} />,
+        { wrapper: createWrapper() }
+      )
+
+      // Open context menu
+      const gridItem = container.querySelector('.group')
+      fireEvent.contextMenu(gridItem)
+
+      await waitFor(() => {
+        const contextMenu = screen.getByTestId('photo-context-menu')
+        expect(contextMenu).toBeInTheDocument()
+      })
+
+      // Trigger onClose (mock menu calls this on click)
+      const contextMenu = screen.getByTestId('photo-context-menu')
+      await user.click(contextMenu)
+
+      // Verify context menu is closed
+      await waitFor(() => {
+        expect(screen.queryByTestId('photo-context-menu')).not.toBeInTheDocument()
+      })
+    })
+
+    it('context menu is initially closed', () => {
+      render(<PhotoGridItem photo={mockPhoto} onClick={vi.fn()} />, { wrapper: createWrapper() })
+
+      // Context menu should not be visible initially
+      const contextMenu = screen.queryByTestId('photo-context-menu')
+      expect(contextMenu).not.toBeInTheDocument()
+    })
+  })
+
+  describe('Interaction with existing behaviors', () => {
+    it('does not interfere with left-click (lightbox) behavior', async () => {
+      const onClick = vi.fn()
+      const user = userEvent.setup()
+
+      render(<PhotoGridItem photo={mockPhoto} onClick={onClick} />, { wrapper: createWrapper() })
+
+      // Left-click should still open lightbox
+      const photoButton = screen.getByLabelText(/view photo/i)
+      await user.click(photoButton)
+
+      expect(onClick).toHaveBeenCalledWith(mockPhoto)
+
+      // Context menu should not open on left-click
+      const contextMenu = screen.queryByTestId('photo-context-menu')
+      expect(contextMenu).not.toBeInTheDocument()
+    })
+
+    it('works alongside QuickTagButton', async () => {
+      const { container } = render(
+        <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} />,
+        { wrapper: createWrapper() }
+      )
+
+      // Both QuickTagButton and context menu should be present in the component
+      const tagButton = screen.getByTestId('quick-tag-button')
+      expect(tagButton).toBeInTheDocument()
+
+      // Right-click to open context menu
+      const gridItem = container.querySelector('.group')
+      fireEvent.contextMenu(gridItem)
+
+      await waitFor(() => {
+        const contextMenu = screen.getByTestId('photo-context-menu')
+        expect(contextMenu).toBeInTheDocument()
+      })
+
+      // QuickTagButton should still be there
+      expect(tagButton).toBeInTheDocument()
+    })
+
+    it('right-click does not trigger selection mode', async () => {
+      const onClick = vi.fn()
+      const { container } = render(
+        <PhotoGridItem photo={mockPhoto} onClick={onClick} index={0} />,
+        { wrapper: createSelectionWrapper() }
+      )
+
+      // Not in select mode initially
+      const checkbox = screen.queryByRole('checkbox')
+      expect(checkbox).not.toBeInTheDocument()
+
+      // Right-click
+      const gridItem = container.querySelector('.group')
+      fireEvent.contextMenu(gridItem)
+
+      // Context menu should open
+      await waitFor(() => {
+        const contextMenu = screen.getByTestId('photo-context-menu')
+        expect(contextMenu).toBeInTheDocument()
+      })
+
+      // Should NOT trigger lightbox
+      expect(onClick).not.toHaveBeenCalled()
+
+      // Should NOT enter selection mode
+      const checkboxAfter = screen.queryByRole('checkbox')
+      expect(checkboxAfter).not.toBeInTheDocument()
+    })
+  })
+
+  describe('Edge cases', () => {
+    it('handles multiple right-clicks correctly', async () => {
+      const { container } = render(
+        <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} />,
+        { wrapper: createWrapper() }
+      )
+
+      const gridItem = container.querySelector('.group')
+
+      // First right-click
+      fireEvent.contextMenu(gridItem, { clientX: 100, clientY: 100 })
+
+      await waitFor(() => {
+        const contextMenu = screen.getByTestId('photo-context-menu')
+        expect(contextMenu).toHaveAttribute('data-position-x', '100')
+      })
+
+      // Second right-click at different position
+      fireEvent.contextMenu(gridItem, { clientX: 200, clientY: 300 })
+
+      // Position should update
+      await waitFor(() => {
+        const contextMenu = screen.getByTestId('photo-context-menu')
+        expect(contextMenu).toHaveAttribute('data-position-x', '200')
+        expect(contextMenu).toHaveAttribute('data-position-y', '300')
+      })
+    })
+
+    it('handles photo with different structures', async () => {
+      const differentPhoto = {
+        path: 'different/path.jpg',
+        filename: 'different.jpg',
+        date: '2024-01-01T00:00:00Z',
+        metadata: { tags: ['test'] }
+      }
+
+      const { container } = render(
+        <PhotoGridItem photo={differentPhoto} onClick={vi.fn()} />,
+        { wrapper: createWrapper() }
+      )
+
+      // Right-click
+      const gridItem = container.querySelector('.group')
+      fireEvent.contextMenu(gridItem)
+
+      // Context menu should open with correct photo
+      await waitFor(() => {
+        const contextMenu = screen.getByTestId('photo-context-menu')
+        expect(contextMenu).toHaveAttribute('data-photo-path', differentPhoto.path)
+      })
     })
   })
 })

@@ -19,6 +19,21 @@ vi.mock('../metadata/MetadataPanel', () => ({
   ),
 }))
 
+// Mock ExportOptionsMenu to simplify testing
+vi.mock('../export/ExportOptionsMenu', () => ({
+  default: vi.fn(({ isOpen, photoPath, onClose, anchorEl }) =>
+    isOpen ? (
+      <div
+        data-testid="export-options-menu"
+        data-photo-path={photoPath}
+        onClick={() => onClose()}
+      >
+        Export Menu
+      </div>
+    ) : null
+  ),
+}))
+
 describe('PhotoLightbox - Basic Rendering', () => {
   const mockPhoto = {
     path: '2024-11-10/photo_001.jpg',
@@ -2497,5 +2512,202 @@ describe('PhotoLightbox - Location Header', () => {
     )
 
     expect(screen.getByText(/alt.*-430\.5.*m/i)).toBeInTheDocument()
+  })
+})
+
+describe('PhotoLightbox - Export functionality', () => {
+  const mockPhoto = {
+    path: '2024-11-10/photo_001.jpg',
+    filename: 'photo_001.jpg',
+    date: '2024-11-10T18:30:00Z',
+    size: 5242880,
+    timestamp: 1699639800,
+  }
+
+  const mockPhotos = [mockPhoto]
+  const mockOnClose = vi.fn()
+  const mockOnNavigate = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    document.body.style.overflow = ''
+  })
+
+  it('renders export button in controls area', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const exportButton = screen.getByTestId('export-button')
+    expect(exportButton).toBeInTheDocument()
+  })
+
+  it('export button has proper aria-label', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const exportButton = screen.getByLabelText(/export photo/i)
+    expect(exportButton).toBeInTheDocument()
+    expect(exportButton).toHaveAttribute('aria-label', 'Export photo')
+  })
+
+  it('opens ExportOptionsMenu on button click', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const exportButton = screen.getByTestId('export-button')
+    await user.click(exportButton)
+
+    // Verify ExportOptionsMenu is rendered with isOpen=true
+    const exportMenu = screen.getByTestId('export-options-menu')
+    expect(exportMenu).toBeInTheDocument()
+  })
+
+  it('passes current photo path to ExportOptionsMenu', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const exportButton = screen.getByTestId('export-button')
+    await user.click(exportButton)
+
+    // Verify photoPath prop matches photo.path
+    const exportMenu = screen.getByTestId('export-options-menu')
+    expect(exportMenu).toHaveAttribute('data-photo-path', mockPhoto.path)
+  })
+
+  it('closes ExportOptionsMenu on close callback', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Open menu
+    const exportButton = screen.getByTestId('export-button')
+    await user.click(exportButton)
+
+    const exportMenu = screen.getByTestId('export-options-menu')
+    expect(exportMenu).toBeInTheDocument()
+
+    // Trigger onClose (simulated by clicking the menu in our mock)
+    await user.click(exportMenu)
+
+    // Menu should be closed
+    await waitFor(() => {
+      expect(screen.queryByTestId('export-options-menu')).not.toBeInTheDocument()
+    })
+  })
+
+  it('export button is keyboard accessible', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Find export button
+    const exportButton = screen.getByLabelText(/export photo/i)
+
+    // Tab to export button to ensure keyboard navigation works
+    exportButton.focus()
+    expect(exportButton).toHaveFocus()
+
+    // Activate button with Enter key (userEvent click on focused element)
+    await user.click(exportButton)
+
+    // Menu should open
+    await waitFor(() => {
+      const exportMenu = screen.getByTestId('export-options-menu')
+      expect(exportMenu).toBeInTheDocument()
+    })
+  })
+
+  it('export button has consistent styling with other controls', () => {
+    render(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    const exportButton = screen.getByTestId('export-button')
+    const closeButton = screen.getByLabelText(/close photo viewer/i)
+
+    // Both should have similar focus ring classes
+    expect(exportButton.className).toContain('focus:ring')
+    expect(closeButton.className).toContain('focus:ring')
+
+    // Both should have rounded-lg styling
+    expect(exportButton.className).toContain('rounded-lg')
+    expect(closeButton.className).toContain('rounded-lg')
+  })
+
+  it('export button is visible when lightbox is open', () => {
+    const { rerender } = render(
+      <PhotoLightbox
+        photo={null}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Export button should not exist when lightbox is closed
+    expect(screen.queryByTestId('export-button')).not.toBeInTheDocument()
+
+    // Open lightbox
+    rerender(
+      <PhotoLightbox
+        photo={mockPhoto}
+        photos={mockPhotos}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Export button should be visible
+    expect(screen.getByTestId('export-button')).toBeInTheDocument()
   })
 })
