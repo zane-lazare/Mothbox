@@ -55,12 +55,16 @@ from mothbox_paths import PHOTOS_DIR
 from webui.backend.lib.deployment_schema import DeploymentMetadata
 from webui.backend.lib.deployment_sidecar import (
     create_deployment_metadata,
-    delete_deployment_metadata as lib_delete,
     deployment_has_sidecar,
     find_deployment_sidecar,
     read_deployment_metadata,
-    update_deployment_metadata as lib_update,
     write_deployment_metadata,
+)
+from webui.backend.lib.deployment_sidecar import (
+    delete_deployment_metadata as lib_delete,
+)
+from webui.backend.lib.deployment_sidecar import (
+    update_deployment_metadata as lib_update,
 )
 
 logger = logging.getLogger(__name__)

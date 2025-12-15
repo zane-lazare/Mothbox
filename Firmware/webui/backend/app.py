@@ -297,12 +297,11 @@ except Exception as e:
     app.config['DEPLOYMENT_SERVICE'] = None
 
 # Initialize export preset manager
-from webui.backend.export_preset_manager import ExportPresetManager
 from mothbox_paths import EXPORT_BUILTIN_PRESET_DIR, EXPORT_USER_PRESET_DIR
+from webui.backend.export_preset_manager import ExportPresetManager
 
 try:
     # Use built-in presets from package if production paths don't exist
-    import importlib.resources
 
     # Check if the production path exists, otherwise use package path
     if EXPORT_BUILTIN_PRESET_DIR.exists():

@@ -910,7 +910,6 @@ describe('PhotoGridItem Context Menu', () => {
     })
 
     it('passes correct position to context menu', async () => {
-      const user = userEvent.setup()
       const { container } = render(
         <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} />,
         { wrapper: createWrapper() }
@@ -929,7 +928,6 @@ describe('PhotoGridItem Context Menu', () => {
     })
 
     it('passes photo object to context menu', async () => {
-      const user = userEvent.setup()
       const { container } = render(
         <PhotoGridItem photo={mockPhoto} onClick={vi.fn()} />,
         { wrapper: createWrapper() }

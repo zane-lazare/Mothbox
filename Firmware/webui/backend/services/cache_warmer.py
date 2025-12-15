@@ -47,7 +47,6 @@ from pathlib import Path
 from typing import Any
 
 from constants import PHOTO_PATTERNS
-
 from services.thumbnail_cache import ThumbnailCache, ThumbnailError
 
 # Try to import psutil for CPU monitoring
