@@ -107,7 +107,6 @@ export default function useBulkExport({ onComplete } = {}) {
       setJobId(newJobId)
     } catch (err) {
       setError(err.message || 'Failed to create export job')
-      throw err
     }
   }
 
@@ -123,7 +122,6 @@ export default function useBulkExport({ onComplete } = {}) {
       await cancelExportJobMutation.mutateAsync(jobId)
     } catch (err) {
       setError(err.message || 'Failed to cancel export job')
-      throw err
     }
   }
 

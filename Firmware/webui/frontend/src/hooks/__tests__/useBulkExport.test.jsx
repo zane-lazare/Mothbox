@@ -153,11 +153,7 @@ describe('useBulkExport', () => {
       })
 
       await act(async () => {
-        try {
-          await result.current.exportPhotos(['photo1.jpg'], 'json')
-        } catch {
-          // Expected to throw
-        }
+        await result.current.exportPhotos(['photo1.jpg'], 'json')
       })
 
       expect(result.current.error).toBeTruthy()
