@@ -15,6 +15,8 @@ import { HOVER_POPUP_CONFIG } from '../constants/config'
  * @returns {Function} handleMouseEnter - Handler for mouse enter events
  * @returns {Function} handleMouseLeave - Handler for mouse leave events
  * @returns {Function} handleClick - Handler for click/tap events (mobile)
+ * @returns {Function} handlePopupOpen - Handler for Leaflet popup open events
+ * @returns {Function} handlePopupClose - Handler for Leaflet popup close events
  * @returns {boolean} isMobile - Whether the device is detected as mobile/touch
  *
  * @example
@@ -43,6 +45,7 @@ export function useHoverPopup() {
   const [isVisible, setIsVisible] = useState(false)
   const [targetCluster, setTargetCluster] = useState(null)
   const [position, setPosition] = useState(null)
+  const [clickedClusterId, setClickedClusterId] = useState(null)
 
   // Timer references for cleanup
   const showTimerRef = useRef(null)
@@ -68,16 +71,37 @@ export function useHoverPopup() {
   }, [])
 
   /**
+   * Get a unique identifier for a cluster
+   * Uses cluster center coordinates as the identifier
+   *
+   * @param {Object} cluster - The cluster object
+   * @returns {string|null} Cluster identifier or null if invalid
+   */
+  const getClusterId = useCallback((cluster) => {
+    if (!cluster?.center?.lat || !cluster?.center?.lon) {
+      return null
+    }
+    return `${cluster.center.lat},${cluster.center.lon}`
+  }, [])
+
+  /**
    * Handle mouse enter event
    *
    * Sets the target cluster and position immediately, then schedules
-   * the popup to be shown after SHOW_DELAY_MS.
+   * the popup to be shown after SHOW_DELAY_MS. Skips if this cluster
+   * has an open click popup.
    *
    * @param {Object} cluster - The cluster being hovered
    * @param {MouseEvent} event - The mouse event containing position
    */
   const handleMouseEnter = useCallback(
     (cluster, event) => {
+      // Skip hover if this cluster has click popup open
+      const clusterId = getClusterId(cluster)
+      if (clickedClusterId && clickedClusterId === clusterId) {
+        return
+      }
+
       // Clear any pending timers
       clearTimers()
 
@@ -90,7 +114,7 @@ export function useHoverPopup() {
         setIsVisible(true)
       }, HOVER_POPUP_CONFIG.SHOW_DELAY_MS)
     },
-    [clearTimers]
+    [clearTimers, clickedClusterId, getClusterId]
   )
 
   /**
@@ -125,6 +149,34 @@ export function useHoverPopup() {
   }, [])
 
   /**
+   * Handle Leaflet popup open event
+   *
+   * Tracks which cluster has an open click popup so we can
+   * suppress hover popups for that cluster.
+   *
+   * @param {Object} cluster - The cluster whose popup was opened
+   */
+  const handlePopupOpen = useCallback(
+    (cluster) => {
+      const clusterId = getClusterId(cluster)
+      setClickedClusterId(clusterId)
+      // Also hide any visible hover popup for this cluster
+      clearTimers()
+      setIsVisible(false)
+    },
+    [getClusterId, clearTimers]
+  )
+
+  /**
+   * Handle Leaflet popup close event
+   *
+   * Clears the clicked cluster ID so hover popups can work again.
+   */
+  const handlePopupClose = useCallback(() => {
+    setClickedClusterId(null)
+  }, [])
+
+  /**
    * Cleanup timers on unmount
    */
   useEffect(() => {
@@ -138,6 +190,8 @@ export function useHoverPopup() {
     handleMouseEnter,
     handleMouseLeave,
     handleClick,
+    handlePopupOpen,
+    handlePopupClose,
     isMobile,
   }
 }

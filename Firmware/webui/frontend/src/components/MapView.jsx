@@ -62,7 +62,7 @@ function ClusteringControls({ settings, onEnabledChange, onRadiusChange }) {
  * Displays a circular badge with the number of photos in the cluster.
  * Clicking opens a popup with thumbnails and metadata.
  */
-function ClusterMarker({ cluster, onPhotoClick, onMouseEnter, onMouseLeave }) {
+function ClusterMarker({ cluster, onPhotoClick, onMouseEnter, onMouseLeave, onPopupOpen, onPopupClose }) {
   // Create custom cluster icon
   const icon = L.divIcon({
     className: 'cluster-marker',
@@ -79,6 +79,8 @@ function ClusterMarker({ cluster, onPhotoClick, onMouseEnter, onMouseLeave }) {
       eventHandlers={{
         mouseover: (e) => onMouseEnter?.(cluster, e.originalEvent),
         mouseout: () => onMouseLeave?.(),
+        popupopen: () => onPopupOpen?.(cluster),
+        popupclose: () => onPopupClose?.(),
       }}
     >
       <Popup maxWidth={250}>
@@ -217,6 +219,8 @@ const MapView = React.forwardRef(function MapView({
     position,
     handleMouseEnter,
     handleMouseLeave,
+    handlePopupOpen,
+    handlePopupClose,
   } = useHoverPopup()
 
   // Create custom marker icons with locally bundled assets (no CDN dependency)
@@ -349,6 +353,8 @@ const MapView = React.forwardRef(function MapView({
             onPhotoClick={onPhotoClick}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
+            onPopupOpen={handlePopupOpen}
+            onPopupClose={handlePopupClose}
           />
         ))}
 
