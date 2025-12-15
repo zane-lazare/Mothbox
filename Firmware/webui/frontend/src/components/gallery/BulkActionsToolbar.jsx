@@ -1,11 +1,12 @@
 import { createPortal } from 'react-dom'
-import { TagIcon, BeakerIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { TagIcon, BeakerIcon, ArrowDownTrayIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import useSelection from '../../hooks/useSelection'
 import { Z_INDEX } from '../../constants/config'
 
 export default function BulkActionsToolbar({
   onTagClick,
   onSpeciesClick,
+  onExportClick,
   onDeleteClick
 }) {
   const { selectedCount, deselectAll } = useSelection()
@@ -54,6 +55,17 @@ export default function BulkActionsToolbar({
       >
         <BeakerIcon className="h-4 w-4" />
         Species
+      </button>
+
+      <button
+        onClick={onExportClick}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-sm
+                   text-gray-700 dark:text-gray-300
+                   hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+        aria-label="Export selected photos"
+      >
+        <ArrowDownTrayIcon className="h-4 w-4" />
+        Export
       </button>
 
       <button

@@ -12,6 +12,7 @@ import { usePhotoSearch } from '../hooks/usePhotoSearch'
 import useScrollRestoration from '../hooks/useScrollRestoration'
 import useBulkOperations from '../hooks/useBulkOperations'
 import useUndoToast from '../hooks/useUndoToast'
+import useBulkExport from '../hooks/useBulkExport'
 import PhotoSkeleton from '../components/PhotoSkeleton'
 import PhotoGridItem from '../components/PhotoGridItem'
 import PhotoListItem from '../components/PhotoListItem'
@@ -29,6 +30,7 @@ import BulkTagModal from '../components/gallery/BulkTagModal'
 import BulkSpeciesModal from '../components/gallery/BulkSpeciesModal'
 import BulkDeleteConfirmModal from '../components/gallery/BulkDeleteConfirmModal'
 import BulkProgressModal from '../components/gallery/BulkProgressModal'
+import BulkExportModal from '../components/gallery/BulkExportModal'
 import EmptyStateMessage from '../components/EmptyStateMessage'
 import { SearchBar } from '../components/gallery/SearchBar'
 import { AdvancedSearchBuilder } from '../components/gallery/AdvancedSearchBuilder'
@@ -82,11 +84,26 @@ function GalleryContent() {
 
   const { showUndoToast } = useUndoToast()
 
+  // Bulk export hook
+  const {
+    exportPhotos,
+    isExporting,
+    progress: exportProgress,
+    error: exportError,
+    downloadUrl,
+  } = useBulkExport({
+    onComplete: () => {
+      // Will show download button in success state
+    }
+  })
+
   // Modal state
   const [tagModalOpen, setTagModalOpen] = useState(false)
   const [speciesModalOpen, setSpeciesModalOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [exportModalOpen, setExportModalOpen] = useState(false)
   const [progressModalOpen, setProgressModalOpen] = useState(false)
+  const [progressOperation, setProgressOperation] = useState(null) // 'export' | 'tag' | 'species' | 'delete'
   const [progressState, setProgressState] = useState({
     status: 'processing',
     current: 0,
@@ -291,6 +308,50 @@ function GalleryContent() {
     }
   }, [isSeriesError, hasShownSeriesErrorToast])
 
+  // Derive export progress state from hook (avoids race condition with manual updates)
+  const exportProgressState = useMemo(() => {
+    if (progressOperation !== 'export') return null
+
+    if (exportError) {
+      return {
+        status: 'error',
+        current: 0,
+        total: selectedCount,
+        message: exportError,
+      }
+    }
+
+    if (!isExporting && downloadUrl) {
+      return {
+        status: 'success',
+        current: selectedCount,
+        total: selectedCount,
+        message: 'Export complete!',
+        downloadUrl: downloadUrl,
+      }
+    }
+
+    if (exportProgress) {
+      return {
+        status: 'processing',
+        current: exportProgress.current,
+        total: exportProgress.total,
+        message: `${exportProgress.phase}... ${exportProgress.percent}%`,
+      }
+    }
+
+    // Initial state while waiting for first progress update
+    return {
+      status: 'processing',
+      current: 0,
+      total: selectedCount,
+      message: `Exporting ${selectedCount} photos...`,
+    }
+  }, [progressOperation, isExporting, exportProgress, exportError, downloadUrl, selectedCount])
+
+  // Current progress state (export uses derived state, others use manual state)
+  const currentProgressState = progressOperation === 'export' ? exportProgressState : progressState
+
   // Keyboard shortcuts for bulk selection
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -308,6 +369,15 @@ function GalleryContent() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
         e.preventDefault()
         selectAll(photos.map(p => p.path))
+        return
+      }
+
+      // Ctrl+E - open export modal (only if photos selected)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+        if (selectedCount > 0) {
+          e.preventDefault()
+          setExportModalOpen(true)
+        }
         return
       }
 
@@ -508,9 +578,19 @@ function GalleryContent() {
     }
   }, [selectedPhotos, selectedCount, bulkDelete, deselectAll, refetch])
 
+  const handleBulkExport = useCallback(async (format) => {
+    setExportModalOpen(false)
+    setProgressModalOpen(true)
+    setProgressOperation('export')
+
+    const photoPaths = Array.from(selectedPhotos)
+    await exportPhotos(photoPaths, format)
+  }, [selectedPhotos, exportPhotos])
+
   // Toolbar action handlers
   const handleTagClick = useCallback(() => setTagModalOpen(true), [])
   const handleSpeciesClick = useCallback(() => setSpeciesModalOpen(true), [])
+  const handleExportClick = useCallback(() => setExportModalOpen(true), [])
   const handleDeleteClick = useCallback(() => setDeleteModalOpen(true), [])
 
   if (isLoading) {
@@ -839,6 +919,7 @@ function GalleryContent() {
           selectedCount={selectedCount}
           onTagClick={handleTagClick}
           onSpeciesClick={handleSpeciesClick}
+          onExportClick={handleExportClick}
           onDeleteClick={handleDeleteClick}
           onDeselectAll={deselectAll}
         />
@@ -867,14 +948,29 @@ function GalleryContent() {
           selectedPhotos={Array.from(selectedPhotos)}
         />
 
+        {/* Bulk Export Modal */}
+        <BulkExportModal
+          isOpen={exportModalOpen}
+          onClose={() => setExportModalOpen(false)}
+          onExport={handleBulkExport}
+          selectedCount={selectedCount}
+          isLoading={isExporting}
+          error={exportError}
+        />
+
         {/* Bulk Progress Modal */}
         <BulkProgressModal
           isOpen={progressModalOpen}
-          status={progressState.status}
-          current={progressState.current}
-          total={progressState.total}
-          message={progressState.message}
-          onClose={() => setProgressModalOpen(false)}
+          status={currentProgressState?.status}
+          current={currentProgressState?.current}
+          total={currentProgressState?.total}
+          message={currentProgressState?.message}
+          downloadUrl={currentProgressState?.downloadUrl}
+          operation={progressOperation || 'tag'}
+          onClose={() => {
+            setProgressModalOpen(false)
+            setProgressOperation(null)
+          }}
         />
 
         {/* Advanced Search Modal */}
