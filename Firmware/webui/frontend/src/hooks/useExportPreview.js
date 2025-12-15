@@ -79,14 +79,14 @@ function transformToFormat(photos, format, selectedFields) {
  *   console.log(previewData.data)   // Array of photo objects with selected fields
  * }
  */
-export default function useExportPreview({ format, filter, selectedFields }) {
+export default function useExportPreview({ format, filter, selectedFields = [] }) {
   // Create stable query key including all dependencies
   const queryKey = useMemo(() => {
     return [
       'exportPreview',
       format,
       JSON.stringify(filter),
-      selectedFields.sort().join(',')
+      [...selectedFields].sort().join(',')
     ]
   }, [format, filter, selectedFields])
 
