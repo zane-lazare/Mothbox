@@ -58,6 +58,12 @@ export default function useBulkExport({ onComplete } = {}) {
   const [jobId, setJobId] = useState(null)
   const [error, setError] = useState(null)
   const hasCompletedRef = useRef(false)
+  const onCompleteRef = useRef(onComplete)
+
+  // Keep ref updated with latest callback
+  useEffect(() => {
+    onCompleteRef.current = onComplete
+  }, [onComplete])
 
   const createExportJob = useCreateExportJob()
   const jobQuery = useExportJob(jobId)
@@ -138,9 +144,9 @@ export default function useBulkExport({ onComplete } = {}) {
     if (job.status === 'completed' && !hasCompletedRef.current) {
       hasCompletedRef.current = true
 
-      // Call onComplete callback if provided
-      if (onComplete) {
-        onComplete()
+      // Call onComplete callback if provided (use ref to avoid stale closure)
+      if (onCompleteRef.current) {
+        onCompleteRef.current()
       }
     }
 
@@ -149,7 +155,7 @@ export default function useBulkExport({ onComplete } = {}) {
       const errorMessage = job.error || 'Export failed'
       setError(errorMessage)
     }
-  }, [job, onComplete])
+  }, [job])
 
   return {
     exportPhotos,
