@@ -54,7 +54,7 @@ export default function BulkProgressModal({
   const displayProcessed = useSimplified ? current : processedCount
   const displayTotal = useSimplified ? total : totalCount
   const displayProgress = useSimplified
-    ? Math.round((current / total) * 100)
+    ? (total > 0 ? Math.round((current / total) * 100) : 0)
     : progress
   const displaySuccess = useSimplified ? current : successCount
   const displayFailed = useSimplified ? 0 : failedCount
