@@ -8,37 +8,17 @@ import {
   TableCellsIcon,
   BeakerIcon
 } from '@heroicons/react/20/solid'
-import { Z_INDEX } from '@/constants/config'
+import { Z_INDEX, EXPORT_FORMATS } from '@/constants/config'
 
 /**
- * Export format options
+ * Icon mapping for export formats (UI-specific, not in config)
  */
-const EXPORT_FORMATS = [
-  {
-    id: 'darwin_core',
-    name: 'Darwin Core',
-    description: 'For GBIF biodiversity portals',
-    icon: BeakerIcon
-  },
-  {
-    id: 'inaturalist',
-    name: 'iNaturalist',
-    description: 'With XMP sidecars',
-    icon: CircleStackIcon
-  },
-  {
-    id: 'json',
-    name: 'JSON',
-    description: 'All metadata fields',
-    icon: DocumentTextIcon
-  },
-  {
-    id: 'csv',
-    name: 'CSV',
-    description: 'Excel compatible',
-    icon: TableCellsIcon
-  },
-]
+const FORMAT_ICONS = {
+  darwin_core: BeakerIcon,
+  inaturalist: CircleStackIcon,
+  json: DocumentTextIcon,
+  csv: TableCellsIcon,
+}
 
 /**
  * BulkExportModal Component
@@ -130,7 +110,7 @@ export default function BulkExportModal({
           className="space-y-2"
         >
           {EXPORT_FORMATS.map((format) => {
-            const Icon = format.icon
+            const Icon = FORMAT_ICONS[format.id]
             const isSelected = selectedFormat === format.id
             return (
               <label

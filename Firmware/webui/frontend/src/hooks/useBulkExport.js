@@ -53,6 +53,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useCreateExportJob, useExportJob, useCancelExportJob } from './useExportJobs'
 import { getExportJobDownloadUrl } from '../utils/exportApi'
+import { VALID_EXPORT_FORMAT_IDS } from '../constants/config'
 
 export default function useBulkExport({ onComplete } = {}) {
   const [jobId, setJobId] = useState(null)
@@ -81,8 +82,6 @@ export default function useBulkExport({ onComplete } = {}) {
   // Generate download URL when completed
   const downloadUrl = job?.status === 'completed' && jobId ? getExportJobDownloadUrl(jobId) : null
 
-  const VALID_FORMATS = ['darwin_core', 'inaturalist', 'json', 'csv']
-
   /**
    * Start export for multiple photos
    *
@@ -102,8 +101,8 @@ export default function useBulkExport({ onComplete } = {}) {
       return
     }
 
-    if (!format || !VALID_FORMATS.includes(format)) {
-      setError(`Invalid export format. Must be one of: ${VALID_FORMATS.join(', ')}`)
+    if (!format || !VALID_EXPORT_FORMAT_IDS.includes(format)) {
+      setError(`Invalid export format. Must be one of: ${VALID_EXPORT_FORMAT_IDS.join(', ')}`)
       return
     }
 

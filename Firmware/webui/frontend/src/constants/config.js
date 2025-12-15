@@ -413,6 +413,45 @@ export const API_LIMITS = {
 }
 
 /**
+ * Export Format Configuration
+ *
+ * Available export formats for bulk photo export.
+ * Must match backend ExportJobFormat enum in lib/export_job_types.py.
+ *
+ * @property {string} id - Format identifier (matches backend enum value)
+ * @property {string} name - User-facing format name
+ * @property {string} description - Brief description of the format
+ */
+export const EXPORT_FORMATS = [
+  {
+    id: 'darwin_core',
+    name: 'Darwin Core',
+    description: 'For GBIF biodiversity portals',
+  },
+  {
+    id: 'inaturalist',
+    name: 'iNaturalist',
+    description: 'With XMP sidecars',
+  },
+  {
+    id: 'json',
+    name: 'JSON',
+    description: 'All metadata fields',
+  },
+  {
+    id: 'csv',
+    name: 'CSV',
+    description: 'Excel compatible',
+  },
+]
+
+/**
+ * Valid export format IDs (derived from EXPORT_FORMATS)
+ * Used for input validation in useBulkExport hook.
+ */
+export const VALID_EXPORT_FORMAT_IDS = EXPORT_FORMATS.map(f => f.id)
+
+/**
  * Z-Index Layer System
  *
  * Centralized z-index values to prevent layering conflicts.
