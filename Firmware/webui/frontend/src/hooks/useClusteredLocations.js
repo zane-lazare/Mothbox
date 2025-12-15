@@ -105,6 +105,8 @@ async function fetchClusteredLocations({ enabled, radius, minSize }) {
 /**
  * Custom hook for managing clustered photo locations.
  *
+ * @param {Object} options - Hook options
+ * @param {boolean} [options.enabled=true] - Whether to enable the query (useful for conditional fetching)
  * @returns {Object} Clustering state and controls
  *   - clusters: Array of photo clusters
  *   - unclustered: Array of individual photos
@@ -119,7 +121,8 @@ async function fetchClusteredLocations({ enabled, radius, minSize }) {
  *   - setMinSize: Set minimum cluster size
  *   - refetch: Manually refetch data
  */
-export function useClusteredLocations() {
+export function useClusteredLocations(options = {}) {
+  const { enabled: queryEnabled = true } = options
   const [settings, setSettings] = useState(getSavedSettings)
 
   // Save settings to localStorage when they change
@@ -133,6 +136,7 @@ export function useClusteredLocations() {
     queryFn: () => fetchClusteredLocations(settings),
     staleTime: 30000, // 30 seconds
     refetchOnWindowFocus: false,
+    enabled: queryEnabled,
   })
 
   // Settings setters

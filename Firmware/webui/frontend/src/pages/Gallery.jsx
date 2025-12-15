@@ -7,7 +7,7 @@ import { ArrowTopRightOnSquareIcon, AdjustmentsHorizontalIcon } from '@heroicons
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 import { useViewMode } from '../hooks/useViewMode'
 import { useSeries } from '../hooks/useSeries'
-import { usePhotoLocations } from '../hooks/usePhotoLocations'
+import { useClusteredLocations } from '../hooks/useClusteredLocations'
 import { usePhotoSearch } from '../hooks/usePhotoSearch'
 import useScrollRestoration from '../hooks/useScrollRestoration'
 import useBulkOperations from '../hooks/useBulkOperations'
@@ -137,12 +137,19 @@ function GalleryContent() {
   // Fetch series data for grouping photos
   const { data: seriesData, isError: isSeriesError, refetch: refetchSeries } = useSeries()
 
-  // Fetch photo locations for map view
+  // Fetch clustered photo locations for map view
   const {
-    locations,
+    clusters,
+    unclustered,
     isLoading: isLoadingLocations,
-    totalWithGps,
-  } = usePhotoLocations({}, { enabled: viewMode === 'map' })
+    settings: clusterSettings,
+    setEnabled: setClusterEnabled,
+    setRadius: setClusterRadius,
+  } = useClusteredLocations({ enabled: viewMode === 'map' })
+
+  // Calculate total counts from clustered data
+  const totalInClusters = clusters.reduce((sum, cluster) => sum + cluster.count, 0)
+  const totalWithGps = totalInClusters + unclustered.length
 
   // Set up infinite scroll sentinel
   const sentinelRef = useInfiniteScroll({
@@ -685,7 +692,11 @@ function GalleryContent() {
               /* Map View */
               <div className="h-[600px] rounded-lg overflow-hidden">
                 <MapView
-                  locations={locations}
+                  locations={unclustered}
+                  clusters={clusters}
+                  clusterSettings={clusterSettings}
+                  onClusterEnabledChange={setClusterEnabled}
+                  onClusterRadiusChange={setClusterRadius}
                   onPhotoClick={handleMapPhotoClick}
                   isLoading={isLoadingLocations}
                 />
