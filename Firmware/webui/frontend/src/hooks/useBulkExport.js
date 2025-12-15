@@ -81,6 +81,8 @@ export default function useBulkExport({ onComplete } = {}) {
   // Generate download URL when completed
   const downloadUrl = job?.status === 'completed' && jobId ? getExportJobDownloadUrl(jobId) : null
 
+  const VALID_FORMATS = ['darwin_core', 'inaturalist', 'json', 'csv']
+
   /**
    * Start export for multiple photos
    *
@@ -93,6 +95,17 @@ export default function useBulkExport({ onComplete } = {}) {
     setError(null)
     setJobId(null)
     hasCompletedRef.current = false
+
+    // Validate inputs
+    if (!Array.isArray(photoPaths) || photoPaths.length === 0) {
+      setError('No photos selected for export')
+      return
+    }
+
+    if (!format || !VALID_FORMATS.includes(format)) {
+      setError(`Invalid export format. Must be one of: ${VALID_FORMATS.join(', ')}`)
+      return
+    }
 
     try {
       // Create export job

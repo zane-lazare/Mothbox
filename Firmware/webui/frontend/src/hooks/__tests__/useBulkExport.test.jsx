@@ -159,6 +159,66 @@ describe('useBulkExport', () => {
       expect(result.current.error).toBeTruthy()
       expect(result.current.isExporting).toBe(false)
     })
+
+    it('validates empty photo array', async () => {
+      const createSpy = vi.spyOn(exportApi, 'createExportJob')
+
+      const { result } = renderHook(() => useBulkExport(), {
+        wrapper: createWrapper(),
+      })
+
+      await act(async () => {
+        await result.current.exportPhotos([], 'json')
+      })
+
+      expect(result.current.error).toBe('No photos selected for export')
+      expect(createSpy).not.toHaveBeenCalled()
+    })
+
+    it('validates undefined photo array', async () => {
+      const createSpy = vi.spyOn(exportApi, 'createExportJob')
+
+      const { result } = renderHook(() => useBulkExport(), {
+        wrapper: createWrapper(),
+      })
+
+      await act(async () => {
+        await result.current.exportPhotos(undefined, 'json')
+      })
+
+      expect(result.current.error).toBe('No photos selected for export')
+      expect(createSpy).not.toHaveBeenCalled()
+    })
+
+    it('validates invalid format', async () => {
+      const createSpy = vi.spyOn(exportApi, 'createExportJob')
+
+      const { result } = renderHook(() => useBulkExport(), {
+        wrapper: createWrapper(),
+      })
+
+      await act(async () => {
+        await result.current.exportPhotos(['photo1.jpg'], 'invalid_format')
+      })
+
+      expect(result.current.error).toBe('Invalid export format. Must be one of: darwin_core, inaturalist, json, csv')
+      expect(createSpy).not.toHaveBeenCalled()
+    })
+
+    it('validates missing format', async () => {
+      const createSpy = vi.spyOn(exportApi, 'createExportJob')
+
+      const { result } = renderHook(() => useBulkExport(), {
+        wrapper: createWrapper(),
+      })
+
+      await act(async () => {
+        await result.current.exportPhotos(['photo1.jpg'], null)
+      })
+
+      expect(result.current.error).toBe('Invalid export format. Must be one of: darwin_core, inaturalist, json, csv')
+      expect(createSpy).not.toHaveBeenCalled()
+    })
   })
 
   describe('Progress tracking', () => {
