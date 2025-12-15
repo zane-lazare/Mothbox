@@ -103,6 +103,7 @@ function GalleryContent() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [exportModalOpen, setExportModalOpen] = useState(false)
   const [progressModalOpen, setProgressModalOpen] = useState(false)
+  const [progressOperation, setProgressOperation] = useState(null) // 'export' | 'tag' | 'species' | 'delete'
   const [progressState, setProgressState] = useState({
     status: 'processing',
     current: 0,
@@ -307,33 +308,49 @@ function GalleryContent() {
     }
   }, [isSeriesError, hasShownSeriesErrorToast])
 
-  // Track export progress and completion
-  useEffect(() => {
-    if (!isExporting && downloadUrl) {
-      // Export completed - show success with download button
-      setProgressState({
-        status: 'success',
-        current: selectedCount,
-        total: selectedCount,
-        message: 'Export complete!',
-        downloadUrl: downloadUrl, // Pass to progress modal
-      })
-    } else if (exportProgress) {
-      setProgressState(prev => ({
-        ...prev,
-        current: exportProgress.current,
-        total: exportProgress.total,
-        message: `${exportProgress.phase}... ${exportProgress.percent}%`,
-      }))
-    } else if (exportError) {
-      setProgressState({
+  // Derive export progress state from hook (avoids race condition with manual updates)
+  const exportProgressState = useMemo(() => {
+    if (progressOperation !== 'export') return null
+
+    if (exportError) {
+      return {
         status: 'error',
         current: 0,
         total: selectedCount,
         message: exportError,
-      })
+      }
     }
-  }, [isExporting, exportProgress, exportError, downloadUrl, selectedCount])
+
+    if (!isExporting && downloadUrl) {
+      return {
+        status: 'success',
+        current: selectedCount,
+        total: selectedCount,
+        message: 'Export complete!',
+        downloadUrl: downloadUrl,
+      }
+    }
+
+    if (exportProgress) {
+      return {
+        status: 'processing',
+        current: exportProgress.current,
+        total: exportProgress.total,
+        message: `${exportProgress.phase}... ${exportProgress.percent}%`,
+      }
+    }
+
+    // Initial state while waiting for first progress update
+    return {
+      status: 'processing',
+      current: 0,
+      total: selectedCount,
+      message: `Exporting ${selectedCount} photos...`,
+    }
+  }, [progressOperation, isExporting, exportProgress, exportError, downloadUrl, selectedCount])
+
+  // Current progress state (export uses derived state, others use manual state)
+  const currentProgressState = progressOperation === 'export' ? exportProgressState : progressState
 
   // Keyboard shortcuts for bulk selection
   useEffect(() => {
@@ -564,16 +581,11 @@ function GalleryContent() {
   const handleBulkExport = useCallback(async (format) => {
     setExportModalOpen(false)
     setProgressModalOpen(true)
-    setProgressState({
-      status: 'processing',
-      current: 0,
-      total: selectedCount,
-      message: `Exporting ${selectedCount} photos...`,
-    })
+    setProgressOperation('export')
 
     const photoPaths = Array.from(selectedPhotos)
     await exportPhotos(photoPaths, format)
-  }, [selectedPhotos, selectedCount, exportPhotos])
+  }, [selectedPhotos, exportPhotos])
 
   // Toolbar action handlers
   const handleTagClick = useCallback(() => setTagModalOpen(true), [])
@@ -949,13 +961,16 @@ function GalleryContent() {
         {/* Bulk Progress Modal */}
         <BulkProgressModal
           isOpen={progressModalOpen}
-          status={progressState.status}
-          current={progressState.current}
-          total={progressState.total}
-          message={progressState.message}
-          downloadUrl={progressState.downloadUrl}
-          operation="export"
-          onClose={() => setProgressModalOpen(false)}
+          status={currentProgressState?.status}
+          current={currentProgressState?.current}
+          total={currentProgressState?.total}
+          message={currentProgressState?.message}
+          downloadUrl={currentProgressState?.downloadUrl}
+          operation={progressOperation || 'tag'}
+          onClose={() => {
+            setProgressModalOpen(false)
+            setProgressOperation(null)
+          }}
         />
 
         {/* Advanced Search Modal */}
