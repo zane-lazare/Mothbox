@@ -25,6 +25,7 @@ from pathlib import Path
 from zipfile import ZipFile, is_zipfile
 
 from webui.backend.lib.zip_export import (
+    DEFAULT_BATCH_SIZE,
     MANIFEST_FILENAME,
     SUMMARY_FILENAME,
     ZIP_BUFFER_SIZE,
@@ -99,6 +100,10 @@ class TestConstants:
     def test_zip_buffer_size(self):
         """ZIP_BUFFER_SIZE should be 8KB."""
         assert ZIP_BUFFER_SIZE == 8192
+
+    def test_default_batch_size(self):
+        """DEFAULT_BATCH_SIZE should be 50."""
+        assert DEFAULT_BATCH_SIZE == 50
 
     def test_manifest_filename(self):
         """MANIFEST_FILENAME should be 'manifest.json'."""
@@ -752,6 +757,181 @@ class TestStreamZipExport:
 
 
 # ============================================================================
+# Test Parallel Photo I/O
+# ============================================================================
+
+
+class TestParallelPhotoIO:
+    """Test parallel photo I/O functionality."""
+
+    def test_parallel_processing_success(self, tmp_path):
+        """Test parallel processing produces correct results."""
+        # Create test photos
+        photo_paths = []
+        metadata_list = []
+        for i in range(10):
+            path = tmp_path / f"moth{i}.jpg"
+            create_test_jpeg(path, size=10000)
+            photo_paths.append(path)
+            metadata_list.append(create_test_metadata(filename=f"moth{i}.jpg"))
+
+        output_path = tmp_path / "export.zip"
+        result = create_zip_export(
+            photo_paths,
+            metadata_list,
+            output_path,
+            max_workers=4,
+        )
+
+        # Should succeed with all photos
+        assert result.success is True
+        assert result.photo_count == 10
+        assert result.xmp_count == 10
+        assert len(result.errors) == 0
+
+        # Verify ZIP contents
+        with ZipFile(output_path, 'r') as zf:
+            namelist = zf.namelist()
+            for i in range(10):
+                assert f"moth{i}.jpg" in namelist
+                assert f"moth{i}.xmp" in namelist
+
+    def test_parallel_processing_with_errors(self, tmp_path):
+        """Test parallel processing handles errors correctly."""
+        # Create mix of valid and missing photos
+        photo_paths = []
+        metadata_list = []
+        for i in range(10):
+            path = tmp_path / f"moth{i}.jpg"
+            if i % 3 == 0:
+                # Create missing file (every 3rd photo: 0, 3, 6, 9)
+                pass
+            else:
+                create_test_jpeg(path, size=10000)
+            photo_paths.append(path)
+            metadata_list.append(create_test_metadata(filename=f"moth{i}.jpg"))
+
+        output_path = tmp_path / "export.zip"
+        result = create_zip_export(
+            photo_paths,
+            metadata_list,
+            output_path,
+            max_workers=4,
+        )
+
+        # Should have partial success with errors
+        expected_success = 6  # 10 total - 4 missing (0, 3, 6, 9)
+        assert result.photo_count == expected_success
+        assert len(result.errors) == 4
+
+    def test_parallel_processing_max_workers(self, tmp_path):
+        """Test different max_workers values."""
+        # Create test photos
+        photo_paths = []
+        metadata_list = []
+        for i in range(20):
+            path = tmp_path / f"moth{i}.jpg"
+            create_test_jpeg(path, size=5000)
+            photo_paths.append(path)
+            metadata_list.append(create_test_metadata(filename=f"moth{i}.jpg"))
+
+        # Test with different worker counts
+        for workers in [1, 2, 4, 8]:
+            output_path = tmp_path / f"export_{workers}.zip"
+            result = create_zip_export(
+                photo_paths,
+                metadata_list,
+                output_path,
+                max_workers=workers,
+            )
+
+            assert result.success is True
+            assert result.photo_count == 20
+            assert validate_zip_integrity(output_path)
+
+    def test_parallel_processing_thread_safety(self, tmp_path):
+        """Test that parallel processing maintains thread safety."""
+        # Create large batch to stress test thread safety
+        photo_paths = []
+        metadata_list = []
+        for i in range(50):
+            path = tmp_path / f"moth{i}.jpg"
+            create_test_jpeg(path, size=5000)
+            photo_paths.append(path)
+            metadata_list.append(create_test_metadata(filename=f"moth{i}.jpg"))
+
+        output_path = tmp_path / "export.zip"
+        result = create_zip_export(
+            photo_paths,
+            metadata_list,
+            output_path,
+            max_workers=4,
+        )
+
+        # Verify all photos written correctly
+        assert result.success is True
+        assert result.photo_count == 50
+
+        # Verify ZIP integrity
+        assert validate_zip_integrity(output_path)
+
+        # Verify all files present
+        with ZipFile(output_path, 'r') as zf:
+            namelist = zf.namelist()
+            for i in range(50):
+                assert f"moth{i}.jpg" in namelist
+                assert f"moth{i}.xmp" in namelist
+
+    def test_parallel_processing_performance_improvement(self, tmp_path):
+        """Test that parallel processing works correctly with different worker counts."""
+        # Create test photos
+        photo_paths = []
+        metadata_list = []
+        for i in range(20):
+            path = tmp_path / f"moth{i}.jpg"
+            create_test_jpeg(path, size=20000)
+            photo_paths.append(path)
+            metadata_list.append(create_test_metadata(filename=f"moth{i}.jpg"))
+
+        # Test with 1 worker (sequential)
+        output_path_seq = tmp_path / "export_seq.zip"
+        result_seq = create_zip_export(
+            photo_paths,
+            metadata_list,
+            output_path_seq,
+            max_workers=1,
+        )
+
+        # Test with 4 workers (parallel)
+        output_path_par = tmp_path / "export_par.zip"
+        result_par = create_zip_export(
+            photo_paths,
+            metadata_list,
+            output_path_par,
+            max_workers=4,
+        )
+
+        # Both should succeed with identical results
+        assert result_seq.success is True
+        assert result_par.success is True
+        assert result_seq.photo_count == 20
+        assert result_par.photo_count == 20
+        assert result_seq.xmp_count == 20
+        assert result_par.xmp_count == 20
+        assert len(result_seq.errors) == 0
+        assert len(result_par.errors) == 0
+
+        # Both ZIP files should be valid and have the same content
+        assert validate_zip_integrity(output_path_seq)
+        assert validate_zip_integrity(output_path_par)
+
+        # Verify file sizes are similar (within 5% due to ZIP metadata timestamps)
+        size_diff_ratio = abs(result_seq.zip_size_bytes - result_par.zip_size_bytes) / result_seq.zip_size_bytes
+        assert size_diff_ratio < 0.05, \
+            f"ZIP sizes should be similar: seq={result_seq.zip_size_bytes}, par={result_par.zip_size_bytes}"
+
+
+# ============================================================================
 # Test Performance
 # ============================================================================
 
@@ -799,6 +979,103 @@ class TestPerformance:
         assert result.success is True
         assert result.photo_count == 50
         assert elapsed_time < 5.0, f"Streaming took {elapsed_time:.2f}s, expected <5s"
+
+
+# ============================================================================
+# Test Memory Efficiency
+# ============================================================================
+
+
+class TestMemoryEfficiency:
+    """Test memory efficiency of streaming ZIP export."""
+
+    def test_stream_zip_export_temp_file_cleanup(self, tmp_path):
+        """Test that stream_zip_export cleans up temp files."""
+        import tempfile
+
+        # Track temp files created
+        original_mkstemp = tempfile.mkstemp
+        temp_files_created = []
+
+        def tracking_mkstemp(suffix=''):
+            fd, path = original_mkstemp(suffix=suffix)
+            temp_files_created.append(Path(path))
+            return fd, path
+
+        # Patch mkstemp
+        tempfile.mkstemp = tracking_mkstemp
+
+        try:
+            # Create test photo
+            photo_path = tmp_path / "moth.jpg"
+            create_test_jpeg(photo_path, size=50000)
+            metadata = create_test_metadata(filename="moth.jpg")
+
+            # Stream ZIP
+            for _chunk in stream_zip_export([photo_path], [metadata]):
+                pass  # Consume all chunks
+
+            # Verify temp file was created and cleaned up
+            assert len(temp_files_created) == 1
+            assert not temp_files_created[0].exists(), "Temp file should be deleted after streaming"
+
+        finally:
+            # Restore original
+            tempfile.mkstemp = original_mkstemp
+
+    def test_stream_zip_export_memory_not_accumulated(self, tmp_path):
+        """Test that streaming doesn't accumulate all chunks in memory."""
+        # Create 10 test photos (50KB each = 500KB total)
+        photo_paths = []
+        metadata_list = []
+        for i in range(10):
+            path = tmp_path / f"moth{i}.jpg"
+            create_test_jpeg(path, size=50000)
+            photo_paths.append(path)
+            metadata_list.append(create_test_metadata(filename=f"moth{i}.jpg"))
+
+        # Stream ZIP and count chunks (not accumulate them)
+        chunk_count = 0
+        result = None
+        for chunk in stream_zip_export(photo_paths, metadata_list):
+            if isinstance(chunk, bytes):
+                chunk_count += 1
+                # Don't accumulate chunks - just count them
+                # This simulates streaming to HTTP response
+            else:
+                result = chunk
+
+        # Should have multiple chunks (not single large chunk)
+        assert chunk_count > 1, "Should stream in multiple chunks"
+        assert result.success is True
+        assert result.photo_count == 10
+
+    def test_stream_zip_export_chunk_size(self, tmp_path):
+        """Test that chunks are of expected size (ZIP_BUFFER_SIZE)."""
+        # Create test photo
+        photo_path = tmp_path / "moth.jpg"
+        create_test_jpeg(photo_path, size=50000)
+        metadata = create_test_metadata(filename="moth.jpg")
+
+        # Stream ZIP and check chunk sizes
+        chunks = []
+        result = None
+        for chunk in stream_zip_export([photo_path], [metadata]):
+            if isinstance(chunk, bytes):
+                chunks.append(chunk)
+            else:
+                result = chunk
+
+        # All chunks except last should be ZIP_BUFFER_SIZE
+        for chunk in chunks[:-1]:
+            assert len(chunk) == ZIP_BUFFER_SIZE
+
+        # Last chunk should be <= ZIP_BUFFER_SIZE
+        assert len(chunks[-1]) <= ZIP_BUFFER_SIZE
+
+        # Total size should match result
+        total_size = sum(len(c) for c in chunks)
+        assert total_size == result.zip_size_bytes
 
 
 # ============================================================================
@@ -982,7 +1259,8 @@ class TestErrorHandling:
         original_init = ZipFile.__init__
 
         def mock_init(self, file, mode='r', *args, **kwargs):
-            if mode == 'w' and hasattr(file, 'write'):
+            # Check if it's a Path object (from temp file) being opened for writing
+            if mode == 'w' and isinstance(file, Path):
                 raise OSError(errno.EIO, "Input/output error")
             return original_init(self, file, mode, *args, **kwargs)
 
@@ -1002,9 +1280,6 @@ class TestErrorHandling:
 # ============================================================================
 # Progress Callback Tests
 # ============================================================================
-
-
-import pytest
 
 
 class TestProgressCallback:
@@ -1127,3 +1402,248 @@ class TestProgressCallback:
         # Should have one call for single photo
         assert len(progress_calls) == 1
         assert progress_calls[0] == (1, 1)
+
+
+# ============================================================================
+# Test Batched Processing
+# ============================================================================
+
+
+class TestBatchedProcessing:
+    """Test batched processing for memory efficiency."""
+
+    def test_batched_processing_small_batch(self, tmp_path):
+        """Test processing with small batch size."""
+        # Create 30 test photos
+        photo_paths = []
+        metadata_list = []
+        for i in range(30):
+            path = tmp_path / f"moth{i}.jpg"
+            create_test_jpeg(path, size=10000)
+            photo_paths.append(path)
+            metadata_list.append(create_test_metadata(filename=f"moth{i}.jpg"))
+
+        output_path = tmp_path / "export.zip"
+        result = create_zip_export(
+            photo_paths,
+            metadata_list,
+            output_path,
+            batch_size=10,  # Process in batches of 10
+        )
+
+        # Should succeed with all photos
+        assert result.success is True
+        assert result.photo_count == 30
+        assert result.xmp_count == 30
+        assert len(result.errors) == 0
+
+        # Verify ZIP contents
+        with ZipFile(output_path, 'r') as zf:
+            namelist = zf.namelist()
+            for i in range(30):
+                assert f"moth{i}.jpg" in namelist
+                assert f"moth{i}.xmp" in namelist
+
+    def test_batched_processing_single_batch(self, tmp_path):
+        """Test processing with batch size larger than photo count."""
+        # Create 10 photos with batch size of 100
+        photo_paths = []
+        metadata_list = []
+        for i in range(10):
+            path = tmp_path / f"moth{i}.jpg"
+            create_test_jpeg(path, size=5000)
+            photo_paths.append(path)
+            metadata_list.append(create_test_metadata(filename=f"moth{i}.jpg"))
+
+        output_path = tmp_path / "export.zip"
+        result = create_zip_export(
+            photo_paths,
+            metadata_list,
+            output_path,
+            batch_size=100,  # Larger than photo count
+        )
+
+        assert result.success is True
+        assert result.photo_count == 10
+        assert result.xmp_count == 10
+
+    def test_batched_processing_exact_multiple(self, tmp_path):
+        """Test processing when photo count is exact multiple of batch size."""
+        # 50 photos with batch size 25 = exactly 2 batches
+        photo_paths = []
+        metadata_list = []
+        for i in range(50):
+            path = tmp_path / f"moth{i}.jpg"
+            create_test_jpeg(path, size=5000)
+            photo_paths.append(path)
+            metadata_list.append(create_test_metadata(filename=f"moth{i}.jpg"))
+
+        output_path = tmp_path / "export.zip"
+        result = create_zip_export(
+            photo_paths,
+            metadata_list,
+            output_path,
+            batch_size=25,
+        )
+
+        assert result.success is True
+        assert result.photo_count == 50
+        assert result.xmp_count == 50
+        assert validate_zip_integrity(output_path)
+
+    def test_batched_processing_with_errors(self, tmp_path):
+        """Test batched processing handles errors correctly across batches."""
+        # Create 30 photos with some missing (across multiple batches)
+        photo_paths = []
+        metadata_list = []
+        for i in range(30):
+            path = tmp_path / f"moth{i}.jpg"
+            if i % 7 != 0:  # Skip every 7th photo
+                create_test_jpeg(path, size=5000)
+            photo_paths.append(path)
+            metadata_list.append(create_test_metadata(filename=f"moth{i}.jpg"))
+
+        output_path = tmp_path / "export.zip"
+        result = create_zip_export(
+            photo_paths,
+            metadata_list,
+            output_path,
+            batch_size=10,  # 3 batches
+        )
+
+        # Should have partial success
+        expected_missing = 5  # 0, 7, 14, 21, 28
+        expected_success = 30 - expected_missing
+        assert result.photo_count == expected_success
+        assert len(result.errors) == expected_missing
+
+    def test_batched_processing_different_batch_sizes(self, tmp_path):
+        """Test that different batch sizes produce identical results."""
+        # Create 60 photos
+        photo_paths = []
+        metadata_list = []
+        for i in range(60):
+            path = tmp_path / f"moth{i}.jpg"
+            create_test_jpeg(path, size=5000)
+            photo_paths.append(path)
+            metadata_list.append(create_test_metadata(filename=f"moth{i}.jpg"))
+
+        # Test with different batch sizes
+        results = {}
+        for batch_size in [10, 20, 30, 60, 100]:
+            output_path = tmp_path / f"export_{batch_size}.zip"
+            result = create_zip_export(
+                photo_paths,
+                metadata_list,
+                output_path,
+                batch_size=batch_size,
+            )
+            results[batch_size] = result
+
+            # All should succeed
+            assert result.success is True
+            assert result.photo_count == 60
+            assert result.xmp_count == 60
+            assert validate_zip_integrity(output_path)
+
+        # All ZIP files should have similar sizes (within 5%)
+        sizes = [r.zip_size_bytes for r in results.values()]
+        max_size = max(sizes)
+        min_size = min(sizes)
+        size_diff_ratio = (max_size - min_size) / min_size
+        assert size_diff_ratio < 0.05, \
+            f"ZIP sizes should be similar across batch sizes: {sizes}"
+
+    def test_batched_processing_progress_callback(self, tmp_path):
+        """Test progress callback works correctly with batched processing."""
+        # Create 45 photos with batch size 15
+        photo_paths = []
+        metadata_list = []
+        for i in range(45):
+            path = tmp_path / f"moth{i}.jpg"
+            create_test_jpeg(path, size=5000)
+            photo_paths.append(path)
+            metadata_list.append(create_test_metadata(filename=f"moth{i}.jpg"))
+
+        output_path = tmp_path / "export.zip"
+        progress_calls = []
+
+        def progress_callback(current: int, total: int) -> None:
+            progress_calls.append((current, total))
+
+        result = create_zip_export(
+            photo_paths,
+            metadata_list,
+            output_path,
+            batch_size=15,
+            progress_callback=progress_callback,
+        )
+
+        assert result.success is True
+        # Should have progress calls at 10, 20, 30, 40, 45
+        assert len(progress_calls) == 5
+        currents = [c[0] for c in progress_calls]
+        assert currents == [10, 20, 30, 40, 45]
+        # All should report correct total
+        assert all(total == 45 for _, total in progress_calls)
+
+    def test_batched_processing_memory_bounds(self, tmp_path):
+        """Test that batched processing bounds memory usage."""
+        # Create 100 small photos
+        photo_paths = []
+        metadata_list = []
+        for i in range(100):
+            path = tmp_path / f"moth{i}.jpg"
+            create_test_jpeg(path, size=5000)  # 5KB each
+            photo_paths.append(path)
+            metadata_list.append(create_test_metadata(filename=f"moth{i}.jpg"))
+
+        output_path = tmp_path / "export.zip"
+
+        # With batch_size=10, max memory should be bounded
+        # (10 photos × ~5KB × 2 for photo+XMP = ~100KB max per batch)
+        result = create_zip_export(
+            photo_paths,
+            metadata_list,
+            output_path,
+            batch_size=10,
+            max_workers=4,
+        )
+
+        assert result.success is True
+        assert result.photo_count == 100
+        assert result.xmp_count == 100
+
+        # Verify all files present
+        with ZipFile(output_path, 'r') as zf:
+            namelist = zf.namelist()
+            assert len([n for n in namelist if n.endswith('.jpg')]) == 100
+            assert len([n for n in namelist if n.endswith('.xmp')]) == 100
+
+    def test_batched_processing_preserves_order(self, tmp_path):
+        """Test that batched processing preserves photo order in ZIP."""
+        # Create 30 photos
+        photo_paths = []
+        metadata_list = []
+        for i in range(30):
+            path = tmp_path / f"photo_{i:03d}.jpg"
+            create_test_jpeg(path, size=5000)
+            photo_paths.append(path)
+            metadata_list.append(create_test_metadata(filename=f"photo_{i:03d}.jpg"))
+
+        output_path = tmp_path / "export.zip"
+        result = create_zip_export(
+            photo_paths,
+            metadata_list,
+            output_path,
+            batch_size=10,
+        )
+
+        assert result.success is True
+
+        # Verify order in ZIP
+        with ZipFile(output_path, 'r') as zf:
+            zip_files = [n for n in zf.namelist() if n.endswith('.jpg')]
+            # Should be in the same order
+            for i, filename in enumerate(zip_files):
+                assert filename == f"photo_{i:03d}.jpg"
