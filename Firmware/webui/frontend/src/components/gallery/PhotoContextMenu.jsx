@@ -15,7 +15,7 @@ function PhotoContextMenu({ photo, isOpen, onClose, position }) {
   const onCloseRef = useRef(onClose)
 
   // Floating UI for positioning ExportOptionsMenu relative to Export item
-  const { refs, floatingStyles } = useFloating({
+  const { refs } = useFloating({
     placement: 'right-start',
     middleware: [
       offset(4),

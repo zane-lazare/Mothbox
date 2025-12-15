@@ -12,7 +12,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
 
 // Import components to test
 import PhotoGridItem from '../../components/PhotoGridItem'
@@ -211,7 +210,6 @@ describe('Gallery Export Integration Tests', () => {
     })
 
     it('context menu works with photos that have minimal metadata', async () => {
-      const user = userEvent.setup()
       renderPhotoGridItem(mockPhotoMinimal)
 
       // Right-click to open context menu

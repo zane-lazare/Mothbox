@@ -437,7 +437,7 @@ export const Z_INDEX = {
   PHOTO_CONTROLS: 'z-10',    // Checkboxes, quick tag buttons on photos
   DROPDOWN: 'z-30',          // Search bar dropdowns, autocomplete
   TOOLBAR: 'z-40',           // Bulk actions toolbar, floating buttons
-  MODAL: 'z-50',             // Modals, lightbox, overlays
+  MODAL: 'z-[1200]',         // Modals, lightbox, overlays (above map elements)
   MAP_CONTROLS: 'z-[1000]',  // Leaflet map controls layer
   MAP_POPUP: 1100,           // Map hover popup (numeric for inline style)
 }

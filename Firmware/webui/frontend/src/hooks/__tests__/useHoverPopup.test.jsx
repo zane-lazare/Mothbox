@@ -57,6 +57,18 @@ describe('useHoverPopup', () => {
       expect(result.current.handleClick).toBeTypeOf('function')
     })
 
+    it('provides handlePopupOpen function', () => {
+      const { result } = renderHook(() => useHoverPopup())
+
+      expect(result.current.handlePopupOpen).toBeTypeOf('function')
+    })
+
+    it('provides handlePopupClose function', () => {
+      const { result } = renderHook(() => useHoverPopup())
+
+      expect(result.current.handlePopupClose).toBeTypeOf('function')
+    })
+
     it('provides isMobile boolean', () => {
       const { result } = renderHook(() => useHoverPopup())
 
@@ -507,6 +519,309 @@ describe('useHoverPopup', () => {
       })
 
       expect(result.current.position).toEqual({ x: undefined, y: undefined })
+    })
+  })
+
+  describe('Popup Open/Close Behavior', () => {
+    it('suppresses hover popup when click popup is open for same cluster', () => {
+      const { result } = renderHook(() => useHoverPopup())
+      const mockCluster = {
+        center: { lat: 37.7749, lon: -122.4194 },
+      }
+      const mockEvent = { clientX: 100, clientY: 200 }
+
+      // Open click popup
+      act(() => {
+        result.current.handlePopupOpen(mockCluster)
+      })
+
+      // Try to trigger hover popup
+      act(() => {
+        result.current.handleMouseEnter(mockCluster, mockEvent)
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(100)
+      })
+
+      // Should remain invisible due to click popup being open
+      expect(result.current.isVisible).toBe(false)
+    })
+
+    it('allows hover popup for different cluster when click popup is open', () => {
+      const { result } = renderHook(() => useHoverPopup())
+      const clickedCluster = {
+        center: { lat: 37.7749, lon: -122.4194 },
+      }
+      const differentCluster = {
+        center: { lat: 40.7128, lon: -74.006 },
+      }
+      const mockEvent = { clientX: 100, clientY: 200 }
+
+      // Open click popup for first cluster
+      act(() => {
+        result.current.handlePopupOpen(clickedCluster)
+      })
+
+      // Try to trigger hover popup for different cluster
+      act(() => {
+        result.current.handleMouseEnter(differentCluster, mockEvent)
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(100)
+      })
+
+      // Should show hover popup for different cluster
+      expect(result.current.isVisible).toBe(true)
+      expect(result.current.targetCluster).toEqual(differentCluster)
+    })
+
+    it('allows hover popup after click popup is closed', () => {
+      const { result } = renderHook(() => useHoverPopup())
+      const mockCluster = {
+        center: { lat: 37.7749, lon: -122.4194 },
+      }
+      const mockEvent = { clientX: 100, clientY: 200 }
+
+      // Open click popup
+      act(() => {
+        result.current.handlePopupOpen(mockCluster)
+      })
+
+      // Close click popup
+      act(() => {
+        result.current.handlePopupClose()
+      })
+
+      // Try to trigger hover popup
+      act(() => {
+        result.current.handleMouseEnter(mockCluster, mockEvent)
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(100)
+      })
+
+      // Should now show hover popup
+      expect(result.current.isVisible).toBe(true)
+    })
+
+    it('hides visible hover popup when click popup opens', () => {
+      const { result } = renderHook(() => useHoverPopup())
+      const mockCluster = {
+        center: { lat: 37.7749, lon: -122.4194 },
+      }
+      const mockEvent = { clientX: 100, clientY: 200 }
+
+      // Show hover popup first
+      act(() => {
+        result.current.handleMouseEnter(mockCluster, mockEvent)
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(100)
+      })
+
+      expect(result.current.isVisible).toBe(true)
+
+      // Open click popup - should hide hover popup
+      act(() => {
+        result.current.handlePopupOpen(mockCluster)
+      })
+
+      expect(result.current.isVisible).toBe(false)
+    })
+
+    it('handles clusters without valid coordinates in handlePopupOpen', () => {
+      const { result } = renderHook(() => useHoverPopup())
+      const mockEvent = { clientX: 100, clientY: 200 }
+
+      // Open click popup with invalid cluster (no center)
+      act(() => {
+        result.current.handlePopupOpen(null)
+      })
+
+      // Should still allow hover popup since cluster ID is null
+      const mockCluster = {
+        center: { lat: 37.7749, lon: -122.4194 },
+      }
+
+      act(() => {
+        result.current.handleMouseEnter(mockCluster, mockEvent)
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(100)
+      })
+
+      expect(result.current.isVisible).toBe(true)
+    })
+
+    it('handles cluster with missing lat in getClusterId', () => {
+      const { result } = renderHook(() => useHoverPopup())
+      const mockEvent = { clientX: 100, clientY: 200 }
+
+      // Open click popup with cluster missing lat
+      const invalidCluster = { center: { lon: -122.4194 } }
+      act(() => {
+        result.current.handlePopupOpen(invalidCluster)
+      })
+
+      // Hover popup should still work since cluster ID is null
+      const validCluster = {
+        center: { lat: 37.7749, lon: -122.4194 },
+      }
+
+      act(() => {
+        result.current.handleMouseEnter(validCluster, mockEvent)
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(100)
+      })
+
+      expect(result.current.isVisible).toBe(true)
+    })
+
+    it('handles cluster with missing lon in getClusterId', () => {
+      const { result } = renderHook(() => useHoverPopup())
+      const mockEvent = { clientX: 100, clientY: 200 }
+
+      // Open click popup with cluster missing lon
+      const invalidCluster = { center: { lat: 37.7749 } }
+      act(() => {
+        result.current.handlePopupOpen(invalidCluster)
+      })
+
+      // Hover popup should still work since cluster ID is null
+      const validCluster = {
+        center: { lat: 37.7749, lon: -122.4194 },
+      }
+
+      act(() => {
+        result.current.handleMouseEnter(validCluster, mockEvent)
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(100)
+      })
+
+      expect(result.current.isVisible).toBe(true)
+    })
+
+    it('handles cluster with missing center in getClusterId', () => {
+      const { result } = renderHook(() => useHoverPopup())
+      const mockEvent = { clientX: 100, clientY: 200 }
+
+      // Open click popup with cluster missing center entirely
+      const invalidCluster = { id: 'cluster1' }
+      act(() => {
+        result.current.handlePopupOpen(invalidCluster)
+      })
+
+      // Hover popup should still work since cluster ID is null
+      const validCluster = {
+        center: { lat: 37.7749, lon: -122.4194 },
+      }
+
+      act(() => {
+        result.current.handleMouseEnter(validCluster, mockEvent)
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(100)
+      })
+
+      expect(result.current.isVisible).toBe(true)
+    })
+
+    it('handles coordinates at 0,0 (valid but falsy)', () => {
+      const { result } = renderHook(() => useHoverPopup())
+      const mockEvent = { clientX: 100, clientY: 200 }
+
+      // Cluster at 0,0 (Gulf of Guinea) - valid coordinates
+      const zeroCluster = {
+        center: { lat: 0, lon: 0 },
+      }
+
+      // Open click popup for 0,0 cluster
+      act(() => {
+        result.current.handlePopupOpen(zeroCluster)
+      })
+
+      // Try to hover over same cluster - should be suppressed
+      act(() => {
+        result.current.handleMouseEnter(zeroCluster, mockEvent)
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(100)
+      })
+
+      // Should NOT show hover popup since click popup is open for same cluster
+      expect(result.current.isVisible).toBe(false)
+    })
+
+    it('uses native cluster_id when available for better performance', () => {
+      const { result } = renderHook(() => useHoverPopup())
+      const mockEvent = { clientX: 100, clientY: 200 }
+
+      // Cluster with native cluster_id
+      const clusterWithId = {
+        cluster_id: 'cluster-abc-123',
+        center: { lat: 37.7749, lon: -122.4194 },
+      }
+
+      // Open click popup
+      act(() => {
+        result.current.handlePopupOpen(clusterWithId)
+      })
+
+      // Try to hover over same cluster (identified by cluster_id)
+      act(() => {
+        result.current.handleMouseEnter(clusterWithId, mockEvent)
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(100)
+      })
+
+      // Should suppress hover since cluster_id matches
+      expect(result.current.isVisible).toBe(false)
+    })
+
+    it('cancels pending show timer when click popup opens', () => {
+      const { result } = renderHook(() => useHoverPopup())
+      const mockCluster = {
+        center: { lat: 37.7749, lon: -122.4194 },
+      }
+      const mockEvent = { clientX: 100, clientY: 200 }
+
+      // Start hover (creates show timer)
+      act(() => {
+        result.current.handleMouseEnter(mockCluster, mockEvent)
+      })
+
+      // Advance time partially (50ms of 100ms delay)
+      act(() => {
+        vi.advanceTimersByTime(50)
+      })
+
+      expect(result.current.isVisible).toBe(false)
+
+      // Open click popup - should cancel the show timer
+      act(() => {
+        result.current.handlePopupOpen(mockCluster)
+      })
+
+      // Advance remaining time
+      act(() => {
+        vi.advanceTimersByTime(50)
+      })
+
+      // Should remain invisible (timer was cancelled)
+      expect(result.current.isVisible).toBe(false)
     })
   })
 })

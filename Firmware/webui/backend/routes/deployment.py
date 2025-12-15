@@ -64,7 +64,6 @@ from webui.backend.lib.deployment_schema import (
     MIN_LATITUDE,
     MIN_LONGITUDE,
     SUPPORTED_FORMATS,
-    DeploymentMetadata,
 )
 from webui.backend.security_utils import sanitize_error_message, validate_photo_path
 
@@ -100,7 +99,7 @@ def _validate_custom_value(value, depth: int = 0) -> tuple[bool, str | None]:
         return True, None
     if isinstance(value, str):
         if len(value) > 10000:  # Same as MAX_NOTES_LENGTH
-            return False, f"Custom field string value too long (max 10000)"
+            return False, "Custom field string value too long (max 10000)"
         return True, None
     if isinstance(value, list):
         for item in value:
@@ -163,9 +162,8 @@ def _validate_deployment_input(data: dict) -> tuple[bool, str | None]:
         if not MIN_LONGITUDE <= data['longitude'] <= MAX_LONGITUDE:
             return False, f"longitude must be between {MIN_LONGITUDE} and {MAX_LONGITUDE}"
 
-    if 'altitude' in data and data['altitude'] is not None:
-        if not isinstance(data['altitude'], (int, float)):
-            return False, "altitude must be a number"
+    if 'altitude' in data and data['altitude'] is not None and not isinstance(data['altitude'], (int, float)):
+        return False, "altitude must be a number"
 
     # Validate date fields (basic check - ISO 8601 format YYYY-MM-DD)
     for field in ['start_date', 'end_date']:

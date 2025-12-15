@@ -254,7 +254,7 @@ describe('MetadataPanel - Mobile Drawer Behavior', () => {
       expect(drawer).toHaveClass('fixed')
       expect(drawer).toHaveClass('inset-x-0')
       expect(drawer).toHaveClass('bottom-0')
-      expect(drawer).toHaveClass('z-50')
+      expect(drawer).toHaveClass('z-[1200]')
       expect(drawer.className).toContain('max-h-')
       expect(drawer).toHaveClass('rounded-t-2xl')
     })

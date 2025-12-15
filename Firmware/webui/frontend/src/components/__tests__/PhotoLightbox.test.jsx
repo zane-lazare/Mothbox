@@ -21,7 +21,7 @@ vi.mock('../metadata/MetadataPanel', () => ({
 
 // Mock ExportOptionsMenu to simplify testing
 vi.mock('../export/ExportOptionsMenu', () => ({
-  default: vi.fn(({ isOpen, photoPath, onClose, anchorEl }) =>
+  default: vi.fn(({ isOpen, photoPath, onClose }) =>
     isOpen ? (
       <div
         data-testid="export-options-menu"

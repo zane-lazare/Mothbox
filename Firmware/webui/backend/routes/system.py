@@ -10,6 +10,7 @@ from pathlib import Path
 from config import get_config
 from constants import MAX_BULK_DELETE, MAX_BULK_FILES, PHOTO_PATTERNS
 from flask import Blueprint, jsonify
+from routes.gps import _get_cached_gps_status
 
 from mothbox_paths import (
     CAMERA_SETTINGS_FILE,
@@ -24,7 +25,6 @@ from mothbox_paths import (
     get_gpio_pins,
     get_hardware_config,
 )
-from routes.gps import _get_cached_gps_status
 
 system_bp = Blueprint("system", __name__)
 

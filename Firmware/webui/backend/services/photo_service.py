@@ -7,9 +7,8 @@ Provides efficient photo listing with pagination, sorting, and filtering support
 from datetime import datetime
 from pathlib import Path
 
-from webui.backend.constants import PHOTO_PATTERNS
-
 from mothbox_paths import PHOTOS_DIR
+from webui.backend.constants import PHOTO_PATTERNS
 
 
 class PaginationError(Exception):
