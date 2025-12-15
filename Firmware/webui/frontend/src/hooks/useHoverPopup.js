@@ -103,7 +103,7 @@ export function useHoverPopup() {
     (cluster, event) => {
       // Skip hover if this cluster has click popup open
       const clusterId = getClusterId(cluster)
-      if (clickedClusterId && clickedClusterId === clusterId) {
+      if (clusterId && clickedClusterId === clusterId) {
         return
       }
 
