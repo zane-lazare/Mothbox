@@ -5,28 +5,71 @@ import { Z_INDEX } from '../../constants/config'
 /**
  * BulkProgressModal - Displays progress during bulk operations (tag, species, delete, export)
  *
- * Supports two prop interfaces:
- * 1. Simplified: status, current, total, message, downloadUrl
- * 2. Detailed: status, progress, processedCount, totalCount, successCount, failedCount, errors, operation
+ * This modal supports two prop interfaces to accommodate different use cases:
+ *
+ * ## Simplified Interface
+ * Use for straightforward progress tracking with custom messages.
+ * The modal auto-calculates progress percentage from current/total.
+ *
+ * Required props: `isOpen`, `onClose`, `status`, `current`, `total`
+ * Optional props: `message`, `downloadUrl`, `onCancel`
+ *
+ * @example
+ * // Simplified interface - export with download
+ * <BulkProgressModal
+ *   isOpen={true}
+ *   onClose={() => setOpen(false)}
+ *   status="processing"
+ *   current={5}
+ *   total={10}
+ *   message="Exporting photos..."
+ *   downloadUrl="/api/export/download/123"  // Shows download button on success
+ * />
+ *
+ * ## Detailed Interface
+ * Use for complex operations with batch processing, error tracking, and granular counts.
+ * Provides explicit control over all display values.
+ *
+ * Required props: `isOpen`, `onClose`, `status`, `progress`, `processedCount`, `totalCount`
+ * Optional props: `successCount`, `failedCount`, `errors`, `operation`, `currentBatch`, `totalBatches`, `onCancel`
+ *
+ * @example
+ * // Detailed interface - bulk tagging with error tracking
+ * <BulkProgressModal
+ *   isOpen={true}
+ *   onClose={() => setOpen(false)}
+ *   status="processing"
+ *   operation="tag"
+ *   progress={50}
+ *   processedCount={5}
+ *   totalCount={10}
+ *   successCount={4}
+ *   failedCount={1}
+ *   currentBatch={1}
+ *   totalBatches={2}
+ *   errors={{ 'photo1.jpg': 'File not found' }}
+ * />
  *
  * @param {Object} props
  * @param {boolean} props.isOpen - Whether modal is visible
  * @param {Function} props.onClose - Callback when modal closes (after completion)
  * @param {Function} [props.onCancel] - Callback when user cancels operation
  * @param {'processing'|'success'|'error'} props.status - Current operation status
- * @param {number} [props.progress] - Progress percentage (0-100) (detailed interface)
- * @param {number} [props.current] - Current count (simplified interface)
- * @param {number} [props.total] - Total count (simplified interface)
- * @param {string} [props.message] - Status message (simplified interface)
- * @param {number} [props.currentBatch] - Current batch number (for multi-batch operations)
- * @param {number} [props.totalBatches] - Total number of batches
- * @param {number} [props.processedCount] - Number of photos processed so far (detailed interface)
- * @param {number} [props.totalCount] - Total number of photos to process (detailed interface)
- * @param {number} [props.successCount] - Number of successfully processed photos (for completion)
- * @param {number} [props.failedCount] - Number of failed photos (for completion)
- * @param {Object} [props.errors] - Map of filename -> error message
- * @param {'tag'|'species'|'delete'|'export'} [props.operation='tag'] - Type of operation
- * @param {string} [props.downloadUrl] - Download URL for completed export (export operation only)
+ *
+ * @param {number} [props.current] - Current count (simplified interface, triggers simplified mode)
+ * @param {number} [props.total] - Total count (simplified interface, required with current)
+ * @param {string} [props.message] - Custom status message (simplified interface)
+ * @param {string} [props.downloadUrl] - Download URL for completed export (simplified interface)
+ *
+ * @param {number} [props.progress] - Progress percentage 0-100 (detailed interface)
+ * @param {number} [props.processedCount] - Photos processed so far (detailed interface)
+ * @param {number} [props.totalCount] - Total photos to process (detailed interface)
+ * @param {number} [props.successCount] - Successfully processed photos (detailed interface)
+ * @param {number} [props.failedCount] - Failed photos (detailed interface)
+ * @param {Object} [props.errors] - Map of filename -> error message (detailed interface)
+ * @param {'tag'|'species'|'delete'|'export'} [props.operation='tag'] - Operation type (detailed interface)
+ * @param {number} [props.currentBatch] - Current batch number (detailed interface)
+ * @param {number} [props.totalBatches] - Total batches (detailed interface)
  */
 export default function BulkProgressModal({
   isOpen,
