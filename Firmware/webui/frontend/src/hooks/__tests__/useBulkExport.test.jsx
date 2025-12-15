@@ -219,6 +219,48 @@ describe('useBulkExport', () => {
       expect(result.current.error).toBe('Invalid export format. Must be one of: darwin_core, inaturalist, json, csv')
       expect(createSpy).not.toHaveBeenCalled()
     })
+
+    it('handles network timeout during job creation', async () => {
+      const timeoutError = new Error('Network timeout')
+      timeoutError.code = 'ECONNABORTED'
+      vi.spyOn(exportApi, 'createExportJob').mockRejectedValue(timeoutError)
+
+      const { result } = renderHook(() => useBulkExport(), {
+        wrapper: createWrapper(),
+      })
+
+      await act(async () => {
+        await result.current.exportPhotos(['photo1.jpg'], 'json')
+      })
+
+      expect(result.current.error).toBe('Network timeout')
+      expect(result.current.isExporting).toBe(false)
+      expect(result.current.jobId).toBeNull()
+    })
+
+    it('handles rapid consecutive export calls (resets previous state)', async () => {
+      vi.spyOn(exportApi, 'createExportJob')
+        .mockResolvedValueOnce({ data: { job_id: 'job-1', status: 'pending' } })
+        .mockResolvedValueOnce({ data: { job_id: 'job-2', status: 'pending' } })
+      vi.spyOn(exportApi, 'getExportJob').mockResolvedValue({
+        data: { job_id: 'job-2', status: 'running', progress: { current: 0, total: 5, percent: 0 } },
+      })
+
+      const { result } = renderHook(() => useBulkExport(), {
+        wrapper: createWrapper(),
+      })
+
+      // Rapid consecutive calls
+      await act(async () => {
+        result.current.exportPhotos(['photo1.jpg'], 'json')
+        await result.current.exportPhotos(['photo2.jpg'], 'csv')
+      })
+
+      // Should track the second job (most recent)
+      await waitFor(() => {
+        expect(result.current.jobId).toBe('job-2')
+      })
+    })
   })
 
   describe('Progress tracking', () => {
@@ -505,6 +547,78 @@ describe('useBulkExport', () => {
         format,
         filter: { photo_paths: ['photo.jpg'] },
       })
+    })
+  })
+
+  describe('Polling errors', () => {
+    it('handles network error during job status polling', async () => {
+      vi.spyOn(exportApi, 'createExportJob').mockResolvedValue({
+        data: { job_id: 'job-123', status: 'pending' },
+      })
+      // First poll succeeds, second fails
+      vi.spyOn(exportApi, 'getExportJob')
+        .mockResolvedValueOnce({
+          data: { job_id: 'job-123', status: 'running', progress: { current: 5, total: 10, percent: 50 } },
+        })
+        .mockRejectedValueOnce(new Error('Network error'))
+
+      const { result } = renderHook(() => useBulkExport(), {
+        wrapper: createWrapper(),
+      })
+
+      await act(async () => {
+        await result.current.exportPhotos(['p1.jpg'], 'json')
+      })
+
+      // Job should still be tracked (React Query handles retries)
+      expect(result.current.jobId).toBe('job-123')
+    })
+  })
+
+  describe('Cleanup', () => {
+    it('handles unmount during active export without errors', async () => {
+      vi.spyOn(exportApi, 'createExportJob').mockResolvedValue({
+        data: { job_id: 'job-123', status: 'pending' },
+      })
+      vi.spyOn(exportApi, 'getExportJob').mockResolvedValue({
+        data: { job_id: 'job-123', status: 'running', progress: { current: 5, total: 10, percent: 50 } },
+      })
+
+      const { result, unmount } = renderHook(() => useBulkExport(), {
+        wrapper: createWrapper(),
+      })
+
+      await act(async () => {
+        await result.current.exportPhotos(['p1.jpg'], 'json')
+      })
+
+      // Unmount while export is running - should not throw
+      expect(() => unmount()).not.toThrow()
+    })
+
+    it('does not call onComplete after unmount', async () => {
+      vi.spyOn(exportApi, 'createExportJob').mockResolvedValue({
+        data: { job_id: 'job-123', status: 'pending' },
+      })
+      // Simulate in-progress state (not completed yet)
+      vi.spyOn(exportApi, 'getExportJob').mockResolvedValue({
+        data: { job_id: 'job-123', status: 'running', progress: { current: 5, total: 10, percent: 50 } },
+      })
+
+      const onComplete = vi.fn()
+      const { result, unmount } = renderHook(() => useBulkExport({ onComplete }), {
+        wrapper: createWrapper(),
+      })
+
+      await act(async () => {
+        await result.current.exportPhotos(['p1.jpg'], 'json')
+      })
+
+      // Unmount before completion
+      unmount()
+
+      // onComplete should not be called after unmount (job was still running)
+      expect(onComplete).not.toHaveBeenCalled()
     })
   })
 })
