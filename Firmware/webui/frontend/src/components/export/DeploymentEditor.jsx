@@ -133,6 +133,46 @@ export default function DeploymentEditor({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [showCancelConfirm]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * Handle successful aggregation response.
+   * Extracted for testability.
+   * @param {import('../../hooks/usePhotoAggregation').PhotoAggregationResult} data
+   */
+  const handleAggregationSuccess = (data) => {
+    // Always fill dates
+    if (data.date_start) {
+      setStartDate(data.date_start)
+    }
+    if (data.date_end) {
+      setEndDate(data.date_end)
+    }
+
+    // Fill GPS if consistent
+    if (data.gps_consistent) {
+      if (data.latitude !== null && data.longitude !== null) {
+        setLatitude(data.latitude)
+        setLongitude(data.longitude)
+      }
+      if (data.altitude !== null) {
+        setAltitude(data.altitude.toString())
+      }
+      toast.success(`Auto-filled from ${data.photo_count} photos`)
+    } else {
+      // GPS inconsistent - show warning but still fill dates
+      toast.error(data.gps_error || 'GPS coordinates are inconsistent', {
+        duration: 5000
+      })
+      if (data.date_start || data.date_end) {
+        toast.success(`Filled dates from ${data.photo_count} photos (GPS skipped)`, {
+          duration: 3000
+        })
+      }
+    }
+
+    // Mark form as changed
+    setHasChanges(true)
+  }
+
   const handleAutoFill = () => {
     // Use filter prop or empty object
     const aggregationFilter = filter || {}
@@ -140,40 +180,7 @@ export default function DeploymentEditor({
     aggregateMutation.mutate(
       { filter: aggregationFilter, tolerance_m: 50.0 },
       {
-        onSuccess: (data) => {
-          // Always fill dates
-          if (data.date_start) {
-            setStartDate(data.date_start)
-          }
-          if (data.date_end) {
-            setEndDate(data.date_end)
-          }
-
-          // Fill GPS if consistent
-          if (data.gps_consistent) {
-            if (data.latitude !== null && data.longitude !== null) {
-              setLatitude(data.latitude)
-              setLongitude(data.longitude)
-            }
-            if (data.altitude !== null) {
-              setAltitude(data.altitude.toString())
-            }
-            toast.success(`Auto-filled from ${data.photo_count} photos`)
-          } else {
-            // GPS inconsistent - show warning but still fill dates
-            toast.error(data.gps_error || 'GPS coordinates are inconsistent', {
-              duration: 5000
-            })
-            if (data.date_start || data.date_end) {
-              toast.success(`Filled dates from ${data.photo_count} photos (GPS skipped)`, {
-                duration: 3000
-              })
-            }
-          }
-
-          // Mark form as changed
-          setHasChanges(true)
-        },
+        onSuccess: handleAggregationSuccess,
         onError: (error) => {
           const message = error.response?.data?.error || 'Failed to aggregate photo data'
           toast.error(message)
