@@ -20,6 +20,27 @@ export const TIMEOUTS = {
 }
 
 /**
+ * Wait for an optional element/condition that may or may not occur.
+ * Swallows timeout errors - use when the wait is for confirmation only,
+ * not a test requirement.
+ *
+ * @param {Promise} waitPromise - A Playwright wait promise
+ * @returns {Promise<boolean>} - True if wait succeeded, false if timed out
+ *
+ * @example
+ * // Instead of: await element.waitFor({ timeout: 1000 }).catch(() => {})
+ * await optionalWait(element.waitFor({ timeout: 1000 }))
+ */
+export async function optionalWait(waitPromise) {
+  try {
+    await waitPromise
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Check if page is showing rate limit error (429)
  * @param {import('@playwright/test').Page} page
  * @returns {Promise<boolean>}
