@@ -23,6 +23,7 @@ from webui.backend.config import get_config
 
 import atexit
 import logging
+import os
 import signal
 
 from flask import Flask, jsonify, request, send_from_directory
@@ -54,10 +55,19 @@ print(f"  SECRET_KEY set: {bool(app.config.get('SECRET_KEY'))}")
 
 # Initialize rate limiter to prevent hardware abuse
 # Uses remote address for rate limiting (single user device typically has same IP)
+# Use more generous limits in development/test environments for E2E testing
+_env = os.environ.get("MOTHBOX_ENV", "production").lower()
+if _env in ("development", "test"):
+    _default_limits = ["10000 per day", "1000 per hour"]
+    print(f"✓ Rate limiting: {_env} mode (1000/hour)")
+else:
+    _default_limits = ["200 per day", "50 per hour"]
+    print("✓ Rate limiting: production mode (50/hour)")
+
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
+    default_limits=_default_limits,
     storage_uri="memory://",
 )
 
