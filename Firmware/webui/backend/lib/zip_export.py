@@ -562,6 +562,10 @@ def create_zip_export(
                                 compress_type=ZIP_STORED
                             )
                             xmp_count += 1
+
+                        # Clear photo/XMP data from memory immediately
+                        result['photo_data'] = None
+                        result['xmp_data'] = None
                     else:
                         # Record error
                         errors.append(ExportError(
