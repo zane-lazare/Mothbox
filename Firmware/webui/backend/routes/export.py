@@ -2160,6 +2160,7 @@ def export_deployment_csv(deployment_path: str):
 
 
 @export_bp.route("/aggregate", methods=["POST"])
+@limiter.limit("10 per minute")
 def aggregate_photos():
     """
     Aggregate metadata from multiple photos for deployment auto-fill.
