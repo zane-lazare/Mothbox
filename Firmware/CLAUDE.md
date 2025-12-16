@@ -1038,6 +1038,14 @@ This allows technical GPS code to use the standard `hdop` term while export-faci
 - `webui/docs/dev/api/search.md`: **Search API documentation** (full-text search, query syntax, ranking)
 - `webui/docs/dev/api/deployment.md`: **Deployment API documentation** (deployment metadata CRUD, batch operations)
 - `webui/docs/DEPLOYMENT_SIDECAR.md`: Deployment metadata user guide
+- `webui/docs/EXPORT_USER_GUIDE.md`: **Export user guide** (all formats, UI workflow, troubleshooting)
+- `webui/docs/GBIF_SUBMISSION_GUIDE.md`: **GBIF submission workflow** (Darwin Core to GBIF portal)
+- `webui/docs/dev/api/EXPORT_INDEX.md`: **Export API documentation index** (cross-references all export docs)
+- `webui/docs/dev/api/export-jobs.md`: **Export Jobs API** (async job queue, progress tracking)
+- `webui/docs/dev/api/export-presets.md`: **Export Presets API** (preset management)
+- `webui/docs/dev/api/darwin-core-export.md`: **Darwin Core Export API** (GBIF format)
+- `webui/docs/dev/api/inaturalist-export.md`: **iNaturalist Export API** (XMP/ZIP format)
+- `webui/docs/dev/api/generic-export.md`: **Generic Export API** (JSON/CSV formats)
 
 ## Development Workflow
 
