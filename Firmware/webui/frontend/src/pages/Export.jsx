@@ -200,18 +200,40 @@ const Export = () => {
           />
 
           {/* Deployment Info */}
-          <div className="space-y-4">
+          <div className="bg-white rounded-lg shadow p-6 space-y-4">
+            <h2 className="text-lg font-medium text-gray-900 mb-2">
+              Deployment <span className="text-sm font-normal text-gray-500">(Optional)</span>
+            </h2>
+
             <DeploymentSelector
               value={selectedDeploymentDir}
               onChange={setSelectedDeploymentDir}
               onCreateNew={() => setShowDeploymentEditor(true)}
               onEdit={() => setShowDeploymentEditor(true)}
               disabled={currentJob !== undefined}
+              allowNone={true}
+              noneLabel="None - use photo EXIF data"
             />
+
+            {!selectedDeploymentDir && photoCount > 0 && (
+              <div className="text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-3">
+                <p className="font-medium">Using photo EXIF data</p>
+                <p className="mt-1 text-xs">
+                  GPS coordinates will be extracted from individual photo metadata.
+                  {previewData?.metadata?.photos_with_gps !== undefined && (
+                    <span className="block mt-1">
+                      GPS coverage: {previewData.metadata.photos_with_gps} of {photoCount} photos ({Math.round((previewData.metadata.photos_with_gps / photoCount) * 100)}%)
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
+
             {showDeploymentEditor && (
               <DeploymentEditor
                 deployment={deploymentData}
                 directory={selectedDeploymentDir || filter?.deployment || ''}
+                filter={filter}
                 onSave={handleDeploymentSave}
                 onCancel={() => setShowDeploymentEditor(false)}
               />

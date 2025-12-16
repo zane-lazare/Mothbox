@@ -503,6 +503,9 @@ A: Yes. Most photo viewers (Windows Photos, macOS Photos, GIMP, ExifTool) can re
 **Q: Is GPS EXIF compatible with photo stacking/HDR?**
 A: Yes. GPS EXIF is preserved through most photo processing workflows. Test your specific workflow to confirm.
 
+**Q: Do I need to create deployment metadata to export photos?**
+A: No. Deployment metadata is optional (Issue #200). When exporting photos (Darwin Core, iNaturalist, etc.), GPS coordinates are automatically extracted from photo EXIF data. Deployment metadata is only needed if you want to add collection-level context like project name, location description, or environmental conditions. See the Export page for auto-fill options that can populate deployment fields from your photos.
+
 ## Support and Documentation
 
 - **Main documentation**: See `CLAUDE.md` for developer details

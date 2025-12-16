@@ -1,5 +1,5 @@
 """
-Export API routes (Issues #112, #116, #118, #122)
+Export API routes (Issues #112, #116, #118, #122, #200)
 
 Endpoints for export metadata service with Darwin Core CSV and iNaturalist ZIP support,
 plus async export job queue for long-running exports.
@@ -14,6 +14,9 @@ Metadata Endpoints:
 - POST /api/export/inaturalist/preview - Preview iNaturalist export (dry run)
 - GET /api/export/formats - List supported export formats
 - GET /api/export/stats - Get service statistics
+
+Photo Aggregation Endpoint (Issue #200):
+- POST /api/export/aggregate - Aggregate metadata from multiple photos for deployment auto-fill
 
 Export Job Queue Endpoints (Issue #122):
 - POST /api/export/jobs - Create async export job
@@ -2149,6 +2152,150 @@ def export_deployment_csv(deployment_path: str):
     except Exception as e:
         logger.error("Error in deployment CSV export for %s: %s", deployment_path, e, exc_info=True)
         return jsonify({"error": "Deployment CSV export failed"}), 500
+
+
+# ============================================================================
+# Photo Aggregation Endpoint (Issue #200)
+# ============================================================================
+
+
+@export_bp.route("/aggregate", methods=["POST"])
+@limiter.limit("10 per minute")
+def aggregate_photos():
+    """
+    Aggregate metadata from multiple photos for deployment auto-fill.
+
+    Accepts either a filter object (to collect photos) or explicit photo_paths.
+    Returns aggregated date range and GPS coordinates (if consistent).
+
+    Request Body (JSON):
+        {
+            "filter": {
+                "date_start": "2024-01-01",      // ISO 8601 date (optional)
+                "date_end": "2024-01-31",        // ISO 8601 date (optional)
+                "deployment": "/photos/dir",     // Deployment path (optional)
+                "tags": ["moth", "luna"],        // Tag filter (optional)
+                "series_type": "hdr",            // "hdr" or "focus_bracket" (optional)
+                "has_species": true              // Only photos with species (optional)
+            },
+            // OR
+            "photo_paths": ["/photos/p1.jpg", "/photos/p2.jpg"],
+            "tolerance_m": 50.0  // GPS tolerance in meters (default: 50.0)
+        }
+
+    Returns (200):
+        {
+            "photo_count": 10,
+            "date_start": "2024-01-15",      // ISO 8601 date or null
+            "date_end": "2024-01-31",        // ISO 8601 date or null
+            "latitude": 37.7749,             // null if inconsistent
+            "longitude": -122.4194,          // null if inconsistent
+            "altitude": 15.5,                // null if inconsistent or missing
+            "gps_consistent": true,          // false if GPS differs
+            "gps_error": null,               // error message if inconsistent
+            "photos_with_gps": 8,
+            "photos_with_timestamp": 10
+        }
+
+    Error Responses:
+        400: Invalid filter or photo_paths
+        500: Aggregation failed
+
+    Example (Filter):
+        POST /api/export/aggregate
+        {
+            "filter": {
+                "deployment": "/photos/forest_2024",
+                "date_start": "2024-01-01"
+            },
+            "tolerance_m": 100.0
+        }
+
+    Example (Explicit Paths):
+        POST /api/export/aggregate
+        {
+            "photo_paths": ["/photos/p1.jpg", "/photos/p2.jpg"]
+        }
+    """
+    from webui.backend.lib.export_job_types import ExportJobFilter
+    from webui.backend.lib.photo_aggregation import aggregate_photo_metadata
+
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Request body required"}), 400
+
+        # Get tolerance parameter (default 50m)
+        tolerance_m = data.get('tolerance_m', 50.0)
+
+        # Validate tolerance
+        if not isinstance(tolerance_m, (int, float)) or tolerance_m < 0:
+            return jsonify({"error": "tolerance_m must be a non-negative number"}), 400
+
+        # Get photo paths (either from filter or explicit list)
+        photo_paths = []
+
+        if 'photo_paths' in data:
+            # Explicit photo paths provided
+            raw_paths = data['photo_paths']
+            if not isinstance(raw_paths, list):
+                return jsonify({"error": "photo_paths must be a list"}), 400
+
+            # Validate and resolve paths
+            for path_str in raw_paths:
+                try:
+                    # Use validate_photo_path for security
+                    resolved_path = validate_photo_path(path_str, PHOTOS_DIR)
+                    if resolved_path is None:
+                        return jsonify({"error": f"Invalid photo path: {path_str}"}), 400
+                    photo_paths.append(resolved_path)
+                except (ValueError, PermissionError) as e:
+                    return jsonify({"error": f"Invalid photo path: {str(e)}"}), 400
+
+        elif 'filter' in data:
+            # Filter provided - collect photos
+            filter_data = data['filter']
+            if not isinstance(filter_data, dict):
+                return jsonify({"error": "filter must be an object"}), 400
+
+            # Parse filter
+            try:
+                job_filter = ExportJobFilter.from_dict(filter_data)
+            except Exception as e:
+                return jsonify({"error": f"Invalid filter: {str(e)}"}), 400
+
+            # Use export job service to collect photos
+            # This reuses existing filter logic (date, deployment, tags, series, species)
+            service = current_app.config.get('EXPORT_JOB_SERVICE')
+            if service is None:
+                logger.warning("EXPORT_JOB_SERVICE not configured, functionality may be limited")
+                return jsonify({"error": "Service not properly configured"}), 500
+
+            photo_paths = service._collect_photos(job_filter)
+
+        else:
+            return jsonify({"error": "Either 'filter' or 'photo_paths' required"}), 400
+
+        # Aggregate metadata
+        result = aggregate_photo_metadata(photo_paths, tolerance_m=tolerance_m)
+
+        # Return as JSON
+        return jsonify({
+            "photo_count": result.photo_count,
+            "date_start": result.date_start,
+            "date_end": result.date_end,
+            "latitude": result.latitude,
+            "longitude": result.longitude,
+            "altitude": result.altitude,
+            "gps_consistent": result.gps_consistent,
+            "gps_error": result.gps_error,
+            "photos_with_gps": result.photos_with_gps,
+            "photos_with_timestamp": result.photos_with_timestamp,
+        }), 200
+
+    except Exception as e:
+        logger.error("Error aggregating photo metadata: %s", e, exc_info=True)
+        return jsonify({"error": "Photo aggregation failed"}), 500
 
 
 # ============================================================================

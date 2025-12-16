@@ -1,7 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import DeploymentEditor from '../DeploymentEditor';
+
+// Create a wrapper component with QueryClientProvider for tests
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false }
+    }
+  });
+  return ({ children }) => (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  );
+};
+
+// Helper to render with QueryClientProvider
+const renderWithQueryClient = (ui, options = {}) => {
+  return render(ui, { wrapper: createWrapper(), ...options });
+};
 
 describe('DeploymentEditor', () => {
   const mockOnSave = vi.fn();
@@ -12,7 +33,7 @@ describe('DeploymentEditor', () => {
   });
 
   it('renders all required form fields', () => {
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -28,7 +49,7 @@ describe('DeploymentEditor', () => {
 
   it('validates deployment_name is required', async () => {
     const user = userEvent.setup();
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -48,7 +69,7 @@ describe('DeploymentEditor', () => {
 
   it('enforces deployment_name max length (200 chars) with maxLength attribute', async () => {
     const user = userEvent.setup();
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -69,7 +90,7 @@ describe('DeploymentEditor', () => {
   });
 
   it('enforces location_name max length (500 chars) with maxLength attribute', () => {
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -84,7 +105,7 @@ describe('DeploymentEditor', () => {
 
   it('validates date range (start <= end)', async () => {
     const user = userEvent.setup();
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -105,7 +126,7 @@ describe('DeploymentEditor', () => {
 
   it('shows validation errors inline for date range', async () => {
     const user = userEvent.setup();
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -132,7 +153,7 @@ describe('DeploymentEditor', () => {
 
   it('disables Save when form is invalid', async () => {
     const user = userEvent.setup();
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -160,7 +181,7 @@ describe('DeploymentEditor', () => {
 
   it('calls onSave with correct data structure', async () => {
     const user = userEvent.setup();
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -196,7 +217,7 @@ describe('DeploymentEditor', () => {
   it('shows confirmation dialog when canceling with unsaved changes', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -227,7 +248,7 @@ describe('DeploymentEditor', () => {
   it('calls onCancel when confirming discard in dialog', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -256,7 +277,7 @@ describe('DeploymentEditor', () => {
   it('does not show confirmation dialog when canceling without changes', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -276,7 +297,7 @@ describe('DeploymentEditor', () => {
 
   it('handles environmental key-value pairs', async () => {
     const user = userEvent.setup();
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -317,7 +338,7 @@ describe('DeploymentEditor', () => {
 
   it('allows removing environmental key-value pairs', async () => {
     const user = userEvent.setup();
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={{
           deployment_name: 'Test',
@@ -354,7 +375,7 @@ describe('DeploymentEditor', () => {
 
   it('handles custom fields with max 50 keys', async () => {
     const user = userEvent.setup();
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -399,7 +420,7 @@ describe('DeploymentEditor', () => {
       customFields[`key${i}`] = `value${i}`;
     }
 
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={{
           deployment_name: 'Test',
@@ -426,7 +447,7 @@ describe('DeploymentEditor', () => {
       customFields[`key${i}`] = `value${i}`;
     }
 
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={{ deployment_name: 'Test', custom: customFields }}
         directory="/photos/deployment1"
@@ -446,7 +467,7 @@ describe('DeploymentEditor', () => {
 
   it('renders collapsible sections', async () => {
     const user = userEvent.setup();
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -484,7 +505,7 @@ describe('DeploymentEditor', () => {
       }
     };
 
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={existingDeployment}
         directory="/photos/deployment1"
@@ -501,7 +522,7 @@ describe('DeploymentEditor', () => {
   });
 
   it('displays loading state', () => {
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -516,7 +537,7 @@ describe('DeploymentEditor', () => {
   });
 
   it('displays error message when provided', () => {
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"
@@ -530,7 +551,7 @@ describe('DeploymentEditor', () => {
   });
 
   it('integrates CoordinateInput component', () => {
-    render(
+    renderWithQueryClient(
       <DeploymentEditor
         deployment={null}
         directory="/photos/deployment1"

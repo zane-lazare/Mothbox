@@ -547,6 +547,42 @@ class TestGetExportMetadata:
         assert result.longitude is None
         assert result.altitude is None
 
+    def test_get_metadata_without_deployment_has_gps(
+        self, mock_metadata_service, mock_sidecar_service, mock_series_service, sample_photo_path
+    ):
+        """GPS coordinates should come from EXIF when no deployment is present.
+
+        This test verifies Issue #200 - GPS coordinates are NOT dependent on
+        deployment metadata. They come from photo EXIF, so exports work fine
+        without a deployment.
+        """
+        # Create deployment service that returns None (no deployment found)
+        mock_deployment = Mock()
+        mock_deployment.find_deployment_for_photo.return_value = None
+
+        service = ExportMetadataService(
+            metadata_service=mock_metadata_service,
+            sidecar_service=mock_sidecar_service,
+            series_service=mock_series_service,
+            deployment_service=mock_deployment
+        )
+
+        result = service.get_export_metadata(sample_photo_path)
+
+        # GPS coordinates should be present from EXIF
+        assert isinstance(result, ExportMetadata)
+        assert result.latitude == 37.7749
+        assert result.longitude == -122.4194
+        assert result.altitude == 52.5
+        assert result.gps_accuracy == 2.5
+
+        # Deployment fields should be None
+        assert result.deployment_name is None
+        assert result.deployment_location_name is None
+        assert result.deployment_start_date is None
+        assert result.deployment_end_date is None
+        assert result.environmental_conditions == {}
+
     def test_get_metadata_performance_under_100ms(
         self, service, sample_photo_path
     ):

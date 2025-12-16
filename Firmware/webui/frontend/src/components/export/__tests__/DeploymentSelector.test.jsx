@@ -453,4 +453,124 @@ describe('DeploymentSelector', () => {
       expect(options[4]).toHaveTextContent('Zebra Study');
     });
   });
+
+  describe('allowNone functionality', () => {
+    it('shows default label when allowNone is false', async () => {
+      useDeployments.mockReturnValue({
+        data: {
+          deployments: [
+            { directory: '/photos/deployment1', name: 'Oak Ridge Survey' }
+          ]
+        },
+        isLoading: false,
+        error: null
+      });
+
+      render(
+        <DeploymentSelector
+          value={null}
+          onChange={mockOnChange}
+          onCreateNew={mockOnCreateNew}
+          onEdit={mockOnEdit}
+          allowNone={false}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        const options = screen.getAllByRole('option');
+        expect(options[0]).toHaveTextContent('Select a deployment...');
+      });
+    });
+
+    it('shows custom none label when allowNone is true', async () => {
+      useDeployments.mockReturnValue({
+        data: {
+          deployments: [
+            { directory: '/photos/deployment1', name: 'Oak Ridge Survey' }
+          ]
+        },
+        isLoading: false,
+        error: null
+      });
+
+      render(
+        <DeploymentSelector
+          value={null}
+          onChange={mockOnChange}
+          onCreateNew={mockOnCreateNew}
+          onEdit={mockOnEdit}
+          allowNone={true}
+          noneLabel="None - use photo EXIF data"
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        const options = screen.getAllByRole('option');
+        expect(options[0]).toHaveTextContent('None - use photo EXIF data');
+      });
+    });
+
+    it('uses default noneLabel when not specified', async () => {
+      useDeployments.mockReturnValue({
+        data: {
+          deployments: [
+            { directory: '/photos/deployment1', name: 'Oak Ridge Survey' }
+          ]
+        },
+        isLoading: false,
+        error: null
+      });
+
+      render(
+        <DeploymentSelector
+          value={null}
+          onChange={mockOnChange}
+          onCreateNew={mockOnCreateNew}
+          onEdit={mockOnEdit}
+          allowNone={true}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        const options = screen.getAllByRole('option');
+        expect(options[0]).toHaveTextContent('None - use photo data');
+      });
+    });
+
+    it('calls onChange with null when empty value selected with allowNone', async () => {
+      const user = userEvent.setup();
+      useDeployments.mockReturnValue({
+        data: {
+          deployments: [
+            { directory: '/photos/deployment1', name: 'Oak Ridge Survey' }
+          ]
+        },
+        isLoading: false,
+        error: null
+      });
+
+      render(
+        <DeploymentSelector
+          value="/photos/deployment1"
+          onChange={mockOnChange}
+          onCreateNew={mockOnCreateNew}
+          onEdit={mockOnEdit}
+          allowNone={true}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('combobox')).toBeInTheDocument();
+      });
+
+      const select = screen.getByRole('combobox');
+      await user.selectOptions(select, '');
+
+      expect(mockOnChange).toHaveBeenCalledWith(null);
+    });
+  });
 });

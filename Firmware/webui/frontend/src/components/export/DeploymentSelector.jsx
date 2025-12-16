@@ -22,7 +22,9 @@ export default function DeploymentSelector({
   onChange,
   onCreateNew,
   onEdit,
-  disabled = false
+  disabled = false,
+  allowNone = false,
+  noneLabel = 'None - use photo data'
 }) {
   const { data, isLoading, error } = useDeployments()
 
@@ -84,7 +86,7 @@ export default function DeploymentSelector({
                    dark:bg-gray-700 dark:text-gray-100
                    disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <option value="">Select a deployment...</option>
+          <option value="">{allowNone ? noneLabel : 'Select a deployment...'}</option>
           <option value="__create_new__">+ Create new deployment...</option>
           {sortedDeployments.map((deployment) => (
             <option key={deployment.directory} value={deployment.directory}>
@@ -130,5 +132,9 @@ DeploymentSelector.propTypes = {
   /** Edit deployment handler */
   onEdit: PropTypes.func.isRequired,
   /** Disabled state */
-  disabled: PropTypes.bool
+  disabled: PropTypes.bool,
+  /** Allow "None" option (makes deployment optional) */
+  allowNone: PropTypes.bool,
+  /** Custom label for "None" option */
+  noneLabel: PropTypes.string
 }
