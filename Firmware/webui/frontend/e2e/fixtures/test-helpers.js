@@ -101,25 +101,25 @@ export async function scrollToBottom(page) {
 
 /**
  * Get count of visible photos in gallery
+ *
+ * Uses a combined selector to check all possible photo element patterns
+ * in a single DOM query, avoiding race conditions from sequential checks.
+ *
  * @param {import('@playwright/test').Page} page
  * @returns {Promise<number>}
  */
 export async function getPhotoCount(page) {
+  // Combined selector checks all patterns in a single query to avoid race conditions
   // PhotoGridItem uses button with aria-label="View photo: {filename}"
-  const selectors = [
+  const combinedSelector = [
     'button[aria-label*="View photo"]',
     '[data-testid^="photo-item-"]',
     '.photo-item',
     '.gallery-photo',
     '[class*="PhotoCard"]',
-  ]
+  ].join(', ')
 
-  for (const selector of selectors) {
-    const count = await page.locator(selector).count()
-    if (count > 0) return count
-  }
-
-  return 0
+  return page.locator(combinedSelector).count()
 }
 
 /**
