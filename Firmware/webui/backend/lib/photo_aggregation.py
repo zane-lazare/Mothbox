@@ -37,11 +37,14 @@ Related:
 - Issue #200: Deployment metadata auto-fill
 """
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from webui.backend.lib.haversine import haversine_distance
 from webui.backend.services.metadata_service import MetadataService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -172,9 +175,9 @@ def aggregate_photo_metadata(
             if lat is not None and lon is not None:
                 gps_coords.append((lat, lon, alt))
 
-        except Exception:
-            # Gracefully handle any metadata extraction errors
-            # Continue processing other photos
+        except Exception as e:
+            # Log and skip failed photos for debugging
+            logger.debug(f"Failed to extract metadata from {photo_path}: {e}")
             continue
 
     # Update counts
@@ -281,9 +284,12 @@ def _median(values: list[float]) -> float:
 
     Returns:
         Median value
+
+    Raises:
+        ValueError: If values list is empty
     """
     if not values:
-        return 0.0
+        raise ValueError("Cannot calculate median of empty list")
 
     sorted_values = sorted(values)
     n = len(sorted_values)
