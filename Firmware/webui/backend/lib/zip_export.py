@@ -14,8 +14,11 @@ import csv
 import io
 import json
 import logging
+import os
+import tempfile
 import time
 from collections.abc import Callable, Generator
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -58,6 +61,7 @@ if TYPE_CHECKING:
 
 ZIP_COMPRESSION_LEVEL: Final[int] = 0  # No compression for JPEGs (already compressed)
 ZIP_BUFFER_SIZE: Final[int] = 8192  # 8KB streaming buffer
+DEFAULT_BATCH_SIZE: Final[int] = 50  # Process 50 photos at a time
 MANIFEST_FILENAME: Final[str] = 'manifest.json'
 SUMMARY_FILENAME: Final[str] = 'summary.csv'
 GENERATOR_VERSION: Final[str] = '5.0.0'  # Mothbox version
@@ -222,6 +226,95 @@ def generate_manifest(
 
 
 # ============================================================================
+# Prepare Photo Data (for parallel execution)
+# ============================================================================
+
+
+def _prepare_photo_data(
+    photo_path: Path,
+    metadata: 'ExportMetadata',
+    include_xmp: bool = True,
+) -> dict:
+    """Read photo data and generate XMP (for parallel execution).
+
+    This function performs I/O-bound and CPU-bound work that can be
+    parallelized. The actual ZIP writing must still be sequential
+    since ZipFile is not thread-safe for writes.
+
+    Args:
+        photo_path: Path to photo file
+        metadata: ExportMetadata instance
+        include_xmp: Whether to generate XMP sidecar
+
+    Returns:
+        Dict with:
+        - photo_path: Path to photo
+        - metadata: ExportMetadata instance
+        - photo_data: Photo file bytes (None on error)
+        - xmp_data: XMP sidecar bytes (None if not requested or error)
+        - xmp_filename: XMP sidecar filename (None if not requested)
+        - size: Photo file size in bytes
+        - success: True if successful, False otherwise
+        - error: Error message (only present on failure)
+        - error_type: Error type classification (only present on failure)
+    """
+    result = {
+        'photo_path': photo_path,
+        'metadata': metadata,
+        'photo_data': None,
+        'xmp_data': None,
+        'xmp_filename': None,
+        'size': 0,
+        'success': False,
+    }
+
+    try:
+        # Check file exists
+        if not photo_path.exists():
+            result['error'] = f"Photo file not found: {photo_path}"
+            result['error_type'] = 'not_found'
+            return result
+
+        # Read photo data
+        result['photo_data'] = photo_path.read_bytes()
+        result['size'] = len(result['photo_data'])
+
+        # Generate XMP if requested
+        if include_xmp:
+            xmp_content = generate_xmp_xml(metadata)
+            result['xmp_data'] = xmp_content.encode('utf-8')
+            result['xmp_filename'] = get_xmp_sidecar_filename(metadata.filename)
+
+        result['success'] = True
+
+    except PermissionError:
+        logger.warning("Permission denied reading photo %s", photo_path)
+        result['error'] = "Permission denied reading photo file"
+        result['error_type'] = 'permission'
+
+    except OSError as e:
+        # Covers I/O errors, disk errors, etc.
+        logger.error("OS error processing photo %s: %s", photo_path, e, exc_info=True)
+        error_msg = f"File system error: {e.strerror}" if hasattr(e, 'strerror') and e.strerror else "File system error"
+        result['error'] = error_msg
+        result['error_type'] = 'io'
+
+    except (ValueError, TypeError, AttributeError) as e:
+        # XMP generation errors
+        logger.warning("XMP generation failed for %s: %s", photo_path, e)
+        result['error'] = "Failed to generate XMP metadata"
+        result['error_type'] = 'xmp'
+
+    except Exception:
+        # Catch-all for unexpected errors (still log for debugging)
+        logger.exception("Unexpected error processing photo %s", photo_path)
+        result['error'] = "Unexpected error processing photo"
+        result['error_type'] = 'unknown'
+
+    return result
+
+
+# ============================================================================
 # Add Photo to ZIP
 # ============================================================================
 
@@ -382,6 +475,8 @@ def create_zip_export(
     output_path: Path,
     options: ZipExportOptions | None = None,
     progress_callback: Callable[[int, int], None] | None = None,
+    max_workers: int = 4,
+    batch_size: int = 50,
 ) -> ZipExportResult:
     """Create ZIP archive with photos and XMP sidecars.
 
@@ -391,12 +486,19 @@ def create_zip_export(
     - manifest.json if include_manifest=True
     - summary.csv if include_csv_summary=True
 
+    Photo I/O and XMP generation are performed in parallel using ThreadPoolExecutor.
+    Photos are processed in batches to bound memory usage.
+    ZIP writing is sequential (ZipFile is not thread-safe for writes).
+
     Args:
         photo_paths: List of photo file paths
         metadata_list: List of ExportMetadata instances
         output_path: Path where ZIP file will be created
         options: ZipExportOptions (uses defaults if None)
         progress_callback: Optional callback(current, total) for progress updates
+        max_workers: Maximum number of worker threads for parallel I/O (default: 4)
+        batch_size: Number of photos to process in each batch (default: 50)
+                   Memory usage ≈ batch_size × avg_photo_size × 2
 
     Returns:
         ZipExportResult with success status and statistics
@@ -411,29 +513,78 @@ def create_zip_export(
 
     try:
         with ZipFile(output_path, 'w', compression=ZIP_STORED) as zf:
-            # Add photos and XMP sidecars
-            for idx, (photo_path, metadata) in enumerate(
-                zip(photo_paths, metadata_list, strict=True)
-            ):
-                result = add_photo_to_zip(
-                    zf, photo_path, metadata, include_xmp=options.include_xmp_sidecars
-                )
+            # Track completed count for progress callback
+            completed_count = 0
 
-                if result['success']:
-                    photo_count += 1
-                    if result['xmp_filename']:
-                        xmp_count += 1
-                else:
-                    errors.append(ExportError(
-                        error=result.get('error', 'Unknown error'),
-                        photo_path=str(photo_path),
-                        error_type=result.get('error_type'),
-                        timestamp=time.time(),
-                    ))
+            # Process photos in batches to bound memory usage
+            for batch_start in range(0, total, batch_size):
+                batch_end = min(batch_start + batch_size, total)
+                batch_paths = photo_paths[batch_start:batch_end]
+                batch_metadata = metadata_list[batch_start:batch_end]
 
-                # Call progress callback every 10 photos or at the end
-                if progress_callback and ((idx + 1) % 10 == 0 or idx == total - 1):
-                    progress_callback(idx + 1, total)
+                # Parallel photo I/O and XMP generation for this batch
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    # Submit all photo preparation tasks for this batch
+                    future_to_idx = {
+                        executor.submit(
+                            _prepare_photo_data,
+                            photo_path,
+                            metadata,
+                            options.include_xmp_sidecars
+                        ): idx
+                        for idx, (photo_path, metadata) in enumerate(
+                            zip(batch_paths, batch_metadata, strict=True)
+                        )
+                    }
+
+                    # Collect batch results in order
+                    batch_results = [None] * len(batch_paths)
+                    for future in as_completed(future_to_idx):
+                        idx = future_to_idx[future]
+                        batch_results[idx] = future.result()
+
+                # Write batch to ZIP sequentially and update progress
+                for result in batch_results:
+                    if result['success']:
+                        # Write photo
+                        zf.writestr(
+                            result['metadata'].filename,
+                            result['photo_data'],
+                            compress_type=ZIP_STORED
+                        )
+                        photo_count += 1
+
+                        # Write XMP sidecar if generated
+                        if result['xmp_data'] is not None:
+                            zf.writestr(
+                                result['xmp_filename'],
+                                result['xmp_data'],
+                                compress_type=ZIP_STORED
+                            )
+                            xmp_count += 1
+
+                        # Clear photo/XMP data from memory immediately
+                        result['photo_data'] = None
+                        result['xmp_data'] = None
+                    else:
+                        # Record error
+                        errors.append(ExportError(
+                            error=result.get('error', 'Unknown error'),
+                            photo_path=str(result['photo_path']),
+                            error_type=result.get('error_type'),
+                            timestamp=time.time(),
+                        ))
+
+                    # Update completed count and call progress callback
+                    # Update every 5% progress or at completion for consistent UX
+                    completed_count += 1
+                    progress_pct = int((completed_count / total) * 100) if total > 0 else 100
+                    prev_pct = int(((completed_count - 1) / total) * 100) if total > 0 else 0
+                    if progress_callback and (progress_pct // 5 != prev_pct // 5 or completed_count == total):
+                        progress_callback(completed_count, total)
+
+                # Clear batch from memory
+                del batch_results
 
             # Add manifest.json
             if options.include_manifest:
@@ -530,8 +681,14 @@ def stream_zip_export(
     photo_paths: list[Path],
     metadata_list: list['ExportMetadata'],
     options: ZipExportOptions | None = None,
+    max_workers: int = 4,
+    batch_size: int = DEFAULT_BATCH_SIZE,
 ) -> Generator[bytes | ZipExportResult]:
     """Stream ZIP archive for HTTP response (memory efficient).
+
+    Uses a temporary file to avoid loading entire ZIP into memory.
+    Memory usage is O(ZIP_BUFFER_SIZE) instead of O(zip_size).
+    Photos are read in parallel using ThreadPoolExecutor for better performance.
 
     Yields bytes as ZIP is built, then yields ZipExportResult when done.
 
@@ -539,6 +696,8 @@ def stream_zip_export(
         photo_paths: List of photo file paths
         metadata_list: List of ExportMetadata instances
         options: ZipExportOptions (uses defaults if None)
+        max_workers: Number of parallel workers for photo I/O (default: 4)
+        batch_size: Photos to process per batch for memory bounds (default: 50)
 
     Yields:
         ZIP file bytes in chunks, then ZipExportResult at the end
@@ -551,28 +710,74 @@ def stream_zip_export(
     errors = []
     total_bytes = 0
 
-    # Create in-memory ZIP file
-    zip_buffer = io.BytesIO()
+    # Create temporary file for ZIP
+    fd, temp_path = tempfile.mkstemp(suffix='.zip')
+    temp_file_path = Path(temp_path)
 
     try:
-        with ZipFile(zip_buffer, 'w', compression=ZIP_STORED) as zf:
-            # Add photos and XMP sidecars
-            for photo_path, metadata in zip(photo_paths, metadata_list, strict=True):
-                result = add_photo_to_zip(
-                    zf, photo_path, metadata, include_xmp=options.include_xmp_sidecars
-                )
+        # Close file descriptor, we'll use Path
+        os.close(fd)
 
-                if result['success']:
-                    photo_count += 1
-                    if result['xmp_filename']:
-                        xmp_count += 1
-                else:
-                    errors.append(ExportError(
-                        error=result.get('error', 'Unknown error'),
-                        photo_path=str(photo_path),
-                        error_type=result.get('error_type'),
-                        timestamp=time.time(),
-                    ))
+        # Write ZIP to temporary file
+        with ZipFile(temp_file_path, 'w', compression=ZIP_STORED) as zf:
+            total = len(photo_paths)
+
+            # Process photos in batches with parallel I/O
+            for batch_start in range(0, total, batch_size):
+                batch_end = min(batch_start + batch_size, total)
+                batch_paths = photo_paths[batch_start:batch_end]
+                batch_metadata = metadata_list[batch_start:batch_end]
+
+                # Parallel photo I/O and XMP generation for this batch
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    future_to_idx = {
+                        executor.submit(
+                            _prepare_photo_data,
+                            photo_path,
+                            metadata,
+                            options.include_xmp_sidecars
+                        ): idx
+                        for idx, (photo_path, metadata) in enumerate(
+                            zip(batch_paths, batch_metadata, strict=True)
+                        )
+                    }
+
+                    batch_results = [None] * len(batch_paths)
+                    for future in as_completed(future_to_idx):
+                        idx = future_to_idx[future]
+                        batch_results[idx] = future.result()
+
+                # Write batch to ZIP sequentially
+                for result in batch_results:
+                    if result['success']:
+                        zf.writestr(
+                            result['metadata'].filename,
+                            result['photo_data'],
+                            compress_type=ZIP_STORED
+                        )
+                        photo_count += 1
+
+                        if result['xmp_data'] is not None:
+                            zf.writestr(
+                                result['xmp_filename'],
+                                result['xmp_data'],
+                                compress_type=ZIP_STORED
+                            )
+                            xmp_count += 1
+
+                        # Clear photo/XMP data from memory immediately
+                        result['photo_data'] = None
+                        result['xmp_data'] = None
+                    else:
+                        errors.append(ExportError(
+                            error=result.get('error', 'Unknown error'),
+                            photo_path=str(result['photo_path']),
+                            error_type=result.get('error_type'),
+                            timestamp=time.time(),
+                        ))
+
+                # Clear batch from memory
+                del batch_results
 
             # Add manifest.json
             if options.include_manifest:
@@ -585,17 +790,14 @@ def stream_zip_export(
                 csv_content = generate_csv_summary(metadata_list)
                 zf.writestr(SUMMARY_FILENAME, csv_content, compress_type=ZIP_STORED)
 
-        # Get ZIP content
-        zip_buffer.seek(0)
-        zip_content = zip_buffer.getvalue()
-        total_bytes = len(zip_content)
-
-        # Yield ZIP content in chunks
-        offset = 0
-        while offset < total_bytes:
-            chunk = zip_content[offset:offset + ZIP_BUFFER_SIZE]
-            yield chunk
-            offset += len(chunk)
+        # Stream from temp file in chunks
+        total_bytes = temp_file_path.stat().st_size
+        with open(temp_file_path, 'rb') as f:
+            while True:
+                chunk = f.read(ZIP_BUFFER_SIZE)
+                if not chunk:
+                    break
+                yield chunk
 
         # Calculate elapsed time
         took_ms = (time.time() - start_time) * 1000
@@ -668,3 +870,8 @@ def stream_zip_export(
             errors=errors,
             took_ms=took_ms,
         )
+
+    finally:
+        # Clean up temp file
+        if temp_file_path.exists():
+            temp_file_path.unlink()
