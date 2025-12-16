@@ -121,7 +121,8 @@ export function generateTestTag() {
 /**
  * Take screenshot with descriptive name
  *
- * Screenshots are saved to test-results/screenshots/ directory.
+ * Screenshots are saved to test-results/screenshots/ directory relative to
+ * the e2e folder. Uses absolute paths to work regardless of working directory.
  * The directory is created automatically if it doesn't exist.
  *
  * @param {import('@playwright/test').Page} page
@@ -130,8 +131,13 @@ export function generateTestTag() {
 export async function takeScreenshot(page, name) {
   const fs = await import('fs')
   const path = await import('path')
+  const { fileURLToPath } = await import('url')
 
-  const screenshotDir = './test-results/screenshots'
+  // Get absolute path relative to this module's location
+  // e2e/fixtures/test-helpers.js -> e2e/test-results/screenshots/
+  const __filename = fileURLToPath(import.meta.url)
+  const __dirname = path.dirname(__filename)
+  const screenshotDir = path.join(__dirname, '..', 'test-results', 'screenshots')
 
   // Ensure directory exists
   if (!fs.existsSync(screenshotDir)) {
