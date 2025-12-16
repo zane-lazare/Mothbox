@@ -7,7 +7,7 @@
 import { test, expect } from '@playwright/test'
 import { GalleryPage } from '../pages/gallery.page.js'
 import { ExportPage } from '../pages/export.page.js'
-import { isRateLimited } from '../fixtures/test-helpers.js'
+import { isRateLimited, TIMEOUTS } from '../fixtures/test-helpers.js'
 
 test.describe('Export Workflow', () => {
   let gallery
@@ -40,11 +40,9 @@ test.describe('Export Workflow', () => {
 
     // Enter select mode
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
 
     // Select a photo
     await gallery.selectPhotos([0])
-    await page.waitForTimeout(300)
 
     // Export button should be visible in bulk actions toolbar
     const exportBtn = page.locator('button:has-text("Export")').first()
@@ -67,9 +65,7 @@ test.describe('Export Workflow', () => {
 
     // Enter select mode and select photos
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
     await gallery.selectPhotos([0])
-    await page.waitForTimeout(300)
 
     try {
       // Open export modal
@@ -99,9 +95,7 @@ test.describe('Export Workflow', () => {
 
     // Enter select mode and select photos
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
     await gallery.selectPhotos([0])
-    await page.waitForTimeout(300)
 
     try {
       // Open export modal
@@ -110,11 +104,9 @@ test.describe('Export Workflow', () => {
 
       // Select Darwin Core format
       await exportPage.selectFormat('darwin_core')
-      await page.waitForTimeout(300)
 
       // Start export
       await exportPage.startExport()
-      await page.waitForTimeout(1000)
 
       // Should see progress or completion
       const hasProgress = await page.locator('[role="progressbar"], .progress').isVisible().catch(() => false)
@@ -128,7 +120,7 @@ test.describe('Export Workflow', () => {
     }
   })
 
-  test('export job progress updates', async ({ page }) => {
+  test('export job progress updates', async () => {
     const photoCount = await gallery.getPhotoCount()
     if (photoCount === 0) {
       test.skip(true, 'No photos available')
@@ -137,12 +129,10 @@ test.describe('Export Workflow', () => {
 
     // Enter select mode and select multiple photos for longer job
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
 
     const photosToSelect = Math.min(photoCount, 3)
     const indices = Array.from({ length: photosToSelect }, (_, i) => i)
     await gallery.selectPhotos(indices)
-    await page.waitForTimeout(300)
 
     try {
       // Open export modal
@@ -151,13 +141,9 @@ test.describe('Export Workflow', () => {
 
       // Select JSON format (usually fastest)
       await exportPage.selectFormat('json')
-      await page.waitForTimeout(300)
 
       // Start export
       await exportPage.startExport()
-
-      // Wait a moment for progress to appear
-      await page.waitForTimeout(500)
 
       // Check for progress indicator
       const progress = await exportPage.getProgress()
@@ -171,7 +157,7 @@ test.describe('Export Workflow', () => {
     }
   })
 
-  test('download link appears on completion', async ({ page }) => {
+  test('download link appears on completion', async () => {
     const photoCount = await gallery.getPhotoCount()
     if (photoCount === 0) {
       test.skip(true, 'No photos available')
@@ -180,9 +166,7 @@ test.describe('Export Workflow', () => {
 
     // Enter select mode and select one photo (fast export)
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
     await gallery.selectPhotos([0])
-    await page.waitForTimeout(300)
 
     try {
       // Open export modal
@@ -191,7 +175,6 @@ test.describe('Export Workflow', () => {
 
       // Select CSV format (fastest, smallest)
       await exportPage.selectFormat('csv')
-      await page.waitForTimeout(300)
 
       // Start export and wait for completion
       await exportPage.startExport()
@@ -215,7 +198,7 @@ test.describe('Export Workflow', () => {
     }
   })
 
-  test('cancel job works', async ({ page }) => {
+  test('cancel job works', async () => {
     const photoCount = await gallery.getPhotoCount()
     if (photoCount < 10) {
       test.skip(true, 'Need more photos for cancel test (job needs to run long enough)')
@@ -224,12 +207,10 @@ test.describe('Export Workflow', () => {
 
     // Enter select mode and select many photos
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
 
     const photosToSelect = Math.min(photoCount, 10)
     const indices = Array.from({ length: photosToSelect }, (_, i) => i)
     await gallery.selectPhotos(indices)
-    await page.waitForTimeout(300)
 
     try {
       // Open export modal
@@ -238,15 +219,12 @@ test.describe('Export Workflow', () => {
 
       // Select iNaturalist format (includes photos, takes longer)
       await exportPage.selectFormat('inaturalist')
-      await page.waitForTimeout(300)
 
       // Start export
       await exportPage.startExport()
-      await page.waitForTimeout(500)
 
       // Try to cancel
       await exportPage.cancelJob()
-      await page.waitForTimeout(500)
 
       // Job should be cancelled or modal closed
       // Either outcome is acceptable

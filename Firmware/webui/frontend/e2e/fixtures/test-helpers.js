@@ -5,6 +5,21 @@
  */
 
 /**
+ * Timeout constants for consistent wait behavior across tests
+ * These values account for network latency to remote Pi server
+ */
+export const TIMEOUTS = {
+  /** Short timeout for optional/fast elements (e.g., spinners that may not appear) */
+  SHORT: 2000,
+  /** Medium timeout for UI transitions and state changes */
+  MEDIUM: 5000,
+  /** Default timeout for network operations */
+  NETWORK: 10000,
+  /** Long timeout for slow operations (e.g., photo loading, exports) */
+  LONG: 30000,
+}
+
+/**
  * Check if page is showing rate limit error (429)
  * @param {import('@playwright/test').Page} page
  * @returns {Promise<boolean>}
@@ -44,7 +59,7 @@ export async function waitForGalleryLoad(page) {
   try {
     await page.waitForSelector('[data-testid="loading-spinner"]', {
       state: 'hidden',
-      timeout: 5000, // Short timeout since spinner is optional
+      timeout: TIMEOUTS.MEDIUM, // Short timeout since spinner is optional
     })
   } catch {
     // Expected: Loading spinner may not appear if data loads fast
@@ -55,7 +70,7 @@ export async function waitForGalleryLoad(page) {
   // This WILL throw if no photos appear, which is the expected behavior for test failure
   await page.waitForSelector('button[aria-label*="View photo"], [data-testid^="photo-item-"], .photo-item', {
     state: 'visible',
-    timeout: 30000,
+    timeout: TIMEOUTS.LONG,
   })
 }
 

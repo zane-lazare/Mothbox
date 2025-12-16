@@ -6,7 +6,7 @@
 
 import { test, expect } from '@playwright/test'
 import { GalleryPage } from '../pages/gallery.page.js'
-import { isRateLimited } from '../fixtures/test-helpers.js'
+import { isRateLimited, TIMEOUTS } from '../fixtures/test-helpers.js'
 
 test.describe('Gallery Browsing', () => {
   let gallery
@@ -61,12 +61,9 @@ test.describe('Gallery Browsing', () => {
     await expect(lightbox).toBeVisible()
   })
 
-  test('view mode toggle switches between grid and list', async ({ page }) => {
+  test('view mode toggle switches between grid and list', async () => {
     // Try to switch to list view
     await gallery.switchToListView()
-
-    // Wait for view change
-    await page.waitForTimeout(500)
 
     // Switch back to grid
     await gallery.switchToGridView()
@@ -81,7 +78,7 @@ test.describe('Gallery Browsing', () => {
     // Note: loadingPromise intentionally not awaited - we just verify page reloads without error
     page.waitForSelector(
       '[data-testid="loading-spinner"], .loading, [class*="Spinner"], [class*="Loading"]',
-      { state: 'visible', timeout: 5000 }
+      { state: 'visible', timeout: TIMEOUTS.MEDIUM }
     ).catch(() => null)
 
     await page.reload()

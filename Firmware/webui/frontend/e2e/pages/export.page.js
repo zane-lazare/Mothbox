@@ -4,6 +4,8 @@
  * Encapsulates interactions with the export workflow (modals, job status)
  */
 
+import { TIMEOUTS } from '../fixtures/test-helpers.js'
+
 export class ExportPage {
   /**
    * @param {import('@playwright/test').Page} page
@@ -82,9 +84,10 @@ export class ExportPage {
   async waitForModal() {
     await this.page.waitForSelector(this.selectors.exportModal, {
       state: 'visible',
-      timeout: 5000,
+      timeout: TIMEOUTS.MEDIUM,
     })
-    await this.page.waitForTimeout(300)
+    // Wait for modal animation to complete
+    await this.page.waitForLoadState('domcontentloaded')
   }
 
   /**
@@ -94,7 +97,7 @@ export class ExportPage {
     await this.page.click(this.selectors.cancelButton)
     await this.page.waitForSelector(this.selectors.exportModal, {
       state: 'hidden',
-      timeout: 5000,
+      timeout: TIMEOUTS.MEDIUM,
     })
   }
 
@@ -117,7 +120,8 @@ export class ExportPage {
       }
       await this.page.click(`.format-card:has-text("${formatLabels[format]}")`)
     }
-    await this.page.waitForTimeout(200)
+    // Wait for selection to register
+    await this.page.waitForLoadState('domcontentloaded')
   }
 
   /**
@@ -147,8 +151,18 @@ export class ExportPage {
    * Toggle "include photos" option
    */
   async toggleIncludePhotos() {
-    await this.page.click(this.selectors.includePhotosCheckbox)
-    await this.page.waitForTimeout(100)
+    const checkbox = this.page.locator(this.selectors.includePhotosCheckbox)
+    const wasChecked = await checkbox.isChecked()
+    await checkbox.click()
+    // Wait for checkbox state to change
+    await this.page.waitForFunction(
+      ([sel, expected]) => {
+        const cb = document.querySelector(sel)
+        return cb?.checked === expected
+      },
+      [this.selectors.includePhotosCheckbox, !wasChecked],
+      { timeout: TIMEOUTS.SHORT }
+    ).catch(() => {})
   }
 
   /**
@@ -156,7 +170,13 @@ export class ExportPage {
    */
   async startExport() {
     await this.page.click(this.selectors.startExportButton)
-    await this.page.waitForTimeout(500)
+    // Wait for progress modal or status update
+    const progressModal = this.page.locator(this.selectors.progressModal)
+    const progressBar = this.page.locator(this.selectors.progressBar)
+    await Promise.race([
+      progressModal.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM }),
+      progressBar.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM }),
+    ]).catch(() => {})
   }
 
   /**
@@ -180,6 +200,7 @@ export class ExportPage {
         return false
       }
 
+      // Poll every second for status changes
       await this.page.waitForTimeout(1000)
     }
 
@@ -235,7 +256,8 @@ export class ExportPage {
    */
   async cancelJob() {
     await this.page.click(this.selectors.cancelJobButton)
-    await this.page.waitForTimeout(500)
+    // Wait for job status to update
+    await this.page.waitForLoadState('networkidle', { timeout: TIMEOUTS.NETWORK })
   }
 
   /**

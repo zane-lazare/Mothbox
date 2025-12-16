@@ -4,6 +4,8 @@
  * Encapsulates interactions with the photo lightbox/viewer
  */
 
+import { TIMEOUTS } from '../fixtures/test-helpers.js'
+
 export class LightboxPage {
   /**
    * @param {import('@playwright/test').Page} page
@@ -62,9 +64,10 @@ export class LightboxPage {
   async waitForOpen() {
     await this.page.waitForSelector(this.selectors.lightbox, {
       state: 'visible',
-      timeout: 5000,
+      timeout: TIMEOUTS.MEDIUM,
     })
-    await this.page.waitForTimeout(300) // Animation
+    // Wait for opening animation to complete
+    await this.page.locator(this.selectors.image).first().waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }).catch(() => {})
   }
 
   /**
@@ -82,7 +85,7 @@ export class LightboxPage {
 
     await this.page.waitForSelector(this.selectors.lightbox, {
       state: 'hidden',
-      timeout: 5000,
+      timeout: TIMEOUTS.MEDIUM,
     })
   }
 
@@ -90,26 +93,44 @@ export class LightboxPage {
    * Navigate to next photo
    */
   async navigateNext() {
+    const currentSrc = await this.getImageSrc()
     const nextBtn = this.page.locator(this.selectors.nextButton).first()
     if (await nextBtn.isVisible()) {
       await nextBtn.click()
     } else {
       await this.page.keyboard.press('ArrowRight')
     }
-    await this.page.waitForTimeout(300)
+    // Wait for image to change (indicating navigation completed)
+    await this.page.waitForFunction(
+      (prevSrc) => {
+        const img = document.querySelector('.lightbox img, [class*="Lightbox"] img')
+        return img && img.src !== prevSrc
+      },
+      currentSrc,
+      { timeout: TIMEOUTS.SHORT }
+    ).catch(() => {})
   }
 
   /**
    * Navigate to previous photo
    */
   async navigatePrev() {
+    const currentSrc = await this.getImageSrc()
     const prevBtn = this.page.locator(this.selectors.prevButton).first()
     if (await prevBtn.isVisible()) {
       await prevBtn.click()
     } else {
       await this.page.keyboard.press('ArrowLeft')
     }
-    await this.page.waitForTimeout(300)
+    // Wait for image to change (indicating navigation completed)
+    await this.page.waitForFunction(
+      (prevSrc) => {
+        const img = document.querySelector('.lightbox img, [class*="Lightbox"] img')
+        return img && img.src !== prevSrc
+      },
+      currentSrc,
+      { timeout: TIMEOUTS.SHORT }
+    ).catch(() => {})
   }
 
   /**
@@ -117,9 +138,18 @@ export class LightboxPage {
    * @param {'left' | 'right'} direction
    */
   async navigateWithKeyboard(direction) {
+    const currentSrc = await this.getImageSrc()
     const key = direction === 'left' ? 'ArrowLeft' : 'ArrowRight'
     await this.page.keyboard.press(key)
-    await this.page.waitForTimeout(300)
+    // Wait for image to change (indicating navigation completed)
+    await this.page.waitForFunction(
+      (prevSrc) => {
+        const img = document.querySelector('.lightbox img, [class*="Lightbox"] img')
+        return img && img.src !== prevSrc
+      },
+      currentSrc,
+      { timeout: TIMEOUTS.SHORT }
+    ).catch(() => {})
   }
 
   /**
@@ -162,8 +192,18 @@ export class LightboxPage {
     }[tabName]
 
     if (tabSelector) {
-      await this.page.click(tabSelector)
-      await this.page.waitForTimeout(200)
+      const tab = this.page.locator(tabSelector)
+      await tab.click()
+      // Wait for tab to become selected
+      await tab.getAttribute('aria-selected').then(async (selected) => {
+        if (selected !== 'true') {
+          await this.page.waitForFunction(
+            (sel) => document.querySelector(sel)?.getAttribute('aria-selected') === 'true',
+            tabSelector,
+            { timeout: TIMEOUTS.SHORT }
+          ).catch(() => {})
+        }
+      })
     }
   }
 
@@ -174,8 +214,9 @@ export class LightboxPage {
     const btn = this.page.locator(this.selectors.zoomInButton).first()
     if (await btn.isVisible()) {
       await btn.click()
+      // Wait for zoom animation to complete by checking for any transform change
+      await this.page.waitForLoadState('domcontentloaded')
     }
-    await this.page.waitForTimeout(200)
   }
 
   /**
@@ -185,8 +226,9 @@ export class LightboxPage {
     const btn = this.page.locator(this.selectors.zoomOutButton).first()
     if (await btn.isVisible()) {
       await btn.click()
+      // Wait for zoom animation to complete
+      await this.page.waitForLoadState('domcontentloaded')
     }
-    await this.page.waitForTimeout(200)
   }
 
   /**
@@ -198,7 +240,8 @@ export class LightboxPage {
 
     await imageContainer.hover()
     await this.page.mouse.wheel(0, direction === 'in' ? -100 : 100)
-    await this.page.waitForTimeout(200)
+    // Wait for zoom to take effect
+    await this.page.waitForLoadState('domcontentloaded')
   }
 
   /**

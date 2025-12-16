@@ -7,7 +7,7 @@
 import { test, expect } from '@playwright/test'
 import { GalleryPage } from '../pages/gallery.page.js'
 import { FilterDrawerPage } from '../pages/filter-drawer.page.js'
-import { formatDateForInput, daysAgo, isRateLimited } from '../fixtures/test-helpers.js'
+import { formatDateForInput, daysAgo, isRateLimited, TIMEOUTS } from '../fixtures/test-helpers.js'
 
 test.describe('Filter and Search', () => {
   let gallery
@@ -35,7 +35,7 @@ test.describe('Filter and Search', () => {
       expect(await filterDrawer.isOpen()).toBeFalsy()
     })
 
-    test('date range filter applies', async ({ page }) => {
+    test('date range filter applies', async () => {
       await filterDrawer.open()
 
       // Set date range to last 30 days
@@ -45,15 +45,12 @@ test.describe('Filter and Search', () => {
       await filterDrawer.setDateRange(startDate, endDate)
       await filterDrawer.applyFilters()
 
-      // Wait for gallery to update
-      await page.waitForTimeout(1000)
-
       // Photo count might change (or stay same if all photos are in range)
       const newCount = await gallery.getPhotoCount()
       expect(newCount).toBeGreaterThanOrEqual(0)
     })
 
-    test('clear filters resets gallery', async ({ page }) => {
+    test('clear filters resets gallery', async () => {
       // Apply a filter first
       await filterDrawer.open()
 
@@ -62,13 +59,11 @@ test.describe('Filter and Search', () => {
       await filterDrawer.setDateRange(startDate, endDate)
       await filterDrawer.applyFilters()
 
-      await page.waitForTimeout(500)
       const filteredCount = await gallery.getPhotoCount()
 
       // Clear filters
       await filterDrawer.clearAllFilters()
 
-      await page.waitForTimeout(500)
       const clearedCount = await gallery.getPhotoCount()
 
       // Count should be >= filtered count (or equal if filter had no effect)
@@ -91,7 +86,7 @@ test.describe('Filter and Search', () => {
       expect(chipCount).toBeGreaterThanOrEqual(0)
     })
 
-    test('remove individual filter chip', async ({ page }) => {
+    test('remove individual filter chip', async () => {
       await filterDrawer.open()
 
       // Apply date filter
@@ -105,7 +100,6 @@ test.describe('Filter and Search', () => {
       if (initialChipCount > 0) {
         // Remove first chip
         await filterDrawer.removeFilterChip(0)
-        await page.waitForTimeout(500)
 
         const newChipCount = await filterDrawer.getActiveFilterCount()
         expect(newChipCount).toBeLessThan(initialChipCount)
@@ -140,7 +134,7 @@ test.describe('Filter and Search', () => {
       expect(newCount).toBeGreaterThanOrEqual(0)
     })
 
-    test('search with field qualifier works', async ({ page }) => {
+    test('search with field qualifier works', async () => {
       const initialCount = await gallery.getPhotoCount()
 
       if (initialCount === 0) {
@@ -150,14 +144,13 @@ test.describe('Filter and Search', () => {
 
       // Try field-specific search
       await gallery.search('tag:test')
-      await page.waitForTimeout(1000)
 
       // Should not error
       const newCount = await gallery.getPhotoCount()
       expect(newCount).toBeGreaterThanOrEqual(0)
     })
 
-    test('clear search restores results', async ({ page }) => {
+    test('clear search restores results', async () => {
       const initialCount = await gallery.getPhotoCount()
 
       if (initialCount === 0) {
@@ -167,13 +160,11 @@ test.describe('Filter and Search', () => {
 
       // Perform a search that likely has no results
       await gallery.search('xyznonexistent123')
-      await page.waitForTimeout(500)
 
       const searchCount = await gallery.getPhotoCount()
 
       // Clear search
       await gallery.clearSearch()
-      await page.waitForTimeout(500)
 
       const clearedCount = await gallery.getPhotoCount()
 
@@ -186,7 +177,8 @@ test.describe('Filter and Search', () => {
     test('filter drawer works on mobile viewport', async ({ page }) => {
       // Set mobile viewport
       await page.setViewportSize({ width: 375, height: 667 })
-      await page.waitForTimeout(500)
+      // Wait for viewport resize to take effect
+      await page.waitForLoadState('domcontentloaded')
 
       // Gallery should still be visible
       const photoCount = await gallery.getPhotoCount()
@@ -202,7 +194,8 @@ test.describe('Filter and Search', () => {
     test('filter drawer works on tablet viewport', async ({ page }) => {
       // Set tablet viewport
       await page.setViewportSize({ width: 768, height: 1024 })
-      await page.waitForTimeout(500)
+      // Wait for viewport resize to take effect
+      await page.waitForLoadState('domcontentloaded')
 
       const photoCount = await gallery.getPhotoCount()
       expect(photoCount).toBeGreaterThanOrEqual(0)

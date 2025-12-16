@@ -4,6 +4,8 @@
  * Encapsulates interactions with the gallery page
  */
 
+import { TIMEOUTS } from '../fixtures/test-helpers.js'
+
 export class GalleryPage {
   /**
    * @param {import('@playwright/test').Page} page
@@ -70,7 +72,7 @@ export class GalleryPage {
     try {
       await this.page.waitForSelector(this.selectors.loadingSpinner, {
         state: 'hidden',
-        timeout: 5000,
+        timeout: TIMEOUTS.MEDIUM,
       })
     } catch {
       // Spinner might not appear
@@ -90,7 +92,7 @@ export class GalleryPage {
     // Wait for overlay to be hidden (if it exists)
     const overlay = this.page.locator(this.selectors.modalOverlay).first()
     try {
-      await overlay.waitFor({ state: 'hidden', timeout: 1000 })
+      await overlay.waitFor({ state: 'hidden', timeout: TIMEOUTS.SHORT })
     } catch {
       // Overlay might not exist or already hidden
     }
@@ -130,7 +132,7 @@ export class GalleryPage {
     await photos.nth(index).click()
     // Wait for lightbox to open
     await this.page.waitForSelector('[role="dialog"], .lightbox, [class*="Lightbox"]', {
-      timeout: 5000,
+      timeout: TIMEOUTS.MEDIUM,
     })
   }
 
@@ -151,7 +153,7 @@ export class GalleryPage {
         (selector, prevCount) => document.querySelectorAll(selector).length > prevCount,
         this.selectors.photoItem,
         initialCount,
-        { timeout: 5000 }
+        { timeout: TIMEOUTS.MEDIUM }
       )
     } catch {
       // May not load more if at end of list
@@ -171,9 +173,9 @@ export class GalleryPage {
     // Wait for mode to toggle (toolbar appears/disappears)
     const toolbar = this.page.locator(this.selectors.bulkActionsToolbar)
     if (wasInSelectMode) {
-      await toolbar.waitFor({ state: 'hidden', timeout: 2000 }).catch(() => {})
+      await toolbar.waitFor({ state: 'hidden', timeout: TIMEOUTS.SHORT }).catch(() => {})
     } else {
-      await toolbar.waitFor({ state: 'visible', timeout: 2000 }).catch(() => {})
+      await toolbar.waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }).catch(() => {})
     }
   }
 
@@ -219,7 +221,7 @@ export class GalleryPage {
   async selectAll() {
     await this.page.click(this.selectors.selectAllButton)
     // Wait for selection count to update
-    await this.page.locator(this.selectors.selectedCount).waitFor({ state: 'visible', timeout: 2000 }).catch(() => {})
+    await this.page.locator(this.selectors.selectedCount).waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }).catch(() => {})
   }
 
   /**
@@ -243,7 +245,7 @@ export class GalleryPage {
     await this.page.click(this.selectors.filterDrawerToggle)
     // Wait for filter drawer to be visible
     await this.page.locator('aside[role="complementary"][aria-label="Filters"]')
-      .waitFor({ state: 'visible', timeout: 2000 }).catch(() => {})
+      .waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }).catch(() => {})
   }
 
   /**
@@ -278,7 +280,7 @@ export class GalleryPage {
         await this.page.waitForFunction(
           (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'true',
           this.selectors.gridViewButton,
-          { timeout: 2000 }
+          { timeout: TIMEOUTS.SHORT }
         ).catch(() => {})
       }
     })
@@ -297,7 +299,7 @@ export class GalleryPage {
         await this.page.waitForFunction(
           (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'true',
           this.selectors.listViewButton,
-          { timeout: 2000 }
+          { timeout: TIMEOUTS.SHORT }
         ).catch(() => {})
       }
     })
@@ -309,7 +311,7 @@ export class GalleryPage {
   async clickBulkTag() {
     await this.page.click(this.selectors.bulkTagButton)
     // Wait for modal to appear
-    await this.page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: 2000 }).catch(() => {})
+    await this.page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }).catch(() => {})
   }
 
   /**
@@ -318,6 +320,6 @@ export class GalleryPage {
   async clickBulkExport() {
     await this.page.click(this.selectors.bulkExportButton)
     // Wait for modal to appear
-    await this.page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: 2000 }).catch(() => {})
+    await this.page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }).catch(() => {})
   }
 }

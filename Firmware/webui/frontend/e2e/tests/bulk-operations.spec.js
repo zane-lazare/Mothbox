@@ -7,7 +7,7 @@
 
 import { test, expect } from '@playwright/test'
 import { GalleryPage } from '../pages/gallery.page.js'
-import { generateTestTag, isRateLimited } from '../fixtures/test-helpers.js'
+import { generateTestTag, isRateLimited, TIMEOUTS } from '../fixtures/test-helpers.js'
 
 test.describe('Bulk Operations', () => {
   let gallery
@@ -29,17 +29,15 @@ test.describe('Bulk Operations', () => {
     }
   })
 
-  test('toggle select mode', async ({ page }) => {
+  test('toggle select mode', async () => {
     // Enter select mode
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
 
     const isInSelectMode = await gallery.isInSelectMode()
     expect(isInSelectMode).toBeTruthy()
 
     // Exit select mode
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
 
     const isExited = !(await gallery.isInSelectMode())
     expect(isExited).toBeTruthy()
@@ -54,11 +52,13 @@ test.describe('Bulk Operations', () => {
 
     // Enter select mode
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
 
     // Select first photo
     await gallery.selectPhotos([0])
-    await page.waitForTimeout(300)
+    // Wait for selection count to update
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="selected-count"], span:has-text("selected")')?.textContent?.match(/\d+/)
+    ).catch(() => {})
 
     const selectedCount = await gallery.getSelectedCount()
     expect(selectedCount).toBeGreaterThan(0)
@@ -73,11 +73,13 @@ test.describe('Bulk Operations', () => {
 
     // Enter select mode
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
 
     // Select multiple photos
     await gallery.selectPhotos([0, 1, 2])
-    await page.waitForTimeout(300)
+    // Wait for selection count to update
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="selected-count"], span:has-text("selected")')?.textContent?.match(/\d+/)
+    ).catch(() => {})
 
     const selectedCount = await gallery.getSelectedCount()
     expect(selectedCount).toBeGreaterThanOrEqual(1)
@@ -92,18 +94,25 @@ test.describe('Bulk Operations', () => {
 
     // Enter select mode
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
 
     // Select range from first to fourth photo
     await gallery.selectRange(0, 3)
-    await page.waitForTimeout(300)
+    // Wait for selection count to update
+    await page.waitForFunction(
+      () => {
+        const countEl = document.querySelector('[data-testid="selected-count"], span:has-text("selected")')
+        const match = countEl?.textContent?.match(/(\d+)/)
+        return match && parseInt(match[1]) > 1
+      },
+      { timeout: TIMEOUTS.SHORT }
+    ).catch(() => {})
 
     const selectedCount = await gallery.getSelectedCount()
     // Should have selected multiple photos
     expect(selectedCount).toBeGreaterThan(1)
   })
 
-  test('select all button works', async ({ page }) => {
+  test('select all button works', async () => {
     const photoCount = await gallery.getPhotoCount()
     if (photoCount === 0) {
       test.skip(true, 'No photos available')
@@ -112,12 +121,10 @@ test.describe('Bulk Operations', () => {
 
     // Enter select mode
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
 
     // Try to click select all
     try {
       await gallery.selectAll()
-      await page.waitForTimeout(300)
 
       const selectedCount = await gallery.getSelectedCount()
       expect(selectedCount).toBeGreaterThan(0)
@@ -136,14 +143,11 @@ test.describe('Bulk Operations', () => {
 
     // Enter select mode and select a photo
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
     await gallery.selectPhotos([0])
-    await page.waitForTimeout(300)
 
     // Click bulk tag button
     try {
       await gallery.clickBulkTag()
-      await page.waitForTimeout(500)
 
       // Look for tag modal
       const modal = page.locator('[role="dialog"]:has-text("Tag"), .tag-modal')
@@ -173,27 +177,26 @@ test.describe('Bulk Operations', () => {
 
     // Enter select mode and select a photo
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
     await gallery.selectPhotos([0])
-    await page.waitForTimeout(300)
 
     try {
       // Open bulk tag modal
       await gallery.clickBulkTag()
-      await page.waitForTimeout(500)
 
       // Find tag input and enter test tag
       const tagInput = page.locator('input[placeholder*="tag"], input[type="text"]').first()
       if (await tagInput.isVisible()) {
         await tagInput.fill(testTag)
         await page.keyboard.press('Enter')
-        await page.waitForTimeout(300)
+        // Wait for tag to be added
+        await page.waitForLoadState('domcontentloaded')
 
         // Apply tags
         const applyBtn = page.locator('button:has-text("Apply"), button:has-text("Save")').first()
         if (await applyBtn.isVisible()) {
           await applyBtn.click()
-          await page.waitForTimeout(1000)
+          // Wait for network request to complete
+          await page.waitForLoadState('networkidle', { timeout: TIMEOUTS.NETWORK })
 
           // Tag should have been applied (we trust the operation succeeded)
           // Cleanup: Would need API call to remove the test tag
@@ -228,16 +231,17 @@ test.describe('Bulk Operations', () => {
 
     // Enter select mode and select some photos
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
     await gallery.selectPhotos([0])
-    await page.waitForTimeout(300)
+    // Wait for selection count to appear
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="selected-count"], span:has-text("selected")')?.textContent?.match(/\d+/)
+    ).catch(() => {})
 
     const selectedBefore = await gallery.getSelectedCount()
     expect(selectedBefore).toBeGreaterThan(0)
 
     // Exit select mode
     await gallery.toggleSelectMode()
-    await page.waitForTimeout(500)
 
     // Selection should be cleared
     const isInSelectMode = await gallery.isInSelectMode()

@@ -4,6 +4,8 @@
  * Encapsulates interactions with the gallery filter drawer
  */
 
+import { TIMEOUTS } from '../fixtures/test-helpers.js'
+
 export class FilterDrawerPage {
   /**
    * @param {import('@playwright/test').Page} page
@@ -93,9 +95,10 @@ export class FilterDrawerPage {
       await this.page.click(this.selectors.toggleButton)
       await this.page.waitForSelector(this.selectors.drawer, {
         state: 'visible',
-        timeout: 5000,
+        timeout: TIMEOUTS.MEDIUM,
       })
-      await this.page.waitForTimeout(300) // Animation
+      // Wait for animation to complete
+      await this.page.waitForLoadState('domcontentloaded')
     }
   }
 
@@ -113,7 +116,7 @@ export class FilterDrawerPage {
       }
       await this.page.waitForSelector(this.selectors.drawer, {
         state: 'hidden',
-        timeout: 5000,
+        timeout: TIMEOUTS.MEDIUM,
       })
     }
   }
@@ -126,7 +129,16 @@ export class FilterDrawerPage {
   async setDateRange(startDate, endDate) {
     await this.page.fill(this.selectors.dateStartInput, startDate)
     await this.page.fill(this.selectors.dateEndInput, endDate)
-    await this.page.waitForTimeout(200)
+    // Wait for inputs to update
+    await this.page.waitForFunction(
+      ([startSel, startVal, endSel, endVal]) => {
+        const startInput = document.querySelector(startSel)
+        const endInput = document.querySelector(endSel)
+        return startInput?.value === startVal && endInput?.value === endVal
+      },
+      [this.selectors.dateStartInput, startDate, this.selectors.dateEndInput, endDate],
+      { timeout: TIMEOUTS.SHORT }
+    ).catch(() => {})
   }
 
   /**
@@ -135,7 +147,8 @@ export class FilterDrawerPage {
    */
   async clickDatePreset(preset) {
     await this.page.click(`button:has-text("${preset}")`)
-    await this.page.waitForTimeout(200)
+    // Wait for date inputs to be populated
+    await this.page.waitForLoadState('domcontentloaded')
   }
 
   /**
@@ -144,16 +157,18 @@ export class FilterDrawerPage {
    */
   async addTag(tag) {
     await this.page.fill(this.selectors.tagInput, tag)
-    await this.page.waitForTimeout(300) // Wait for suggestions
+    // Wait for suggestions to appear
+    const suggestion = this.page.locator(this.selectors.tagSuggestion).first()
+    await suggestion.waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }).catch(() => {})
 
     // Click first suggestion or press Enter
-    const suggestion = this.page.locator(this.selectors.tagSuggestion).first()
     if (await suggestion.isVisible()) {
       await suggestion.click()
     } else {
       await this.page.press(this.selectors.tagInput, 'Enter')
     }
-    await this.page.waitForTimeout(200)
+    // Wait for selected tag chip to appear
+    await this.page.locator(this.selectors.selectedTag).last().waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }).catch(() => {})
   }
 
   /**
@@ -162,8 +177,21 @@ export class FilterDrawerPage {
    */
   async setTagMatchMode(mode) {
     const buttonText = mode === 'any' ? 'Any' : 'All'
-    await this.page.click(`button:has-text("${buttonText}")`)
-    await this.page.waitForTimeout(200)
+    const btn = this.page.locator(`button:has-text("${buttonText}")`)
+    await btn.click()
+    // Wait for button to show active state
+    await btn.getAttribute('aria-pressed').then(async (pressed) => {
+      if (pressed !== 'true') {
+        await this.page.waitForFunction(
+          (text) => {
+            const button = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes(text))
+            return button?.getAttribute('aria-pressed') === 'true' || button?.classList.contains('active')
+          },
+          buttonText,
+          { timeout: TIMEOUTS.SHORT }
+        ).catch(() => {})
+      }
+    })
   }
 
   /**
@@ -172,23 +200,35 @@ export class FilterDrawerPage {
    */
   async addSpecies(species) {
     await this.page.fill(this.selectors.speciesInput, species)
-    await this.page.waitForTimeout(300)
-
+    // Wait for suggestions to appear
     const suggestion = this.page.locator(this.selectors.speciesSuggestion).first()
+    await suggestion.waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }).catch(() => {})
+
     if (await suggestion.isVisible()) {
       await suggestion.click()
     } else {
       await this.page.press(this.selectors.speciesInput, 'Enter')
     }
-    await this.page.waitForTimeout(200)
+    // Wait for input to be processed
+    await this.page.waitForLoadState('domcontentloaded')
   }
 
   /**
    * Toggle "show unidentified only" checkbox
    */
   async toggleUnidentified() {
-    await this.page.click(this.selectors.unidentifiedToggle)
-    await this.page.waitForTimeout(200)
+    const checkbox = this.page.locator(this.selectors.unidentifiedToggle)
+    const wasChecked = await checkbox.isChecked()
+    await checkbox.click()
+    // Wait for checkbox state to change
+    await this.page.waitForFunction(
+      ([sel, expected]) => {
+        const cb = document.querySelector(sel)
+        return cb?.checked === expected
+      },
+      [this.selectors.unidentifiedToggle, !wasChecked],
+      { timeout: TIMEOUTS.SHORT }
+    ).catch(() => {})
   }
 
   /**
@@ -202,8 +242,19 @@ export class FilterDrawerPage {
       raw: this.selectors.rawCheckbox,
       video: this.selectors.videoCheckbox,
     }
-    await this.page.click(selectors[fileType])
-    await this.page.waitForTimeout(200)
+    const selector = selectors[fileType]
+    const checkbox = this.page.locator(selector)
+    const wasChecked = await checkbox.isChecked()
+    await checkbox.click()
+    // Wait for checkbox state to change
+    await this.page.waitForFunction(
+      ([sel, expected]) => {
+        const cb = document.querySelector(sel)
+        return cb?.checked === expected
+      },
+      [selector, !wasChecked],
+      { timeout: TIMEOUTS.SHORT }
+    ).catch(() => {})
   }
 
   /**
@@ -212,15 +263,30 @@ export class FilterDrawerPage {
    */
   async setNotesKeyword(keyword) {
     await this.page.fill(this.selectors.notesKeywordInput, keyword)
-    await this.page.waitForTimeout(200)
+    // Wait for input value to be set
+    await this.page.waitForFunction(
+      ([sel, val]) => document.querySelector(sel)?.value === val,
+      [this.selectors.notesKeywordInput, keyword],
+      { timeout: TIMEOUTS.SHORT }
+    ).catch(() => {})
   }
 
   /**
    * Toggle "has notes" filter
    */
   async toggleHasNotes() {
-    await this.page.click(this.selectors.hasNotesCheckbox)
-    await this.page.waitForTimeout(200)
+    const checkbox = this.page.locator(this.selectors.hasNotesCheckbox)
+    const wasChecked = await checkbox.isChecked()
+    await checkbox.click()
+    // Wait for checkbox state to change
+    await this.page.waitForFunction(
+      ([sel, expected]) => {
+        const cb = document.querySelector(sel)
+        return cb?.checked === expected
+      },
+      [this.selectors.hasNotesCheckbox, !wasChecked],
+      { timeout: TIMEOUTS.SHORT }
+    ).catch(() => {})
   }
 
   /**
@@ -231,8 +297,8 @@ export class FilterDrawerPage {
     if (await applyBtn.isVisible()) {
       await applyBtn.click()
     }
-    await this.page.waitForTimeout(500)
-    await this.page.waitForLoadState('networkidle')
+    // Wait for gallery to reload with filtered results
+    await this.page.waitForLoadState('networkidle', { timeout: TIMEOUTS.NETWORK })
   }
 
   /**
@@ -240,8 +306,8 @@ export class FilterDrawerPage {
    */
   async clearAllFilters() {
     await this.page.click(this.selectors.clearAllButton)
-    await this.page.waitForTimeout(500)
-    await this.page.waitForLoadState('networkidle')
+    // Wait for gallery to reload with all results
+    await this.page.waitForLoadState('networkidle', { timeout: TIMEOUTS.NETWORK })
   }
 
   /**
@@ -258,10 +324,16 @@ export class FilterDrawerPage {
    */
   async removeFilterChip(index) {
     const chips = this.page.locator(this.selectors.filterChip)
+    const initialCount = await chips.count()
     const chip = chips.nth(index)
     const removeBtn = chip.locator('button').first()
     await removeBtn.click()
-    await this.page.waitForTimeout(300)
+    // Wait for chip to be removed
+    await this.page.waitForFunction(
+      ([sel, expected]) => document.querySelectorAll(sel).length < expected,
+      [this.selectors.filterChip, initialCount],
+      { timeout: TIMEOUTS.SHORT }
+    ).catch(() => {})
   }
 
   /**

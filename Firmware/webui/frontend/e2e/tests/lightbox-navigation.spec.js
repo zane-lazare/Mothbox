@@ -7,7 +7,7 @@
 import { test, expect } from '@playwright/test'
 import { GalleryPage } from '../pages/gallery.page.js'
 import { LightboxPage } from '../pages/lightbox.page.js'
-import { isRateLimited } from '../fixtures/test-helpers.js'
+import { isRateLimited, TIMEOUTS } from '../fixtures/test-helpers.js'
 
 test.describe('Lightbox Navigation', () => {
   let gallery
@@ -51,7 +51,7 @@ test.describe('Lightbox Navigation', () => {
     expect(imageSrc).toBeTruthy()
   })
 
-  test('arrow key navigation works', async ({ page }) => {
+  test('arrow key navigation works', async () => {
     const photoCount = await gallery.getPhotoCount()
     if (photoCount < 2) {
       test.skip(true, 'Need at least 2 photos for navigation test')
@@ -65,7 +65,6 @@ test.describe('Lightbox Navigation', () => {
 
     // Navigate to next photo
     await lightbox.navigateWithKeyboard('right')
-    await page.waitForTimeout(500)
 
     const secondImageSrc = await lightbox.getImageSrc()
 
@@ -74,13 +73,12 @@ test.describe('Lightbox Navigation', () => {
 
     // Navigate back
     await lightbox.navigateWithKeyboard('left')
-    await page.waitForTimeout(500)
 
     const backToFirstSrc = await lightbox.getImageSrc()
     expect(backToFirstSrc).toBe(firstImageSrc)
   })
 
-  test('navigation buttons work', async ({ page }) => {
+  test('navigation buttons work', async () => {
     const photoCount = await gallery.getPhotoCount()
     if (photoCount < 2) {
       test.skip(true, 'Need at least 2 photos for navigation test')
@@ -94,14 +92,12 @@ test.describe('Lightbox Navigation', () => {
 
     // Click next button
     await lightbox.navigateNext()
-    await page.waitForTimeout(500)
 
     const secondImageSrc = await lightbox.getImageSrc()
     expect(secondImageSrc).not.toBe(firstImageSrc)
 
     // Click prev button
     await lightbox.navigatePrev()
-    await page.waitForTimeout(500)
 
     const backToFirstSrc = await lightbox.getImageSrc()
     expect(backToFirstSrc).toBe(firstImageSrc)
@@ -119,7 +115,11 @@ test.describe('Lightbox Navigation', () => {
 
     // Press Escape
     await page.keyboard.press('Escape')
-    await page.waitForTimeout(500)
+    // Wait for lightbox to close
+    await page.waitForSelector('[role="dialog"], .lightbox, [class*="Lightbox"]', {
+      state: 'hidden',
+      timeout: TIMEOUTS.MEDIUM,
+    }).catch(() => {})
 
     expect(await lightbox.isOpen()).toBeFalsy()
   })
