@@ -373,6 +373,72 @@ class TestMetadataTransformation:
         for column in DARWIN_CORE_CSV_COLUMN_ORDER:
             assert column in dwc, f"Missing column: {column}"
 
+    def test_transform_without_deployment_uses_photo_gps(self):
+        """Darwin Core export should use photo GPS even without deployment.
+
+        This test verifies Issue #200 - GPS coordinates come from photo EXIF,
+        not deployment metadata. Darwin Core export works correctly when
+        deployment is None.
+        """
+        # Create metadata with GPS from EXIF but no deployment
+        metadata = ExportMetadata(
+            photo_path="/photos/test.jpg",
+            filename="test.jpg",
+            timestamp="2024-01-15T10:30:00",
+            latitude=35.9606,  # From photo EXIF
+            longitude=-83.9207,  # From photo EXIF
+            altitude=350.5,
+            gps_accuracy=2.5,
+            # No deployment fields
+            deployment_name=None,
+            deployment_location_name=None,
+            deployment_start_date=None,
+            deployment_end_date=None,
+        )
+
+        dwc = transform_metadata_to_darwin_core(metadata)
+
+        # GPS coordinates should be present from photo EXIF
+        assert dwc["decimalLatitude"] == 35.9606
+        assert dwc["decimalLongitude"] == -83.9207
+        assert dwc["coordinateUncertaintyInMeters"] == 2.5
+
+        # Deployment-related fields should use defaults
+        assert dwc["collectionCode"] == ""  # deployment_name -> collectionCode
+        assert dwc["occurrenceID"] == generate_occurrence_id(metadata)
+        assert "unknown" in dwc["occurrenceID"]  # Uses "unknown" when no deployment
+
+        # Should still be valid for export (has GPS)
+        assert is_valid_for_export(metadata) is True
+
+    def test_transform_with_deployment_still_uses_photo_gps(self):
+        """GPS coordinates should come from photo EXIF even when deployment exists.
+
+        This verifies that deployment metadata does NOT override GPS coordinates
+        from the photo. Both can coexist.
+        """
+        # Create metadata with GPS from EXIF AND deployment metadata
+        metadata = ExportMetadata(
+            photo_path="/photos/test.jpg",
+            filename="test.jpg",
+            timestamp="2024-01-15T10:30:00",
+            latitude=35.9606,  # From photo EXIF
+            longitude=-83.9207,  # From photo EXIF
+            altitude=350.5,
+            # Deployment provides location name, but NOT GPS override
+            deployment_name="oak-ridge-2024",
+            deployment_location_name="Oak Ridge, TN, USA",
+        )
+
+        dwc = transform_metadata_to_darwin_core(metadata)
+
+        # GPS coordinates should be from photo EXIF
+        assert dwc["decimalLatitude"] == 35.9606
+        assert dwc["decimalLongitude"] == -83.9207
+
+        # Deployment name should be in collectionCode
+        assert dwc["collectionCode"] == "oak-ridge-2024"
+
 
 # ============================================================================
 # Tests for CSV Row Transformation

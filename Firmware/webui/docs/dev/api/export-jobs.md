@@ -1170,6 +1170,173 @@ else:
 
 ---
 
+## Deployment Metadata (Optional)
+
+**Issue #200**: Deployment metadata is optional for exports. GPS coordinates can come from either:
+
+1. **Deployment metadata**: Location information at the directory level
+2. **Photo EXIF**: GPS coordinates embedded in individual photos
+
+When no deployment is selected, the export system automatically falls back to GPS data from photo EXIF headers. This is particularly useful for:
+- Ad-hoc photo collections without deployment metadata
+- Photos captured before deployment metadata was created
+- Mixed-source photo collections
+
+### Photo Aggregation Endpoint
+
+**Endpoint**: `POST /api/export/aggregate`
+
+Aggregate metadata from multiple photos for deployment auto-fill (e.g., when creating deployment metadata from existing photos).
+
+#### Request
+
+**Headers**:
+- `Content-Type`: `application/json`
+
+**Body** (JSON):
+
+Using explicit photo paths:
+```json
+{
+  "photo_paths": ["/photos/p1.jpg", "/photos/p2.jpg"],
+  "tolerance_m": 50.0
+}
+```
+
+Using filter:
+```json
+{
+  "filter": {
+    "deployment": "/photos/forest_2024",
+    "date_start": "2024-01-01"
+  },
+  "tolerance_m": 100.0
+}
+```
+
+**Field Descriptions**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `photo_paths` | array | conditional | Explicit photo paths (overrides `filter`) |
+| `filter` | object | conditional | Photo filter (same as export job filter) |
+| `tolerance_m` | number | no | GPS tolerance in meters (default: 50.0) |
+
+Either `photo_paths` or `filter` must be provided.
+
+#### Response
+
+**Status**: `200 OK`
+
+**Body** (JSON):
+
+```json
+{
+  "photo_count": 10,
+  "date_start": "2024-01-15",
+  "date_end": "2024-01-31",
+  "latitude": 37.7749,
+  "longitude": -122.4194,
+  "altitude": 15.5,
+  "gps_consistent": true,
+  "gps_error": null,
+  "photos_with_gps": 8,
+  "photos_with_timestamp": 10
+}
+```
+
+**Field Descriptions**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `photo_count` | number | Total photos processed |
+| `date_start` | string/null | Earliest date (ISO 8601: YYYY-MM-DD) |
+| `date_end` | string/null | Latest date (ISO 8601: YYYY-MM-DD) |
+| `latitude` | number/null | Median latitude (only if GPS consistent) |
+| `longitude` | number/null | Median longitude (only if GPS consistent) |
+| `altitude` | number/null | Median altitude in meters (only if GPS consistent) |
+| `gps_consistent` | boolean | True if all photos within tolerance |
+| `gps_error` | string/null | Error message if GPS inconsistent |
+| `photos_with_gps` | number | Count of photos with GPS EXIF |
+| `photos_with_timestamp` | number | Count of photos with timestamp EXIF |
+
+#### GPS Consistency
+
+The aggregation endpoint checks that all GPS coordinates are within `tolerance_m` meters of each other:
+
+- **Consistent GPS**: All coordinates within tolerance → returns median coordinates
+- **Inconsistent GPS**: Coordinates differ beyond tolerance → returns `null` for coordinates and provides error message
+- **No GPS data**: Returns `gps_consistent: false` with `null` coordinates
+
+#### Error Responses
+
+**400 Bad Request**:
+```json
+{
+  "error": "Either 'filter' or 'photo_paths' required"
+}
+```
+
+**400 Bad Request** (invalid tolerance):
+```json
+{
+  "error": "tolerance_m must be a non-negative number"
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "error": "Photo aggregation failed"
+}
+```
+
+#### Example Usage
+
+```python
+import requests
+
+# Aggregate from explicit photo list
+response = requests.post(
+    'http://mothbox.local:5000/api/export/aggregate',
+    json={
+        'photo_paths': [
+            '/photos/2024-01/photo1.jpg',
+            '/photos/2024-01/photo2.jpg',
+            '/photos/2024-01/photo3.jpg'
+        ],
+        'tolerance_m': 50.0
+    }
+)
+
+result = response.json()
+
+if result['gps_consistent']:
+    print(f"Location: {result['latitude']}, {result['longitude']}")
+    print(f"Date range: {result['date_start']} to {result['date_end']}")
+else:
+    print(f"GPS inconsistent: {result['gps_error']}")
+
+# Aggregate from filter
+response = requests.post(
+    'http://mothbox.local:5000/api/export/aggregate',
+    json={
+        'filter': {
+            'deployment': '/photos/forest_2024',
+            'date_start': '2024-01-01',
+            'date_end': '2024-01-31'
+        },
+        'tolerance_m': 100.0
+    }
+)
+
+result = response.json()
+print(f"Processed {result['photo_count']} photos")
+print(f"Photos with GPS: {result['photos_with_gps']}")
+```
+
+---
+
 ## Related Documentation
 
 - **Export Presets API**: `webui/docs/dev/api/export-presets.md` - Preset management endpoints (Issue #123)
@@ -1183,6 +1350,6 @@ else:
 
 ---
 
-**Document Version**: 1.1.0
-**Last Validated**: 2025-12-14
-**Issues**: #122 - Export Job Queue System, #123 - Export Preset System
+**Document Version**: 1.2.0
+**Last Validated**: 2025-12-16
+**Issues**: #122 - Export Job Queue System, #123 - Export Preset System, #200 - Optional Deployment Metadata

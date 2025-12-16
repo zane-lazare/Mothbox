@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
-import { ChevronDownIcon, ChevronRightIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { ChevronDownIcon, ChevronRightIcon, PlusIcon, XMarkIcon, SparklesIcon } from '@heroicons/react/24/outline'
+import toast from 'react-hot-toast'
 import CoordinateInput from './CoordinateInput'
 import ConfirmDialog from '../common/ConfirmDialog'
+import { usePhotoAggregation } from '../../hooks/usePhotoAggregation'
 
 /**
  * DeploymentEditor Component
@@ -21,6 +23,7 @@ import ConfirmDialog from '../common/ConfirmDialog'
 export default function DeploymentEditor({
   deployment,
   directory,
+  filter,
   onSave,
   onCancel,
   isLoading = false,
@@ -54,6 +57,9 @@ export default function DeploymentEditor({
 
   // Confirm dialog state for unsaved changes
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+
+  // Photo aggregation for auto-fill
+  const aggregateMutation = usePhotoAggregation()
 
   // Initialize form with existing deployment data
   useEffect(() => {
@@ -126,6 +132,55 @@ export default function DeploymentEditor({
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [showCancelConfirm]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAutoFill = () => {
+    // Use filter prop or empty object
+    const aggregationFilter = filter || {}
+
+    aggregateMutation.mutate(
+      { filter: aggregationFilter, tolerance_m: 50.0 },
+      {
+        onSuccess: (data) => {
+          // Always fill dates
+          if (data.date_start) {
+            setStartDate(data.date_start)
+          }
+          if (data.date_end) {
+            setEndDate(data.date_end)
+          }
+
+          // Fill GPS if consistent
+          if (data.gps_consistent) {
+            if (data.latitude !== null && data.longitude !== null) {
+              setLatitude(data.latitude)
+              setLongitude(data.longitude)
+            }
+            if (data.altitude !== null) {
+              setAltitude(data.altitude.toString())
+            }
+            toast.success(`Auto-filled from ${data.photo_count} photos`)
+          } else {
+            // GPS inconsistent - show warning but still fill dates
+            toast.error(data.gps_error || 'GPS coordinates are inconsistent', {
+              duration: 5000
+            })
+            if (data.date_start || data.date_end) {
+              toast.success(`Filled dates from ${data.photo_count} photos (GPS skipped)`, {
+                duration: 3000
+              })
+            }
+          }
+
+          // Mark form as changed
+          setHasChanges(true)
+        },
+        onError: (error) => {
+          const message = error.response?.data?.error || 'Failed to aggregate photo data'
+          toast.error(message)
+        }
+      }
+    )
+  }
 
   const handleSave = () => {
     if (!validate()) return
@@ -334,7 +389,27 @@ export default function DeploymentEditor({
 
       {/* Date Range Section */}
       <div className="space-y-4 border-t pt-4 dark:border-gray-700">
-        <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Date Range</h4>
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Date Range</h4>
+
+          {/* Auto-fill button */}
+          {filter && (
+            <button
+              type="button"
+              onClick={handleAutoFill}
+              disabled={isLoading || aggregateMutation.isPending}
+              className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400
+                       border border-blue-300 dark:border-blue-700 rounded-md
+                       hover:bg-blue-50 dark:hover:bg-blue-900/20
+                       disabled:opacity-50 disabled:cursor-not-allowed
+                       transition-colors"
+              title="Auto-fill dates and GPS from selected photos"
+            >
+              <SparklesIcon className="h-4 w-4" />
+              {aggregateMutation.isPending ? 'Loading...' : 'Auto-fill from Photos'}
+            </button>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -647,6 +722,8 @@ DeploymentEditor.propTypes = {
   }),
   /** Directory path for deployment */
   directory: PropTypes.string.isRequired,
+  /** Filter criteria for auto-fill aggregation (optional) */
+  filter: PropTypes.object,
   /** Save handler - receives deployment data object */
   onSave: PropTypes.func.isRequired,
   /** Cancel handler */

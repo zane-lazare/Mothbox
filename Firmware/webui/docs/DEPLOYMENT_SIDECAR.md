@@ -423,7 +423,9 @@ When both `deployment.json` and `deployment.yaml` exist in the same directory:
 
 ## Integration with Export System
 
-Deployment metadata is automatically included when exporting photos:
+**Note (Issue #200)**: Deployment metadata is **optional** for exports. The export system falls back to GPS coordinates from photo EXIF headers if no deployment metadata is available.
+
+Deployment metadata is automatically included when exporting photos (if available):
 
 ```python
 from webui.backend.services.export_metadata_service import ExportMetadataService
