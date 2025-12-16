@@ -76,8 +76,8 @@ export class GalleryPage {
       // Spinner might not appear
     }
 
-    // Wait for content
-    await this.page.waitForTimeout(1000)
+    // Wait for network to settle
+    await this.page.waitForLoadState('networkidle')
   }
 
   /**
@@ -86,13 +86,13 @@ export class GalleryPage {
   async dismissOverlays() {
     // Try pressing Escape to close any modals
     await this.page.keyboard.press('Escape')
-    await this.page.waitForTimeout(300)
 
-    // Click away from any floating elements
+    // Wait for overlay to be hidden (if it exists)
     const overlay = this.page.locator(this.selectors.modalOverlay).first()
-    if (await overlay.isVisible().catch(() => false)) {
-      await this.page.keyboard.press('Escape')
-      await this.page.waitForTimeout(300)
+    try {
+      await overlay.waitFor({ state: 'hidden', timeout: 1000 })
+    } catch {
+      // Overlay might not exist or already hidden
     }
   }
 
@@ -139,14 +139,25 @@ export class GalleryPage {
    * @returns {Promise<number>} - New photo count after scroll
    */
   async scrollToLoadMore() {
+    const initialCount = await this.getPhotoCount()
+
     await this.page.evaluate(() => {
       window.scrollTo(0, document.body.scrollHeight)
     })
 
-    // Wait for new content
-    await this.page.waitForTimeout(2000)
-    await this.waitForLoad()
+    // Wait for more photos to load (count increases) or network settles
+    try {
+      await this.page.waitForFunction(
+        (selector, prevCount) => document.querySelectorAll(selector).length > prevCount,
+        this.selectors.photoItem,
+        initialCount,
+        { timeout: 5000 }
+      )
+    } catch {
+      // May not load more if at end of list
+    }
 
+    await this.waitForLoad()
     return this.getPhotoCount()
   }
 
@@ -154,8 +165,16 @@ export class GalleryPage {
    * Toggle select mode on/off
    */
   async toggleSelectMode() {
+    const wasInSelectMode = await this.isInSelectMode()
     await this.page.click(this.selectors.selectModeToggle)
-    await this.page.waitForTimeout(300)
+
+    // Wait for mode to toggle (toolbar appears/disappears)
+    const toolbar = this.page.locator(this.selectors.bulkActionsToolbar)
+    if (wasInSelectMode) {
+      await toolbar.waitFor({ state: 'hidden', timeout: 2000 }).catch(() => {})
+    } else {
+      await toolbar.waitFor({ state: 'visible', timeout: 2000 }).catch(() => {})
+    }
   }
 
   /**
@@ -199,7 +218,8 @@ export class GalleryPage {
    */
   async selectAll() {
     await this.page.click(this.selectors.selectAllButton)
-    await this.page.waitForTimeout(300)
+    // Wait for selection count to update
+    await this.page.locator(this.selectors.selectedCount).waitFor({ state: 'visible', timeout: 2000 }).catch(() => {})
   }
 
   /**
@@ -221,7 +241,9 @@ export class GalleryPage {
    */
   async openFilterDrawer() {
     await this.page.click(this.selectors.filterDrawerToggle)
-    await this.page.waitForTimeout(300)
+    // Wait for filter drawer to be visible
+    await this.page.locator('aside[role="complementary"][aria-label="Filters"]')
+      .waitFor({ state: 'visible', timeout: 2000 }).catch(() => {})
   }
 
   /**
@@ -248,8 +270,18 @@ export class GalleryPage {
    */
   async switchToGridView() {
     await this.dismissOverlays()
-    await this.page.click(this.selectors.gridViewButton, { force: true })
-    await this.page.waitForTimeout(300)
+    const button = this.page.locator(this.selectors.gridViewButton)
+    await button.click({ force: true })
+    // Wait for button to show pressed state
+    await button.getAttribute('aria-pressed').then(async (pressed) => {
+      if (pressed !== 'true') {
+        await this.page.waitForFunction(
+          (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'true',
+          this.selectors.gridViewButton,
+          { timeout: 2000 }
+        ).catch(() => {})
+      }
+    })
   }
 
   /**
@@ -257,8 +289,18 @@ export class GalleryPage {
    */
   async switchToListView() {
     await this.dismissOverlays()
-    await this.page.click(this.selectors.listViewButton, { force: true })
-    await this.page.waitForTimeout(300)
+    const button = this.page.locator(this.selectors.listViewButton)
+    await button.click({ force: true })
+    // Wait for button to show pressed state
+    await button.getAttribute('aria-pressed').then(async (pressed) => {
+      if (pressed !== 'true') {
+        await this.page.waitForFunction(
+          (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'true',
+          this.selectors.listViewButton,
+          { timeout: 2000 }
+        ).catch(() => {})
+      }
+    })
   }
 
   /**
@@ -266,7 +308,8 @@ export class GalleryPage {
    */
   async clickBulkTag() {
     await this.page.click(this.selectors.bulkTagButton)
-    await this.page.waitForTimeout(300)
+    // Wait for modal to appear
+    await this.page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: 2000 }).catch(() => {})
   }
 
   /**
@@ -274,6 +317,7 @@ export class GalleryPage {
    */
   async clickBulkExport() {
     await this.page.click(this.selectors.bulkExportButton)
-    await this.page.waitForTimeout(300)
+    // Wait for modal to appear
+    await this.page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: 2000 }).catch(() => {})
   }
 }
