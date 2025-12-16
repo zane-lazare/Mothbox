@@ -185,26 +185,29 @@ export class ExportPage {
    * @returns {Promise<boolean>} - True if succeeded, false if failed
    */
   async waitForCompletion(timeout = 120000) {
-    const startTime = Date.now()
-
-    while (Date.now() - startTime < timeout) {
-      // Check for success
-      const downloadBtn = this.page.locator(this.selectors.downloadButton).first()
-      if (await downloadBtn.isVisible()) {
-        return true
-      }
-
-      // Check for error
-      const errorMsg = this.page.locator(this.selectors.errorMessage).first()
-      if (await errorMsg.isVisible()) {
-        return false
-      }
-
-      // Poll every second for status changes
-      await this.page.waitForTimeout(1000)
+    // Wait for either download button (success) or error message (failure) to appear
+    // This is deterministic - it reacts immediately when state changes
+    try {
+      await this.page.waitForFunction(
+        (selectors) => {
+          const downloadBtn = document.querySelector(selectors.download)
+          const errorMsg = document.querySelector(selectors.error)
+          return (downloadBtn && downloadBtn.offsetParent !== null) ||
+                 (errorMsg && errorMsg.offsetParent !== null)
+        },
+        {
+          download: this.selectors.downloadButton,
+          error: this.selectors.errorMessage,
+        },
+        { timeout }
+      )
+    } catch {
+      throw new Error('Export timed out')
     }
 
-    throw new Error('Export timed out')
+    // Determine which state we ended up in
+    const downloadBtn = this.page.locator(this.selectors.downloadButton).first()
+    return await downloadBtn.isVisible()
   }
 
   /**
