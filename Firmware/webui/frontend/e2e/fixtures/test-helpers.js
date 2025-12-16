@@ -29,18 +29,30 @@ export async function skipIfRateLimited(page, test) {
 
 /**
  * Wait for gallery to finish loading photos
+ *
+ * This function handles the common gallery loading pattern:
+ * 1. Wait for any loading spinner to disappear (optional - may not appear on fast loads)
+ * 2. Wait for at least one photo element to be visible
+ *
  * @param {import('@playwright/test').Page} page
+ * @throws {Error} If no photos appear within 30 seconds (timeout)
  */
 export async function waitForGalleryLoad(page) {
-  // Wait for loading spinner to disappear
-  await page.waitForSelector('[data-testid="loading-spinner"]', {
-    state: 'hidden',
-    timeout: 30000,
-  }).catch(() => {
-    // Loading spinner might not appear if data loads fast
-  })
+  // Wait for loading spinner to disappear (if present)
+  // The spinner may not appear at all if data loads quickly, so we catch the timeout
+  // This is expected behavior, not an error condition
+  try {
+    await page.waitForSelector('[data-testid="loading-spinner"]', {
+      state: 'hidden',
+      timeout: 5000, // Short timeout since spinner is optional
+    })
+  } catch {
+    // Expected: Loading spinner may not appear if data loads fast
+    // This is a normal case, not an error - continue to wait for photos
+  }
 
   // Wait for at least one photo to be visible - using actual PhotoGridItem selector
+  // This WILL throw if no photos appear, which is the expected behavior for test failure
   await page.waitForSelector('button[aria-label*="View photo"], [data-testid^="photo-item-"], .photo-item', {
     state: 'visible',
     timeout: 30000,
@@ -58,14 +70,18 @@ export async function waitForNetworkIdle(page, timeout = 10000) {
 
 /**
  * Scroll to bottom of page to trigger infinite scroll
+ *
+ * Scrolls to the bottom of the page and waits for network activity to settle,
+ * which indicates that any infinite scroll loading has completed.
+ *
  * @param {import('@playwright/test').Page} page
  */
 export async function scrollToBottom(page) {
   await page.evaluate(() => {
     window.scrollTo(0, document.body.scrollHeight)
   })
-  // Wait a bit for scroll event to trigger
-  await page.waitForTimeout(500)
+  // Wait for any network requests triggered by scroll to complete
+  await page.waitForLoadState('networkidle')
 }
 
 /**
