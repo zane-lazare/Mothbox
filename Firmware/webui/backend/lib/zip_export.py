@@ -576,8 +576,11 @@ def create_zip_export(
                         ))
 
                     # Update completed count and call progress callback
+                    # Update every 5% progress or at completion for consistent UX
                     completed_count += 1
-                    if progress_callback and (completed_count % 10 == 0 or completed_count == total):
+                    progress_pct = int((completed_count / total) * 100) if total > 0 else 100
+                    prev_pct = int(((completed_count - 1) / total) * 100) if total > 0 else 0
+                    if progress_callback and (progress_pct // 5 != prev_pct // 5 or completed_count == total):
                         progress_callback(completed_count, total)
 
                 # Clear batch from memory

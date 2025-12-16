@@ -1320,12 +1320,12 @@ class TestProgressCallback:
         assert last_total == len(photo_paths)
         assert last_current == len(photo_paths)
 
-    def test_progress_callback_every_10_photos(self, tmp_path):
-        """Test that progress callback is called every 10 photos."""
-        # Create 25 test photos
+    def test_progress_callback_percentage_based(self, tmp_path):
+        """Test that progress callback is called every 5% progress."""
+        # Create 100 test photos for easy percentage calculation
         photo_paths = []
         metadata_list = []
-        for i in range(25):
+        for i in range(100):
             photo_path = tmp_path / f"photo_{i}.jpg"
             photo_path.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
             photo_paths.append(photo_path)
@@ -1348,10 +1348,11 @@ class TestProgressCallback:
         )
 
         assert result.success is True
-        # Should have calls at 10, 20, and 25 (end)
-        assert len(progress_calls) == 3
+        # Should have calls every 5% (at 5, 10, 15, ..., 100) = 20 calls
+        assert len(progress_calls) == 20
         currents = [c[0] for c in progress_calls]
-        assert currents == [10, 20, 25]
+        # With 100 photos, 5% is every 5 photos
+        assert currents == [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]
 
     def test_progress_callback_none_no_error(self, tmp_path):
         """Test that None progress_callback doesn't cause errors."""
@@ -1556,10 +1557,10 @@ class TestBatchedProcessing:
 
     def test_batched_processing_progress_callback(self, tmp_path):
         """Test progress callback works correctly with batched processing."""
-        # Create 45 photos with batch size 15
+        # Create 100 photos for easy 5% calculation
         photo_paths = []
         metadata_list = []
-        for i in range(45):
+        for i in range(100):
             path = tmp_path / f"moth{i}.jpg"
             create_test_jpeg(path, size=5000)
             photo_paths.append(path)
@@ -1580,12 +1581,12 @@ class TestBatchedProcessing:
         )
 
         assert result.success is True
-        # Should have progress calls at 10, 20, 30, 40, 45
-        assert len(progress_calls) == 5
+        # Should have progress calls every 5% (20 calls for 100 photos)
+        assert len(progress_calls) == 20
         currents = [c[0] for c in progress_calls]
-        assert currents == [10, 20, 30, 40, 45]
+        assert currents == [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]
         # All should report correct total
-        assert all(total == 45 for _, total in progress_calls)
+        assert all(total == 100 for _, total in progress_calls)
 
     def test_batched_processing_memory_bounds(self, tmp_path):
         """Test that batched processing bounds memory usage."""
