@@ -2266,12 +2266,10 @@ def aggregate_photos():
 
             # Use export job service to collect photos
             # This reuses existing filter logic (date, deployment, tags, series, species)
-            from webui.backend.services.export_job_service import ExportJobService
-
             service = current_app.config.get('EXPORT_JOB_SERVICE')
             if service is None:
-                # Fallback: create temporary service instance
-                service = ExportJobService()
+                logger.warning("EXPORT_JOB_SERVICE not configured, functionality may be limited")
+                return jsonify({"error": "Service not properly configured"}), 500
 
             photo_paths = service._collect_photos(job_filter)
 

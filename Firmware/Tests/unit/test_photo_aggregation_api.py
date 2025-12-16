@@ -101,19 +101,18 @@ def test_aggregate_endpoint_with_photo_paths(client):
         assert kwargs['tolerance_m'] == 50.0
 
 
-def test_aggregate_endpoint_with_filter(client):
+def test_aggregate_endpoint_with_filter(app, client):
     """Test /api/export/aggregate with filter."""
     # Mock the export job service
-    with patch('webui.backend.lib.photo_aggregation.aggregate_photo_metadata') as mock_agg, \
-         patch('webui.backend.services.export_job_service.ExportJobService') as mock_service_class:
+    with patch('webui.backend.lib.photo_aggregation.aggregate_photo_metadata') as mock_agg:
 
-        # Mock service instance
+        # Mock service instance and set in app config
         mock_service = MagicMock()
-        mock_service_class.return_value = mock_service
         mock_service._collect_photos.return_value = [
             Path('/photos/p1.jpg'),
             Path('/photos/p2.jpg'),
         ]
+        app.config['EXPORT_JOB_SERVICE'] = mock_service
 
         # Mock aggregation result
         from webui.backend.lib.photo_aggregation import PhotoAggregation
@@ -347,6 +346,27 @@ def test_aggregate_endpoint_aggregation_failure(client):
         data = json.loads(response.data)
         assert 'error' in data
         assert 'aggregation' in data['error'].lower() or 'failed' in data['error'].lower()
+
+
+def test_aggregate_endpoint_service_not_configured(client):
+    """Test error when EXPORT_JOB_SERVICE is not configured and filter is used."""
+    # When using filter, the endpoint requires EXPORT_JOB_SERVICE to be configured
+    # Don't set EXPORT_JOB_SERVICE in app config
+
+    response = client.post(
+        '/api/export/aggregate',
+        data=json.dumps({
+            'filter': {
+                'date_start': '2024-01-01',
+            },
+        }),
+        content_type='application/json',
+    )
+
+    assert response.status_code == 500
+    data = json.loads(response.data)
+    assert 'error' in data
+    assert 'not properly configured' in data['error'].lower()
 
 
 # ============================================================================
