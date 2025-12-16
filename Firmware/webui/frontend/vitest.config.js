@@ -19,6 +19,11 @@ export default defineConfig({
     teardownTimeout: 5000,  // Force exit after 5 seconds if cleanup stalls
     testTimeout: 10000,  // 10 second per-test timeout to catch hanging tests
     hookTimeout: 10000,  // 10 second timeout for beforeEach/afterEach hooks
+    // Exclude Playwright E2E tests - they use a separate test runner
+    exclude: [
+      'node_modules/**',
+      'e2e/**',
+    ],
     // Parallelization settings for improved test performance
     // Using forks (separate processes) instead of threads to avoid memory issues
     // Threads share heap memory which causes OOM errors with large test suites
