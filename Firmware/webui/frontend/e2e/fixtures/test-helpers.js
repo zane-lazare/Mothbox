@@ -133,12 +133,26 @@ export function generateTestTag() {
 
 /**
  * Take screenshot with descriptive name
+ *
+ * Screenshots are saved to test-results/screenshots/ directory.
+ * The directory is created automatically if it doesn't exist.
+ *
  * @param {import('@playwright/test').Page} page
  * @param {string} name
  */
 export async function takeScreenshot(page, name) {
+  const fs = await import('fs')
+  const path = await import('path')
+
+  const screenshotDir = './test-results/screenshots'
+
+  // Ensure directory exists
+  if (!fs.existsSync(screenshotDir)) {
+    fs.mkdirSync(screenshotDir, { recursive: true })
+  }
+
   await page.screenshot({
-    path: `./test-results/screenshots/${name}-${Date.now()}.png`,
+    path: path.join(screenshotDir, `${name}-${Date.now()}.png`),
     fullPage: true,
   })
 }
