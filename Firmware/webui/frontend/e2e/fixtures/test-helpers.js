@@ -30,19 +30,6 @@ export async function isRateLimited(page) {
 }
 
 /**
- * Skip test if rate limited
- * @param {import('@playwright/test').Page} page
- * @param {import('@playwright/test')} test
- */
-export async function skipIfRateLimited(page, test) {
-  if (await isRateLimited(page)) {
-    test.skip(true, 'Rate limited by server (50/hour)')
-    return true
-  }
-  return false
-}
-
-/**
  * Wait for gallery to finish loading photos
  *
  * This function handles the common gallery loading pattern:
