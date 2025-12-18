@@ -81,10 +81,6 @@ MAX_OFFSET_DAYS: Final[int] = 7
 # even if we start just after that phase occurred.
 MAX_SEARCH_DAYS: Final[int] = 60
 
-# Synodic month length (average lunar cycle in days)
-# Used for accurate illumination calculation
-SYNODIC_MONTH_DAYS: Final[float] = 29.530588853
-
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -113,29 +109,34 @@ def _phase_value_to_name(phase_value: float) -> str:
     return "new"
 
 
+# Astral library phase value range (0 to ~28)
+ASTRAL_PHASE_CYCLE: Final[float] = 28.0
+
+
 def _calculate_illumination(phase_value: float) -> float:
     """
     Calculate moon illumination fraction from phase value.
 
-    Uses the synodic month length (29.530588853 days) for astronomical
-    accuracy. The illumination follows a sinusoidal curve based on the
-    phase angle:
+    The astral library returns phase values in the range 0-27.99,
+    representing a full lunar cycle. The illumination follows a
+    sinusoidal curve:
     - 0 at new moon (phase_value = 0)
-    - 1 at full moon (phase_value ≈ 14.77)
-    - 0 at new moon again (phase_value ≈ 29.53)
+    - 1 at full moon (phase_value ≈ 14)
+    - 0 at new moon again (phase_value ≈ 28)
 
     Args:
-        phase_value: Astral phase value (0-27.99), representing days
-                     since new moon in the lunar cycle
+        phase_value: Astral phase value (0-27.99), representing position
+                     in the lunar cycle
 
     Returns:
         Illumination as float (0.0 to 1.0)
     """
-    # Convert phase value to radians using synodic month for accuracy
-    phase_angle = 2 * math.pi * phase_value / SYNODIC_MONTH_DAYS
+    # Convert phase value to radians using astral's 28-day scale
+    # This ensures the full cycle maps to 0-2π correctly
+    phase_angle = 2 * math.pi * phase_value / ASTRAL_PHASE_CYCLE
     # Illumination follows cosine curve:
     # At new moon (0): cos(0) = 1, so (1-1)/2 = 0
-    # At full moon (~14.77): cos(pi) = -1, so (1-(-1))/2 = 1
+    # At full moon (~14): cos(pi) = -1, so (1-(-1))/2 = 1
     illumination = (1 - math.cos(phase_angle)) / 2
     return round(illumination, 3)
 
