@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 # Constants
 CRON_COMMENT_PREFIX: Final[str] = "Mothbox:"
 RTC_WAKEALARM_PATH: Final[str] = "/sys/class/rtc/rtc0/wakealarm"
+LUNAR_CYCLE_DAYS: Final[int] = 30  # Minimum days to look ahead for moon phase schedules
 
 # Pre-compiled regex patterns for cron field validation (performance optimization)
 _CRON_FIELD_PATTERNS: Final[tuple[re.Pattern, ...]] = (
@@ -506,7 +507,10 @@ def solar_trigger_to_cron(
         ValueError: If days_ahead is not in range 1-365
     """
     if not 1 <= days_ahead <= 365:
-        raise ValueError(f"days_ahead must be between 1 and 365, got {days_ahead}")
+        raise ValueError(
+            f"days_ahead must be between 1 and 365, got {days_ahead}. "
+            "Values beyond 365 days lead to excessive computation and memory usage."
+        )
 
     if from_date is None:
         from_date = date.today()
@@ -591,7 +595,10 @@ def moon_phase_trigger_to_cron(
         ValueError: If days_ahead is not in range 1-365
     """
     if not 1 <= days_ahead <= 365:
-        raise ValueError(f"days_ahead must be between 1 and 365, got {days_ahead}")
+        raise ValueError(
+            f"days_ahead must be between 1 and 365, got {days_ahead}. "
+            "Values beyond 365 days lead to excessive computation and memory usage."
+        )
 
     if from_date is None:
         from_date = date.today()
@@ -915,8 +922,8 @@ def schedule_to_cron(
             result = _convert_solar_schedule(schedule, latitude, longitude, timezone_name, days_ahead)
 
     elif schedule.trigger_type == "moon_phase" and schedule.moon_phase_trigger:
-        # Use 30 days for moon phase schedules to capture at least one full moon cycle
-        moon_days_ahead = 30 if days_ahead == 7 else days_ahead
+        # Ensure we look far enough ahead to capture at least one full moon cycle
+        moon_days_ahead = LUNAR_CYCLE_DAYS if days_ahead == 7 else days_ahead
         result = _convert_moon_phase_schedule(schedule, moon_days_ahead)
 
     elif schedule.trigger_type == "sensor" and schedule.sensor_trigger:
@@ -1275,12 +1282,15 @@ def apply_to_system(
         cron.write()
         logger.info(f"Applied {added_count} cron entries for schedule {schedule_id}")
 
-        # Set RTC wakealarm (clear existing first to avoid conflicts)
+        # Set RTC wakealarm (set new alarm first to avoid race condition)
         if set_rtc and entries:
-            clear_rtc_wakealarm()  # Clear any existing alarm before setting new
             next_wake = calculate_next_from_entries(entries)
             if next_wake:
+                # Setting overwrites any existing alarm atomically
                 set_rtc_wakealarm(next_wake)
+            else:
+                # Only clear if no new alarm to set
+                clear_rtc_wakealarm()
 
         return True
 
