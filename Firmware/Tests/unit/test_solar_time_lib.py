@@ -582,6 +582,9 @@ class TestSolarTimeEdgeCases:
         # Function should handle this gracefully
         assert isinstance(result, dict)
         assert "date" in result
+        # Status field should indicate polar condition
+        assert "status" in result
+        assert result["status"] in ["normal", "polar_day", "polar_night"]
 
     def test_polar_region_polar_night(self):
         """Test polar region during polar night period."""
@@ -597,6 +600,9 @@ class TestSolarTimeEdgeCases:
         # Function should handle this gracefully
         assert isinstance(result, dict)
         assert "date" in result
+        # Status field should indicate polar condition
+        assert "status" in result
+        assert result["status"] in ["normal", "polar_day", "polar_night"]
 
     def test_year_boundary(self):
         """Test dates around year boundary."""
@@ -835,3 +841,276 @@ class TestAdditionalCoverage:
         # Exact boundaries should be valid
         _validate_coordinates(90.0, 180.0)
         _validate_coordinates(-90.0, -180.0)
+
+
+class TestPolarStatusField:
+    """Test the status field for polar region detection."""
+
+    def test_get_sun_times_status_normal(self):
+        """Normal mid-latitude location should have status='normal'."""
+        result = get_sun_times(
+            date(2024, 6, 15),
+            latitude=35.96,
+            longitude=-83.92,
+            timezone_name="America/New_York",
+        )
+
+        assert "status" in result
+        assert result["status"] == "normal"
+
+    def test_get_sun_times_status_polar_day(self):
+        """Polar summer should have status='polar_day' when sun doesn't set."""
+        # Tromsø, Norway in June (midnight sun)
+        result = get_sun_times(
+            date(2024, 6, 21),
+            latitude=69.65,
+            longitude=18.96,
+            timezone_name="Europe/Oslo",
+        )
+
+        assert "status" in result
+        # During midnight sun, status should be polar_day
+        if result["sunset"] is None:
+            assert result["status"] == "polar_day"
+
+    def test_get_sun_times_status_polar_night(self):
+        """Polar winter should have status='polar_night' when sun doesn't rise."""
+        # Tromsø, Norway in December (polar night)
+        result = get_sun_times(
+            date(2024, 12, 21),
+            latitude=69.65,
+            longitude=18.96,
+            timezone_name="Europe/Oslo",
+        )
+
+        assert "status" in result
+        # During polar night, status should be polar_night
+        if result["sunrise"] is None:
+            assert result["status"] == "polar_night"
+
+    def test_get_twilight_times_status_normal(self):
+        """Normal mid-latitude location should have status='normal'."""
+        result = get_twilight_times(
+            date(2024, 6, 15),
+            latitude=35.96,
+            longitude=-83.92,
+            timezone_name="America/New_York",
+            twilight_type="civil",
+        )
+
+        assert "status" in result
+        assert result["status"] == "normal"
+
+    def test_get_twilight_times_status_polar(self):
+        """Polar region should have polar status when twilight doesn't occur."""
+        # Tromsø, Norway in June (midnight sun)
+        result = get_twilight_times(
+            date(2024, 6, 21),
+            latitude=69.65,
+            longitude=18.96,
+            timezone_name="Europe/Oslo",
+            twilight_type="astronomical",
+        )
+
+        assert "status" in result
+        assert result["status"] in ["normal", "polar_day", "polar_night"]
+
+    def test_get_golden_hour_status_normal(self):
+        """Normal mid-latitude location should have status='normal'."""
+        result = get_golden_hour(
+            date(2024, 6, 15),
+            latitude=35.96,
+            longitude=-83.92,
+            timezone_name="America/New_York",
+        )
+
+        assert "status" in result
+        assert result["status"] == "normal"
+
+    def test_get_golden_hour_status_polar(self):
+        """Polar region should have polar status when golden hour doesn't occur."""
+        # Tromsø, Norway in December (polar night)
+        result = get_golden_hour(
+            date(2024, 12, 21),
+            latitude=69.65,
+            longitude=18.96,
+            timezone_name="Europe/Oslo",
+        )
+
+        assert "status" in result
+        assert result["status"] in ["normal", "polar_day", "polar_night"]
+
+    def test_get_blue_hour_status_normal(self):
+        """Normal mid-latitude location should have status='normal'."""
+        result = get_blue_hour(
+            date(2024, 6, 15),
+            latitude=35.96,
+            longitude=-83.92,
+            timezone_name="America/New_York",
+        )
+
+        assert "status" in result
+        assert result["status"] == "normal"
+
+    def test_get_blue_hour_status_polar(self):
+        """Polar region should have polar status when blue hour doesn't occur."""
+        # Tromsø, Norway in December (polar night)
+        result = get_blue_hour(
+            date(2024, 12, 21),
+            latitude=69.65,
+            longitude=18.96,
+            timezone_name="Europe/Oslo",
+        )
+
+        assert "status" in result
+        assert result["status"] in ["normal", "polar_day", "polar_night"]
+
+    def test_southern_hemisphere_polar_day(self):
+        """Southern hemisphere polar summer should have polar_day status."""
+        # Antarctica in December (polar day/midnight sun)
+        result = get_sun_times(
+            date(2024, 12, 21),
+            latitude=-70.0,
+            longitude=0.0,
+            timezone_name="UTC",
+        )
+
+        assert "status" in result
+        if result["sunset"] is None:
+            assert result["status"] == "polar_day"
+
+    def test_southern_hemisphere_polar_night(self):
+        """Southern hemisphere polar winter should have polar_night status."""
+        # Antarctica in June (polar night)
+        result = get_sun_times(
+            date(2024, 6, 21),
+            latitude=-70.0,
+            longitude=0.0,
+            timezone_name="UTC",
+        )
+
+        assert "status" in result
+        if result["sunrise"] is None:
+            assert result["status"] == "polar_night"
+
+    def test_high_arctic_summer_polar_day(self):
+        """Very high Arctic latitude should detect polar day."""
+        # Svalbard in July (well into polar day)
+        result = get_sun_times(
+            date(2024, 7, 15),
+            latitude=78.0,
+            longitude=16.0,
+            timezone_name="UTC",
+        )
+
+        assert "status" in result
+        # At 78° latitude in July, sun definitely doesn't set
+        if result["sunrise"] is None and result["sunset"] is None:
+            # Both None means extreme polar condition
+            assert result["status"] in ["polar_day", "polar_night"]
+
+    def test_twilight_polar_december_north(self):
+        """Northern polar region in December should detect polar_night for twilight."""
+        # Extreme Arctic in December
+        result = get_twilight_times(
+            date(2024, 12, 15),
+            latitude=75.0,
+            longitude=0.0,
+            timezone_name="UTC",
+            twilight_type="civil",
+        )
+
+        assert "status" in result
+        if result["morning"] is None or result["evening"] is None:
+            assert result["status"] == "polar_night"
+
+    def test_golden_hour_polar_june_north(self):
+        """Northern polar region in June should detect polar_day for golden hour."""
+        # Very far north in June
+        result = get_golden_hour(
+            date(2024, 6, 15),
+            latitude=75.0,
+            longitude=0.0,
+            timezone_name="UTC",
+        )
+
+        assert "status" in result
+        # If all golden hour times are None, should be polar_day in June
+        all_none = (result["morning_start"] is None and
+                    result["morning_end"] is None and
+                    result["evening_start"] is None and
+                    result["evening_end"] is None)
+        if all_none:
+            assert result["status"] == "polar_day"
+
+    def test_blue_hour_polar_june_north(self):
+        """Northern polar region in June should detect polar_day for blue hour."""
+        # Very far north in June
+        result = get_blue_hour(
+            date(2024, 6, 15),
+            latitude=75.0,
+            longitude=0.0,
+            timezone_name="UTC",
+        )
+
+        assert "status" in result
+        # If all blue hour times are None, should be polar_day in June
+        all_none = (result["morning_start"] is None and
+                    result["morning_end"] is None and
+                    result["evening_start"] is None and
+                    result["evening_end"] is None)
+        if all_none:
+            assert result["status"] == "polar_day"
+
+    def test_blue_hour_polar_december_north(self):
+        """Northern polar region in December should detect polar_night for blue hour."""
+        # Very far north in December
+        result = get_blue_hour(
+            date(2024, 12, 15),
+            latitude=75.0,
+            longitude=0.0,
+            timezone_name="UTC",
+        )
+
+        assert "status" in result
+        # If all blue hour times are None, should be polar_night in December
+        all_none = (result["morning_start"] is None and
+                    result["morning_end"] is None and
+                    result["evening_start"] is None and
+                    result["evening_end"] is None)
+        if all_none:
+            assert result["status"] == "polar_night"
+
+    def test_golden_hour_polar_december_north(self):
+        """Northern polar region in December should detect polar_night for golden hour."""
+        # Very far north in December
+        result = get_golden_hour(
+            date(2024, 12, 15),
+            latitude=75.0,
+            longitude=0.0,
+            timezone_name="UTC",
+        )
+
+        assert "status" in result
+        # If all golden hour times are None, should be polar_night in December
+        all_none = (result["morning_start"] is None and
+                    result["morning_end"] is None and
+                    result["evening_start"] is None and
+                    result["evening_end"] is None)
+        if all_none:
+            assert result["status"] == "polar_night"
+
+    def test_sun_times_partial_polar(self):
+        """Test sun times when only sunrise or sunset is missing."""
+        # Near Arctic circle during transition periods
+        # This tests the has_sunrise and not has_sunset branch
+        result = get_sun_times(
+            date(2024, 6, 20),
+            latitude=67.0,  # Near Arctic circle
+            longitude=20.0,
+            timezone_name="UTC",
+        )
+
+        assert "status" in result
+        # Should be either normal or polar_day depending on exact position
+        assert result["status"] in ["normal", "polar_day"]

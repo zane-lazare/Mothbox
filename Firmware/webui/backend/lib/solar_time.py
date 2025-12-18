@@ -328,18 +328,25 @@ def get_sun_times(
         - noon: ISO 8601 datetime string or None
         - sunset: ISO 8601 datetime string or None
         - dusk: ISO 8601 datetime string or None
+        - status: "normal", "polar_day" (midnight sun), or "polar_night"
 
     Raises:
         ValueError: If coordinates are invalid
 
     Note:
         In polar regions during midnight sun or polar night, some times may be None.
+        The status field indicates the condition:
+        - "normal": All sun events occur normally
+        - "polar_day": Sun doesn't set (midnight sun)
+        - "polar_night": Sun doesn't rise (polar night)
 
     Example:
         >>> from datetime import date
         >>> result = get_sun_times(date(2024, 6, 15), 35.96, -83.92, "America/New_York")
         >>> result['sunrise']
         '2024-06-15T06:23:00-04:00'
+        >>> result['status']
+        'normal'
     """
     _validate_coordinates(latitude, longitude)
     location = _create_location(latitude, longitude, timezone_name)
@@ -357,12 +364,38 @@ def get_sun_times(
         "noon": None,
         "sunset": None,
         "dusk": None,
+        "status": "normal",
     }
 
     if sun_times:
         for key in ["dawn", "sunrise", "noon", "sunset", "dusk"]:
             if key in sun_times and sun_times[key]:
                 result[key] = sun_times[key].isoformat()
+
+        # Determine polar status based on which events are missing
+        has_sunrise = result["sunrise"] is not None
+        has_sunset = result["sunset"] is not None
+
+        if not has_sunrise and not has_sunset:
+            # Neither sunrise nor sunset - need to check if sun is always up or down
+            # If noon exists and is during daytime, it's polar day
+            result["status"] = "polar_day" if result["noon"] else "polar_night"
+        elif has_sunrise and not has_sunset:
+            result["status"] = "polar_day"  # Sun rises but doesn't set
+        elif has_sunset and not has_sunrise:
+            result["status"] = "polar_night"  # Sun sets but doesn't rise
+    else:
+        # No sun times at all - polar condition
+        # Check latitude to determine if it's polar day or night
+        # In summer (Jun-Aug in N hemisphere, Dec-Feb in S), high latitudes have polar day
+        month = target_date.month
+        is_northern_summer = month in [5, 6, 7, 8]
+        is_northern = latitude > 0
+
+        if (is_northern and is_northern_summer) or (not is_northern and not is_northern_summer):
+            result["status"] = "polar_day"
+        else:
+            result["status"] = "polar_night"
 
     return result
 
@@ -395,9 +428,14 @@ def get_twilight_times(
         - twilight_type: The twilight type used
         - morning: ISO 8601 datetime string or None (twilight end, sunrise start)
         - evening: ISO 8601 datetime string or None (sunset end, twilight start)
+        - status: "normal", "polar_day" (midnight sun), or "polar_night"
 
     Raises:
         ValueError: If coordinates or twilight_type are invalid
+
+    Note:
+        In polar regions, twilight may not occur on some days. The status field
+        indicates the polar condition when times are None.
 
     Example:
         >>> from datetime import date
@@ -406,6 +444,8 @@ def get_twilight_times(
         ... )
         >>> result['morning']
         '2024-06-15T05:50:00-04:00'
+        >>> result['status']
+        'normal'
     """
     _validate_coordinates(latitude, longitude)
 
@@ -441,11 +481,25 @@ def get_twilight_times(
             tzinfo=location.timezone,
         )
 
+    # Determine polar status
+    status = "normal"
+    if morning_time is None or evening_time is None:
+        # Check if we're in polar day or polar night
+        month = target_date.month
+        is_northern_summer = month in [5, 6, 7, 8]
+        is_northern = latitude > 0
+
+        if (is_northern and is_northern_summer) or (not is_northern and not is_northern_summer):
+            status = "polar_day"
+        else:
+            status = "polar_night"
+
     return {
         "date": target_date.isoformat(),
         "twilight_type": twilight_type,
         "morning": morning_time.isoformat() if morning_time else None,
         "evening": evening_time.isoformat() if evening_time else None,
+        "status": status,
     }
 
 
@@ -475,18 +529,22 @@ def get_golden_hour(
         - morning_end: ISO 8601 datetime string or None
         - evening_start: ISO 8601 datetime string or None
         - evening_end: ISO 8601 datetime string or None
+        - status: "normal", "polar_day" (midnight sun), or "polar_night"
 
     Raises:
         ValueError: If coordinates are invalid
 
     Note:
-        In polar regions, golden hour may not occur on some days.
+        In polar regions, golden hour may not occur on some days. The status
+        field indicates the polar condition when times are None.
 
     Example:
         >>> from datetime import date
         >>> result = get_golden_hour(date(2024, 6, 15), 35.96, -83.92, "America/New_York")
         >>> result['evening_start']
         '2024-06-15T19:45:00-04:00'
+        >>> result['status']
+        'normal'
     """
     _validate_coordinates(latitude, longitude)
     location = _create_location(latitude, longitude, timezone_name)
@@ -528,12 +586,28 @@ def get_golden_hour(
                 # Single datetime value
                 evening_start = evening_result
 
+    # Determine polar status
+    status = "normal"
+    all_none = (morning_start is None and morning_end is None and
+                evening_start is None and evening_end is None)
+    if all_none:
+        # Check if we're in polar day or polar night
+        month = target_date.month
+        is_northern_summer = month in [5, 6, 7, 8]
+        is_northern = latitude > 0
+
+        if (is_northern and is_northern_summer) or (not is_northern and not is_northern_summer):
+            status = "polar_day"
+        else:
+            status = "polar_night"
+
     return {
         "date": target_date.isoformat(),
         "morning_start": morning_start.isoformat() if morning_start else None,
         "morning_end": morning_end.isoformat() if morning_end else None,
         "evening_start": evening_start.isoformat() if evening_start else None,
         "evening_end": evening_end.isoformat() if evening_end else None,
+        "status": status,
     }
 
 
@@ -563,18 +637,22 @@ def get_blue_hour(
         - morning_end: ISO 8601 datetime string or None
         - evening_start: ISO 8601 datetime string or None
         - evening_end: ISO 8601 datetime string or None
+        - status: "normal", "polar_day" (midnight sun), or "polar_night"
 
     Raises:
         ValueError: If coordinates are invalid
 
     Note:
-        In polar regions, blue hour may not occur on some days.
+        In polar regions, blue hour may not occur on some days. The status
+        field indicates the polar condition when times are None.
 
     Example:
         >>> from datetime import date
         >>> result = get_blue_hour(date(2024, 6, 15), 35.96, -83.92, "America/New_York")
         >>> result['evening_start']
         '2024-06-15T20:45:00-04:00'
+        >>> result['status']
+        'normal'
     """
     _validate_coordinates(latitude, longitude)
     location = _create_location(latitude, longitude, timezone_name)
@@ -616,12 +694,28 @@ def get_blue_hour(
                 # Single datetime value
                 evening_start = evening_result
 
+    # Determine polar status
+    status = "normal"
+    all_none = (morning_start is None and morning_end is None and
+                evening_start is None and evening_end is None)
+    if all_none:
+        # Check if we're in polar day or polar night
+        month = target_date.month
+        is_northern_summer = month in [5, 6, 7, 8]
+        is_northern = latitude > 0
+
+        if (is_northern and is_northern_summer) or (not is_northern and not is_northern_summer):
+            status = "polar_day"
+        else:
+            status = "polar_night"
+
     return {
         "date": target_date.isoformat(),
         "morning_start": morning_start.isoformat() if morning_start else None,
         "morning_end": morning_end.isoformat() if morning_end else None,
         "evening_start": evening_start.isoformat() if evening_start else None,
         "evening_end": evening_end.isoformat() if evening_end else None,
+        "status": status,
     }
 
 
