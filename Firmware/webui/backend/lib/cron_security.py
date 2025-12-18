@@ -36,7 +36,7 @@ ALLOWED_SCRIPTS: Final[dict[str, str]] = {
     "attract_on": "Attract_On.py",
     "attract_off": "Attract_Off.py",
     # GPIO control - Flash
-    "flash_on": "FlashOn.py",
+    "flash_on": "Flash_On.py",
     "flash_off": "Flash_Off.py",
     # GPS
     "gps_sync": "GPS.py",
