@@ -11,6 +11,22 @@ This module implements a defense-in-depth approach:
 2. Path validation: Scripts must resolve to valid paths within MOTHBOX_HOME
 3. Command detection: Heuristics to identify Mothbox jobs for safe deletion
 
+Example usage:
+    >>> valid, error = validate_script_key("takephoto")
+    >>> if valid:
+    ...     command = get_validated_command("takephoto")
+    ...     print(command)
+    /usr/bin/python3 /opt/mothbox/TakePhoto.py
+
+    >>> # Get script key for a scheduler action
+    >>> key = get_script_key_for_action("gpio", "attract_on")
+    >>> print(key)
+    attract_on
+
+    >>> # Check if a command is a Mothbox job
+    >>> is_mothbox_command("/usr/bin/python3 /opt/mothbox/TakePhoto.py")
+    True
+
 Issue #207 - Scheduler Phase 0: Extract Cron Security Library
 """
 
