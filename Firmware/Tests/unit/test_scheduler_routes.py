@@ -373,7 +373,7 @@ class TestSchedulerDeleteJob:
         mock_crontab.remove_all.assert_not_called()
 
     def test_delete_job_path_validation(self, scheduler_client, mock_crontab):
-        """DELETE /job validates command path is within MOTHBOX_HOME"""
+        """DELETE /job rejects commands outside MOTHBOX_HOME or non-Mothbox commands"""
         # Mock MOTHBOX_HOME at module level
         with patch('mothbox_paths.MOTHBOX_HOME', Path('/opt/mothbox')):
             # Try to delete a command outside MOTHBOX_HOME
@@ -383,7 +383,10 @@ class TestSchedulerDeleteJob:
 
             assert response.status_code == 400
             data = json.loads(response.data)
-            assert 'not within MOTHBOX_HOME' in data['error']
+            # Error can be either from is_mothbox_command check or MOTHBOX_HOME check
+            # Both are valid security rejections (Issue #207 refactored validation)
+            assert ('not within MOTHBOX_HOME' in data['error'] or
+                    'does not appear to be a Mothbox job' in data['error'])
 
             # Verify no deletion occurred
             mock_crontab.remove_all.assert_not_called()

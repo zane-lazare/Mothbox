@@ -7,18 +7,14 @@ from flask import Blueprint, jsonify, request
 # Setup path to import mothbox_paths
 from mothbox_paths import get_script_path
 
-scheduler_bp = Blueprint("scheduler", __name__)
+# Import cron security utilities (Issue #207)
+from webui.backend.lib.cron_security import (
+    ALLOWED_SCRIPTS,
+    is_mothbox_command,
+    validate_script_key,
+)
 
-# Whitelist of allowed Mothbox scripts to prevent command injection
-# Maps friendly keys to script filenames
-ALLOWED_SCRIPTS = {
-    "takephoto": "TakePhoto.py",
-    "scheduler": "Scheduler.py",
-    "backup": "Backup_Files.py",
-    "attract_on": "Attract_On.py",
-    "attract_off": "Attract_Off.py",
-    "flash_on": "FlashOn.py",
-}
+scheduler_bp = Blueprint("scheduler", __name__)
 
 
 @scheduler_bp.route("/jobs", methods=["GET"])
@@ -58,10 +54,9 @@ def add_cron_job():
             return jsonify({"error": "Missing script_key or schedule"}), 400
 
         # Validate script_key against whitelist to prevent command injection
-        if script_key not in ALLOWED_SCRIPTS:
-            return jsonify(
-                {"error": f"Invalid script_key. Allowed: {', '.join(ALLOWED_SCRIPTS.keys())}"}
-            ), 400
+        valid, error = validate_script_key(script_key)
+        if not valid:
+            return jsonify({"error": error}), 400
 
         # Get validated script path (get_script_path already has path traversal protection)
         script_name = ALLOWED_SCRIPTS[script_key]
@@ -97,14 +92,8 @@ def delete_cron_job():
             return jsonify({"error": "Missing command"}), 400
 
         # Validate that command looks like a Mothbox job
-        # Use same filtering logic as GET /jobs endpoint
-        is_mothbox_job = (
-            "mothbox" in command.lower()
-            or "TakePhoto" in command
-            or "/usr/bin/python3" in command  # All Mothbox jobs use this
-        )
-
-        if not is_mothbox_job:
+        # Use security utility from cron_security module (Issue #207)
+        if not is_mothbox_command(command):
             return jsonify(
                 {
                     "error": "Command does not appear to be a Mothbox job. Deletion rejected for safety.",
