@@ -372,6 +372,7 @@ def next_moon_phase(target_phase: str, from_date: date) -> date:
 
     Raises:
         ValueError: If target_phase is not a valid phase name
+        RuntimeError: If phase not found within MAX_SEARCH_DAYS (indicates a bug)
 
     Example:
         >>> from datetime import date
@@ -390,8 +391,12 @@ def next_moon_phase(target_phase: str, from_date: date) -> date:
             return current
         current += timedelta(days=1)
 
-    # Fallback (should never reach here for valid lunar calculations)
-    return from_date + timedelta(days=30)
+    # This should never happen - each phase occurs once per ~29.5 day cycle,
+    # and we search for 60 days (2 cycles). If we reach here, there's a bug.
+    raise RuntimeError(
+        f"Could not find phase '{target_phase}' within {MAX_SEARCH_DAYS} days "
+        f"from {from_date}. This indicates a bug in the phase calculation logic."
+    )
 
 
 def is_within_moon_phase(
