@@ -41,3 +41,4 @@ geopip>=2.0.0  # Offline GPS-to-country lookup for Darwin Core countryCode field
 # Astronomical calculations for scheduler (Issue #210)
 astral>=3.2
 pytz  # Timezone handling for solar time calculations
+croniter  # Cron expression iteration for RTC wakealarm calculation
