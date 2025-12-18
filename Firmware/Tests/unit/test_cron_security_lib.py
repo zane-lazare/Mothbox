@@ -16,12 +16,14 @@ import pytest
 from webui.backend.lib.cron_security import (
     ACTION_TYPE_SCRIPTS,
     ALLOWED_SCRIPTS,
+    get_action_types,
     get_allowed_script_keys,
     get_script_filename,
     get_script_key_for_action,
     get_validated_command,
     get_validated_script_path,
     is_mothbox_command,
+    script_exists,
     validate_script_key,
 )
 
@@ -338,3 +340,77 @@ class TestGetAllowedScriptKeys:
         assert "takephoto" in keys
         assert "scheduler" in keys
         assert "backup" in keys
+
+
+# ============================================================================
+# Test get_action_types Function
+# ============================================================================
+
+
+class TestGetActionTypes:
+    """Tests for get_action_types function."""
+
+    def test_returns_list_of_action_types(self):
+        """Should return a list of action type strings."""
+        action_types = get_action_types()
+        assert isinstance(action_types, list)
+        assert len(action_types) >= 4  # gpio, camera, gps_sync, service
+
+    def test_list_matches_action_type_scripts_keys(self):
+        """Returned list should match ACTION_TYPE_SCRIPTS dictionary keys."""
+        action_types = get_action_types()
+        assert set(action_types) == set(ACTION_TYPE_SCRIPTS.keys())
+
+    def test_contains_expected_action_types(self):
+        """Should contain all expected action types."""
+        action_types = get_action_types()
+        assert "gpio" in action_types
+        assert "camera" in action_types
+        assert "gps_sync" in action_types
+        assert "service" in action_types
+
+
+# ============================================================================
+# Test script_exists Function
+# ============================================================================
+
+
+class TestScriptExists:
+    """Tests for script_exists function."""
+
+    def test_returns_false_for_invalid_key(self):
+        """Should return False for script key not in whitelist."""
+        assert script_exists("not_a_valid_key") is False
+        assert script_exists("evil_script") is False
+
+    def test_returns_false_for_empty_key(self):
+        """Should return False for empty or None key."""
+        assert script_exists("") is False
+        assert script_exists(None) is False
+
+    def test_returns_true_for_existing_script(self):
+        """Should return True when script file exists on filesystem."""
+        with patch("webui.backend.lib.cron_security.get_script_path") as mock_get_path:
+            # Mock a path that exists
+            mock_path = Path("/opt/mothbox/TakePhoto.py")
+            mock_get_path.return_value = mock_path
+
+            with patch.object(Path, "exists", return_value=True):
+                assert script_exists("takephoto") is True
+
+    def test_returns_false_for_missing_file(self):
+        """Should return False when script file does not exist."""
+        with patch("webui.backend.lib.cron_security.get_script_path") as mock_get_path:
+            # Mock a path that doesn't exist
+            mock_path = Path("/opt/mothbox/TakePhoto.py")
+            mock_get_path.return_value = mock_path
+
+            with patch.object(Path, "exists", return_value=False):
+                assert script_exists("takephoto") is False
+
+    def test_returns_false_on_path_resolution_error(self):
+        """Should return False if get_script_path raises ValueError."""
+        with patch("webui.backend.lib.cron_security.get_script_path") as mock_get_path:
+            mock_get_path.side_effect = ValueError("Path resolution failed")
+            # This should catch the error and return False
+            assert script_exists("takephoto") is False

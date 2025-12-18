@@ -233,3 +233,40 @@ def is_mothbox_command(command: str | None) -> bool:
     ]
 
     return any(indicators)
+
+
+def get_action_types() -> list[str]:
+    """
+    Get list of all action types for the scheduler UI.
+
+    Returns:
+        List of action type strings (e.g., ["gpio", "camera", "gps_sync", "service"])
+    """
+    return list(ACTION_TYPE_SCRIPTS.keys())
+
+
+def script_exists(script_key: str) -> bool:
+    """
+    Check if the script file exists on the filesystem.
+
+    Validates that:
+    1. The script_key is in the whitelist
+    2. The resolved script path exists on disk
+
+    Args:
+        script_key: The script key to check
+
+    Returns:
+        True if script_key is valid AND the file exists, False otherwise
+    """
+    from pathlib import Path
+
+    valid, _ = validate_script_key(script_key)
+    if not valid:
+        return False
+
+    try:
+        script_path = get_validated_script_path(script_key)
+        return Path(script_path).exists()
+    except ValueError:
+        return False
