@@ -3,6 +3,8 @@
 from datetime import date, datetime
 from unittest.mock import mock_open, patch
 
+import pytest
+
 from webui.backend.lib.cron_bridge import (
     CronBridgeResult,
     CronEntry,
@@ -822,7 +824,7 @@ class TestApplyToSystem:
 
         entries = [CronEntry(expression="0 21 * * *", command="cmd")]
         with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
-            mock_crontab_class.side_effect = Exception("Cron error")
+            mock_crontab_class.side_effect = OSError("Cron error")
 
             result = apply_to_system(entries, schedule_id="test-123")
 
@@ -911,7 +913,7 @@ class TestRemoveFromSystem:
 
 
         with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
-            mock_crontab_class.side_effect = Exception("Cron error")
+            mock_crontab_class.side_effect = OSError("Cron error")
 
             result = remove_from_system()
 
@@ -1326,3 +1328,107 @@ class TestEdgeCases:
         # rtc_waketime should be set
         assert result.rtc_waketime is not None
         assert result.rtc_waketime > 0
+
+
+class TestDaysAheadValidation:
+    """Tests for days_ahead parameter validation."""
+
+    def test_solar_trigger_days_ahead_zero_raises(self):
+        """solar_trigger_to_cron raises ValueError for days_ahead=0."""
+        from webui.backend.lib.cron_bridge import solar_trigger_to_cron
+        from webui.backend.lib.schedule_schema import SolarTrigger
+
+        trigger = SolarTrigger(solar_event="sunset", offset_minutes=0)
+
+        with pytest.raises(ValueError, match="days_ahead must be between 1 and 365"):
+            solar_trigger_to_cron(
+                trigger, "test_command", latitude=0.0, longitude=0.0, days_ahead=0
+            )
+
+    def test_solar_trigger_days_ahead_negative_raises(self):
+        """solar_trigger_to_cron raises ValueError for negative days_ahead."""
+        from webui.backend.lib.cron_bridge import solar_trigger_to_cron
+        from webui.backend.lib.schedule_schema import SolarTrigger
+
+        trigger = SolarTrigger(solar_event="sunrise", offset_minutes=0)
+
+        with pytest.raises(ValueError, match="days_ahead must be between 1 and 365"):
+            solar_trigger_to_cron(
+                trigger, "test_command", latitude=0.0, longitude=0.0, days_ahead=-5
+            )
+
+    def test_solar_trigger_days_ahead_too_large_raises(self):
+        """solar_trigger_to_cron raises ValueError for days_ahead > 365."""
+        from webui.backend.lib.cron_bridge import solar_trigger_to_cron
+        from webui.backend.lib.schedule_schema import SolarTrigger
+
+        trigger = SolarTrigger(solar_event="sunset", offset_minutes=0)
+
+        with pytest.raises(ValueError, match="days_ahead must be between 1 and 365"):
+            solar_trigger_to_cron(
+                trigger, "test_command", latitude=0.0, longitude=0.0, days_ahead=366
+            )
+
+    def test_moon_phase_trigger_days_ahead_zero_raises(self):
+        """moon_phase_trigger_to_cron raises ValueError for days_ahead=0."""
+        from webui.backend.lib.cron_bridge import moon_phase_trigger_to_cron
+        from webui.backend.lib.schedule_schema import MoonPhaseTrigger
+
+        trigger = MoonPhaseTrigger(phases=["full"])
+
+        with pytest.raises(ValueError, match="days_ahead must be between 1 and 365"):
+            moon_phase_trigger_to_cron(trigger, "test_command", days_ahead=0)
+
+    def test_moon_phase_trigger_days_ahead_negative_raises(self):
+        """moon_phase_trigger_to_cron raises ValueError for negative days_ahead."""
+        from webui.backend.lib.cron_bridge import moon_phase_trigger_to_cron
+        from webui.backend.lib.schedule_schema import MoonPhaseTrigger
+
+        trigger = MoonPhaseTrigger(phases=["new"])
+
+        with pytest.raises(ValueError, match="days_ahead must be between 1 and 365"):
+            moon_phase_trigger_to_cron(trigger, "test_command", days_ahead=-10)
+
+    def test_moon_phase_trigger_days_ahead_too_large_raises(self):
+        """moon_phase_trigger_to_cron raises ValueError for days_ahead > 365."""
+        from webui.backend.lib.cron_bridge import moon_phase_trigger_to_cron
+        from webui.backend.lib.schedule_schema import MoonPhaseTrigger
+
+        trigger = MoonPhaseTrigger(phases=["full"])
+
+        with pytest.raises(ValueError, match="days_ahead must be between 1 and 365"):
+            moon_phase_trigger_to_cron(trigger, "test_command", days_ahead=400)
+
+    def test_solar_trigger_days_ahead_valid_boundary(self):
+        """solar_trigger_to_cron accepts boundary values 1 and 365."""
+        from webui.backend.lib.cron_bridge import solar_trigger_to_cron
+        from webui.backend.lib.schedule_schema import SolarTrigger
+
+        trigger = SolarTrigger(solar_event="sunset", offset_minutes=0)
+
+        # days_ahead=1 should work
+        result = solar_trigger_to_cron(
+            trigger, "test_command", latitude=45.0, longitude=-93.0, days_ahead=1
+        )
+        assert isinstance(result, list)
+
+        # days_ahead=365 should work
+        result = solar_trigger_to_cron(
+            trigger, "test_command", latitude=45.0, longitude=-93.0, days_ahead=365
+        )
+        assert isinstance(result, list)
+
+    def test_moon_phase_trigger_days_ahead_valid_boundary(self):
+        """moon_phase_trigger_to_cron accepts boundary values 1 and 365."""
+        from webui.backend.lib.cron_bridge import moon_phase_trigger_to_cron
+        from webui.backend.lib.schedule_schema import MoonPhaseTrigger
+
+        trigger = MoonPhaseTrigger(phases=["full"])
+
+        # days_ahead=1 should work
+        result = moon_phase_trigger_to_cron(trigger, "test_command", days_ahead=1)
+        assert isinstance(result, list)
+
+        # days_ahead=365 should work
+        result = moon_phase_trigger_to_cron(trigger, "test_command", days_ahead=365)
+        assert isinstance(result, list)

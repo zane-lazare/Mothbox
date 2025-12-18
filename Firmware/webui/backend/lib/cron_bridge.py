@@ -388,7 +388,7 @@ def calculate_next_from_entries(
             try:
                 next_time = calculate_next_waketime(entry.expression, from_time)
                 next_times.append(next_time)
-            except Exception:
+            except (ValueError, KeyError):
                 # Skip invalid expressions
                 continue
 
@@ -500,7 +500,13 @@ def solar_trigger_to_cron(
 
     Returns:
         List of CronEntry objects, one per day the trigger should execute
+
+    Raises:
+        ValueError: If days_ahead is not in range 1-365
     """
+    if not 1 <= days_ahead <= 365:
+        raise ValueError(f"days_ahead must be between 1 and 365, got {days_ahead}")
+
     if from_date is None:
         from_date = date.today()
 
@@ -579,7 +585,13 @@ def moon_phase_trigger_to_cron(
 
     Returns:
         List of CronEntry objects, one per day that matches the moon phase criteria
+
+    Raises:
+        ValueError: If days_ahead is not in range 1-365
     """
+    if not 1 <= days_ahead <= 365:
+        raise ValueError(f"days_ahead must be between 1 and 365, got {days_ahead}")
+
     if from_date is None:
         from_date = date.today()
 
@@ -736,7 +748,7 @@ def _convert_interval_schedule(schedule: Schedule) -> CronBridgeResult:
     for base_entry in base_entries:
         # Extract hour:minute from expression (format: "minute hour * * dow")
         parts = base_entry.expression.split()
-        base_time = f"{parts[1]}:{parts[0]:>02}"  # "HH:MM"
+        base_time = f"{int(parts[1]):02d}:{int(parts[0]):02d}"  # "HH:MM"
 
         for pattern in schedule.event_patterns:
             pattern_entries = pattern_to_cron_entries(
@@ -1266,7 +1278,7 @@ def apply_to_system(
 
         return True
 
-    except Exception as e:
+    except (OSError, ValueError) as e:
         logger.error(f"Failed to apply cron entries: {e}")
         return False
 
@@ -1310,6 +1322,6 @@ def remove_from_system(
 
         return True
 
-    except Exception as e:
+    except (OSError, ValueError) as e:
         logger.error(f"Failed to remove cron jobs: {e}")
         return False
