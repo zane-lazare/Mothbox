@@ -38,6 +38,15 @@ logger = logging.getLogger(__name__)
 CRON_COMMENT_PREFIX: Final[str] = "Mothbox:"
 RTC_WAKEALARM_PATH: Final[str] = "/sys/class/rtc/rtc0/wakealarm"
 
+# Pre-compiled regex patterns for cron field validation (performance optimization)
+_CRON_FIELD_PATTERNS: Final[tuple[re.Pattern, ...]] = (
+    re.compile(r'^(\*|([0-5]?\d)(,([0-5]?\d))*|([0-5]?\d)-([0-5]?\d)|\*/([1-5]?\d))$'),  # minute
+    re.compile(r'^(\*|([01]?\d|2[0-3])(,([01]?\d|2[0-3]))*|([01]?\d|2[0-3])-([01]?\d|2[0-3])|\*/([01]?\d|2[0-3]))$'),  # hour
+    re.compile(r'^(\*|([1-9]|[12]\d|3[01])(,([1-9]|[12]\d|3[01]))*|([1-9]|[12]\d|3[01])-([1-9]|[12]\d|3[01])|\*/([1-9]|[12]\d|3[01]))$'),  # day
+    re.compile(r'^(\*|([1-9]|1[0-2])(,([1-9]|1[0-2]))*|([1-9]|1[0-2])-([1-9]|1[0-2])|\*/([1-9]|1[0-2]))$'),  # month
+    re.compile(r'^(\*|[0-7](,[0-7])*|[0-7]-[0-7]|\*/[0-7])$'),  # weekday
+)
+
 
 @dataclass
 class CronEntry:
@@ -96,18 +105,8 @@ class CronEntry:
         if len(fields) != 5:
             return False
 
-        # Define validation patterns for each field
-        # minute (0-59), hour (0-23), day (1-31), month (1-12), weekday (0-7)
-        patterns = [
-            r'^(\*|([0-5]?\d)(,([0-5]?\d))*|([0-5]?\d)-([0-5]?\d)|\*/([1-5]?\d))$',  # minute
-            r'^(\*|([01]?\d|2[0-3])(,([01]?\d|2[0-3]))*|([01]?\d|2[0-3])-([01]?\d|2[0-3])|\*/([01]?\d|2[0-3]))$',  # hour
-            r'^(\*|([1-9]|[12]\d|3[01])(,([1-9]|[12]\d|3[01]))*|([1-9]|[12]\d|3[01])-([1-9]|[12]\d|3[01])|\*/([1-9]|[12]\d|3[01]))$',  # day
-            r'^(\*|([1-9]|1[0-2])(,([1-9]|1[0-2]))*|([1-9]|1[0-2])-([1-9]|1[0-2])|\*/([1-9]|1[0-2]))$',  # month
-            r'^(\*|[0-7](,[0-7])*|[0-7]-[0-7]|\*/[0-7])$',  # weekday
-        ]
-
-        # Validate each field
-        for field_value, pattern in zip(fields, patterns, strict=True):
+        # Validate each field using pre-compiled patterns
+        for field_value, pattern in zip(fields, _CRON_FIELD_PATTERNS, strict=True):
             # Handle range expressions (e.g., 9-17)
             if '-' in field_value and not field_value.startswith('*/'):
                 parts = field_value.split('-')
@@ -137,8 +136,8 @@ class CronEntry:
                         return False
                 continue
 
-            # Validate against pattern
-            if not re.match(pattern, field_value):
+            # Validate against pre-compiled pattern
+            if not pattern.match(field_value):
                 return False
 
         # Additional validation: check numeric ranges
@@ -347,20 +346,26 @@ def calculate_next_waketime(
 
     Returns:
         Unix timestamp of next execution
+
+    Raises:
+        ValueError: If cron expression is invalid or calculation fails
     """
     if from_time is None:
         from_time = datetime.now()
 
-    # Create a temporary cron job to calculate schedule
-    cron = CronTab(tab="")  # In-memory crontab
-    job = cron.new(command="placeholder")
-    job.setall(cron_expression)
+    try:
+        # Create a temporary cron job to calculate schedule
+        cron = CronTab(tab="")  # In-memory crontab
+        job = cron.new(command="placeholder")
+        job.setall(cron_expression)
 
-    # Get next execution time
-    schedule = job.schedule(date_from=from_time)
-    next_scheduled = schedule.get_next()
+        # Get next execution time
+        schedule = job.schedule(date_from=from_time)
+        next_scheduled = schedule.get_next()
 
-    return int(next_scheduled.timestamp())
+        return int(next_scheduled.timestamp())
+    except (KeyError, AttributeError, TypeError) as e:
+        raise ValueError(f"Invalid cron expression '{cron_expression}': {e}") from e
 
 
 def calculate_next_from_entries(
