@@ -1,0 +1,71 @@
+{
+  "schema_version": "2.0",
+  "schedule_id": "dawn_dusk_survey",
+  "name": "Dawn & Dusk Survey",
+  "description": "Solar-triggered schedule for photographing crepuscular species (active at dawn and dusk). Triggers at civil dusk each evening to capture the transition period when many moth species begin activity.",
+  "event_patterns": [
+    {
+      "pattern_id": "dusk_photo_sequence",
+      "name": "Dusk Photo Sequence",
+      "description": "Capture photo sequence at civil dusk to document crepuscular activity",
+      "actions": [
+        {
+          "action_type": "gpio",
+          "action_name": "attract_on",
+          "offset_minutes": 0,
+          "parameters": {},
+          "description": "Turn on attract lights at dusk"
+        },
+        {
+          "action_type": "camera",
+          "action_name": "takephoto",
+          "offset_minutes": 0,
+          "parameters": {},
+          "description": "Capture first photo at civil dusk"
+        },
+        {
+          "action_type": "camera",
+          "action_name": "takephoto",
+          "offset_minutes": 10,
+          "parameters": {},
+          "description": "Capture second photo 10 minutes later"
+        },
+        {
+          "action_type": "camera",
+          "action_name": "takephoto",
+          "offset_minutes": 20,
+          "parameters": {},
+          "description": "Capture third photo 20 minutes later"
+        },
+        {
+          "action_type": "gpio",
+          "action_name": "attract_off",
+          "offset_minutes": 20,
+          "parameters": {},
+          "description": "Turn off attract lights"
+        }
+      ],
+      "category": "built-in",
+      "tags": ["dusk", "dawn", "crepuscular", "survey", "solar"]
+    }
+  ],
+  "trigger_type": "solar",
+  "interval_trigger": null,
+  "solar_trigger": {
+    "solar_event": "civil_dusk",
+    "offset_minutes": 0,
+    "days_of_week": null
+  },
+  "moon_phase_trigger": null,
+  "fixed_time_trigger": null,
+  "sensor_trigger": null,
+  "start_date": null,
+  "end_date": null,
+  "deployment_id": null,
+  "create_deployment": false,
+  "enabled": true,
+  "is_active": false,
+  "created_at": "2024-12-18T00:00:00Z",
+  "modified_at": "2024-12-18T00:00:00Z",
+  "modified_by": null
+}

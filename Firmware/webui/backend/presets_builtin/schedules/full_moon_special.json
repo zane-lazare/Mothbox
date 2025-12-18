@@ -1,0 +1,76 @@
+{
+  "schema_version": "2.0",
+  "schedule_id": "full_moon_special",
+  "name": "Full Moon Special Survey",
+  "description": "Extended survey during full moon periods (±2 days). Research shows moon phase affects moth activity. This schedule runs an intensive capture session from 22:00 to 04:00 during the brightest nights of the lunar cycle.",
+  "event_patterns": [
+    {
+      "pattern_id": "extended_moon_session",
+      "name": "Extended Full Moon Session",
+      "description": "Extended UV session with multiple photos to study moon phase effects on moth behavior",
+      "actions": [
+        {
+          "action_type": "gpio",
+          "action_name": "attract_on",
+          "offset_minutes": 0,
+          "parameters": {},
+          "description": "Turn on UV attract lights for extended session"
+        },
+        {
+          "action_type": "camera",
+          "action_name": "takephoto",
+          "offset_minutes": 10,
+          "parameters": {},
+          "description": "First capture at 10 minutes"
+        },
+        {
+          "action_type": "camera",
+          "action_name": "takephoto",
+          "offset_minutes": 20,
+          "parameters": {},
+          "description": "Second capture at 20 minutes"
+        },
+        {
+          "action_type": "camera",
+          "action_name": "takephoto",
+          "offset_minutes": 30,
+          "parameters": {},
+          "description": "Third capture at 30 minutes"
+        },
+        {
+          "action_type": "gpio",
+          "action_name": "attract_off",
+          "offset_minutes": 30,
+          "parameters": {},
+          "description": "Turn off UV attract lights"
+        }
+      ],
+      "category": "built-in",
+      "tags": ["moon", "full_moon", "lunar", "special", "extended"]
+    }
+  ],
+  "trigger_type": "moon_phase",
+  "interval_trigger": null,
+  "solar_trigger": null,
+  "moon_phase_trigger": {
+    "phases": ["full"],
+    "offset_days": 2,
+    "time_window": {
+      "start_time": "22:00",
+      "end_time": "04:00",
+      "start_offset_minutes": 0,
+      "end_offset_minutes": 0
+    }
+  },
+  "fixed_time_trigger": null,
+  "sensor_trigger": null,
+  "start_date": null,
+  "end_date": null,
+  "deployment_id": null,
+  "create_deployment": false,
+  "enabled": true,
+  "is_active": false,
+  "created_at": "2024-12-18T00:00:00Z",
+  "modified_at": "2024-12-18T00:00:00Z",
+  "modified_by": null
+}
