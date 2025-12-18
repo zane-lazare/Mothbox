@@ -78,6 +78,10 @@ MAX_OFFSET_DAYS: Final[int] = 7
 # Maximum days to search for next phase (2 lunar cycles)
 MAX_SEARCH_DAYS: Final[int] = 60
 
+# Synodic month length (average lunar cycle in days)
+# Used for accurate illumination calculation
+SYNODIC_MONTH_DAYS: Final[float] = 29.530588853
+
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -108,23 +112,28 @@ def _phase_value_to_name(phase_value: float) -> str:
 
 def _calculate_illumination(phase_value: float) -> float:
     """
-    Calculate approximate illumination from phase value.
+    Calculate moon illumination fraction from phase value.
 
-    The illumination follows a sinusoidal curve:
+    Uses the synodic month length (29.530588853 days) for astronomical
+    accuracy. The illumination follows a sinusoidal curve based on the
+    phase angle:
     - 0 at new moon (phase_value = 0)
-    - 1 at full moon (phase_value = 14)
-    - 0 at new moon again (phase_value = 28)
+    - 1 at full moon (phase_value ≈ 14.77)
+    - 0 at new moon again (phase_value ≈ 29.53)
 
     Args:
-        phase_value: Astral phase value (0-27.99)
+        phase_value: Astral phase value (0-27.99), representing days
+                     since new moon in the lunar cycle
 
     Returns:
         Illumination as float (0.0 to 1.0)
     """
-    # Normalize to 0-1 cycle, with 0.5 at full moon (phase_value = 14)
-    normalized = phase_value / 28.0
-    # Cosine gives -1 at full moon (when normalized = 0.5), so invert and scale
-    illumination = (1 - math.cos(2 * math.pi * normalized)) / 2
+    # Convert phase value to radians using synodic month for accuracy
+    phase_angle = 2 * math.pi * phase_value / SYNODIC_MONTH_DAYS
+    # Illumination follows cosine curve:
+    # At new moon (0): cos(0) = 1, so (1-1)/2 = 0
+    # At full moon (~14.77): cos(pi) = -1, so (1-(-1))/2 = 1
+    illumination = (1 - math.cos(phase_angle)) / 2
     return round(illumination, 3)
 
 
