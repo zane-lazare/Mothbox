@@ -14,9 +14,13 @@ This module implements a defense-in-depth approach:
 Issue #207 - Scheduler Phase 0: Extract Cron Security Library
 """
 
-from typing import Final
+from typing import Final, TypeAlias
 
 from mothbox_paths import MOTHBOX_HOME, get_script_path
+
+# Type alias for validation result tuple
+# Using TypeAlias for Python 3.11 compatibility (type keyword requires 3.12+)
+ValidationResult: TypeAlias = tuple[bool, str | None]  # noqa: UP040
 
 # =============================================================================
 # CONSTANTS
@@ -86,7 +90,7 @@ def get_allowed_script_keys() -> list[str]:
     return list(ALLOWED_SCRIPTS.keys())
 
 
-def validate_script_key(script_key: str | None) -> tuple[bool, str | None]:
+def validate_script_key(script_key: str | None) -> ValidationResult:
     """
     Validate script key against whitelist.
 
@@ -94,8 +98,7 @@ def validate_script_key(script_key: str | None) -> tuple[bool, str | None]:
         script_key: The script key to validate (e.g., "takephoto", "scheduler")
 
     Returns:
-        (True, None) if valid
-        (False, error_message) if invalid
+        ValidationResult: (True, None) if valid, (False, error_message) if invalid
     """
     if not script_key:
         allowed = ", ".join(ALLOWED_SCRIPTS.keys())
