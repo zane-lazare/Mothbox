@@ -75,7 +75,10 @@ PHASE_NAMES: Final[dict[str, str]] = {
 # Maximum offset days allowed for phase matching
 MAX_OFFSET_DAYS: Final[int] = 7
 
-# Maximum days to search for next phase (2 lunar cycles)
+# Maximum days to search for next phase
+# Set to ~2 lunar cycles (29.53 days each) to guarantee finding any phase.
+# A specific phase occurs once per cycle, so 2 cycles ensures we find it
+# even if we start just after that phase occurred.
 MAX_SEARCH_DAYS: Final[int] = 60
 
 # Synodic month length (average lunar cycle in days)
