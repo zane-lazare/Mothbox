@@ -9,19 +9,21 @@ Tests cron job management endpoints with focus on security:
 Coverage Target: 75%+ (scheduler.py is 145 lines)
 """
 
-import pytest
 import json
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, call
+from unittest.mock import MagicMock, patch
+
+import pytest
 from flask import Flask
 
 # Mock crontab module before importing routes.scheduler
 sys.modules['crontab'] = MagicMock()
 
-# Import the blueprint
-from routes.scheduler import scheduler_bp, ALLOWED_SCRIPTS
+# Import the blueprint and security constants
+from routes.scheduler import scheduler_bp
 
+from webui.backend.lib.cron_security import ALLOWED_SCRIPTS
 
 # ============================================================================
 # Fixtures
