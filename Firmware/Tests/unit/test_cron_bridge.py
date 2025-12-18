@@ -83,12 +83,37 @@ class TestCronEntryDataclass:
         # Disabled entries should start with #
         assert "# 0 21 * * * cmd" in line or line.strip().startswith("#")
 
+    def test_to_cron_line_sanitizes_comment(self):
+        """CronEntry.to_cron_line() sanitizes comments to prevent injection."""
+        # Test newline removal
+        entry = CronEntry(
+            expression="0 21 * * *",
+            command="cmd",
+            comment="Line1\nLine2\nLine3",
+        )
+        line = entry.to_cron_line()
+        assert "\n" not in line.split("\n")[0]  # First line (comment) has no newlines in content
+        assert "Line1 Line2 Line3" in line
+
+        # Test hash removal
+        entry2 = CronEntry(
+            expression="0 21 * * *",
+            command="cmd",
+            comment="Test # injection # attempt",
+        )
+        line2 = entry2.to_cron_line()
+        # The sanitized comment should not have extra # characters
+        comment_line = line2.split("\n")[0]
+        assert comment_line.count("#") == 1  # Only the leading #
+
     def test_is_valid_expression_valid(self):
         """CronEntry.is_valid_expression() accepts valid cron syntax."""
         assert CronEntry.is_valid_expression("0 21 * * *") is True
         assert CronEntry.is_valid_expression("*/5 * * * *") is True
         assert CronEntry.is_valid_expression("0,30 9-17 * * 1-5") is True
         assert CronEntry.is_valid_expression("0 0 1 1 *") is True
+        # Single-value range (start == end) should be valid
+        assert CronEntry.is_valid_expression("0 9-9 * * *") is True
 
     def test_is_valid_expression_invalid(self):
         """CronEntry.is_valid_expression() rejects invalid cron syntax."""

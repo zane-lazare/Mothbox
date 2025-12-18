@@ -47,6 +47,15 @@ _CRON_FIELD_PATTERNS: Final[tuple[re.Pattern, ...]] = (
     re.compile(r'^(\*|[0-7](,[0-7])*|[0-7]-[0-7]|\*/[0-7])$'),  # weekday
 )
 
+# Cron field range validation constants
+_CRON_FIELD_RANGES: Final[dict[str, tuple[int, int]]] = {
+    "minute": (0, 59),
+    "hour": (0, 23),
+    "day": (1, 31),
+    "month": (1, 12),
+    "weekday": (0, 7),  # 0 and 7 both represent Sunday
+}
+
 
 @dataclass
 class CronEntry:
@@ -72,9 +81,11 @@ class CronEntry:
         """
         lines = []
 
-        # Add comment if present
+        # Add comment if present (sanitize to prevent injection)
         if self.comment:
-            lines.append(f"# {self.comment}")
+            # Remove newlines and additional # to prevent comment injection
+            clean_comment = self.comment.replace('\n', ' ').replace('#', '')
+            lines.append(f"# {clean_comment}")
 
         # Add cron expression and command
         cron_line = f"{self.expression} {self.command}"
@@ -113,7 +124,7 @@ class CronEntry:
                 if len(parts) == 2:
                     try:
                         start, end = int(parts[0]), int(parts[1])
-                        if start >= end:
+                        if start > end:
                             return False
                     except ValueError:
                         return False
@@ -140,35 +151,20 @@ class CronEntry:
             if not pattern.match(field_value):
                 return False
 
-        # Additional validation: check numeric ranges
+        # Additional validation: check numeric ranges using constants
         try:
-            minute, hour, day, month, weekday = fields
+            field_names = ("minute", "hour", "day", "month", "weekday")
+            for field_value, field_name in zip(fields, field_names, strict=True):
+                # Skip wildcards, steps, lists, and ranges
+                if field_value == '*' or field_value.startswith('*/') or ',' in field_value or '-' in field_value:
+                    continue
 
-            # Check minute range (0-59)
-            if minute != '*' and not minute.startswith('*/') and ',' not in minute and '-' not in minute and int(minute) > 59:
-                return False
-
-            # Check hour range (0-23)
-            if hour != '*' and not hour.startswith('*/') and ',' not in hour and '-' not in hour and int(hour) > 23:
-                return False
-
-            # Check day range (1-31)
-            if day != '*' and not day.startswith('*/') and ',' not in day and '-' not in day:
-                day_val = int(day)
-                if day_val < 1 or day_val > 31:
+                min_val, max_val = _CRON_FIELD_RANGES[field_name]
+                val = int(field_value)
+                if val < min_val or val > max_val:
                     return False
 
-            # Check month range (1-12)
-            if month != '*' and not month.startswith('*/') and ',' not in month and '-' not in month:
-                month_val = int(month)
-                if month_val < 1 or month_val > 12:
-                    return False
-
-            # Check weekday range (0-7)
-            if weekday != '*' and not weekday.startswith('*/') and ',' not in weekday and '-' not in weekday and int(weekday) > 7:
-                return False
-
-        except (ValueError, IndexError):
+        except (ValueError, IndexError, KeyError):
             return False
 
         return True
@@ -700,6 +696,10 @@ def pattern_to_cron_entries(
             command = get_validated_command(script_key)
         else:
             # Fallback for unknown actions (shouldn't happen with proper validation)
+            logger.warning(
+                f"Unknown action type '{action.action_type}/{action.action_name}' "
+                f"in pattern - skipping cron entry"
+            )
             command = f"# Unknown action: {action.action_type}/{action.action_name}"
 
         # Build cron expression
@@ -1275,8 +1275,9 @@ def apply_to_system(
         cron.write()
         logger.info(f"Applied {added_count} cron entries for schedule {schedule_id}")
 
-        # Set RTC wakealarm
+        # Set RTC wakealarm (clear existing first to avoid conflicts)
         if set_rtc and entries:
+            clear_rtc_wakealarm()  # Clear any existing alarm before setting new
             next_wake = calculate_next_from_entries(entries)
             if next_wake:
                 set_rtc_wakealarm(next_wake)
