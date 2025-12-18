@@ -8,6 +8,20 @@ External dependency: astral>=3.2
 
 Issue #211 - Scheduler Phase 2: Solar Time Calculator
 
+Golden Hour / Blue Hour Notes:
+    The time specification events "golden_hour_start", "golden_hour_end",
+    "blue_hour_start", and "blue_hour_end" refer to EVENING periods only,
+    as these are the more commonly used times for moth photography scheduling.
+
+    For morning golden/blue hour times, use the get_golden_hour() and
+    get_blue_hour() functions directly, which return both morning and evening
+    times in their result dictionaries.
+
+    Example accessing morning golden hour:
+        >>> golden = get_golden_hour(date.today(), 35.96, -83.92, "America/New_York")
+        >>> morning_start = golden["morning_start"]
+        >>> morning_end = golden["morning_end"]
+
 Usage:
     >>> from datetime import date
     >>> from webui.backend.lib.solar_time import get_sun_times, parse_time_spec
@@ -187,8 +201,9 @@ def _get_sun_event_time(
         )
 
     # Handle golden hour events
-    # Note: golden_hour_start/end typically refer to evening golden hour
-    # (the more commonly photographed period before sunset)
+    # Note: golden_hour_start/end refer to EVENING golden hour only.
+    # This is intentional for scheduler use case (moth photography occurs at dusk).
+    # For morning golden hour, use get_golden_hour() directly.
     if event_name in ["golden_hour_start", "golden_hour_end"]:
         location = _create_location(latitude, longitude, timezone_name)
 
@@ -213,8 +228,9 @@ def _get_sun_event_time(
         return None
 
     # Handle blue hour events
-    # Note: blue_hour_start/end typically refer to evening blue hour
-    # (the period after sunset)
+    # Note: blue_hour_start/end refer to EVENING blue hour only.
+    # This is intentional for scheduler use case (moth photography occurs at dusk).
+    # For morning blue hour, use get_blue_hour() directly.
     if event_name in ["blue_hour_start", "blue_hour_end"]:
         location = _create_location(latitude, longitude, timezone_name)
 
