@@ -98,15 +98,15 @@ def _phase_value_to_name(phase_value: float) -> str:
     Returns:
         Phase name string (e.g., "full", "new", "waxing_crescent")
     """
-    # Handle wrap-around for values very close to 28 (same as 0 = new moon)
-    if phase_value >= 27.99:
-        return "new"
+    # Normalize phase value using modulo to handle wrap-around at 28.0
+    # This ensures values like 28.0, 28.5, or negative values are handled correctly
+    normalized = phase_value % 28.0
 
     for phase_name, start, end in PHASE_RANGES:
-        if start <= phase_value < end:
+        if start <= normalized < end:
             return phase_name
 
-    # Fallback (should never reach here)
+    # Fallback for edge case at exactly 0.0 after modulo
     return "new"
 
 
