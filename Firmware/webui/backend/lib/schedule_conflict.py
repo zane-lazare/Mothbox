@@ -361,7 +361,9 @@ def check_resource_contention(
     if not times_overlap:
         return False, ""
 
-    # Service resources never conflict
+    # Service resources (logging, metrics, notifications) are non-exclusive by design.
+    # They can run concurrently without hardware contention. If an action requires
+    # exclusive access to a resource, use a different resource type (camera, gps, gpio).
     if usage1.resource_type == "service" or usage2.resource_type == "service":
         return False, ""
 
