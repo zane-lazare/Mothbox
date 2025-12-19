@@ -182,15 +182,16 @@ class SchedulerService:
         """
         schedules = storage_list(include_builtin=include_builtin)
 
-        # Cache individual schedules
+        # Cache individual schedules (skip if already cached to avoid race)
         with self._cache_lock:
             for schedule in schedules:
-                if schedule.schedule_id not in self._cache:
-                    self._set_cache(schedule.schedule_id, schedule)
+                self._set_cache(schedule.schedule_id, schedule, overwrite=False)
 
         return schedules
 
-    def _set_cache(self, schedule_id: str, schedule: Schedule) -> None:
+    def _set_cache(
+        self, schedule_id: str, schedule: Schedule, overwrite: bool = True
+    ) -> None:
         """
         Add schedule to cache with LRU eviction.
 
@@ -199,7 +200,12 @@ class SchedulerService:
         Args:
             schedule_id: Schedule identifier
             schedule: Schedule object to cache
+            overwrite: If False, skip if already cached (default True)
         """
+        # Skip if already cached and overwrite is False
+        if not overwrite and schedule_id in self._cache:
+            return
+
         # Evict LRU entry if cache full
         while len(self._cache) >= self.max_cache_size:
             evicted_id, _ = self._cache.popitem(last=False)  # Pop oldest
