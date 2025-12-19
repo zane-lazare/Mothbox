@@ -250,7 +250,7 @@ class SchedulerService:
             updates: Dict of fields to update
 
         Returns:
-            Updated Schedule if successful, None if not found
+            Updated Schedule if successful, None if not found or validation fails
 
         Raises:
             ValueError: If attempting to modify built-in schedule
@@ -263,6 +263,16 @@ class SchedulerService:
         updated = storage_update(schedule_id, updates)
 
         if updated:
+            # Defense-in-depth: validate before caching
+            valid, error = validate_schedule(updated)
+            if not valid:
+                logger.error(f"Updated schedule failed validation: {error}")
+                # Invalidate any stale cache entry
+                with self._cache_lock:
+                    if schedule_id in self._cache:
+                        del self._cache[schedule_id]
+                return None
+
             with self._cache_lock:
                 self._set_cache(schedule_id, updated)
             with self._stats_lock:
