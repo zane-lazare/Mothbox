@@ -16,3 +16,4 @@ geopip>=2.0.0
 
 # Astronomical calculations for scheduler (Issue #210)
 astral>=3.2
+pytz  # Required by solar_time for timezone handling
