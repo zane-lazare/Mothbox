@@ -262,6 +262,14 @@ def check_time_overlap(
 
     Returns:
         Tuple of (overlaps: bool, overlap_start: datetime | None, overlap_end: datetime | None)
+
+    Note:
+        Zero-duration patterns (start == end) return False because a point in
+        time has no duration to overlap. However, check_resource_contention()
+        uses different logic - instant actions CAN conflict with resources they
+        touch, even at boundaries. This is intentional: pattern overlap is about
+        scheduling (do patterns run simultaneously?), while resource contention
+        is about hardware access (can two actions use the same resource?).
     """
     # Handle zero-duration patterns (start == end)
     # A point in time doesn't have duration, so can't truly overlap
