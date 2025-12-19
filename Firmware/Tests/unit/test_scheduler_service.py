@@ -857,6 +857,38 @@ class TestGetActiveSchedule:
         assert active is not None
         assert active.schedule_id == "test-active-cache"
 
+    def test_get_active_schedule_clears_stale_id_on_external_delete(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """get_active_schedule should clear stale ID if schedule was deleted externally."""
+        from webui.backend.lib.schedule_storage import create_schedule, delete_schedule
+
+        # Create and activate schedule via service
+        sample_schedule.schedule_id = "test-external-delete"
+        sample_schedule.is_active = True
+        create_schedule(sample_schedule)
+        scheduler_service._active_schedule_id = "test-external-delete"
+
+        # Verify initial state
+        active = scheduler_service.get_active_schedule()
+        assert active is not None
+        assert active.schedule_id == "test-external-delete"
+
+        # Simulate external deletion (bypassing the service)
+        delete_schedule("test-external-delete")
+
+        # Clear the cache so get_schedule() reads from disk
+        scheduler_service._cache.clear()
+
+        # Call get_active_schedule - should return None AND clear stale ID
+        active = scheduler_service.get_active_schedule()
+        assert active is None
+        assert scheduler_service._active_schedule_id is None
+
+        # Verify subsequent call doesn't retain stale reference
+        active = scheduler_service.get_active_schedule()
+        assert active is None
+
 
 # ============================================================================
 # Test Activate Schedule

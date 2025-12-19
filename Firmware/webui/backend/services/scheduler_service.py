@@ -219,6 +219,21 @@ class SchedulerService:
 
         self._cache[schedule_id] = (schedule, time.time())
 
+    def _update_builtin_schedule_state(self, schedule_id: str, is_active: bool) -> None:
+        """
+        Update active state for built-in schedule (cache-only, no disk write).
+
+        Args:
+            schedule_id: Schedule identifier
+            is_active: New active state
+        """
+        schedule = self.get_schedule(schedule_id)
+        if schedule:
+            schedule_copy = deepcopy(schedule)
+            schedule_copy.is_active = is_active
+            with self._cache_lock:
+                self._set_cache(schedule_id, schedule_copy)
+
     # ========================================================================
     # CRUD Write/Delete Operations
     # ========================================================================
@@ -247,8 +262,8 @@ class SchedulerService:
         if success:
             with self._cache_lock:
                 self._set_cache(schedule.schedule_id, schedule)
-            with self._stats_lock:
-                self._total_writes += 1
+                with self._stats_lock:
+                    self._total_writes += 1
 
         return success
 
@@ -286,8 +301,8 @@ class SchedulerService:
 
             with self._cache_lock:
                 self._set_cache(schedule_id, updated)
-            with self._stats_lock:
-                self._total_writes += 1
+                with self._stats_lock:
+                    self._total_writes += 1
 
         return updated
 
@@ -315,13 +330,10 @@ class SchedulerService:
             with self._cache_lock:
                 if schedule_id in self._cache:
                     del self._cache[schedule_id]
-            with self._stats_lock:
-                self._total_deletes += 1
-
-            # Clear active schedule if deleted
-            with self._cache_lock:
                 if self._active_schedule_id == schedule_id:
                     self._active_schedule_id = None
+                with self._stats_lock:
+                    self._total_deletes += 1
 
         return success
 
@@ -337,25 +349,30 @@ class SchedulerService:
             Active Schedule if one is active, None otherwise
         """
         # Use cached active schedule ID for O(1) lookup
-        if self._active_schedule_id is None:
-            # Check storage in case of restart
-            schedules = self.list_schedules()
-            active_schedules = [s for s in schedules if s.is_active]
+        if self._active_schedule_id is not None:
+            schedule = self.get_schedule(self._active_schedule_id)
+            if schedule is None:
+                # Schedule was deleted externally - clear the stale ID
+                with self._cache_lock:
+                    self._active_schedule_id = None
+            return schedule
 
-            if len(active_schedules) > 1:
-                # Data corruption: multiple schedules marked active
-                active_ids = [s.schedule_id for s in active_schedules]
-                logger.warning(
-                    f"Multiple active schedules detected (data corruption): {active_ids}. "
-                    f"Using first one: {active_ids[0]}"
-                )
+        # Check storage in case of restart
+        schedules = self.list_schedules()
+        active_schedules = [s for s in schedules if s.is_active]
 
-            if active_schedules:
-                self._active_schedule_id = active_schedules[0].schedule_id
-                return active_schedules[0]
-            return None
+        if len(active_schedules) > 1:
+            # Data corruption: multiple schedules marked active
+            active_ids = [s.schedule_id for s in active_schedules]
+            logger.warning(
+                f"Multiple active schedules detected (data corruption): {active_ids}. "
+                f"Using first one: {active_ids[0]}"
+            )
 
-        return self.get_schedule(self._active_schedule_id)
+        if active_schedules:
+            self._active_schedule_id = active_schedules[0].schedule_id
+            return active_schedules[0]
+        return None
 
     def activate_schedule(self, schedule_id: str) -> tuple[bool, str]:
         """
@@ -392,12 +409,9 @@ class SchedulerService:
             if not is_builtin_schedule(schedule_id):
                 self.update_schedule(schedule_id, {"is_active": True})
             else:
-                # Built-in: create copy before mutation to avoid side effects
-                schedule_copy = deepcopy(schedule)
-                schedule_copy.is_active = True
-                with self._cache_lock:
-                    self._set_cache(schedule_id, schedule_copy)
+                self._update_builtin_schedule_state(schedule_id, True)
         except Exception as e:
+            logger.exception(f"Failed to update schedule: {e}")
             return False, f"Failed to update schedule: {e}"
 
         # Set active schedule ID
@@ -427,15 +441,9 @@ class SchedulerService:
             if not is_builtin_schedule(schedule_id):
                 self.update_schedule(schedule_id, {"is_active": False})
             else:
-                # Built-in: create copy before mutation to avoid side effects
-                schedule = self.get_schedule(schedule_id)
-                if schedule:
-                    schedule_copy = deepcopy(schedule)
-                    schedule_copy.is_active = False
-                    with self._cache_lock:
-                        self._set_cache(schedule_id, schedule_copy)
-        except Exception as e:
-            logger.warning(f"Failed to deactivate schedule: {e}")
+                self._update_builtin_schedule_state(schedule_id, False)
+        except Exception:
+            logger.exception(f"Failed to deactivate schedule {schedule_id}")
 
         # Clear active schedule ID
         with self._cache_lock:
