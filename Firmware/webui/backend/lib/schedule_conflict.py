@@ -14,7 +14,7 @@ Issue #213 - Scheduler Phase 3: Conflict Detection
 
 import logging
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Final
 
 from webui.backend.lib.schedule_schema import (
@@ -226,7 +226,7 @@ class ConflictReport:
     total_executions: int
     conflicts: list[Conflict]
     has_blocking_conflicts: bool
-    analyzed_at: datetime = field(default_factory=datetime.now)
+    analyzed_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def to_dict(self) -> dict:
         """Serialize to dictionary."""
@@ -803,8 +803,8 @@ def detect_conflicts(
     return ConflictReport(
         schedule_id=schedule.schedule_id,
         schedule_name=schedule.name,
-        preview_start=datetime.combine(start_date, time(0, 0)),
-        preview_end=datetime.combine(end_date, time(23, 59, 59)),
+        preview_start=datetime.combine(start_date, time(0, 0), tzinfo=UTC),
+        preview_end=datetime.combine(end_date, time(23, 59, 59), tzinfo=UTC),
         total_executions=len(executions),
         conflicts=conflicts,
         has_blocking_conflicts=has_blocking,
