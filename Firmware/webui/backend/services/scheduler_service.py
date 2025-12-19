@@ -33,6 +33,7 @@ Usage:
 import logging
 import time
 from collections import OrderedDict
+from copy import deepcopy
 from threading import RLock
 from typing import Any
 
@@ -372,10 +373,11 @@ class SchedulerService:
             if not is_builtin_schedule(schedule_id):
                 self.update_schedule(schedule_id, {"is_active": True})
             else:
-                # Built-in: update cache entry directly
-                schedule.is_active = True
+                # Built-in: create copy before mutation to avoid side effects
+                schedule_copy = deepcopy(schedule)
+                schedule_copy.is_active = True
                 with self._cache_lock:
-                    self._set_cache(schedule_id, schedule)
+                    self._set_cache(schedule_id, schedule_copy)
         except Exception as e:
             return False, f"Failed to update schedule: {e}"
 
@@ -406,12 +408,13 @@ class SchedulerService:
             if not is_builtin_schedule(schedule_id):
                 self.update_schedule(schedule_id, {"is_active": False})
             else:
-                # Built-in: update cache only
+                # Built-in: create copy before mutation to avoid side effects
                 schedule = self.get_schedule(schedule_id)
                 if schedule:
-                    schedule.is_active = False
+                    schedule_copy = deepcopy(schedule)
+                    schedule_copy.is_active = False
                     with self._cache_lock:
-                        self._set_cache(schedule_id, schedule)
+                        self._set_cache(schedule_id, schedule_copy)
         except Exception as e:
             logger.warning(f"Failed to deactivate schedule: {e}")
 
