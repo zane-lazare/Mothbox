@@ -14,6 +14,7 @@ _series_service = None
 _locations_service = None
 _sidecar_service = None
 _deployment_service = None
+_scheduler_service = None
 
 
 def get_clustering_service():
@@ -80,6 +81,26 @@ def get_deployment_service():
     return _deployment_service
 
 
+def get_scheduler_service():
+    """
+    Get singleton SchedulerService instance with lazy initialization.
+
+    Returns:
+        SchedulerService: The singleton service instance
+
+    Example:
+        from webui.backend.services import get_scheduler_service
+
+        service = get_scheduler_service()
+        schedules = service.list_schedules()
+    """
+    global _scheduler_service
+    if _scheduler_service is None:
+        from .scheduler_service import SchedulerService
+        _scheduler_service = SchedulerService(cache_ttl=300, max_cache_size=100)
+    return _scheduler_service
+
+
 __all__ = [
     'PhotoService',
     'PaginationError',
@@ -90,4 +111,5 @@ __all__ = [
     'get_locations_service',
     'get_sidecar_service',
     'get_deployment_service',
+    'get_scheduler_service',
 ]
