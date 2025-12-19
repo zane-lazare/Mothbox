@@ -143,8 +143,6 @@ class SchedulerService:
             Schedule if found, None otherwise
         """
         with self._cache_lock:
-            self._total_reads += 1
-
             # Check cache first
             if schedule_id in self._cache:
                 schedule, cached_at = self._cache[schedule_id]
@@ -153,14 +151,16 @@ class SchedulerService:
                     self._cache.move_to_end(schedule_id)
                     with self._stats_lock:
                         self._cache_hits += 1
+                        self._total_reads += 1
                     return schedule
                 else:
                     # TTL expired - remove stale entry
                     del self._cache[schedule_id]
 
-            # Cache miss
+            # Cache miss - update stats with proper locking
             with self._stats_lock:
                 self._cache_misses += 1
+                self._total_reads += 1
 
             # Read from storage
             schedule = storage_read(schedule_id)
