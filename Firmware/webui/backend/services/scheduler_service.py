@@ -129,6 +129,14 @@ class SchedulerService:
         self._total_writes = 0
         self._total_deletes = 0
 
+        # Conflict cache: cache_key -> (ConflictReport, timestamp)
+        # Uses longer TTL since conflict analysis is expensive
+        self._conflict_cache: OrderedDict[str, tuple[Any, float]] = OrderedDict()
+        self._conflict_cache_ttl = 600  # 10 minutes
+        self._max_conflict_cache_size = 50
+        self._conflict_cache_hits = 0
+        self._conflict_cache_misses = 0
+
     # ========================================================================
     # CRUD Read Operations
     # ========================================================================
@@ -235,6 +243,113 @@ class SchedulerService:
                 self._set_cache(schedule_id, schedule_copy)
 
     # ========================================================================
+    # Conflict Cache Methods
+    # ========================================================================
+
+    def _conflict_cache_key(
+        self,
+        schedule_id: str,
+        preview_days: int,
+        latitude: float,
+        longitude: float,
+        timezone_name: str,
+    ) -> str:
+        """Generate cache key for conflict detection results."""
+        return f"{schedule_id}:{preview_days}:{latitude}:{longitude}:{timezone_name}"
+
+    def _invalidate_conflict_cache(self, schedule_id: str | None = None) -> None:
+        """
+        Invalidate conflict cache entries.
+
+        MUST be called with _cache_lock held.
+
+        Args:
+            schedule_id: If provided, invalidate entries for this schedule.
+                         If None, invalidate entire conflict cache.
+        """
+        if schedule_id is None:
+            count = len(self._conflict_cache)
+            self._conflict_cache.clear()
+            if count > 0:
+                logger.debug(f"Invalidated entire conflict cache ({count} entries)")
+        else:
+            # Find and remove all entries for this schedule_id
+            keys_to_remove = [
+                key for key in self._conflict_cache
+                if key.startswith(f"{schedule_id}:")
+            ]
+            for key in keys_to_remove:
+                del self._conflict_cache[key]
+            if keys_to_remove:
+                logger.debug(
+                    f"Invalidated {len(keys_to_remove)} conflict cache entries "
+                    f"for schedule {schedule_id}"
+                )
+
+    def get_cached_conflict_report(
+        self,
+        schedule: Any,
+        preview_days: int = 7,
+        latitude: float = 0.0,
+        longitude: float = 0.0,
+        timezone_name: str = "UTC",
+    ) -> Any:
+        """
+        Get conflict report with caching.
+
+        Args:
+            schedule: Schedule to analyze
+            preview_days: Number of days to preview
+            latitude: Location latitude for solar calculations
+            longitude: Location longitude for solar calculations
+            timezone_name: Timezone for time resolution
+
+        Returns:
+            ConflictReport object (cached or freshly computed)
+        """
+        from webui.backend.lib.schedule_conflict import detect_conflicts
+
+        cache_key = self._conflict_cache_key(
+            schedule.schedule_id, preview_days, latitude, longitude, timezone_name
+        )
+
+        with self._cache_lock:
+            # Check cache first
+            if cache_key in self._conflict_cache:
+                report, cached_at = self._conflict_cache[cache_key]
+                if time.time() - cached_at < self._conflict_cache_ttl:
+                    # Cache hit - move to end (MRU)
+                    self._conflict_cache.move_to_end(cache_key)
+                    with self._stats_lock:
+                        self._conflict_cache_hits += 1
+                    logger.debug(f"Conflict cache hit for {schedule.schedule_id}")
+                    return report
+                else:
+                    # TTL expired - remove stale entry
+                    del self._conflict_cache[cache_key]
+
+            # Cache miss - update stats
+            with self._stats_lock:
+                self._conflict_cache_misses += 1
+
+        # Compute conflict report (outside lock for performance)
+        report = detect_conflicts(
+            schedule, preview_days, latitude, longitude, timezone_name
+        )
+
+        # Cache the result
+        with self._cache_lock:
+            # Evict LRU entry if cache full
+            while len(self._conflict_cache) >= self._max_conflict_cache_size:
+                evicted_key, _ = self._conflict_cache.popitem(last=False)
+                logger.debug(f"Evicted conflict cache entry: {evicted_key}")
+
+            self._conflict_cache[cache_key] = (report, time.time())
+            logger.debug(f"Cached conflict report for {schedule.schedule_id}")
+
+        return report
+
+    # ========================================================================
     # CRUD Write/Delete Operations
     # ========================================================================
 
@@ -301,6 +416,8 @@ class SchedulerService:
 
             with self._cache_lock:
                 self._set_cache(schedule_id, updated)
+                # Invalidate conflict cache since schedule changed
+                self._invalidate_conflict_cache(schedule_id)
                 with self._stats_lock:
                     self._total_writes += 1
 
@@ -330,6 +447,8 @@ class SchedulerService:
             with self._cache_lock:
                 if schedule_id in self._cache:
                     del self._cache[schedule_id]
+                # Invalidate conflict cache since schedule is deleted
+                self._invalidate_conflict_cache(schedule_id)
                 if self._active_schedule_id == schedule_id:
                     self._active_schedule_id = None
                 with self._stats_lock:
@@ -374,17 +493,33 @@ class SchedulerService:
             return active_schedules[0]
         return None
 
-    def activate_schedule(self, schedule_id: str) -> tuple[bool, str]:
+    def activate_schedule(
+        self,
+        schedule_id: str,
+        check_conflicts: bool = True,
+        latitude: float = 0.0,
+        longitude: float = 0.0,
+        timezone_name: str = "UTC",
+    ) -> tuple[bool, str]:
         """
         Activate a schedule (deactivates any currently active first).
 
+        Optionally checks for schedule conflicts before activation. Conflict
+        detection analyzes the next 7 days of scheduled executions to find
+        resource contention (e.g., camera, GPS, GPIO) issues.
+
         Args:
             schedule_id: Schedule to activate
+            check_conflicts: If True, validate schedule for conflicts before
+                            activation. Default True. Set False to skip check.
+            latitude: Location latitude for solar calculations (default 0.0)
+            longitude: Location longitude for solar calculations (default 0.0)
+            timezone_name: Timezone for time resolution (default "UTC")
 
         Returns:
             (success: bool, error_message: str)
             success=True with empty error on success
-            success=False with error description on failure
+            success=False with error description on failure (includes conflict info)
         """
         # Get the schedule
         schedule = self.get_schedule(schedule_id)
@@ -398,6 +533,34 @@ class SchedulerService:
         # Already active? Return success (idempotent)
         if schedule.is_active and self._active_schedule_id == schedule_id:
             return True, ""
+
+        # Check for conflicts before activation (Issue #213)
+        # Uses cached conflict report to avoid redundant computation
+        if check_conflicts:
+            try:
+                from webui.backend.lib.schedule_conflict import SEVERITY_ERROR
+
+                report = self.get_cached_conflict_report(
+                    schedule,
+                    preview_days=7,
+                    latitude=latitude,
+                    longitude=longitude,
+                    timezone_name=timezone_name,
+                )
+                if report.has_blocking_conflicts:
+                    blocking = [c for c in report.conflicts if c.severity == SEVERITY_ERROR]
+                    messages = [c.message for c in blocking[:3]]
+                    error = (
+                        f"Schedule has {len(blocking)} blocking conflict(s): "
+                        + "; ".join(messages)
+                    )
+                    return False, f"Conflict detected: {error}"
+            except ImportError:
+                # Conflict detection module not available - skip check
+                logger.warning("Conflict detection module not available, skipping check")
+            except Exception as e:
+                logger.exception(f"Error during conflict check: {e}")
+                return False, f"Conflict check failed: {e}"
 
         # Deactivate any currently active schedule
         if self._active_schedule_id and self._active_schedule_id != schedule_id:
@@ -460,7 +623,7 @@ class SchedulerService:
 
     def invalidate_cache(self, schedule_id: str = None) -> None:
         """
-        Invalidate cache entries.
+        Invalidate cache entries (both schedule cache and conflict cache).
 
         Args:
             schedule_id: If provided, invalidate only this entry.
@@ -468,15 +631,19 @@ class SchedulerService:
         """
         with self._cache_lock:
             if schedule_id is None:
-                # Clear entire cache
+                # Clear entire schedule cache
                 count = len(self._cache)
                 self._cache.clear()
                 logger.debug(f"Invalidated entire cache ({count} entries)")
+                # Also clear entire conflict cache
+                self._invalidate_conflict_cache()
             else:
-                # Clear specific entry
+                # Clear specific schedule entry
                 if schedule_id in self._cache:
                     del self._cache[schedule_id]
                     logger.debug(f"Invalidated cache entry: {schedule_id}")
+                # Also clear conflict cache for this schedule
+                self._invalidate_conflict_cache(schedule_id)
 
     # ========================================================================
     # Statistics
@@ -499,11 +666,16 @@ class SchedulerService:
             - total_writes: Total write operations
             - total_deletes: Total delete operations
             - active_schedule_id: ID of currently active schedule (or None)
+            - conflict_cache_size: Size of conflict detection cache
+            - conflict_cache_hits: Number of conflict cache hits
+            - conflict_cache_misses: Number of conflict cache misses
+            - conflict_cache_hit_ratio: Conflict cache hit ratio (0.0 to 1.0)
         """
         # IMPORTANT: Acquire locks in correct order to prevent deadlocks
         # Order: cache_lock first, then stats_lock (nested for atomic snapshot)
         with self._cache_lock:
             cache_size = len(self._cache)
+            conflict_cache_size = len(self._conflict_cache)
             active_schedule_id = self._active_schedule_id
 
             with self._stats_lock:
@@ -511,6 +683,11 @@ class SchedulerService:
                 hit_ratio = 0.0
                 if total_requests > 0:
                     hit_ratio = self._cache_hits / total_requests
+
+                conflict_total = self._conflict_cache_hits + self._conflict_cache_misses
+                conflict_hit_ratio = 0.0
+                if conflict_total > 0:
+                    conflict_hit_ratio = self._conflict_cache_hits / conflict_total
 
                 return {
                     "cache_hits": self._cache_hits,
@@ -524,6 +701,10 @@ class SchedulerService:
                     "total_writes": self._total_writes,
                     "total_deletes": self._total_deletes,
                     "active_schedule_id": active_schedule_id,
+                    "conflict_cache_size": conflict_cache_size,
+                    "conflict_cache_hits": self._conflict_cache_hits,
+                    "conflict_cache_misses": self._conflict_cache_misses,
+                    "conflict_cache_hit_ratio": conflict_hit_ratio,
                 }
 
 
