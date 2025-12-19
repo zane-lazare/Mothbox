@@ -772,8 +772,9 @@ def detect_conflicts(
                     start_time=overlap_start,
                     end_time=overlap_end,
                     message=(
-                        f"Patterns '{exec1.pattern_name}' and "
-                        f"'{exec2.pattern_name}' overlap in time"
+                        f"Patterns '{exec1.pattern_name}' and '{exec2.pattern_name}' "
+                        f"overlap from {overlap_start.strftime('%H:%M:%S')} to "
+                        f"{overlap_end.strftime('%H:%M:%S')}"
                     ),
                     suggested_resolution=(
                         "Adjust pattern offsets or increase interval between triggers"
