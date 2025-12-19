@@ -461,30 +461,30 @@ class SchedulerService:
             - active_schedule_id: ID of currently active schedule (or None)
         """
         # IMPORTANT: Acquire locks in correct order to prevent deadlocks
-        # Order: cache_lock first, then stats_lock
+        # Order: cache_lock first, then stats_lock (nested for atomic snapshot)
         with self._cache_lock:
             cache_size = len(self._cache)
             active_schedule_id = self._active_schedule_id
 
-        with self._stats_lock:
-            total_requests = self._cache_hits + self._cache_misses
-            hit_ratio = 0.0
-            if total_requests > 0:
-                hit_ratio = self._cache_hits / total_requests
+            with self._stats_lock:
+                total_requests = self._cache_hits + self._cache_misses
+                hit_ratio = 0.0
+                if total_requests > 0:
+                    hit_ratio = self._cache_hits / total_requests
 
-            return {
-                "cache_hits": self._cache_hits,
-                "cache_misses": self._cache_misses,
-                "cache_evictions": self._cache_evictions,
-                "cache_size": cache_size,
-                "max_cache_size": self.max_cache_size,
-                "cache_ttl": self.cache_ttl,
-                "hit_ratio": hit_ratio,
-                "total_reads": self._total_reads,
-                "total_writes": self._total_writes,
-                "total_deletes": self._total_deletes,
-                "active_schedule_id": active_schedule_id,
-            }
+                return {
+                    "cache_hits": self._cache_hits,
+                    "cache_misses": self._cache_misses,
+                    "cache_evictions": self._cache_evictions,
+                    "cache_size": cache_size,
+                    "max_cache_size": self.max_cache_size,
+                    "cache_ttl": self.cache_ttl,
+                    "hit_ratio": hit_ratio,
+                    "total_reads": self._total_reads,
+                    "total_writes": self._total_writes,
+                    "total_deletes": self._total_deletes,
+                    "active_schedule_id": active_schedule_id,
+                }
 
 
 # ============================================================================
