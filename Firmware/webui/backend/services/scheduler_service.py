@@ -256,7 +256,7 @@ class SchedulerService:
         This ensures cache invalidation when schedule content changes.
         """
         content = json.dumps(schedule.to_dict(), sort_keys=True)
-        return hashlib.md5(content.encode()).hexdigest()[:8]  # noqa: S324
+        return hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()[:8]
 
     def _conflict_cache_key(
         self,
