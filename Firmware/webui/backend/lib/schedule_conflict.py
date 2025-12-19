@@ -502,8 +502,10 @@ def _get_trigger_times_for_day(
             )
             trigger_time += timedelta(minutes=trigger.offset_minutes)
             trigger_times.append(trigger_time)
-        except (ImportError, ValueError):
-            pass  # Skip if solar calculations unavailable
+        except (ImportError, ValueError) as e:
+            logger.debug(
+                f"Solar trigger calculation failed for {schedule.schedule_id}: {e}"
+            )
 
     elif schedule.trigger_type == "moon_phase" and schedule.moon_phase_trigger:
         trigger = schedule.moon_phase_trigger
@@ -530,16 +532,20 @@ def _get_trigger_times_for_day(
                             datetime.combine(target_date, time(12, 0))
                         )
                     break  # Only need one trigger per day
-        except ImportError:
-            pass  # Skip if moon calculations unavailable
+        except ImportError as e:
+            logger.debug(
+                f"Moon phase module unavailable for {schedule.schedule_id}: {e}"
+            )
 
     elif schedule.trigger_type == "fixed_time" and schedule.fixed_time_trigger:
         trigger = schedule.fixed_time_trigger
         try:
             trigger_time = _parse_time_string(trigger.time)
             trigger_times.append(datetime.combine(target_date, trigger_time))
-        except ValueError:
-            pass
+        except ValueError as e:
+            logger.debug(
+                f"Fixed time parse failed for {schedule.schedule_id}: {e}"
+            )
 
     elif schedule.trigger_type == "sensor" and schedule.sensor_trigger:
         trigger = schedule.sensor_trigger
@@ -548,8 +554,10 @@ def _get_trigger_times_for_day(
             try:
                 window_start_time = _parse_time_string(trigger.time_window.start_time)
                 trigger_times.append(datetime.combine(target_date, window_start_time))
-            except ValueError:
-                pass
+            except ValueError as e:
+                logger.debug(
+                    f"Sensor trigger parse failed for {schedule.schedule_id}: {e}"
+                )
 
     return trigger_times
 
