@@ -1201,6 +1201,11 @@ class TestGetStatistics:
             "total_writes",
             "total_deletes",
             "active_schedule_id",
+            # Conflict cache stats (Issue #213)
+            "conflict_cache_size",
+            "conflict_cache_hits",
+            "conflict_cache_misses",
+            "conflict_cache_hit_ratio",
         }
         assert set(stats.keys()) == expected_keys
 
@@ -2040,3 +2045,452 @@ class TestConcurrentModifications:
             # If there's an active schedule, we should be able to get it
             active = service.get_schedule(active_id)
             assert active is not None, f"Active schedule {active_id} should exist"
+
+
+# ============================================================================
+# Test Conflict Detection Integration (Issue #213 - Phase 6)
+# ============================================================================
+
+class TestActivateScheduleConflictDetection:
+    """Tests for conflict detection in activate_schedule()."""
+
+    @pytest.fixture
+    def conflicting_schedule(self):
+        """Create a schedule with conflicting patterns (overlapping camera usage)."""
+        from webui.backend.lib.schedule_schema import (
+            EventPattern,
+            IntervalTrigger,
+            PatternAction,
+            Schedule,
+            TimeWindow,
+        )
+
+        # Pattern 1: Takes photo at offset 10
+        pattern1_actions = [
+            PatternAction(
+                action_type="gpio",
+                action_name="attract_on",
+                offset_minutes=0,
+            ),
+            PatternAction(
+                action_type="camera",
+                action_name="takephoto",
+                offset_minutes=10,
+            ),
+            PatternAction(
+                action_type="gpio",
+                action_name="attract_off",
+                offset_minutes=20,
+            ),
+        ]
+        pattern1 = EventPattern(
+            pattern_id="conflict-pattern-1",
+            name="UV Capture 1",
+            actions=pattern1_actions,
+        )
+
+        # Pattern 2: Also takes photo at offset 10
+        pattern2_actions = [
+            PatternAction(
+                action_type="gpio",
+                action_name="flash_on",
+                offset_minutes=0,
+            ),
+            PatternAction(
+                action_type="camera",
+                action_name="takephoto",
+                offset_minutes=10,
+            ),
+            PatternAction(
+                action_type="gpio",
+                action_name="flash_off",
+                offset_minutes=20,
+            ),
+        ]
+        pattern2 = EventPattern(
+            pattern_id="conflict-pattern-2",
+            name="Flash Capture",
+            actions=pattern2_actions,
+        )
+
+        # 15 minute interval but patterns take 20 minutes each = overlap
+        trigger = IntervalTrigger(
+            interval_minutes=15,
+            time_window=TimeWindow(start_time="21:00", end_time="22:00"),
+        )
+
+        return Schedule(
+            schedule_id="conflicting-schedule",
+            name="Conflicting Schedule",
+            event_patterns=[pattern1, pattern2],
+            trigger_type="interval",
+            interval_trigger=trigger,
+            enabled=True,
+        )
+
+    def test_activate_with_conflicts_blocked(
+        self, scheduler_service, temp_schedules_dir, conflicting_schedule
+    ):
+        """activate_schedule should fail when schedule has blocking conflicts."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create the conflicting schedule
+        create_schedule(conflicting_schedule)
+
+        # Try to activate with conflict checking (default)
+        success, error = scheduler_service.activate_schedule(
+            "conflicting-schedule",
+            check_conflicts=True,
+            latitude=0.0,
+            longitude=0.0,
+            timezone_name="UTC",
+        )
+
+        # Should fail due to conflicts
+        assert success is False
+        assert "conflict" in error.lower()
+
+    def test_activate_with_conflicts_skip_check(
+        self, scheduler_service, temp_schedules_dir, conflicting_schedule
+    ):
+        """activate_schedule should succeed when check_conflicts=False."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create the conflicting schedule
+        create_schedule(conflicting_schedule)
+
+        # Activate with conflict checking disabled
+        success, error = scheduler_service.activate_schedule(
+            "conflicting-schedule",
+            check_conflicts=False,
+        )
+
+        # Should succeed (conflicts ignored)
+        assert success is True
+        assert error == ""
+        assert scheduler_service._active_schedule_id == "conflicting-schedule"
+
+    def test_activate_no_conflicts_success(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """activate_schedule should succeed for schedule without conflicts."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create non-conflicting schedule
+        sample_schedule.schedule_id = "non-conflicting-schedule"
+        sample_schedule.enabled = True
+        create_schedule(sample_schedule)
+
+        # Activate with conflict checking enabled
+        success, error = scheduler_service.activate_schedule(
+            "non-conflicting-schedule",
+            check_conflicts=True,
+            latitude=0.0,
+            longitude=0.0,
+            timezone_name="UTC",
+        )
+
+        # Should succeed (no conflicts)
+        assert success is True
+        assert error == ""
+        assert scheduler_service._active_schedule_id == "non-conflicting-schedule"
+
+    def test_activate_conflict_check_with_location(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """activate_schedule should pass location parameters to conflict detection."""
+        # Create schedule with solar trigger
+        from webui.backend.lib.schedule_schema import SolarTrigger
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        sample_schedule.schedule_id = "solar-schedule"
+        sample_schedule.enabled = True
+        sample_schedule.trigger_type = "solar"
+        sample_schedule.interval_trigger = None
+        sample_schedule.solar_trigger = SolarTrigger(
+            solar_event="sunset",
+            offset_minutes=30,
+        )
+        create_schedule(sample_schedule)
+
+        # Activate with location parameters (Panama)
+        success, error = scheduler_service.activate_schedule(
+            "solar-schedule",
+            check_conflicts=True,
+            latitude=9.15,
+            longitude=-79.85,
+            timezone_name="America/Panama",
+        )
+
+        # Should succeed (single pattern, no conflicts)
+        assert success is True
+        assert error == ""
+
+
+# ============================================================================
+# Test Conflict Cache (Issue #213 - Code Review Improvement)
+# ============================================================================
+
+
+class TestConflictCache:
+    """Tests for conflict detection caching in SchedulerService."""
+
+    def test_conflict_cache_hit(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """Same params should return cached result (cache hit)."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        sample_schedule.schedule_id = "cache-test-schedule"
+        sample_schedule.enabled = True
+        create_schedule(sample_schedule)
+
+        schedule = scheduler_service.get_schedule("cache-test-schedule")
+
+        # First call - cache miss
+        report1 = scheduler_service.get_cached_conflict_report(
+            schedule,
+            preview_days=7,
+            latitude=0.0,
+            longitude=0.0,
+            timezone_name="UTC",
+        )
+
+        # Second call with same params - cache hit
+        report2 = scheduler_service.get_cached_conflict_report(
+            schedule,
+            preview_days=7,
+            latitude=0.0,
+            longitude=0.0,
+            timezone_name="UTC",
+        )
+
+        # Both should return valid reports
+        assert report1 is not None
+        assert report2 is not None
+        assert report1.schedule_id == report2.schedule_id
+
+        # Check statistics show cache hit
+        stats = scheduler_service.get_statistics()
+        assert stats["conflict_cache_hits"] >= 1
+        assert stats["conflict_cache_misses"] >= 1
+
+    def test_conflict_cache_miss_different_params(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """Different params should miss cache."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        sample_schedule.schedule_id = "cache-params-schedule"
+        sample_schedule.enabled = True
+        create_schedule(sample_schedule)
+
+        schedule = scheduler_service.get_schedule("cache-params-schedule")
+
+        # First call with one location
+        scheduler_service.get_cached_conflict_report(
+            schedule,
+            preview_days=7,
+            latitude=0.0,
+            longitude=0.0,
+            timezone_name="UTC",
+        )
+
+        stats_after_first = scheduler_service.get_statistics()
+        misses_after_first = stats_after_first["conflict_cache_misses"]
+
+        # Second call with different location - cache miss
+        scheduler_service.get_cached_conflict_report(
+            schedule,
+            preview_days=7,
+            latitude=35.0,
+            longitude=-80.0,
+            timezone_name="America/New_York",
+        )
+
+        stats_after_second = scheduler_service.get_statistics()
+        misses_after_second = stats_after_second["conflict_cache_misses"]
+
+        # Should have another miss (different params)
+        assert misses_after_second == misses_after_first + 1
+
+    def test_conflict_cache_invalidation_on_update(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """Schedule update should invalidate conflict cache."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        sample_schedule.schedule_id = "cache-invalidate-schedule"
+        sample_schedule.enabled = True
+        create_schedule(sample_schedule)
+
+        schedule = scheduler_service.get_schedule("cache-invalidate-schedule")
+
+        # Populate cache
+        scheduler_service.get_cached_conflict_report(
+            schedule,
+            preview_days=7,
+            latitude=0.0,
+            longitude=0.0,
+            timezone_name="UTC",
+        )
+
+        # Verify cache has entry
+        stats_before = scheduler_service.get_statistics()
+        assert stats_before["conflict_cache_size"] >= 1
+
+        # Update schedule
+        scheduler_service.update_schedule(
+            "cache-invalidate-schedule",
+            {"name": "Updated Name"}
+        )
+
+        # Get fresh schedule after update
+        updated_schedule = scheduler_service.get_schedule("cache-invalidate-schedule")
+
+        # Request conflict report again
+        scheduler_service.get_cached_conflict_report(
+            updated_schedule,
+            preview_days=7,
+            latitude=0.0,
+            longitude=0.0,
+            timezone_name="UTC",
+        )
+
+        # Should have had a cache miss (entry was invalidated)
+        stats_after = scheduler_service.get_statistics()
+        # The miss count should have increased
+        assert stats_after["conflict_cache_misses"] > stats_before["conflict_cache_misses"]
+
+    def test_conflict_cache_statistics(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """get_statistics should include conflict cache metrics."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        sample_schedule.schedule_id = "stats-test-schedule"
+        sample_schedule.enabled = True
+        create_schedule(sample_schedule)
+
+        schedule = scheduler_service.get_schedule("stats-test-schedule")
+
+        # Make a conflict cache request
+        scheduler_service.get_cached_conflict_report(
+            schedule,
+            preview_days=7,
+            latitude=0.0,
+            longitude=0.0,
+            timezone_name="UTC",
+        )
+
+        stats = scheduler_service.get_statistics()
+
+        # Check conflict cache metrics are present
+        assert "conflict_cache_size" in stats
+        assert "conflict_cache_hits" in stats
+        assert "conflict_cache_misses" in stats
+        assert "conflict_cache_hit_ratio" in stats
+
+        # Values should be reasonable
+        assert stats["conflict_cache_size"] >= 0
+        assert stats["conflict_cache_hits"] >= 0
+        assert stats["conflict_cache_misses"] >= 1  # At least one miss
+        assert 0.0 <= stats["conflict_cache_hit_ratio"] <= 1.0
+
+    def test_conflict_cache_ttl_expiration(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """Expired entries should be refreshed (cache miss)."""
+        import time
+
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        sample_schedule.schedule_id = "ttl-test-schedule"
+        sample_schedule.enabled = True
+        create_schedule(sample_schedule)
+
+        schedule = scheduler_service.get_schedule("ttl-test-schedule")
+
+        # Set very short TTL for testing
+        original_ttl = scheduler_service._conflict_cache_ttl
+        scheduler_service._conflict_cache_ttl = 0.1  # 100ms
+
+        try:
+            # First call - cache miss
+            scheduler_service.get_cached_conflict_report(
+                schedule,
+                preview_days=7,
+                latitude=0.0,
+                longitude=0.0,
+                timezone_name="UTC",
+            )
+
+            stats_after_first = scheduler_service.get_statistics()
+            misses_first = stats_after_first["conflict_cache_misses"]
+
+            # Wait for TTL to expire
+            time.sleep(0.2)
+
+            # Second call - should be cache miss due to TTL expiration
+            scheduler_service.get_cached_conflict_report(
+                schedule,
+                preview_days=7,
+                latitude=0.0,
+                longitude=0.0,
+                timezone_name="UTC",
+            )
+
+            stats_after_second = scheduler_service.get_statistics()
+            misses_second = stats_after_second["conflict_cache_misses"]
+
+            # Should have another miss due to expiration
+            assert misses_second == misses_first + 1
+
+        finally:
+            # Restore original TTL
+            scheduler_service._conflict_cache_ttl = original_ttl
+
+    def test_conflict_cache_key_includes_content_hash(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """Cache key includes content hash to prevent stale results after updates."""
+        from copy import deepcopy
+
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        sample_schedule.schedule_id = "content-hash-schedule"
+        sample_schedule.enabled = True
+        create_schedule(sample_schedule)
+
+        schedule = scheduler_service.get_schedule("content-hash-schedule")
+
+        # Get cache key for original schedule
+        key1 = scheduler_service._conflict_cache_key(
+            schedule, 7, 0.0, 0.0, "UTC"
+        )
+
+        # Modify schedule content (simulating an in-memory change)
+        modified_schedule = deepcopy(schedule)
+        modified_schedule.name = "Modified Name For Hash Test"
+
+        # Get cache key for modified schedule
+        key2 = scheduler_service._conflict_cache_key(
+            modified_schedule, 7, 0.0, 0.0, "UTC"
+        )
+
+        # Keys should be different because content hash changed
+        assert key1 != key2
+        assert "content-hash-schedule" in key1
+        assert "content-hash-schedule" in key2
+
+    def test_schedule_content_hash_consistent(
+        self, scheduler_service, sample_schedule
+    ):
+        """Content hash should be consistent for same schedule content."""
+        sample_schedule.schedule_id = "hash-consistency-test"
+
+        hash1 = scheduler_service._schedule_content_hash(sample_schedule)
+        hash2 = scheduler_service._schedule_content_hash(sample_schedule)
+
+        assert hash1 == hash2
+        assert len(hash1) == 8  # First 8 chars of MD5

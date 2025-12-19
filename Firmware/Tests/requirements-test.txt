@@ -38,5 +38,6 @@ rapidfuzz>=3.0.0  # Fuzzy string matching for tag autocomplete (Issue #124)
 # Country code detection (Darwin Core export)
 geopip>=2.0.0  # Offline GPS-to-country lookup for Darwin Core countryCode field
 
-# Astronomical calculations for scheduler (Issue #210)
+# Astronomical calculations for scheduler (Issue #210, #213)
 astral>=3.2
+pytz  # Required by solar_time for timezone handling
