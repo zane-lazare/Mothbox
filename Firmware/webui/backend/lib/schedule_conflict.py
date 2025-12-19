@@ -511,7 +511,7 @@ def _get_trigger_times_for_day(
             trigger_time += timedelta(minutes=trigger.offset_minutes)
             trigger_times.append(trigger_time)
         except (ImportError, ValueError) as e:
-            logger.debug(
+            logger.warning(
                 f"Solar trigger calculation failed for {schedule.schedule_id}: {e}"
             )
 
@@ -541,7 +541,7 @@ def _get_trigger_times_for_day(
                         )
                     break  # Only need one trigger per day
         except ImportError as e:
-            logger.debug(
+            logger.warning(
                 f"Moon phase module unavailable for {schedule.schedule_id}: {e}"
             )
 
