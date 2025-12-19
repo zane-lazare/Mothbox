@@ -16,9 +16,44 @@ Test count target: 35+
 Issue #213 - Scheduler Phase 3: Conflict Detection
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 
 import pytest
+
+# ============================================================================
+# Test Date Reference
+# ============================================================================
+# Tests use June 2024 as a reference period. Key dates:
+# - June 15, 2024 (Saturday) - Used for weekend tests
+# - June 17, 2024 (Monday) - Used for weekday tests
+# These are explicit reference points that work regardless of when tests run.
+# The dates are chosen to provide consistent weekday behavior for tests that
+# check days_of_week filtering (e.g., weekday-only schedules skip Saturday).
+# ============================================================================
+
+# Reference date helpers for tests needing relative dates
+TEST_REFERENCE_DATE = date(2024, 6, 17)  # A Monday
+TEST_SATURDAY = date(2024, 6, 15)  # For weekend tests
+
+
+def get_test_datetime(hour: int, minute: int = 0, second: int = 0,
+                      days_offset: int = 0, reference: date = None) -> datetime:
+    """
+    Get a test datetime at specified time.
+
+    Args:
+        hour: Hour (0-23)
+        minute: Minute (0-59)
+        second: Second (0-59)
+        days_offset: Days from reference date
+        reference: Base date (defaults to TEST_REFERENCE_DATE)
+
+    Returns:
+        datetime with specified time on calculated date
+    """
+    ref = reference or TEST_REFERENCE_DATE
+    test_date = ref + timedelta(days=days_offset)
+    return datetime.combine(test_date, time(hour, minute, second))
 
 # Import will fail until implementation exists
 try:
