@@ -179,6 +179,10 @@ class SchedulerService:
 
         Returns:
             List of Schedule objects
+
+        Thread Safety:
+            Acquires _cache_lock when populating cache. Uses overwrite=False
+            to avoid overwriting fresher entries from concurrent operations.
         """
         schedules = storage_list(include_builtin=include_builtin)
 
