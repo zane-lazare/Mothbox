@@ -341,11 +341,11 @@ def check_resource_contention(
         # Both are instant - only conflict if at exact same time
         times_overlap = usage1.start_time == usage2.start_time
     elif usage1.start_time == usage1.end_time:
-        # usage1 is instant - check if it falls within usage2
-        times_overlap = usage2.start_time <= usage1.start_time < usage2.end_time
+        # usage1 is instant - check if it falls within usage2 (inclusive end)
+        times_overlap = usage2.start_time <= usage1.start_time <= usage2.end_time
     elif usage2.start_time == usage2.end_time:
-        # usage2 is instant - check if it falls within usage1
-        times_overlap = usage1.start_time <= usage2.start_time < usage1.end_time
+        # usage2 is instant - check if it falls within usage1 (inclusive end)
+        times_overlap = usage1.start_time <= usage2.start_time <= usage1.end_time
     else:
         # Both have duration - standard overlap check
         times_overlap = usage1.start_time < usage2.end_time and usage2.start_time < usage1.end_time

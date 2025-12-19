@@ -834,6 +834,87 @@ class TestResourceContention:
         assert contends is False
         assert conflict_type == ""
 
+    def test_instant_action_at_end_time_conflicts(self):
+        """Instant action at exactly the end time of a duration SHOULD conflict."""
+        # Camera usage from 21:05:00 to 21:05:30
+        duration_usage = ResourceUsage(
+            resource_type="camera",
+            resource_name="takephoto",
+            start_time=datetime(2024, 6, 15, 21, 5, 0),
+            end_time=datetime(2024, 6, 15, 21, 5, 30),
+            pattern_id="p1",
+            action_index=0,
+        )
+        # Instant camera action at exactly 21:05:30 (end time of duration_usage)
+        instant_usage = ResourceUsage(
+            resource_type="camera",
+            resource_name="takephoto",
+            start_time=datetime(2024, 6, 15, 21, 5, 30),
+            end_time=datetime(2024, 6, 15, 21, 5, 30),  # Instant (start == end)
+            pattern_id="p2",
+            action_index=0,
+        )
+
+        contends, conflict_type = check_resource_contention(duration_usage, instant_usage)
+
+        # With end-inclusive behavior, instant at end time SHOULD conflict
+        assert contends is True
+        assert conflict_type == "resource_contention"
+
+    def test_instant_action_at_start_time_conflicts(self):
+        """Instant action at exactly the start time of a duration SHOULD conflict."""
+        # Camera usage from 21:05:00 to 21:05:30
+        duration_usage = ResourceUsage(
+            resource_type="camera",
+            resource_name="takephoto",
+            start_time=datetime(2024, 6, 15, 21, 5, 0),
+            end_time=datetime(2024, 6, 15, 21, 5, 30),
+            pattern_id="p1",
+            action_index=0,
+        )
+        # Instant camera action at exactly 21:05:00 (start time of duration_usage)
+        instant_usage = ResourceUsage(
+            resource_type="camera",
+            resource_name="takephoto",
+            start_time=datetime(2024, 6, 15, 21, 5, 0),
+            end_time=datetime(2024, 6, 15, 21, 5, 0),  # Instant (start == end)
+            pattern_id="p2",
+            action_index=0,
+        )
+
+        contends, conflict_type = check_resource_contention(duration_usage, instant_usage)
+
+        # Instant at start time SHOULD conflict
+        assert contends is True
+        assert conflict_type == "resource_contention"
+
+    def test_instant_action_after_end_time_no_conflict(self):
+        """Instant action AFTER the end time of a duration should NOT conflict."""
+        # Camera usage from 21:05:00 to 21:05:30
+        duration_usage = ResourceUsage(
+            resource_type="camera",
+            resource_name="takephoto",
+            start_time=datetime(2024, 6, 15, 21, 5, 0),
+            end_time=datetime(2024, 6, 15, 21, 5, 30),
+            pattern_id="p1",
+            action_index=0,
+        )
+        # Instant camera action at 21:05:31 (1 second after end time)
+        instant_usage = ResourceUsage(
+            resource_type="camera",
+            resource_name="takephoto",
+            start_time=datetime(2024, 6, 15, 21, 5, 31),
+            end_time=datetime(2024, 6, 15, 21, 5, 31),  # Instant (start == end)
+            pattern_id="p2",
+            action_index=0,
+        )
+
+        contends, conflict_type = check_resource_contention(duration_usage, instant_usage)
+
+        # Instant AFTER end time should NOT conflict
+        assert contends is False
+        assert conflict_type == ""
+
 
 # ============================================================================
 # Test Pattern Execution Generation
