@@ -7,14 +7,13 @@ Follows the same pattern as DeploymentService for consistency.
 Coverage Target: 85%+
 """
 
+
 import pytest
-from pathlib import Path
-from datetime import datetime
 
 # Import scheduler service and schema
 try:
-    from webui.backend.services.scheduler_service import SchedulerService
     from webui.backend.lib.schedule_schema import Schedule
+    from webui.backend.services.scheduler_service import SchedulerService
     IMPLEMENTATION_EXISTS = True
 except ImportError:
     IMPLEMENTATION_EXISTS = False
@@ -46,10 +45,10 @@ def temp_schedules_dir(tmp_path, monkeypatch):
 def sample_schedule():
     """Create a valid Schedule object for testing."""
     from webui.backend.lib.schedule_schema import (
-        Schedule,
         EventPattern,
-        PatternAction,
         IntervalTrigger,
+        PatternAction,
+        Schedule,
         TimeWindow,
     )
 
@@ -148,12 +147,12 @@ def scheduler_service(temp_schedules_dir):
 @pytest.fixture
 def multiple_schedules(temp_schedules_dir, sample_schedule):
     """Create 5 test schedules in storage."""
-    from webui.backend.lib.schedule_storage import create_schedule
     from webui.backend.lib.schedule_schema import (
-        Schedule,
         IntervalTrigger,
+        Schedule,
         TimeWindow,
     )
+    from webui.backend.lib.schedule_storage import create_schedule
 
     schedules = []
     for i in range(5):
@@ -256,10 +255,10 @@ class TestServiceImports:
         """Storage functions should be available."""
         from webui.backend.lib.schedule_storage import (
             create_schedule,
-            read_schedule,
-            update_schedule,
             delete_schedule,
             list_schedules,
+            read_schedule,
+            update_schedule,
         )
         assert create_schedule is not None
         assert read_schedule is not None
@@ -380,6 +379,7 @@ class TestGetSchedule:
     def test_cache_ttl_expiration(self, temp_schedules_dir, sample_schedule):
         """Entry expires after TTL (use time.sleep)."""
         import time
+
         from webui.backend.lib.schedule_storage import create_schedule
 
         # Create service with very short TTL
@@ -721,12 +721,14 @@ class TestUpdateSchedule:
         # For now, we'll create a mock by patching is_builtin_schedule
         from unittest.mock import patch
 
-        with patch('webui.backend.services.scheduler_service.is_builtin_schedule', return_value=True):
-            with pytest.raises(ValueError, match="Cannot modify built-in schedule"):
-                scheduler_service.update_schedule(
-                    "builtin-schedule",
-                    {"name": "New Name"}
-                )
+        with (
+            patch('webui.backend.services.scheduler_service.is_builtin_schedule', return_value=True),
+            pytest.raises(ValueError, match="Cannot modify built-in schedule"),
+        ):
+            scheduler_service.update_schedule(
+                "builtin-schedule",
+                {"name": "New Name"}
+            )
 
 
 # ============================================================================
@@ -784,9 +786,11 @@ class TestDeleteSchedule:
         """delete_schedule should raise ValueError for built-in schedule."""
         from unittest.mock import patch
 
-        with patch('webui.backend.services.scheduler_service.is_builtin_schedule', return_value=True):
-            with pytest.raises(ValueError, match="Cannot delete built-in schedule"):
-                scheduler_service.delete_schedule("builtin-schedule")
+        with (
+            patch('webui.backend.services.scheduler_service.is_builtin_schedule', return_value=True),
+            pytest.raises(ValueError, match="Cannot delete built-in schedule"),
+        ):
+            scheduler_service.delete_schedule("builtin-schedule")
 
     def test_delete_schedule_clears_active(self, scheduler_service, temp_schedules_dir, sample_schedule):
         """delete_schedule should clear active schedule ID if deleted."""
@@ -901,8 +905,8 @@ class TestActivateSchedule:
 
     def test_activate_deactivates_previous(self, scheduler_service, temp_schedules_dir, sample_schedule):
         """activate_schedule should deactivate previous active schedule."""
-        from webui.backend.lib.schedule_storage import create_schedule
         from webui.backend.lib.schedule_schema import Schedule
+        from webui.backend.lib.schedule_storage import create_schedule
 
         # Create two enabled schedules
         sample_schedule.schedule_id = "test-activate-first"
@@ -972,8 +976,9 @@ class TestActivateSchedule:
 
     def test_activate_builtin_allowed(self, scheduler_service, temp_schedules_dir, sample_schedule):
         """activate_schedule should allow activating built-in schedules."""
-        from webui.backend.lib.schedule_storage import create_schedule
         from unittest.mock import patch
+
+        from webui.backend.lib.schedule_storage import create_schedule
 
         # Create schedule
         sample_schedule.schedule_id = "builtin-schedule"
@@ -1208,8 +1213,8 @@ class TestGetStatistics:
 
     def test_statistics_after_operations(self, scheduler_service, temp_schedules_dir, sample_schedule):
         """get_statistics should reflect actual operations correctly."""
-        from webui.backend.lib.schedule_storage import create_schedule
         from webui.backend.lib.schedule_schema import Schedule
+        from webui.backend.lib.schedule_storage import create_schedule
 
         # Create a schedule
         sample_schedule.schedule_id = "test-stats-ops"
@@ -1356,6 +1361,7 @@ class TestThreadSafety:
     def test_concurrent_mixed_operations(self, scheduler_service, sample_schedule, temp_schedules_dir):
         """Read/write/delete mix across threads should work correctly."""
         import threading
+
         from webui.backend.lib.schedule_storage import create_schedule
 
         # Create 3 schedules initially
@@ -1409,6 +1415,7 @@ class TestThreadSafety:
     def test_concurrent_activation(self, scheduler_service, sample_schedule, temp_schedules_dir):
         """Multiple threads activating different schedules - service should track one active ID."""
         import threading
+
         from webui.backend.lib.schedule_storage import create_schedule
 
         # Create 5 enabled schedules
@@ -1456,6 +1463,7 @@ class TestThreadSafety:
         """Invalidation during concurrent reads should not cause errors."""
         import threading
         import time
+
         from webui.backend.lib.schedule_storage import create_schedule
 
         # Create schedule
@@ -1520,7 +1528,7 @@ class TestThreadSafety:
                 # Fewer iterations to avoid timeout
                 for _ in range(10):
                     scheduler_service.get_schedule(sample_schedule.schedule_id)
-                    stats = scheduler_service.get_statistics()
+                    scheduler_service.get_statistics()  # Exercise nested lock acquisition
                     scheduler_service.invalidate_cache(sample_schedule.schedule_id)
                     scheduler_service.get_schedule(sample_schedule.schedule_id)
                 with lock:
@@ -1542,12 +1550,12 @@ class TestThreadSafety:
         assert completed_count[0] > 0, f"No threads completed in {elapsed:.2f}s - possible deadlock"
 
         # Ideally all threads complete
-        if completed_count[0] < 3:
-            logger.warning(f"Only {completed_count[0]}/3 threads completed in {elapsed:.2f}s")
+        # Note: We just check for no deadlock, not all completions
 
     def test_statistics_thread_safe(self, scheduler_service, sample_schedule, temp_schedules_dir):
         """Statistics should remain consistent after concurrent operations."""
         import threading
+
         from webui.backend.lib.schedule_storage import create_schedule
 
         # Create 5 schedules
@@ -1584,6 +1592,7 @@ class TestThreadSafety:
     def test_cache_eviction_thread_safe(self, scheduler_service, sample_schedule, temp_schedules_dir):
         """LRU eviction under contention should not corrupt cache."""
         import threading
+
         from webui.backend.lib.schedule_storage import create_schedule
 
         # Create service with small cache (max 5 items)
@@ -1617,3 +1626,385 @@ class TestThreadSafety:
         stats = service.get_statistics()
         assert stats['cache_size'] <= 5, f"Cache size should be <= 5, got {stats['cache_size']}"
         assert stats['cache_evictions'] > 0, "Evictions should have occurred"
+
+
+# ============================================================================
+# Test Concurrent Modifications (Issue #212 - Code Review Fix 5)
+# ============================================================================
+
+
+class TestConcurrentModifications:
+    """
+    Tests for concurrent write operations.
+
+    These tests verify thread safety for concurrent modifications that were
+    previously under-tested. They focus on:
+    1. Concurrent create_schedule() calls with cache eviction
+    2. Concurrent activate_schedule() calls (race to become active)
+    3. Concurrent cache invalidation during reads
+    """
+
+    def test_concurrent_create_with_eviction(self, temp_schedules_dir, sample_schedule):
+        """Multiple threads creating schedules when cache is near capacity.
+
+        This tests the interaction between create_schedule() and LRU eviction
+        when multiple threads are creating schedules simultaneously.
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        # Create service with small cache (max 5 items)
+        service = SchedulerService(cache_ttl=300, max_cache_size=5)
+
+        results = []
+        errors = []
+
+        def create_schedule_thread(schedule_id: str):
+            try:
+                schedule = _create_test_schedule(schedule_id, sample_schedule)
+                success = service.create_schedule(schedule)
+                return (schedule_id, success, None)
+            except Exception as e:
+                return (schedule_id, False, str(e))
+
+        # Create 10 schedules concurrently (exceeding cache capacity)
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [
+                executor.submit(create_schedule_thread, f"evict-create-{i}")
+                for i in range(10)
+            ]
+            for future in as_completed(futures):
+                result = future.result()
+                results.append(result)
+                if result[2]:  # error message present
+                    errors.append(result)
+
+        # Verify no errors occurred
+        assert len(errors) == 0, f"Errors occurred: {errors}"
+
+        # Verify all creates succeeded
+        successful = [r for r in results if r[1]]
+        assert len(successful) == 10, f"Expected 10 successful creates, got {len(successful)}"
+
+        # Verify cache evictions occurred (created 10 items, max 5)
+        stats = service.get_statistics()
+        assert stats['cache_size'] <= 5, f"Cache size should be <= 5, got {stats['cache_size']}"
+        assert stats['cache_evictions'] >= 5, f"Should have at least 5 evictions, got {stats['cache_evictions']}"
+
+        # Verify all schedules exist on disk
+        for i in range(10):
+            schedule_path = temp_schedules_dir / f"evict-create-{i}.json"
+            assert schedule_path.exists(), f"Schedule file {schedule_path} should exist"
+
+    def test_concurrent_activate_race(self, temp_schedules_dir, sample_schedule):
+        """Multiple threads racing to activate different schedules.
+
+        Only one schedule should end up active. This tests the thread-safe
+        handling of _active_schedule_id and the deactivation of previously
+        active schedules during concurrent activation attempts.
+        """
+        import threading
+
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        service = SchedulerService(cache_ttl=300, max_cache_size=100)
+
+        # Create 10 enabled schedules
+        schedule_ids = []
+        for i in range(10):
+            schedule = _create_test_schedule(f"race-activate-{i}", sample_schedule)
+            schedule.enabled = True
+            create_schedule(schedule)
+            schedule_ids.append(f"race-activate-{i}")
+
+        results = []
+        results_lock = threading.Lock()
+
+        def activate_schedule(schedule_id: str):
+            try:
+                success, error = service.activate_schedule(schedule_id)
+                with results_lock:
+                    results.append((schedule_id, success, error))
+            except Exception as e:
+                with results_lock:
+                    results.append((schedule_id, False, str(e)))
+
+        # Launch 10 threads to activate different schedules concurrently
+        threads = []
+        for schedule_id in schedule_ids:
+            t = threading.Thread(target=activate_schedule, args=(schedule_id,))
+            threads.append(t)
+
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # Verify: Exactly one schedule should be active
+        active = service.get_active_schedule()
+        assert active is not None, "One schedule should be active"
+
+        # Verify: The active_schedule_id matches the active schedule
+        assert service._active_schedule_id == active.schedule_id
+
+        # Verify: No critical errors occurred
+        # Note: Some may fail legitimately if they try to activate after another already succeeded
+        # The important thing is no exceptions occurred
+        for _, success, error in results:
+            if not success and error:
+                # Only "Schedule is disabled" or "not found" would be real errors
+                assert "disabled" not in error.lower() and "not found" not in error.lower(), f"Unexpected error: {error}"
+
+    def test_concurrent_cache_invalidation_during_writes(self, temp_schedules_dir, sample_schedule):
+        """Invalidate cache while writes are in progress.
+
+        This tests the interaction between invalidate_cache() and concurrent
+        create_schedule()/update_schedule() operations.
+        """
+        import threading
+        import time
+
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        service = SchedulerService(cache_ttl=300, max_cache_size=100)
+
+        # Pre-create some schedules
+        for i in range(5):
+            schedule = _create_test_schedule(f"inv-write-{i}", sample_schedule)
+            create_schedule(schedule)
+
+        errors = []
+        stop_flag = [False]
+
+        def do_creates():
+            """Thread that creates new schedules."""
+            import contextlib
+            idx = 100
+            try:
+                while not stop_flag[0]:
+                    schedule = _create_test_schedule(f"inv-create-{idx}", sample_schedule)
+                    with contextlib.suppress(Exception):
+                        service.create_schedule(schedule)  # May fail if file already exists
+                    idx += 1
+                    time.sleep(0.001)
+            except Exception as e:
+                errors.append(f"create: {str(e)}")
+
+        def do_updates():
+            """Thread that updates existing schedules."""
+            import contextlib
+            try:
+                while not stop_flag[0]:
+                    for i in range(5):
+                        with contextlib.suppress(Exception):
+                            service.update_schedule(f"inv-write-{i}", {"name": f"Updated {i}"})
+                    time.sleep(0.001)
+            except Exception as e:
+                errors.append(f"update: {str(e)}")
+
+        def do_invalidations():
+            """Thread that invalidates cache entries."""
+            try:
+                while not stop_flag[0]:
+                    # Invalidate specific entries
+                    for i in range(5):
+                        service.invalidate_cache(f"inv-write-{i}")
+                    # Also invalidate entire cache periodically
+                    service.invalidate_cache()
+                    time.sleep(0.002)
+            except Exception as e:
+                errors.append(f"invalidate: {str(e)}")
+
+        # Start threads
+        threads = [
+            threading.Thread(target=do_creates),
+            threading.Thread(target=do_updates),
+            threading.Thread(target=do_updates),
+            threading.Thread(target=do_invalidations),
+            threading.Thread(target=do_invalidations),
+        ]
+
+        for t in threads:
+            t.start()
+
+        # Run for 0.5 seconds
+        time.sleep(0.5)
+        stop_flag[0] = True
+
+        for t in threads:
+            t.join(timeout=2)
+
+        # Verify no thread-safety errors occurred
+        assert len(errors) == 0, f"Errors occurred: {errors}"
+
+        # Service should still be functional
+        stats = service.get_statistics()
+        assert stats is not None
+        assert isinstance(stats['cache_size'], int)
+        assert isinstance(stats['total_writes'], int)
+
+    def test_concurrent_get_statistics_during_operations(self, temp_schedules_dir, sample_schedule):
+        """get_statistics() should return consistent snapshots during concurrent operations.
+
+        This tests that nested locks in get_statistics() provide atomic snapshots
+        even when other operations are modifying cache and statistics.
+        """
+        import threading
+        import time
+
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        service = SchedulerService(cache_ttl=300, max_cache_size=50)
+
+        # Pre-create schedules
+        for i in range(10):
+            schedule = _create_test_schedule(f"stats-snap-{i}", sample_schedule)
+            create_schedule(schedule)
+
+        errors = []
+        stats_snapshots = []
+        stats_lock = threading.Lock()
+        stop_flag = [False]
+
+        def do_reads():
+            """Thread that reads schedules."""
+            try:
+                while not stop_flag[0]:
+                    for i in range(10):
+                        service.get_schedule(f"stats-snap-{i}")
+                    time.sleep(0.001)
+            except Exception as e:
+                errors.append(f"read: {str(e)}")
+
+        def collect_stats():
+            """Thread that collects statistics snapshots."""
+            try:
+                while not stop_flag[0]:
+                    stats = service.get_statistics()
+                    with stats_lock:
+                        stats_snapshots.append(stats)
+                    time.sleep(0.002)
+            except Exception as e:
+                errors.append(f"stats: {str(e)}")
+
+        # Start threads
+        readers = [threading.Thread(target=do_reads) for _ in range(3)]
+        stat_collectors = [threading.Thread(target=collect_stats) for _ in range(2)]
+
+        for t in readers + stat_collectors:
+            t.start()
+
+        # Run for 0.5 seconds
+        time.sleep(0.5)
+        stop_flag[0] = True
+
+        for t in readers + stat_collectors:
+            t.join(timeout=2)
+
+        # Verify no errors
+        assert len(errors) == 0, f"Errors occurred: {errors}"
+
+        # Verify we collected some stats
+        assert len(stats_snapshots) > 0, "Should have collected statistics"
+
+        # Verify each snapshot is internally consistent:
+        # hits + misses should equal total_reads (for cache operations)
+        for i, stats in enumerate(stats_snapshots):
+            hits = stats['cache_hits']
+            misses = stats['cache_misses']
+            total_reads = stats['total_reads']
+
+            # total_reads should match hits + misses (all reads counted)
+            assert total_reads == hits + misses, \
+                f"Snapshot {i}: total_reads ({total_reads}) != hits ({hits}) + misses ({misses})"
+
+            # hit_ratio should be consistent with hits and total requests
+            if hits + misses > 0:
+                expected_ratio = hits / (hits + misses)
+                actual_ratio = stats['hit_ratio']
+                assert abs(expected_ratio - actual_ratio) < 0.0001, \
+                    f"Snapshot {i}: hit_ratio inconsistent"
+
+    def test_concurrent_activation_deactivation(self, temp_schedules_dir, sample_schedule):
+        """Concurrent activate and deactivate operations should not corrupt state.
+
+        This tests the thread safety of the activate/deactivate flow, especially
+        the deepcopy fix for built-in schedules.
+        """
+        import threading
+        import time
+
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        service = SchedulerService(cache_ttl=300, max_cache_size=100)
+
+        # Create 5 enabled schedules
+        for i in range(5):
+            schedule = _create_test_schedule(f"act-deact-{i}", sample_schedule)
+            schedule.enabled = True
+            create_schedule(schedule)
+
+        errors = []
+        stop_flag = [False]
+
+        def activate_random():
+            """Thread that activates random schedules."""
+            import random
+            try:
+                while not stop_flag[0]:
+                    schedule_id = f"act-deact-{random.randint(0, 4)}"
+                    service.activate_schedule(schedule_id)
+                    time.sleep(0.001)
+            except Exception as e:
+                errors.append(f"activate: {str(e)}")
+
+        def deactivate_repeatedly():
+            """Thread that deactivates the current schedule."""
+            try:
+                while not stop_flag[0]:
+                    service.deactivate_schedule()
+                    time.sleep(0.002)
+            except Exception as e:
+                errors.append(f"deactivate: {str(e)}")
+
+        def check_active():
+            """Thread that checks active schedule."""
+            try:
+                while not stop_flag[0]:
+                    active = service.get_active_schedule()
+                    # Active can be None or a valid schedule
+                    if active is not None:
+                        assert hasattr(active, 'schedule_id')
+                    time.sleep(0.001)
+            except Exception as e:
+                errors.append(f"check: {str(e)}")
+
+        # Start threads
+        threads = [
+            threading.Thread(target=activate_random),
+            threading.Thread(target=activate_random),
+            threading.Thread(target=deactivate_repeatedly),
+            threading.Thread(target=check_active),
+            threading.Thread(target=check_active),
+        ]
+
+        for t in threads:
+            t.start()
+
+        # Run for 0.5 seconds
+        time.sleep(0.5)
+        stop_flag[0] = True
+
+        for t in threads:
+            t.join(timeout=2)
+
+        # Verify no errors
+        assert len(errors) == 0, f"Errors occurred: {errors}"
+
+        # Final state should be consistent
+        stats = service.get_statistics()
+        active_id = stats['active_schedule_id']
+
+        if active_id is not None:
+            # If there's an active schedule, we should be able to get it
+            active = service.get_schedule(active_id)
+            assert active is not None, f"Active schedule {active_id} should exist"
