@@ -2449,3 +2449,48 @@ class TestConflictCache:
         finally:
             # Restore original TTL
             scheduler_service._conflict_cache_ttl = original_ttl
+
+    def test_conflict_cache_key_includes_content_hash(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """Cache key includes content hash to prevent stale results after updates."""
+        from copy import deepcopy
+
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        sample_schedule.schedule_id = "content-hash-schedule"
+        sample_schedule.enabled = True
+        create_schedule(sample_schedule)
+
+        schedule = scheduler_service.get_schedule("content-hash-schedule")
+
+        # Get cache key for original schedule
+        key1 = scheduler_service._conflict_cache_key(
+            schedule, 7, 0.0, 0.0, "UTC"
+        )
+
+        # Modify schedule content (simulating an in-memory change)
+        modified_schedule = deepcopy(schedule)
+        modified_schedule.name = "Modified Name For Hash Test"
+
+        # Get cache key for modified schedule
+        key2 = scheduler_service._conflict_cache_key(
+            modified_schedule, 7, 0.0, 0.0, "UTC"
+        )
+
+        # Keys should be different because content hash changed
+        assert key1 != key2
+        assert "content-hash-schedule" in key1
+        assert "content-hash-schedule" in key2
+
+    def test_schedule_content_hash_consistent(
+        self, scheduler_service, sample_schedule
+    ):
+        """Content hash should be consistent for same schedule content."""
+        sample_schedule.schedule_id = "hash-consistency-test"
+
+        hash1 = scheduler_service._schedule_content_hash(sample_schedule)
+        hash2 = scheduler_service._schedule_content_hash(sample_schedule)
+
+        assert hash1 == hash2
+        assert len(hash1) == 8  # First 8 chars of MD5

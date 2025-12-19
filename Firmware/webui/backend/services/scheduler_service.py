@@ -30,6 +30,8 @@ Usage:
     print(f"Hit ratio: {stats['hit_ratio']:.2%}")
 """
 
+import hashlib
+import json
 import logging
 import time
 from collections import OrderedDict
@@ -246,16 +248,31 @@ class SchedulerService:
     # Conflict Cache Methods
     # ========================================================================
 
+    def _schedule_content_hash(self, schedule: Schedule) -> str:
+        """
+        Generate hash of schedule content for cache key.
+
+        Uses first 8 characters of MD5 hash of schedule JSON representation.
+        This ensures cache invalidation when schedule content changes.
+        """
+        content = json.dumps(schedule.to_dict(), sort_keys=True)
+        return hashlib.md5(content.encode()).hexdigest()[:8]  # noqa: S324
+
     def _conflict_cache_key(
         self,
-        schedule_id: str,
+        schedule: Schedule,
         preview_days: int,
         latitude: float,
         longitude: float,
         timezone_name: str,
     ) -> str:
-        """Generate cache key for conflict detection results."""
-        return f"{schedule_id}:{preview_days}:{latitude}:{longitude}:{timezone_name}"
+        """
+        Generate cache key for conflict detection results.
+
+        Includes content hash to ensure cache invalidation on schedule changes.
+        """
+        content_hash = self._schedule_content_hash(schedule)
+        return f"{schedule.schedule_id}:{content_hash}:{preview_days}:{latitude}:{longitude}:{timezone_name}"
 
     def _invalidate_conflict_cache(self, schedule_id: str | None = None) -> None:
         """
@@ -310,7 +327,7 @@ class SchedulerService:
         from webui.backend.lib.schedule_conflict import detect_conflicts
 
         cache_key = self._conflict_cache_key(
-            schedule.schedule_id, preview_days, latitude, longitude, timezone_name
+            schedule, preview_days, latitude, longitude, timezone_name
         )
 
         with self._cache_lock:
