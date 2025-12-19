@@ -340,10 +340,19 @@ class SchedulerService:
         if self._active_schedule_id is None:
             # Check storage in case of restart
             schedules = self.list_schedules()
-            for schedule in schedules:
-                if schedule.is_active:
-                    self._active_schedule_id = schedule.schedule_id
-                    return schedule
+            active_schedules = [s for s in schedules if s.is_active]
+
+            if len(active_schedules) > 1:
+                # Data corruption: multiple schedules marked active
+                active_ids = [s.schedule_id for s in active_schedules]
+                logger.warning(
+                    f"Multiple active schedules detected (data corruption): {active_ids}. "
+                    f"Using first one: {active_ids[0]}"
+                )
+
+            if active_schedules:
+                self._active_schedule_id = active_schedules[0].schedule_id
+                return active_schedules[0]
             return None
 
         return self.get_schedule(self._active_schedule_id)
