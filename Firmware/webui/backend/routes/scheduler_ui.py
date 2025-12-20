@@ -3,15 +3,19 @@ High-level Scheduler UI API routes.
 
 Provides REST endpoints for the visual scheduler UI, including:
 - Schedule preview generation
+- Event pattern management (Issue #217)
 - Future: Schedule CRUD operations
-- Future: Pattern management
 
 Issue #214 - Scheduler Phase 3: Schedule Preview
+Issue #217 - Event Pattern API
 """
 
+import json
 import logging
+from pathlib import Path
 
 from flask import Blueprint, jsonify, request
+from werkzeug.exceptions import BadRequest
 
 from webui.backend.lib.schedule_preview import (
     DEFAULT_PREVIEW_DAYS,
@@ -20,6 +24,10 @@ from webui.backend.lib.schedule_preview import (
     parse_and_validate_days,
     validate_coordinates,
     validate_timezone,
+)
+from webui.backend.lib.schedule_schema import (
+    EventPattern,
+    validate_event_pattern,
 )
 from webui.backend.services.scheduler_service import SchedulerService
 
@@ -43,6 +51,9 @@ scheduler_ui_bp = Blueprint("scheduler_ui", __name__)
 
 # Service instance (lazy initialization)
 _scheduler_service = None
+
+# Built-in patterns cache (populated on first request)
+_builtin_patterns_cache: list[dict] | None = None
 
 
 def get_scheduler_service() -> SchedulerService:
@@ -268,4 +279,204 @@ def get_schedule(schedule_id: str):
         return jsonify({
             "error": "Internal server error",
             "message": "Failed to get schedule",
+        }), 500
+
+
+# ============================================================================
+# Event Pattern Endpoints (Issue #217)
+# ============================================================================
+
+
+def list_builtin_patterns() -> list[dict]:
+    """
+    Extract unique event patterns from built-in schedules.
+
+    Each pattern includes:
+    - pattern_id: Unique identifier
+    - name: Pattern name
+    - description: Pattern description
+    - actions: List of PatternAction dicts
+    - category: Always "built-in"
+    - tags: Pattern tags
+    - source_schedule: Name of schedule containing this pattern
+    - duration_minutes: Computed from max action offset
+
+    Returns:
+        List of pattern dictionaries with source_schedule and duration_minutes added
+
+    Note:
+        Results are cached at module level for performance. The cache is
+        populated on first request and persists for the lifetime of the process.
+        Built-in patterns are static files that don't change at runtime.
+    """
+    global _builtin_patterns_cache
+
+    # Return cached patterns if available
+    if _builtin_patterns_cache is not None:
+        return _builtin_patterns_cache
+
+    patterns = []
+    seen_ids: set[str] = set()
+
+    # Path to built-in schedules directory
+    builtin_dir = Path(__file__).parent.parent / "presets_builtin" / "schedules"
+
+    if not builtin_dir.exists():
+        logger.warning(f"Built-in schedules directory not found: {builtin_dir}")
+        return patterns
+
+    for schedule_file in sorted(builtin_dir.glob("*.json")):
+        try:
+            schedule_data = json.loads(schedule_file.read_text())
+            schedule_name = schedule_data.get("name", schedule_file.stem)
+
+            for pattern in schedule_data.get("event_patterns", []):
+                pattern_id = pattern.get("pattern_id")
+
+                # Skip duplicates (same pattern may appear in multiple schedules)
+                # Patterns without pattern_id are always included (cannot deduplicate)
+                if pattern_id and pattern_id in seen_ids:
+                    continue
+                if pattern_id:
+                    seen_ids.add(pattern_id)
+
+                # Create a copy with additional fields
+                pattern_copy = dict(pattern)
+                pattern_copy["source_schedule"] = schedule_name
+
+                # Compute duration_minutes from max action offset
+                actions = pattern.get("actions", [])
+                if actions:
+                    pattern_copy["duration_minutes"] = max(
+                        a.get("offset_minutes", 0) for a in actions
+                    )
+                else:
+                    pattern_copy["duration_minutes"] = 0
+
+                patterns.append(pattern_copy)
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse schedule file {schedule_file}: {e}")
+        except Exception as e:
+            logger.error(f"Error processing schedule file {schedule_file}: {e}")
+
+    # Cache the result for subsequent calls
+    _builtin_patterns_cache = patterns
+    return patterns
+
+
+@scheduler_ui_bp.route("/patterns/builtin", methods=["GET"])
+def list_builtin_patterns_endpoint():
+    """
+    List all built-in event patterns.
+
+    GET /api/scheduler/ui/patterns/builtin
+
+    Returns:
+        200 OK: List of built-in pattern objects
+
+    Response Schema:
+    [
+        {
+            "pattern_id": "string",
+            "name": "string",
+            "description": "string",
+            "actions": [...],
+            "category": "built-in",
+            "tags": [...],
+            "source_schedule": "string",
+            "duration_minutes": number
+        }
+    ]
+    """
+    try:
+        patterns = list_builtin_patterns()
+        return jsonify(patterns), 200
+
+    except Exception as e:
+        logger.error(f"Error listing built-in patterns: {e}", exc_info=True)
+        return jsonify({
+            "error": "Internal server error",
+            "message": "Failed to list built-in patterns",
+        }), 500
+
+
+@scheduler_ui_bp.route("/patterns/validate", methods=["POST"])
+@limiter.limit("30 per minute")
+def validate_pattern_endpoint():
+    """
+    Validate an event pattern structure.
+
+    POST /api/scheduler/ui/patterns/validate
+
+    Request Body:
+    {
+        "name": "Pattern Name",      // required, max 200 chars
+        "description": "...",        // optional, max 2000 chars
+        "actions": [                 // required, 1-20 actions
+            {
+                "action_type": "gpio|camera|gps_sync|service",
+                "action_name": "attract_on|takephoto|...",
+                "offset_minutes": 0, // 0-1440
+                "parameters": {},
+                "description": ""
+            }
+        ],
+        "category": "user",          // optional, "user" or "built-in"
+        "tags": []                   // optional
+    }
+
+    Returns:
+        200 OK: {"valid": true, "pattern": {...}}
+        400 Bad Request: {"valid": false, "error": "..."}
+    """
+    try:
+        # Handle missing or invalid JSON body
+        try:
+            data = request.get_json()
+        except BadRequest:
+            return jsonify({
+                "valid": False,
+                "error": "Request body must be valid JSON",
+            }), 400
+
+        if data is None:
+            return jsonify({
+                "valid": False,
+                "error": "Request body must be valid JSON",
+            }), 400
+
+        # Convert dict to EventPattern for validation
+        try:
+            pattern = EventPattern.from_dict(data)
+        except KeyError as e:
+            return jsonify({
+                "valid": False,
+                "error": f"Missing required field: {e}",
+            }), 400
+        except Exception as e:
+            return jsonify({
+                "valid": False,
+                "error": f"Invalid pattern structure: {e}",
+            }), 400
+
+        # Validate using existing validation function
+        valid, error = validate_event_pattern(pattern)
+
+        if valid:
+            return jsonify({
+                "valid": True,
+                "pattern": pattern.to_dict(),
+            }), 200
+        else:
+            return jsonify({
+                "valid": False,
+                "error": error,
+            }), 400
+
+    except Exception as e:
+        logger.error(f"Error validating pattern: {e}", exc_info=True)
+        return jsonify({
+            "valid": False,
+            "error": "Internal server error during validation",
         }), 500

@@ -1,0 +1,554 @@
+"""
+Unit tests for Event Pattern API (Issue #217)
+
+Tests the REST API endpoints for event pattern management:
+- GET /api/scheduler/ui/patterns/builtin
+- POST /api/scheduler/ui/patterns/validate
+
+Coverage Target: 85%+
+Test Count Target: 25+
+"""
+
+from unittest.mock import patch
+
+import pytest
+
+# Try to import Flask app for testing
+try:
+    from webui.backend.app import app
+
+    # Import scheduler_ui_bp to ensure it exists
+    from webui.backend.routes.scheduler_ui import scheduler_ui_bp  # noqa: F401
+
+    IMPLEMENTATION_EXISTS = True
+except ImportError:
+    IMPLEMENTATION_EXISTS = False
+    app = None
+
+# Skip all tests if implementation doesn't exist
+pytestmark = pytest.mark.skipif(
+    not IMPLEMENTATION_EXISTS, reason="Implementation not yet created"
+)
+
+
+# ============================================================================
+# Fixtures
+# ============================================================================
+
+
+@pytest.fixture
+def client():
+    """Create Flask test client."""
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as client:
+        yield client
+
+
+def _get_scheduler_ui_module():
+    """Get the scheduler_ui module as used by app.py.
+
+    app.py uses relative import 'routes.scheduler_ui' which creates a
+    different module entry than 'webui.backend.routes.scheduler_ui'.
+    This function returns the actual module reference used at runtime.
+    """
+    import sys
+
+    module = sys.modules.get("routes.scheduler_ui")
+    if module is None:
+        import webui.backend.routes.scheduler_ui as module
+    return module
+
+
+@pytest.fixture
+def valid_minimal_pattern():
+    """Create a valid minimal pattern for testing."""
+    return {
+        "name": "Test Pattern",
+        "actions": [
+            {
+                "action_type": "camera",
+                "action_name": "takephoto",
+                "offset_minutes": 0,
+            }
+        ],
+    }
+
+
+@pytest.fixture
+def valid_full_pattern():
+    """Create a valid pattern with all fields."""
+    return {
+        "pattern_id": "test-pattern-001",
+        "name": "Full Test Pattern",
+        "description": "A complete test pattern with all fields",
+        "actions": [
+            {
+                "action_type": "gpio",
+                "action_name": "attract_on",
+                "offset_minutes": 0,
+                "parameters": {},
+                "description": "Turn on attract lights",
+            },
+            {
+                "action_type": "camera",
+                "action_name": "takephoto",
+                "offset_minutes": 5,
+                "parameters": {},
+                "description": "Take a photo",
+            },
+            {
+                "action_type": "gpio",
+                "action_name": "attract_off",
+                "offset_minutes": 15,
+                "parameters": {},
+                "description": "Turn off attract lights",
+            },
+        ],
+        "category": "user",
+        "tags": ["test", "validation"],
+    }
+
+
+# ============================================================================
+# List Built-in Patterns Tests (8 tests)
+# ============================================================================
+
+
+class TestListBuiltinPatterns:
+    """Tests for GET /api/scheduler/ui/patterns/builtin."""
+
+    def test_returns_list_of_patterns(self, client):
+        """Test endpoint returns a list of patterns with 200 OK."""
+        response = client.get("/api/scheduler/ui/patterns/builtin")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert isinstance(data, list)
+
+    def test_includes_required_fields(self, client):
+        """Test each pattern includes required fields."""
+        response = client.get("/api/scheduler/ui/patterns/builtin")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data) > 0, "Expected at least one pattern"
+
+        for pattern in data:
+            assert "pattern_id" in pattern, "Missing pattern_id field"
+            assert "name" in pattern, "Missing name field"
+            assert "actions" in pattern, "Missing actions field"
+
+    def test_includes_source_schedule(self, client):
+        """Test each pattern includes source_schedule field."""
+        response = client.get("/api/scheduler/ui/patterns/builtin")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data) > 0
+
+        for pattern in data:
+            assert "source_schedule" in pattern, "Missing source_schedule field"
+            assert isinstance(pattern["source_schedule"], str)
+            assert len(pattern["source_schedule"]) > 0
+
+    def test_all_patterns_have_builtin_category(self, client):
+        """Test all patterns have category='built-in'."""
+        response = client.get("/api/scheduler/ui/patterns/builtin")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data) > 0
+
+        for pattern in data:
+            assert "category" in pattern
+            assert pattern["category"] == "built-in"
+
+    def test_returns_at_least_three_patterns(self, client):
+        """Test returns at least 3 patterns (from 3 built-in schedules)."""
+        response = client.get("/api/scheduler/ui/patterns/builtin")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data) >= 3, f"Expected at least 3 patterns, got {len(data)}"
+
+    def test_no_duplicate_pattern_ids(self, client):
+        """Test no duplicate pattern_ids in response."""
+        response = client.get("/api/scheduler/ui/patterns/builtin")
+
+        assert response.status_code == 200
+        data = response.get_json()
+
+        pattern_ids = [p["pattern_id"] for p in data]
+        unique_ids = set(pattern_ids)
+        assert len(pattern_ids) == len(unique_ids), "Duplicate pattern_ids found"
+
+    def test_each_pattern_has_valid_actions(self, client):
+        """Test each pattern has a non-empty actions array."""
+        response = client.get("/api/scheduler/ui/patterns/builtin")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data) > 0
+
+        for pattern in data:
+            actions = pattern.get("actions", [])
+            assert isinstance(actions, list)
+            assert len(actions) > 0, f"Pattern {pattern['name']} has no actions"
+
+            for action in actions:
+                assert "action_type" in action
+                assert "action_name" in action
+
+    def test_patterns_include_tags_array(self, client):
+        """Test patterns include tags array."""
+        response = client.get("/api/scheduler/ui/patterns/builtin")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data) > 0
+
+        for pattern in data:
+            assert "tags" in pattern
+            assert isinstance(pattern["tags"], list)
+
+    def test_patterns_include_duration_minutes(self, client):
+        """Test each pattern includes computed duration_minutes."""
+        response = client.get("/api/scheduler/ui/patterns/builtin")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data) > 0
+
+        for pattern in data:
+            assert "duration_minutes" in pattern, "Missing duration_minutes field"
+            assert isinstance(pattern["duration_minutes"], int)
+            assert pattern["duration_minutes"] >= 0
+
+
+# ============================================================================
+# Validate Pattern - Success Tests (4 tests)
+# ============================================================================
+
+
+class TestValidatePatternSuccess:
+    """Tests for successful pattern validation."""
+
+    def test_valid_minimal_pattern_returns_success(self, client, valid_minimal_pattern):
+        """Test valid minimal pattern returns 200 with valid=true."""
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=valid_minimal_pattern,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["valid"] is True
+        assert "pattern" in data
+
+    def test_valid_full_pattern_returns_success(self, client, valid_full_pattern):
+        """Test valid full pattern returns 200 with valid=true."""
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=valid_full_pattern,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["valid"] is True
+        assert "pattern" in data
+
+    def test_response_includes_duration_minutes(self, client, valid_full_pattern):
+        """Test validated pattern includes computed duration_minutes."""
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=valid_full_pattern,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["valid"] is True
+        pattern = data["pattern"]
+        assert "duration_minutes" in pattern
+        # Full pattern has actions at 0, 5, 15 minutes - duration should be 15
+        assert pattern["duration_minutes"] == 15
+
+    def test_accepts_valid_category_values(self, client, valid_minimal_pattern):
+        """Test accepts both 'user' and 'built-in' categories."""
+        # Test 'user' category
+        valid_minimal_pattern["category"] = "user"
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=valid_minimal_pattern,
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert response.get_json()["valid"] is True
+
+        # Test 'built-in' category
+        valid_minimal_pattern["category"] = "built-in"
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=valid_minimal_pattern,
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert response.get_json()["valid"] is True
+
+
+# ============================================================================
+# Validate Pattern - Error Tests (10 tests)
+# ============================================================================
+
+
+class TestValidatePatternErrors:
+    """Tests for pattern validation errors."""
+
+    def test_missing_name_returns_error(self, client):
+        """Test missing name field returns 400 error."""
+        pattern = {
+            "actions": [
+                {"action_type": "camera", "action_name": "takephoto", "offset_minutes": 0}
+            ]
+        }
+
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=pattern,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["valid"] is False
+        assert "error" in data
+
+    def test_empty_name_returns_error(self, client):
+        """Test empty name field returns 400 error."""
+        pattern = {
+            "name": "",
+            "actions": [
+                {"action_type": "camera", "action_name": "takephoto", "offset_minutes": 0}
+            ],
+        }
+
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=pattern,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["valid"] is False
+        assert "error" in data
+
+    def test_name_too_long_returns_error(self, client):
+        """Test name > 200 chars returns 400 error."""
+        pattern = {
+            "name": "X" * 201,  # 201 characters
+            "actions": [
+                {"action_type": "camera", "action_name": "takephoto", "offset_minutes": 0}
+            ],
+        }
+
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=pattern,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["valid"] is False
+        assert "error" in data
+        assert "200" in data["error"] or "name" in data["error"].lower()
+
+    def test_missing_actions_returns_error(self, client):
+        """Test missing actions field returns 400 error."""
+        pattern = {"name": "Test Pattern"}
+
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=pattern,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["valid"] is False
+        assert "error" in data
+
+    def test_empty_actions_returns_error(self, client):
+        """Test empty actions array returns 400 error."""
+        pattern = {"name": "Test Pattern", "actions": []}
+
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=pattern,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["valid"] is False
+        assert "error" in data
+
+    def test_too_many_actions_returns_error(self, client):
+        """Test > 20 actions returns 400 error."""
+        actions = [
+            {"action_type": "camera", "action_name": "takephoto", "offset_minutes": i}
+            for i in range(21)  # 21 actions exceeds the 20 action limit
+        ]
+        pattern = {"name": "Test Pattern", "actions": actions}
+
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=pattern,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["valid"] is False
+        assert "error" in data
+        assert "20" in data["error"] or "actions" in data["error"].lower()
+
+    def test_invalid_action_type_returns_error(self, client):
+        """Test invalid action_type returns 400 error."""
+        pattern = {
+            "name": "Test Pattern",
+            "actions": [
+                {
+                    "action_type": "invalid_type",
+                    "action_name": "takephoto",
+                    "offset_minutes": 0,
+                }
+            ],
+        }
+
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=pattern,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["valid"] is False
+        assert "error" in data
+
+    def test_negative_offset_returns_error(self, client):
+        """Test negative offset_minutes returns 400 error."""
+        pattern = {
+            "name": "Test Pattern",
+            "actions": [
+                {
+                    "action_type": "camera",
+                    "action_name": "takephoto",
+                    "offset_minutes": -5,
+                }
+            ],
+        }
+
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=pattern,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["valid"] is False
+        assert "error" in data
+
+    def test_offset_too_large_returns_error(self, client):
+        """Test offset > 1440 minutes returns 400 error."""
+        pattern = {
+            "name": "Test Pattern",
+            "actions": [
+                {
+                    "action_type": "camera",
+                    "action_name": "takephoto",
+                    "offset_minutes": 1441,  # > 1440 (24 hours)
+                }
+            ],
+        }
+
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=pattern,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["valid"] is False
+        assert "error" in data
+
+    def test_invalid_category_returns_error(self, client, valid_minimal_pattern):
+        """Test invalid category value returns 400 error."""
+        valid_minimal_pattern["category"] = "invalid_category"
+
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=valid_minimal_pattern,
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["valid"] is False
+        assert "error" in data
+
+
+# ============================================================================
+# Error Handling Tests (3 tests)
+# ============================================================================
+
+
+class TestErrorHandling:
+    """Tests for error handling."""
+
+    def test_no_request_body_returns_error(self, client):
+        """Test POST with no body returns 400 error."""
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["valid"] is False
+        assert "error" in data
+
+    def test_invalid_json_returns_error(self, client):
+        """Test POST with invalid JSON returns 400 error."""
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            data="not valid json {{{",
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["valid"] is False
+        assert "error" in data
+
+    def test_handles_missing_builtin_directory(self, client):
+        """Test endpoint handles missing builtin directory gracefully."""
+        module = _get_scheduler_ui_module()
+
+        # Mock Path to return a non-existent directory
+        with patch.object(module, "list_builtin_patterns") as mock_list:
+            mock_list.return_value = []
+
+            response = client.get("/api/scheduler/ui/patterns/builtin")
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert isinstance(data, list)
+            assert len(data) == 0
