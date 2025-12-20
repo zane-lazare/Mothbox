@@ -1581,6 +1581,7 @@ def pytest_collection_modifyitems(config, items):
             'test_schedule_storage_workflow',  # Uses tmp_path/threading, no camera/GPIO (Issue #209)
             'test_scheduler_workflow',  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
             'test_scheduler_activation',  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
+            'test_scheduler_api_workflow',  # Uses mocks/tmp_path/Flask test client, no camera/GPIO (Issue #218)
         )
 
         is_non_hardware_test = any(test in fspath_str for test in non_hardware_tests)

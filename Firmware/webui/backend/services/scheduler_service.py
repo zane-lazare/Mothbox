@@ -47,6 +47,7 @@ from webui.backend.lib.cron_bridge import (
 )
 from webui.backend.lib.schedule_schema import (
     Schedule,
+    ScheduleConflictError,
     ScheduleValidationError,
     validate_schedule,
 )
@@ -577,10 +578,13 @@ class SchedulerService:
                         f"Schedule has {len(blocking)} blocking conflict(s): "
                         + "; ".join(messages)
                     )
-                    return False, f"Conflict detected: {error}"
+                    raise ScheduleConflictError(f"Conflict detected: {error}")
             except ImportError:
                 # Conflict detection module not available - skip check
                 logger.warning("Conflict detection module not available, skipping check")
+            except ScheduleConflictError:
+                # Re-raise conflict errors for caller to handle
+                raise
             except Exception as e:
                 logger.exception(f"Error during conflict check: {e}")
                 return False, f"Conflict check failed: {e}"

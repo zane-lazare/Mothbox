@@ -1,9 +1,12 @@
 """
-Unit tests for Scheduler UI API Routes (Issue #214)
+Unit tests for Scheduler UI API Routes (Issues #214, #218)
 
 Tests the REST API endpoints for schedule preview and management.
 
 Coverage Target: 85%+
+
+Issue #214 - Schedule Preview
+Issue #218 - Schedule Pattern API
 """
 
 from unittest.mock import MagicMock, patch
@@ -127,6 +130,32 @@ def mock_preview_result():
         "generated_at": "2025-06-15T12:00:00Z",
     }
     return result
+
+
+@pytest.fixture
+def valid_schedule_payload():
+    """Valid schedule JSON for POST/PUT tests."""
+    return {
+        "name": "Test Schedule",
+        "description": "A test schedule",
+        "trigger_type": "fixed_time",
+        "fixed_time_trigger": {
+            "time": "21:00",
+            "days_of_week": [0, 1, 2, 3, 4, 5, 6],
+        },
+        "event_patterns": [
+            {
+                "name": "Simple Capture",
+                "actions": [
+                    {
+                        "action_type": "camera",
+                        "action_name": "takephoto",
+                        "offset_minutes": 0,
+                    }
+                ],
+            }
+        ],
+    }
 
 
 # ============================================================================
@@ -388,3 +417,770 @@ class TestGetScheduleEndpoint:
         data = response.get_json()
         assert "error" in data
         assert "not found" in data["error"].lower()
+
+
+# ============================================================================
+# Get Active Schedule Endpoint Tests (Issue #218)
+# ============================================================================
+
+
+class TestGetActiveScheduleEndpoint:
+    """Tests for GET /api/scheduler/ui/schedules/active."""
+
+    def test_get_active_schedule_none(self, client, mock_scheduler_service):
+        """Test when no schedule is active."""
+        mock_scheduler_service.get_active_schedule.return_value = None
+
+        response = client.get('/api/scheduler/ui/schedules/active')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["active"] is False
+        assert data["schedule"] is None
+
+    def test_get_active_schedule_exists(self, client, mock_scheduler_service, sample_schedule):
+        """Test when a schedule is active."""
+        mock_scheduler_service.get_active_schedule.return_value = sample_schedule
+
+        response = client.get('/api/scheduler/ui/schedules/active')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["active"] is True
+        assert data["schedule"] is not None
+        assert data["schedule"]["schedule_id"] == "test-schedule"
+
+    def test_get_active_schedule_full_object(self, client, mock_scheduler_service, sample_schedule):
+        """Test that full schedule object is returned."""
+        sample_schedule.to_dict.return_value = {
+            "schedule_id": "test-schedule",
+            "name": "Test Schedule",
+            "trigger_type": "interval",
+            "enabled": True,
+            "is_active": True,
+        }
+        mock_scheduler_service.get_active_schedule.return_value = sample_schedule
+
+        response = client.get('/api/scheduler/ui/schedules/active')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "trigger_type" in data["schedule"]
+        assert "enabled" in data["schedule"]
+
+    def test_get_active_schedule_error(self, client, mock_scheduler_service):
+        """Test error handling."""
+        mock_scheduler_service.get_active_schedule.side_effect = Exception("DB error")
+
+        response = client.get('/api/scheduler/ui/schedules/active')
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert "error" in data
+
+
+# ============================================================================
+# List Built-in Schedules Endpoint Tests (Issue #218)
+# ============================================================================
+
+
+class TestListBuiltinSchedulesEndpoint:
+    """Tests for GET /api/scheduler/ui/schedules/builtin."""
+
+    def test_list_builtin_schedules_empty(self, client, mock_scheduler_service):
+        """Test when no built-in schedules exist."""
+        mock_scheduler_service.list_schedules.return_value = []
+
+        response = client.get('/api/scheduler/ui/schedules/builtin')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["schedules"] == []
+        assert data["total"] == 0
+
+    def test_list_builtin_schedules_with_data(self, client, mock_scheduler_service):
+        """Test with built-in schedules."""
+        builtin_schedule = MagicMock()
+        builtin_schedule.schedule_id = "builtin-nightly"
+        builtin_schedule.name = "Nightly Survey"
+        builtin_schedule.description = "A built-in schedule"
+        builtin_schedule.trigger_type = "interval"
+        builtin_schedule.enabled = True
+        builtin_schedule.is_active = False
+        builtin_schedule.created_at = "2025-06-15T00:00:00Z"
+        builtin_schedule.modified_at = "2025-06-15T00:00:00Z"
+
+        mock_scheduler_service.list_schedules.return_value = [builtin_schedule]
+
+        # Mock is_builtin_schedule to return True for this schedule
+        module = _get_scheduler_ui_module()
+        with patch.object(module, 'is_builtin_schedule', return_value=True):
+            response = client.get('/api/scheduler/ui/schedules/builtin')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["total"] == 1
+        assert data["schedules"][0]["name"] == "Nightly Survey"
+
+    def test_list_builtin_schedules_excludes_user(self, client, mock_scheduler_service):
+        """Test that user schedules are excluded."""
+        user_schedule = MagicMock()
+        user_schedule.schedule_id = "user-schedule"
+        user_schedule.name = "My Schedule"
+        user_schedule.description = ""
+        user_schedule.trigger_type = "fixed_time"
+        user_schedule.enabled = True
+        user_schedule.is_active = False
+        user_schedule.created_at = "2025-06-15T00:00:00Z"
+        user_schedule.modified_at = "2025-06-15T00:00:00Z"
+
+        mock_scheduler_service.list_schedules.return_value = [user_schedule]
+
+        # Mock is_builtin_schedule to return False
+        module = _get_scheduler_ui_module()
+        with patch.object(module, 'is_builtin_schedule', return_value=False):
+            response = client.get('/api/scheduler/ui/schedules/builtin')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["total"] == 0
+
+    def test_list_builtin_schedules_error(self, client, mock_scheduler_service):
+        """Test error handling."""
+        mock_scheduler_service.list_schedules.side_effect = Exception("DB error")
+
+        response = client.get('/api/scheduler/ui/schedules/builtin')
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert "error" in data
+
+
+# ============================================================================
+# Create Schedule Endpoint Tests (Issue #218)
+# ============================================================================
+
+
+class TestCreateScheduleEndpoint:
+    """Tests for POST /api/scheduler/ui/schedules."""
+
+    def test_create_schedule_success(self, client, mock_scheduler_service, valid_schedule_payload):
+        """Test successful schedule creation."""
+        mock_scheduler_service.create_schedule.return_value = True
+
+        response = client.post(
+            '/api/scheduler/ui/schedules',
+            json=valid_schedule_payload,
+            content_type='application/json'
+        )
+
+        assert response.status_code == 201, f"Response: {response.get_json()}"
+        data = response.get_json()
+        assert data["message"] == "Schedule created"
+        assert "schedule_id" in data
+        assert "schedule" in data
+
+    def test_create_schedule_returns_id(self, client, mock_scheduler_service, valid_schedule_payload):
+        """Test that schedule_id is returned."""
+        mock_scheduler_service.create_schedule.return_value = True
+
+        response = client.post(
+            '/api/scheduler/ui/schedules',
+            json=valid_schedule_payload,
+            content_type='application/json'
+        )
+
+        assert response.status_code == 201
+        data = response.get_json()
+        assert "schedule_id" in data
+        assert len(data["schedule_id"]) > 0
+
+    def test_create_schedule_empty_body(self, client):
+        """Test with missing JSON body."""
+        response = client.post(
+            '/api/scheduler/ui/schedules',
+            content_type='application/json'
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+
+    def test_create_schedule_invalid_json(self, client):
+        """Test with malformed JSON."""
+        response = client.post(
+            '/api/scheduler/ui/schedules',
+            data="not valid json",
+            content_type='application/json'
+        )
+
+        assert response.status_code == 400
+
+    def test_create_schedule_missing_name(self, client):
+        """Test with missing required field."""
+        response = client.post(
+            '/api/scheduler/ui/schedules',
+            json={"trigger_type": "fixed_time"},
+            content_type='application/json'
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+
+    def test_create_schedule_invalid_trigger(self, client, valid_schedule_payload):
+        """Test with invalid trigger type."""
+        valid_schedule_payload["trigger_type"] = "invalid_trigger"
+
+        response = client.post(
+            '/api/scheduler/ui/schedules',
+            json=valid_schedule_payload,
+            content_type='application/json'
+        )
+
+        # Should fail validation
+        assert response.status_code == 400
+
+    def test_create_schedule_validation_error(self, client, mock_scheduler_service, valid_schedule_payload):
+        """Test when service validation fails."""
+        from webui.backend.lib.schedule_schema import ScheduleValidationError
+        mock_scheduler_service.create_schedule.side_effect = ScheduleValidationError("Invalid schedule")
+
+        response = client.post(
+            '/api/scheduler/ui/schedules',
+            json=valid_schedule_payload,
+            content_type='application/json'
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "Validation failed" in data["error"]
+
+    def test_create_schedule_service_error(self, client, mock_scheduler_service, valid_schedule_payload):
+        """Test when service returns failure."""
+        mock_scheduler_service.create_schedule.return_value = False
+
+        response = client.post(
+            '/api/scheduler/ui/schedules',
+            json=valid_schedule_payload,
+            content_type='application/json'
+        )
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert "error" in data
+
+
+# ============================================================================
+# Update Schedule Endpoint Tests (Issue #218)
+# ============================================================================
+
+
+class TestUpdateScheduleEndpoint:
+    """Tests for PUT /api/scheduler/ui/schedules/{id}."""
+
+    def test_update_schedule_success(self, client, mock_scheduler_service, sample_schedule):
+        """Test successful schedule update."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        updated = MagicMock()
+        updated.to_dict.return_value = {"schedule_id": "test-schedule", "name": "Updated Name"}
+        mock_scheduler_service.update_schedule.return_value = updated
+
+        response = client.put(
+            '/api/scheduler/ui/schedules/test-schedule',
+            json={"name": "Updated Name"},
+            content_type='application/json'
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["message"] == "Schedule updated"
+        assert "schedule" in data
+
+    def test_update_schedule_not_found(self, client, mock_scheduler_service):
+        """Test updating non-existent schedule."""
+        mock_scheduler_service.get_schedule.return_value = None
+
+        response = client.put(
+            '/api/scheduler/ui/schedules/nonexistent',
+            json={"name": "New Name"},
+            content_type='application/json'
+        )
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert "not found" in data["error"].lower()
+
+    def test_update_schedule_builtin_protected(self, client, mock_scheduler_service, sample_schedule):
+        """Test that built-in schedules cannot be modified."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.update_schedule.side_effect = ValueError("Cannot modify built-in schedule")
+
+        response = client.put(
+            '/api/scheduler/ui/schedules/builtin-id',
+            json={"name": "New Name"},
+            content_type='application/json'
+        )
+
+        assert response.status_code == 403
+        data = response.get_json()
+        assert "built-in" in data["error"].lower()
+
+    def test_update_schedule_empty_body(self, client, mock_scheduler_service, sample_schedule):
+        """Test with missing JSON body."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+
+        response = client.put(
+            '/api/scheduler/ui/schedules/test-schedule',
+            content_type='application/json'
+        )
+
+        assert response.status_code == 400
+
+    def test_update_schedule_invalid_data(self, client, mock_scheduler_service, sample_schedule):
+        """Test with invalid update data."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+
+        response = client.put(
+            '/api/scheduler/ui/schedules/test-schedule',
+            data="not json",
+            content_type='application/json'
+        )
+
+        assert response.status_code == 400
+
+    def test_update_schedule_validation_error(self, client, mock_scheduler_service, sample_schedule):
+        """Test when validation fails."""
+        from webui.backend.lib.schedule_schema import ScheduleValidationError
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.update_schedule.side_effect = ScheduleValidationError("Invalid data")
+
+        response = client.put(
+            '/api/scheduler/ui/schedules/test-schedule',
+            json={"name": ""},
+            content_type='application/json'
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "Validation failed" in data["error"]
+
+    def test_update_schedule_partial_update(self, client, mock_scheduler_service, sample_schedule):
+        """Test partial field update."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        updated = MagicMock()
+        updated.to_dict.return_value = {"schedule_id": "test-schedule", "description": "New description"}
+        mock_scheduler_service.update_schedule.return_value = updated
+
+        response = client.put(
+            '/api/scheduler/ui/schedules/test-schedule',
+            json={"description": "New description"},
+            content_type='application/json'
+        )
+
+        assert response.status_code == 200
+        mock_scheduler_service.update_schedule.assert_called_with(
+            "test-schedule",
+            {"description": "New description"}
+        )
+
+    def test_update_schedule_service_error(self, client, mock_scheduler_service, sample_schedule):
+        """Test when update fails."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.update_schedule.return_value = None
+
+        response = client.put(
+            '/api/scheduler/ui/schedules/test-schedule',
+            json={"name": "New Name"},
+            content_type='application/json'
+        )
+
+        assert response.status_code == 500
+
+
+# ============================================================================
+# Delete Schedule Endpoint Tests (Issue #218)
+# ============================================================================
+
+
+class TestDeleteScheduleEndpoint:
+    """Tests for DELETE /api/scheduler/ui/schedules/{id}."""
+
+    def test_delete_schedule_success(self, client, mock_scheduler_service, sample_schedule):
+        """Test successful schedule deletion."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.delete_schedule.return_value = True
+
+        response = client.delete('/api/scheduler/ui/schedules/test-schedule')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["message"] == "Schedule deleted"
+        assert data["schedule_id"] == "test-schedule"
+
+    def test_delete_schedule_not_found(self, client, mock_scheduler_service):
+        """Test deleting non-existent schedule."""
+        mock_scheduler_service.get_schedule.return_value = None
+
+        response = client.delete('/api/scheduler/ui/schedules/nonexistent')
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert "not found" in data["error"].lower()
+
+    def test_delete_schedule_builtin_protected(self, client, mock_scheduler_service, sample_schedule):
+        """Test that built-in schedules cannot be deleted."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.delete_schedule.side_effect = ValueError("Cannot delete built-in schedule")
+
+        response = client.delete('/api/scheduler/ui/schedules/builtin-id')
+
+        assert response.status_code == 403
+        data = response.get_json()
+        assert "built-in" in data["error"].lower()
+
+    def test_delete_schedule_returns_id(self, client, mock_scheduler_service, sample_schedule):
+        """Test that deleted schedule_id is returned."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.delete_schedule.return_value = True
+
+        response = client.delete('/api/scheduler/ui/schedules/my-schedule')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["schedule_id"] == "my-schedule"
+
+    def test_delete_schedule_service_error(self, client, mock_scheduler_service, sample_schedule):
+        """Test when deletion fails."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.delete_schedule.return_value = False
+
+        response = client.delete('/api/scheduler/ui/schedules/test-schedule')
+
+        assert response.status_code == 500
+
+
+# ============================================================================
+# Activate Schedule Endpoint Tests (Issue #218)
+# ============================================================================
+
+
+class TestActivateScheduleEndpoint:
+    """Tests for POST /api/scheduler/ui/schedules/{id}/activate."""
+
+    def test_activate_schedule_success(self, client, mock_scheduler_service, sample_schedule):
+        """Test successful schedule activation."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.activate_schedule.return_value = (True, "")
+
+        response = client.post('/api/scheduler/ui/schedules/test-schedule/activate')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["message"] == "Schedule activated"
+        assert data["schedule_id"] == "test-schedule"
+
+    def test_activate_schedule_not_found(self, client, mock_scheduler_service):
+        """Test activating non-existent schedule."""
+        mock_scheduler_service.get_schedule.return_value = None
+
+        response = client.post('/api/scheduler/ui/schedules/nonexistent/activate')
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert "not found" in data["error"].lower()
+
+    def test_activate_schedule_disabled(self, client, mock_scheduler_service, sample_schedule):
+        """Test activating disabled schedule."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.activate_schedule.return_value = (False, "Schedule is disabled")
+
+        response = client.post('/api/scheduler/ui/schedules/test-schedule/activate')
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "disabled" in data["error"].lower()
+
+    def test_activate_schedule_conflict(self, client, mock_scheduler_service, sample_schedule):
+        """Test activation blocked by conflict."""
+        from webui.backend.lib.schedule_schema import ScheduleConflictError
+
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.activate_schedule.side_effect = ScheduleConflictError(
+            "Conflict detected: Resource contention"
+        )
+
+        response = client.post('/api/scheduler/ui/schedules/test-schedule/activate')
+
+        assert response.status_code == 409
+        data = response.get_json()
+        assert "Conflict" in data["error"]
+        assert data["conflict"] is True
+
+    def test_activate_schedule_skip_conflict_check(self, client, mock_scheduler_service, sample_schedule):
+        """Test activation with conflict check disabled."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.activate_schedule.return_value = (True, "")
+
+        response = client.post(
+            '/api/scheduler/ui/schedules/test-schedule/activate',
+            json={"check_conflicts": False},
+            content_type='application/json'
+        )
+
+        assert response.status_code == 200
+        mock_scheduler_service.activate_schedule.assert_called_once()
+        call_kwargs = mock_scheduler_service.activate_schedule.call_args.kwargs
+        assert call_kwargs["check_conflicts"] is False
+
+    def test_activate_schedule_with_coordinates(self, client, mock_scheduler_service, sample_schedule):
+        """Test activation with lat/lon parameters."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.activate_schedule.return_value = (True, "")
+
+        response = client.post(
+            '/api/scheduler/ui/schedules/test-schedule/activate',
+            json={"latitude": 35.0, "longitude": -80.0, "timezone": "America/New_York"},
+            content_type='application/json'
+        )
+
+        assert response.status_code == 200
+        call_kwargs = mock_scheduler_service.activate_schedule.call_args.kwargs
+        assert call_kwargs["latitude"] == 35.0
+        assert call_kwargs["longitude"] == -80.0
+        assert call_kwargs["timezone_name"] == "America/New_York"
+
+    def test_activate_schedule_idempotent(self, client, mock_scheduler_service, sample_schedule):
+        """Test that activating already active schedule succeeds."""
+        sample_schedule.is_active = True
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.activate_schedule.return_value = (True, "")
+
+        response = client.post('/api/scheduler/ui/schedules/test-schedule/activate')
+
+        assert response.status_code == 200
+
+
+# ============================================================================
+# Deactivate Schedule Endpoint Tests (Issue #218)
+# ============================================================================
+
+
+class TestDeactivateScheduleEndpoint:
+    """Tests for POST /api/scheduler/ui/schedules/deactivate."""
+
+    def test_deactivate_schedule_success(self, client, mock_scheduler_service, sample_schedule):
+        """Test successful schedule deactivation."""
+        mock_scheduler_service.get_active_schedule.return_value = sample_schedule
+        mock_scheduler_service.deactivate_schedule.return_value = True
+
+        response = client.post('/api/scheduler/ui/schedules/deactivate')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["message"] == "Schedule deactivated"
+        assert data["was_active"] is True
+        assert data["schedule_id"] == "test-schedule"
+
+    def test_deactivate_schedule_none_active(self, client, mock_scheduler_service):
+        """Test deactivating when none is active."""
+        mock_scheduler_service.get_active_schedule.return_value = None
+
+        response = client.post('/api/scheduler/ui/schedules/deactivate')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["was_active"] is False
+        assert data["schedule_id"] is None
+
+    def test_deactivate_schedule_returns_previous_id(self, client, mock_scheduler_service, sample_schedule):
+        """Test that deactivated schedule_id is returned."""
+        sample_schedule.schedule_id = "previous-active"
+        mock_scheduler_service.get_active_schedule.return_value = sample_schedule
+        mock_scheduler_service.deactivate_schedule.return_value = True
+
+        response = client.post('/api/scheduler/ui/schedules/deactivate')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["schedule_id"] == "previous-active"
+
+
+# ============================================================================
+# Validate Schedule Endpoint Tests (Issue #218)
+# ============================================================================
+
+
+class TestValidateScheduleEndpoint:
+    """Tests for POST /api/scheduler/ui/schedules/{id}/validate."""
+
+    @pytest.fixture
+    def mock_conflict_report(self):
+        """Create a mock ConflictReport."""
+        report = MagicMock()
+        report.has_blocking_conflicts = False
+        report.total_conflicts = 0
+        report.conflicts = []
+        return report
+
+    def test_validate_schedule_no_conflicts(self, client, mock_scheduler_service, sample_schedule, mock_conflict_report):
+        """Test validation with no conflicts."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.get_cached_conflict_report.return_value = mock_conflict_report
+
+        response = client.post('/api/scheduler/ui/schedules/test-schedule/validate')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["valid"] is True
+        assert data["has_warnings"] is False
+        assert data["total_conflicts"] == 0
+
+    def test_validate_schedule_with_warnings(self, client, mock_scheduler_service, sample_schedule, mock_conflict_report):
+        """Test validation with warnings but no blocking conflicts."""
+        mock_conflict_report.has_blocking_conflicts = False
+        mock_conflict_report.total_conflicts = 2
+        warning1 = MagicMock()
+        warning1.severity = "warning"
+        warning1.to_dict.return_value = {"message": "Warning 1", "severity": "warning"}
+        warning2 = MagicMock()
+        warning2.severity = "warning"
+        warning2.to_dict.return_value = {"message": "Warning 2", "severity": "warning"}
+        mock_conflict_report.conflicts = [warning1, warning2]
+
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.get_cached_conflict_report.return_value = mock_conflict_report
+
+        response = client.post('/api/scheduler/ui/schedules/test-schedule/validate')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["valid"] is True
+        assert data["has_warnings"] is True
+        assert data["total_conflicts"] == 2
+
+    def test_validate_schedule_blocking_conflicts(self, client, mock_scheduler_service, sample_schedule, mock_conflict_report):
+        """Test validation with blocking conflicts."""
+        mock_conflict_report.has_blocking_conflicts = True
+        mock_conflict_report.total_conflicts = 1
+        error_conflict = MagicMock()
+        error_conflict.severity = "error"
+        error_conflict.to_dict.return_value = {"message": "Blocking conflict", "severity": "error"}
+        mock_conflict_report.conflicts = [error_conflict]
+
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.get_cached_conflict_report.return_value = mock_conflict_report
+
+        response = client.post('/api/scheduler/ui/schedules/test-schedule/validate')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["valid"] is False
+        assert data["blocking_conflicts"] >= 1
+
+    def test_validate_schedule_not_found(self, client, mock_scheduler_service):
+        """Test validating non-existent schedule."""
+        mock_scheduler_service.get_schedule.return_value = None
+
+        response = client.post('/api/scheduler/ui/schedules/nonexistent/validate')
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert "not found" in data["error"].lower()
+
+    def test_validate_schedule_with_coordinates(self, client, mock_scheduler_service, sample_schedule, mock_conflict_report):
+        """Test validation with location parameters."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.get_cached_conflict_report.return_value = mock_conflict_report
+
+        response = client.post(
+            '/api/scheduler/ui/schedules/test-schedule/validate',
+            json={"latitude": 35.0, "longitude": -80.0, "timezone": "America/New_York"},
+            content_type='application/json'
+        )
+
+        assert response.status_code == 200
+        call_kwargs = mock_scheduler_service.get_cached_conflict_report.call_args.kwargs
+        assert call_kwargs["latitude"] == 35.0
+        assert call_kwargs["longitude"] == -80.0
+        assert call_kwargs["timezone_name"] == "America/New_York"
+
+    def test_validate_schedule_custom_days(self, client, mock_scheduler_service, sample_schedule, mock_conflict_report):
+        """Test validation with custom preview days."""
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+        mock_scheduler_service.get_cached_conflict_report.return_value = mock_conflict_report
+
+        response = client.post(
+            '/api/scheduler/ui/schedules/test-schedule/validate',
+            json={"days": 14},
+            content_type='application/json'
+        )
+
+        assert response.status_code == 200
+        call_kwargs = mock_scheduler_service.get_cached_conflict_report.call_args.kwargs
+        assert call_kwargs["preview_days"] == 14
+
+
+# ============================================================================
+# CSRF Protection Tests
+# ============================================================================
+
+
+class TestCSRFProtection:
+    """Tests verifying CSRF is enforced on state-changing endpoints."""
+
+    @pytest.fixture
+    def csrf_enabled_app(self):
+        """Flask app with CSRF enabled for testing."""
+        from flask import Flask
+        from flask_wtf.csrf import CSRFProtect
+
+        from webui.backend.routes.scheduler_ui import scheduler_ui_bp
+
+        test_app = Flask(__name__)
+        test_app.config['TESTING'] = True
+        test_app.config['SECRET_KEY'] = 'test-secret-key-for-csrf'
+        test_app.config['WTF_CSRF_ENABLED'] = True
+
+        # Initialize CSRF protection
+        CSRFProtect(test_app)
+
+        # Register blueprint
+        test_app.register_blueprint(scheduler_ui_bp, url_prefix='/api/scheduler/ui')
+
+        return test_app
+
+    def test_create_schedule_requires_csrf(self, csrf_enabled_app, mock_scheduler_service):
+        """POST /schedules without CSRF token should fail."""
+        client = csrf_enabled_app.test_client()
+
+        response = client.post(
+            '/api/scheduler/ui/schedules',
+            json={"name": "Test"},
+            content_type='application/json'
+        )
+
+        # Should fail without CSRF token (400 Bad Request or 403 Forbidden)
+        assert response.status_code in (400, 403), (
+            f"Expected 400 or 403, got {response.status_code}"
+        )
+
+    def test_activate_schedule_requires_csrf(self, csrf_enabled_app, mock_scheduler_service):
+        """POST /schedules/{id}/activate without CSRF token should fail."""
+        client = csrf_enabled_app.test_client()
+
+        response = client.post(
+            '/api/scheduler/ui/schedules/test-id/activate',
+            json={},
+            content_type='application/json'
+        )
+
+        assert response.status_code in (400, 403)
+
+    def test_delete_schedule_requires_csrf(self, csrf_enabled_app, mock_scheduler_service):
+        """DELETE /schedules/{id} without CSRF token should fail."""
+        client = csrf_enabled_app.test_client()
+
+        response = client.delete('/api/scheduler/ui/schedules/test-id')
+
+        assert response.status_code in (400, 403)

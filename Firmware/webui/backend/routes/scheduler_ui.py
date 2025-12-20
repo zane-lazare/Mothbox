@@ -2,17 +2,21 @@
 High-level Scheduler UI API routes.
 
 Provides REST endpoints for the visual scheduler UI, including:
-- Schedule preview generation
+- Schedule CRUD operations (Issue #218)
+- Schedule activation/deactivation
+- Schedule preview generation (Issue #214)
 - Event pattern management (Issue #217)
-- Future: Schedule CRUD operations
+- Conflict validation
 
 Issue #214 - Scheduler Phase 3: Schedule Preview
 Issue #217 - Event Pattern API
+Issue #218 - Schedule Pattern API
 """
 
 import json
 import logging
 import threading
+from functools import wraps
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request
@@ -28,8 +32,12 @@ from webui.backend.lib.schedule_preview import (
 )
 from webui.backend.lib.schedule_schema import (
     EventPattern,
+    Schedule,
+    ScheduleConflictError,
+    ScheduleValidationError,
     validate_event_pattern,
 )
+from webui.backend.lib.schedule_storage import is_builtin_schedule
 from webui.backend.services.scheduler_service import SchedulerService
 
 # Rate limiter import with fallback for testing
@@ -67,6 +75,30 @@ def get_scheduler_service() -> SchedulerService:
     if _scheduler_service is None:
         _scheduler_service = SchedulerService()
     return _scheduler_service
+
+
+def require_json(f):
+    """
+    Decorator that validates request has valid JSON body.
+
+    Passes the parsed JSON data to the wrapped function as `json_data` kwarg.
+    Returns 400 Bad Request if JSON is missing, invalid, or not an object.
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        try:
+            data = request.get_json()
+        except BadRequest:
+            return jsonify({"error": "Request body must be valid JSON"}), 400
+
+        if data is None:
+            return jsonify({"error": "Request body must be valid JSON"}), 400
+
+        if not isinstance(data, dict):
+            return jsonify({"error": "Request body must be a JSON object"}), 400
+
+        return f(*args, json_data=data, **kwargs)
+    return decorated
 
 
 # ============================================================================
@@ -284,6 +316,518 @@ def get_schedule(schedule_id: str):
         return jsonify({
             "error": "Internal server error",
             "message": "Failed to get schedule",
+        }), 500
+
+
+@scheduler_ui_bp.route("/schedules/active", methods=["GET"])
+def get_active_schedule():
+    """
+    Get the currently active schedule.
+
+    GET /api/scheduler/ui/schedules/active
+
+    Returns:
+        200 OK: {
+            "active": true/false,
+            "schedule": {...} or null
+        }
+    """
+    try:
+        service = get_scheduler_service()
+        schedule = service.get_active_schedule()
+
+        if schedule is None:
+            return jsonify({
+                "active": False,
+                "schedule": None,
+            }), 200
+
+        return jsonify({
+            "active": True,
+            "schedule": schedule.to_dict(),
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting active schedule: {e}", exc_info=True)
+        return jsonify({
+            "error": "Internal server error",
+            "message": "Failed to get active schedule",
+        }), 500
+
+
+@scheduler_ui_bp.route("/schedules/builtin", methods=["GET"])
+def list_builtin_schedules():
+    """
+    List all built-in schedules.
+
+    GET /api/scheduler/ui/schedules/builtin
+
+    Returns:
+        200 OK: {
+            "schedules": [...],
+            "total": number
+        }
+
+    Note:
+        Built-in schedules cannot be modified or deleted.
+    """
+    try:
+        service = get_scheduler_service()
+        # Get all schedules including built-in
+        schedules = service.list_schedules(include_builtin=True)
+
+        # Filter to built-in only
+        builtin = [s for s in schedules if is_builtin_schedule(s.schedule_id)]
+
+        # Return summaries
+        summaries = [
+            {
+                "schedule_id": s.schedule_id,
+                "name": s.name,
+                "description": s.description,
+                "trigger_type": s.trigger_type,
+                "enabled": s.enabled,
+                "is_active": s.is_active,
+                "created_at": s.created_at,
+                "modified_at": s.modified_at,
+            }
+            for s in builtin
+        ]
+
+        return jsonify({
+            "schedules": summaries,
+            "total": len(summaries),
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error listing built-in schedules: {e}", exc_info=True)
+        return jsonify({
+            "error": "Internal server error",
+            "message": "Failed to list built-in schedules",
+        }), 500
+
+
+# ============================================================================
+# Schedule CRUD Endpoints (Issue #218)
+# ============================================================================
+
+
+@scheduler_ui_bp.route("/schedules", methods=["POST"])
+@limiter.limit("30 per minute")
+@require_json
+def create_schedule(json_data: dict):
+    """
+    Create a new schedule.
+
+    POST /api/scheduler/ui/schedules
+
+    Request Body:
+        Complete schedule JSON with embedded event patterns.
+        See schedule_schema.py for full structure.
+
+    Returns:
+        201 Created: {
+            "message": "Schedule created",
+            "schedule_id": "...",
+            "schedule": {...}
+        }
+        400 Bad Request: Validation error
+        500 Internal Server Error: Creation failed
+    """
+    try:
+        # Convert to Schedule object
+        try:
+            schedule = Schedule.from_dict(json_data)
+        except KeyError as e:
+            return jsonify({
+                "error": f"Missing required field: {e}",
+            }), 400
+        except Exception as e:
+            logger.error(f"Invalid schedule structure: {e}", exc_info=True)
+            return jsonify({
+                "error": "Invalid schedule structure",
+            }), 400
+
+        # Create via service (validates internally)
+        service = get_scheduler_service()
+        try:
+            success = service.create_schedule(schedule)
+        except ScheduleValidationError as e:
+            return jsonify({
+                "error": f"Validation failed: {e}",
+            }), 400
+
+        if not success:
+            return jsonify({
+                "error": "Failed to create schedule",
+            }), 500
+
+        return jsonify({
+            "message": "Schedule created",
+            "schedule_id": schedule.schedule_id,
+            "schedule": schedule.to_dict(),
+        }), 201
+
+    except Exception as e:
+        logger.error(f"Error creating schedule: {e}", exc_info=True)
+        return jsonify({
+            "error": "Internal server error",
+            "message": "Failed to create schedule",
+        }), 500
+
+
+@scheduler_ui_bp.route("/schedules/<schedule_id>", methods=["PUT"])
+@limiter.limit("30 per minute")
+@require_json
+def update_schedule(schedule_id: str, json_data: dict):
+    """
+    Update a schedule.
+
+    PUT /api/scheduler/ui/schedules/{id}
+
+    Request Body:
+        Partial or complete schedule update data.
+
+    Returns:
+        200 OK: {
+            "message": "Schedule updated",
+            "schedule": {...}
+        }
+        400 Bad Request: Validation error
+        403 Forbidden: Cannot modify built-in schedule
+        404 Not Found: Schedule not found
+        500 Internal Server Error: Update failed
+    """
+    try:
+        service = get_scheduler_service()
+
+        # Check if schedule exists
+        existing = service.get_schedule(schedule_id)
+        if existing is None:
+            return jsonify({
+                "error": "Schedule not found",
+                "message": f"No schedule with ID '{schedule_id}'",
+            }), 404
+
+        # Update via service (handles built-in check)
+        try:
+            updated = service.update_schedule(schedule_id, json_data)
+        except ValueError as e:
+            # Built-in schedule protection
+            return jsonify({
+                "error": str(e),
+            }), 403
+        except ScheduleValidationError as e:
+            return jsonify({
+                "error": f"Validation failed: {e}",
+            }), 400
+
+        if updated is None:
+            return jsonify({
+                "error": "Failed to update schedule",
+            }), 500
+
+        return jsonify({
+            "message": "Schedule updated",
+            "schedule": updated.to_dict(),
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error updating schedule: {e}", exc_info=True)
+        return jsonify({
+            "error": "Internal server error",
+            "message": "Failed to update schedule",
+        }), 500
+
+
+@scheduler_ui_bp.route("/schedules/<schedule_id>", methods=["DELETE"])
+@limiter.limit("30 per minute")
+def delete_schedule(schedule_id: str):
+    """
+    Delete a schedule.
+
+    DELETE /api/scheduler/ui/schedules/{id}
+
+    Returns:
+        200 OK: {
+            "message": "Schedule deleted",
+            "schedule_id": "..."
+        }
+        403 Forbidden: Cannot delete built-in schedule
+        404 Not Found: Schedule not found
+        500 Internal Server Error: Deletion failed
+    """
+    try:
+        service = get_scheduler_service()
+
+        # Check if schedule exists
+        existing = service.get_schedule(schedule_id)
+        if existing is None:
+            return jsonify({
+                "error": "Schedule not found",
+                "message": f"No schedule with ID '{schedule_id}'",
+            }), 404
+
+        # Delete via service (handles built-in check)
+        try:
+            success = service.delete_schedule(schedule_id)
+        except ValueError as e:
+            # Built-in schedule protection
+            return jsonify({
+                "error": str(e),
+            }), 403
+
+        if not success:
+            return jsonify({
+                "error": "Failed to delete schedule",
+            }), 500
+
+        return jsonify({
+            "message": "Schedule deleted",
+            "schedule_id": schedule_id,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error deleting schedule: {e}", exc_info=True)
+        return jsonify({
+            "error": "Internal server error",
+            "message": "Failed to delete schedule",
+        }), 500
+
+
+# ============================================================================
+# Schedule Activation Endpoints (Issue #218)
+# ============================================================================
+
+
+@scheduler_ui_bp.route("/schedules/<schedule_id>/activate", methods=["POST"])
+@limiter.limit("10 per minute")
+def activate_schedule(schedule_id: str):
+    """
+    Activate a schedule.
+
+    POST /api/scheduler/ui/schedules/{id}/activate
+
+    Activates the specified schedule. Any currently active schedule will be
+    deactivated first. Optionally checks for scheduling conflicts before
+    activation.
+
+    Request Body (optional):
+        {
+            "check_conflicts": true,  // default: true
+            "latitude": 0.0,          // for solar calculations
+            "longitude": 0.0,         // for solar calculations
+            "timezone": "UTC"         // timezone for time resolution
+        }
+
+    Returns:
+        200 OK: {
+            "message": "Schedule activated",
+            "schedule_id": "..."
+        }
+        400 Bad Request: Schedule is disabled or activation failed
+        404 Not Found: Schedule not found
+        409 Conflict: Schedule has blocking conflicts
+        500 Internal Server Error: Unexpected error
+    """
+    try:
+        # Parse optional request body (silent=True allows empty body)
+        data = request.get_json(silent=True) or {}
+        check_conflicts = data.get("check_conflicts", True)
+        latitude = data.get("latitude", 0.0)
+        longitude = data.get("longitude", 0.0)
+        timezone_name = data.get("timezone", "UTC")
+
+        # Validate coordinates if provided (not default 0.0)
+        if latitude != 0.0 or longitude != 0.0:
+            valid, coord_error = validate_coordinates(latitude, longitude)
+            if not valid:
+                return jsonify({
+                    "error": f"Invalid coordinates: {coord_error}",
+                }), 400
+
+        # Validate timezone
+        valid, tz_error = validate_timezone(timezone_name)
+        if not valid:
+            return jsonify({
+                "error": f"Invalid timezone: {tz_error}",
+            }), 400
+
+        service = get_scheduler_service()
+
+        # Check if schedule exists
+        schedule = service.get_schedule(schedule_id)
+        if schedule is None:
+            return jsonify({
+                "error": "Schedule not found",
+                "message": f"No schedule with ID '{schedule_id}'",
+            }), 404
+
+        # Activate via service
+        try:
+            success, error = service.activate_schedule(
+                schedule_id,
+                check_conflicts=check_conflicts,
+                latitude=latitude,
+                longitude=longitude,
+                timezone_name=timezone_name,
+            )
+        except ScheduleConflictError as e:
+            return jsonify({
+                "error": str(e),
+                "conflict": True,
+            }), 409
+
+        if not success:
+            return jsonify({
+                "error": error,
+            }), 400
+
+        return jsonify({
+            "message": "Schedule activated",
+            "schedule_id": schedule_id,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error activating schedule: {e}", exc_info=True)
+        return jsonify({
+            "error": "Internal server error",
+            "message": "Failed to activate schedule",
+        }), 500
+
+
+@scheduler_ui_bp.route("/schedules/deactivate", methods=["POST"])
+@limiter.limit("10 per minute")
+def deactivate_current_schedule():
+    """
+    Deactivate the currently active schedule.
+
+    POST /api/scheduler/ui/schedules/deactivate
+
+    Returns:
+        200 OK: {
+            "message": "Schedule deactivated" or "No active schedule",
+            "was_active": true/false,
+            "schedule_id": "..." or null
+        }
+        500 Internal Server Error: Unexpected error
+    """
+    try:
+        service = get_scheduler_service()
+
+        # Check if there's an active schedule
+        active = service.get_active_schedule()
+        if active is None:
+            return jsonify({
+                "message": "No active schedule to deactivate",
+                "was_active": False,
+                "schedule_id": None,
+            }), 200
+
+        # Deactivate
+        success = service.deactivate_schedule()
+
+        if not success:
+            return jsonify({
+                "error": "Failed to deactivate schedule",
+            }), 500
+
+        return jsonify({
+            "message": "Schedule deactivated",
+            "was_active": True,
+            "schedule_id": active.schedule_id,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error deactivating schedule: {e}", exc_info=True)
+        return jsonify({
+            "error": "Internal server error",
+            "message": "Failed to deactivate schedule",
+        }), 500
+
+
+# ============================================================================
+# Schedule Validation Endpoint (Issue #218)
+# ============================================================================
+
+
+@scheduler_ui_bp.route("/schedules/<schedule_id>/validate", methods=["POST"])
+@limiter.limit("30 per minute")
+def validate_schedule_endpoint(schedule_id: str):
+    """
+    Validate a schedule for conflicts without activating.
+
+    POST /api/scheduler/ui/schedules/{id}/validate
+
+    Request Body (optional):
+        {
+            "days": 7,           // preview days (default: 7)
+            "latitude": 0.0,     // for solar calculations
+            "longitude": 0.0,    // for solar calculations
+            "timezone": "UTC"    // timezone for time resolution
+        }
+
+    Returns:
+        200 OK: {
+            "schedule_id": "...",
+            "valid": true/false,
+            "has_warnings": true/false,
+            "conflicts": [...],
+            "total_conflicts": number,
+            "blocking_conflicts": number
+        }
+        404 Not Found: Schedule not found
+        500 Internal Server Error: Validation failed
+    """
+    try:
+        # Parse optional request body (silent=True allows empty body)
+        data = request.get_json(silent=True) or {}
+        preview_days = data.get("days", 7)
+        latitude = data.get("latitude", 0.0)
+        longitude = data.get("longitude", 0.0)
+        timezone_name = data.get("timezone", "UTC")
+
+        service = get_scheduler_service()
+
+        # Check if schedule exists
+        schedule = service.get_schedule(schedule_id)
+        if schedule is None:
+            return jsonify({
+                "error": "Schedule not found",
+                "message": f"No schedule with ID '{schedule_id}'",
+            }), 404
+
+        # Get cached conflict report
+        report = service.get_cached_conflict_report(
+            schedule,
+            preview_days=preview_days,
+            latitude=latitude,
+            longitude=longitude,
+            timezone_name=timezone_name,
+        )
+
+        # Count total and blocking conflicts
+        total_conflicts = len(report.conflicts)
+        try:
+            from webui.backend.lib.schedule_conflict import SEVERITY_ERROR
+            blocking_count = len([c for c in report.conflicts if c.severity == SEVERITY_ERROR])
+        except ImportError:
+            blocking_count = 0
+
+        return jsonify({
+            "schedule_id": schedule_id,
+            "valid": not report.has_blocking_conflicts,
+            "has_warnings": total_conflicts > 0 and not report.has_blocking_conflicts,
+            "conflicts": [c.to_dict() for c in report.conflicts],
+            "total_conflicts": total_conflicts,
+            "blocking_conflicts": blocking_count,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error validating schedule: {e}", exc_info=True)
+        return jsonify({
+            "error": "Internal server error",
+            "message": "Failed to validate schedule",
         }), 500
 
 

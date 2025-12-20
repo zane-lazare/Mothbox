@@ -2131,24 +2131,27 @@ class TestActivateScheduleConflictDetection:
     def test_activate_with_conflicts_blocked(
         self, scheduler_service, temp_schedules_dir, conflicting_schedule
     ):
-        """activate_schedule should fail when schedule has blocking conflicts."""
+        """activate_schedule should raise ScheduleConflictError for blocking conflicts."""
+        import pytest
+
+        from webui.backend.lib.schedule_schema import ScheduleConflictError
         from webui.backend.lib.schedule_storage import create_schedule
 
         # Create the conflicting schedule
         create_schedule(conflicting_schedule)
 
-        # Try to activate with conflict checking (default)
-        success, error = scheduler_service.activate_schedule(
-            "conflicting-schedule",
-            check_conflicts=True,
-            latitude=0.0,
-            longitude=0.0,
-            timezone_name="UTC",
-        )
+        # Try to activate with conflict checking (default) - should raise exception
+        with pytest.raises(ScheduleConflictError) as exc_info:
+            scheduler_service.activate_schedule(
+                "conflicting-schedule",
+                check_conflicts=True,
+                latitude=0.0,
+                longitude=0.0,
+                timezone_name="UTC",
+            )
 
         # Should fail due to conflicts
-        assert success is False
-        assert "conflict" in error.lower()
+        assert "conflict" in str(exc_info.value).lower()
 
     def test_activate_with_conflicts_skip_check(
         self, scheduler_service, temp_schedules_dir, conflicting_schedule

@@ -152,6 +152,10 @@ class ScheduleValidationError(Exception):
     """Raised when schedule validation fails."""
 
 
+class ScheduleConflictError(Exception):
+    """Raised when schedule activation is blocked by conflicts."""
+
+
 # =============================================================================
 # TIER 1: PATTERN ACTION
 # =============================================================================
