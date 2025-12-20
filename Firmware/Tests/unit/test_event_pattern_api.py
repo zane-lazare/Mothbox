@@ -225,6 +225,24 @@ class TestListBuiltinPatterns:
             assert isinstance(pattern["duration_minutes"], int)
             assert pattern["duration_minutes"] >= 0
 
+    def test_all_builtin_patterns_have_pattern_id(self, client):
+        """Test that all built-in patterns have a non-empty pattern_id.
+
+        This validates that built-in schedule files are properly configured.
+        Patterns without pattern_id cannot be deduplicated and may cause issues.
+        """
+        response = client.get("/api/scheduler/ui/patterns/builtin")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data) > 0, "Expected at least one pattern"
+
+        for pattern in data:
+            pattern_id = pattern.get("pattern_id")
+            assert pattern_id, f"Pattern '{pattern.get('name', 'unknown')}' missing pattern_id"
+            assert isinstance(pattern_id, str), "pattern_id should be a string"
+            assert len(pattern_id) > 0, "pattern_id should not be empty"
+
 
 # ============================================================================
 # Validate Pattern - Success Tests (4 tests)
