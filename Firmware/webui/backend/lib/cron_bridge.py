@@ -1282,7 +1282,11 @@ def apply_to_system(
         cron.write()
         logger.info(f"Applied {added_count} cron entries for schedule {schedule_id}")
 
-        # Set RTC wakealarm (set new alarm first to avoid race condition)
+        # Set RTC wakealarm AFTER cron entries are written.
+        # Ordering rationale: If process crashes between writes:
+        #   - Current order (cron→RTC): Jobs exist but no wake. Recoverable on next activation.
+        #   - Reversed (RTC→cron): Wake set but no jobs. Wastes power waking for nothing.
+        # For battery-powered field devices, the current order is safer.
         if set_rtc and entries:
             next_wake = calculate_next_from_entries(entries)
             if next_wake:
