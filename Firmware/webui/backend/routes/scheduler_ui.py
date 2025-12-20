@@ -342,11 +342,11 @@ def list_builtin_patterns() -> list[dict]:
                 for pattern in schedule_data.get("event_patterns", []):
                     pattern_id = pattern.get("pattern_id")
 
-                    # Skip duplicates (same pattern may appear in multiple schedules)
+                    # Skip duplicates - only patterns with non-empty pattern_id are tracked
                     # Patterns without pattern_id are always included (cannot deduplicate)
-                    if pattern_id and pattern_id in seen_ids:
-                        continue
                     if pattern_id:
+                        if pattern_id in seen_ids:
+                            continue
                         seen_ids.add(pattern_id)
 
                     # Create a copy with additional fields
