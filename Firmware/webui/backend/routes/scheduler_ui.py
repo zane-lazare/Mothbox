@@ -455,9 +455,11 @@ def validate_pattern_endpoint():
                 "error": f"Missing required field: {e}",
             }), 400
         except Exception as e:
+            # Log the detailed error server-side, but return a generic message to the client
+            logger.error(f"Invalid pattern structure: {e}", exc_info=True)
             return jsonify({
                 "valid": False,
-                "error": f"Invalid pattern structure: {e}",
+                "error": "Invalid pattern structure",
             }), 400
 
         # Validate using existing validation function
