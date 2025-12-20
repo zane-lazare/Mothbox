@@ -386,6 +386,13 @@ def list_builtin_patterns() -> list[dict]:
             except Exception as e:
                 logger.error(f"Error processing schedule file {schedule_file}: {e}")
 
+        # Log warning if no patterns found (possible misconfiguration)
+        if not patterns and builtin_dir.exists():
+            logger.warning(
+                f"No patterns found in {builtin_dir}. "
+                "Check schedule files for valid event_patterns."
+            )
+
         # Cache the result for subsequent calls
         _builtin_patterns_cache = patterns
         return patterns
