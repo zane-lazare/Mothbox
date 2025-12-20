@@ -263,7 +263,7 @@ class TestSchedulePreviewEndpoint:
         assert response.status_code == 400
         data = response.get_json()
         assert "error" in data
-        assert "Latitude" in data["message"]
+        assert "coordinates" in data["error"].lower()
 
     def test_preview_invalid_longitude(self, client):
         """Test preview with invalid longitude."""
@@ -272,7 +272,7 @@ class TestSchedulePreviewEndpoint:
         assert response.status_code == 400
         data = response.get_json()
         assert "error" in data
-        assert "Longitude" in data["message"]
+        assert "coordinates" in data["error"].lower()
 
     def test_preview_invalid_lat_format(self, client):
         """Test preview with non-numeric latitude."""
@@ -290,7 +290,6 @@ class TestSchedulePreviewEndpoint:
         data = response.get_json()
         assert "error" in data
         assert "timezone" in data["error"].lower()
-        assert "Invalid timezone" in data["message"]
 
     def test_preview_empty_timezone(self, client):
         """Test preview with empty timezone."""
@@ -899,7 +898,8 @@ class TestActivateScheduleEndpoint:
 
         assert response.status_code == 400
         data = response.get_json()
-        assert "disabled" in data["error"].lower()
+        # Error message is now sanitized - just check for activation failure
+        assert "activation failed" in data["error"].lower()
 
     def test_activate_schedule_conflict(self, client, mock_scheduler_service, sample_schedule):
         """Test activation blocked by conflict."""

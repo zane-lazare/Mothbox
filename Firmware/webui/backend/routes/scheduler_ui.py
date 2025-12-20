@@ -173,26 +173,31 @@ def get_schedule_preview(schedule_id: str):
         # Parse and validate days
         days, error = parse_and_validate_days(days_str)
         if error:
-            return jsonify({"error": "Invalid days parameter", "message": error}), 400
+            logger.debug(f"Invalid days parameter: {error}")
+            return jsonify({"error": "Invalid days parameter"}), 400
 
         # Parse coordinates
         latitude, error = parse_and_validate_coordinate(lat_str, "lat")
         if error:
-            return jsonify({"error": "Invalid lat parameter", "message": error}), 400
+            logger.debug(f"Invalid lat parameter: {error}")
+            return jsonify({"error": "Invalid lat parameter"}), 400
 
         longitude, error = parse_and_validate_coordinate(lon_str, "lon")
         if error:
-            return jsonify({"error": "Invalid lon parameter", "message": error}), 400
+            logger.debug(f"Invalid lon parameter: {error}")
+            return jsonify({"error": "Invalid lon parameter"}), 400
 
         # Validate coordinate ranges
         valid, error = validate_coordinates(latitude, longitude)
         if not valid:
-            return jsonify({"error": "Invalid coordinates", "message": error}), 400
+            logger.debug(f"Invalid coordinates: {error}")
+            return jsonify({"error": "Invalid coordinates"}), 400
 
         # Validate timezone
         valid, error = validate_timezone(timezone_name)
         if not valid:
-            return jsonify({"error": "Invalid timezone", "message": error}), 400
+            logger.debug(f"Invalid timezone: {error}")
+            return jsonify({"error": "Invalid timezone"}), 400
 
         # Get schedule from service
         service = get_scheduler_service()
@@ -201,7 +206,6 @@ def get_schedule_preview(schedule_id: str):
         if schedule is None:
             return jsonify({
                 "error": "Schedule not found",
-                "message": f"No schedule with ID '{schedule_id}'",
             }), 404
 
         # Generate preview
@@ -219,7 +223,6 @@ def get_schedule_preview(schedule_id: str):
         logger.warning(f"Preview generation error: {e}")
         return jsonify({
             "error": "Preview generation failed",
-            "message": str(e),
         }), 400
 
     except Exception as e:
@@ -306,7 +309,6 @@ def get_schedule(schedule_id: str):
         if schedule is None:
             return jsonify({
                 "error": "Schedule not found",
-                "message": f"No schedule with ID '{schedule_id}'",
             }), 404
 
         return jsonify(schedule.to_dict()), 200
@@ -315,7 +317,6 @@ def get_schedule(schedule_id: str):
         logger.error(f"Error getting schedule: {e}", exc_info=True)
         return jsonify({
             "error": "Internal server error",
-            "message": "Failed to get schedule",
         }), 500
 
 
@@ -506,7 +507,6 @@ def update_schedule(schedule_id: str, json_data: dict):
         if existing is None:
             return jsonify({
                 "error": "Schedule not found",
-                "message": f"No schedule with ID '{schedule_id}'",
             }), 404
 
         # Update via service (handles built-in check)
@@ -514,12 +514,14 @@ def update_schedule(schedule_id: str, json_data: dict):
             updated = service.update_schedule(schedule_id, json_data)
         except ValueError as e:
             # Built-in schedule protection
+            logger.warning(f"Update blocked for built-in schedule: {e}")
             return jsonify({
-                "error": str(e),
+                "error": "Cannot modify built-in schedule",
             }), 403
         except ScheduleValidationError as e:
+            logger.warning(f"Schedule validation failed: {e}")
             return jsonify({
-                "error": f"Validation failed: {e}",
+                "error": "Validation failed",
             }), 400
 
         if updated is None:
@@ -536,7 +538,6 @@ def update_schedule(schedule_id: str, json_data: dict):
         logger.error(f"Error updating schedule: {e}", exc_info=True)
         return jsonify({
             "error": "Internal server error",
-            "message": "Failed to update schedule",
         }), 500
 
 
@@ -565,7 +566,6 @@ def delete_schedule(schedule_id: str):
         if existing is None:
             return jsonify({
                 "error": "Schedule not found",
-                "message": f"No schedule with ID '{schedule_id}'",
             }), 404
 
         # Delete via service (handles built-in check)
@@ -573,8 +573,9 @@ def delete_schedule(schedule_id: str):
             success = service.delete_schedule(schedule_id)
         except ValueError as e:
             # Built-in schedule protection
+            logger.warning(f"Delete blocked for built-in schedule: {e}")
             return jsonify({
-                "error": str(e),
+                "error": "Cannot delete built-in schedule",
             }), 403
 
         if not success:
@@ -591,7 +592,6 @@ def delete_schedule(schedule_id: str):
         logger.error(f"Error deleting schedule: {e}", exc_info=True)
         return jsonify({
             "error": "Internal server error",
-            "message": "Failed to delete schedule",
         }), 500
 
 
@@ -660,7 +660,6 @@ def activate_schedule(schedule_id: str):
         if schedule is None:
             return jsonify({
                 "error": "Schedule not found",
-                "message": f"No schedule with ID '{schedule_id}'",
             }), 404
 
         # Activate via service
@@ -673,14 +672,17 @@ def activate_schedule(schedule_id: str):
                 timezone_name=timezone_name,
             )
         except ScheduleConflictError as e:
+            # Conflict errors are safe to expose - they're controlled messages
             return jsonify({
                 "error": str(e),
                 "conflict": True,
             }), 409
 
         if not success:
+            # Log detailed error, return generic message
+            logger.warning(f"Schedule activation failed: {error}")
             return jsonify({
-                "error": error,
+                "error": "Schedule activation failed",
             }), 400
 
         return jsonify({
@@ -692,7 +694,6 @@ def activate_schedule(schedule_id: str):
         logger.error(f"Error activating schedule: {e}", exc_info=True)
         return jsonify({
             "error": "Internal server error",
-            "message": "Failed to activate schedule",
         }), 500
 
 
@@ -794,7 +795,6 @@ def validate_schedule_endpoint(schedule_id: str):
         if schedule is None:
             return jsonify({
                 "error": "Schedule not found",
-                "message": f"No schedule with ID '{schedule_id}'",
             }), 404
 
         # Get cached conflict report
@@ -827,7 +827,6 @@ def validate_schedule_endpoint(schedule_id: str):
         logger.error(f"Error validating schedule: {e}", exc_info=True)
         return jsonify({
             "error": "Internal server error",
-            "message": "Failed to validate schedule",
         }), 500
 
 
