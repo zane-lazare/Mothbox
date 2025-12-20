@@ -253,6 +253,25 @@ class TestSchedulePreviewEndpoint:
         data = response.get_json()
         assert "lat" in data["error"].lower()
 
+    def test_preview_invalid_timezone(self, client):
+        """Test preview with invalid timezone name."""
+        response = client.get('/api/scheduler/ui/schedules/test/preview?tz=Invalid/Timezone')
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+        assert "timezone" in data["error"].lower()
+        assert "Invalid timezone" in data["message"]
+
+    def test_preview_empty_timezone(self, client):
+        """Test preview with empty timezone."""
+        response = client.get('/api/scheduler/ui/schedules/test/preview?tz=')
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+        assert "timezone" in data["error"].lower()
+
 
 # ============================================================================
 # List Schedules Endpoint Tests

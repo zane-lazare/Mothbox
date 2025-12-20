@@ -27,6 +27,7 @@ try:
         generate_preview,
         validate_coordinates,
         validate_preview_days,
+        validate_timezone,
     )
     IMPLEMENTATION_EXISTS = True
 except ImportError:
@@ -798,6 +799,43 @@ class TestEdgeCases:
         valid, error = validate_coordinates(35.0, 181.0)
         assert valid is False
         assert "Longitude" in error
+
+    def test_timezone_validation_valid_utc(self):
+        """Test valid UTC timezone passes validation."""
+        valid, error = validate_timezone("UTC")
+        assert valid is True
+        assert error is None
+
+    def test_timezone_validation_valid_iana(self):
+        """Test valid IANA timezone passes validation."""
+        valid, error = validate_timezone("America/New_York")
+        assert valid is True
+        assert error is None
+
+    def test_timezone_validation_valid_europe(self):
+        """Test valid European timezone passes validation."""
+        valid, error = validate_timezone("Europe/London")
+        assert valid is True
+        assert error is None
+
+    def test_timezone_validation_invalid_name(self):
+        """Test invalid timezone name rejected."""
+        valid, error = validate_timezone("Invalid/Timezone")
+        assert valid is False
+        assert "Invalid timezone" in error
+        assert "IANA" in error
+
+    def test_timezone_validation_empty_string(self):
+        """Test empty timezone string rejected."""
+        valid, error = validate_timezone("")
+        assert valid is False
+        assert "empty" in error
+
+    def test_timezone_validation_gibberish(self):
+        """Test gibberish timezone rejected."""
+        valid, error = validate_timezone("not-a-timezone")
+        assert valid is False
+        assert "Invalid timezone" in error
 
 
 # ============================================================================

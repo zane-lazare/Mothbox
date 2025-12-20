@@ -18,8 +18,21 @@ from webui.backend.lib.schedule_preview import (
     generate_preview,
     validate_coordinates,
     validate_preview_days,
+    validate_timezone,
 )
 from webui.backend.services.scheduler_service import SchedulerService
+
+# Rate limiter import with fallback for testing
+try:
+    from webui.backend.app import limiter
+except ImportError:
+    # Stub for testing without full app context
+    class _LimiterStub:
+        def limit(self, *args, **kwargs):
+            def decorator(f):
+                return f
+            return decorator
+    limiter = _LimiterStub()
 
 # Logger
 logger = logging.getLogger(__name__)
@@ -45,6 +58,7 @@ def get_scheduler_service() -> SchedulerService:
 
 
 @scheduler_ui_bp.route("/schedules/<schedule_id>/preview", methods=["GET"])
+@limiter.limit("30 per minute")
 def get_schedule_preview(schedule_id: str):
     """
     Generate execution preview for a schedule.
@@ -150,6 +164,14 @@ def get_schedule_preview(schedule_id: str):
         if not valid:
             return jsonify({
                 "error": "Invalid coordinates",
+                "message": error,
+            }), 400
+
+        # Validate timezone
+        valid, error = validate_timezone(timezone_name)
+        if not valid:
+            return jsonify({
+                "error": "Invalid timezone",
                 "message": error,
             }), 400
 

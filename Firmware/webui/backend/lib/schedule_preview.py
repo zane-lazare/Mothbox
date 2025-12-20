@@ -549,3 +549,32 @@ def validate_coordinates(
             return False, f"Longitude must be between -180 and 180, got {longitude}"
 
     return True, None
+
+
+def validate_timezone(timezone_name: str) -> tuple[bool, str | None]:
+    """
+    Validate timezone name parameter.
+
+    Args:
+        timezone_name: IANA timezone name to validate (e.g., "America/New_York", "UTC")
+
+    Returns:
+        (True, None) if valid, (False, error_message) if invalid
+    """
+    if not isinstance(timezone_name, str):
+        return False, f"Timezone must be a string, got {type(timezone_name).__name__}"
+
+    if not timezone_name:
+        return False, "Timezone cannot be empty"
+
+    try:
+        import pytz
+
+        pytz.timezone(timezone_name)
+        return True, None
+    except pytz.UnknownTimeZoneError:
+        return (
+            False,
+            f"Invalid timezone '{timezone_name}'. "
+            "Use IANA timezone names (e.g., 'America/New_York', 'Europe/London', 'UTC')",
+        )
