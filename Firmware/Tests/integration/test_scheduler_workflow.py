@@ -210,7 +210,7 @@ def mock_rtc_functions(monkeypatch):
 
 
 @pytest.fixture
-def scheduler_service(temp_schedules_env, mock_crontab, mock_rtc_functions, monkeypatch):
+def scheduler_service(temp_schedules_env, mock_rtc_functions, monkeypatch):
     """SchedulerService with mocked dependencies."""
     from webui.backend.services.scheduler_service import SchedulerService
 
@@ -376,19 +376,16 @@ class TestCronJobManagement:
         clear_rtc = call_args.kwargs.get("clear_rtc", True)
         assert clear_rtc is True, "Should clear RTC on deactivation"
 
-    def test_preserves_system_cron_jobs(
+    def test_mothbox_command_detection(
         self,
         temp_schedules_env,
         sample_schedule_factory,
-        mock_crontab,
     ):
-        """Non-Mothbox system jobs are preserved during activation/deactivation."""
+        """Verify is_mothbox_command correctly identifies Mothbox vs system commands."""
         from webui.backend.lib.cron_bridge import is_mothbox_command
 
-        # Simulate system job (not Mothbox)
+        # System job (not Mothbox) should not be detected
         system_job_command = "/usr/bin/logrotate /etc/logrotate.conf"
-
-        # Verify this is NOT considered a Mothbox command
         assert is_mothbox_command(system_job_command) is False
 
         # Mothbox command should be identified
