@@ -9,6 +9,8 @@ Tests activation workflows including:
 Run with: MOTHBOX_ENV=test pytest Tests/integration/test_scheduler_activation.py -v -s
 
 These tests are marked as @pytest.mark.integration.
+Fixtures are defined in Tests/conftest.py (temp_schedules_env, sample_schedule_factory,
+mock_cron_system, mock_rtc_functions).
 
 Issue #216 - Scheduler Phase 4: Integration Tests
 """
@@ -30,104 +32,10 @@ sys.path.insert(0, str(FIRMWARE_DIR))
 sys.path.insert(0, str(FIRMWARE_DIR / "webui" / "backend"))
 os.environ.setdefault("MOTHBOX_ENV", "test")
 
-from webui.backend.lib.schedule_schema import (
-    EventPattern,
-    FixedTimeTrigger,
-    PatternAction,
-    Schedule,
-)
 
 # ============================================================================
-# Fixtures
+# Module-specific Fixtures
 # ============================================================================
-
-
-@pytest.fixture
-def temp_schedules_env(tmp_path, monkeypatch):
-    """Mock both USER_SCHEDULES_DIR and BUILTIN_SCHEDULES_DIR."""
-    # Create user schedules directory
-    user_schedules_dir = tmp_path / "schedules"
-    user_schedules_dir.mkdir()
-
-    # Create built-in schedules directory
-    builtin_schedules_dir = tmp_path / "presets_builtin" / "schedules"
-    builtin_schedules_dir.mkdir(parents=True)
-
-    # Patch both directories
-    import webui.backend.lib.schedule_storage as ss
-
-    monkeypatch.setattr(ss, "USER_SCHEDULES_DIR", user_schedules_dir)
-    monkeypatch.setattr(ss, "BUILTIN_SCHEDULES_DIR", builtin_schedules_dir)
-
-    return {
-        "user_dir": user_schedules_dir,
-        "builtin_dir": builtin_schedules_dir,
-    }
-
-
-@pytest.fixture
-def sample_schedule_factory():
-    """Factory function to create valid schedules with unique IDs."""
-
-    def _create_schedule(
-        schedule_id="",
-        name="Test Schedule",
-        hour=21,
-        minute=0,
-        enabled=True,
-        is_active=False,
-    ):
-        """Create a valid schedule with specified parameters."""
-        action = PatternAction(
-            action_type="camera",
-            action_name="takephoto",
-            offset_minutes=0,
-            description="Take photo",
-        )
-
-        pattern = EventPattern(
-            pattern_id="",
-            name="Test Capture",
-            description="Test pattern",
-            actions=[action],
-            category="user",
-            tags=["test"],
-        )
-
-        trigger = FixedTimeTrigger(time=f"{hour:02d}:{minute:02d}")
-
-        schedule = Schedule(
-            schedule_id=schedule_id,
-            name=name,
-            description="A test schedule",
-            event_patterns=[pattern],
-            trigger_type="fixed_time",
-            fixed_time_trigger=trigger,
-            enabled=enabled,
-            is_active=is_active,
-        )
-
-        return schedule
-
-    return _create_schedule
-
-
-@pytest.fixture
-def mock_cron_system(monkeypatch):
-    """Mock cron system operations for service tests."""
-    apply_mock = MagicMock(return_value=True)
-    remove_mock = MagicMock(return_value=True)
-
-    monkeypatch.setattr(
-        "webui.backend.services.scheduler_service.apply_to_system",
-        apply_mock,
-    )
-    monkeypatch.setattr(
-        "webui.backend.services.scheduler_service.remove_from_system",
-        remove_mock,
-    )
-
-    return {"apply": apply_mock, "remove": remove_mock}
 
 
 @pytest.fixture

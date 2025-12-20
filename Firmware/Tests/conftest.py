@@ -2806,3 +2806,194 @@ def mock_request_origin(monkeypatch):
         return mock_request
 
     return set_request_headers
+
+
+# ============================================================================
+# Scheduler Integration Test Fixtures (Issue #216)
+# ============================================================================
+
+
+@pytest.fixture
+def temp_schedules_env(tmp_path, monkeypatch):
+    """Mock both USER_SCHEDULES_DIR and BUILTIN_SCHEDULES_DIR for scheduler tests.
+
+    Provides isolated temporary directories for schedule storage during tests.
+
+    Returns:
+        dict: Contains 'user_dir' and 'builtin_dir' paths
+
+    Related: Issue #216 - Scheduler integration tests
+    """
+    # Create user schedules directory
+    user_schedules_dir = tmp_path / "schedules"
+    user_schedules_dir.mkdir()
+
+    # Create built-in schedules directory
+    builtin_schedules_dir = tmp_path / "presets_builtin" / "schedules"
+    builtin_schedules_dir.mkdir(parents=True)
+
+    # Patch both directories
+    import webui.backend.lib.schedule_storage as ss
+
+    monkeypatch.setattr(ss, "USER_SCHEDULES_DIR", user_schedules_dir)
+    monkeypatch.setattr(ss, "BUILTIN_SCHEDULES_DIR", builtin_schedules_dir)
+
+    return {
+        "user_dir": user_schedules_dir,
+        "builtin_dir": builtin_schedules_dir,
+    }
+
+
+@pytest.fixture
+def sample_schedule_factory():
+    """Factory function to create valid schedules with unique IDs.
+
+    Supports fixed_time, interval, and solar trigger types.
+
+    Returns:
+        Callable: Factory function that creates Schedule objects
+
+    Related: Issue #216 - Scheduler integration tests
+    """
+    from webui.backend.lib.schedule_schema import (
+        EventPattern,
+        FixedTimeTrigger,
+        IntervalTrigger,
+        PatternAction,
+        Schedule,
+        SolarTrigger,
+        TimeWindow,
+    )
+
+    def _create_schedule(
+        schedule_id="",
+        name="Test Schedule",
+        trigger_type="fixed_time",
+        hour=21,
+        minute=0,
+        interval_minutes=60,
+        enabled=True,
+        is_active=False,
+    ):
+        """Create a valid schedule with specified parameters."""
+        action = PatternAction(
+            action_type="camera",
+            action_name="takephoto",
+            offset_minutes=0,
+            description="Take photo",
+        )
+
+        pattern = EventPattern(
+            pattern_id="",
+            name="Test Capture",
+            description="Test pattern",
+            actions=[action],
+            category="user",
+            tags=["test"],
+        )
+
+        if trigger_type == "fixed_time":
+            trigger = FixedTimeTrigger(time=f"{hour:02d}:{minute:02d}")
+            schedule = Schedule(
+                schedule_id=schedule_id,
+                name=name,
+                description="A test schedule",
+                event_patterns=[pattern],
+                trigger_type="fixed_time",
+                fixed_time_trigger=trigger,
+                enabled=enabled,
+                is_active=is_active,
+            )
+        elif trigger_type == "interval":
+            window = TimeWindow(start_time="21:00", end_time="23:00")
+            trigger = IntervalTrigger(
+                interval_minutes=interval_minutes,
+                time_window=window,
+            )
+            schedule = Schedule(
+                schedule_id=schedule_id,
+                name=name,
+                description="A test schedule",
+                event_patterns=[pattern],
+                trigger_type="interval",
+                interval_trigger=trigger,
+                enabled=enabled,
+                is_active=is_active,
+            )
+        elif trigger_type == "solar":
+            trigger = SolarTrigger(
+                solar_event="sunset",
+                offset_minutes=30,
+            )
+            schedule = Schedule(
+                schedule_id=schedule_id,
+                name=name,
+                description="A test schedule",
+                event_patterns=[pattern],
+                trigger_type="solar",
+                solar_trigger=trigger,
+                enabled=enabled,
+                is_active=is_active,
+            )
+        else:
+            raise ValueError(f"Unknown trigger type: {trigger_type}")
+
+        return schedule
+
+    return _create_schedule
+
+
+@pytest.fixture
+def mock_cron_system(monkeypatch):
+    """Mock cron system operations (apply_to_system, remove_from_system).
+
+    Patches the scheduler service's system functions to avoid actual cron/RTC changes.
+
+    Returns:
+        dict: Contains 'apply' and 'remove' MagicMock objects
+
+    Related: Issue #216 - Scheduler integration tests
+    """
+    from unittest.mock import MagicMock
+
+    apply_mock = MagicMock(return_value=True)
+    remove_mock = MagicMock(return_value=True)
+
+    monkeypatch.setattr(
+        "webui.backend.services.scheduler_service.apply_to_system",
+        apply_mock,
+    )
+    monkeypatch.setattr(
+        "webui.backend.services.scheduler_service.remove_from_system",
+        remove_mock,
+    )
+
+    return {"apply": apply_mock, "remove": remove_mock}
+
+
+@pytest.fixture
+def mock_rtc_functions(monkeypatch):
+    """Mock RTC wakealarm functions (set_rtc_wakealarm, clear_rtc_wakealarm).
+
+    Patches the cron_bridge RTC functions to avoid actual hardware access.
+
+    Returns:
+        dict: Contains 'set' and 'clear' MagicMock objects
+
+    Related: Issue #216 - Scheduler integration tests
+    """
+    from unittest.mock import MagicMock
+
+    set_mock = MagicMock(return_value=True)
+    clear_mock = MagicMock(return_value=True)
+
+    monkeypatch.setattr(
+        "webui.backend.lib.cron_bridge.set_rtc_wakealarm",
+        set_mock,
+    )
+    monkeypatch.setattr(
+        "webui.backend.lib.cron_bridge.clear_rtc_wakealarm",
+        clear_mock,
+    )
+
+    return {"set": set_mock, "clear": clear_mock}

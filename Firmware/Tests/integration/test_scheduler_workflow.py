@@ -9,6 +9,8 @@ Run with: MOTHBOX_ENV=test pytest Tests/integration/test_scheduler_workflow.py -
 
 These tests are marked as @pytest.mark.integration.
 Hardware tests (actual RTC access) are marked with @pytest.mark.hardware.
+Fixtures are defined in Tests/conftest.py (temp_schedules_env, sample_schedule_factory,
+mock_cron_system, mock_rtc_functions).
 
 Issue #216 - Scheduler Phase 4: Integration Tests
 """
@@ -17,7 +19,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -30,188 +32,25 @@ sys.path.insert(0, str(FIRMWARE_DIR))
 sys.path.insert(0, str(FIRMWARE_DIR / "webui" / "backend"))
 os.environ.setdefault("MOTHBOX_ENV", "test")
 
-from webui.backend.lib.cron_bridge import (
+from webui.backend.lib.cron_bridge import (  # noqa: E402
     CronEntry,
     clear_rtc_wakealarm,
     schedule_to_cron,
     set_rtc_wakealarm,
 )
-from webui.backend.lib.schedule_schema import (
-    EventPattern,
-    FixedTimeTrigger,
-    IntervalTrigger,
-    PatternAction,
-    Schedule,
-    SolarTrigger,
-    TimeWindow,
-)
 
 # ============================================================================
-# Fixtures
+# Module-specific Fixtures
 # ============================================================================
-
-
-@pytest.fixture
-def temp_schedules_env(tmp_path, monkeypatch):
-    """Mock both USER_SCHEDULES_DIR and BUILTIN_SCHEDULES_DIR."""
-    # Create user schedules directory
-    user_schedules_dir = tmp_path / "schedules"
-    user_schedules_dir.mkdir()
-
-    # Create built-in schedules directory
-    builtin_schedules_dir = tmp_path / "presets_builtin" / "schedules"
-    builtin_schedules_dir.mkdir(parents=True)
-
-    # Patch both directories
-    import webui.backend.lib.schedule_storage as ss
-
-    monkeypatch.setattr(ss, "USER_SCHEDULES_DIR", user_schedules_dir)
-    monkeypatch.setattr(ss, "BUILTIN_SCHEDULES_DIR", builtin_schedules_dir)
-
-    return {
-        "user_dir": user_schedules_dir,
-        "builtin_dir": builtin_schedules_dir,
-    }
-
-
-@pytest.fixture
-def sample_schedule_factory():
-    """Factory function to create valid schedules with unique IDs."""
-
-    def _create_schedule(
-        schedule_id="",
-        name="Test Schedule",
-        trigger_type="fixed_time",
-        hour=21,
-        minute=0,
-        interval_minutes=60,
-        enabled=True,
-        is_active=False,
-    ):
-        """Create a valid schedule with specified parameters."""
-        action = PatternAction(
-            action_type="camera",
-            action_name="takephoto",
-            offset_minutes=0,
-            description="Take photo",
-        )
-
-        pattern = EventPattern(
-            pattern_id="",
-            name="Test Capture",
-            description="Test pattern",
-            actions=[action],
-            category="user",
-            tags=["test"],
-        )
-
-        if trigger_type == "fixed_time":
-            trigger = FixedTimeTrigger(time=f"{hour:02d}:{minute:02d}")
-            schedule = Schedule(
-                schedule_id=schedule_id,
-                name=name,
-                description="A test schedule",
-                event_patterns=[pattern],
-                trigger_type="fixed_time",
-                fixed_time_trigger=trigger,
-                enabled=enabled,
-                is_active=is_active,
-            )
-        elif trigger_type == "interval":
-            window = TimeWindow(start_time="21:00", end_time="23:00")
-            trigger = IntervalTrigger(
-                interval_minutes=interval_minutes,
-                time_window=window,
-            )
-            schedule = Schedule(
-                schedule_id=schedule_id,
-                name=name,
-                description="A test schedule",
-                event_patterns=[pattern],
-                trigger_type="interval",
-                interval_trigger=trigger,
-                enabled=enabled,
-                is_active=is_active,
-            )
-        elif trigger_type == "solar":
-            trigger = SolarTrigger(
-                solar_event="sunset",
-                offset_minutes=30,
-            )
-            schedule = Schedule(
-                schedule_id=schedule_id,
-                name=name,
-                description="A test schedule",
-                event_patterns=[pattern],
-                trigger_type="solar",
-                solar_trigger=trigger,
-                enabled=enabled,
-                is_active=is_active,
-            )
-        else:
-            raise ValueError(f"Unknown trigger type: {trigger_type}")
-
-        return schedule
-
-    return _create_schedule
-
-
-@pytest.fixture
-def mock_crontab():
-    """Mock CronTab class for cron operations."""
-    with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
-        mock_cron = MagicMock()
-        mock_crontab_class.return_value = mock_cron
-
-        # Mock jobs list (empty by default)
-        mock_cron.jobs = []
-        mock_cron.__iter__ = MagicMock(return_value=iter([]))
-
-        # Mock new() method to create mock job
-        def create_mock_job(command, comment=""):
-            mock_job = MagicMock()
-            mock_job.command = command
-            mock_job.comment = comment
-            mock_job.enabled = True
-            mock_cron.jobs.append(mock_job)
-            return mock_job
-
-        mock_cron.new = MagicMock(side_effect=create_mock_job)
-
-        # Mock remove() method
-        def remove_job(job):
-            if job in mock_cron.jobs:
-                mock_cron.jobs.remove(job)
-
-        mock_cron.remove = MagicMock(side_effect=remove_job)
-
-        # Mock write() method
-        mock_cron.write = MagicMock()
-
-        yield mock_cron
-
-
-@pytest.fixture
-def mock_rtc_functions(monkeypatch):
-    """Mock RTC wakealarm functions."""
-    set_mock = MagicMock(return_value=True)
-    clear_mock = MagicMock(return_value=True)
-
-    monkeypatch.setattr(
-        "webui.backend.lib.cron_bridge.set_rtc_wakealarm",
-        set_mock,
-    )
-    monkeypatch.setattr(
-        "webui.backend.lib.cron_bridge.clear_rtc_wakealarm",
-        clear_mock,
-    )
-
-    return {"set": set_mock, "clear": clear_mock}
 
 
 @pytest.fixture
 def scheduler_service(temp_schedules_env, mock_rtc_functions, monkeypatch):
-    """SchedulerService with mocked dependencies."""
+    """SchedulerService with mocked dependencies.
+
+    Uses mock_rtc_functions from conftest.py for RTC mocking, and adds
+    apply_to_system/remove_from_system mocks with references attached to service.
+    """
     from webui.backend.services.scheduler_service import SchedulerService
 
     # Patch apply_to_system and remove_from_system to use mocks
