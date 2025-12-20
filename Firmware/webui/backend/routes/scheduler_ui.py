@@ -635,12 +635,16 @@ def activate_schedule(schedule_id: str):
         # Parse optional request body (silent=True allows empty body)
         data = request.get_json(silent=True) or {}
         check_conflicts = data.get("check_conflicts", True)
+
+        # Check if coordinates were explicitly provided in request
+        coords_provided = "latitude" in data or "longitude" in data
         latitude = data.get("latitude", 0.0)
         longitude = data.get("longitude", 0.0)
         timezone_name = data.get("timezone", "UTC")
 
-        # Validate coordinates if provided (not default 0.0)
-        if latitude != 0.0 or longitude != 0.0:
+        # Validate coordinates if explicitly provided (including 0.0, 0.0)
+        # This ensures Null Island coordinates are validated rather than skipped
+        if coords_provided:
             valid, coord_error = validate_coordinates(latitude, longitude)
             if not valid:
                 return jsonify({
@@ -777,9 +781,20 @@ def validate_schedule_endpoint(schedule_id: str):
         # Parse optional request body (silent=True allows empty body)
         data = request.get_json(silent=True) or {}
         preview_days = data.get("days", 7)
+
+        # Check if coordinates were explicitly provided in request
+        coords_provided = "latitude" in data or "longitude" in data
         latitude = data.get("latitude", 0.0)
         longitude = data.get("longitude", 0.0)
         timezone_name = data.get("timezone", "UTC")
+
+        # Validate coordinates if explicitly provided (including 0.0, 0.0)
+        if coords_provided:
+            valid, coord_error = validate_coordinates(latitude, longitude)
+            if not valid:
+                return jsonify({
+                    "error": f"Invalid coordinates: {coord_error}",
+                }), 400
 
         service = get_scheduler_service()
 
