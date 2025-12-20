@@ -556,6 +556,19 @@ class TestErrorHandling:
         assert data["valid"] is False
         assert "error" in data
 
+    def test_json_array_returns_error(self, client):
+        """Test POST with JSON array (not object) returns 400 error."""
+        response = client.post(
+            "/api/scheduler/ui/patterns/validate",
+            json=[{"name": "test"}],  # Array instead of object
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["valid"] is False
+        assert "object" in data["error"].lower()
+
     def test_handles_missing_builtin_directory(self, client):
         """Test endpoint handles missing builtin directory gracefully."""
         module = _get_scheduler_ui_module()

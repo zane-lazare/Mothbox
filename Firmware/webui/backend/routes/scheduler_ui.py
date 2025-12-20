@@ -479,6 +479,12 @@ def validate_pattern_endpoint():
                 "error": "Request body must be valid JSON",
             }), 400
 
+        if not isinstance(data, dict):
+            return jsonify({
+                "valid": False,
+                "error": "Request body must be a JSON object",
+            }), 400
+
         # Convert dict to EventPattern for validation
         try:
             pattern = EventPattern.from_dict(data)
