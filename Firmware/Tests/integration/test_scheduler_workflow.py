@@ -518,3 +518,60 @@ class TestTriggerTypeWorkflows:
             assert CronEntry.is_valid_expression(entry.expression), (
                 f"Invalid cron expression: {entry.expression}"
             )
+
+    def test_sensor_trigger_returns_error(self):
+        """Sensor trigger returns error since cron doesn't support event-based triggers."""
+        from webui.backend.lib.schedule_schema import (
+            EventPattern,
+            PatternAction,
+            Schedule,
+            SensorTrigger,
+        )
+
+        # Create schedule with sensor trigger
+        action = PatternAction(
+            action_type="camera",
+            action_name="takephoto",
+            offset_minutes=0,
+            description="Take photo on motion",
+        )
+
+        pattern = EventPattern(
+            pattern_id="",
+            name="Motion Capture",
+            description="Capture on motion detection",
+            actions=[action],
+            category="user",
+            tags=["test", "motion"],
+        )
+
+        trigger = SensorTrigger(
+            sensor_type="motion",
+            threshold=0.0,
+            comparison="gt",
+            cooldown_minutes=5,
+        )
+
+        schedule = Schedule(
+            schedule_id="sensor-test",
+            name="Motion Detection Test",
+            description="Test sensor trigger handling",
+            event_patterns=[pattern],
+            trigger_type="sensor",
+            sensor_trigger=trigger,
+            enabled=True,
+            is_active=False,
+        )
+
+        # Convert to cron
+        result = schedule_to_cron(schedule)
+
+        # Should have no entries (sensors can't be scheduled via cron)
+        assert len(result.entries) == 0, "Sensor triggers should not create cron entries"
+
+        # Should have an error explaining why
+        assert len(result.errors) > 0, "Should have error explaining sensor limitation"
+        assert any(
+            "sensor" in error.lower() and "not" in error.lower()
+            for error in result.errors
+        ), f"Error should mention sensor triggers not implemented: {result.errors}"
