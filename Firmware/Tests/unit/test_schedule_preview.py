@@ -25,6 +25,8 @@ try:
         _get_moon_phases_dict,
         _get_trigger_info,
         generate_preview,
+        parse_and_validate_coordinate,
+        parse_and_validate_days,
         validate_coordinates,
         validate_preview_days,
         validate_timezone,
@@ -1155,3 +1157,92 @@ class TestPreviewGeneration:
         # Midnight Tokyo = 15:00 UTC previous day
         # So if start_date is today, preview_start in UTC is yesterday 15:00
         assert result.preview_start.hour == 15  # 00:00 Tokyo = 15:00 UTC (prev day)
+
+
+# ============================================================================
+# Parse and Validate Tests
+# ============================================================================
+
+
+@pytest.mark.skipif(not IMPLEMENTATION_EXISTS, reason="Implementation not found")
+class TestParseAndValidate:
+    """Tests for combined parse+validate functions."""
+
+    def test_parse_days_valid(self):
+        """Test valid days string parses correctly."""
+        days, error = parse_and_validate_days("7")
+        assert days == 7
+        assert error is None
+
+    def test_parse_days_valid_min(self):
+        """Test minimum valid days value."""
+        days, error = parse_and_validate_days(str(MIN_PREVIEW_DAYS))
+        assert days == MIN_PREVIEW_DAYS
+        assert error is None
+
+    def test_parse_days_valid_max(self):
+        """Test maximum valid days value."""
+        days, error = parse_and_validate_days(str(MAX_PREVIEW_DAYS))
+        assert days == MAX_PREVIEW_DAYS
+        assert error is None
+
+    def test_parse_days_invalid_format(self):
+        """Test non-integer string returns error."""
+        days, error = parse_and_validate_days("abc")
+        assert days is None
+        assert "Expected integer" in error
+
+    def test_parse_days_invalid_float(self):
+        """Test float string returns error."""
+        days, error = parse_and_validate_days("7.5")
+        assert days is None
+        assert "Expected integer" in error
+
+    def test_parse_days_out_of_range_low(self):
+        """Test below minimum returns validation error."""
+        days, error = parse_and_validate_days("0")
+        assert days is None
+        assert "at least" in error
+
+    def test_parse_days_out_of_range_high(self):
+        """Test above maximum returns validation error."""
+        days, error = parse_and_validate_days("100")
+        assert days is None
+        assert "at most" in error
+
+    def test_parse_coordinate_valid(self):
+        """Test valid coordinate string parses correctly."""
+        value, error = parse_and_validate_coordinate("35.5", "lat")
+        assert value == 35.5
+        assert error is None
+
+    def test_parse_coordinate_valid_negative(self):
+        """Test negative coordinate parses correctly."""
+        value, error = parse_and_validate_coordinate("-122.4", "lon")
+        assert value == -122.4
+        assert error is None
+
+    def test_parse_coordinate_valid_integer(self):
+        """Test integer string parses correctly."""
+        value, error = parse_and_validate_coordinate("45", "lat")
+        assert value == 45.0
+        assert error is None
+
+    def test_parse_coordinate_none(self):
+        """Test None input returns None without error."""
+        value, error = parse_and_validate_coordinate(None, "lat")
+        assert value is None
+        assert error is None
+
+    def test_parse_coordinate_invalid(self):
+        """Test non-numeric string returns error."""
+        value, error = parse_and_validate_coordinate("abc", "lat")
+        assert value is None
+        assert "Expected number" in error
+        assert "lat" in error
+
+    def test_parse_coordinate_invalid_with_name(self):
+        """Test error message includes parameter name."""
+        value, error = parse_and_validate_coordinate("xyz", "lon")
+        assert value is None
+        assert "lon" in error

@@ -16,8 +16,9 @@ from flask import Blueprint, jsonify, request
 from webui.backend.lib.schedule_preview import (
     DEFAULT_PREVIEW_DAYS,
     generate_preview,
+    parse_and_validate_coordinate,
+    parse_and_validate_days,
     validate_coordinates,
-    validate_preview_days,
     validate_timezone,
 )
 from webui.backend.services.scheduler_service import SchedulerService
@@ -121,59 +122,29 @@ def get_schedule_preview(schedule_id: str):
         lon_str = request.args.get("lon")
         timezone_name = request.args.get("tz", "UTC")
 
-        # Validate and parse days
-        try:
-            days = int(days_str)
-        except ValueError:
-            return jsonify({
-                "error": "Invalid days parameter",
-                "message": f"Expected integer, got '{days_str}'",
-            }), 400
+        # Parse and validate days
+        days, error = parse_and_validate_days(days_str)
+        if error:
+            return jsonify({"error": "Invalid days parameter", "message": error}), 400
 
-        valid, error = validate_preview_days(days)
-        if not valid:
-            return jsonify({
-                "error": "Invalid days parameter",
-                "message": error,
-            }), 400
+        # Parse coordinates
+        latitude, error = parse_and_validate_coordinate(lat_str, "lat")
+        if error:
+            return jsonify({"error": "Invalid lat parameter", "message": error}), 400
 
-        # Parse latitude
-        latitude = None
-        if lat_str is not None:
-            try:
-                latitude = float(lat_str)
-            except ValueError:
-                return jsonify({
-                    "error": "Invalid lat parameter",
-                    "message": f"Expected number, got '{lat_str}'",
-                }), 400
+        longitude, error = parse_and_validate_coordinate(lon_str, "lon")
+        if error:
+            return jsonify({"error": "Invalid lon parameter", "message": error}), 400
 
-        # Parse longitude
-        longitude = None
-        if lon_str is not None:
-            try:
-                longitude = float(lon_str)
-            except ValueError:
-                return jsonify({
-                    "error": "Invalid lon parameter",
-                    "message": f"Expected number, got '{lon_str}'",
-                }), 400
-
-        # Validate coordinates
+        # Validate coordinate ranges
         valid, error = validate_coordinates(latitude, longitude)
         if not valid:
-            return jsonify({
-                "error": "Invalid coordinates",
-                "message": error,
-            }), 400
+            return jsonify({"error": "Invalid coordinates", "message": error}), 400
 
         # Validate timezone
         valid, error = validate_timezone(timezone_name)
         if not valid:
-            return jsonify({
-                "error": "Invalid timezone",
-                "message": error,
-            }), 400
+            return jsonify({"error": "Invalid timezone", "message": error}), 400
 
         # Get schedule from service
         service = get_scheduler_service()

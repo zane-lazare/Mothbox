@@ -600,3 +600,47 @@ def validate_timezone(timezone_name: str) -> tuple[bool, str | None]:
             f"Invalid timezone '{timezone_name}'. "
             "Use IANA timezone names (e.g., 'America/New_York', 'Europe/London', 'UTC')",
         )
+
+
+def parse_and_validate_days(days_str: str) -> tuple[int | None, str | None]:
+    """
+    Parse and validate days parameter from string.
+
+    Args:
+        days_str: String representation of days (e.g., "7")
+
+    Returns:
+        (days, None) if valid, (None, error_message) if invalid
+    """
+    try:
+        days = int(days_str)
+    except ValueError:
+        return None, f"Expected integer, got '{days_str}'"
+
+    valid, error = validate_preview_days(days)
+    return (days, None) if valid else (None, error)
+
+
+def parse_and_validate_coordinate(
+    value_str: str | None,
+    name: str,
+) -> tuple[float | None, str | None]:
+    """
+    Parse a coordinate value from string.
+
+    Args:
+        value_str: String representation of coordinate (e.g., "35.5"), or None
+        name: Parameter name for error messages (e.g., "lat", "lon")
+
+    Returns:
+        (value, None) if valid or None input, (None, error_message) if invalid
+    """
+    if value_str is None:
+        return None, None  # Optional parameter, no error
+
+    try:
+        value = float(value_str)
+    except ValueError:
+        return None, f"Expected number for {name}, got '{value_str}'"
+
+    return value, None  # Range validation done separately via validate_coordinates
