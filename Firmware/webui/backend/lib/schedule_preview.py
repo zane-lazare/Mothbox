@@ -153,6 +153,7 @@ class PreviewResult:
     - Conflicts detected over preview period
     - Moon phases for calendar display
     - Summary statistics
+    - Warnings about potential issues
 
     Attributes:
         schedule_id: Source schedule identifier
@@ -164,6 +165,7 @@ class PreviewResult:
         moon_phases: Moon phase by date {ISO date string: phase dict}
         total_actions: Total count of individual actions
         total_executions: Total count of pattern executions
+        warnings: List of warning messages (e.g., default location used)
         generated_at: Timestamp when preview was generated
     """
 
@@ -176,6 +178,7 @@ class PreviewResult:
     moon_phases: dict[str, dict]
     total_actions: int
     total_executions: int
+    warnings: list[str] = field(default_factory=list)
     generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def to_dict(self) -> dict:
@@ -190,6 +193,7 @@ class PreviewResult:
             "moon_phases": self.moon_phases,
             "total_actions": self.total_actions,
             "total_executions": self.total_executions,
+            "warnings": self.warnings,
             "generated_at": self.generated_at.isoformat(),
         }
 
@@ -206,6 +210,7 @@ class PreviewResult:
             moon_phases=data.get("moon_phases", {}),
             total_actions=data["total_actions"],
             total_executions=data["total_executions"],
+            warnings=data.get("warnings", []),
             generated_at=datetime.fromisoformat(data["generated_at"]),
         )
 
@@ -426,6 +431,9 @@ def generate_preview(
             f"Preview days must be between {MIN_PREVIEW_DAYS} and {MAX_PREVIEW_DAYS}, got {days}"
         )
 
+    # Collect warnings for API response
+    warnings: list[str] = []
+
     # Resolve location
     if latitude is None or longitude is None:
         default_lat, default_lon = _get_default_location()
@@ -435,9 +443,11 @@ def generate_preview(
             longitude = default_lon if default_lon is not None else DEFAULT_LONGITUDE
 
         if latitude == DEFAULT_LATITUDE and longitude == DEFAULT_LONGITUDE:
-            logger.warning(
+            warning_msg = (
                 "Using default location (0, 0). Solar-based triggers may be inaccurate."
             )
+            logger.warning(warning_msg)
+            warnings.append(warning_msg)
 
     # Calculate date range
     start_date = date.today()
@@ -492,6 +502,7 @@ def generate_preview(
         moon_phases=moon_phases,
         total_actions=total_actions,
         total_executions=total_executions,
+        warnings=warnings,
     )
 
 

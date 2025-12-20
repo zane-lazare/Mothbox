@@ -357,6 +357,31 @@ class TestPreviewResult:
         assert output["total_executions"] == 0
         assert "moon_phases" in output
         assert "generated_at" in output
+        assert "warnings" in output
+        assert output["warnings"] == []
+
+    def test_preview_result_with_warnings(self):
+        """Test PreviewResult with warnings list."""
+        result = PreviewResult(
+            schedule_id="test-schedule",
+            schedule_name="Test Schedule",
+            preview_start=datetime(2025, 6, 15, 0, 0, 0, tzinfo=UTC),
+            preview_end=datetime(2025, 6, 21, 23, 59, 59, tzinfo=UTC),
+            executions=[],
+            conflicts=[],
+            moon_phases={},
+            total_actions=0,
+            total_executions=0,
+            warnings=["Warning 1", "Warning 2"],
+        )
+
+        output = result.to_dict()
+
+        assert output["warnings"] == ["Warning 1", "Warning 2"]
+
+        # Test roundtrip
+        restored = PreviewResult.from_dict(output)
+        assert restored.warnings == ["Warning 1", "Warning 2"]
 
     def test_preview_result_empty_executions(self):
         """Test PreviewResult with no executions."""
@@ -894,6 +919,75 @@ class TestLocationFallback:
         call_args = mock_gen_exec.call_args
         assert call_args.kwargs["latitude"] == 10.0
         assert call_args.kwargs["longitude"] == 20.0
+
+    @patch("webui.backend.lib.schedule_preview._get_default_location")
+    @patch("webui.backend.lib.schedule_preview.detect_conflicts")
+    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    def test_default_location_warning_included(
+        self, mock_gen_exec, mock_detect, mock_default_loc, sample_interval_schedule
+    ):
+        """Test that default location (0, 0) generates a warning in result."""
+        # Simulate no GPS data available - returns None
+        mock_default_loc.return_value = (None, None)
+        mock_gen_exec.return_value = []
+
+        mock_report = MagicMock()
+        mock_report.conflicts = []
+        mock_detect.return_value = mock_report
+
+        # Call without explicit params - should use (0, 0) default
+        result = generate_preview(sample_interval_schedule, days=1)
+
+        # Should have warning about default location
+        assert len(result.warnings) == 1
+        assert "default location (0, 0)" in result.warnings[0]
+        assert "Solar-based triggers may be inaccurate" in result.warnings[0]
+
+    @patch("webui.backend.lib.schedule_preview._get_default_location")
+    @patch("webui.backend.lib.schedule_preview.detect_conflicts")
+    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    def test_explicit_location_no_warning(
+        self, mock_gen_exec, mock_detect, mock_default_loc, sample_interval_schedule
+    ):
+        """Test that explicit coordinates don't generate warning."""
+        mock_default_loc.return_value = (None, None)
+        mock_gen_exec.return_value = []
+
+        mock_report = MagicMock()
+        mock_report.conflicts = []
+        mock_detect.return_value = mock_report
+
+        # Call with explicit coordinates
+        result = generate_preview(
+            sample_interval_schedule,
+            days=1,
+            latitude=35.0,
+            longitude=-80.0,
+        )
+
+        # Should have no warnings
+        assert result.warnings == []
+
+    @patch("webui.backend.lib.schedule_preview._get_default_location")
+    @patch("webui.backend.lib.schedule_preview.detect_conflicts")
+    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    def test_controls_location_no_warning(
+        self, mock_gen_exec, mock_detect, mock_default_loc, sample_interval_schedule
+    ):
+        """Test that valid GPS from controls.txt doesn't generate warning."""
+        # Simulate valid GPS data from controls.txt
+        mock_default_loc.return_value = (35.9606, -83.9207)
+        mock_gen_exec.return_value = []
+
+        mock_report = MagicMock()
+        mock_report.conflicts = []
+        mock_detect.return_value = mock_report
+
+        # Call without explicit params - should use GPS from controls.txt
+        result = generate_preview(sample_interval_schedule, days=1)
+
+        # Should have no warnings
+        assert result.warnings == []
 
 
 # ============================================================================
