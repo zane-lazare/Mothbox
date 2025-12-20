@@ -507,13 +507,16 @@ class TestErrorHandling:
         def mock_apply_fail(*args, **kwargs):
             raise OSError("Simulated cron write failure")
 
+        # Track remove_from_system calls for rollback verification
+        remove_mock = MagicMock(return_value=True)
+
         monkeypatch.setattr(
             "webui.backend.services.scheduler_service.apply_to_system",
             mock_apply_fail,
         )
         monkeypatch.setattr(
             "webui.backend.services.scheduler_service.remove_from_system",
-            MagicMock(return_value=True),
+            remove_mock,
         )
 
         # Create service and schedule
@@ -543,3 +546,87 @@ class TestErrorHandling:
         # Verify no active schedule
         active = service.get_active_schedule()
         assert active is None, "Should have no active schedule after rollback"
+
+        # Verify system cleanup behavior on failure
+        # When activation fails with no previous active schedule, remove_from_system
+        # should NOT be called (nothing to clean up - failure was in apply_to_system)
+        assert remove_mock.call_count == 0, (
+            "remove_from_system should not be called when no previous schedule active"
+        )
+
+    def test_activation_failure_preserves_previous_schedule_state(
+        self,
+        temp_schedules_env,
+        sample_schedule_factory,
+        monkeypatch,
+    ):
+        """Failed activation of new schedule handles previous schedule correctly."""
+        from webui.backend.lib.schedule_storage import create_schedule
+        from webui.backend.services.scheduler_service import SchedulerService
+
+        apply_call_count = [0]
+        remove_mock = MagicMock(return_value=True)
+
+        def mock_apply_conditional(*args, **kwargs):
+            apply_call_count[0] += 1
+            if apply_call_count[0] == 1:
+                # First call (schedule1 activation) succeeds
+                return True
+            else:
+                # Second call (schedule2 activation) fails
+                raise OSError("Simulated cron write failure")
+
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.apply_to_system",
+            mock_apply_conditional,
+        )
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.remove_from_system",
+            remove_mock,
+        )
+
+        service = SchedulerService(cache_ttl=60, max_cache_size=50)
+
+        # Create and activate first schedule (succeeds)
+        schedule1 = sample_schedule_factory(
+            schedule_id="preserve-test-1",
+            name="First Schedule",
+        )
+        create_schedule(schedule1)
+        success1, _ = service.activate_schedule("preserve-test-1", check_conflicts=False)
+        assert success1 is True, "First activation should succeed"
+
+        # Verify first schedule is active
+        active1 = service.get_active_schedule()
+        assert active1 is not None
+        assert active1.schedule_id == "preserve-test-1"
+
+        # Reset mock to track second activation
+        remove_mock.reset_mock()
+
+        # Create second schedule
+        schedule2 = sample_schedule_factory(
+            schedule_id="preserve-test-2",
+            name="Second Schedule",
+        )
+        create_schedule(schedule2)
+
+        # Attempt activation of second schedule (will fail)
+        success2, error = service.activate_schedule("preserve-test-2", check_conflicts=False)
+        assert success2 is False, "Second activation should fail"
+        assert "failed" in error.lower(), f"Error should mention failure: {error}"
+
+        # Verify remove_from_system was called during deactivation of previous schedule
+        # (called before attempting to apply new schedule)
+        assert remove_mock.call_count >= 1, (
+            "remove_from_system should be called when deactivating previous schedule"
+        )
+
+        # Verify the remove call included clear_rtc=True
+        call_args = remove_mock.call_args
+        clear_rtc = call_args.kwargs.get("clear_rtc", True)
+        assert clear_rtc is True, "Should clear RTC when deactivating previous schedule"
+
+        # Verify second schedule is NOT active
+        fetched2 = service.get_schedule("preserve-test-2")
+        assert fetched2.is_active is False, "Failed schedule should not be active"
