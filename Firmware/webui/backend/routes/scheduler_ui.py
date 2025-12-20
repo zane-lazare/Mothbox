@@ -47,6 +47,9 @@ except ImportError:
 # Logger
 logger = logging.getLogger(__name__)
 
+# Maximum number of built-in schedule files to process (safety limit)
+MAX_BUILTIN_SCHEDULE_FILES = 20
+
 # Blueprint
 scheduler_ui_bp = Blueprint("scheduler_ui", __name__)
 
@@ -334,7 +337,17 @@ def list_builtin_patterns() -> list[dict]:
             _builtin_patterns_cache = patterns
             return patterns
 
-        for schedule_file in sorted(builtin_dir.glob("*.json")):
+        schedule_files = sorted(builtin_dir.glob("*.json"))
+
+        # Safety limit on number of files to process
+        if len(schedule_files) > MAX_BUILTIN_SCHEDULE_FILES:
+            logger.warning(
+                f"Found {len(schedule_files)} schedule files in {builtin_dir}, "
+                f"processing only first {MAX_BUILTIN_SCHEDULE_FILES}"
+            )
+            schedule_files = schedule_files[:MAX_BUILTIN_SCHEDULE_FILES]
+
+        for schedule_file in schedule_files:
             try:
                 schedule_data = json.loads(schedule_file.read_text())
                 schedule_name = schedule_data.get("name", schedule_file.stem)
