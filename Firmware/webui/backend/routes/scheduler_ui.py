@@ -310,9 +310,13 @@ def list_builtin_patterns() -> list[dict]:
         List of pattern dictionaries with source_schedule and duration_minutes added
 
     Note:
-        Results are cached at module level for performance. The cache is
-        populated on first request and persists for the lifetime of the process.
-        Built-in patterns are static files that don't change at runtime.
+        Results are cached at module level for performance using thread-safe
+        double-check locking. The cache is populated on first request and
+        persists for the lifetime of the process. Built-in patterns are static
+        files that don't change at runtime.
+
+        If built-in schedule files are modified, a service restart is required
+        to refresh the cache.
     """
     global _builtin_patterns_cache
 
