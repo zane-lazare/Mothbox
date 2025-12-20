@@ -383,6 +383,69 @@ class TestPersistenceAcrossRestarts:
         assert active.schedule_id == "restore-test", "Should restore correct schedule"
         assert active.is_active is True, "Should be marked as active"
 
+    def test_activation_from_different_instance_when_already_active(
+        self,
+        temp_schedules_env,
+        sample_schedule_factory,
+        mock_cron_system,
+    ):
+        """Different service instance can activate when schedule already active."""
+        from webui.backend.lib.schedule_storage import create_schedule
+        from webui.backend.services.scheduler_service import SchedulerService
+
+        # Create first service instance
+        service1 = SchedulerService(cache_ttl=60, max_cache_size=50)
+
+        # Create and activate schedule with service1
+        schedule1 = sample_schedule_factory(
+            schedule_id="cross-instance-test-1",
+            name="First Schedule",
+        )
+        create_schedule(schedule1)
+
+        success1, error1 = service1.activate_schedule(
+            "cross-instance-test-1",
+            check_conflicts=False,
+        )
+        assert success1 is True, f"First activation should succeed: {error1}"
+
+        # Create NEW service instance (simulating restart/different process)
+        service2 = SchedulerService(cache_ttl=60, max_cache_size=50)
+
+        # Verify service2 discovers the previously active schedule from disk
+        active_before = service2.get_active_schedule()
+        assert active_before is not None, "Service2 should find active schedule from disk"
+        assert active_before.schedule_id == "cross-instance-test-1", (
+            "Service2 should discover schedule1 as active"
+        )
+
+        # Create second schedule
+        schedule2 = sample_schedule_factory(
+            schedule_id="cross-instance-test-2",
+            name="Second Schedule",
+        )
+        create_schedule(schedule2)
+
+        # After discovering active schedule, service2's _active_schedule_id is set
+        # Now activating a different schedule should deactivate the old one
+        success2, error2 = service2.activate_schedule(
+            "cross-instance-test-2",
+            check_conflicts=False,
+        )
+        assert success2 is True, f"Cross-instance activation should succeed: {error2}"
+
+        # Verify new schedule is active
+        active = service2.get_active_schedule()
+        assert active is not None, "Should have an active schedule"
+        assert active.schedule_id == "cross-instance-test-2", (
+            f"Active schedule should be the new one, got {active.schedule_id}"
+        )
+
+        # Verify old schedule is no longer active
+        old_schedule = service2.get_schedule("cross-instance-test-1")
+        assert old_schedule is not None, "Old schedule should still exist"
+        assert old_schedule.is_active is False, "Old schedule should be deactivated"
+
     def test_schedule_data_persists_through_restart_cycle(
         self,
         temp_schedules_env,
