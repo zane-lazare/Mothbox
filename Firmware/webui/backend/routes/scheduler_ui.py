@@ -189,9 +189,9 @@ def get_schedule_preview(schedule_id: str):
             return jsonify({"error": "Invalid lon parameter"}), 400
 
         # Validate coordinate ranges
-        valid, error = validate_coordinates(latitude, longitude)
+        valid, _error = validate_coordinates(latitude, longitude)
         if not valid:
-            logger.debug(f"Invalid coordinates: {error}")
+            logger.debug("Invalid coordinate range provided")
             return jsonify({"error": "Invalid coordinates"}), 400
 
         # Validate timezone
@@ -441,8 +441,9 @@ def create_schedule(json_data: dict):
         try:
             schedule = Schedule.from_dict(json_data)
         except KeyError as e:
+            logger.debug(f"Missing required field in schedule: {e}")
             return jsonify({
-                "error": f"Missing required field: {e}",
+                "error": "Invalid schedule structure - missing required field",
             }), 400
         except Exception as e:
             logger.error(f"Invalid schedule structure: {e}", exc_info=True)
@@ -455,8 +456,9 @@ def create_schedule(json_data: dict):
         try:
             success = service.create_schedule(schedule)
         except ScheduleValidationError as e:
+            logger.debug(f"Schedule validation failed: {e}")
             return jsonify({
-                "error": f"Validation failed: {e}",
+                "error": "Schedule validation failed",
             }), 400
 
         if not success:
@@ -670,9 +672,10 @@ def activate_schedule(schedule_id: str):
                 timezone_name=timezone_name,
             )
         except ScheduleConflictError as e:
-            # Conflict errors are safe to expose - they're controlled messages
+            # Log conflict details, return generic message
+            logger.info(f"Schedule conflict detected: {e}")
             return jsonify({
-                "error": str(e),
+                "error": "Schedule conflict detected",
                 "conflict": True,
             }), 409
         except ScheduleActivationError as e:

@@ -154,7 +154,20 @@ def get_schedule_path(schedule_id: str, is_builtin: bool = False) -> Path:
         raise ValueError(f"Invalid schedule ID: {schedule_id}")
 
     base_dir = BUILTIN_SCHEDULES_DIR if is_builtin else USER_SCHEDULES_DIR
-    return base_dir / f"{schedule_id}{SCHEDULE_FILENAME_EXTENSION}"
+    schedule_path = base_dir / f"{schedule_id}{SCHEDULE_FILENAME_EXTENSION}"
+
+    # Security: Verify path is within expected directory (defense in depth)
+    # This check ensures the resolved path doesn't escape the base directory
+    # even if validate_schedule_id() has a bug
+    try:
+        resolved_path = schedule_path.resolve()
+        resolved_base = base_dir.resolve()
+        if not str(resolved_path).startswith(str(resolved_base) + "/") and resolved_path != resolved_base:
+            raise ValueError("Path escape attempt detected")
+    except (OSError, ValueError) as e:
+        raise ValueError(f"Invalid schedule ID: {schedule_id}") from e
+
+    return schedule_path
 
 
 def schedule_exists(schedule_id: str, is_builtin: bool = False) -> bool:

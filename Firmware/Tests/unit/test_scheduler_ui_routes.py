@@ -653,7 +653,7 @@ class TestCreateScheduleEndpoint:
 
         assert response.status_code == 400
         data = response.get_json()
-        assert "Validation failed" in data["error"]
+        assert "validation failed" in data["error"].lower()
 
     def test_create_schedule_service_error(self, client, mock_scheduler_service, valid_schedule_payload):
         """Test when service returns failure."""
@@ -762,7 +762,7 @@ class TestUpdateScheduleEndpoint:
 
         assert response.status_code == 400
         data = response.get_json()
-        assert "Validation failed" in data["error"]
+        assert "validation failed" in data["error"].lower()
 
     def test_update_schedule_partial_update(self, client, mock_scheduler_service, sample_schedule):
         """Test partial field update."""
@@ -923,7 +923,7 @@ class TestActivateScheduleEndpoint:
 
         assert response.status_code == 409
         data = response.get_json()
-        assert "Conflict" in data["error"]
+        assert "conflict" in data["error"].lower()
         assert data["conflict"] is True
 
     def test_activate_schedule_skip_conflict_check(self, client, mock_scheduler_service, sample_schedule):
