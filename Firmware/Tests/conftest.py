@@ -1556,29 +1556,36 @@ def pytest_collection_modifyitems(config, items):
         # Mark integration tests (except manual verification and installer) as hardware tests
         fspath_str = str(item.fspath)
         is_integration = 'integration' in fspath_str
-        is_manual = 'manual_verification' in fspath_str
-        is_installer = 'installer' in fspath_str  # installer_workflows or installer_helpers
-        is_focus_bracket_integration = 'test_focus_bracket_integration' in fspath_str  # Uses mocks only
-        is_gallery_pagination = 'test_gallery_pagination' in fspath_str  # Filesystem only, no Pi hardware
-        is_gps_exif_workflow = 'test_gps_exif_workflow' in fspath_str  # Uses mocks/PIL, no camera/GPIO
-        is_verification_workflow = 'test_verification_workflow' in fspath_str  # Uses subprocess/PIL, no camera/GPIO
-        is_batch_tagging_workflow = 'test_batch_tagging_workflow' in fspath_str  # Uses subprocess/PIL, no camera/GPIO
-        is_map_locations_integration = 'test_map_locations_integration' in fspath_str  # Uses mocks/PIL/Flask test client, no camera/GPIO
-        is_clustering_workflow = 'test_clustering_workflow' in fspath_str  # Uses mocks/Flask test client, no camera/GPIO
-        is_sidecar_concurrent = 'test_sidecar_concurrent' in fspath_str  # Uses threading/tmp_path, no camera/GPIO
-        is_sidecar_search_integration = 'test_sidecar_search_integration' in fspath_str  # Uses mocks/tmp_path, no camera/GPIO
-        is_search_workflow = 'test_search_workflow' in fspath_str  # Uses mocks/tmp_path/Flask test client, no camera/GPIO
-        is_deployment_workflow = 'test_deployment_workflow' in fspath_str  # Uses threading/tmp_path, no camera/GPIO
-        is_inaturalist_export_workflow = 'test_inaturalist_export_workflow' in fspath_str  # Uses tmp_path/zipfile, no camera/GPIO
-        is_export_job_workflow = 'test_export_job_workflow' in fspath_str  # Uses tmp_path/Flask test client/threading, no camera/GPIO
-        is_export_preset_workflow = 'test_export_preset_workflow' in fspath_str  # Uses tmp_path/Flask test client, no camera/GPIO (Issue #123)
-        is_zip_export_integration = 'test_zip_export_integration' in fspath_str  # Uses tmp_path/PIL/Flask test client/threading, no camera/GPIO (Issue #128)
-        is_export_no_deployment_workflow = 'test_export_no_deployment_workflow' in fspath_str  # Uses tmp_path/PIL/Flask test client, no camera/GPIO (Issue #200)
-        is_schedule_storage_workflow = 'test_schedule_storage_workflow' in fspath_str  # Uses tmp_path/threading, no camera/GPIO (Issue #209)
-        is_scheduler_workflow = 'test_scheduler_workflow' in fspath_str  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
-        is_scheduler_activation = 'test_scheduler_activation' in fspath_str  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
 
-        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination and not is_gps_exif_workflow and not is_verification_workflow and not is_batch_tagging_workflow and not is_map_locations_integration and not is_clustering_workflow and not is_sidecar_concurrent and not is_sidecar_search_integration and not is_search_workflow and not is_deployment_workflow and not is_inaturalist_export_workflow and not is_export_job_workflow and not is_export_preset_workflow and not is_zip_export_integration and not is_export_no_deployment_workflow and not is_schedule_storage_workflow and not is_scheduler_workflow and not is_scheduler_activation:
+        # Integration tests that DON'T require Pi hardware
+        # (use mocks, tmp_path, Flask test client, threading, PIL, etc.)
+        non_hardware_tests = (
+            'manual_verification',
+            'installer',  # installer_workflows or installer_helpers
+            'test_focus_bracket_integration',  # Uses mocks only
+            'test_gallery_pagination',  # Filesystem only, no Pi hardware
+            'test_gps_exif_workflow',  # Uses mocks/PIL, no camera/GPIO
+            'test_verification_workflow',  # Uses subprocess/PIL, no camera/GPIO
+            'test_batch_tagging_workflow',  # Uses subprocess/PIL, no camera/GPIO
+            'test_map_locations_integration',  # Uses mocks/PIL/Flask test client, no camera/GPIO
+            'test_clustering_workflow',  # Uses mocks/Flask test client, no camera/GPIO
+            'test_sidecar_concurrent',  # Uses threading/tmp_path, no camera/GPIO
+            'test_sidecar_search_integration',  # Uses mocks/tmp_path, no camera/GPIO
+            'test_search_workflow',  # Uses mocks/tmp_path/Flask test client, no camera/GPIO
+            'test_deployment_workflow',  # Uses threading/tmp_path, no camera/GPIO
+            'test_inaturalist_export_workflow',  # Uses tmp_path/zipfile, no camera/GPIO
+            'test_export_job_workflow',  # Uses tmp_path/Flask test client/threading, no camera/GPIO
+            'test_export_preset_workflow',  # Uses tmp_path/Flask test client, no camera/GPIO (Issue #123)
+            'test_zip_export_integration',  # Uses tmp_path/PIL/Flask test client/threading, no camera/GPIO (Issue #128)
+            'test_export_no_deployment_workflow',  # Uses tmp_path/PIL/Flask test client, no camera/GPIO (Issue #200)
+            'test_schedule_storage_workflow',  # Uses tmp_path/threading, no camera/GPIO (Issue #209)
+            'test_scheduler_workflow',  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
+            'test_scheduler_activation',  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
+        )
+
+        is_non_hardware_test = any(test in fspath_str for test in non_hardware_tests)
+
+        if is_integration and not is_non_hardware_test:
             item.add_marker(pytest.mark.hardware)
 
 
