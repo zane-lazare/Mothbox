@@ -343,41 +343,24 @@ def _expand_actions(
     return actions
 
 
-def _find_pattern_by_id(schedule: Schedule, pattern_id: str) -> EventPattern | None:
-    """
-    Find an EventPattern in schedule by ID.
-
-    Args:
-        schedule: Schedule containing patterns
-        pattern_id: Pattern ID to find
-
-    Returns:
-        EventPattern if found, None otherwise
-    """
-    for pattern in schedule.event_patterns:
-        if pattern.pattern_id == pattern_id:
-            return pattern
-    return None
-
-
 def _convert_execution(
     execution: PatternExecution,
-    schedule: Schedule,
     trigger_info: str,
+    pattern_cache: dict[str, EventPattern],
 ) -> PreviewExecution:
     """
     Convert PatternExecution to PreviewExecution with expanded actions.
 
     Args:
         execution: PatternExecution from schedule_conflict.py
-        schedule: Source schedule (for pattern lookup)
         trigger_info: Trigger description string
+        pattern_cache: Dict mapping pattern_id to EventPattern for O(1) lookup
 
     Returns:
         PreviewExecution with expanded actions
     """
-    # Find the pattern to get action details
-    pattern = _find_pattern_by_id(schedule, execution.pattern_id)
+    # Look up pattern from cache - O(1) instead of O(n) linear search
+    pattern = pattern_cache.get(execution.pattern_id)
 
     actions = []
     if pattern:
@@ -479,8 +462,13 @@ def generate_preview(
         timezone_name=timezone_name,
     )
 
+    # Build pattern cache once - O(n) where n = number of patterns
+    pattern_cache = {p.pattern_id: p for p in schedule.event_patterns}
+
     # Convert to preview executions with expanded actions
-    executions = [_convert_execution(exec, schedule, trigger_info) for exec in raw_executions]
+    executions = [
+        _convert_execution(exec, trigger_info, pattern_cache) for exec in raw_executions
+    ]
 
     # Detect conflicts
     conflict_report = detect_conflicts(
