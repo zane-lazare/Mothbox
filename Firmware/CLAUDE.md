@@ -544,6 +544,39 @@ CONFIG_DIR/presets/
 - Presets integrate with Export Job Queue (Issue #122)
 - File locking prevents race conditions on concurrent access
 
+### Cron Bridge System (Issue #215)
+
+**Overview**: Translates schedule configurations to cron expressions and RTC wakealarm settings for automated Mothbox operation.
+
+**Architecture**:
+- **Library**: `webui/backend/lib/cron_bridge.py` - Core cron conversion (1343 lines, 80%+ coverage)
+  - `CronEntry`: Dataclass for cron job entry with validation and comment sanitization
+  - `CronBridgeResult`: Conversion result with entries, RTC waketime, errors
+  - Trigger converters: `fixed_time_trigger_to_cron()`, `interval_trigger_to_cron()`, `solar_trigger_to_cron()`, `moon_phase_trigger_to_cron()`, `sensor_trigger_to_cron()` (stub)
+  - RTC management: `set_rtc_wakealarm()`, `clear_rtc_wakealarm()`, `calculate_next_waketime()`
+  - System integration: `apply_to_system()`, `remove_from_system()`, `schedule_to_cron()`
+
+- **Integration**: Called by `scheduler_service.py` during `activate_schedule()` and `deactivate_schedule()`
+
+**Trigger Support**:
+- **Fixed Time**: Direct cron expression (e.g., "0 21 * * *")
+- **Interval**: Multiple entries for each execution within time window
+- **Solar**: Pre-calculated entries for N days (uses `solar_time.py`)
+- **Moon Phase**: Date-specific entries for matching phase days (uses `moon_phase.py`)
+- **Sensor**: Not supported for cron (event-driven, returns warning)
+
+**RTC Wakealarm**:
+- Uses `/sys/class/rtc/rtc0/wakealarm` for Pi 5 native RTC
+- Race condition fix: Set new alarm before clearing old
+- Automatic setting during schedule activation
+
+**Testing**:
+- Unit tests: `Tests/unit/test_cron_bridge.py` (96 tests)
+- All trigger conversion, RTC management, and system integration covered
+
+**Documentation**:
+- `webui/docs/dev/api/cron-bridge.md`: API documentation
+
 ### Deployment Metadata Sidecar System (Issue #114)
 
 **Overview**: Directory-level metadata files for describing photo collections. Deployment metadata captures location, time period, environmental conditions, and project information at the collection level (not individual photos).

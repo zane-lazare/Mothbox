@@ -39,6 +39,12 @@ from copy import deepcopy
 from threading import RLock
 from typing import Any
 
+# Cron bridge for system integration (Issue #215)
+from webui.backend.lib.cron_bridge import (
+    apply_to_system,
+    remove_from_system,
+    schedule_to_cron,
+)
 from webui.backend.lib.schedule_schema import (
     Schedule,
     ScheduleValidationError,
@@ -598,9 +604,51 @@ class SchedulerService:
         with self._cache_lock:
             self._active_schedule_id = schedule_id
 
-        # TODO: CronBridge integration
-        # Apply schedule to system cron (placeholder for future Issue)
-        logger.info(f"Activated schedule: {schedule_id}")
+        # Apply schedule to system cron (Issue #215)
+        try:
+            result = schedule_to_cron(
+                schedule,
+                latitude=latitude,
+                longitude=longitude,
+                timezone_name=timezone_name,
+            )
+            if result.errors:
+                # Required mode: fail activation if cron conversion has errors
+                # Rollback the is_active state
+                try:
+                    if not is_builtin_schedule(schedule_id):
+                        self.update_schedule(schedule_id, {"is_active": False})
+                    else:
+                        self._update_builtin_schedule_state(schedule_id, False)
+                except Exception:
+                    pass  # Best effort rollback
+                with self._cache_lock:
+                    self._active_schedule_id = None
+                return False, f"Cron conversion failed: {'; '.join(result.errors)}"
+
+            apply_to_system(
+                entries=result.entries,
+                schedule_id=schedule_id,
+                set_rtc=True,
+            )
+            logger.info(
+                f"Activated schedule: {schedule_id} "
+                f"({len(result.entries)} cron entries applied)"
+            )
+        except Exception as e:
+            # Required mode: fail activation if cron cannot be applied
+            logger.error(f"Failed to apply cron entries: {e}")
+            # Rollback the is_active state
+            try:
+                if not is_builtin_schedule(schedule_id):
+                    self.update_schedule(schedule_id, {"is_active": False})
+                else:
+                    self._update_builtin_schedule_state(schedule_id, False)
+            except Exception:
+                pass  # Best effort rollback
+            with self._cache_lock:
+                self._active_schedule_id = None
+            return False, f"Failed to apply schedule to system: {e}"
 
         return True, ""
 
@@ -629,7 +677,13 @@ class SchedulerService:
         with self._cache_lock:
             self._active_schedule_id = None
 
-        # TODO: Clear system cron (placeholder for future Issue)
+        # Clear system cron (Issue #215)
+        try:
+            remove_from_system(clear_rtc=True)
+        except Exception as e:
+            logger.error(f"Failed to remove cron jobs: {e}")
+            # Still proceed with deactivation - don't block on cron removal failure
+
         logger.info(f"Deactivated schedule: {schedule_id}")
 
         return True
