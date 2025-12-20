@@ -54,6 +54,7 @@ Issue #209 - Scheduler Phase 1: Schedule Storage
 
 import json
 import logging
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -78,10 +79,53 @@ USER_SCHEDULES_DIR = CONFIG_DIR / "schedules"
 BUILTIN_SCHEDULES_DIR = Path(__file__).parent.parent / "presets_builtin" / "schedules"
 BACKUP_EXTENSION = ".bak"
 
+# Pattern for valid schedule IDs: alphanumeric, underscore, hyphen
+# Must start with alphanumeric, max 64 chars
+# Disallows path separators, dots, and special characters to prevent path injection
+SCHEDULE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
+
 
 # =============================================================================
 # PATH UTILITIES
 # =============================================================================
+
+
+def validate_schedule_id(schedule_id: str) -> bool:
+    """Validate schedule_id is safe for use in file paths.
+
+    Security: Prevents path traversal attacks by restricting allowed characters.
+
+    Allows:
+        - Alphanumeric characters (a-z, A-Z, 0-9)
+        - Underscores (_)
+        - Hyphens (-)
+
+    Disallows:
+        - Path separators (/, \\)
+        - Dots (.) - prevents ../ traversal
+        - Special characters
+        - Empty strings
+        - Strings longer than 64 characters
+
+    Args:
+        schedule_id: Schedule identifier to validate
+
+    Returns:
+        True if valid, False otherwise
+
+    Examples:
+        >>> validate_schedule_id("nightly-survey")
+        True
+        >>> validate_schedule_id("my_schedule_2024")
+        True
+        >>> validate_schedule_id("../../../etc/passwd")
+        False
+        >>> validate_schedule_id("")
+        False
+    """
+    if not schedule_id or not isinstance(schedule_id, str):
+        return False
+    return bool(SCHEDULE_ID_PATTERN.match(schedule_id))
 
 
 def get_schedule_path(schedule_id: str, is_builtin: bool = False) -> Path:
@@ -94,12 +138,21 @@ def get_schedule_path(schedule_id: str, is_builtin: bool = False) -> Path:
     Returns:
         Path to schedule JSON file
 
+    Raises:
+        ValueError: If schedule_id contains invalid characters (path injection attempt)
+
     Example:
         >>> get_schedule_path("nightly-survey", is_builtin=False)
         PosixPath('/etc/mothbox/schedules/nightly-survey.json')
         >>> get_schedule_path("nightly-survey", is_builtin=True)
         PosixPath('.../presets_builtin/schedules/nightly-survey.json')
+        >>> get_schedule_path("../etc/passwd", is_builtin=False)
+        ValueError: Invalid schedule ID: ../etc/passwd
     """
+    # Security: Validate schedule_id to prevent path injection
+    if not validate_schedule_id(schedule_id):
+        raise ValueError(f"Invalid schedule ID: {schedule_id}")
+
     base_dir = BUILTIN_SCHEDULES_DIR if is_builtin else USER_SCHEDULES_DIR
     return base_dir / f"{schedule_id}{SCHEDULE_FILENAME_EXTENSION}"
 
