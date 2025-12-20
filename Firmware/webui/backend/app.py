@@ -347,6 +347,7 @@ from routes.metadata import metadata_bp
 from routes.preferences import preferences_bp
 from routes.presets import presets_bp
 from routes.scheduler import scheduler_bp
+from routes.scheduler_ui import scheduler_ui_bp
 from routes.search import search_bp
 from routes.sidecar import sidecar_bp
 from routes.system import system_bp
@@ -361,6 +362,7 @@ app.register_blueprint(gallery_bp, url_prefix="/api/gallery")
 app.register_blueprint(config_bp, url_prefix="/api/config")
 app.register_blueprint(gpio_bp, url_prefix="/api/gpio")
 app.register_blueprint(scheduler_bp, url_prefix="/api/scheduler")
+app.register_blueprint(scheduler_ui_bp, url_prefix="/api/scheduler/ui")
 app.register_blueprint(presets_bp, url_prefix="/api/presets")
 app.register_blueprint(preferences_bp, url_prefix="/api/preferences")
 app.register_blueprint(gps_bp, url_prefix="/api/gps")
