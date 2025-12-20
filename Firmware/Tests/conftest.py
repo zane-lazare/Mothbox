@@ -1556,27 +1556,36 @@ def pytest_collection_modifyitems(config, items):
         # Mark integration tests (except manual verification and installer) as hardware tests
         fspath_str = str(item.fspath)
         is_integration = 'integration' in fspath_str
-        is_manual = 'manual_verification' in fspath_str
-        is_installer = 'installer' in fspath_str  # installer_workflows or installer_helpers
-        is_focus_bracket_integration = 'test_focus_bracket_integration' in fspath_str  # Uses mocks only
-        is_gallery_pagination = 'test_gallery_pagination' in fspath_str  # Filesystem only, no Pi hardware
-        is_gps_exif_workflow = 'test_gps_exif_workflow' in fspath_str  # Uses mocks/PIL, no camera/GPIO
-        is_verification_workflow = 'test_verification_workflow' in fspath_str  # Uses subprocess/PIL, no camera/GPIO
-        is_batch_tagging_workflow = 'test_batch_tagging_workflow' in fspath_str  # Uses subprocess/PIL, no camera/GPIO
-        is_map_locations_integration = 'test_map_locations_integration' in fspath_str  # Uses mocks/PIL/Flask test client, no camera/GPIO
-        is_clustering_workflow = 'test_clustering_workflow' in fspath_str  # Uses mocks/Flask test client, no camera/GPIO
-        is_sidecar_concurrent = 'test_sidecar_concurrent' in fspath_str  # Uses threading/tmp_path, no camera/GPIO
-        is_sidecar_search_integration = 'test_sidecar_search_integration' in fspath_str  # Uses mocks/tmp_path, no camera/GPIO
-        is_search_workflow = 'test_search_workflow' in fspath_str  # Uses mocks/tmp_path/Flask test client, no camera/GPIO
-        is_deployment_workflow = 'test_deployment_workflow' in fspath_str  # Uses threading/tmp_path, no camera/GPIO
-        is_inaturalist_export_workflow = 'test_inaturalist_export_workflow' in fspath_str  # Uses tmp_path/zipfile, no camera/GPIO
-        is_export_job_workflow = 'test_export_job_workflow' in fspath_str  # Uses tmp_path/Flask test client/threading, no camera/GPIO
-        is_export_preset_workflow = 'test_export_preset_workflow' in fspath_str  # Uses tmp_path/Flask test client, no camera/GPIO (Issue #123)
-        is_zip_export_integration = 'test_zip_export_integration' in fspath_str  # Uses tmp_path/PIL/Flask test client/threading, no camera/GPIO (Issue #128)
-        is_export_no_deployment_workflow = 'test_export_no_deployment_workflow' in fspath_str  # Uses tmp_path/PIL/Flask test client, no camera/GPIO (Issue #200)
-        is_schedule_storage_workflow = 'test_schedule_storage_workflow' in fspath_str  # Uses tmp_path/threading, no camera/GPIO (Issue #209)
 
-        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination and not is_gps_exif_workflow and not is_verification_workflow and not is_batch_tagging_workflow and not is_map_locations_integration and not is_clustering_workflow and not is_sidecar_concurrent and not is_sidecar_search_integration and not is_search_workflow and not is_deployment_workflow and not is_inaturalist_export_workflow and not is_export_job_workflow and not is_export_preset_workflow and not is_zip_export_integration and not is_export_no_deployment_workflow and not is_schedule_storage_workflow:
+        # Integration tests that DON'T require Pi hardware
+        # (use mocks, tmp_path, Flask test client, threading, PIL, etc.)
+        non_hardware_tests = (
+            'manual_verification',
+            'installer',  # installer_workflows or installer_helpers
+            'test_focus_bracket_integration',  # Uses mocks only
+            'test_gallery_pagination',  # Filesystem only, no Pi hardware
+            'test_gps_exif_workflow',  # Uses mocks/PIL, no camera/GPIO
+            'test_verification_workflow',  # Uses subprocess/PIL, no camera/GPIO
+            'test_batch_tagging_workflow',  # Uses subprocess/PIL, no camera/GPIO
+            'test_map_locations_integration',  # Uses mocks/PIL/Flask test client, no camera/GPIO
+            'test_clustering_workflow',  # Uses mocks/Flask test client, no camera/GPIO
+            'test_sidecar_concurrent',  # Uses threading/tmp_path, no camera/GPIO
+            'test_sidecar_search_integration',  # Uses mocks/tmp_path, no camera/GPIO
+            'test_search_workflow',  # Uses mocks/tmp_path/Flask test client, no camera/GPIO
+            'test_deployment_workflow',  # Uses threading/tmp_path, no camera/GPIO
+            'test_inaturalist_export_workflow',  # Uses tmp_path/zipfile, no camera/GPIO
+            'test_export_job_workflow',  # Uses tmp_path/Flask test client/threading, no camera/GPIO
+            'test_export_preset_workflow',  # Uses tmp_path/Flask test client, no camera/GPIO (Issue #123)
+            'test_zip_export_integration',  # Uses tmp_path/PIL/Flask test client/threading, no camera/GPIO (Issue #128)
+            'test_export_no_deployment_workflow',  # Uses tmp_path/PIL/Flask test client, no camera/GPIO (Issue #200)
+            'test_schedule_storage_workflow',  # Uses tmp_path/threading, no camera/GPIO (Issue #209)
+            'test_scheduler_workflow',  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
+            'test_scheduler_activation',  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
+        )
+
+        is_non_hardware_test = any(test in fspath_str for test in non_hardware_tests)
+
+        if is_integration and not is_non_hardware_test:
             item.add_marker(pytest.mark.hardware)
 
 
@@ -2797,3 +2806,194 @@ def mock_request_origin(monkeypatch):
         return mock_request
 
     return set_request_headers
+
+
+# ============================================================================
+# Scheduler Integration Test Fixtures (Issue #216)
+# ============================================================================
+
+
+@pytest.fixture
+def temp_schedules_env(tmp_path, monkeypatch):
+    """Mock both USER_SCHEDULES_DIR and BUILTIN_SCHEDULES_DIR for scheduler tests.
+
+    Provides isolated temporary directories for schedule storage during tests.
+
+    Returns:
+        dict: Contains 'user_dir' and 'builtin_dir' paths
+
+    Related: Issue #216 - Scheduler integration tests
+    """
+    # Create user schedules directory
+    user_schedules_dir = tmp_path / "schedules"
+    user_schedules_dir.mkdir()
+
+    # Create built-in schedules directory
+    builtin_schedules_dir = tmp_path / "presets_builtin" / "schedules"
+    builtin_schedules_dir.mkdir(parents=True)
+
+    # Patch both directories
+    import webui.backend.lib.schedule_storage as ss
+
+    monkeypatch.setattr(ss, "USER_SCHEDULES_DIR", user_schedules_dir)
+    monkeypatch.setattr(ss, "BUILTIN_SCHEDULES_DIR", builtin_schedules_dir)
+
+    return {
+        "user_dir": user_schedules_dir,
+        "builtin_dir": builtin_schedules_dir,
+    }
+
+
+@pytest.fixture
+def sample_schedule_factory():
+    """Factory function to create valid schedules with unique IDs.
+
+    Supports fixed_time, interval, and solar trigger types.
+
+    Returns:
+        Callable: Factory function that creates Schedule objects
+
+    Related: Issue #216 - Scheduler integration tests
+    """
+    from webui.backend.lib.schedule_schema import (
+        EventPattern,
+        FixedTimeTrigger,
+        IntervalTrigger,
+        PatternAction,
+        Schedule,
+        SolarTrigger,
+        TimeWindow,
+    )
+
+    def _create_schedule(
+        schedule_id="",
+        name="Test Schedule",
+        trigger_type="fixed_time",
+        hour=21,
+        minute=0,
+        interval_minutes=60,
+        enabled=True,
+        is_active=False,
+    ):
+        """Create a valid schedule with specified parameters."""
+        action = PatternAction(
+            action_type="camera",
+            action_name="takephoto",
+            offset_minutes=0,
+            description="Take photo",
+        )
+
+        pattern = EventPattern(
+            pattern_id="",
+            name="Test Capture",
+            description="Test pattern",
+            actions=[action],
+            category="user",
+            tags=["test"],
+        )
+
+        if trigger_type == "fixed_time":
+            trigger = FixedTimeTrigger(time=f"{hour:02d}:{minute:02d}")
+            schedule = Schedule(
+                schedule_id=schedule_id,
+                name=name,
+                description="A test schedule",
+                event_patterns=[pattern],
+                trigger_type="fixed_time",
+                fixed_time_trigger=trigger,
+                enabled=enabled,
+                is_active=is_active,
+            )
+        elif trigger_type == "interval":
+            window = TimeWindow(start_time="21:00", end_time="23:00")
+            trigger = IntervalTrigger(
+                interval_minutes=interval_minutes,
+                time_window=window,
+            )
+            schedule = Schedule(
+                schedule_id=schedule_id,
+                name=name,
+                description="A test schedule",
+                event_patterns=[pattern],
+                trigger_type="interval",
+                interval_trigger=trigger,
+                enabled=enabled,
+                is_active=is_active,
+            )
+        elif trigger_type == "solar":
+            trigger = SolarTrigger(
+                solar_event="sunset",
+                offset_minutes=30,
+            )
+            schedule = Schedule(
+                schedule_id=schedule_id,
+                name=name,
+                description="A test schedule",
+                event_patterns=[pattern],
+                trigger_type="solar",
+                solar_trigger=trigger,
+                enabled=enabled,
+                is_active=is_active,
+            )
+        else:
+            raise ValueError(f"Unknown trigger type: {trigger_type}")
+
+        return schedule
+
+    return _create_schedule
+
+
+@pytest.fixture
+def mock_cron_system(monkeypatch):
+    """Mock cron system operations (apply_to_system, remove_from_system).
+
+    Patches the scheduler service's system functions to avoid actual cron/RTC changes.
+
+    Returns:
+        dict: Contains 'apply' and 'remove' MagicMock objects
+
+    Related: Issue #216 - Scheduler integration tests
+    """
+    from unittest.mock import MagicMock
+
+    apply_mock = MagicMock(return_value=True)
+    remove_mock = MagicMock(return_value=True)
+
+    monkeypatch.setattr(
+        "webui.backend.services.scheduler_service.apply_to_system",
+        apply_mock,
+    )
+    monkeypatch.setattr(
+        "webui.backend.services.scheduler_service.remove_from_system",
+        remove_mock,
+    )
+
+    return {"apply": apply_mock, "remove": remove_mock}
+
+
+@pytest.fixture
+def mock_rtc_functions(monkeypatch):
+    """Mock RTC wakealarm functions (set_rtc_wakealarm, clear_rtc_wakealarm).
+
+    Patches the cron_bridge RTC functions to avoid actual hardware access.
+
+    Returns:
+        dict: Contains 'set' and 'clear' MagicMock objects
+
+    Related: Issue #216 - Scheduler integration tests
+    """
+    from unittest.mock import MagicMock
+
+    set_mock = MagicMock(return_value=True)
+    clear_mock = MagicMock(return_value=True)
+
+    monkeypatch.setattr(
+        "webui.backend.lib.cron_bridge.set_rtc_wakealarm",
+        set_mock,
+    )
+    monkeypatch.setattr(
+        "webui.backend.lib.cron_bridge.clear_rtc_wakealarm",
+        clear_mock,
+    )
+
+    return {"set": set_mock, "clear": clear_mock}
