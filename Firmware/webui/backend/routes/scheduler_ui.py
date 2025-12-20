@@ -12,6 +12,7 @@ Issue #217 - Event Pattern API
 
 import json
 import logging
+import threading
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request
@@ -54,6 +55,7 @@ _scheduler_service = None
 
 # Built-in patterns cache (populated on first request)
 _builtin_patterns_cache: list[dict] | None = None
+_builtin_patterns_cache_lock = threading.Lock()
 
 
 def get_scheduler_service() -> SchedulerService:
@@ -311,58 +313,65 @@ def list_builtin_patterns() -> list[dict]:
     """
     global _builtin_patterns_cache
 
-    # Return cached patterns if available
+    # Fast path: cache already populated (no lock needed)
     if _builtin_patterns_cache is not None:
         return _builtin_patterns_cache
 
-    patterns = []
-    seen_ids: set[str] = set()
+    # Slow path: acquire lock and populate cache
+    with _builtin_patterns_cache_lock:
+        # Double-check after acquiring lock
+        if _builtin_patterns_cache is not None:
+            return _builtin_patterns_cache
 
-    # Path to built-in schedules directory
-    builtin_dir = Path(__file__).parent.parent / "presets_builtin" / "schedules"
+        patterns = []
+        seen_ids: set[str] = set()
 
-    if not builtin_dir.exists():
-        logger.warning(f"Built-in schedules directory not found: {builtin_dir}")
+        # Path to built-in schedules directory
+        builtin_dir = Path(__file__).parent.parent / "presets_builtin" / "schedules"
+
+        if not builtin_dir.exists():
+            logger.warning(f"Built-in schedules directory not found: {builtin_dir}")
+            _builtin_patterns_cache = patterns
+            return patterns
+
+        for schedule_file in sorted(builtin_dir.glob("*.json")):
+            try:
+                schedule_data = json.loads(schedule_file.read_text())
+                schedule_name = schedule_data.get("name", schedule_file.stem)
+
+                for pattern in schedule_data.get("event_patterns", []):
+                    pattern_id = pattern.get("pattern_id")
+
+                    # Skip duplicates (same pattern may appear in multiple schedules)
+                    # Patterns without pattern_id are always included (cannot deduplicate)
+                    if pattern_id and pattern_id in seen_ids:
+                        continue
+                    if pattern_id:
+                        seen_ids.add(pattern_id)
+
+                    # Create a copy with additional fields
+                    pattern_copy = dict(pattern)
+                    pattern_copy["source_schedule"] = schedule_name
+
+                    # Compute duration_minutes from max action offset
+                    actions = pattern.get("actions", [])
+                    if actions:
+                        pattern_copy["duration_minutes"] = max(
+                            a.get("offset_minutes", 0) for a in actions
+                        )
+                    else:
+                        pattern_copy["duration_minutes"] = 0
+
+                    patterns.append(pattern_copy)
+
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse schedule file {schedule_file}: {e}")
+            except Exception as e:
+                logger.error(f"Error processing schedule file {schedule_file}: {e}")
+
+        # Cache the result for subsequent calls
+        _builtin_patterns_cache = patterns
         return patterns
-
-    for schedule_file in sorted(builtin_dir.glob("*.json")):
-        try:
-            schedule_data = json.loads(schedule_file.read_text())
-            schedule_name = schedule_data.get("name", schedule_file.stem)
-
-            for pattern in schedule_data.get("event_patterns", []):
-                pattern_id = pattern.get("pattern_id")
-
-                # Skip duplicates (same pattern may appear in multiple schedules)
-                # Patterns without pattern_id are always included (cannot deduplicate)
-                if pattern_id and pattern_id in seen_ids:
-                    continue
-                if pattern_id:
-                    seen_ids.add(pattern_id)
-
-                # Create a copy with additional fields
-                pattern_copy = dict(pattern)
-                pattern_copy["source_schedule"] = schedule_name
-
-                # Compute duration_minutes from max action offset
-                actions = pattern.get("actions", [])
-                if actions:
-                    pattern_copy["duration_minutes"] = max(
-                        a.get("offset_minutes", 0) for a in actions
-                    )
-                else:
-                    pattern_copy["duration_minutes"] = 0
-
-                patterns.append(pattern_copy)
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse schedule file {schedule_file}: {e}")
-        except Exception as e:
-            logger.error(f"Error processing schedule file {schedule_file}: {e}")
-
-    # Cache the result for subsequent calls
-    _builtin_patterns_cache = patterns
-    return patterns
 
 
 @scheduler_ui_bp.route("/patterns/builtin", methods=["GET"])
