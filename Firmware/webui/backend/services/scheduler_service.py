@@ -415,10 +415,11 @@ class SchedulerService:
             updates: Dict of fields to update
 
         Returns:
-            Updated Schedule if successful, None if not found or validation fails
+            Updated Schedule if successful, None if not found
 
         Raises:
             ValueError: If attempting to modify built-in schedule
+            ScheduleValidationError: If updated schedule fails validation
         """
         # Check if built-in
         if is_builtin_schedule(schedule_id):
@@ -436,7 +437,8 @@ class SchedulerService:
                 with self._cache_lock:
                     if schedule_id in self._cache:
                         del self._cache[schedule_id]
-                return None
+                # Raise exception with validation error instead of silent None
+                raise ScheduleValidationError(f"Validation failed: {error}")
 
             with self._cache_lock:
                 self._set_cache(schedule_id, updated)
