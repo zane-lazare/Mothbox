@@ -178,7 +178,7 @@ def get_schedule_preview(schedule_id: str):
         logger.warning(f"Preview generation error: {e}")
         return jsonify({
             "error": "Preview generation failed",
-            "message": str(e),
+            "message": "Invalid preview parameters",
         }), 400
 
     except Exception as e:
