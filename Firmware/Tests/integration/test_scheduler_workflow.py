@@ -487,6 +487,78 @@ class TestRTCWakealarmManagement:
         assert next_wake is not None, "Should calculate next waketime"
         assert next_wake > time.time(), "Next wake should be in the future"
 
+    def test_rtc_apply_to_system_sets_without_clearing_first(
+        self,
+        monkeypatch,
+    ):
+        """apply_to_system sets RTC atomically without clear-then-set pattern.
+
+        CLAUDE.md documents: "Race condition fix: Set new alarm before clearing old"
+
+        The apply_to_system function should call set_rtc_wakealarm directly
+        without calling clear_rtc_wakealarm first. This prevents a race condition
+        window where no alarm is set if the process crashes between clear and set.
+        """
+        from unittest.mock import MagicMock
+
+        import webui.backend.lib.cron_bridge as cron_bridge
+        from webui.backend.lib.cron_bridge import CronEntry, apply_to_system
+
+        # Track order of RTC operations
+        rtc_operations = []
+
+        def mock_set(epoch_time):
+            rtc_operations.append(("set", epoch_time))
+            return True
+
+        def mock_clear():
+            rtc_operations.append(("clear", None))
+            return True
+
+        monkeypatch.setattr(cron_bridge, "set_rtc_wakealarm", mock_set)
+        monkeypatch.setattr(cron_bridge, "clear_rtc_wakealarm", mock_clear)
+
+        # Mock crontab so we don't touch real system
+        mock_crontab = MagicMock()
+        mock_crontab.__iter__ = MagicMock(return_value=iter([]))
+        monkeypatch.setattr(cron_bridge, "CronTab", lambda **kw: mock_crontab)
+
+        # Mock calculate_next_from_entries to return a valid epoch
+        test_epoch = 1734700000
+        monkeypatch.setattr(
+            cron_bridge, "calculate_next_from_entries", lambda *args, **kw: test_epoch
+        )
+
+        # Create a cron entry
+        entry = CronEntry(
+            expression="0 21 * * *",
+            command="/usr/bin/python3 /opt/mothbox/TakePhoto.py",
+            comment="Mothbox: Test",
+            enabled=True,
+        )
+
+        # Call apply_to_system with set_rtc=True
+        result = apply_to_system(
+            entries=[entry],
+            schedule_id="test-schedule",
+            set_rtc=True,
+        )
+
+        assert result is True, "apply_to_system should succeed"
+
+        # KEY ASSERTION: set_rtc_wakealarm was called
+        set_calls = [op for op in rtc_operations if op[0] == "set"]
+        assert len(set_calls) == 1, "Should call set_rtc_wakealarm exactly once"
+        assert set_calls[0][1] == test_epoch, f"Should set RTC to {test_epoch}"
+
+        # KEY ASSERTION: clear_rtc_wakealarm was NOT called
+        # This verifies the atomic overwrite behavior (no clear-then-set)
+        clear_calls = [op for op in rtc_operations if op[0] == "clear"]
+        assert len(clear_calls) == 0, (
+            "apply_to_system should NOT call clear_rtc_wakealarm before set "
+            "(atomic overwrite prevents race condition)"
+        )
+
 
 # ============================================================================
 # Test RTC Wakealarm Hardware (Real RTC Access)
