@@ -1022,6 +1022,28 @@ class TestLocationFallback:
         # Should have no warnings
         assert result.warnings == []
 
+    @patch("webui.backend.lib.schedule_preview._get_default_location")
+    @patch("webui.backend.lib.schedule_preview.detect_conflicts")
+    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    def test_sensor_trigger_warning_included(
+        self, mock_gen_exec, mock_detect, mock_default_loc, sample_sensor_schedule
+    ):
+        """Test that sensor triggers generate a warning about unpredictable execution."""
+        mock_default_loc.return_value = (35.0, -80.0)
+        mock_gen_exec.return_value = []
+
+        mock_report = MagicMock()
+        mock_report.conflicts = []
+        mock_detect.return_value = mock_report
+
+        result = generate_preview(sample_sensor_schedule, days=7)
+
+        # Should have warning about sensor triggers
+        assert len(result.warnings) == 1
+        assert "Sensor triggers are event-driven" in result.warnings[0]
+        assert "cannot be previewed" in result.warnings[0]
+        assert result.total_executions == 0
+
 
 # ============================================================================
 # H. Integration Tests (2 tests)

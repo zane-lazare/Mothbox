@@ -452,6 +452,15 @@ def generate_preview(
     # Generate trigger info once (shared by all executions)
     trigger_info = _get_trigger_info(schedule)
 
+    # Warn about sensor triggers - they're event-driven with no predictable schedule
+    if schedule.trigger_type == "sensor":
+        warning_msg = (
+            "Sensor triggers are event-driven and cannot be previewed. "
+            "Preview will show 0 executions."
+        )
+        logger.info(warning_msg)
+        warnings.append(warning_msg)
+
     # Generate pattern executions using schedule_conflict.py
     raw_executions = generate_pattern_executions(
         schedule=schedule,

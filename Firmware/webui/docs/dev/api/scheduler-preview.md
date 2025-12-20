@@ -117,6 +117,48 @@ curl "http://localhost:5000/api/scheduler/ui/schedules/nightly-survey/preview?da
 | 429 | Rate limit exceeded (30/min) |
 | 500 | Internal server error |
 
+**Error Response Examples:**
+
+*400 Bad Request - Invalid Days:*
+```json
+{
+  "error": "Invalid days parameter",
+  "message": "Preview days must be at least 1, got 0"
+}
+```
+
+*400 Bad Request - Invalid Coordinates:*
+```json
+{
+  "error": "Invalid lat parameter",
+  "message": "Expected number for lat, got 'abc'"
+}
+```
+
+*400 Bad Request - Invalid Timezone:*
+```json
+{
+  "error": "Invalid timezone",
+  "message": "Invalid timezone 'NotATimezone'. Use IANA timezone names (e.g., 'America/New_York', 'Europe/London', 'UTC')"
+}
+```
+
+*404 Not Found:*
+```json
+{
+  "error": "Schedule not found",
+  "message": "No schedule with ID 'nonexistent-schedule'"
+}
+```
+
+*429 Rate Limited:*
+```json
+{
+  "error": "rate_limit_exceeded",
+  "message": "Rate limit exceeded. Try again later."
+}
+```
+
 ---
 
 ### List Schedules
