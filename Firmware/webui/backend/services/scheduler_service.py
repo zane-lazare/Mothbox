@@ -599,6 +599,21 @@ class SchedulerService:
         if self._active_schedule_id and self._active_schedule_id != schedule_id:
             self.deactivate_schedule()
 
+        # Re-check schedule state to prevent TOCTOU race condition
+        # (schedule could have been modified/deleted/disabled between initial check and now)
+        with self._cache_lock:
+            current = self.get_schedule(schedule_id)
+            if current is None:
+                raise ScheduleActivationError(
+                    f"Schedule was deleted during activation: {schedule_id}"
+                )
+            if not current.enabled:
+                raise ScheduleActivationError(
+                    f"Schedule was disabled during activation: {schedule_id}"
+                )
+            # Use the refreshed schedule for cron conversion
+            schedule = current
+
         # Update is_active flag in storage
         # For built-in schedules, we only update the in-memory state
         try:
