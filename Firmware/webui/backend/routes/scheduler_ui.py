@@ -33,6 +33,7 @@ from webui.backend.lib.schedule_preview import (
 from webui.backend.lib.schedule_schema import (
     EventPattern,
     Schedule,
+    ScheduleActivationError,
     ScheduleConflictError,
     ScheduleValidationError,
     validate_event_pattern,
@@ -655,16 +656,9 @@ def activate_schedule(schedule_id: str):
 
         service = get_scheduler_service()
 
-        # Check if schedule exists
-        schedule = service.get_schedule(schedule_id)
-        if schedule is None:
-            return jsonify({
-                "error": "Schedule not found",
-            }), 404
-
-        # Activate via service
+        # Activate via service (handles existence check internally)
         try:
-            success, error = service.activate_schedule(
+            service.activate_schedule(
                 schedule_id,
                 check_conflicts=check_conflicts,
                 latitude=latitude,
@@ -677,10 +671,9 @@ def activate_schedule(schedule_id: str):
                 "error": str(e),
                 "conflict": True,
             }), 409
-
-        if not success:
+        except ScheduleActivationError as e:
             # Log detailed error, return generic message
-            logger.warning(f"Schedule activation failed: {error}")
+            logger.warning(f"Schedule activation failed: {e}")
             return jsonify({
                 "error": "Schedule activation failed",
             }), 400

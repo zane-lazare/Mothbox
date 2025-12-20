@@ -47,6 +47,7 @@ from webui.backend.lib.cron_bridge import (
 )
 from webui.backend.lib.schedule_schema import (
     Schedule,
+    ScheduleActivationError,
     ScheduleConflictError,
     ScheduleValidationError,
     validate_schedule,
@@ -526,7 +527,7 @@ class SchedulerService:
         latitude: float = 0.0,
         longitude: float = 0.0,
         timezone_name: str = "UTC",
-    ) -> tuple[bool, str]:
+    ) -> None:
         """
         Activate a schedule (deactivates any currently active first).
 
@@ -543,22 +544,25 @@ class SchedulerService:
             timezone_name: Timezone for time resolution (default "UTC")
 
         Returns:
-            (success: bool, error_message: str)
-            success=True with empty error on success
-            success=False with error description on failure (includes conflict info)
+            None on success
+
+        Raises:
+            ScheduleActivationError: If activation fails (schedule not found,
+                disabled, cron conversion failed, etc.)
+            ScheduleConflictError: If schedule has blocking conflicts
         """
         # Get the schedule
         schedule = self.get_schedule(schedule_id)
         if not schedule:
-            return False, f"Schedule not found: {schedule_id}"
+            raise ScheduleActivationError(f"Schedule not found: {schedule_id}")
 
         # Check if enabled
         if not schedule.enabled:
-            return False, f"Schedule is disabled: {schedule_id}"
+            raise ScheduleActivationError(f"Schedule is disabled: {schedule_id}")
 
         # Already active? Return success (idempotent)
         if schedule.is_active and self._active_schedule_id == schedule_id:
-            return True, ""
+            return
 
         # Check for conflicts before activation (Issue #213)
         # Uses cached conflict report to avoid redundant computation
@@ -589,7 +593,7 @@ class SchedulerService:
                 raise
             except Exception as e:
                 logger.exception(f"Error during conflict check: {e}")
-                return False, f"Conflict check failed: {e}"
+                raise ScheduleActivationError(f"Conflict check failed: {e}") from e
 
         # Deactivate any currently active schedule
         if self._active_schedule_id and self._active_schedule_id != schedule_id:
@@ -604,7 +608,7 @@ class SchedulerService:
                 self._update_builtin_schedule_state(schedule_id, True)
         except Exception as e:
             logger.exception(f"Failed to update schedule: {e}")
-            return False, f"Failed to update schedule: {e}"
+            raise ScheduleActivationError(f"Failed to update schedule: {e}") from e
 
         # Set active schedule ID
         with self._cache_lock:
@@ -630,7 +634,9 @@ class SchedulerService:
                     pass  # Best effort rollback
                 with self._cache_lock:
                     self._active_schedule_id = None
-                return False, f"Cron conversion failed: {'; '.join(result.errors)}"
+                raise ScheduleActivationError(
+                    f"Cron conversion failed: {'; '.join(result.errors)}"
+                )
 
             apply_to_system(
                 entries=result.entries,
@@ -641,6 +647,9 @@ class SchedulerService:
                 f"Activated schedule: {schedule_id} "
                 f"({len(result.entries)} cron entries applied)"
             )
+        except ScheduleActivationError:
+            # Re-raise our own errors
+            raise
         except Exception as e:
             # Required mode: fail activation if cron cannot be applied
             logger.error(f"Failed to apply cron entries: {e}")
@@ -654,9 +663,7 @@ class SchedulerService:
                 pass  # Best effort rollback
             with self._cache_lock:
                 self._active_schedule_id = None
-            return False, f"Failed to apply schedule to system: {e}"
-
-        return True, ""
+            raise ScheduleActivationError(f"Failed to apply schedule to system: {e}") from e
 
     def deactivate_schedule(self) -> bool:
         """

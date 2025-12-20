@@ -870,7 +870,7 @@ class TestActivateScheduleEndpoint:
     def test_activate_schedule_success(self, client, mock_scheduler_service, sample_schedule):
         """Test successful schedule activation."""
         mock_scheduler_service.get_schedule.return_value = sample_schedule
-        mock_scheduler_service.activate_schedule.return_value = (True, "")
+        mock_scheduler_service.activate_schedule.return_value = None  # Success - no exception
 
         response = client.post('/api/scheduler/ui/schedules/test-schedule/activate')
 
@@ -881,18 +881,27 @@ class TestActivateScheduleEndpoint:
 
     def test_activate_schedule_not_found(self, client, mock_scheduler_service):
         """Test activating non-existent schedule."""
+        from webui.backend.lib.schedule_schema import ScheduleActivationError
+
         mock_scheduler_service.get_schedule.return_value = None
+        mock_scheduler_service.activate_schedule.side_effect = ScheduleActivationError(
+            "Schedule not found: nonexistent"
+        )
 
         response = client.post('/api/scheduler/ui/schedules/nonexistent/activate')
 
-        assert response.status_code == 404
+        assert response.status_code == 400  # ScheduleActivationError returns 400
         data = response.get_json()
-        assert "not found" in data["error"].lower()
+        assert "activation failed" in data["error"].lower()
 
     def test_activate_schedule_disabled(self, client, mock_scheduler_service, sample_schedule):
         """Test activating disabled schedule."""
+        from webui.backend.lib.schedule_schema import ScheduleActivationError
+
         mock_scheduler_service.get_schedule.return_value = sample_schedule
-        mock_scheduler_service.activate_schedule.return_value = (False, "Schedule is disabled")
+        mock_scheduler_service.activate_schedule.side_effect = ScheduleActivationError(
+            "Schedule is disabled"
+        )
 
         response = client.post('/api/scheduler/ui/schedules/test-schedule/activate')
 
@@ -920,7 +929,7 @@ class TestActivateScheduleEndpoint:
     def test_activate_schedule_skip_conflict_check(self, client, mock_scheduler_service, sample_schedule):
         """Test activation with conflict check disabled."""
         mock_scheduler_service.get_schedule.return_value = sample_schedule
-        mock_scheduler_service.activate_schedule.return_value = (True, "")
+        mock_scheduler_service.activate_schedule.return_value = None  # Success - no exception
 
         response = client.post(
             '/api/scheduler/ui/schedules/test-schedule/activate',
@@ -936,7 +945,7 @@ class TestActivateScheduleEndpoint:
     def test_activate_schedule_with_coordinates(self, client, mock_scheduler_service, sample_schedule):
         """Test activation with lat/lon parameters."""
         mock_scheduler_service.get_schedule.return_value = sample_schedule
-        mock_scheduler_service.activate_schedule.return_value = (True, "")
+        mock_scheduler_service.activate_schedule.return_value = None  # Success - no exception
 
         response = client.post(
             '/api/scheduler/ui/schedules/test-schedule/activate',
@@ -954,7 +963,7 @@ class TestActivateScheduleEndpoint:
         """Test that activating already active schedule succeeds."""
         sample_schedule.is_active = True
         mock_scheduler_service.get_schedule.return_value = sample_schedule
-        mock_scheduler_service.activate_schedule.return_value = (True, "")
+        mock_scheduler_service.activate_schedule.return_value = None  # Success - no exception
 
         response = client.post('/api/scheduler/ui/schedules/test-schedule/activate')
 
