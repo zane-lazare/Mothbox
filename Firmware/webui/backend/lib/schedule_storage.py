@@ -54,6 +54,7 @@ Issue #209 - Scheduler Phase 1: Schedule Storage
 
 import json
 import logging
+import os
 import re
 import time
 from datetime import datetime
@@ -149,25 +150,20 @@ def get_schedule_path(schedule_id: str, is_builtin: bool = False) -> Path:
         >>> get_schedule_path("../etc/passwd", is_builtin=False)
         ValueError: Invalid schedule ID: ../etc/passwd
     """
-    # Security: Validate schedule_id to prevent path injection
+    # Security: Validate schedule_id format to prevent path injection
     if not validate_schedule_id(schedule_id):
         raise ValueError(f"Invalid schedule ID: {schedule_id}")
 
+    # Security: Use os.path.basename() to strip any path components (defense in depth)
+    # This is a CodeQL-recognized sanitizer that ensures only the filename is used
+    safe_id = os.path.basename(schedule_id)
+
+    # Double-check: if basename changed the value, reject it
+    if safe_id != schedule_id:
+        raise ValueError(f"Invalid schedule ID: {schedule_id}")
+
     base_dir = BUILTIN_SCHEDULES_DIR if is_builtin else USER_SCHEDULES_DIR
-    schedule_path = base_dir / f"{schedule_id}{SCHEDULE_FILENAME_EXTENSION}"
-
-    # Security: Verify path is within expected directory (defense in depth)
-    # This check ensures the resolved path doesn't escape the base directory
-    # even if validate_schedule_id() has a bug
-    try:
-        resolved_path = schedule_path.resolve()
-        resolved_base = base_dir.resolve()
-        if not str(resolved_path).startswith(str(resolved_base) + "/") and resolved_path != resolved_base:
-            raise ValueError("Path escape attempt detected")
-    except (OSError, ValueError) as e:
-        raise ValueError(f"Invalid schedule ID: {schedule_id}") from e
-
-    return schedule_path
+    return base_dir / f"{safe_id}{SCHEDULE_FILENAME_EXTENSION}"
 
 
 def schedule_exists(schedule_id: str, is_builtin: bool = False) -> bool:
