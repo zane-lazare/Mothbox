@@ -29,6 +29,7 @@ try:
         validate_preview_days,
         validate_timezone,
     )
+
     IMPLEMENTATION_EXISTS = True
 except ImportError:
     IMPLEMENTATION_EXISTS = False
@@ -61,10 +62,7 @@ except ImportError:
 
 
 # Skip all tests if implementation doesn't exist
-pytestmark = pytest.mark.skipif(
-    not IMPLEMENTATION_EXISTS,
-    reason="Implementation not yet created"
-)
+pytestmark = pytest.mark.skipif(not IMPLEMENTATION_EXISTS, reason="Implementation not yet created")
 
 
 # ============================================================================
@@ -726,9 +724,7 @@ class TestConflictIntegration:
 
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")
     @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
-    def test_no_conflicts_empty_list(
-        self, mock_gen_exec, mock_detect, sample_interval_schedule
-    ):
+    def test_no_conflicts_empty_list(self, mock_gen_exec, mock_detect, sample_interval_schedule):
         """Test empty conflict list when no conflicts."""
         mock_gen_exec.return_value = []
 
@@ -861,6 +857,41 @@ class TestEdgeCases:
         valid, error = validate_timezone("not-a-timezone")
         assert valid is False
         assert "Invalid timezone" in error
+
+    @patch.dict("sys.modules", {"pytz": None})
+    def test_timezone_validation_pytz_not_installed(self):
+        """Test graceful handling when pytz is not installed."""
+        # We need to patch the import inside the function
+        import sys
+
+        # Save original pytz module
+        original_pytz = sys.modules.get("pytz")
+
+        # Remove pytz from modules to simulate it not being installed
+        if "pytz" in sys.modules:
+            del sys.modules["pytz"]
+
+        # Also need to patch builtins to make import fail
+        import builtins
+
+        original_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "pytz":
+                raise ImportError("No module named 'pytz'")
+            return original_import(name, *args, **kwargs)
+
+        builtins.__import__ = mock_import
+
+        try:
+            valid, error = validate_timezone("America/New_York")
+            assert valid is False
+            assert "pytz library required" in error
+        finally:
+            # Restore original import and pytz module
+            builtins.__import__ = original_import
+            if original_pytz is not None:
+                sys.modules["pytz"] = original_pytz
 
 
 # ============================================================================

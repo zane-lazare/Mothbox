@@ -443,9 +443,7 @@ def generate_preview(
             longitude = default_lon if default_lon is not None else DEFAULT_LONGITUDE
 
         if latitude == DEFAULT_LATITUDE and longitude == DEFAULT_LONGITUDE:
-            warning_msg = (
-                "Using default location (0, 0). Solar-based triggers may be inaccurate."
-            )
+            warning_msg = "Using default location (0, 0). Solar-based triggers may be inaccurate."
             logger.warning(warning_msg)
             warnings.append(warning_msg)
 
@@ -467,10 +465,7 @@ def generate_preview(
     )
 
     # Convert to preview executions with expanded actions
-    executions = [
-        _convert_execution(exec, schedule, trigger_info)
-        for exec in raw_executions
-    ]
+    executions = [_convert_execution(exec, schedule, trigger_info) for exec in raw_executions]
 
     # Detect conflicts
     conflict_report = detect_conflicts(
@@ -583,6 +578,8 @@ def validate_timezone(timezone_name: str) -> tuple[bool, str | None]:
 
         pytz.timezone(timezone_name)
         return True, None
+    except ImportError:
+        return False, "pytz library required for timezone validation"
     except pytz.UnknownTimeZoneError:
         return (
             False,
