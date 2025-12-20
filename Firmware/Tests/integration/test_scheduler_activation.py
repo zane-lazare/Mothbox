@@ -136,8 +136,8 @@ def scheduler_service(temp_schedules_env, mock_cron_system):
     from webui.backend.services.scheduler_service import SchedulerService
 
     service = SchedulerService(cache_ttl=60, max_cache_size=50)
-    service._apply_mock = mock_cron_system["apply"]
-    service._remove_mock = mock_cron_system["remove"]
+    # Note: mock_cron_system mocks are applied via monkeypatch.setattr in the fixture,
+    # not via service attributes. The fixture dependency ensures mocks are active.
 
     return service
 
@@ -274,6 +274,7 @@ class TestActivationWorkflow:
         temp_schedules_env,
         sample_schedule_factory,
         scheduler_service,
+        mock_cron_system,
     ):
         """Re-activating already-active schedule succeeds without error."""
         from webui.backend.lib.schedule_storage import create_schedule
@@ -293,7 +294,7 @@ class TestActivationWorkflow:
         assert success1 is True, f"First activation should succeed: {error1}"
 
         # Reset mock call count
-        scheduler_service._apply_mock.reset_mock()
+        mock_cron_system["apply"].reset_mock()
 
         # Second activation of same schedule
         success2, error2 = scheduler_service.activate_schedule(
