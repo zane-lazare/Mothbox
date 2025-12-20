@@ -17,6 +17,13 @@ import pytest
 try:
     from webui.backend.app import app
 
+    # Import schema constants for validation tests
+    from webui.backend.lib.schedule_schema import (
+        MAX_ACTIONS_PER_PATTERN,
+        MAX_OFFSET_MINUTES,
+        MAX_PATTERN_NAME_LENGTH,
+    )
+
     # Import scheduler_ui_bp to ensure it exists
     from webui.backend.routes.scheduler_ui import scheduler_ui_bp  # noqa: F401
 
@@ -382,9 +389,9 @@ class TestValidatePatternErrors:
         assert "error" in data
 
     def test_name_too_long_returns_error(self, client):
-        """Test name > 200 chars returns 400 error."""
+        """Test name exceeding MAX_PATTERN_NAME_LENGTH returns 400 error."""
         pattern = {
-            "name": "X" * 201,  # 201 characters
+            "name": "X" * (MAX_PATTERN_NAME_LENGTH + 1),
             "actions": [
                 {"action_type": "camera", "action_name": "takephoto", "offset_minutes": 0}
             ],
@@ -433,10 +440,10 @@ class TestValidatePatternErrors:
         assert "error" in data
 
     def test_too_many_actions_returns_error(self, client):
-        """Test > 20 actions returns 400 error."""
+        """Test exceeding MAX_ACTIONS_PER_PATTERN returns 400 error."""
         actions = [
             {"action_type": "camera", "action_name": "takephoto", "offset_minutes": i}
-            for i in range(21)  # 21 actions exceeds the 20 action limit
+            for i in range(MAX_ACTIONS_PER_PATTERN + 1)  # Exceeds MAX_ACTIONS_PER_PATTERN limit
         ]
         pattern = {"name": "Test Pattern", "actions": actions}
 
@@ -501,14 +508,14 @@ class TestValidatePatternErrors:
         assert "error" in data
 
     def test_offset_too_large_returns_error(self, client):
-        """Test offset > 1440 minutes returns 400 error."""
+        """Test offset exceeding MAX_OFFSET_MINUTES returns 400 error."""
         pattern = {
             "name": "Test Pattern",
             "actions": [
                 {
                     "action_type": "camera",
                     "action_name": "takephoto",
-                    "offset_minutes": 1441,  # > 1440 (24 hours)
+                    "offset_minutes": MAX_OFFSET_MINUTES + 1,  # > MAX_OFFSET_MINUTES
                 }
             ],
         }
