@@ -1575,8 +1575,10 @@ def pytest_collection_modifyitems(config, items):
         is_zip_export_integration = 'test_zip_export_integration' in fspath_str  # Uses tmp_path/PIL/Flask test client/threading, no camera/GPIO (Issue #128)
         is_export_no_deployment_workflow = 'test_export_no_deployment_workflow' in fspath_str  # Uses tmp_path/PIL/Flask test client, no camera/GPIO (Issue #200)
         is_schedule_storage_workflow = 'test_schedule_storage_workflow' in fspath_str  # Uses tmp_path/threading, no camera/GPIO (Issue #209)
+        is_scheduler_workflow = 'test_scheduler_workflow' in fspath_str  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
+        is_scheduler_activation = 'test_scheduler_activation' in fspath_str  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
 
-        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination and not is_gps_exif_workflow and not is_verification_workflow and not is_batch_tagging_workflow and not is_map_locations_integration and not is_clustering_workflow and not is_sidecar_concurrent and not is_sidecar_search_integration and not is_search_workflow and not is_deployment_workflow and not is_inaturalist_export_workflow and not is_export_job_workflow and not is_export_preset_workflow and not is_zip_export_integration and not is_export_no_deployment_workflow and not is_schedule_storage_workflow:
+        if is_integration and not is_manual and not is_installer and not is_focus_bracket_integration and not is_gallery_pagination and not is_gps_exif_workflow and not is_verification_workflow and not is_batch_tagging_workflow and not is_map_locations_integration and not is_clustering_workflow and not is_sidecar_concurrent and not is_sidecar_search_integration and not is_search_workflow and not is_deployment_workflow and not is_inaturalist_export_workflow and not is_export_job_workflow and not is_export_preset_workflow and not is_zip_export_integration and not is_export_no_deployment_workflow and not is_schedule_storage_workflow and not is_scheduler_workflow and not is_scheduler_activation:
             item.add_marker(pytest.mark.hardware)
 
 
