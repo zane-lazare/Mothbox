@@ -278,6 +278,24 @@ class TestCronJobManagement:
 
         assert len(entries) >= 1, "Should have at least one cron entry"
 
+        # Verify cron entry content
+        entry = entries[0]
+
+        # 1. Verify cron expression is correct for 21:00
+        assert entry.expression == "0 21 * * *", (
+            f"Expected cron expression '0 21 * * *', got '{entry.expression}'"
+        )
+
+        # 2. Verify command references TakePhoto script
+        assert "takephoto" in entry.command.lower(), (
+            f"Command should reference takephoto, got '{entry.command}'"
+        )
+
+        # 3. Verify comment includes Mothbox prefix
+        assert entry.comment.startswith("Mothbox:"), (
+            f"Comment should start with 'Mothbox:', got '{entry.comment}'"
+        )
+
     def test_schedule_removes_old_cron_entries_on_activation(
         self,
         temp_schedules_env,
