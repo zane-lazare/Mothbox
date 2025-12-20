@@ -30,6 +30,7 @@ Usage:
     print(f"Hit ratio: {stats['hit_ratio']:.2%}")
 """
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -614,22 +615,9 @@ class SchedulerService:
             # Use the refreshed schedule for cron conversion
             schedule = current
 
-        # Update is_active flag in storage
-        # For built-in schedules, we only update the in-memory state
-        try:
-            if not is_builtin_schedule(schedule_id):
-                self.update_schedule(schedule_id, {"is_active": True})
-            else:
-                self._update_builtin_schedule_state(schedule_id, True)
-        except Exception as e:
-            logger.exception(f"Failed to update schedule: {e}")
-            raise ScheduleActivationError(f"Failed to update schedule: {e}") from e
-
-        # Set active schedule ID
-        with self._cache_lock:
-            self._active_schedule_id = schedule_id
-
-        # Apply schedule to system cron (Issue #215)
+        # Apply schedule to system cron FIRST (Issue #215, Fix #4 atomic operation)
+        # We apply cron before updating is_active to avoid inconsistent state
+        # if cron application fails. This eliminates the need for rollback.
         try:
             result = schedule_to_cron(
                 schedule,
@@ -638,17 +626,6 @@ class SchedulerService:
                 timezone_name=timezone_name,
             )
             if result.errors:
-                # Required mode: fail activation if cron conversion has errors
-                # Rollback the is_active state
-                try:
-                    if not is_builtin_schedule(schedule_id):
-                        self.update_schedule(schedule_id, {"is_active": False})
-                    else:
-                        self._update_builtin_schedule_state(schedule_id, False)
-                except Exception:
-                    pass  # Best effort rollback
-                with self._cache_lock:
-                    self._active_schedule_id = None
                 raise ScheduleActivationError(
                     f"Cron conversion failed: {'; '.join(result.errors)}"
                 )
@@ -659,26 +636,35 @@ class SchedulerService:
                 set_rtc=True,
             )
             logger.info(
-                f"Activated schedule: {schedule_id} "
-                f"({len(result.entries)} cron entries applied)"
+                f"Applied cron entries for schedule: {schedule_id} "
+                f"({len(result.entries)} entries)"
             )
         except ScheduleActivationError:
             # Re-raise our own errors
             raise
         except Exception as e:
-            # Required mode: fail activation if cron cannot be applied
             logger.error(f"Failed to apply cron entries: {e}")
-            # Rollback the is_active state
-            try:
-                if not is_builtin_schedule(schedule_id):
-                    self.update_schedule(schedule_id, {"is_active": False})
-                else:
-                    self._update_builtin_schedule_state(schedule_id, False)
-            except Exception:
-                pass  # Best effort rollback
-            with self._cache_lock:
-                self._active_schedule_id = None
             raise ScheduleActivationError(f"Failed to apply schedule to system: {e}") from e
+
+        # Update is_active flag in storage AFTER cron succeeds
+        # For built-in schedules, we only update the in-memory state
+        try:
+            if not is_builtin_schedule(schedule_id):
+                self.update_schedule(schedule_id, {"is_active": True})
+            else:
+                self._update_builtin_schedule_state(schedule_id, True)
+        except Exception as e:
+            # Cron was applied but storage update failed - rollback cron
+            logger.exception(f"Failed to update schedule, rolling back cron: {e}")
+            with contextlib.suppress(Exception):
+                remove_from_system(clear_rtc=True)
+            raise ScheduleActivationError(f"Failed to update schedule: {e}") from e
+
+        # Set active schedule ID last
+        with self._cache_lock:
+            self._active_schedule_id = schedule_id
+
+        logger.info(f"Activated schedule: {schedule_id}")
 
     def deactivate_schedule(self) -> bool:
         """
