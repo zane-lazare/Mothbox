@@ -86,7 +86,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r Tests/requirements-test.txt
           # Install additional backend dependencies needed for test imports
-          pip install python-crontab timezonefinder==6.5.4
+          pip install python-crontab timezonefinder==6.5.4 croniter
 
       - name: Run unit tests with coverage (shard ${{ matrix.shard }}/3)
         env:
@@ -162,7 +162,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r Tests/requirements-test.txt
           # Install additional backend dependencies needed for test imports
-          pip install python-crontab timezonefinder==6.5.4
+          pip install python-crontab timezonefinder==6.5.4 croniter
 
       - name: Run integration tests (parallel, non-hardware)
         env:
