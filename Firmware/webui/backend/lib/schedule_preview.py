@@ -29,6 +29,16 @@ from webui.backend.lib.schedule_schema import (
     Schedule,
 )
 
+# Optional import for GPS location from controls.txt
+try:
+    from mothbox_paths import CONTROLS_FILE, get_control_values
+
+    MOTHBOX_PATHS_AVAILABLE = True
+except ImportError:
+    MOTHBOX_PATHS_AVAILABLE = False
+    CONTROLS_FILE = None
+    get_control_values = None
+
 # ============================================================================
 # Constants
 # ============================================================================
@@ -44,6 +54,10 @@ DEFAULT_LONGITUDE: Final[float] = 0.0
 
 # Logger
 logger = logging.getLogger(__name__)
+
+# Log warning if mothbox_paths not available (after logger is defined)
+if not MOTHBOX_PATHS_AVAILABLE:
+    logger.warning("mothbox_paths not available, GPS fallback disabled")
 
 
 # ============================================================================
@@ -227,9 +241,10 @@ def _get_default_location() -> tuple[float | None, float | None]:
     Returns:
         (latitude, longitude) tuple, or (None, None) if GPS unavailable
     """
-    try:
-        from mothbox_paths import CONTROLS_FILE, get_control_values
+    if not MOTHBOX_PATHS_AVAILABLE:
+        return None, None
 
+    try:
         controls = get_control_values(CONTROLS_FILE)
         lat_str = controls.get("lat", "n/a")
         lon_str = controls.get("lon", "n/a")
