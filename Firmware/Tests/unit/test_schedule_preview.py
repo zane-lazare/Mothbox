@@ -1083,3 +1083,75 @@ class TestPreviewGeneration:
         assert result.total_executions == 2
         # Each execution has 3 actions (from sample_pattern)
         assert result.total_actions == 6
+
+    @patch("webui.backend.lib.schedule_preview.detect_conflicts")
+    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    def test_preview_boundaries_use_timezone(
+        self, mock_gen_exec, mock_detect, sample_interval_schedule
+    ):
+        """Test that preview_start/end respect the timezone parameter."""
+        mock_gen_exec.return_value = []
+
+        mock_report = MagicMock()
+        mock_report.conflicts = []
+        mock_detect.return_value = mock_report
+
+        # Generate preview with New York timezone (UTC-5 or UTC-4 depending on DST)
+        result = generate_preview(
+            sample_interval_schedule,
+            days=1,
+            latitude=40.7128,
+            longitude=-74.0060,
+            timezone_name="America/New_York",
+        )
+
+        # preview_start should be midnight in New York, converted to UTC
+        # In June (DST), New York is UTC-4, so midnight NY = 04:00 UTC
+        # The exact hour depends on the current date, but it should NOT be 00:00 UTC
+        # unless the timezone is UTC
+        assert result.preview_start.tzinfo == UTC
+        assert result.preview_end.tzinfo == UTC
+
+        # Generate same preview with UTC
+        result_utc = generate_preview(
+            sample_interval_schedule,
+            days=1,
+            latitude=40.7128,
+            longitude=-74.0060,
+            timezone_name="UTC",
+        )
+
+        # UTC preview should have 00:00:00 start time
+        assert result_utc.preview_start.hour == 0
+        assert result_utc.preview_start.minute == 0
+
+    @patch("webui.backend.lib.schedule_preview.detect_conflicts")
+    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    def test_preview_boundaries_timezone_offset(
+        self, mock_gen_exec, mock_detect, sample_interval_schedule
+    ):
+        """Test timezone offset is correctly applied to preview boundaries."""
+        mock_gen_exec.return_value = []
+
+        mock_report = MagicMock()
+        mock_report.conflicts = []
+        mock_detect.return_value = mock_report
+
+        # Use a fixed-offset timezone for predictable testing
+        # Asia/Tokyo is UTC+9 (no DST)
+        result = generate_preview(
+            sample_interval_schedule,
+            days=1,
+            latitude=35.6762,
+            longitude=139.6503,
+            timezone_name="Asia/Tokyo",
+        )
+
+        # Midnight in Tokyo (UTC+9) = 15:00 previous day in UTC
+        # So preview_start.hour should be 15 (from previous day)
+        # Actually it's the same date in the preview, so it wraps
+        assert result.preview_start.tzinfo == UTC
+        # The key assertion: midnight Tokyo != midnight UTC
+        # Midnight Tokyo = 15:00 UTC previous day
+        # So if start_date is today, preview_start in UTC is yesterday 15:00
+        assert result.preview_start.hour == 15  # 00:00 Tokyo = 15:00 UTC (prev day)

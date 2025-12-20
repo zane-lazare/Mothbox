@@ -483,9 +483,20 @@ def generate_preview(
     total_actions = sum(len(e.actions) for e in executions)
     total_executions = len(executions)
 
-    # Build preview start/end as datetimes
-    preview_start = datetime.combine(start_date, datetime.min.time(), tzinfo=UTC)
-    preview_end = datetime.combine(end_date, datetime.max.time(), tzinfo=UTC)
+    # Build preview start/end as datetimes in the user's timezone, then convert to UTC
+    # This ensures consistency when execution times span timezone boundaries
+    try:
+        import pytz
+
+        tz = pytz.timezone(timezone_name)
+        preview_start = tz.localize(datetime.combine(start_date, datetime.min.time())).astimezone(
+            UTC
+        )
+        preview_end = tz.localize(datetime.combine(end_date, datetime.max.time())).astimezone(UTC)
+    except (ImportError, Exception):
+        # Fallback to UTC if pytz unavailable or timezone invalid
+        preview_start = datetime.combine(start_date, datetime.min.time(), tzinfo=UTC)
+        preview_end = datetime.combine(end_date, datetime.max.time(), tzinfo=UTC)
 
     return PreviewResult(
         schedule_id=schedule.schedule_id,
