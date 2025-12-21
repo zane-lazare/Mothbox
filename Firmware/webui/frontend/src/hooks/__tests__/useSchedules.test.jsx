@@ -4,6 +4,8 @@
  * Comprehensive test suite following TDD approach - tests written BEFORE implementation.
  * Tests React Query hooks for Scheduler UI API integration.
  *
+ * Event pattern hook tests are in useEventPatterns.test.jsx (Issue #222).
+ *
  * Reference: useDeployments.test.jsx for testing patterns
  */
 
@@ -17,14 +19,12 @@ import {
   useActiveSchedule,
   useSchedulePreview,
   useBuiltinSchedules,
-  useBuiltinPatterns,
   useCreateSchedule,
   useUpdateSchedule,
   useDeleteSchedule,
   useActivateSchedule,
   useDeactivateSchedule,
   useValidateSchedule,
-  useValidatePattern
 } from '../useSchedules';
 import * as schedulerApi from '../../utils/schedulerApi';
 
@@ -104,7 +104,7 @@ describe('useSchedules', () => {
         {
           id: 'sunset_moths',
           name: 'Sunset Moths',
-          category: 'builtin',
+          category: 'built-in',
           events: []
         }
       ],
@@ -538,14 +538,14 @@ describe('useBuiltinSchedules', () => {
         {
           id: 'sunset_moths',
           name: 'Sunset Moths',
-          category: 'builtin',
+          category: 'built-in',
           description: 'Capture moths at dusk',
           events: []
         },
         {
           id: 'hourly_survey',
           name: 'Hourly Survey',
-          category: 'builtin',
+          category: 'built-in',
           description: 'Take photos every hour',
           events: []
         }
@@ -583,65 +583,7 @@ describe('useBuiltinSchedules', () => {
   });
 });
 
-describe('useBuiltinPatterns', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('fetches built-in patterns successfully', async () => {
-    const mockBuiltinPatterns = {
-      patterns: [
-        {
-          id: 'hourly_interval',
-          name: 'Hourly Interval',
-          category: 'builtin',
-          description: 'Take photos every hour',
-          events: []
-        },
-        {
-          id: 'sunset_offset',
-          name: 'Sunset Offset',
-          category: 'builtin',
-          description: 'Trigger relative to sunset',
-          events: []
-        }
-      ],
-      total: 2
-    };
-
-    schedulerApi.listBuiltinPatterns.mockResolvedValue({ data: mockBuiltinPatterns });
-
-    const { result } = renderHook(() => useBuiltinPatterns(), {
-      wrapper: createWrapper()
-    });
-
-    await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
-    });
-
-    expect(result.current.data).toEqual(mockBuiltinPatterns);
-    expect(schedulerApi.listBuiltinPatterns).toHaveBeenCalledTimes(1);
-  });
-
-  it('handles fetch error', async () => {
-    const mockError = new Error('Failed to fetch built-in patterns');
-    schedulerApi.listBuiltinPatterns.mockRejectedValue(mockError);
-
-    const { result } = renderHook(() => useBuiltinPatterns(), {
-      wrapper: createWrapper()
-    });
-
-    await waitFor(() => {
-      expect(result.current.isError).toBe(true);
-    });
-
-    expect(result.current.error).toBe(mockError);
-  });
-});
+// Note: useBuiltinPatterns tests are in useEventPatterns.test.jsx (Issue #222)
 
 describe('useCreateSchedule', () => {
   beforeEach(() => {
@@ -1200,87 +1142,4 @@ describe('useValidateSchedule', () => {
   });
 });
 
-describe('useValidatePattern', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('validates pattern successfully', async () => {
-    const mockResponse = {
-      valid: true,
-      errors: [],
-      warnings: []
-    };
-
-    schedulerApi.validatePattern.mockResolvedValue({ data: mockResponse });
-
-    const { result } = renderHook(() => useValidatePattern(), {
-      wrapper: createWrapper()
-    });
-
-    result.current.mutate({
-      name: 'evening_capture',
-      action: 'take_photo',
-      trigger: { type: 'solar', solar_event: 'sunset', offset_minutes: 30 }
-    });
-
-    await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
-    });
-
-    expect(result.current.data.data).toEqual(mockResponse);
-    expect(schedulerApi.validatePattern).toHaveBeenCalledWith({
-      name: 'evening_capture',
-      action: 'take_photo',
-      trigger: { type: 'solar', solar_event: 'sunset', offset_minutes: 30 }
-    });
-  });
-
-  it('returns validation errors for invalid pattern', async () => {
-    const mockResponse = {
-      valid: false,
-      errors: ['Invalid trigger type'],
-      warnings: []
-    };
-
-    schedulerApi.validatePattern.mockResolvedValue({ data: mockResponse });
-
-    const { result } = renderHook(() => useValidatePattern(), {
-      wrapper: createWrapper()
-    });
-
-    result.current.mutate({
-      name: 'bad_pattern',
-      action: 'take_photo',
-      trigger: { type: 'invalid' }
-    });
-
-    await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
-    });
-
-    expect(result.current.data.data.valid).toBe(false);
-    expect(result.current.data.data.errors).toContain('Invalid trigger type');
-  });
-
-  it('handles API error', async () => {
-    const mockError = new Error('Pattern validation failed');
-    schedulerApi.validatePattern.mockRejectedValue(mockError);
-
-    const { result } = renderHook(() => useValidatePattern(), {
-      wrapper: createWrapper()
-    });
-
-    result.current.mutate({ name: 'test', action: 'take_photo', trigger: {} });
-
-    await waitFor(() => {
-      expect(result.current.isError).toBe(true);
-    });
-
-    expect(result.current.error).toBe(mockError);
-  });
-});
+// Note: useValidatePattern tests are in useEventPatterns.test.jsx (Issue #222)
