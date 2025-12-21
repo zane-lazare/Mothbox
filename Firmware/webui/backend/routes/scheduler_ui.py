@@ -22,6 +22,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 from werkzeug.exceptions import BadRequest
 
+from webui.backend.constants import MAX_BUILTIN_SCHEDULE_FILES
 from webui.backend.lib.schedule_preview import (
     DEFAULT_PREVIEW_DAYS,
     generate_preview,
@@ -55,9 +56,6 @@ except ImportError:
 
 # Logger
 logger = logging.getLogger(__name__)
-
-# Maximum number of built-in schedule files to process (safety limit)
-MAX_BUILTIN_SCHEDULE_FILES = 20
 
 # Blueprint
 scheduler_ui_bp = Blueprint("scheduler_ui", __name__)
