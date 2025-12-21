@@ -441,12 +441,12 @@ def create_schedule(json_data: dict):
         except KeyError as e:
             logger.debug(f"Missing required field in schedule: {e}")
             return jsonify({
-                "error": "Invalid schedule structure - missing required field",
+                "error": f"Missing required field: {e}",
             }), 400
         except Exception as e:
-            logger.error(f"Invalid schedule structure: {e}", exc_info=True)
+            logger.error(f"Invalid schedule format: {e}", exc_info=True)
             return jsonify({
-                "error": "Invalid schedule structure",
+                "error": "Invalid schedule format",
             }), 400
 
         # Create via service (validates internally)
