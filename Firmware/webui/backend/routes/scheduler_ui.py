@@ -637,14 +637,29 @@ def activate_schedule(schedule_id: str):
         check_conflicts = data.get("check_conflicts", True)
 
         # Check if coordinates were explicitly provided in request
-        coords_provided = "latitude" in data or "longitude" in data
-        latitude = data.get("latitude", 0.0)
-        longitude = data.get("longitude", 0.0)
+        lat_provided = "latitude" in data
+        lon_provided = "longitude" in data
+
+        # Require both coordinates or neither
+        if lat_provided != lon_provided:
+            return jsonify({
+                "error": "Both latitude and longitude must be provided together",
+            }), 400
+
+        # Type validation for coordinates
+        try:
+            latitude = float(data["latitude"]) if lat_provided else 0.0
+            longitude = float(data["longitude"]) if lon_provided else 0.0
+        except (ValueError, TypeError):
+            return jsonify({
+                "error": "Coordinates must be numeric",
+            }), 400
+
         timezone_name = data.get("timezone", "UTC")
 
-        # Validate coordinates if explicitly provided (including 0.0, 0.0)
+        # Validate coordinate ranges if explicitly provided (including 0.0, 0.0)
         # This ensures Null Island coordinates are validated rather than skipped
-        if coords_provided:
+        if lat_provided and lon_provided:
             valid, coord_error = validate_coordinates(latitude, longitude)
             if not valid:
                 return jsonify({
@@ -784,13 +799,28 @@ def validate_schedule_endpoint(schedule_id: str):
         preview_days = data.get("days", 7)
 
         # Check if coordinates were explicitly provided in request
-        coords_provided = "latitude" in data or "longitude" in data
-        latitude = data.get("latitude", 0.0)
-        longitude = data.get("longitude", 0.0)
+        lat_provided = "latitude" in data
+        lon_provided = "longitude" in data
+
+        # Require both coordinates or neither
+        if lat_provided != lon_provided:
+            return jsonify({
+                "error": "Both latitude and longitude must be provided together",
+            }), 400
+
+        # Type validation for coordinates
+        try:
+            latitude = float(data["latitude"]) if lat_provided else 0.0
+            longitude = float(data["longitude"]) if lon_provided else 0.0
+        except (ValueError, TypeError):
+            return jsonify({
+                "error": "Coordinates must be numeric",
+            }), 400
+
         timezone_name = data.get("timezone", "UTC")
 
-        # Validate coordinates if explicitly provided (including 0.0, 0.0)
-        if coords_provided:
+        # Validate coordinate ranges if explicitly provided (including 0.0, 0.0)
+        if lat_provided and lon_provided:
             valid, coord_error = validate_coordinates(latitude, longitude)
             if not valid:
                 return jsonify({
