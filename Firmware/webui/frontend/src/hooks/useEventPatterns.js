@@ -153,22 +153,32 @@ export function useValidatePattern() {
  * - Checking if patterns fit within time windows
  * - Scheduling calculations
  *
- * @param {Object|null} pattern - Event pattern object
+ * **Performance Note:** This hook uses useMemo with the pattern object as a
+ * dependency. If the parent component creates a new pattern object on each
+ * render (even with the same data), useMemo will recalculate because the
+ * object reference changes. To prevent unnecessary recalculations, callers
+ * should memoize the pattern object.
+ *
+ * @param {Object|null} pattern - Event pattern object (should be memoized)
  * @param {Array} [pattern.actions] - Array of action objects with offset_minutes
  * @returns {number} Maximum offset in minutes, or 0 if no actions
  *
  * @example
- * const pattern = {
+ * // Good: Pattern is memoized, duration only recalculates when data changes
+ * const pattern = useMemo(() => ({
  *   name: 'UV Capture Cycle',
  *   actions: [
  *     { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 },
  *     { action_type: 'camera', action_name: 'takephoto', offset_minutes: 5 },
  *     { action_type: 'gpio', action_name: 'attract_off', offset_minutes: 15 }
  *   ]
- * }
+ * }), [])
+ * const duration = usePatternDuration(pattern) // "15"
  *
- * const duration = usePatternDuration(pattern)
- * console.log(`Pattern takes ${duration} minutes`) // "Pattern takes 15 minutes"
+ * @example
+ * // Also good: Pattern comes from React Query (already stable reference)
+ * const { data } = useBuiltinPatterns()
+ * const duration = usePatternDuration(data?.patterns?.[0])
  */
 export function usePatternDuration(pattern) {
   return useMemo(() => {
