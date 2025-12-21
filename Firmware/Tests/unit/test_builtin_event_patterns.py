@@ -39,7 +39,9 @@ from webui.backend.lib.schedule_schema import (
 @pytest.fixture
 def builtin_schedules_dir() -> Path:
     """Get the built-in schedules directory."""
-    return Path(__file__).parent.parent.parent / "webui" / "backend" / "presets_builtin" / "schedules"
+    return (
+        Path(__file__).parent.parent.parent / "webui" / "backend" / "presets_builtin" / "schedules"
+    )
 
 
 @pytest.fixture
@@ -275,65 +277,46 @@ class TestRequiredPatterns:
 
         assert not missing, f"Missing required patterns: {missing}"
 
-    def test_uv_capture_cycle_exists(self, all_patterns: list[dict]) -> None:
-        """UV Capture Cycle pattern must exist with correct structure."""
+    @pytest.mark.parametrize(
+        "pattern_name,expected_actions,expected_tags,expected_duration",
+        [
+            ("UV Capture Cycle", ["attract_on", "takephoto", "attract_off"], None, None),
+            ("Attract Session", None, None, 60),
+            ("Flash Capture", ["flash_on", "takephoto", "flash_off"], None, None),
+            ("Dawn Transect", None, ["dawn"], None),
+            ("Dusk Transect", None, ["dusk"], None),
+        ],
+    )
+    def test_required_pattern_configuration(
+        self,
+        all_patterns: list[dict],
+        pattern_name: str,
+        expected_actions: list[str] | None,
+        expected_tags: list[str] | None,
+        expected_duration: int | None,
+    ) -> None:
+        """Required patterns must exist with correct configuration."""
         pattern = next(
-            (p for p in all_patterns if p.get("name") == "UV Capture Cycle"),
-            None
+            (p for p in all_patterns if p.get("name") == pattern_name),
+            None,
         )
-        assert pattern is not None, "UV Capture Cycle pattern not found"
+        assert pattern is not None, f"{pattern_name} pattern not found"
 
-        # Check it has attract_on, takephoto, attract_off actions
-        action_names = [a.get("action_name") for a in pattern.get("actions", [])]
-        assert "attract_on" in action_names, "UV Capture Cycle missing attract_on"
-        assert "takephoto" in action_names, "UV Capture Cycle missing takephoto"
-        assert "attract_off" in action_names, "UV Capture Cycle missing attract_off"
+        if expected_actions:
+            action_names = [a.get("action_name") for a in pattern.get("actions", [])]
+            for action in expected_actions:
+                assert action in action_names, f"{pattern_name} missing {action}"
 
-    def test_attract_session_exists(self, all_patterns: list[dict]) -> None:
-        """Attract Session pattern must exist with 60-minute duration."""
-        pattern = next(
-            (p for p in all_patterns if p.get("name") == "Attract Session"),
-            None
-        )
-        assert pattern is not None, "Attract Session pattern not found"
+        if expected_tags:
+            tags = pattern.get("tags", [])
+            for tag in expected_tags:
+                assert tag in tags, f"{pattern_name} missing '{tag}' tag"
 
-        # Check duration is 60 minutes (max offset)
-        max_offset = max(
-            a.get("offset_minutes", 0) for a in pattern.get("actions", [])
-        )
-        assert max_offset == 60, f"Attract Session duration is {max_offset}, expected 60"
-
-    def test_flash_capture_exists(self, all_patterns: list[dict]) -> None:
-        """Flash Capture pattern must exist with flash_on/flash_off actions."""
-        pattern = next(
-            (p for p in all_patterns if p.get("name") == "Flash Capture"),
-            None
-        )
-        assert pattern is not None, "Flash Capture pattern not found"
-
-        # Check it has flash_on, takephoto, flash_off actions
-        action_names = [a.get("action_name") for a in pattern.get("actions", [])]
-        assert "flash_on" in action_names, "Flash Capture missing flash_on"
-        assert "takephoto" in action_names, "Flash Capture missing takephoto"
-        assert "flash_off" in action_names, "Flash Capture missing flash_off"
-
-    def test_dawn_transect_exists(self, all_patterns: list[dict]) -> None:
-        """Dawn Transect pattern must exist."""
-        pattern = next(
-            (p for p in all_patterns if p.get("name") == "Dawn Transect"),
-            None
-        )
-        assert pattern is not None, "Dawn Transect pattern not found"
-        assert "dawn" in pattern.get("tags", []), "Dawn Transect missing 'dawn' tag"
-
-    def test_dusk_transect_exists(self, all_patterns: list[dict]) -> None:
-        """Dusk Transect pattern must exist."""
-        pattern = next(
-            (p for p in all_patterns if p.get("name") == "Dusk Transect"),
-            None
-        )
-        assert pattern is not None, "Dusk Transect pattern not found"
-        assert "dusk" in pattern.get("tags", []), "Dusk Transect missing 'dusk' tag"
+        if expected_duration is not None:
+            max_offset = max(a.get("offset_minutes", 0) for a in pattern.get("actions", []))
+            assert max_offset == expected_duration, (
+                f"{pattern_name} duration is {max_offset}, expected {expected_duration}"
+            )
 
 
 # =============================================================================
@@ -367,9 +350,7 @@ class TestPatternStructure:
             pattern_name = pattern.get("name", "unnamed")
             for i, action in enumerate(pattern.get("actions", [])):
                 description = action.get("description", "")
-                assert description, (
-                    f"Pattern '{pattern_name}' action {i+1} has no description"
-                )
+                assert description, f"Pattern '{pattern_name}' action {i + 1} has no description"
 
     def test_gpio_patterns_turn_off_lights(self, all_patterns: list[dict]) -> None:
         """Patterns that turn on lights should also turn them off."""
