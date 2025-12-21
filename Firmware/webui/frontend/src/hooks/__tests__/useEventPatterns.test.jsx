@@ -17,6 +17,7 @@ import {
   usePatternDuration,
 } from '../useEventPatterns';
 import * as schedulerApi from '../../utils/schedulerApi';
+import { QUERY_KEYS } from '../../utils/queryKeys';
 
 // Mock the API module
 vi.mock('../../utils/schedulerApi');
@@ -128,20 +129,35 @@ describe('useBuiltinPatterns', () => {
   });
 
   it('uses correct query key', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false }
+      }
+    });
+
     schedulerApi.listBuiltinPatterns.mockResolvedValue({
       data: { patterns: [], total: 0 }
     });
 
-    const { result } = renderHook(() => useBuiltinPatterns(), {
-      wrapper: createWrapper()
-    });
+    const wrapper = ({ children }) => (
+      <QueryClientProvider client={queryClient}>
+        {children}
+      </QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useBuiltinPatterns(), { wrapper });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    // Verify API was called (query key is internal to React Query)
-    expect(schedulerApi.listBuiltinPatterns).toHaveBeenCalledTimes(1);
+    // Verify the correct query key is used in the cache
+    const cachedQueries = queryClient.getQueryCache().findAll({
+      queryKey: QUERY_KEYS.BUILTIN_PATTERNS
+    });
+    expect(cachedQueries).toHaveLength(1);
+    expect(cachedQueries[0].queryKey).toEqual(QUERY_KEYS.BUILTIN_PATTERNS);
   });
 
   it('accepts custom queryOptions', async () => {
