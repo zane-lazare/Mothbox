@@ -402,7 +402,7 @@ function schedulerReducer(state, action) {
 export function SchedulerProvider({ children }) {
   const [state, dispatch] = useReducer(schedulerReducer, initialState)
 
-  // Persist UI state to localStorage with debounce to avoid race conditions
+  // Persist UI state to localStorage with debounce to avoid excessive writes
   // Batches both drawer and sections writes into a single effect
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -410,7 +410,13 @@ export function SchedulerProvider({ children }) {
       saveToStorage(STORAGE_KEY_SECTIONS, state.expandedSections)
     }, 100) // 100ms debounce
 
-    return () => clearTimeout(timeoutId)
+    return () => {
+      clearTimeout(timeoutId)
+      // Save immediately on unmount to prevent data loss if component
+      // unmounts before the debounce timeout completes
+      saveToStorage(STORAGE_KEY_DRAWER, state.isDrawerOpen)
+      saveToStorage(STORAGE_KEY_SECTIONS, state.expandedSections)
+    }
   }, [state.isDrawerOpen, state.expandedSections])
 
   // Actions
