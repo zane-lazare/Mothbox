@@ -72,4 +72,12 @@ export const QUERY_KEYS = {
   // Deployment Metadata (Issue #125, Subtask 3)
   DEPLOYMENTS: ['deployments'],
   DEPLOYMENT: (directory) => ['deployment', directory],
+
+  // Scheduler (Issue #221)
+  SCHEDULES: ['schedules'],
+  SCHEDULE: (id) => ['schedules', id],
+  ACTIVE_SCHEDULE: ['schedules', 'active'],
+  SCHEDULE_PREVIEW: (id) => ['schedules', id, 'preview'],
+  BUILTIN_SCHEDULES: ['schedules', 'builtin'],
+  BUILTIN_PATTERNS: ['schedules', 'patterns', 'builtin'],
 }
