@@ -35,8 +35,8 @@ pytestmark = pytest.mark.skipif(not IMPLEMENTATION_EXISTS, reason="Implementatio
 def reset_builtin_patterns_cache():
     """Reset the built-in patterns cache before each test.
 
-    The scheduler_ui module caches patterns at module level.
-    We need to reset it to ensure tests get fresh data.
+    The scheduler_ui module caches patterns and warnings at module level.
+    We need to reset both to ensure tests get fresh data.
 
     Note: We acquire the cache lock to prevent race conditions when
     tests run in parallel.
@@ -44,11 +44,14 @@ def reset_builtin_patterns_cache():
     import webui.backend.routes.scheduler_ui as module
 
     with module._builtin_patterns_cache_lock:
-        original = getattr(module, "_builtin_patterns_cache", None)
+        original_patterns = getattr(module, "_builtin_patterns_cache", None)
+        original_warnings = getattr(module, "_builtin_patterns_cache_warnings", [])
         module._builtin_patterns_cache = None
+        module._builtin_patterns_cache_warnings = []
     yield
     with module._builtin_patterns_cache_lock:
-        module._builtin_patterns_cache = original
+        module._builtin_patterns_cache = original_patterns
+        module._builtin_patterns_cache_warnings = original_warnings
 
 
 @pytest.fixture
@@ -73,24 +76,37 @@ class TestListBuiltinPatternsEndpoint:
         response = client.get("/api/scheduler/ui/patterns/builtin")
         assert response.status_code == 200
 
-    def test_endpoint_returns_list(self, client) -> None:
-        """Response is a JSON list."""
+    def test_endpoint_returns_object_with_patterns(self, client) -> None:
+        """Response is a JSON object with patterns list and warnings."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
-        assert isinstance(data, list)
+        assert isinstance(data, dict)
+        assert "patterns" in data
+        assert "warnings" in data
+        assert isinstance(data["patterns"], list)
+        assert isinstance(data["warnings"], list)
+
+    def test_warnings_empty_when_no_errors(self, client) -> None:
+        """Warnings array should be empty when all files load successfully."""
+        response = client.get("/api/scheduler/ui/patterns/builtin")
+        data = response.get_json()
+        # With valid built-in files, warnings should be empty
+        assert data["warnings"] == [], f"Expected no warnings, got: {data['warnings']}"
 
     def test_returns_at_least_5_patterns(self, client) -> None:
         """Should return at least 5 patterns (Issue #219 requirement)."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
-        assert len(data) >= 5, f"Expected at least 5 patterns, got {len(data)}"
+        patterns = data["patterns"]
+        assert len(patterns) >= 5, f"Expected at least 5 patterns, got {len(patterns)}"
 
     def test_all_required_patterns_present(self, client) -> None:
         """All 5 required patterns must be present."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
+        patterns = data["patterns"]
 
-        pattern_names = {p.get("name") for p in data}
+        pattern_names = {p.get("name") for p in patterns}
 
         required = [
             "UV Capture Cycle",
@@ -107,8 +123,9 @@ class TestListBuiltinPatternsEndpoint:
         """Each pattern must have pattern_id, name, actions, category."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
+        patterns = data["patterns"]
 
-        for pattern in data:
+        for pattern in patterns:
             pattern_name = pattern.get("name", "unnamed")
             assert "pattern_id" in pattern, f"{pattern_name}: missing pattern_id"
             assert "name" in pattern, f"{pattern_name}: missing name"
@@ -119,8 +136,9 @@ class TestListBuiltinPatternsEndpoint:
         """Each pattern must have source_schedule populated."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
+        patterns = data["patterns"]
 
-        for pattern in data:
+        for pattern in patterns:
             pattern_name = pattern.get("name", "unnamed")
             assert "source_schedule" in pattern, f"{pattern_name}: missing source_schedule"
             assert pattern["source_schedule"], f"{pattern_name}: empty source_schedule"
@@ -129,8 +147,9 @@ class TestListBuiltinPatternsEndpoint:
         """Each pattern must have duration_minutes computed."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
+        patterns = data["patterns"]
 
-        for pattern in data:
+        for pattern in patterns:
             pattern_name = pattern.get("name", "unnamed")
             assert "duration_minutes" in pattern, f"{pattern_name}: missing duration_minutes"
             assert isinstance(pattern["duration_minutes"], int), (
@@ -141,8 +160,9 @@ class TestListBuiltinPatternsEndpoint:
         """All pattern_ids should be unique (deduplication)."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
+        patterns = data["patterns"]
 
-        pattern_ids = [p.get("pattern_id") for p in data]
+        pattern_ids = [p.get("pattern_id") for p in patterns]
         unique_ids = set(pattern_ids)
 
         assert len(pattern_ids) == len(unique_ids), (
@@ -162,8 +182,9 @@ class TestPatternDurations:
         """UV Capture Cycle should have 15-minute duration."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
+        patterns = data["patterns"]
 
-        pattern = next((p for p in data if p.get("name") == "UV Capture Cycle"), None)
+        pattern = next((p for p in patterns if p.get("name") == "UV Capture Cycle"), None)
         assert pattern is not None, "UV Capture Cycle not found"
         assert pattern["duration_minutes"] == 15, (
             f"Expected 15 minutes, got {pattern['duration_minutes']}"
@@ -173,8 +194,9 @@ class TestPatternDurations:
         """Attract Session should have 60-minute duration."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
+        patterns = data["patterns"]
 
-        pattern = next((p for p in data if p.get("name") == "Attract Session"), None)
+        pattern = next((p for p in patterns if p.get("name") == "Attract Session"), None)
         assert pattern is not None, "Attract Session not found"
         assert pattern["duration_minutes"] == 60, (
             f"Expected 60 minutes, got {pattern['duration_minutes']}"
@@ -184,8 +206,9 @@ class TestPatternDurations:
         """Flash Capture should have 1-minute duration (short flash cycle)."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
+        patterns = data["patterns"]
 
-        pattern = next((p for p in data if p.get("name") == "Flash Capture"), None)
+        pattern = next((p for p in patterns if p.get("name") == "Flash Capture"), None)
         assert pattern is not None, "Flash Capture not found"
         assert pattern["duration_minutes"] == 1, (
             f"Expected 1 minute, got {pattern['duration_minutes']}"
@@ -195,8 +218,9 @@ class TestPatternDurations:
         """Dawn Transect should have 20-minute duration."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
+        patterns = data["patterns"]
 
-        pattern = next((p for p in data if p.get("name") == "Dawn Transect"), None)
+        pattern = next((p for p in patterns if p.get("name") == "Dawn Transect"), None)
         assert pattern is not None, "Dawn Transect not found"
         assert pattern["duration_minutes"] == 20, (
             f"Expected 20 minutes, got {pattern['duration_minutes']}"
@@ -206,8 +230,9 @@ class TestPatternDurations:
         """Dusk Transect should have 20-minute duration."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
+        patterns = data["patterns"]
 
-        pattern = next((p for p in data if p.get("name") == "Dusk Transect"), None)
+        pattern = next((p for p in patterns if p.get("name") == "Dusk Transect"), None)
         assert pattern is not None, "Dusk Transect not found"
         assert pattern["duration_minutes"] == 20, (
             f"Expected 20 minutes, got {pattern['duration_minutes']}"
@@ -279,7 +304,8 @@ class TestPatternValidationEndpoint:
         """All built-in patterns should pass validation when submitted."""
         # Get built-in patterns
         patterns_response = client.get("/api/scheduler/ui/patterns/builtin")
-        patterns = patterns_response.get_json()
+        data = patterns_response.get_json()
+        patterns = data["patterns"]
 
         for pattern in patterns:
             pattern_name = pattern.get("name", "unnamed")
@@ -315,8 +341,9 @@ class TestPatternSourceSchedules:
         """UV Capture Cycle should come from Nightly Moth Survey."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
+        patterns = data["patterns"]
 
-        pattern = next((p for p in data if p.get("name") == "UV Capture Cycle"), None)
+        pattern = next((p for p in patterns if p.get("name") == "UV Capture Cycle"), None)
         assert pattern is not None
         assert (
             "Nightly" in pattern["source_schedule"]
@@ -327,8 +354,9 @@ class TestPatternSourceSchedules:
         """Flash Capture should come from Flash Capture Survey."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
+        patterns = data["patterns"]
 
-        pattern = next((p for p in data if p.get("name") == "Flash Capture"), None)
+        pattern = next((p for p in patterns if p.get("name") == "Flash Capture"), None)
         assert pattern is not None
         assert "Flash" in pattern["source_schedule"]
 
@@ -336,8 +364,9 @@ class TestPatternSourceSchedules:
         """Attract Session should come from Extended Attract Session."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
+        patterns = data["patterns"]
 
-        pattern = next((p for p in data if p.get("name") == "Attract Session"), None)
+        pattern = next((p for p in patterns if p.get("name") == "Attract Session"), None)
         assert pattern is not None
         assert "Attract" in pattern["source_schedule"] or "Extended" in pattern["source_schedule"]
 
@@ -345,8 +374,9 @@ class TestPatternSourceSchedules:
         """Dawn/Dusk Transect patterns should come from Dawn & Dusk Survey."""
         response = client.get("/api/scheduler/ui/patterns/builtin")
         data = response.get_json()
+        patterns = data["patterns"]
 
         for pattern_name in ["Dawn Transect", "Dusk Transect"]:
-            pattern = next((p for p in data if p.get("name") == pattern_name), None)
+            pattern = next((p for p in patterns if p.get("name") == pattern_name), None)
             assert pattern is not None, f"{pattern_name} not found"
             assert "Dawn" in pattern["source_schedule"] or "Dusk" in pattern["source_schedule"]

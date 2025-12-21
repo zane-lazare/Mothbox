@@ -67,6 +67,7 @@ _scheduler_service = None
 
 # Built-in patterns cache (populated on first request)
 _builtin_patterns_cache: list[dict] | None = None
+_builtin_patterns_cache_warnings: list[str] = []
 _builtin_patterns_cache_lock = threading.Lock()
 
 
@@ -973,7 +974,7 @@ def validate_schedule_endpoint(schedule_id: str) -> tuple[Response, int]:
 # ============================================================================
 
 
-def list_builtin_patterns() -> list[dict]:
+def list_builtin_patterns() -> tuple[list[dict], list[str]]:
     """
     Extract unique event patterns from built-in schedules.
 
@@ -988,7 +989,9 @@ def list_builtin_patterns() -> list[dict]:
     - duration_minutes: Computed from max action offset
 
     Returns:
-        List of pattern dictionaries with source_schedule and duration_minutes added
+        Tuple of (patterns, warnings) where:
+        - patterns: List of pattern dictionaries with source_schedule and duration_minutes
+        - warnings: List of warning messages for any files that failed to load
 
     Note:
         Results are cached at module level for performance using thread-safe
@@ -999,37 +1002,43 @@ def list_builtin_patterns() -> list[dict]:
         If built-in schedule files are modified, a service restart is required
         to refresh the cache.
     """
-    global _builtin_patterns_cache
+    global _builtin_patterns_cache, _builtin_patterns_cache_warnings
 
     # Fast path: cache already populated (no lock needed)
     if _builtin_patterns_cache is not None:
-        return _builtin_patterns_cache
+        return _builtin_patterns_cache, _builtin_patterns_cache_warnings
 
     # Slow path: acquire lock and populate cache
     with _builtin_patterns_cache_lock:
         # Double-check after acquiring lock
         if _builtin_patterns_cache is not None:
-            return _builtin_patterns_cache
+            return _builtin_patterns_cache, _builtin_patterns_cache_warnings
 
         patterns = []
+        warnings: list[str] = []
         seen_ids: set[str] = set()
 
         # Path to built-in schedules directory
         builtin_dir = Path(__file__).parent.parent / "presets_builtin" / "schedules"
 
         if not builtin_dir.exists():
-            logger.warning(f"Built-in schedules directory not found: {builtin_dir}")
+            warning_msg = f"Built-in schedules directory not found: {builtin_dir}"
+            logger.warning(warning_msg)
+            warnings.append(warning_msg)
             _builtin_patterns_cache = patterns
-            return patterns
+            _builtin_patterns_cache_warnings = warnings
+            return patterns, warnings
 
         schedule_files = sorted(builtin_dir.glob("*.json"))
 
         # Safety limit on number of files to process
         if len(schedule_files) > MAX_BUILTIN_SCHEDULE_FILES:
-            logger.warning(
+            warning_msg = (
                 f"Found {len(schedule_files)} schedule files in {builtin_dir}, "
                 f"processing only first {MAX_BUILTIN_SCHEDULE_FILES}"
             )
+            logger.warning(warning_msg)
+            warnings.append(warning_msg)
             schedule_files = schedule_files[:MAX_BUILTIN_SCHEDULE_FILES]
 
         for schedule_file in schedule_files:
@@ -1064,20 +1073,27 @@ def list_builtin_patterns() -> list[dict]:
                     patterns.append(pattern_copy)
 
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse schedule file {schedule_file}: {e}")
+                warning_msg = f"Failed to parse schedule file {schedule_file.name}: {e}"
+                logger.error(warning_msg)
+                warnings.append(warning_msg)
             except Exception as e:
-                logger.error(f"Error processing schedule file {schedule_file}: {e}")
+                warning_msg = f"Error processing schedule file {schedule_file.name}: {e}"
+                logger.error(warning_msg)
+                warnings.append(warning_msg)
 
         # Log warning if no patterns found (possible misconfiguration)
         if not patterns and builtin_dir.exists():
-            logger.warning(
+            warning_msg = (
                 f"No patterns found in {builtin_dir}. "
                 "Check schedule files for valid event_patterns."
             )
+            logger.warning(warning_msg)
+            warnings.append(warning_msg)
 
         # Cache the result for subsequent calls
         _builtin_patterns_cache = patterns
-        return patterns
+        _builtin_patterns_cache_warnings = warnings
+        return patterns, warnings
 
 
 @scheduler_ui_bp.route("/patterns/builtin", methods=["GET"])
@@ -1088,25 +1104,28 @@ def list_builtin_patterns_endpoint() -> tuple[Response, int]:
     GET /api/scheduler/ui/patterns/builtin
 
     Returns:
-        200 OK: List of built-in pattern objects
+        200 OK: Object with patterns list and any warnings
 
     Response Schema:
-    [
-        {
-            "pattern_id": "string",
-            "name": "string",
-            "description": "string",
-            "actions": [...],
-            "category": "built-in",
-            "tags": [...],
-            "source_schedule": "string",
-            "duration_minutes": number
-        }
-    ]
+    {
+        "patterns": [
+            {
+                "pattern_id": "string",
+                "name": "string",
+                "description": "string",
+                "actions": [...],
+                "category": "built-in",
+                "tags": [...],
+                "source_schedule": "string",
+                "duration_minutes": number
+            }
+        ],
+        "warnings": ["string"]  // Empty if no issues loading files
+    }
     """
     try:
-        patterns = list_builtin_patterns()
-        return jsonify(patterns), 200
+        patterns, warnings = list_builtin_patterns()
+        return jsonify({"patterns": patterns, "warnings": warnings}), 200
 
     except Exception as e:
         logger.error(f"Error listing built-in patterns: {e}", exc_info=True)
