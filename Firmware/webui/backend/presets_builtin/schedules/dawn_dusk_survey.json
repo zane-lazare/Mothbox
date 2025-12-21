@@ -14,7 +14,7 @@
           "action_name": "attract_on",
           "offset_minutes": 0,
           "parameters": {},
-          "description": "Turn on attract lights at dusk"
+          "description": "Turn on UV attract lights at dusk"
         },
         {
           "action_type": "camera",
@@ -42,7 +42,7 @@
           "action_name": "attract_off",
           "offset_minutes": 20,
           "parameters": {},
-          "description": "Turn off attract lights"
+          "description": "Turn off UV attract lights"
         }
       ],
       "category": "built-in",
@@ -58,7 +58,7 @@
           "action_name": "attract_on",
           "offset_minutes": 0,
           "parameters": {},
-          "description": "Turn on attract lights at dawn"
+          "description": "Turn on UV attract lights at dawn"
         },
         {
           "action_type": "camera",
@@ -86,7 +86,7 @@
           "action_name": "attract_off",
           "offset_minutes": 20,
           "parameters": {},
-          "description": "Turn off attract lights"
+          "description": "Turn off UV attract lights"
         }
       ],
       "category": "built-in",
