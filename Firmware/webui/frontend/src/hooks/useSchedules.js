@@ -7,14 +7,17 @@
  * - useActiveSchedule: Get active schedule
  * - useSchedulePreview: Get schedule preview
  * - useBuiltinSchedules: List built-in schedules
- * - useBuiltinPatterns: List built-in patterns
  * - useCreateSchedule: Create new schedule
  * - useUpdateSchedule: Update existing schedule
  * - useDeleteSchedule: Delete schedule
  * - useActivateSchedule: Activate schedule
  * - useDeactivateSchedule: Deactivate schedule
  * - useValidateSchedule: Validate schedule configuration
+ *
+ * Event Pattern hooks are in useEventPatterns.js (Issue #222):
+ * - useBuiltinPatterns: List built-in patterns
  * - useValidatePattern: Validate event pattern
+ * - usePatternDuration: Calculate pattern duration
  *
  * Naming Convention:
  * - Query hooks: use<Resource> (e.g., useSchedules, useSchedule)
@@ -35,14 +38,12 @@ import {
   getActiveSchedule,
   getSchedulePreview,
   listBuiltinSchedules,
-  listBuiltinPatterns,
   createSchedule,
   updateSchedule,
   deleteSchedule,
   activateSchedule,
   deactivateSchedule,
   validateSchedule,
-  validatePattern,
 } from '../utils/schedulerApi'
 
 // =============================================================================
@@ -258,35 +259,6 @@ export function useBuiltinSchedules(queryOptions = {}) {
       return response.data
     },
     staleTime: QUERY_CONFIG.STALE_TIME, // 5 minutes - built-in schedules are static
-    ...queryOptions,
-  })
-}
-
-/**
- * List built-in event patterns
- *
- * @param {Object} [queryOptions] - React Query options (refetchInterval, onSuccess, etc.)
- * @returns {Object} React Query result
- * @returns {Object} data - { patterns: [...], total }
- * @returns {boolean} isLoading - Whether initial query is loading
- * @returns {boolean} isError - Whether an error occurred
- * @returns {Object} error - Error object if query failed
- *
- * @example
- * const { data, isLoading } = useBuiltinPatterns()
- * if (data) {
- *   console.log(`${data.total} built-in patterns`)
- *   data.patterns.forEach(p => console.log(p.name))
- * }
- */
-export function useBuiltinPatterns(queryOptions = {}) {
-  return useQuery({
-    queryKey: QUERY_KEYS.BUILTIN_PATTERNS,
-    queryFn: async () => {
-      const response = await listBuiltinPatterns()
-      return response.data
-    },
-    staleTime: QUERY_CONFIG.STALE_TIME, // 5 minutes - built-in patterns are static
     ...queryOptions,
   })
 }
@@ -539,20 +511,11 @@ export function useValidateSchedule() {
   })
 }
 
-/**
- * Validate event pattern mutation
- *
- * @returns {Object} React Query mutation result
- *
- * @example
- * const { mutate, isPending } = useValidatePattern()
- * mutate({ name: 'test', action: 'take_photo', trigger: {...} })
- */
-export function useValidatePattern() {
-  return useMutation({
-    mutationFn: (data) => validatePattern(data),
-    onError: (error) => handleMutationError(error, 'validatePattern'),
-  })
-}
-
 export default useSchedules
+
+// =============================================================================
+// Re-exports for backward compatibility (Issue #222)
+// =============================================================================
+// Pattern hooks have been moved to useEventPatterns.js
+// These re-exports maintain backward compatibility for existing imports
+export { useBuiltinPatterns, useValidatePattern } from './useEventPatterns'
