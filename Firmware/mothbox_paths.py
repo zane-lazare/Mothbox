@@ -179,7 +179,16 @@ def get_schedule_path(schedule_id: str, is_builtin: bool = False) -> Path | None
         return None
 
     base_dir = BUILTIN_SCHEDULES_DIR if is_builtin else SCHEDULES_DIR
-    return base_dir / f"{safe_id}.json"
+    schedule_path = base_dir / f"{safe_id}.json"
+
+    # Final safety check: verify resolved path is within expected directory
+    try:
+        if not schedule_path.resolve().is_relative_to(base_dir.resolve()):
+            return None
+    except ValueError:
+        return None
+
+    return schedule_path
 
 
 # Helper function to parse controls.txt
