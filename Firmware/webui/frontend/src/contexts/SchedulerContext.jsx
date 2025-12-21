@@ -695,12 +695,44 @@ export function useSchedulerContext() {
 }
 
 /**
- * Error Boundary for Scheduler - wrap Scheduler page with this
+ * Error Boundary for Scheduler - Catches errors in child components
  *
- * @example
+ * IMPORTANT: This boundary is intentionally exported separately from SchedulerProvider
+ * to give consumers flexibility in error handling. You MUST wrap your component tree
+ * with this boundary to catch React errors.
+ *
+ * @example Basic usage - wrap the Scheduler page
+ * ```jsx
  * <SchedulerErrorBoundary fallback={<ErrorUI />}>
- *   <SchedulerPage />
+ *   <SchedulerProvider>
+ *     <SchedulerPage />
+ *   </SchedulerProvider>
  * </SchedulerErrorBoundary>
+ * ```
+ *
+ * @example With context integration for error recovery
+ * ```jsx
+ * function SchedulerWithErrorHandling() {
+ *   const { errorActions, computed } = useSchedulerContext()
+ *   return (
+ *     <SchedulerErrorBoundary
+ *       onError={errorActions.setError}
+ *       fallback={
+ *         <ErrorRecoveryUI
+ *           onRetry={errorActions.clearError}
+ *           hasError={computed.hasError}
+ *         />
+ *       }
+ *     >
+ *       <SchedulerPage />
+ *     </SchedulerErrorBoundary>
+ *   )
+ * }
+ * ```
+ *
+ * @param {React.ReactNode} children - Child components to wrap
+ * @param {React.ReactNode} [fallback] - UI to show when error occurs
+ * @param {Function} [onError] - Callback when error caught (error, errorInfo) => void
  */
 export class SchedulerErrorBoundary extends React.Component {
   constructor(props) {
