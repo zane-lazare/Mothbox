@@ -11,9 +11,39 @@
  * - Use the global `api` axios instance for CSRF handling
  * - Return axios response objects (access data via .data)
  * - Let axios throw errors for React Query to handle
+ *
+ * Security Note:
+ * Error messages from server responses are passed through to React components.
+ * React automatically escapes content rendered in JSX (e.g., {error.message}),
+ * preventing XSS attacks. Do NOT use dangerouslySetInnerHTML with error messages.
  */
 
 import { api } from './api'
+
+// =============================================================================
+// Configuration
+// =============================================================================
+
+/**
+ * API request timeout in milliseconds.
+ *
+ * Set to 30 seconds to accommodate:
+ * - Preview calculations with many solar/moon events
+ * - Slow network connections on remote Mothbox devices
+ * - Server-side schedule validation with complex patterns
+ *
+ * Axios will throw an error with code 'ECONNABORTED' on timeout.
+ */
+const API_TIMEOUT_MS = 30000
+
+/**
+ * Scheduler UI API base path (relative to api.baseURL from utils/api.js).
+ * Extracted as constant for:
+ * - Easy updates if API versioning is added
+ * - Clearer intent in function calls
+ * - Simpler testing/mocking
+ */
+const SCHEDULER_API_PREFIX = '/scheduler/ui'
 
 // =============================================================================
 // Schedule CRUD
@@ -41,7 +71,8 @@ import { api } from './api'
  *   total: 5
  * }
  */
-export const listSchedules = (params = {}) => api.get('/scheduler/ui/schedules', { params })
+export const listSchedules = (params = {}) =>
+  api.get(`${SCHEDULER_API_PREFIX}/schedules`, { params, timeout: API_TIMEOUT_MS })
 
 /**
  * Get schedule by ID
@@ -67,7 +98,8 @@ export const listSchedules = (params = {}) => api.get('/scheduler/ui/schedules',
  *   modified_at: "2024-12-15T14:30:00Z"
  * }
  */
-export const getSchedule = (id) => api.get(`/scheduler/ui/schedules/${id}`)
+export const getSchedule = (id) =>
+  api.get(`${SCHEDULER_API_PREFIX}/schedules/${id}`, { timeout: API_TIMEOUT_MS })
 
 /**
  * Create new schedule
@@ -85,7 +117,8 @@ export const getSchedule = (id) => api.get(`/scheduler/ui/schedules/${id}`)
  *   schedule: { ... }
  * }
  */
-export const createSchedule = (data) => api.post('/scheduler/ui/schedules', data)
+export const createSchedule = (data) =>
+  api.post(`${SCHEDULER_API_PREFIX}/schedules`, data, { timeout: API_TIMEOUT_MS })
 
 /**
  * Update existing schedule
@@ -104,7 +137,8 @@ export const createSchedule = (data) => api.post('/scheduler/ui/schedules', data
  *   schedule: { ... }
  * }
  */
-export const updateSchedule = (id, data) => api.put(`/scheduler/ui/schedules/${id}`, data)
+export const updateSchedule = (id, data) =>
+  api.put(`${SCHEDULER_API_PREFIX}/schedules/${id}`, data, { timeout: API_TIMEOUT_MS })
 
 /**
  * Delete schedule
@@ -117,7 +151,8 @@ export const updateSchedule = (id, data) => api.put(`/scheduler/ui/schedules/${i
  *   id: "schedule_id"
  * }
  */
-export const deleteSchedule = (id) => api.delete(`/scheduler/ui/schedules/${id}`)
+export const deleteSchedule = (id) =>
+  api.delete(`${SCHEDULER_API_PREFIX}/schedules/${id}`, { timeout: API_TIMEOUT_MS })
 
 // =============================================================================
 // Active Schedule
@@ -137,7 +172,8 @@ export const deleteSchedule = (id) => api.delete(`/scheduler/ui/schedules/${id}`
  *   } | null
  * }
  */
-export const getActiveSchedule = () => api.get('/scheduler/ui/schedules/active')
+export const getActiveSchedule = () =>
+  api.get(`${SCHEDULER_API_PREFIX}/schedules/active`, { timeout: API_TIMEOUT_MS })
 
 /**
  * Activate a schedule
@@ -154,7 +190,7 @@ export const getActiveSchedule = () => api.get('/scheduler/ui/schedules/active')
  * }
  */
 export const activateSchedule = (id, options = {}) =>
-  api.post(`/scheduler/ui/schedules/${id}/activate`, options)
+  api.post(`${SCHEDULER_API_PREFIX}/schedules/${id}/activate`, options, { timeout: API_TIMEOUT_MS })
 
 /**
  * Deactivate currently active schedule
@@ -166,7 +202,8 @@ export const activateSchedule = (id, options = {}) =>
  *   schedule_id: "schedule_id"
  * }
  */
-export const deactivateSchedule = () => api.post('/scheduler/ui/schedules/deactivate')
+export const deactivateSchedule = () =>
+  api.post(`${SCHEDULER_API_PREFIX}/schedules/deactivate`, {}, { timeout: API_TIMEOUT_MS })
 
 // =============================================================================
 // Preview/Validation
@@ -199,7 +236,7 @@ export const deactivateSchedule = () => api.post('/scheduler/ui/schedules/deacti
  * }
  */
 export const getSchedulePreview = (id, params = {}) =>
-  api.get(`/scheduler/ui/schedules/${id}/preview`, { params })
+  api.get(`${SCHEDULER_API_PREFIX}/schedules/${id}/preview`, { params, timeout: API_TIMEOUT_MS })
 
 /**
  * Validate schedule configuration
@@ -215,7 +252,7 @@ export const getSchedulePreview = (id, params = {}) =>
  * }
  */
 export const validateSchedule = (id, data) =>
-  api.post(`/scheduler/ui/schedules/${id}/validate`, data)
+  api.post(`${SCHEDULER_API_PREFIX}/schedules/${id}/validate`, data, { timeout: API_TIMEOUT_MS })
 
 // =============================================================================
 // Built-in Resources
@@ -240,7 +277,8 @@ export const validateSchedule = (id, data) =>
  *   total: 3
  * }
  */
-export const listBuiltinSchedules = () => api.get('/scheduler/ui/schedules/builtin')
+export const listBuiltinSchedules = () =>
+  api.get(`${SCHEDULER_API_PREFIX}/schedules/builtin`, { timeout: API_TIMEOUT_MS })
 
 /**
  * List built-in event patterns
@@ -262,7 +300,8 @@ export const listBuiltinSchedules = () => api.get('/scheduler/ui/schedules/built
  *   total: 5
  * }
  */
-export const listBuiltinPatterns = () => api.get('/scheduler/ui/patterns/builtin')
+export const listBuiltinPatterns = () =>
+  api.get(`${SCHEDULER_API_PREFIX}/patterns/builtin`, { timeout: API_TIMEOUT_MS })
 
 /**
  * Validate event pattern
@@ -279,4 +318,5 @@ export const listBuiltinPatterns = () => api.get('/scheduler/ui/patterns/builtin
  *   warnings: []
  * }
  */
-export const validatePattern = (data) => api.post('/scheduler/ui/patterns/validate', data)
+export const validatePattern = (data) =>
+  api.post(`${SCHEDULER_API_PREFIX}/patterns/validate`, data, { timeout: API_TIMEOUT_MS })
