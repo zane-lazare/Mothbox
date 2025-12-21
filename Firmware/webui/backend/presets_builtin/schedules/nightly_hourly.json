@@ -1,13 +1,13 @@
 {
   "schema_version": "2.0",
-  "schedule_id": "nightly_moth_survey",
-  "name": "Nightly Moth Survey",
-  "description": "Standard nightly moth capture schedule. Runs every 60 minutes from sunset to sunrise. Each cycle turns on UV attract lights, captures a photo after 5 minutes to allow moths to gather, then turns off lights after 15 minutes.",
+  "schedule_id": "nightly_hourly",
+  "name": "Nightly Hourly Survey",
+  "description": "UV capture every hour from 1am-6am using a fixed time window. Ideal for consistent timing regardless of seasonal sunset variations. This schedule provides predictable capture times for long-term monitoring studies.",
   "event_patterns": [
     {
-      "pattern_id": "uv_capture_cycle",
-      "name": "UV Capture Cycle",
-      "description": "Turn on UV attract lights, wait for moths to gather, take photo, turn off lights",
+      "pattern_id": "nightly_uv_capture",
+      "name": "Nightly UV Capture",
+      "description": "Standard UV capture cycle for nighttime moth surveys. Turns on UV attract lights, waits 5 minutes for moths to gather, captures a photo, then turns off lights after 15 minutes total.",
       "actions": [
         {
           "action_type": "gpio",
@@ -32,16 +32,16 @@
         }
       ],
       "category": "built-in",
-      "tags": ["moth", "survey", "uv", "nightly"]
+      "tags": ["nightly", "hourly", "uv", "survey", "fixed-time"]
     }
   ],
   "trigger_type": "interval",
   "interval_trigger": {
     "interval_minutes": 60,
     "time_window": {
-      "start_time": "sunset",
-      "end_time": "sunrise",
-      "start_offset_minutes": 30,
+      "start_time": "01:00",
+      "end_time": "06:00",
+      "start_offset_minutes": 0,
       "end_offset_minutes": 0
     },
     "days_of_week": null

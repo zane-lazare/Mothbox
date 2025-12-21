@@ -1,41 +1,41 @@
 {
   "schema_version": "2.0",
-  "schedule_id": "full_moon_special",
-  "name": "Full Moon Special Survey",
-  "description": "Extended survey during full moon periods (±2 days). Research shows moon phase affects moth activity. This schedule runs an intensive capture session from 22:00 to 04:00 during the brightest nights of the lunar cycle.",
+  "schedule_id": "full_moon_survey",
+  "name": "Full Moon Survey",
+  "description": "UV capture during full moon periods (+/-2 days) with solar-based time window (civil dusk to civil dawn). Studies how moon brightness affects moth attraction to UV lights and overall nocturnal activity patterns.",
   "event_patterns": [
     {
-      "pattern_id": "extended_moon_session",
-      "name": "Extended Full Moon Session",
-      "description": "Extended UV session with multiple photos to study moon phase effects on moth behavior",
+      "pattern_id": "full_moon_uv_capture",
+      "name": "Full Moon UV Capture",
+      "description": "Extended UV capture during full moon nights. Takes photos at 10-minute intervals (5, 15, 25 minutes) to document moth activity patterns under bright moonlight conditions.",
       "actions": [
         {
           "action_type": "gpio",
           "action_name": "attract_on",
           "offset_minutes": 0,
           "parameters": {},
-          "description": "Turn on UV attract lights for extended session"
+          "description": "Turn on UV attract lights"
         },
         {
           "action_type": "camera",
           "action_name": "takephoto",
-          "offset_minutes": 10,
+          "offset_minutes": 5,
           "parameters": {},
-          "description": "First capture at 10 minutes"
+          "description": "First capture at 5 minutes"
         },
         {
           "action_type": "camera",
           "action_name": "takephoto",
-          "offset_minutes": 20,
+          "offset_minutes": 15,
           "parameters": {},
-          "description": "Second capture at 20 minutes"
+          "description": "Second capture at 15 minutes"
         },
         {
           "action_type": "camera",
           "action_name": "takephoto",
-          "offset_minutes": 30,
+          "offset_minutes": 25,
           "parameters": {},
-          "description": "Third capture at 30 minutes"
+          "description": "Third capture at 25 minutes"
         },
         {
           "action_type": "gpio",
@@ -46,7 +46,7 @@
         }
       ],
       "category": "built-in",
-      "tags": ["moon", "full_moon", "lunar", "special", "extended"]
+      "tags": ["moon", "full_moon", "lunar", "survey", "solar", "uv"]
     }
   ],
   "trigger_type": "moon_phase",
@@ -56,8 +56,8 @@
     "phases": ["full"],
     "offset_days": 2,
     "time_window": {
-      "start_time": "22:00",
-      "end_time": "04:00",
+      "start_time": "civil_dusk",
+      "end_time": "civil_dawn",
       "start_offset_minutes": 0,
       "end_offset_minutes": 0
     }
