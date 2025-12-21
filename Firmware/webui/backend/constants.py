@@ -143,3 +143,8 @@ EXPORT_JOB_TTL_SECONDS: Final[int] = 3600  # 1 hour - jobs expire after this tim
 EXPORT_JOB_TIMEOUT_SECONDS: Final[int] = 600  # 10 minutes - max time for single job
 EXPORT_JOB_MAX_CONCURRENT: Final[int] = 1  # Sequential processing (protect Pi resources)
 EXPORT_JOB_MAX_HISTORY: Final[int] = 50  # Maximum completed jobs to keep
+
+# =============================================================================
+# SCHEDULER SETTINGS (Issue #218)
+# =============================================================================
+MAX_BUILTIN_SCHEDULE_FILES: Final[int] = 20  # Safety limit for built-in schedules

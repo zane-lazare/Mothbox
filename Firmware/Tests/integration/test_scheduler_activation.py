@@ -80,11 +80,11 @@ class TestActivationWorkflow:
         assert fetched.is_active is False, "Schedule should not be active initially"
 
         # 2. ACTIVATE
-        success, error = scheduler_service.activate_schedule(
+        scheduler_service.activate_schedule(
             "workflow-test",
             check_conflicts=False,
         )
-        assert success is True, f"Activation should succeed: {error}"
+        # No exception = success
 
         # 3. VERIFY ACTIVE
         active = scheduler_service.get_active_schedule()
@@ -126,22 +126,22 @@ class TestActivationWorkflow:
         create_schedule(schedule_b)
 
         # Activate schedule A
-        success_a, error_a = scheduler_service.activate_schedule(
+        scheduler_service.activate_schedule(
             "schedule-a",
             check_conflicts=False,
         )
-        assert success_a is True, f"Activation A should succeed: {error_a}"
+        # No exception = success
 
         # Verify A is active
         active1 = scheduler_service.get_active_schedule()
         assert active1.schedule_id == "schedule-a", "Schedule A should be active"
 
         # Activate schedule B
-        success_b, error_b = scheduler_service.activate_schedule(
+        scheduler_service.activate_schedule(
             "schedule-b",
             check_conflicts=False,
         )
-        assert success_b is True, f"Activation B should succeed: {error_b}"
+        # No exception = success
 
         # Verify B is now active and A is not
         active2 = scheduler_service.get_active_schedule()
@@ -158,6 +158,7 @@ class TestActivationWorkflow:
         scheduler_service,
     ):
         """Cannot activate schedule with enabled=False."""
+        from webui.backend.lib.schedule_schema import ScheduleActivationError
         from webui.backend.lib.schedule_storage import create_schedule
 
         # Create disabled schedule
@@ -168,14 +169,12 @@ class TestActivationWorkflow:
         )
         create_schedule(schedule)
 
-        # Attempt activation
-        success, error = scheduler_service.activate_schedule(
-            "disabled-test",
-            check_conflicts=False,
-        )
-
-        assert success is False, "Activation should fail for disabled schedule"
-        assert "disabled" in error.lower(), f"Error should mention 'disabled': {error}"
+        # Attempt activation - should raise exception
+        with pytest.raises(ScheduleActivationError, match="(?i)disabled"):
+            scheduler_service.activate_schedule(
+                "disabled-test",
+                check_conflicts=False,
+            )
 
     def test_activation_is_idempotent(
         self,
@@ -195,22 +194,21 @@ class TestActivationWorkflow:
         create_schedule(schedule)
 
         # First activation
-        success1, error1 = scheduler_service.activate_schedule(
+        scheduler_service.activate_schedule(
             "idempotent-test",
             check_conflicts=False,
         )
-        assert success1 is True, f"First activation should succeed: {error1}"
+        # No exception = success
 
         # Reset mock call count
         mock_cron_system["apply"].reset_mock()
 
-        # Second activation of same schedule
-        success2, error2 = scheduler_service.activate_schedule(
+        # Second activation of same schedule (should also succeed without exception)
+        scheduler_service.activate_schedule(
             "idempotent-test",
             check_conflicts=False,
         )
-        assert success2 is True, f"Second activation should succeed: {error2}"
-        assert error2 == "", "Should have no error message"
+        # No exception = success (idempotent)
 
         # Verify apply_to_system was NOT called again (idempotent)
         # Note: The implementation may or may not skip the cron write on idempotent call
@@ -312,11 +310,11 @@ class TestPersistenceAcrossRestarts:
         )
         create_schedule(schedule1)
 
-        success1, error1 = service1.activate_schedule(
+        service1.activate_schedule(
             "cross-instance-test-1",
             check_conflicts=False,
         )
-        assert success1 is True, f"First activation should succeed: {error1}"
+        # No exception = success
 
         # Create NEW service instance (simulating restart/different process)
         service2 = SchedulerService(cache_ttl=60, max_cache_size=50)
@@ -337,11 +335,11 @@ class TestPersistenceAcrossRestarts:
 
         # After discovering active schedule, service2's _active_schedule_id is set
         # Now activating a different schedule should deactivate the old one
-        success2, error2 = service2.activate_schedule(
+        service2.activate_schedule(
             "cross-instance-test-2",
             check_conflicts=False,
         )
-        assert success2 is True, f"Cross-instance activation should succeed: {error2}"
+        # No exception = success
 
         # Verify new schedule is active
         active = service2.get_active_schedule()
@@ -409,6 +407,7 @@ class TestErrorHandling:
         monkeypatch,
     ):
         """If cron write fails, schedule state is rolled back."""
+        from webui.backend.lib.schedule_schema import ScheduleActivationError
         from webui.backend.lib.schedule_storage import create_schedule
         from webui.backend.services.scheduler_service import SchedulerService
 
@@ -437,16 +436,12 @@ class TestErrorHandling:
         )
         create_schedule(schedule)
 
-        # Attempt activation (should fail)
-        success, error = service.activate_schedule(
-            "rollback-test",
-            check_conflicts=False,
-        )
-
-        assert success is False, "Activation should fail"
-        assert "failed" in error.lower() or "cron" in error.lower(), (
-            f"Error should mention failure: {error}"
-        )
+        # Attempt activation (should raise exception)
+        with pytest.raises(ScheduleActivationError, match="(?i)failed"):
+            service.activate_schedule(
+                "rollback-test",
+                check_conflicts=False,
+            )
 
         # Verify rollback: schedule should NOT be active
         fetched = service.get_schedule("rollback-test")
@@ -470,6 +465,7 @@ class TestErrorHandling:
         monkeypatch,
     ):
         """Failed activation of new schedule handles previous schedule correctly."""
+        from webui.backend.lib.schedule_schema import ScheduleActivationError
         from webui.backend.lib.schedule_storage import create_schedule
         from webui.backend.services.scheduler_service import SchedulerService
 
@@ -502,8 +498,8 @@ class TestErrorHandling:
             name="First Schedule",
         )
         create_schedule(schedule1)
-        success1, _ = service.activate_schedule("preserve-test-1", check_conflicts=False)
-        assert success1 is True, "First activation should succeed"
+        service.activate_schedule("preserve-test-1", check_conflicts=False)
+        # No exception = success
 
         # Verify first schedule is active
         active1 = service.get_active_schedule()
@@ -520,10 +516,9 @@ class TestErrorHandling:
         )
         create_schedule(schedule2)
 
-        # Attempt activation of second schedule (will fail)
-        success2, error = service.activate_schedule("preserve-test-2", check_conflicts=False)
-        assert success2 is False, "Second activation should fail"
-        assert "failed" in error.lower(), f"Error should mention failure: {error}"
+        # Attempt activation of second schedule (will raise exception)
+        with pytest.raises(ScheduleActivationError, match="(?i)failed"):
+            service.activate_schedule("preserve-test-2", check_conflicts=False)
 
         # Verify remove_from_system was called during deactivation of previous schedule
         # (called before attempting to apply new schedule)

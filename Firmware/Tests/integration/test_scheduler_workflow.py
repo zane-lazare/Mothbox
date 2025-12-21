@@ -103,12 +103,11 @@ class TestCronJobManagement:
         create_schedule(schedule)
 
         # Activate schedule
-        success, error = scheduler_service.activate_schedule(
+        scheduler_service.activate_schedule(
             "cron-test-1",
             check_conflicts=False,
         )
-
-        assert success is True, f"Activation should succeed: {error}"
+        # No exception = success
 
         # Verify apply_to_system was called with entries
         scheduler_service._apply_mock.assert_called_once()
@@ -151,11 +150,11 @@ class TestCronJobManagement:
         )
         create_schedule(schedule1)
 
-        success1, error1 = scheduler_service.activate_schedule(
+        scheduler_service.activate_schedule(
             "cron-test-2a",
             check_conflicts=False,
         )
-        assert success1 is True, f"First activation should succeed: {error1}"
+        # No exception = success (first activation)
 
         # Reset mock call count
         scheduler_service._apply_mock.reset_mock()
@@ -168,11 +167,11 @@ class TestCronJobManagement:
         )
         create_schedule(schedule2)
 
-        success2, error2 = scheduler_service.activate_schedule(
+        scheduler_service.activate_schedule(
             "cron-test-2b",
             check_conflicts=False,
         )
-        assert success2 is True, f"Second activation should succeed: {error2}"
+        # No exception = success (second activation)
 
         # Verify remove_from_system was called (to remove old entries)
         scheduler_service._remove_mock.assert_called()
@@ -196,11 +195,11 @@ class TestCronJobManagement:
         )
         create_schedule(schedule)
 
-        success, error = scheduler_service.activate_schedule(
+        scheduler_service.activate_schedule(
             "cron-test-3",
             check_conflicts=False,
         )
-        assert success is True, f"Activation should succeed: {error}"
+        # No exception = success
 
         # Reset mock
         scheduler_service._remove_mock.reset_mock()
@@ -257,11 +256,11 @@ class TestRTCWakealarmManagement:
         create_schedule(schedule)
 
         # Activate
-        success, error = scheduler_service.activate_schedule(
+        scheduler_service.activate_schedule(
             "rtc-test-1",
             check_conflicts=False,
         )
-        assert success is True, f"Activation should succeed: {error}"
+        # No exception = success
 
         # Verify apply_to_system was called with set_rtc=True
         call_args = scheduler_service._apply_mock.call_args

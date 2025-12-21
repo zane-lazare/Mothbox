@@ -33,11 +33,12 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture
 def temp_schedules_dir(tmp_path, monkeypatch):
-    """Create temp directory and mock USER_SCHEDULES_DIR."""
+    """Create temp directory and mock SCHEDULES_DIR."""
     schedules = tmp_path / "schedules"
     schedules.mkdir()
-    # Mock USER_SCHEDULES_DIR in storage module (service uses storage functions)
-    monkeypatch.setattr('webui.backend.lib.schedule_storage.USER_SCHEDULES_DIR', schedules)
+    # Mock SCHEDULES_DIR in both mothbox_paths (for get_schedule_path) and storage module
+    monkeypatch.setattr('mothbox_paths.SCHEDULES_DIR', schedules)
+    monkeypatch.setattr('webui.backend.lib.schedule_storage.SCHEDULES_DIR', schedules)
     return schedules
 
 
@@ -898,7 +899,7 @@ class TestActivateSchedule:
     """Tests for activate_schedule() method."""
 
     def test_activate_schedule_success(self, scheduler_service, temp_schedules_dir, sample_schedule):
-        """activate_schedule should activate and return (True, '')."""
+        """activate_schedule should activate and return None on success."""
         from webui.backend.lib.schedule_storage import create_schedule
 
         # Create enabled schedule
@@ -906,22 +907,21 @@ class TestActivateSchedule:
         sample_schedule.enabled = True
         create_schedule(sample_schedule)
 
-        # Activate it
-        success, error = scheduler_service.activate_schedule("test-activate-success")
+        # Activate it - should not raise
+        scheduler_service.activate_schedule("test-activate-success")
 
-        assert success is True
-        assert error == ""
         assert scheduler_service._active_schedule_id == "test-activate-success"
 
     def test_activate_schedule_nonexistent(self, scheduler_service, temp_schedules_dir):
-        """activate_schedule should return (False, error_msg) for nonexistent schedule."""
-        success, error = scheduler_service.activate_schedule("nonexistent-schedule")
+        """activate_schedule should raise ScheduleActivationError for nonexistent schedule."""
+        from webui.backend.lib.schedule_schema import ScheduleActivationError
 
-        assert success is False
-        assert "not found" in error.lower()
+        with pytest.raises(ScheduleActivationError, match="not found"):
+            scheduler_service.activate_schedule("nonexistent-schedule")
 
     def test_activate_schedule_disabled(self, scheduler_service, temp_schedules_dir, sample_schedule):
-        """activate_schedule should return (False, error) for disabled schedule."""
+        """activate_schedule should raise ScheduleActivationError for disabled schedule."""
+        from webui.backend.lib.schedule_schema import ScheduleActivationError
         from webui.backend.lib.schedule_storage import create_schedule
 
         # Create disabled schedule
@@ -929,11 +929,9 @@ class TestActivateSchedule:
         sample_schedule.enabled = False
         create_schedule(sample_schedule)
 
-        # Try to activate
-        success, error = scheduler_service.activate_schedule("test-activate-disabled")
-
-        assert success is False
-        assert "disabled" in error.lower()
+        # Try to activate - should raise
+        with pytest.raises(ScheduleActivationError, match="disabled"):
+            scheduler_service.activate_schedule("test-activate-disabled")
 
     def test_activate_deactivates_previous(self, scheduler_service, temp_schedules_dir, sample_schedule):
         """activate_schedule should deactivate previous active schedule."""
@@ -996,14 +994,10 @@ class TestActivateSchedule:
         sample_schedule.enabled = True
         create_schedule(sample_schedule)
 
-        # Activate it twice
-        success1, error1 = scheduler_service.activate_schedule("test-activate-idempotent")
-        success2, error2 = scheduler_service.activate_schedule("test-activate-idempotent")
+        # Activate it twice - both should succeed without raising
+        scheduler_service.activate_schedule("test-activate-idempotent")
+        scheduler_service.activate_schedule("test-activate-idempotent")
 
-        assert success1 is True
-        assert success2 is True
-        assert error1 == ""
-        assert error2 == ""
         assert scheduler_service._active_schedule_id == "test-activate-idempotent"
 
     def test_activate_builtin_allowed(self, scheduler_service, temp_schedules_dir, sample_schedule):
@@ -1019,10 +1013,9 @@ class TestActivateSchedule:
 
         # Mock is_builtin_schedule to return True
         with patch('webui.backend.services.scheduler_service.is_builtin_schedule', return_value=True):
-            success, error = scheduler_service.activate_schedule("builtin-schedule")
+            # Should not raise
+            scheduler_service.activate_schedule("builtin-schedule")
 
-            assert success is True
-            assert error == ""
             assert scheduler_service._active_schedule_id == "builtin-schedule"
 
 
@@ -1468,8 +1461,8 @@ class TestThreadSafety:
 
         def activate(schedule_id):
             try:
-                success, error = scheduler_service.activate_schedule(schedule_id)
-                return (schedule_id, success, error)
+                scheduler_service.activate_schedule(schedule_id)
+                return (schedule_id, True, None)
             except Exception as e:
                 return (schedule_id, False, str(e))
 
@@ -1758,9 +1751,9 @@ class TestConcurrentModifications:
 
         def activate_schedule(schedule_id: str):
             try:
-                success, error = service.activate_schedule(schedule_id)
+                service.activate_schedule(schedule_id)
                 with results_lock:
-                    results.append((schedule_id, success, error))
+                    results.append((schedule_id, True, ""))
             except Exception as e:
                 with results_lock:
                     results.append((schedule_id, False, str(e)))
@@ -2131,24 +2124,27 @@ class TestActivateScheduleConflictDetection:
     def test_activate_with_conflicts_blocked(
         self, scheduler_service, temp_schedules_dir, conflicting_schedule
     ):
-        """activate_schedule should fail when schedule has blocking conflicts."""
+        """activate_schedule should raise ScheduleConflictError for blocking conflicts."""
+        import pytest
+
+        from webui.backend.lib.schedule_schema import ScheduleConflictError
         from webui.backend.lib.schedule_storage import create_schedule
 
         # Create the conflicting schedule
         create_schedule(conflicting_schedule)
 
-        # Try to activate with conflict checking (default)
-        success, error = scheduler_service.activate_schedule(
-            "conflicting-schedule",
-            check_conflicts=True,
-            latitude=0.0,
-            longitude=0.0,
-            timezone_name="UTC",
-        )
+        # Try to activate with conflict checking (default) - should raise exception
+        with pytest.raises(ScheduleConflictError) as exc_info:
+            scheduler_service.activate_schedule(
+                "conflicting-schedule",
+                check_conflicts=True,
+                latitude=0.0,
+                longitude=0.0,
+                timezone_name="UTC",
+            )
 
         # Should fail due to conflicts
-        assert success is False
-        assert "conflict" in error.lower()
+        assert "conflict" in str(exc_info.value).lower()
 
     def test_activate_with_conflicts_skip_check(
         self, scheduler_service, temp_schedules_dir, conflicting_schedule
@@ -2159,15 +2155,13 @@ class TestActivateScheduleConflictDetection:
         # Create the conflicting schedule
         create_schedule(conflicting_schedule)
 
-        # Activate with conflict checking disabled
-        success, error = scheduler_service.activate_schedule(
+        # Activate with conflict checking disabled - should succeed (no exception)
+        scheduler_service.activate_schedule(
             "conflicting-schedule",
             check_conflicts=False,
         )
 
         # Should succeed (conflicts ignored)
-        assert success is True
-        assert error == ""
         assert scheduler_service._active_schedule_id == "conflicting-schedule"
 
     def test_activate_no_conflicts_success(
@@ -2181,8 +2175,8 @@ class TestActivateScheduleConflictDetection:
         sample_schedule.enabled = True
         create_schedule(sample_schedule)
 
-        # Activate with conflict checking enabled
-        success, error = scheduler_service.activate_schedule(
+        # Activate with conflict checking enabled - should succeed (no exception)
+        scheduler_service.activate_schedule(
             "non-conflicting-schedule",
             check_conflicts=True,
             latitude=0.0,
@@ -2191,8 +2185,6 @@ class TestActivateScheduleConflictDetection:
         )
 
         # Should succeed (no conflicts)
-        assert success is True
-        assert error == ""
         assert scheduler_service._active_schedule_id == "non-conflicting-schedule"
 
     def test_activate_conflict_check_with_location(
@@ -2213,8 +2205,8 @@ class TestActivateScheduleConflictDetection:
         )
         create_schedule(sample_schedule)
 
-        # Activate with location parameters (Panama)
-        success, error = scheduler_service.activate_schedule(
+        # Activate with location parameters (Panama) - should succeed (no exception)
+        scheduler_service.activate_schedule(
             "solar-schedule",
             check_conflicts=True,
             latitude=9.15,
@@ -2223,8 +2215,7 @@ class TestActivateScheduleConflictDetection:
         )
 
         # Should succeed (single pattern, no conflicts)
-        assert success is True
-        assert error == ""
+        assert scheduler_service._active_schedule_id == "solar-schedule"
 
 
 # ============================================================================

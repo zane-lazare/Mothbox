@@ -30,6 +30,7 @@ Usage:
     print(f"Hit ratio: {stats['hit_ratio']:.2%}")
 """
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -47,6 +48,8 @@ from webui.backend.lib.cron_bridge import (
 )
 from webui.backend.lib.schedule_schema import (
     Schedule,
+    ScheduleActivationError,
+    ScheduleConflictError,
     ScheduleValidationError,
     validate_schedule,
 )
@@ -414,10 +417,11 @@ class SchedulerService:
             updates: Dict of fields to update
 
         Returns:
-            Updated Schedule if successful, None if not found or validation fails
+            Updated Schedule if successful, None if not found
 
         Raises:
             ValueError: If attempting to modify built-in schedule
+            ScheduleValidationError: If updated schedule fails validation
         """
         # Check if built-in
         if is_builtin_schedule(schedule_id):
@@ -435,7 +439,8 @@ class SchedulerService:
                 with self._cache_lock:
                     if schedule_id in self._cache:
                         del self._cache[schedule_id]
-                return None
+                # Raise exception with validation error instead of silent None
+                raise ScheduleValidationError(f"Validation failed: {error}")
 
             with self._cache_lock:
                 self._set_cache(schedule_id, updated)
@@ -523,7 +528,7 @@ class SchedulerService:
         latitude: float = 0.0,
         longitude: float = 0.0,
         timezone_name: str = "UTC",
-    ) -> tuple[bool, str]:
+    ) -> None:
         """
         Activate a schedule (deactivates any currently active first).
 
@@ -540,22 +545,25 @@ class SchedulerService:
             timezone_name: Timezone for time resolution (default "UTC")
 
         Returns:
-            (success: bool, error_message: str)
-            success=True with empty error on success
-            success=False with error description on failure (includes conflict info)
+            None on success
+
+        Raises:
+            ScheduleActivationError: If activation fails (schedule not found,
+                disabled, cron conversion failed, etc.)
+            ScheduleConflictError: If schedule has blocking conflicts
         """
         # Get the schedule
         schedule = self.get_schedule(schedule_id)
         if not schedule:
-            return False, f"Schedule not found: {schedule_id}"
+            raise ScheduleActivationError(f"Schedule not found: {schedule_id}")
 
         # Check if enabled
         if not schedule.enabled:
-            return False, f"Schedule is disabled: {schedule_id}"
+            raise ScheduleActivationError(f"Schedule is disabled: {schedule_id}")
 
         # Already active? Return success (idempotent)
         if schedule.is_active and self._active_schedule_id == schedule_id:
-            return True, ""
+            return
 
         # Check for conflicts before activation (Issue #213)
         # Uses cached conflict report to avoid redundant computation
@@ -577,34 +585,39 @@ class SchedulerService:
                         f"Schedule has {len(blocking)} blocking conflict(s): "
                         + "; ".join(messages)
                     )
-                    return False, f"Conflict detected: {error}"
+                    raise ScheduleConflictError(f"Conflict detected: {error}")
             except ImportError:
                 # Conflict detection module not available - skip check
                 logger.warning("Conflict detection module not available, skipping check")
+            except ScheduleConflictError:
+                # Re-raise conflict errors for caller to handle
+                raise
             except Exception as e:
                 logger.exception(f"Error during conflict check: {e}")
-                return False, f"Conflict check failed: {e}"
+                raise ScheduleActivationError(f"Conflict check failed: {e}") from e
 
         # Deactivate any currently active schedule
         if self._active_schedule_id and self._active_schedule_id != schedule_id:
             self.deactivate_schedule()
 
-        # Update is_active flag in storage
-        # For built-in schedules, we only update the in-memory state
-        try:
-            if not is_builtin_schedule(schedule_id):
-                self.update_schedule(schedule_id, {"is_active": True})
-            else:
-                self._update_builtin_schedule_state(schedule_id, True)
-        except Exception as e:
-            logger.exception(f"Failed to update schedule: {e}")
-            return False, f"Failed to update schedule: {e}"
-
-        # Set active schedule ID
+        # Re-check schedule state to prevent TOCTOU race condition
+        # (schedule could have been modified/deleted/disabled between initial check and now)
         with self._cache_lock:
-            self._active_schedule_id = schedule_id
+            current = self.get_schedule(schedule_id)
+            if current is None:
+                raise ScheduleActivationError(
+                    f"Schedule was deleted during activation: {schedule_id}"
+                )
+            if not current.enabled:
+                raise ScheduleActivationError(
+                    f"Schedule was disabled during activation: {schedule_id}"
+                )
+            # Use the refreshed schedule for cron conversion
+            schedule = current
 
-        # Apply schedule to system cron (Issue #215)
+        # Apply schedule to system cron FIRST (Issue #215, Fix #4 atomic operation)
+        # We apply cron before updating is_active to avoid inconsistent state
+        # if cron application fails. This eliminates the need for rollback.
         try:
             result = schedule_to_cron(
                 schedule,
@@ -613,18 +626,9 @@ class SchedulerService:
                 timezone_name=timezone_name,
             )
             if result.errors:
-                # Required mode: fail activation if cron conversion has errors
-                # Rollback the is_active state
-                try:
-                    if not is_builtin_schedule(schedule_id):
-                        self.update_schedule(schedule_id, {"is_active": False})
-                    else:
-                        self._update_builtin_schedule_state(schedule_id, False)
-                except Exception:
-                    pass  # Best effort rollback
-                with self._cache_lock:
-                    self._active_schedule_id = None
-                return False, f"Cron conversion failed: {'; '.join(result.errors)}"
+                raise ScheduleActivationError(
+                    f"Cron conversion failed: {'; '.join(result.errors)}"
+                )
 
             apply_to_system(
                 entries=result.entries,
@@ -632,25 +636,35 @@ class SchedulerService:
                 set_rtc=True,
             )
             logger.info(
-                f"Activated schedule: {schedule_id} "
-                f"({len(result.entries)} cron entries applied)"
+                f"Applied cron entries for schedule: {schedule_id} "
+                f"({len(result.entries)} entries)"
             )
+        except ScheduleActivationError:
+            # Re-raise our own errors
+            raise
         except Exception as e:
-            # Required mode: fail activation if cron cannot be applied
             logger.error(f"Failed to apply cron entries: {e}")
-            # Rollback the is_active state
-            try:
-                if not is_builtin_schedule(schedule_id):
-                    self.update_schedule(schedule_id, {"is_active": False})
-                else:
-                    self._update_builtin_schedule_state(schedule_id, False)
-            except Exception:
-                pass  # Best effort rollback
-            with self._cache_lock:
-                self._active_schedule_id = None
-            return False, f"Failed to apply schedule to system: {e}"
+            raise ScheduleActivationError(f"Failed to apply schedule to system: {e}") from e
 
-        return True, ""
+        # Update is_active flag in storage AFTER cron succeeds
+        # For built-in schedules, we only update the in-memory state
+        try:
+            if not is_builtin_schedule(schedule_id):
+                self.update_schedule(schedule_id, {"is_active": True})
+            else:
+                self._update_builtin_schedule_state(schedule_id, True)
+        except Exception as e:
+            # Cron was applied but storage update failed - rollback cron
+            logger.exception(f"Failed to update schedule, rolling back cron: {e}")
+            with contextlib.suppress(Exception):
+                remove_from_system(clear_rtc=True)
+            raise ScheduleActivationError(f"Failed to update schedule: {e}") from e
+
+        # Set active schedule ID last
+        with self._cache_lock:
+            self._active_schedule_id = schedule_id
+
+        logger.info(f"Activated schedule: {schedule_id}")
 
     def deactivate_schedule(self) -> bool:
         """

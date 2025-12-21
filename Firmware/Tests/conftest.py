@@ -1581,6 +1581,7 @@ def pytest_collection_modifyitems(config, items):
             'test_schedule_storage_workflow',  # Uses tmp_path/threading, no camera/GPIO (Issue #209)
             'test_scheduler_workflow',  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
             'test_scheduler_activation',  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
+            'test_scheduler_api_workflow',  # Uses mocks/tmp_path/Flask test client, no camera/GPIO (Issue #218)
         )
 
         is_non_hardware_test = any(test in fspath_str for test in non_hardware_tests)
@@ -2815,7 +2816,7 @@ def mock_request_origin(monkeypatch):
 
 @pytest.fixture
 def temp_schedules_env(tmp_path, monkeypatch):
-    """Mock both USER_SCHEDULES_DIR and BUILTIN_SCHEDULES_DIR for scheduler tests.
+    """Mock both SCHEDULES_DIR and BUILTIN_SCHEDULES_DIR for scheduler tests.
 
     Provides isolated temporary directories for schedule storage during tests.
 
@@ -2832,10 +2833,12 @@ def temp_schedules_env(tmp_path, monkeypatch):
     builtin_schedules_dir = tmp_path / "presets_builtin" / "schedules"
     builtin_schedules_dir.mkdir(parents=True)
 
-    # Patch both directories
+    # Patch in both mothbox_paths (for get_schedule_path) and schedule_storage (for direct refs)
     import webui.backend.lib.schedule_storage as ss
 
-    monkeypatch.setattr(ss, "USER_SCHEDULES_DIR", user_schedules_dir)
+    monkeypatch.setattr('mothbox_paths.SCHEDULES_DIR', user_schedules_dir)
+    monkeypatch.setattr('mothbox_paths.BUILTIN_SCHEDULES_DIR', builtin_schedules_dir)
+    monkeypatch.setattr(ss, "SCHEDULES_DIR", user_schedules_dir)
     monkeypatch.setattr(ss, "BUILTIN_SCHEDULES_DIR", builtin_schedules_dir)
 
     return {

@@ -43,6 +43,7 @@ Usage:
 """
 
 import os
+import re
 import sys
 from contextlib import suppress
 from pathlib import Path
@@ -141,6 +142,53 @@ USER_PRESET_DIR = PRESET_DIR / "user"
 # Export preset configuration (unified namespace under presets/)
 EXPORT_BUILTIN_PRESET_DIR = BUILTIN_PRESET_DIR / "export"
 EXPORT_USER_PRESET_DIR = USER_PRESET_DIR / "export"
+
+# Schedule configuration
+SCHEDULES_DIR = CONFIG_DIR / "schedules"
+BUILTIN_SCHEDULES_DIR = MOTHBOX_HOME / "webui" / "backend" / "presets_builtin" / "schedules"
+
+
+def get_schedule_path(schedule_id: str, is_builtin: bool = False) -> Path | None:
+    """
+    Build a safe path to a schedule file.
+
+    Sanitizes the schedule_id to prevent path traversal attacks.
+
+    Args:
+        schedule_id: Schedule identifier (alphanumeric, hyphens, underscores only)
+        is_builtin: If True, use built-in schedules directory
+
+    Returns:
+        Path to schedule JSON file, or None if schedule_id is invalid
+
+    Example:
+        >>> get_schedule_path("nightly-survey")
+        PosixPath('/etc/mothbox/schedules/nightly-survey.json')
+        >>> get_schedule_path("../etc/passwd")
+        None
+    """
+    # Sanitize: extract just the filename component
+    safe_id = os.path.basename(schedule_id)
+
+    # Reject if sanitization changed the value (path traversal attempt)
+    if safe_id != schedule_id:
+        return None
+
+    # Validate format: alphanumeric, hyphens, underscores, must start with alphanumeric
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*$', safe_id):
+        return None
+
+    base_dir = BUILTIN_SCHEDULES_DIR if is_builtin else SCHEDULES_DIR
+    schedule_path = base_dir / f"{safe_id}.json"
+
+    # Final safety check: verify resolved path is within expected directory
+    try:
+        if not schedule_path.resolve().is_relative_to(base_dir.resolve()):
+            return None
+    except ValueError:
+        return None
+
+    return schedule_path
 
 
 # Helper function to parse controls.txt
