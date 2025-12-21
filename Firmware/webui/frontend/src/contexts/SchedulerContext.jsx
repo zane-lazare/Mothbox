@@ -231,6 +231,21 @@ function schedulerReducer(state, action) {
       }
     }
 
+    /**
+     * UPDATE_EDITING_SCHEDULE - Partially update the schedule being edited
+     *
+     * Security: Only allows updates to fields in SCHEDULE_FIELDS allowlist
+     * (defined at line 117) to prevent prototype pollution attacks via
+     * malicious keys like __proto__ or constructor.
+     *
+     * Behavior:
+     * - No-op if updates is not a plain object (null, undefined, array rejected)
+     * - No-op if editingSchedule is null (nothing to update)
+     * - Filters updates to only SCHEDULE_FIELDS keys
+     * - No-op if no valid fields remain after filtering
+     *
+     * @param {Object} action.payload.updates - Partial schedule fields to merge
+     */
     case ActionTypes.UPDATE_EDITING_SCHEDULE: {
       const { updates } = action.payload
       // Validate updates is an object and editingSchedule exists
