@@ -266,10 +266,12 @@ export const validateSchedule = (id, data) =>
  * Response: {
  *   schedules: [
  *     {
- *       id: "sunset_moths",
+ *       schedule_id: "sunset_moths",
  *       name: "Sunset Moths",
  *       description: "Capture moths at dusk",
- *       category: "builtin",
+ *       trigger_type: "solar",
+ *       enabled: true,
+ *       is_active: false,
  *       ...
  *     },
  *     ...
@@ -288,16 +290,18 @@ export const listBuiltinSchedules = () =>
  * Response: {
  *   patterns: [
  *     {
- *       id: "hourly_interval",
- *       name: "Hourly Interval",
- *       description: "Take photos every hour",
- *       category: "builtin",
- *       events: [...],
+ *       pattern_id: "uv_capture_cycle",
+ *       name: "UV Capture Cycle",
+ *       description: "Turn on UV, capture photo, turn off",
+ *       category: "built-in",
+ *       actions: [...],
+ *       source_schedule: "Nightly Moth Survey",
+ *       duration_minutes: 15,
  *       ...
  *     },
  *     ...
  *   ],
- *   total: 5
+ *   warnings: []
  * }
  */
 export const listBuiltinPatterns = () =>
