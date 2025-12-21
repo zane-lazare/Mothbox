@@ -250,23 +250,6 @@ class TestListBuiltinPatterns:
             assert isinstance(pattern_id, str), "pattern_id should be a string"
             assert len(pattern_id) > 0, "pattern_id should not be empty"
 
-    def test_cache_invalidation(self, client):
-        """Test cache can be invalidated programmatically."""
-        module = _get_scheduler_ui_module()
-
-        # First request populates cache
-        response = client.get("/api/scheduler/ui/patterns/builtin")
-        assert response.status_code == 200
-        initial_data = response.get_json()
-
-        # Invalidate cache
-        module.invalidate_builtin_patterns_cache()
-
-        # Next request should still work (repopulates cache)
-        response = client.get("/api/scheduler/ui/patterns/builtin")
-        assert response.status_code == 200
-        assert response.get_json() == initial_data  # Same data returned
-
 
 # ============================================================================
 # Validate Pattern - Success Tests (4 tests)

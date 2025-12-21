@@ -951,18 +951,6 @@ def list_builtin_patterns() -> list[dict]:
         return patterns
 
 
-def invalidate_builtin_patterns_cache():
-    """Clear the built-in patterns cache.
-
-    Useful for testing or after updating built-in schedule files.
-    In production, a service restart is the preferred method.
-    """
-    global _builtin_patterns_cache
-    with _builtin_patterns_cache_lock:
-        _builtin_patterns_cache = None
-        logger.info("Built-in patterns cache invalidated")
-
-
 @scheduler_ui_bp.route("/patterns/builtin", methods=["GET"])
 def list_builtin_patterns_endpoint():
     """
