@@ -27,7 +27,7 @@ try:
         BUILTIN_SCHEDULES_DIR,
         # Constants
         SCHEDULE_FILENAME_EXTENSION,
-        USER_SCHEDULES_DIR,
+        SCHEDULES_DIR,
         cleanup_temp_files,
         # CRUD operations
         create_schedule,
@@ -62,7 +62,7 @@ except ImportError:
     list_schedules = None
     cleanup_temp_files = None
     SCHEDULE_FILENAME_EXTENSION = None
-    USER_SCHEDULES_DIR = None
+    SCHEDULES_DIR = None
     BUILTIN_SCHEDULES_DIR = None
 
 try:
@@ -83,10 +83,12 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture
 def temp_schedules_dir(tmp_path, monkeypatch):
-    """Create temp directory and mock USER_SCHEDULES_DIR."""
+    """Create temp directory and mock SCHEDULES_DIR."""
     schedules_dir = tmp_path / "schedules"
     schedules_dir.mkdir()
-    monkeypatch.setattr('webui.backend.lib.schedule_storage.USER_SCHEDULES_DIR', schedules_dir)
+    # Patch in both mothbox_paths (for get_schedule_path) and schedule_storage (for direct refs)
+    monkeypatch.setattr('mothbox_paths.SCHEDULES_DIR', schedules_dir)
+    monkeypatch.setattr('webui.backend.lib.schedule_storage.SCHEDULES_DIR', schedules_dir)
     return schedules_dir
 
 
@@ -95,6 +97,8 @@ def temp_builtin_dir(tmp_path, monkeypatch):
     """Create temp directory and mock BUILTIN_SCHEDULES_DIR."""
     builtin_dir = tmp_path / "presets_builtin" / "schedules"
     builtin_dir.mkdir(parents=True)
+    # Patch in both mothbox_paths (for get_schedule_path) and schedule_storage (for direct refs)
+    monkeypatch.setattr('mothbox_paths.BUILTIN_SCHEDULES_DIR', builtin_dir)
     monkeypatch.setattr('webui.backend.lib.schedule_storage.BUILTIN_SCHEDULES_DIR', builtin_dir)
     return builtin_dir
 
@@ -657,7 +661,7 @@ class TestEdgeCases:
         import webui.backend.lib.schedule_storage as module
 
         # Point to nonexistent directory
-        monkeypatch.setattr(module, "USER_SCHEDULES_DIR", Path("/nonexistent/path"))
+        monkeypatch.setattr(module, "SCHEDULES_DIR", Path("/nonexistent/path"))
 
         ids = list_schedule_ids(is_builtin=False)
         assert ids == []

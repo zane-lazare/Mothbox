@@ -55,13 +55,18 @@ def mock_scheduler_service(schedule_dirs):
     """Create a mock scheduler service with basic functionality."""
     user_dir, builtin_dir = schedule_dirs
 
-    # Patch the storage directories
+    # Patch the storage directories in both mothbox_paths and schedule_storage
+    import mothbox_paths
     import webui.backend.lib.schedule_storage as ss
 
-    original_user_dir = ss.USER_SCHEDULES_DIR
-    original_builtin_dir = ss.BUILTIN_SCHEDULES_DIR
+    original_mp_user_dir = mothbox_paths.SCHEDULES_DIR
+    original_mp_builtin_dir = mothbox_paths.BUILTIN_SCHEDULES_DIR
+    original_ss_user_dir = ss.SCHEDULES_DIR
+    original_ss_builtin_dir = ss.BUILTIN_SCHEDULES_DIR
 
-    ss.USER_SCHEDULES_DIR = user_dir
+    mothbox_paths.SCHEDULES_DIR = user_dir
+    mothbox_paths.BUILTIN_SCHEDULES_DIR = builtin_dir
+    ss.SCHEDULES_DIR = user_dir
     ss.BUILTIN_SCHEDULES_DIR = builtin_dir
 
     # Create real service with mocked cron functions
@@ -76,8 +81,10 @@ def mock_scheduler_service(schedule_dirs):
     yield service
 
     # Restore original directories
-    ss.USER_SCHEDULES_DIR = original_user_dir
-    ss.BUILTIN_SCHEDULES_DIR = original_builtin_dir
+    mothbox_paths.SCHEDULES_DIR = original_mp_user_dir
+    mothbox_paths.BUILTIN_SCHEDULES_DIR = original_mp_builtin_dir
+    ss.SCHEDULES_DIR = original_ss_user_dir
+    ss.BUILTIN_SCHEDULES_DIR = original_ss_builtin_dir
 
 
 @pytest.fixture
@@ -96,11 +103,13 @@ def app(mock_scheduler_service, schedule_dirs, monkeypatch):
         remove_mock,
     )
 
-    # Patch the storage directories in schedule_storage module
+    # Patch the storage directories in both mothbox_paths and schedule_storage
     user_dir, builtin_dir = schedule_dirs
     import webui.backend.lib.schedule_storage as ss
 
-    monkeypatch.setattr(ss, "USER_SCHEDULES_DIR", user_dir)
+    monkeypatch.setattr('mothbox_paths.SCHEDULES_DIR', user_dir)
+    monkeypatch.setattr('mothbox_paths.BUILTIN_SCHEDULES_DIR', builtin_dir)
+    monkeypatch.setattr(ss, "SCHEDULES_DIR", user_dir)
     monkeypatch.setattr(ss, "BUILTIN_SCHEDULES_DIR", builtin_dir)
 
     # Reset the singleton service to use patched paths

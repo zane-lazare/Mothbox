@@ -54,13 +54,15 @@ Issue #209 - Scheduler Phase 1: Schedule Storage
 
 import json
 import logging
-import os
-import re
 import time
 from datetime import datetime
 from pathlib import Path
 
-from mothbox_paths import CONFIG_DIR
+from mothbox_paths import (
+    BUILTIN_SCHEDULES_DIR,
+    SCHEDULES_DIR,
+    get_schedule_path,
+)
 from webui.backend.lib.schedule_schema import (
     Schedule,
     ScheduleValidationError,
@@ -76,95 +78,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 SCHEDULE_FILENAME_EXTENSION = ".json"
-USER_SCHEDULES_DIR = CONFIG_DIR / "schedules"
-BUILTIN_SCHEDULES_DIR = Path(__file__).parent.parent / "presets_builtin" / "schedules"
 BACKUP_EXTENSION = ".bak"
-
-# Pattern for valid schedule IDs: alphanumeric, underscore, hyphen
-# Must start with alphanumeric, max 64 chars
-# Disallows path separators, dots, and special characters to prevent path injection
-SCHEDULE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
-
-
-# =============================================================================
-# PATH UTILITIES
-# =============================================================================
-
-
-def validate_schedule_id(schedule_id: str) -> bool:
-    """Validate schedule_id is safe for use in file paths.
-
-    Security: Prevents path traversal attacks by restricting allowed characters.
-
-    Allows:
-        - Alphanumeric characters (a-z, A-Z, 0-9)
-        - Underscores (_)
-        - Hyphens (-)
-
-    Disallows:
-        - Path separators (/, \\)
-        - Dots (.) - prevents ../ traversal
-        - Special characters
-        - Empty strings
-        - Strings longer than 64 characters
-
-    Args:
-        schedule_id: Schedule identifier to validate
-
-    Returns:
-        True if valid, False otherwise
-
-    Examples:
-        >>> validate_schedule_id("nightly-survey")
-        True
-        >>> validate_schedule_id("my_schedule_2024")
-        True
-        >>> validate_schedule_id("../../../etc/passwd")
-        False
-        >>> validate_schedule_id("")
-        False
-    """
-    if not schedule_id or not isinstance(schedule_id, str):
-        return False
-    return bool(SCHEDULE_ID_PATTERN.match(schedule_id))
-
-
-def get_schedule_path(schedule_id: str, is_builtin: bool = False) -> Path:
-    """Get path to schedule file.
-
-    Args:
-        schedule_id: Schedule identifier
-        is_builtin: If True, return built-in path, else user path
-
-    Returns:
-        Path to schedule JSON file
-
-    Raises:
-        ValueError: If schedule_id contains invalid characters (path injection attempt)
-
-    Example:
-        >>> get_schedule_path("nightly-survey", is_builtin=False)
-        PosixPath('/etc/mothbox/schedules/nightly-survey.json')
-        >>> get_schedule_path("nightly-survey", is_builtin=True)
-        PosixPath('.../presets_builtin/schedules/nightly-survey.json')
-        >>> get_schedule_path("../etc/passwd", is_builtin=False)
-        ValueError: Invalid schedule ID: ../etc/passwd
-    """
-    # Security: Validate schedule_id format to prevent path injection
-    if not validate_schedule_id(schedule_id):
-        raise ValueError(f"Invalid schedule ID: {schedule_id}")
-
-    # Security: Use os.path.basename() to strip any path components (defense in depth)
-    # This is a CodeQL-recognized sanitizer that ensures only the filename is used
-    safe_id = os.path.basename(schedule_id)
-
-    # Double-check: if basename changed the value, reject it
-    if safe_id != schedule_id:
-        raise ValueError(f"Invalid schedule ID: {schedule_id}")
-
-    base_dir = BUILTIN_SCHEDULES_DIR if is_builtin else USER_SCHEDULES_DIR
-    return base_dir / f"{safe_id}{SCHEDULE_FILENAME_EXTENSION}"
-
 
 def schedule_exists(schedule_id: str, is_builtin: bool = False) -> bool:
     """Check if schedule file exists.
@@ -174,13 +88,15 @@ def schedule_exists(schedule_id: str, is_builtin: bool = False) -> bool:
         is_builtin: If True, check built-in directory, else user directory
 
     Returns:
-        True if schedule file exists, False otherwise
+        True if schedule file exists, False otherwise (also False for invalid IDs)
 
     Example:
         >>> schedule_exists("nightly-survey", is_builtin=False)
         True
     """
     schedule_path = get_schedule_path(schedule_id, is_builtin=is_builtin)
+    if schedule_path is None:
+        return False
     return schedule_path.exists()
 
 
@@ -199,7 +115,7 @@ def list_schedule_ids(is_builtin: bool = False) -> list[str]:
         >>> list_schedule_ids(is_builtin=False)
         ['nightly-survey', 'weekly-capture']
     """
-    base_dir = BUILTIN_SCHEDULES_DIR if is_builtin else USER_SCHEDULES_DIR
+    base_dir = BUILTIN_SCHEDULES_DIR if is_builtin else SCHEDULES_DIR
 
     if not base_dir.exists():
         return []
@@ -238,12 +154,12 @@ def find_schedule(schedule_id: str) -> tuple[Path, bool] | None:
     """
     # Check user directory first (precedence)
     user_path = get_schedule_path(schedule_id, is_builtin=False)
-    if user_path.exists():
+    if user_path is not None and user_path.exists():
         return (user_path, False)
 
     # Check built-in directory
     builtin_path = get_schedule_path(schedule_id, is_builtin=True)
-    if builtin_path.exists():
+    if builtin_path is not None and builtin_path.exists():
         return (builtin_path, True)
 
     return None
@@ -304,10 +220,12 @@ def create_schedule(schedule: Schedule) -> bool:
         raise ScheduleValidationError(error)
 
     schedule_path = get_schedule_path(schedule.schedule_id, is_builtin=False)
+    if schedule_path is None:
+        raise ValueError(f"Invalid schedule ID: {schedule.schedule_id}")
 
     try:
         # Ensure schedules directory exists
-        USER_SCHEDULES_DIR.mkdir(parents=True, exist_ok=True)
+        SCHEDULES_DIR.mkdir(parents=True, exist_ok=True)
 
         # Write with file locking
         with FileLock(schedule_path, exclusive=True) as f:
@@ -406,6 +324,8 @@ def update_schedule(
         raise ValueError("Cannot modify built-in schedule")
 
     schedule_path = get_schedule_path(schedule_id, is_builtin=False)
+    if schedule_path is None:
+        raise ValueError(f"Invalid schedule ID: {schedule_id}")
 
     if not schedule_path.exists():
         return None
@@ -478,6 +398,8 @@ def delete_schedule(
         raise ValueError("Cannot delete built-in schedule")
 
     schedule_path = get_schedule_path(schedule_id, is_builtin=False)
+    if schedule_path is None:
+        raise ValueError(f"Invalid schedule ID: {schedule_id}")
 
     if not schedule_path.exists():
         return False
@@ -522,6 +444,9 @@ def get_builtin_schedules() -> list[Schedule]:
 
     for schedule_id in builtin_ids:
         schedule_path = get_schedule_path(schedule_id, is_builtin=True)
+        if schedule_path is None:
+            logger.warning(f"Invalid built-in schedule ID: {schedule_id}")
+            continue
 
         try:
             with open(schedule_path) as f:
@@ -614,8 +539,8 @@ def cleanup_temp_files(max_age_seconds: int = 3600) -> int:
     current_time = time.time()
 
     # Clean user schedules directory
-    if USER_SCHEDULES_DIR.exists():
-        for lock_file in USER_SCHEDULES_DIR.glob("*.lock"):
+    if SCHEDULES_DIR.exists():
+        for lock_file in SCHEDULES_DIR.glob("*.lock"):
             try:
                 file_age = current_time - lock_file.stat().st_mtime
                 if file_age > max_age_seconds:
@@ -645,7 +570,7 @@ def cleanup_temp_files(max_age_seconds: int = 3600) -> int:
 __all__ = [
     # Constants
     "SCHEDULE_FILENAME_EXTENSION",
-    "USER_SCHEDULES_DIR",
+    "SCHEDULES_DIR",
     "BUILTIN_SCHEDULES_DIR",
     # Path utilities
     "get_schedule_path",

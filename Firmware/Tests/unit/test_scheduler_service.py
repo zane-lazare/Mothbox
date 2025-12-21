@@ -33,11 +33,12 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture
 def temp_schedules_dir(tmp_path, monkeypatch):
-    """Create temp directory and mock USER_SCHEDULES_DIR."""
+    """Create temp directory and mock SCHEDULES_DIR."""
     schedules = tmp_path / "schedules"
     schedules.mkdir()
-    # Mock USER_SCHEDULES_DIR in storage module (service uses storage functions)
-    monkeypatch.setattr('webui.backend.lib.schedule_storage.USER_SCHEDULES_DIR', schedules)
+    # Mock SCHEDULES_DIR in both mothbox_paths (for get_schedule_path) and storage module
+    monkeypatch.setattr('mothbox_paths.SCHEDULES_DIR', schedules)
+    monkeypatch.setattr('webui.backend.lib.schedule_storage.SCHEDULES_DIR', schedules)
     return schedules
 
 
