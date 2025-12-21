@@ -16,16 +16,14 @@ import pytest
 try:
     from webui.backend.app import app
     from webui.backend.routes.scheduler_ui import scheduler_ui_bp  # noqa: F401
+
     IMPLEMENTATION_EXISTS = True
 except ImportError:
     IMPLEMENTATION_EXISTS = False
     app = None
 
 # Skip all tests if implementation doesn't exist
-pytestmark = pytest.mark.skipif(
-    not IMPLEMENTATION_EXISTS,
-    reason="Implementation not yet created"
-)
+pytestmark = pytest.mark.skipif(not IMPLEMENTATION_EXISTS, reason="Implementation not yet created")
 
 
 # =============================================================================
@@ -39,13 +37,18 @@ def reset_builtin_patterns_cache():
 
     The scheduler_ui module caches patterns at module level.
     We need to reset it to ensure tests get fresh data.
+
+    Note: We acquire the cache lock to prevent race conditions when
+    tests run in parallel.
     """
     import webui.backend.routes.scheduler_ui as module
 
-    original = getattr(module, '_builtin_patterns_cache', None)
-    module._builtin_patterns_cache = None
+    with module._builtin_patterns_cache_lock:
+        original = getattr(module, "_builtin_patterns_cache", None)
+        module._builtin_patterns_cache = None
     yield
-    module._builtin_patterns_cache = original
+    with module._builtin_patterns_cache_lock:
+        module._builtin_patterns_cache = original
 
 
 @pytest.fixture
@@ -315,7 +318,10 @@ class TestPatternSourceSchedules:
 
         pattern = next((p for p in data if p.get("name") == "UV Capture Cycle"), None)
         assert pattern is not None
-        assert "Nightly" in pattern["source_schedule"] or "nightly" in pattern["source_schedule"].lower()
+        assert (
+            "Nightly" in pattern["source_schedule"]
+            or "nightly" in pattern["source_schedule"].lower()
+        )
 
     def test_flash_capture_from_flash_survey(self, client) -> None:
         """Flash Capture should come from Flash Capture Survey."""
