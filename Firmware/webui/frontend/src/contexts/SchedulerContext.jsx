@@ -689,14 +689,28 @@ export function SchedulerProvider({ children }) {
         resetState,
       },
     }),
-    // DEPENDENCY ARRAY EXPLANATION:
-    // - state: The full reducer state object (triggers re-render on any state change)
-    // - hasSchedules, isEditing, hasConflicts, hasError: Computed values derived from state
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DEPENDENCY ARRAY - STABILITY GUARANTEE
+    // ═══════════════════════════════════════════════════════════════════════════
     //
-    // INTENTIONALLY OMITTED (stable references):
-    // - All 20+ action functions (setSchedules, setActiveSchedule, etc.) are created with
-    //   useCallback with empty dependency arrays [], making them stable across renders.
-    //   Including them would add noise without changing behavior.
+    // INCLUDED (trigger re-renders when changed):
+    // - state: Full reducer state object, changes on any dispatch
+    // - hasSchedules, isEditing, hasConflicts, hasError: Computed boolean values
+    //
+    // INTENTIONALLY OMITTED (stable references - never change identity):
+    // - All 20+ action functions (setSchedules, setActiveSchedule, toggleDrawer, etc.)
+    //   These are created with useCallback([]) making them referentially stable.
+    //
+    // WHY THIS IS CORRECT:
+    // 1. Actions wrapped in useCallback([]) never change identity across renders
+    // 2. Adding them would create a 40+ item dependency array with no behavior change
+    // 3. Would trigger false positive warnings in React DevTools profiler
+    //
+    // MAINTAINER NOTE:
+    // If you add new actions, ensure they are wrapped in useCallback with an empty
+    // dependency array to preserve this optimization. Otherwise, context consumers
+    // will re-render unnecessarily on every provider render.
+    // ═══════════════════════════════════════════════════════════════════════════
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state, hasSchedules, isEditing, hasConflicts, hasError]
   )
