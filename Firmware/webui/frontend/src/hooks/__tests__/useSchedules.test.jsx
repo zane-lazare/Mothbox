@@ -104,7 +104,7 @@ describe('useSchedules', () => {
         {
           id: 'sunset_moths',
           name: 'Sunset Moths',
-          category: 'builtin',
+          category: 'built-in',
           events: []
         }
       ],
@@ -538,14 +538,14 @@ describe('useBuiltinSchedules', () => {
         {
           id: 'sunset_moths',
           name: 'Sunset Moths',
-          category: 'builtin',
+          category: 'built-in',
           description: 'Capture moths at dusk',
           events: []
         },
         {
           id: 'hourly_survey',
           name: 'Hourly Survey',
-          category: 'builtin',
+          category: 'built-in',
           description: 'Take photos every hour',
           events: []
         }
