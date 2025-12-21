@@ -164,7 +164,29 @@ const initialState = {
   errorInfo: null,
 }
 
-// Reducer
+/**
+ * Reducer for scheduler state management
+ *
+ * VALIDATION STRATEGY:
+ * All reducer actions validate their payloads before applying state changes.
+ * Invalid payloads result in the current state being returned unchanged (no-op).
+ *
+ * - Array fields (schedules, events, conflicts): Check `!value || !Array.isArray(value)`
+ *   Catches null, undefined, and non-array values in a single condition.
+ *
+ * - Object fields (updates, newState): Check `!value || typeof value !== 'object' || Array.isArray(value)`
+ *   Ensures value is a plain object (not null, undefined, or array).
+ *
+ * - Primitive fields (strings, booleans): No validation needed; React prop-types
+ *   handle type checking at the component level.
+ *
+ * - Sanitized fields (editingSchedule updates, loadState): Use allowlist filtering
+ *   (SCHEDULE_FIELDS, LOADABLE_STATE_KEYS) to prevent prototype pollution.
+ *
+ * @param {Object} state - Current reducer state
+ * @param {Object} action - Action with type and payload
+ * @returns {Object} Updated state or current state if validation fails
+ */
 function schedulerReducer(state, action) {
   switch (action.type) {
     case ActionTypes.SET_SCHEDULES: {
