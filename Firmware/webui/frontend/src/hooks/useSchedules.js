@@ -45,7 +45,45 @@ import {
   validatePattern,
 } from '../utils/schedulerApi'
 
-const SCHEDULE_STALE_TIME = 5 * 60 * 1000  // 5 minutes
+// =============================================================================
+// Configuration
+// =============================================================================
+
+/**
+ * Query cache configuration for scheduler data.
+ *
+ * STALE_TIME (5 min): How long data is considered "fresh" before refetching.
+ * Schedules change infrequently (user-initiated only), so 5 minutes is
+ * reasonable. This reduces API calls while keeping data reasonably current.
+ *
+ * Note: We use React Query defaults for:
+ * - gcTime (5 min): Garbage collection time for inactive queries
+ * - refetchOnWindowFocus (true): Refresh when user returns to tab
+ *
+ * These defaults are appropriate since schedules should refresh when the
+ * user returns to the app, and inactive queries can be garbage collected
+ * relatively quickly.
+ */
+const QUERY_CONFIG = {
+  STALE_TIME: 5 * 60 * 1000, // 5 minutes
+}
+
+/**
+ * Centralized mutation error handler for development debugging.
+ *
+ * Logs errors to console in development mode only. In production,
+ * errors are surfaced via React Query's isError/error properties.
+ *
+ * @param {Error} error - The error from the mutation
+ * @param {string} operation - Name of the operation for context
+ */
+function handleMutationError(error, operation) {
+  if (import.meta.env.DEV) {
+    console.error(`[Scheduler ${operation}]:`, error.message || error)
+  }
+  // Note: Could integrate error reporting service here in future
+  // e.g., Sentry.captureException(error, { tags: { operation } })
+}
 
 /**
  * List all schedules
@@ -86,7 +124,7 @@ export function useSchedules(params = {}, queryOptions = {}) {
       const response = await listSchedules(apiParams)
       return response.data
     },
-    staleTime: SCHEDULE_STALE_TIME,
+    staleTime: QUERY_CONFIG.STALE_TIME,
     ...queryOptions,
   })
 }
@@ -117,7 +155,7 @@ export function useSchedule(id, queryOptions = {}) {
       return response.data
     },
     enabled: !!id, // Disable query if id is null/undefined
-    staleTime: SCHEDULE_STALE_TIME, // 5 minutes
+    staleTime: QUERY_CONFIG.STALE_TIME, // 5 minutes
     ...queryOptions,
   })
 }
@@ -145,7 +183,7 @@ export function useActiveSchedule(queryOptions = {}) {
       const response = await getActiveSchedule()
       return response.data
     },
-    staleTime: SCHEDULE_STALE_TIME, // 5 minutes
+    staleTime: QUERY_CONFIG.STALE_TIME, // 5 minutes
     ...queryOptions,
   })
 }
@@ -190,7 +228,7 @@ export function useSchedulePreview(id, params = {}, queryOptions = {}) {
       return response.data
     },
     enabled: !!id,
-    staleTime: SCHEDULE_STALE_TIME,
+    staleTime: QUERY_CONFIG.STALE_TIME,
     ...queryOptions,
   })
 }
@@ -219,7 +257,7 @@ export function useBuiltinSchedules(queryOptions = {}) {
       const response = await listBuiltinSchedules()
       return response.data
     },
-    staleTime: SCHEDULE_STALE_TIME, // 5 minutes - built-in schedules are static
+    staleTime: QUERY_CONFIG.STALE_TIME, // 5 minutes - built-in schedules are static
     ...queryOptions,
   })
 }
@@ -248,7 +286,7 @@ export function useBuiltinPatterns(queryOptions = {}) {
       const response = await listBuiltinPatterns()
       return response.data
     },
-    staleTime: SCHEDULE_STALE_TIME, // 5 minutes - built-in patterns are static
+    staleTime: QUERY_CONFIG.STALE_TIME, // 5 minutes - built-in patterns are static
     ...queryOptions,
   })
 }
@@ -299,6 +337,7 @@ export function useCreateSchedule() {
       // Invalidate schedules list to show new schedule
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES })
     },
+    onError: (error) => handleMutationError(error, 'create'),
   })
 }
 
@@ -341,6 +380,7 @@ export function useUpdateSchedule() {
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
       ])
     },
+    onError: (error) => handleMutationError(error, 'update'),
   })
 }
 
@@ -396,6 +436,7 @@ export function useDeleteSchedule() {
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
       ])
     },
+    onError: (error) => handleMutationError(error, 'delete'),
   })
 }
 
@@ -438,6 +479,7 @@ export function useActivateSchedule() {
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
       ])
     },
+    onError: (error) => handleMutationError(error, 'activate'),
   })
 }
 
@@ -477,6 +519,7 @@ export function useDeactivateSchedule() {
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
       ])
     },
+    onError: (error) => handleMutationError(error, 'deactivate'),
   })
 }
 
@@ -492,6 +535,7 @@ export function useDeactivateSchedule() {
 export function useValidateSchedule() {
   return useMutation({
     mutationFn: ({ id, data }) => validateSchedule(id, data),
+    onError: (error) => handleMutationError(error, 'validate'),
   })
 }
 
@@ -507,6 +551,7 @@ export function useValidateSchedule() {
 export function useValidatePattern() {
   return useMutation({
     mutationFn: (data) => validatePattern(data),
+    onError: (error) => handleMutationError(error, 'validatePattern'),
   })
 }
 
