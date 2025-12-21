@@ -19,7 +19,7 @@ import threading
 from functools import wraps
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 from werkzeug.exceptions import BadRequest
 
 from webui.backend.constants import MAX_BUILTIN_SCHEDULE_FILES
@@ -51,7 +51,9 @@ except ImportError:
         def limit(self, *args, **kwargs):
             def decorator(f):
                 return f
+
             return decorator
+
     limiter = _LimiterStub()
 
 # Logger
@@ -65,6 +67,7 @@ _scheduler_service = None
 
 # Built-in patterns cache (populated on first request)
 _builtin_patterns_cache: list[dict] | None = None
+_builtin_patterns_cache_warnings: list[str] = []
 _builtin_patterns_cache_lock = threading.Lock()
 
 
@@ -83,6 +86,7 @@ def require_json(f):
     Passes the parsed JSON data to the wrapped function as `json_data` kwarg.
     Returns 400 Bad Request if JSON is missing, invalid, or not an object.
     """
+
     @wraps(f)
     def decorated(*args, **kwargs):
         try:
@@ -97,6 +101,7 @@ def require_json(f):
             return jsonify({"error": "Request body must be a JSON object"}), 400
 
         return f(*args, json_data=data, **kwargs)
+
     return decorated
 
 
@@ -107,7 +112,7 @@ def require_json(f):
 
 @scheduler_ui_bp.route("/schedules/<schedule_id>/preview", methods=["GET"])
 @limiter.limit("30 per minute")
-def get_schedule_preview(schedule_id: str):
+def get_schedule_preview(schedule_id: str) -> tuple[Response, int]:
     """
     Generate execution preview for a schedule.
 
@@ -203,9 +208,11 @@ def get_schedule_preview(schedule_id: str):
         schedule = service.get_schedule(schedule_id)
 
         if schedule is None:
-            return jsonify({
-                "error": "Schedule not found",
-            }), 404
+            return jsonify(
+                {
+                    "error": "Schedule not found",
+                }
+            ), 404
 
         # Generate preview
         result = generate_preview(
@@ -220,16 +227,20 @@ def get_schedule_preview(schedule_id: str):
 
     except ValueError as e:
         logger.warning(f"Preview generation error: {e}")
-        return jsonify({
-            "error": "Preview generation failed",
-        }), 400
+        return jsonify(
+            {
+                "error": "Preview generation failed",
+            }
+        ), 400
 
     except Exception as e:
         logger.error(f"Unexpected error in preview generation: {e}", exc_info=True)
-        return jsonify({
-            "error": "Internal server error",
-            "message": "Failed to generate preview",
-        }), 500
+        return jsonify(
+            {
+                "error": "Internal server error",
+                "message": "Failed to generate preview",
+            }
+        ), 500
 
 
 # ============================================================================
@@ -238,7 +249,7 @@ def get_schedule_preview(schedule_id: str):
 
 
 @scheduler_ui_bp.route("/schedules", methods=["GET"])
-def list_schedules():
+def list_schedules() -> tuple[Response, int]:
     """
     List all schedules (summary).
 
@@ -277,21 +288,25 @@ def list_schedules():
             for s in schedules
         ]
 
-        return jsonify({
-            "schedules": summaries,
-            "total": len(summaries),
-        }), 200
+        return jsonify(
+            {
+                "schedules": summaries,
+                "total": len(summaries),
+            }
+        ), 200
 
     except Exception as e:
         logger.error(f"Error listing schedules: {e}", exc_info=True)
-        return jsonify({
-            "error": "Internal server error",
-            "message": "Failed to list schedules",
-        }), 500
+        return jsonify(
+            {
+                "error": "Internal server error",
+                "message": "Failed to list schedules",
+            }
+        ), 500
 
 
 @scheduler_ui_bp.route("/schedules/<schedule_id>", methods=["GET"])
-def get_schedule(schedule_id: str):
+def get_schedule(schedule_id: str) -> tuple[Response, int]:
     """
     Get full schedule details.
 
@@ -306,21 +321,25 @@ def get_schedule(schedule_id: str):
         schedule = service.get_schedule(schedule_id)
 
         if schedule is None:
-            return jsonify({
-                "error": "Schedule not found",
-            }), 404
+            return jsonify(
+                {
+                    "error": "Schedule not found",
+                }
+            ), 404
 
         return jsonify(schedule.to_dict()), 200
 
     except Exception as e:
         logger.error(f"Error getting schedule: {e}", exc_info=True)
-        return jsonify({
-            "error": "Internal server error",
-        }), 500
+        return jsonify(
+            {
+                "error": "Internal server error",
+            }
+        ), 500
 
 
 @scheduler_ui_bp.route("/schedules/active", methods=["GET"])
-def get_active_schedule():
+def get_active_schedule() -> tuple[Response, int]:
     """
     Get the currently active schedule.
 
@@ -337,26 +356,32 @@ def get_active_schedule():
         schedule = service.get_active_schedule()
 
         if schedule is None:
-            return jsonify({
-                "active": False,
-                "schedule": None,
-            }), 200
+            return jsonify(
+                {
+                    "active": False,
+                    "schedule": None,
+                }
+            ), 200
 
-        return jsonify({
-            "active": True,
-            "schedule": schedule.to_dict(),
-        }), 200
+        return jsonify(
+            {
+                "active": True,
+                "schedule": schedule.to_dict(),
+            }
+        ), 200
 
     except Exception as e:
         logger.error(f"Error getting active schedule: {e}", exc_info=True)
-        return jsonify({
-            "error": "Internal server error",
-            "message": "Failed to get active schedule",
-        }), 500
+        return jsonify(
+            {
+                "error": "Internal server error",
+                "message": "Failed to get active schedule",
+            }
+        ), 500
 
 
 @scheduler_ui_bp.route("/schedules/builtin", methods=["GET"])
-def list_builtin_schedules():
+def list_builtin_schedules() -> tuple[Response, int]:
     """
     List all built-in schedules.
 
@@ -394,17 +419,21 @@ def list_builtin_schedules():
             for s in builtin
         ]
 
-        return jsonify({
-            "schedules": summaries,
-            "total": len(summaries),
-        }), 200
+        return jsonify(
+            {
+                "schedules": summaries,
+                "total": len(summaries),
+            }
+        ), 200
 
     except Exception as e:
         logger.error(f"Error listing built-in schedules: {e}", exc_info=True)
-        return jsonify({
-            "error": "Internal server error",
-            "message": "Failed to list built-in schedules",
-        }), 500
+        return jsonify(
+            {
+                "error": "Internal server error",
+                "message": "Failed to list built-in schedules",
+            }
+        ), 500
 
 
 # ============================================================================
@@ -415,7 +444,7 @@ def list_builtin_schedules():
 @scheduler_ui_bp.route("/schedules", methods=["POST"])
 @limiter.limit("30 per minute")
 @require_json
-def create_schedule(json_data: dict):
+def create_schedule(json_data: dict) -> tuple[Response, int]:
     """
     Create a new schedule.
 
@@ -440,14 +469,18 @@ def create_schedule(json_data: dict):
             schedule = Schedule.from_dict(json_data)
         except KeyError as e:
             logger.debug(f"Missing required field in schedule: {e}")
-            return jsonify({
-                "error": f"Missing required field: {e}",
-            }), 400
+            return jsonify(
+                {
+                    "error": f"Missing required field: {e}",
+                }
+            ), 400
         except Exception as e:
             logger.error(f"Invalid schedule format: {e}", exc_info=True)
-            return jsonify({
-                "error": "Invalid schedule format",
-            }), 400
+            return jsonify(
+                {
+                    "error": "Invalid schedule format",
+                }
+            ), 400
 
         # Create via service (validates internally)
         service = get_scheduler_service()
@@ -455,33 +488,41 @@ def create_schedule(json_data: dict):
             success = service.create_schedule(schedule)
         except ScheduleValidationError as e:
             logger.debug(f"Schedule validation failed: {e}")
-            return jsonify({
-                "error": "Schedule validation failed",
-            }), 400
+            return jsonify(
+                {
+                    "error": "Schedule validation failed",
+                }
+            ), 400
 
         if not success:
-            return jsonify({
-                "error": "Failed to create schedule",
-            }), 500
+            return jsonify(
+                {
+                    "error": "Failed to create schedule",
+                }
+            ), 500
 
-        return jsonify({
-            "message": "Schedule created",
-            "schedule_id": schedule.schedule_id,
-            "schedule": schedule.to_dict(),
-        }), 201
+        return jsonify(
+            {
+                "message": "Schedule created",
+                "schedule_id": schedule.schedule_id,
+                "schedule": schedule.to_dict(),
+            }
+        ), 201
 
     except Exception as e:
         logger.error(f"Error creating schedule: {e}", exc_info=True)
-        return jsonify({
-            "error": "Internal server error",
-            "message": "Failed to create schedule",
-        }), 500
+        return jsonify(
+            {
+                "error": "Internal server error",
+                "message": "Failed to create schedule",
+            }
+        ), 500
 
 
 @scheduler_ui_bp.route("/schedules/<schedule_id>", methods=["PUT"])
 @limiter.limit("30 per minute")
 @require_json
-def update_schedule(schedule_id: str, json_data: dict):
+def update_schedule(schedule_id: str, json_data: dict) -> tuple[Response, int]:
     """
     Update a schedule.
 
@@ -506,9 +547,11 @@ def update_schedule(schedule_id: str, json_data: dict):
         # Check if schedule exists
         existing = service.get_schedule(schedule_id)
         if existing is None:
-            return jsonify({
-                "error": "Schedule not found",
-            }), 404
+            return jsonify(
+                {
+                    "error": "Schedule not found",
+                }
+            ), 404
 
         # Update via service (handles built-in check)
         try:
@@ -516,35 +559,45 @@ def update_schedule(schedule_id: str, json_data: dict):
         except ValueError as e:
             # Built-in schedule protection
             logger.warning(f"Update blocked for built-in schedule: {e}")
-            return jsonify({
-                "error": "Cannot modify built-in schedule",
-            }), 403
+            return jsonify(
+                {
+                    "error": "Cannot modify built-in schedule",
+                }
+            ), 403
         except ScheduleValidationError as e:
             logger.warning(f"Schedule validation failed: {e}")
-            return jsonify({
-                "error": "Validation failed",
-            }), 400
+            return jsonify(
+                {
+                    "error": "Validation failed",
+                }
+            ), 400
 
         if updated is None:
-            return jsonify({
-                "error": "Failed to update schedule",
-            }), 500
+            return jsonify(
+                {
+                    "error": "Failed to update schedule",
+                }
+            ), 500
 
-        return jsonify({
-            "message": "Schedule updated",
-            "schedule": updated.to_dict(),
-        }), 200
+        return jsonify(
+            {
+                "message": "Schedule updated",
+                "schedule": updated.to_dict(),
+            }
+        ), 200
 
     except Exception as e:
         logger.error(f"Error updating schedule: {e}", exc_info=True)
-        return jsonify({
-            "error": "Internal server error",
-        }), 500
+        return jsonify(
+            {
+                "error": "Internal server error",
+            }
+        ), 500
 
 
 @scheduler_ui_bp.route("/schedules/<schedule_id>", methods=["DELETE"])
 @limiter.limit("30 per minute")
-def delete_schedule(schedule_id: str):
+def delete_schedule(schedule_id: str) -> tuple[Response, int]:
     """
     Delete a schedule.
 
@@ -565,9 +618,11 @@ def delete_schedule(schedule_id: str):
         # Check if schedule exists
         existing = service.get_schedule(schedule_id)
         if existing is None:
-            return jsonify({
-                "error": "Schedule not found",
-            }), 404
+            return jsonify(
+                {
+                    "error": "Schedule not found",
+                }
+            ), 404
 
         # Delete via service (handles built-in check)
         try:
@@ -575,25 +630,33 @@ def delete_schedule(schedule_id: str):
         except ValueError as e:
             # Built-in schedule protection
             logger.warning(f"Delete blocked for built-in schedule: {e}")
-            return jsonify({
-                "error": "Cannot delete built-in schedule",
-            }), 403
+            return jsonify(
+                {
+                    "error": "Cannot delete built-in schedule",
+                }
+            ), 403
 
         if not success:
-            return jsonify({
-                "error": "Failed to delete schedule",
-            }), 500
+            return jsonify(
+                {
+                    "error": "Failed to delete schedule",
+                }
+            ), 500
 
-        return jsonify({
-            "message": "Schedule deleted",
-            "schedule_id": schedule_id,
-        }), 200
+        return jsonify(
+            {
+                "message": "Schedule deleted",
+                "schedule_id": schedule_id,
+            }
+        ), 200
 
     except Exception as e:
         logger.error(f"Error deleting schedule: {e}", exc_info=True)
-        return jsonify({
-            "error": "Internal server error",
-        }), 500
+        return jsonify(
+            {
+                "error": "Internal server error",
+            }
+        ), 500
 
 
 # ============================================================================
@@ -603,7 +666,7 @@ def delete_schedule(schedule_id: str):
 
 @scheduler_ui_bp.route("/schedules/<schedule_id>/activate", methods=["POST"])
 @limiter.limit("10 per minute")
-def activate_schedule(schedule_id: str):
+def activate_schedule(schedule_id: str) -> tuple[Response, int]:
     """
     Activate a schedule.
 
@@ -642,18 +705,22 @@ def activate_schedule(schedule_id: str):
 
         # Require both coordinates or neither
         if lat_provided != lon_provided:
-            return jsonify({
-                "error": "Both latitude and longitude must be provided together",
-            }), 400
+            return jsonify(
+                {
+                    "error": "Both latitude and longitude must be provided together",
+                }
+            ), 400
 
         # Type validation for coordinates
         try:
             latitude = float(data["latitude"]) if lat_provided else 0.0
             longitude = float(data["longitude"]) if lon_provided else 0.0
         except (ValueError, TypeError):
-            return jsonify({
-                "error": "Coordinates must be numeric",
-            }), 400
+            return jsonify(
+                {
+                    "error": "Coordinates must be numeric",
+                }
+            ), 400
 
         timezone_name = data.get("timezone", "UTC")
 
@@ -662,16 +729,20 @@ def activate_schedule(schedule_id: str):
         if lat_provided and lon_provided:
             valid, coord_error = validate_coordinates(latitude, longitude)
             if not valid:
-                return jsonify({
-                    "error": f"Invalid coordinates: {coord_error}",
-                }), 400
+                return jsonify(
+                    {
+                        "error": f"Invalid coordinates: {coord_error}",
+                    }
+                ), 400
 
         # Validate timezone
         valid, tz_error = validate_timezone(timezone_name)
         if not valid:
-            return jsonify({
-                "error": f"Invalid timezone: {tz_error}",
-            }), 400
+            return jsonify(
+                {
+                    "error": f"Invalid timezone: {tz_error}",
+                }
+            ), 400
 
         service = get_scheduler_service()
 
@@ -687,32 +758,40 @@ def activate_schedule(schedule_id: str):
         except ScheduleConflictError as e:
             # Log conflict details, return generic message
             logger.info(f"Schedule conflict detected: {e}")
-            return jsonify({
-                "error": "Schedule conflict detected",
-                "conflict": True,
-            }), 409
+            return jsonify(
+                {
+                    "error": "Schedule conflict detected",
+                    "conflict": True,
+                }
+            ), 409
         except ScheduleActivationError as e:
             # Log detailed error, return generic message
             logger.warning(f"Schedule activation failed: {e}")
-            return jsonify({
-                "error": "Schedule activation failed",
-            }), 400
+            return jsonify(
+                {
+                    "error": "Schedule activation failed",
+                }
+            ), 400
 
-        return jsonify({
-            "message": "Schedule activated",
-            "schedule_id": schedule_id,
-        }), 200
+        return jsonify(
+            {
+                "message": "Schedule activated",
+                "schedule_id": schedule_id,
+            }
+        ), 200
 
     except Exception as e:
         logger.error(f"Error activating schedule: {e}", exc_info=True)
-        return jsonify({
-            "error": "Internal server error",
-        }), 500
+        return jsonify(
+            {
+                "error": "Internal server error",
+            }
+        ), 500
 
 
 @scheduler_ui_bp.route("/schedules/deactivate", methods=["POST"])
 @limiter.limit("10 per minute")
-def deactivate_current_schedule():
+def deactivate_current_schedule() -> tuple[Response, int]:
     """
     Deactivate the currently active schedule.
 
@@ -732,32 +811,40 @@ def deactivate_current_schedule():
         # Check if there's an active schedule
         active = service.get_active_schedule()
         if active is None:
-            return jsonify({
-                "message": "No active schedule to deactivate",
-                "was_active": False,
-                "schedule_id": None,
-            }), 200
+            return jsonify(
+                {
+                    "message": "No active schedule to deactivate",
+                    "was_active": False,
+                    "schedule_id": None,
+                }
+            ), 200
 
         # Deactivate
         success = service.deactivate_schedule()
 
         if not success:
-            return jsonify({
-                "error": "Failed to deactivate schedule",
-            }), 500
+            return jsonify(
+                {
+                    "error": "Failed to deactivate schedule",
+                }
+            ), 500
 
-        return jsonify({
-            "message": "Schedule deactivated",
-            "was_active": True,
-            "schedule_id": active.schedule_id,
-        }), 200
+        return jsonify(
+            {
+                "message": "Schedule deactivated",
+                "was_active": True,
+                "schedule_id": active.schedule_id,
+            }
+        ), 200
 
     except Exception as e:
         logger.error(f"Error deactivating schedule: {e}", exc_info=True)
-        return jsonify({
-            "error": "Internal server error",
-            "message": "Failed to deactivate schedule",
-        }), 500
+        return jsonify(
+            {
+                "error": "Internal server error",
+                "message": "Failed to deactivate schedule",
+            }
+        ), 500
 
 
 # ============================================================================
@@ -767,7 +854,7 @@ def deactivate_current_schedule():
 
 @scheduler_ui_bp.route("/schedules/<schedule_id>/validate", methods=["POST"])
 @limiter.limit("30 per minute")
-def validate_schedule_endpoint(schedule_id: str):
+def validate_schedule_endpoint(schedule_id: str) -> tuple[Response, int]:
     """
     Validate a schedule for conflicts without activating.
 
@@ -804,18 +891,22 @@ def validate_schedule_endpoint(schedule_id: str):
 
         # Require both coordinates or neither
         if lat_provided != lon_provided:
-            return jsonify({
-                "error": "Both latitude and longitude must be provided together",
-            }), 400
+            return jsonify(
+                {
+                    "error": "Both latitude and longitude must be provided together",
+                }
+            ), 400
 
         # Type validation for coordinates
         try:
             latitude = float(data["latitude"]) if lat_provided else 0.0
             longitude = float(data["longitude"]) if lon_provided else 0.0
         except (ValueError, TypeError):
-            return jsonify({
-                "error": "Coordinates must be numeric",
-            }), 400
+            return jsonify(
+                {
+                    "error": "Coordinates must be numeric",
+                }
+            ), 400
 
         timezone_name = data.get("timezone", "UTC")
 
@@ -823,18 +914,22 @@ def validate_schedule_endpoint(schedule_id: str):
         if lat_provided and lon_provided:
             valid, coord_error = validate_coordinates(latitude, longitude)
             if not valid:
-                return jsonify({
-                    "error": f"Invalid coordinates: {coord_error}",
-                }), 400
+                return jsonify(
+                    {
+                        "error": f"Invalid coordinates: {coord_error}",
+                    }
+                ), 400
 
         service = get_scheduler_service()
 
         # Check if schedule exists
         schedule = service.get_schedule(schedule_id)
         if schedule is None:
-            return jsonify({
-                "error": "Schedule not found",
-            }), 404
+            return jsonify(
+                {
+                    "error": "Schedule not found",
+                }
+            ), 404
 
         # Get cached conflict report
         report = service.get_cached_conflict_report(
@@ -849,24 +944,29 @@ def validate_schedule_endpoint(schedule_id: str):
         total_conflicts = len(report.conflicts)
         try:
             from webui.backend.lib.schedule_conflict import SEVERITY_ERROR
+
             blocking_count = len([c for c in report.conflicts if c.severity == SEVERITY_ERROR])
         except ImportError:
             blocking_count = 0
 
-        return jsonify({
-            "schedule_id": schedule_id,
-            "valid": not report.has_blocking_conflicts,
-            "has_warnings": total_conflicts > 0 and not report.has_blocking_conflicts,
-            "conflicts": [c.to_dict() for c in report.conflicts],
-            "total_conflicts": total_conflicts,
-            "blocking_conflicts": blocking_count,
-        }), 200
+        return jsonify(
+            {
+                "schedule_id": schedule_id,
+                "valid": not report.has_blocking_conflicts,
+                "has_warnings": total_conflicts > 0 and not report.has_blocking_conflicts,
+                "conflicts": [c.to_dict() for c in report.conflicts],
+                "total_conflicts": total_conflicts,
+                "blocking_conflicts": blocking_count,
+            }
+        ), 200
 
     except Exception as e:
         logger.error(f"Error validating schedule: {e}", exc_info=True)
-        return jsonify({
-            "error": "Internal server error",
-        }), 500
+        return jsonify(
+            {
+                "error": "Internal server error",
+            }
+        ), 500
 
 
 # ============================================================================
@@ -874,7 +974,7 @@ def validate_schedule_endpoint(schedule_id: str):
 # ============================================================================
 
 
-def list_builtin_patterns() -> list[dict]:
+def list_builtin_patterns() -> tuple[list[dict], list[str]]:
     """
     Extract unique event patterns from built-in schedules.
 
@@ -889,7 +989,9 @@ def list_builtin_patterns() -> list[dict]:
     - duration_minutes: Computed from max action offset
 
     Returns:
-        List of pattern dictionaries with source_schedule and duration_minutes added
+        Tuple of (patterns, warnings) where:
+        - patterns: List of pattern dictionaries with source_schedule and duration_minutes
+        - warnings: List of warning messages for any files that failed to load
 
     Note:
         Results are cached at module level for performance using thread-safe
@@ -900,37 +1002,43 @@ def list_builtin_patterns() -> list[dict]:
         If built-in schedule files are modified, a service restart is required
         to refresh the cache.
     """
-    global _builtin_patterns_cache
+    global _builtin_patterns_cache, _builtin_patterns_cache_warnings
 
     # Fast path: cache already populated (no lock needed)
     if _builtin_patterns_cache is not None:
-        return _builtin_patterns_cache
+        return _builtin_patterns_cache, _builtin_patterns_cache_warnings
 
     # Slow path: acquire lock and populate cache
     with _builtin_patterns_cache_lock:
         # Double-check after acquiring lock
         if _builtin_patterns_cache is not None:
-            return _builtin_patterns_cache
+            return _builtin_patterns_cache, _builtin_patterns_cache_warnings
 
         patterns = []
+        warnings: list[str] = []
         seen_ids: set[str] = set()
 
         # Path to built-in schedules directory
         builtin_dir = Path(__file__).parent.parent / "presets_builtin" / "schedules"
 
         if not builtin_dir.exists():
-            logger.warning(f"Built-in schedules directory not found: {builtin_dir}")
+            warning_msg = f"Built-in schedules directory not found: {builtin_dir}"
+            logger.warning(warning_msg)
+            warnings.append(warning_msg)
             _builtin_patterns_cache = patterns
-            return patterns
+            _builtin_patterns_cache_warnings = warnings
+            return patterns, warnings
 
         schedule_files = sorted(builtin_dir.glob("*.json"))
 
         # Safety limit on number of files to process
         if len(schedule_files) > MAX_BUILTIN_SCHEDULE_FILES:
-            logger.warning(
+            warning_msg = (
                 f"Found {len(schedule_files)} schedule files in {builtin_dir}, "
                 f"processing only first {MAX_BUILTIN_SCHEDULE_FILES}"
             )
+            logger.warning(warning_msg)
+            warnings.append(warning_msg)
             schedule_files = schedule_files[:MAX_BUILTIN_SCHEDULE_FILES]
 
         for schedule_file in schedule_files:
@@ -965,61 +1073,73 @@ def list_builtin_patterns() -> list[dict]:
                     patterns.append(pattern_copy)
 
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse schedule file {schedule_file}: {e}")
+                warning_msg = f"Failed to parse schedule file {schedule_file.name}: {e}"
+                logger.error(warning_msg)
+                warnings.append(warning_msg)
             except Exception as e:
-                logger.error(f"Error processing schedule file {schedule_file}: {e}")
+                warning_msg = f"Error processing schedule file {schedule_file.name}: {e}"
+                logger.error(warning_msg)
+                warnings.append(warning_msg)
 
         # Log warning if no patterns found (possible misconfiguration)
         if not patterns and builtin_dir.exists():
-            logger.warning(
+            warning_msg = (
                 f"No patterns found in {builtin_dir}. "
                 "Check schedule files for valid event_patterns."
             )
+            logger.warning(warning_msg)
+            warnings.append(warning_msg)
 
         # Cache the result for subsequent calls
         _builtin_patterns_cache = patterns
-        return patterns
+        _builtin_patterns_cache_warnings = warnings
+        return patterns, warnings
 
 
 @scheduler_ui_bp.route("/patterns/builtin", methods=["GET"])
-def list_builtin_patterns_endpoint():
+def list_builtin_patterns_endpoint() -> tuple[Response, int]:
     """
     List all built-in event patterns.
 
     GET /api/scheduler/ui/patterns/builtin
 
     Returns:
-        200 OK: List of built-in pattern objects
+        200 OK: Object with patterns list and any warnings
 
     Response Schema:
-    [
-        {
-            "pattern_id": "string",
-            "name": "string",
-            "description": "string",
-            "actions": [...],
-            "category": "built-in",
-            "tags": [...],
-            "source_schedule": "string",
-            "duration_minutes": number
-        }
-    ]
+    {
+        "patterns": [
+            {
+                "pattern_id": "string",
+                "name": "string",
+                "description": "string",
+                "actions": [...],
+                "category": "built-in",
+                "tags": [...],
+                "source_schedule": "string",
+                "duration_minutes": number
+            }
+        ],
+        "warnings": ["string"]  // Empty if no issues loading files
+    }
     """
     try:
-        patterns = list_builtin_patterns()
-        return jsonify(patterns), 200
+        patterns, warnings = list_builtin_patterns()
+        return jsonify({"patterns": patterns, "warnings": warnings}), 200
 
     except Exception as e:
         logger.error(f"Error listing built-in patterns: {e}", exc_info=True)
-        return jsonify({
-            "error": "Internal server error",
-            "message": "Failed to list built-in patterns",
-        }), 500
+        return jsonify(
+            {
+                "error": "Internal server error",
+                "message": "Failed to list built-in patterns",
+            }
+        ), 500
 
 
 @scheduler_ui_bp.route("/patterns/validate", methods=["POST"])
 @limiter.limit("30 per minute")
-def validate_pattern_endpoint():
+def validate_pattern_endpoint() -> tuple[Response, int]:
     """
     Validate an event pattern structure.
 
@@ -1051,56 +1171,72 @@ def validate_pattern_endpoint():
         try:
             data = request.get_json()
         except BadRequest:
-            return jsonify({
-                "valid": False,
-                "error": "Request body must be valid JSON",
-            }), 400
+            return jsonify(
+                {
+                    "valid": False,
+                    "error": "Request body must be valid JSON",
+                }
+            ), 400
 
         if data is None:
-            return jsonify({
-                "valid": False,
-                "error": "Request body must be valid JSON",
-            }), 400
+            return jsonify(
+                {
+                    "valid": False,
+                    "error": "Request body must be valid JSON",
+                }
+            ), 400
 
         if not isinstance(data, dict):
-            return jsonify({
-                "valid": False,
-                "error": "Request body must be a JSON object",
-            }), 400
+            return jsonify(
+                {
+                    "valid": False,
+                    "error": "Request body must be a JSON object",
+                }
+            ), 400
 
         # Convert dict to EventPattern for validation
         try:
             pattern = EventPattern.from_dict(data)
         except KeyError as e:
-            return jsonify({
-                "valid": False,
-                "error": f"Missing required field: {e}",
-            }), 400
+            return jsonify(
+                {
+                    "valid": False,
+                    "error": f"Missing required field: {e}",
+                }
+            ), 400
         except Exception as e:
             # Log the detailed error server-side, but return a generic message to the client
             logger.error(f"Invalid pattern structure: {e}", exc_info=True)
-            return jsonify({
-                "valid": False,
-                "error": "Invalid pattern structure",
-            }), 400
+            return jsonify(
+                {
+                    "valid": False,
+                    "error": "Invalid pattern structure",
+                }
+            ), 400
 
         # Validate using existing validation function
         valid, error = validate_event_pattern(pattern)
 
         if valid:
-            return jsonify({
-                "valid": True,
-                "pattern": pattern.to_dict(),
-            }), 200
+            return jsonify(
+                {
+                    "valid": True,
+                    "pattern": pattern.to_dict(),
+                }
+            ), 200
         else:
-            return jsonify({
-                "valid": False,
-                "error": error,
-            }), 400
+            return jsonify(
+                {
+                    "valid": False,
+                    "error": error,
+                }
+            ), 400
 
     except Exception as e:
         logger.error(f"Error validating pattern: {e}", exc_info=True)
-        return jsonify({
-            "valid": False,
-            "error": "Internal server error during validation",
-        }), 500
+        return jsonify(
+            {
+                "valid": False,
+                "error": "Internal server error during validation",
+            }
+        ), 500

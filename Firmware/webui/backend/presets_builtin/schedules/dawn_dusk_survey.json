@@ -2,51 +2,95 @@
   "schema_version": "2.0",
   "schedule_id": "dawn_dusk_survey",
   "name": "Dawn & Dusk Survey",
-  "description": "Solar-triggered schedule for photographing crepuscular species (active at dawn and dusk). Triggers at civil dusk each evening to capture the transition period when many moth species begin activity.",
+  "description": "Solar-triggered schedule for photographing crepuscular species (active at dawn and dusk). Triggers at civil dusk each evening to capture the transition period when many moth species begin activity. Contains both dawn and dusk transect patterns for the pattern library.",
   "event_patterns": [
     {
-      "pattern_id": "dusk_photo_sequence",
-      "name": "Dusk Photo Sequence",
-      "description": "Capture photo sequence at civil dusk to document crepuscular activity",
+      "pattern_id": "dusk_transect",
+      "name": "Dusk Transect",
+      "description": "Dusk transect pattern for capturing crepuscular species active at twilight. Takes multiple photos as light decreases to document species transitioning from diurnal to nocturnal behavior.",
       "actions": [
         {
           "action_type": "gpio",
           "action_name": "attract_on",
           "offset_minutes": 0,
           "parameters": {},
-          "description": "Turn on attract lights at dusk"
+          "description": "Turn on UV attract lights at dusk"
         },
         {
           "action_type": "camera",
           "action_name": "takephoto",
           "offset_minutes": 0,
           "parameters": {},
-          "description": "Capture first photo at civil dusk"
+          "description": "First capture at civil dusk"
         },
         {
           "action_type": "camera",
           "action_name": "takephoto",
           "offset_minutes": 10,
           "parameters": {},
-          "description": "Capture second photo 10 minutes later"
+          "description": "Second capture 10 minutes later"
         },
         {
           "action_type": "camera",
           "action_name": "takephoto",
           "offset_minutes": 20,
           "parameters": {},
-          "description": "Capture third photo 20 minutes later"
+          "description": "Third capture 20 minutes later"
         },
         {
           "action_type": "gpio",
           "action_name": "attract_off",
           "offset_minutes": 20,
           "parameters": {},
-          "description": "Turn off attract lights"
+          "description": "Turn off UV attract lights"
         }
       ],
       "category": "built-in",
-      "tags": ["dusk", "dawn", "crepuscular", "survey", "solar"]
+      "tags": ["dusk", "crepuscular", "transect", "survey", "solar"]
+    },
+    {
+      "pattern_id": "dawn_transect",
+      "name": "Dawn Transect",
+      "description": "Dawn transect pattern for capturing crepuscular species active at first light. Takes multiple photos as light increases to document species transitioning from nocturnal to diurnal behavior.",
+      "actions": [
+        {
+          "action_type": "gpio",
+          "action_name": "attract_on",
+          "offset_minutes": 0,
+          "parameters": {},
+          "description": "Turn on UV attract lights at dawn"
+        },
+        {
+          "action_type": "camera",
+          "action_name": "takephoto",
+          "offset_minutes": 0,
+          "parameters": {},
+          "description": "First capture at civil dawn"
+        },
+        {
+          "action_type": "camera",
+          "action_name": "takephoto",
+          "offset_minutes": 10,
+          "parameters": {},
+          "description": "Second capture 10 minutes later"
+        },
+        {
+          "action_type": "camera",
+          "action_name": "takephoto",
+          "offset_minutes": 20,
+          "parameters": {},
+          "description": "Third capture 20 minutes later"
+        },
+        {
+          "action_type": "gpio",
+          "action_name": "attract_off",
+          "offset_minutes": 20,
+          "parameters": {},
+          "description": "Turn off UV attract lights"
+        }
+      ],
+      "category": "built-in",
+      "tags": ["dawn", "crepuscular", "transect", "survey", "solar"]
     }
   ],
   "trigger_type": "solar",

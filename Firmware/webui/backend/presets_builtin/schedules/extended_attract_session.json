@@ -1,0 +1,83 @@
+{
+  "schema_version": "2.0",
+  "schedule_id": "extended_attract_session",
+  "name": "Extended Attract Session",
+  "description": "Extended 60-minute UV attraction sessions for documenting insect accumulation patterns over time. UV attract lights remain on for the full duration with photos captured at 15-minute intervals to show how moth populations build up at the light source.",
+  "event_patterns": [
+    {
+      "pattern_id": "attract_session",
+      "name": "Attract Session",
+      "description": "60-minute UV attraction session with photos at 15-minute intervals. Documents the gradual accumulation of moths at the UV light source over time.",
+      "actions": [
+        {
+          "action_type": "gpio",
+          "action_name": "attract_on",
+          "offset_minutes": 0,
+          "parameters": {},
+          "description": "Turn on UV attract lights for extended session"
+        },
+        {
+          "action_type": "camera",
+          "action_name": "takephoto",
+          "offset_minutes": 15,
+          "parameters": {},
+          "description": "Capture photo at 15 minutes"
+        },
+        {
+          "action_type": "camera",
+          "action_name": "takephoto",
+          "offset_minutes": 30,
+          "parameters": {},
+          "description": "Capture photo at 30 minutes"
+        },
+        {
+          "action_type": "camera",
+          "action_name": "takephoto",
+          "offset_minutes": 45,
+          "parameters": {},
+          "description": "Capture photo at 45 minutes"
+        },
+        {
+          "action_type": "camera",
+          "action_name": "takephoto",
+          "offset_minutes": 60,
+          "parameters": {},
+          "description": "Final capture at 60 minutes"
+        },
+        {
+          "action_type": "gpio",
+          "action_name": "attract_off",
+          "offset_minutes": 60,
+          "parameters": {},
+          "description": "Turn off UV attract lights"
+        }
+      ],
+      "category": "built-in",
+      "tags": ["attract", "extended", "60min", "survey", "accumulation"]
+    }
+  ],
+  "trigger_type": "interval",
+  "interval_trigger": {
+    "interval_minutes": 90,
+    "time_window": {
+      "start_time": "sunset",
+      "end_time": "sunrise",
+      "start_offset_minutes": 30,
+      "end_offset_minutes": 0
+    },
+    "days_of_week": null
+  },
+  "solar_trigger": null,
+  "moon_phase_trigger": null,
+  "fixed_time_trigger": null,
+  "sensor_trigger": null,
+  "start_date": null,
+  "end_date": null,
+  "deployment_id": null,
+  "create_deployment": false,
+  "enabled": true,
+  "is_active": false,
+  "created_at": "2024-12-21T00:00:00Z",
+  "modified_at": "2024-12-21T00:00:00Z",
+  "modified_by": null
+}

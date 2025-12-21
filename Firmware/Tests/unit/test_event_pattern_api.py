@@ -131,7 +131,10 @@ class TestListBuiltinPatterns:
 
         assert response.status_code == 200
         data = response.get_json()
-        assert isinstance(data, list)
+        assert isinstance(data, dict)
+        assert "patterns" in data
+        assert "warnings" in data
+        assert isinstance(data["patterns"], list)
 
     def test_includes_required_fields(self, client):
         """Test each pattern includes required fields."""
@@ -139,9 +142,10 @@ class TestListBuiltinPatterns:
 
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) > 0, "Expected at least one pattern"
+        patterns = data["patterns"]
+        assert len(patterns) > 0, "Expected at least one pattern"
 
-        for pattern in data:
+        for pattern in patterns:
             assert "pattern_id" in pattern, "Missing pattern_id field"
             assert "name" in pattern, "Missing name field"
             assert "actions" in pattern, "Missing actions field"
@@ -152,9 +156,10 @@ class TestListBuiltinPatterns:
 
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) > 0
+        patterns = data["patterns"]
+        assert len(patterns) > 0
 
-        for pattern in data:
+        for pattern in patterns:
             assert "source_schedule" in pattern, "Missing source_schedule field"
             assert isinstance(pattern["source_schedule"], str)
             assert len(pattern["source_schedule"]) > 0
@@ -165,9 +170,10 @@ class TestListBuiltinPatterns:
 
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) > 0
+        patterns = data["patterns"]
+        assert len(patterns) > 0
 
-        for pattern in data:
+        for pattern in patterns:
             assert "category" in pattern
             assert pattern["category"] == "built-in"
 
@@ -177,7 +183,8 @@ class TestListBuiltinPatterns:
 
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) >= 3, f"Expected at least 3 patterns, got {len(data)}"
+        patterns = data["patterns"]
+        assert len(patterns) >= 3, f"Expected at least 3 patterns, got {len(patterns)}"
 
     def test_no_duplicate_pattern_ids(self, client):
         """Test no duplicate pattern_ids in response."""
@@ -185,8 +192,9 @@ class TestListBuiltinPatterns:
 
         assert response.status_code == 200
         data = response.get_json()
+        patterns = data["patterns"]
 
-        pattern_ids = [p["pattern_id"] for p in data]
+        pattern_ids = [p["pattern_id"] for p in patterns]
         unique_ids = set(pattern_ids)
         assert len(pattern_ids) == len(unique_ids), "Duplicate pattern_ids found"
 
@@ -196,9 +204,10 @@ class TestListBuiltinPatterns:
 
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) > 0
+        patterns = data["patterns"]
+        assert len(patterns) > 0
 
-        for pattern in data:
+        for pattern in patterns:
             actions = pattern.get("actions", [])
             assert isinstance(actions, list)
             assert len(actions) > 0, f"Pattern {pattern['name']} has no actions"
@@ -213,9 +222,10 @@ class TestListBuiltinPatterns:
 
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) > 0
+        patterns = data["patterns"]
+        assert len(patterns) > 0
 
-        for pattern in data:
+        for pattern in patterns:
             assert "tags" in pattern
             assert isinstance(pattern["tags"], list)
 
@@ -225,9 +235,10 @@ class TestListBuiltinPatterns:
 
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) > 0
+        patterns = data["patterns"]
+        assert len(patterns) > 0
 
-        for pattern in data:
+        for pattern in patterns:
             assert "duration_minutes" in pattern, "Missing duration_minutes field"
             assert isinstance(pattern["duration_minutes"], int)
             assert pattern["duration_minutes"] >= 0
@@ -242,9 +253,10 @@ class TestListBuiltinPatterns:
 
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) > 0, "Expected at least one pattern"
+        patterns = data["patterns"]
+        assert len(patterns) > 0, "Expected at least one pattern"
 
-        for pattern in data:
+        for pattern in patterns:
             pattern_id = pattern.get("pattern_id")
             assert pattern_id, f"Pattern '{pattern.get('name', 'unknown')}' missing pattern_id"
             assert isinstance(pattern_id, str), "pattern_id should be a string"
@@ -580,16 +592,19 @@ class TestErrorHandling:
         """Test endpoint handles missing builtin directory gracefully."""
         module = _get_scheduler_ui_module()
 
-        # Mock Path to return a non-existent directory
+        # Mock list_builtin_patterns to return empty list (simulates missing directory)
         with patch.object(module, "list_builtin_patterns") as mock_list:
-            mock_list.return_value = []
+            mock_list.return_value = ([], [])  # Returns (patterns, warnings) tuple
 
             response = client.get("/api/scheduler/ui/patterns/builtin")
 
             assert response.status_code == 200
             data = response.get_json()
-            assert isinstance(data, list)
-            assert len(data) == 0
+            assert isinstance(data, dict)
+            assert "patterns" in data
+            assert "warnings" in data
+            assert isinstance(data["patterns"], list)
+            assert len(data["patterns"]) == 0
 
     def test_rate_limiting_decorator_applied(self, client):
         """Test that rate limiting decorator is applied to validate endpoint."""
