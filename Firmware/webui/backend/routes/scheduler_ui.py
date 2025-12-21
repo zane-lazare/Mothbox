@@ -172,18 +172,18 @@ def get_schedule_preview(schedule_id: str):
         # Parse and validate days
         days, error = parse_and_validate_days(days_str)
         if error:
-            logger.debug(f"Invalid days parameter: {error}")
+            logger.debug(f"Invalid days parameter '{days_str}': {error}")
             return jsonify({"error": "Invalid days parameter"}), 400
 
         # Parse coordinates
         latitude, error = parse_and_validate_coordinate(lat_str, "lat")
         if error:
-            logger.debug(f"Invalid lat parameter: {error}")
+            logger.debug(f"Invalid lat parameter '{lat_str}': {error}")
             return jsonify({"error": "Invalid lat parameter"}), 400
 
         longitude, error = parse_and_validate_coordinate(lon_str, "lon")
         if error:
-            logger.debug(f"Invalid lon parameter: {error}")
+            logger.debug(f"Invalid lon parameter '{lon_str}': {error}")
             return jsonify({"error": "Invalid lon parameter"}), 400
 
         # Validate coordinate ranges
