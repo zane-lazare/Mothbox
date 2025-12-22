@@ -15,7 +15,7 @@ const actionTypeIcons = {
 }
 
 const OffsetTimeline = ({ actions = [], duration }) => {
-  const [hoveredMarkerIndex, setHoveredMarkerIndex] = useState(null)
+  const [hoveredMarkerId, setHoveredMarkerId] = useState(null)
 
   // Handle empty actions
   if (!actions || actions.length === 0) {
@@ -63,11 +63,11 @@ const OffsetTimeline = ({ actions = [], duration }) => {
         {sortedActions.map((action, index) => {
           const Icon = actionTypeIcons[action.action_type] || CogIcon
           const position = getMarkerPosition(action.offset_minutes)
-          const isHovered = hoveredMarkerIndex === index
+          const isHovered = hoveredMarkerId === action.id
 
           return (
             <div
-              key={index}
+              key={action.id}
               className="absolute"
               style={{
                 left: `${position}%`,
@@ -80,8 +80,8 @@ const OffsetTimeline = ({ actions = [], duration }) => {
                 data-testid={`timeline-marker-${index}`}
                 aria-label={`${action.action_type} action: ${action.action_name} at ${action.offset_minutes}min`}
                 className="flex items-center justify-center w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full border-2 border-blue-600 dark:border-blue-300 hover:scale-110 transition-transform"
-                onMouseEnter={() => setHoveredMarkerIndex(index)}
-                onMouseLeave={() => setHoveredMarkerIndex(null)}
+                onMouseEnter={() => setHoveredMarkerId(action.id)}
+                onMouseLeave={() => setHoveredMarkerId(null)}
               >
                 <Icon className="w-4 h-4 text-blue-600 dark:text-blue-300" />
               </button>
@@ -113,6 +113,7 @@ const OffsetTimeline = ({ actions = [], duration }) => {
 OffsetTimeline.propTypes = {
   actions: PropTypes.arrayOf(
     PropTypes.shape({
+      id: PropTypes.string.isRequired,
       action_type: PropTypes.oneOf(['gpio', 'camera', 'gps_sync', 'service']).isRequired,
       action_name: PropTypes.string.isRequired,
       offset_minutes: PropTypes.number.isRequired,

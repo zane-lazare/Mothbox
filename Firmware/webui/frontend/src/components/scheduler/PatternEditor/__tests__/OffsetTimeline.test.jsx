@@ -3,6 +3,9 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import OffsetTimeline from '../OffsetTimeline'
 
+// Helper to add IDs to test actions
+const withIds = (actions) => actions.map((action, i) => ({ id: `test-id-${i}`, ...action }))
+
 describe('OffsetTimeline', () => {
   describe('Empty State', () => {
     it('should render empty state message when actions array is empty', () => {
@@ -17,11 +20,11 @@ describe('OffsetTimeline', () => {
   })
 
   describe('Timeline Rendering', () => {
-    const sampleActions = [
+    const sampleActions = withIds([
       { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 },
       { action_type: 'camera', action_name: 'takephoto', offset_minutes: 5 },
       { action_type: 'gpio', action_name: 'attract_off', offset_minutes: 15 }
-    ]
+    ])
 
     it('should render timeline with markers for each action', () => {
       render(<OffsetTimeline actions={sampleActions} />)
@@ -49,11 +52,11 @@ describe('OffsetTimeline', () => {
 
   describe('Marker Positioning', () => {
     it('should position markers at correct percentage of duration', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'action1', offset_minutes: 0 },
         { action_type: 'camera', action_name: 'action2', offset_minutes: 5 },
         { action_type: 'gpio', action_name: 'action3', offset_minutes: 10 }
-      ]
+      ])
 
       const { container } = render(<OffsetTimeline actions={actions} />)
 
@@ -71,9 +74,9 @@ describe('OffsetTimeline', () => {
     })
 
     it('should handle single action at offset 0', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'action1', offset_minutes: 0 }
-      ]
+      ])
 
       const { container } = render(<OffsetTimeline actions={actions} />)
 
@@ -84,10 +87,10 @@ describe('OffsetTimeline', () => {
 
   describe('Duration Calculation', () => {
     it('should calculate duration from max offset when not provided', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'action1', offset_minutes: 0 },
         { action_type: 'camera', action_name: 'action2', offset_minutes: 20 }
-      ]
+      ])
 
       render(<OffsetTimeline actions={actions} />)
 
@@ -95,10 +98,10 @@ describe('OffsetTimeline', () => {
     })
 
     it('should respect custom duration prop', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'action1', offset_minutes: 0 },
         { action_type: 'camera', action_name: 'action2', offset_minutes: 10 }
-      ]
+      ])
 
       render(<OffsetTimeline actions={actions} duration={30} />)
 
@@ -106,9 +109,9 @@ describe('OffsetTimeline', () => {
     })
 
     it('should default to 1 minute duration when all offsets are 0', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'action1', offset_minutes: 0 }
-      ]
+      ])
 
       render(<OffsetTimeline actions={actions} />)
 
@@ -118,9 +121,9 @@ describe('OffsetTimeline', () => {
 
   describe('Action Type Icons', () => {
     it('should render BoltIcon for gpio actions', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 }
-      ]
+      ])
 
       render(<OffsetTimeline actions={actions} />)
 
@@ -129,9 +132,9 @@ describe('OffsetTimeline', () => {
     })
 
     it('should render CameraIcon for camera actions', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'camera', action_name: 'takephoto', offset_minutes: 0 }
-      ]
+      ])
 
       render(<OffsetTimeline actions={actions} />)
 
@@ -140,9 +143,9 @@ describe('OffsetTimeline', () => {
     })
 
     it('should render MapPinIcon for gps_sync actions', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gps_sync', action_name: 'sync_gps', offset_minutes: 0 }
-      ]
+      ])
 
       render(<OffsetTimeline actions={actions} />)
 
@@ -151,9 +154,9 @@ describe('OffsetTimeline', () => {
     })
 
     it('should render CogIcon for service actions', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'service', action_name: 'restart', offset_minutes: 0 }
-      ]
+      ])
 
       render(<OffsetTimeline actions={actions} />)
 
@@ -162,9 +165,9 @@ describe('OffsetTimeline', () => {
     })
 
     it('should render CogIcon for unknown action types', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'unknown', action_name: 'test', offset_minutes: 0 }
-      ]
+      ])
 
       const { container } = render(<OffsetTimeline actions={actions} />)
 
@@ -176,14 +179,14 @@ describe('OffsetTimeline', () => {
   describe('Tooltips', () => {
     it('should show action details on hover', async () => {
       const user = userEvent.setup()
-      const actions = [
+      const actions = withIds([
         {
           action_type: 'gpio',
           action_name: 'attract_on',
           offset_minutes: 5,
           description: 'Turn on attract lights'
         }
-      ]
+      ])
 
       render(<OffsetTimeline actions={actions} />)
 
@@ -197,13 +200,13 @@ describe('OffsetTimeline', () => {
 
     it('should show tooltip without description field', async () => {
       const user = userEvent.setup()
-      const actions = [
+      const actions = withIds([
         {
           action_type: 'camera',
           action_name: 'takephoto',
           offset_minutes: 10
         }
-      ]
+      ])
 
       render(<OffsetTimeline actions={actions} />)
 
@@ -216,9 +219,9 @@ describe('OffsetTimeline', () => {
 
     it('should hide tooltip on mouse leave', async () => {
       const user = userEvent.setup()
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 5 }
-      ]
+      ])
 
       render(<OffsetTimeline actions={actions} />)
 
@@ -237,9 +240,9 @@ describe('OffsetTimeline', () => {
 
   describe('Accessibility', () => {
     it('should have aria-labels on markers', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 5 }
-      ]
+      ])
 
       render(<OffsetTimeline actions={actions} />)
 
@@ -248,9 +251,9 @@ describe('OffsetTimeline', () => {
     })
 
     it('should have descriptive aria-label content', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'camera', action_name: 'takephoto', offset_minutes: 10 }
-      ]
+      ])
 
       render(<OffsetTimeline actions={actions} />)
 
@@ -263,9 +266,9 @@ describe('OffsetTimeline', () => {
     })
 
     it('should have proper role for timeline container', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 }
-      ]
+      ])
 
       const { container } = render(<OffsetTimeline actions={actions} />)
 
@@ -277,9 +280,9 @@ describe('OffsetTimeline', () => {
 
   describe('Dark Mode', () => {
     it('should apply dark mode classes to timeline bar', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 }
-      ]
+      ])
 
       const { container } = render(<OffsetTimeline actions={actions} />)
 
@@ -288,9 +291,9 @@ describe('OffsetTimeline', () => {
     })
 
     it('should apply dark mode classes to markers', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 }
-      ]
+      ])
 
       render(<OffsetTimeline actions={actions} />)
 
@@ -299,9 +302,9 @@ describe('OffsetTimeline', () => {
     })
 
     it('should apply dark mode classes to duration labels', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 }
-      ]
+      ])
 
       const { container } = render(<OffsetTimeline actions={actions} />)
 
@@ -314,11 +317,11 @@ describe('OffsetTimeline', () => {
 
   describe('Edge Cases', () => {
     it('should handle actions with same offset', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'action1', offset_minutes: 5 },
         { action_type: 'camera', action_name: 'action2', offset_minutes: 5 },
         { action_type: 'gps_sync', action_name: 'action3', offset_minutes: 5 }
-      ]
+      ])
 
       const { container } = render(<OffsetTimeline actions={actions} />)
 
@@ -332,11 +335,11 @@ describe('OffsetTimeline', () => {
     })
 
     it('should handle fractional offset values', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'action1', offset_minutes: 0 },
         { action_type: 'camera', action_name: 'action2', offset_minutes: 2.5 },
         { action_type: 'gpio', action_name: 'action3', offset_minutes: 5 }
-      ]
+      ])
 
       const { container } = render(<OffsetTimeline actions={actions} />)
 
@@ -345,10 +348,10 @@ describe('OffsetTimeline', () => {
     })
 
     it('should handle large offset values', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'action1', offset_minutes: 0 },
         { action_type: 'camera', action_name: 'action2', offset_minutes: 1440 } // 24 hours
-      ]
+      ])
 
       render(<OffsetTimeline actions={actions} />)
 
@@ -356,11 +359,11 @@ describe('OffsetTimeline', () => {
     })
 
     it('should sort actions by offset for display', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'action3', offset_minutes: 15 },
         { action_type: 'camera', action_name: 'action1', offset_minutes: 0 },
         { action_type: 'gps_sync', action_name: 'action2', offset_minutes: 5 }
-      ]
+      ])
 
       const { container } = render(<OffsetTimeline actions={actions} />)
 
@@ -375,9 +378,9 @@ describe('OffsetTimeline', () => {
 
   describe('Responsive Behavior', () => {
     it('should render timeline with relative positioning', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 }
-      ]
+      ])
 
       const { container } = render(<OffsetTimeline actions={actions} />)
 
@@ -386,9 +389,9 @@ describe('OffsetTimeline', () => {
     })
 
     it('should position markers absolutely within timeline', () => {
-      const actions = [
+      const actions = withIds([
         { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 }
-      ]
+      ])
 
       const { container } = render(<OffsetTimeline actions={actions} />)
 
