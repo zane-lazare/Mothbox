@@ -128,7 +128,7 @@ const DateRangeSection = ({
 
       {/* Start Date Input */}
       <div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-end gap-2">
           <div className="flex-1">
             <label
               htmlFor="start-date"
@@ -167,7 +167,7 @@ const DateRangeSection = ({
               disabled={disabled}
               aria-label="Clear start date"
               className={`
-                mt-5 px-3 py-2 text-sm font-medium rounded
+                px-3 py-2 text-sm font-medium rounded
                 bg-gray-100 dark:bg-gray-700
                 text-gray-700 dark:text-gray-300
                 hover:bg-gray-200 dark:hover:bg-gray-600
@@ -186,7 +186,7 @@ const DateRangeSection = ({
 
       {/* End Date Input */}
       <div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-end gap-2">
           <div className="flex-1">
             <label
               htmlFor="end-date"
@@ -225,7 +225,7 @@ const DateRangeSection = ({
               disabled={disabled}
               aria-label="Clear end date"
               className={`
-                mt-5 px-3 py-2 text-sm font-medium rounded
+                px-3 py-2 text-sm font-medium rounded
                 bg-gray-100 dark:bg-gray-700
                 text-gray-700 dark:text-gray-300
                 hover:bg-gray-200 dark:hover:bg-gray-600
