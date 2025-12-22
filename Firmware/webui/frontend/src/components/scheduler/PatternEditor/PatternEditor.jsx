@@ -79,10 +79,11 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
     }
   }
 
-  // Add new tag
+  // Add new tag (case-insensitive deduplication)
   const handleAddTag = () => {
     const trimmedTag = tagInput.trim()
-    if (trimmedTag && !tags.includes(trimmedTag)) {
+    const lowerTag = trimmedTag.toLowerCase()
+    if (trimmedTag && !tags.some(t => t.toLowerCase() === lowerTag)) {
       setTags([...tags, trimmedTag])
       setTagInput('')
     }
