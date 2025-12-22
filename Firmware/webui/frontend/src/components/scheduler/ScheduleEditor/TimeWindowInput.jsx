@@ -425,8 +425,8 @@ const TimeWindowInput = ({
 
 TimeWindowInput.propTypes = {
   value: PropTypes.shape({
-    start_time: PropTypes.string.isRequired,
-    end_time: PropTypes.string.isRequired,
+    start_time: PropTypes.string,
+    end_time: PropTypes.string,
     start_offset_minutes: PropTypes.number,
     end_offset_minutes: PropTypes.number,
   }),

@@ -39,7 +39,7 @@ vi.mock('../../PatternLibrary', () => ({
 }));
 
 vi.mock('../../PatternEditor', () => ({
-  PatternEditor: ({ pattern, onSave, onCancel }) => (
+  PatternEditor: ({ onSave, onCancel }) => (
     <div data-testid="pattern-editor">
       <button
         data-testid="save-custom-pattern"
