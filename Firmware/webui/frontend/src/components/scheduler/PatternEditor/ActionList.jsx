@@ -48,7 +48,7 @@ function getActionIcon(type) {
 /**
  * Sortable wrapper for individual action items
  */
-function SortableAction({ action, onEdit, onDelete }) {
+function SortableAction({ action, onEdit, onDelete, disabled = false }) {
   const {
     attributes,
     listeners,
@@ -120,8 +120,10 @@ function SortableAction({ action, onEdit, onDelete }) {
           type="button"
           onClick={handleEditClick}
           onPointerDown={(e) => e.stopPropagation()}
+          disabled={disabled}
           aria-label="Edit action"
-          className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+          className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400
+                     disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-gray-400"
         >
           <PencilIcon className="w-4 h-4" />
         </button>
@@ -129,8 +131,10 @@ function SortableAction({ action, onEdit, onDelete }) {
           type="button"
           onClick={handleDeleteClick}
           onPointerDown={(e) => e.stopPropagation()}
+          disabled={disabled}
           aria-label="Delete action"
-          className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+          className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400
+                     disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-gray-400"
         >
           <TrashIcon className="w-4 h-4" />
         </button>
@@ -142,7 +146,8 @@ function SortableAction({ action, onEdit, onDelete }) {
 SortableAction.propTypes = {
   action: PropTypes.object.isRequired,
   onEdit: PropTypes.func.isRequired,
-  onDelete: PropTypes.func.isRequired
+  onDelete: PropTypes.func.isRequired,
+  disabled: PropTypes.bool
 }
 
 /**
@@ -218,8 +223,9 @@ DeleteConfirmDialog.propTypes = {
  * @param {Object} props
  * @param {Array<PatternAction>} props.actions - Array of actions
  * @param {Function} props.onActionsChange - Callback when actions change
+ * @param {boolean} props.disabled - Disable all interactions
  */
-export default function ActionList({ actions = [], onActionsChange }) {
+export default function ActionList({ actions = [], onActionsChange, disabled = false }) {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingAction, setEditingAction] = useState(null)
   const [deletingAction, setDeletingAction] = useState(null)
@@ -377,6 +383,7 @@ export default function ActionList({ actions = [], onActionsChange }) {
                     action={action}
                     onEdit={handleEditAction}
                     onDelete={handleDeleteClick}
+                    disabled={disabled}
                   />
                 ))}
               </div>
@@ -389,11 +396,13 @@ export default function ActionList({ actions = [], onActionsChange }) {
       <button
         type="button"
         onClick={handleAddAction}
+        disabled={disabled}
         className="w-full flex items-center justify-center gap-2 px-4 py-3
                    text-sm font-medium text-blue-600 dark:text-blue-400
                    bg-blue-50 dark:bg-blue-900/20 border-2 border-dashed
                    border-blue-300 dark:border-blue-700 rounded-lg
-                   hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                   hover:bg-blue-100 dark:hover:bg-blue-900/30
+                   disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <PlusIcon className="w-5 h-5" />
         Add Action
@@ -421,5 +430,6 @@ export default function ActionList({ actions = [], onActionsChange }) {
 
 ActionList.propTypes = {
   actions: PropTypes.arrayOf(PropTypes.object),
-  onActionsChange: PropTypes.func.isRequired
+  onActionsChange: PropTypes.func.isRequired,
+  disabled: PropTypes.bool
 }

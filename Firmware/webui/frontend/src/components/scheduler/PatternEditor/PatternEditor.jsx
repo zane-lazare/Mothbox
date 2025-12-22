@@ -158,9 +158,11 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
             value={name}
             onChange={handleNameChange}
             maxLength={PATTERN_LIMITS.NAME_MAX_LENGTH}
+            disabled={isValidating}
             className="w-full rounded-md border border-gray-300 dark:border-gray-600
                        bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
-                       focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                       focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                       disabled:opacity-50 disabled:cursor-not-allowed"
             placeholder="Enter pattern name"
           />
           {nameError && (
@@ -185,9 +187,11 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
             onChange={handleDescriptionChange}
             maxLength={PATTERN_LIMITS.DESCRIPTION_MAX_LENGTH}
             rows={3}
+            disabled={isValidating}
             className="w-full rounded-md border border-gray-300 dark:border-gray-600
                        bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
-                       focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
+                       focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y
+                       disabled:opacity-50 disabled:cursor-not-allowed"
             placeholder="Optional description"
           />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -215,9 +219,10 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
                 <button
                   type="button"
                   onClick={() => handleRemoveTag(tag)}
+                  disabled={isValidating}
                   aria-label={`Remove tag ${tag}`}
                   className="ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400
-                             dark:hover:text-gray-200"
+                             dark:hover:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <svg
                     className="w-3 h-3"
@@ -242,9 +247,11 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
             value={tagInput}
             onChange={handleTagInputChange}
             onKeyDown={handleTagInputKeyDown}
+            disabled={isValidating}
             className="w-full rounded-md border border-gray-300 dark:border-gray-600
                        bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
-                       focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                       focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                       disabled:opacity-50 disabled:cursor-not-allowed"
             placeholder="Add tag..."
           />
         </div>
@@ -258,6 +265,7 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
         <ActionList
           actions={actions}
           onActionsChange={setActions}
+          disabled={isValidating}
         />
       </div>
 
