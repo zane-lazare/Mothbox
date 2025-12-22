@@ -665,7 +665,7 @@ describe('IntervalTriggerForm', () => {
 
       // 60 minutes formats as "1 hour"
       const previewText = screen.getByText('Every 1 hour from 21:00 to 05:00');
-      expect(previewText).toHaveClass('dark:text-gray-400', 'dark:bg-gray-800');
+      expect(previewText).toHaveClass('dark:text-gray-300', 'dark:bg-gray-800');
     });
   });
 

@@ -606,7 +606,7 @@ describe('SolarTriggerForm', () => {
       render(<SolarTriggerForm value={value} onChange={mockOnChange} />);
 
       const previewText = screen.getByText('At sunset');
-      expect(previewText).toHaveClass('dark:text-gray-400', 'dark:bg-gray-800');
+      expect(previewText).toHaveClass('dark:text-gray-300', 'dark:bg-gray-800');
     });
   });
 

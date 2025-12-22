@@ -541,7 +541,7 @@ describe('MoonPhaseTriggerForm', () => {
       render(<MoonPhaseTriggerForm value={value} onChange={mockOnChange} />);
 
       const previewText = screen.getByText('On Full Moon at 20:00');
-      expect(previewText).toHaveClass('dark:text-gray-400', 'dark:bg-gray-800');
+      expect(previewText).toHaveClass('dark:text-gray-300', 'dark:bg-gray-800');
     });
   });
 

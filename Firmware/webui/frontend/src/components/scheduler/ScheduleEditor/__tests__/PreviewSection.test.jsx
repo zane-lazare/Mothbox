@@ -479,7 +479,7 @@ describe('PreviewSection', () => {
       // Find the date constraint container by looking for Active Period
       const activePeriodLabel = screen.getByText('Active Period:');
       const dateContainer = activePeriodLabel.parentElement;
-      expect(dateContainer).toHaveClass('dark:text-gray-400');
+      expect(dateContainer).toHaveClass('dark:text-gray-300');
     });
   });
 

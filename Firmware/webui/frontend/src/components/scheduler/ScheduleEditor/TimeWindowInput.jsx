@@ -278,13 +278,13 @@ const TimeWindowInput = ({
                            disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label="Start time offset (minutes)"
                 />
-                <span className="text-sm text-gray-500 dark:text-gray-400">min</span>
+                <span className="text-sm text-gray-500 dark:text-gray-300">min</span>
               </div>
             </div>
 
             {/* Preview Text */}
             {value.start_time && (
-              <p className="text-sm text-gray-600 dark:text-gray-400 italic">
+              <p className="text-sm text-gray-600 dark:text-gray-300 italic">
                 {getSolarPreviewText(value.start_time, value.start_offset_minutes)}
               </p>
             )}
@@ -386,13 +386,13 @@ const TimeWindowInput = ({
                            disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label="End time offset (minutes)"
                 />
-                <span className="text-sm text-gray-500 dark:text-gray-400">min</span>
+                <span className="text-sm text-gray-500 dark:text-gray-300">min</span>
               </div>
             </div>
 
             {/* Preview Text */}
             {value.end_time && (
-              <p className="text-sm text-gray-600 dark:text-gray-400 italic">
+              <p className="text-sm text-gray-600 dark:text-gray-300 italic">
                 {getSolarPreviewText(value.end_time, value.end_offset_minutes)}
               </p>
             )}

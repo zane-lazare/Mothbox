@@ -210,7 +210,7 @@ const PreviewSection = ({
       {/* No Trigger Message */}
       {!trigger && (
         <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+          <p className="text-sm text-gray-500 dark:text-gray-300 italic">
             No trigger configured
           </p>
         </div>
@@ -219,7 +219,7 @@ const PreviewSection = ({
       {/* No Pattern Message */}
       {!pattern && trigger && (
         <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+          <p className="text-sm text-gray-500 dark:text-gray-300 italic">
             No pattern selected
           </p>
         </div>
@@ -232,11 +232,11 @@ const PreviewSection = ({
             <p className="font-medium text-gray-900 dark:text-white">
               {pattern.name}
             </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500 dark:text-gray-300">
               {getActionCountText(pattern.actions)}
             </p>
           </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="text-sm text-gray-600 dark:text-gray-300">
             <span className="font-medium">Duration:</span>{' '}
             {formatDuration(patternDuration)}
           </div>
@@ -254,7 +254,7 @@ const PreviewSection = ({
 
       {/* Date Constraints */}
       {dateRange && (dateRange.start_date || dateRange.end_date) && (
-        <div className="text-sm text-gray-600 dark:text-gray-400">
+        <div className="text-sm text-gray-600 dark:text-gray-300">
           <p className="font-medium mb-1">Active Period:</p>
           <p>
             {dateRange.start_date ? formatDate(dateRange.start_date) : 'No start date'} →{' '}

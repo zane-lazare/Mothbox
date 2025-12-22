@@ -160,7 +160,7 @@ const SensorTriggerForm = ({
           ))}
         </select>
         {/* Sensor Type Description */}
-        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-300">
           {getSensorDescription()}
         </p>
       </div>
@@ -252,7 +252,7 @@ const SensorTriggerForm = ({
           />
           <span className="text-sm text-gray-700 dark:text-gray-300">minutes</span>
         </div>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-300">
           Minimum time between consecutive triggers
         </p>
         {errors.cooldown_minutes && (
@@ -267,7 +267,7 @@ const SensorTriggerForm = ({
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Preview:
         </label>
-        <p className="text-sm text-gray-600 dark:text-gray-400 italic bg-gray-50 dark:bg-gray-800 p-3 rounded-md">
+        <p className="text-sm text-gray-600 dark:text-gray-300 italic bg-gray-50 dark:bg-gray-800 p-3 rounded-md">
           {previewText}
         </p>
       </div>

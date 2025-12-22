@@ -130,7 +130,7 @@ const EventPatternSelector = ({
               ${
                 activeTab === 'library'
                   ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-300 dark:hover:text-gray-300'
               }
             `}
           >
@@ -150,7 +150,7 @@ const EventPatternSelector = ({
               ${
                 activeTab === 'custom'
                   ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-300 dark:hover:text-gray-300'
               }
             `}
           >
@@ -168,7 +168,7 @@ const EventPatternSelector = ({
                 <p className="font-medium text-gray-900 dark:text-white">
                   {pattern.name}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-gray-500 dark:text-gray-300">
                   {getActionCountText(pattern.actions)}
                 </p>
               </div>
@@ -184,7 +184,7 @@ const EventPatternSelector = ({
               </button>
             </div>
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+            <p className="text-sm text-gray-500 dark:text-gray-300 italic">
               No pattern selected
             </p>
           )}

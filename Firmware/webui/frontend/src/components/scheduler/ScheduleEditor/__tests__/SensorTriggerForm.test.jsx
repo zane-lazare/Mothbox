@@ -490,7 +490,7 @@ describe('SensorTriggerForm', () => {
       render(<SensorTriggerForm value={value} onChange={mockOnChange} />);
 
       const previewText = screen.getByText(/When light < 100 lux, cooldown: 5 min/i);
-      expect(previewText).toHaveClass('dark:text-gray-400', 'dark:bg-gray-800');
+      expect(previewText).toHaveClass('dark:text-gray-300', 'dark:bg-gray-800');
     });
   });
 

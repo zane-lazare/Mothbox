@@ -435,7 +435,7 @@ describe('TriggerForm', () => {
       render(<TriggerForm onChange={mockOnChange} />);
 
       const description = screen.getByText(TRIGGER_TYPES.interval.description);
-      expect(description).toHaveClass('dark:text-gray-400');
+      expect(description).toHaveClass('dark:text-gray-300');
     });
   });
 

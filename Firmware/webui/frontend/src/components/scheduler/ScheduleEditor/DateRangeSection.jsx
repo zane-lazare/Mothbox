@@ -141,7 +141,7 @@ const DateRangeSection = ({
           <div className="flex-1">
             <label
               htmlFor="start-date"
-              className="block text-xs text-gray-600 dark:text-gray-400 mb-1"
+              className="block text-xs text-gray-600 dark:text-gray-300 mb-1"
             >
               Start Date
             </label>
@@ -199,7 +199,7 @@ const DateRangeSection = ({
           <div className="flex-1">
             <label
               htmlFor="end-date"
-              className="block text-xs text-gray-600 dark:text-gray-400 mb-1"
+              className="block text-xs text-gray-600 dark:text-gray-300 mb-1"
             >
               End Date
             </label>

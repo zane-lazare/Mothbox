@@ -403,7 +403,7 @@ describe('FixedTimeTriggerForm', () => {
       render(<FixedTimeTriggerForm value={value} onChange={mockOnChange} />);
 
       const previewText = screen.getByText('At 12:00');
-      expect(previewText).toHaveClass('dark:text-gray-400', 'dark:bg-gray-800');
+      expect(previewText).toHaveClass('dark:text-gray-300', 'dark:bg-gray-800');
     });
   });
 
