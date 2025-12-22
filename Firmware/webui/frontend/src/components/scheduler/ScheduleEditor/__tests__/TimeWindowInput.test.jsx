@@ -647,4 +647,110 @@ describe('TimeWindowInput', () => {
       expect(screen.getByText(/45 minutes after sunrise/i)).toBeInTheDocument();
     });
   });
+
+  describe('Solar Event Validation', () => {
+    it('should warn for invalid start_time solar event value', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const invalidProps = {
+        ...defaultProps,
+        value: {
+          start_time: 'invalid_solar_event',
+          end_time: 'sunrise',
+          start_offset_minutes: 0,
+          end_offset_minutes: 0,
+        },
+      };
+
+      render(<TimeWindowInput {...invalidProps} />);
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/invalid solar event.*invalid_solar_event/i)
+      );
+
+      warnSpy.mockRestore();
+    });
+
+    it('should warn for invalid end_time solar event value', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const invalidProps = {
+        ...defaultProps,
+        value: {
+          start_time: 'sunset',
+          end_time: 'not_a_real_event',
+          start_offset_minutes: 0,
+          end_offset_minutes: 0,
+        },
+      };
+
+      render(<TimeWindowInput {...invalidProps} />);
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/invalid solar event.*not_a_real_event/i)
+      );
+
+      warnSpy.mockRestore();
+    });
+
+    it('should not warn for valid solar event values', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const validProps = {
+        ...defaultProps,
+        value: {
+          start_time: 'sunset',
+          end_time: 'sunrise',
+          start_offset_minutes: 0,
+          end_offset_minutes: 0,
+        },
+      };
+
+      render(<TimeWindowInput {...validProps} />);
+
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      warnSpy.mockRestore();
+    });
+
+    it('should not warn for fixed time values', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const fixedTimeProps = {
+        ...defaultProps,
+        value: {
+          start_time: '21:00',
+          end_time: '05:00',
+          start_offset_minutes: 0,
+          end_offset_minutes: 0,
+        },
+      };
+
+      render(<TimeWindowInput {...fixedTimeProps} />);
+
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      warnSpy.mockRestore();
+    });
+
+    it('should not warn for empty time values', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const emptyProps = {
+        ...defaultProps,
+        value: {
+          start_time: '',
+          end_time: '',
+          start_offset_minutes: 0,
+          end_offset_minutes: 0,
+        },
+      };
+
+      render(<TimeWindowInput {...emptyProps} />);
+
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      warnSpy.mockRestore();
+    });
+  });
 });

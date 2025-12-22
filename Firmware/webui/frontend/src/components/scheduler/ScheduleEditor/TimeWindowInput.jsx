@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { SOLAR_EVENTS, TIME_FORMAT_REGEX } from './constants';
+import { SOLAR_EVENTS, TIME_FORMAT_REGEX, isValidSolarEvent } from './constants';
 
 /**
  * TimeWindowInput Component
@@ -38,15 +38,25 @@ const TimeWindowInput = ({
   const [startIsFixedTime, setStartIsFixedTime] = useState(true);
   const [endIsFixedTime, setEndIsFixedTime] = useState(true);
 
-  // Determine initial time type based on value
+  // Determine initial time type based on value and validate solar events
   useEffect(() => {
     if (value.start_time) {
       const isFixed = TIME_FORMAT_REGEX.test(value.start_time);
       setStartIsFixedTime(isFixed);
+
+      // Warn if value looks like solar event but is invalid
+      if (!isFixed && !isValidSolarEvent(value.start_time)) {
+        console.warn(`Invalid solar event: ${value.start_time}`);
+      }
     }
     if (value.end_time) {
       const isFixed = TIME_FORMAT_REGEX.test(value.end_time);
       setEndIsFixedTime(isFixed);
+
+      // Warn if value looks like solar event but is invalid
+      if (!isFixed && !isValidSolarEvent(value.end_time)) {
+        console.warn(`Invalid solar event: ${value.end_time}`);
+      }
     }
   }, [value.start_time, value.end_time]);
 
