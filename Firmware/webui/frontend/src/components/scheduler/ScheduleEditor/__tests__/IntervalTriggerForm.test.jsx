@@ -147,6 +147,120 @@ describe('IntervalTriggerForm', () => {
 
       expect(screen.getByText(errors.interval_minutes)).toBeInTheDocument();
     });
+
+    it('does not call onChange for NaN input', () => {
+      const value = {
+        interval_minutes: 60,
+        time_window: { start_time: '21:00', end_time: '05:00' },
+        days_of_week: null,
+      };
+
+      render(<IntervalTriggerForm value={value} onChange={mockOnChange} />);
+
+      const intervalInput = screen.getByLabelText('Interval in minutes');
+      fireEvent.change(intervalInput, { target: { value: 'abc' } });
+
+      expect(mockOnChange).not.toHaveBeenCalled();
+    });
+
+    it('does not call onChange for empty input', () => {
+      const value = {
+        interval_minutes: 60,
+        time_window: { start_time: '21:00', end_time: '05:00' },
+        days_of_week: null,
+      };
+
+      render(<IntervalTriggerForm value={value} onChange={mockOnChange} />);
+
+      const intervalInput = screen.getByLabelText('Interval in minutes');
+      fireEvent.change(intervalInput, { target: { value: '' } });
+
+      expect(mockOnChange).not.toHaveBeenCalled();
+    });
+
+    it('does not call onChange for values below MIN_INTERVAL_MINUTES', () => {
+      const value = {
+        interval_minutes: 60,
+        time_window: { start_time: '21:00', end_time: '05:00' },
+        days_of_week: null,
+      };
+
+      render(<IntervalTriggerForm value={value} onChange={mockOnChange} />);
+
+      const intervalInput = screen.getByLabelText('Interval in minutes');
+      fireEvent.change(intervalInput, { target: { value: '0' } });
+
+      expect(mockOnChange).not.toHaveBeenCalled();
+    });
+
+    it('does not call onChange for values above MAX_INTERVAL_MINUTES', () => {
+      const value = {
+        interval_minutes: 60,
+        time_window: { start_time: '21:00', end_time: '05:00' },
+        days_of_week: null,
+      };
+
+      render(<IntervalTriggerForm value={value} onChange={mockOnChange} />);
+
+      const intervalInput = screen.getByLabelText('Interval in minutes');
+      fireEvent.change(intervalInput, { target: { value: '10081' } });
+
+      expect(mockOnChange).not.toHaveBeenCalled();
+    });
+
+    it('accepts valid values within range', () => {
+      const value = {
+        interval_minutes: 60,
+        time_window: { start_time: '21:00', end_time: '05:00' },
+        days_of_week: null,
+      };
+
+      render(<IntervalTriggerForm value={value} onChange={mockOnChange} />);
+
+      const intervalInput = screen.getByLabelText('Interval in minutes');
+      fireEvent.change(intervalInput, { target: { value: '120' } });
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...value,
+        interval_minutes: 120,
+      });
+    });
+
+    it('accepts MIN_INTERVAL_MINUTES boundary value', () => {
+      const value = {
+        interval_minutes: 60,
+        time_window: { start_time: '21:00', end_time: '05:00' },
+        days_of_week: null,
+      };
+
+      render(<IntervalTriggerForm value={value} onChange={mockOnChange} />);
+
+      const intervalInput = screen.getByLabelText('Interval in minutes');
+      fireEvent.change(intervalInput, { target: { value: String(SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES) } });
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...value,
+        interval_minutes: SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES,
+      });
+    });
+
+    it('accepts MAX_INTERVAL_MINUTES boundary value', () => {
+      const value = {
+        interval_minutes: 60,
+        time_window: { start_time: '21:00', end_time: '05:00' },
+        days_of_week: null,
+      };
+
+      render(<IntervalTriggerForm value={value} onChange={mockOnChange} />);
+
+      const intervalInput = screen.getByLabelText('Interval in minutes');
+      fireEvent.change(intervalInput, { target: { value: String(SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES) } });
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...value,
+        interval_minutes: SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES,
+      });
+    });
   });
 
   describe('Quick Preset Buttons', () => {

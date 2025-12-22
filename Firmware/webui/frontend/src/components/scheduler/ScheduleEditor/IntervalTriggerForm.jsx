@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import { SCHEDULE_LIMITS, DAYS_OF_WEEK } from './constants';
+import { SCHEDULE_LIMITS, DAYS_OF_WEEK, validateNumericInput } from './constants';
 import TimeWindowInput from './TimeWindowInput';
 import DaysOfWeekSelector from './DaysOfWeekSelector';
 
@@ -53,10 +53,15 @@ const IntervalTriggerForm = ({
    * Handle interval minutes change
    */
   const handleIntervalChange = (newInterval) => {
-    const numInterval = Number(newInterval);
+    const validated = validateNumericInput(
+      newInterval,
+      SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES,
+      SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES
+    );
+    if (validated === null) return;
     onChange({
       ...value,
-      interval_minutes: numInterval,
+      interval_minutes: validated,
     });
   };
 
