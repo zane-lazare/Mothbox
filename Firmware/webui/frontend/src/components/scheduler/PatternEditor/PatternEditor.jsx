@@ -70,8 +70,8 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
     setTagInput(e.target.value)
   }
 
-  // Handle tag input key press
-  const handleTagInputKeyPress = (e) => {
+  // Handle tag input key down
+  const handleTagInputKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault()
       handleAddTag()
@@ -239,7 +239,7 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
             type="text"
             value={tagInput}
             onChange={handleTagInputChange}
-            onKeyPress={handleTagInputKeyPress}
+            onKeyDown={handleTagInputKeyDown}
             className="w-full rounded-md border border-gray-300 dark:border-gray-600
                        bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
                        focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -61,7 +61,7 @@ function SortableAction({ action, onEdit, onDelete }) {
     transition
   }
 
-  const IconComponent = getActionIcon(action.type)
+  const IconComponent = getActionIcon(action.action_type)
 
   // Create separate handler to prevent drag on button clicks
   const handleEditClick = (e) => {
@@ -103,7 +103,7 @@ function SortableAction({ action, onEdit, onDelete }) {
         {/* Action Details */}
         <div className="flex-1 min-w-0">
           <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
-            {action.name}
+            {action.action_name}
           </h4>
           {action.description && (
             <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
@@ -152,7 +152,7 @@ function DeleteConfirmDialog({ action, onConfirm, onCancel }) {
           Are you sure you want to delete this action?
         </p>
         <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-6">
-          {action.name}
+          {action.action_name}
         </p>
         <div className="flex justify-end gap-3">
           <button
@@ -203,11 +203,14 @@ export default function ActionList({ actions = [], onActionsChange }) {
     })
   )
 
-  // Ensure all actions have IDs
-  const actionsWithIds = actions.map(action => ({
-    ...action,
-    id: action.id || crypto.randomUUID()
-  }))
+  // Ensure all actions have IDs (memoized to prevent re-generating UUIDs on each render)
+  const actionsWithIds = useMemo(() =>
+    actions.map(action => ({
+      ...action,
+      id: action.id || crypto.randomUUID()
+    })),
+    [actions]
+  )
 
   // Sort actions by offset for display
   const sortedActions = [...actionsWithIds].sort(
@@ -218,17 +221,21 @@ export default function ActionList({ actions = [], onActionsChange }) {
    * Handle drag end event
    */
   function handleDragEnd(event) {
-    const { active, over } = event
+    try {
+      const { active, over } = event
 
-    if (!over || active.id === over.id) {
-      return
+      if (!over || active.id === over.id) {
+        return
+      }
+
+      const oldIndex = actionsWithIds.findIndex(a => a.id === active.id)
+      const newIndex = actionsWithIds.findIndex(a => a.id === over.id)
+
+      const reorderedActions = arrayMove(actionsWithIds, oldIndex, newIndex)
+      onActionsChange(reorderedActions)
+    } catch (error) {
+      console.error('Drag operation failed:', error)
     }
-
-    const oldIndex = actionsWithIds.findIndex(a => a.id === active.id)
-    const newIndex = actionsWithIds.findIndex(a => a.id === over.id)
-
-    const reorderedActions = arrayMove(actionsWithIds, oldIndex, newIndex)
-    onActionsChange(reorderedActions)
   }
 
   /**

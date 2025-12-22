@@ -8,15 +8,15 @@ import ActionList from '../ActionList'
 vi.mock('../ActionForm', () => ({
   default: ({ action, onSave, onCancel }) => (
     <div data-testid="action-form">
-      <div data-testid="form-action-type">{action?.type || 'new'}</div>
-      <div data-testid="form-action-name">{action?.name || ''}</div>
+      <div data-testid="form-action-type">{action?.action_type || 'new'}</div>
+      <div data-testid="form-action-name">{action?.action_name || ''}</div>
       <button onClick={() => onSave({
         id: action?.id || 'new-id',
-        type: 'gpio',
-        name: 'Test Action',
+        action_type: 'gpio',
+        action_name: 'Test Action',
         offset_minutes: 0,
         description: 'Test description',
-        params: {}
+        parameters: {}
       })}>
         Save
       </button>
@@ -50,35 +50,35 @@ describe('ActionList', () => {
     const mockActions = [
       {
         id: 'action-1',
-        type: 'gpio',
-        name: 'Turn on lights',
+        action_type: 'gpio',
+        action_name: 'Turn on lights',
         offset_minutes: 0,
         description: 'Activate attract lights',
-        params: { pin: 'attract', state: 'on' }
+        parameters: { pin: 'attract', state: 'on' }
       },
       {
         id: 'action-2',
-        type: 'camera',
-        name: 'Take photo',
+        action_type: 'camera',
+        action_name: 'Take photo',
         offset_minutes: 5,
         description: 'Capture HDR image',
-        params: { mode: 'hdr' }
+        parameters: { mode: 'hdr' }
       },
       {
         id: 'action-3',
-        type: 'gps_sync',
-        name: 'Sync GPS',
+        action_type: 'gps_sync',
+        action_name: 'Sync GPS',
         offset_minutes: 10,
         description: 'Update GPS coordinates',
-        params: {}
+        parameters: {}
       },
       {
         id: 'action-4',
-        type: 'service',
-        name: 'Run service',
+        action_type: 'service',
+        action_name: 'Run service',
         offset_minutes: 15,
         description: 'Execute system service',
-        params: { command: 'test.service' }
+        parameters: { command: 'test.service' }
       }
     ]
 
@@ -159,11 +159,11 @@ describe('ActionList', () => {
     it('truncates long descriptions', () => {
       const longDescAction = [{
         id: 'long-1',
-        type: 'gpio',
-        name: 'Test',
+        action_type: 'gpio',
+        action_name: 'Test',
         offset_minutes: 0,
         description: 'This is a very long description that should be truncated to prevent overflow and maintain clean UI layout in the action list component',
-        params: {}
+        parameters: {}
       }]
 
       render(<ActionList actions={longDescAction} onActionsChange={mockOnActionsChange} />)
@@ -177,9 +177,9 @@ describe('ActionList', () => {
   describe('Sorting', () => {
     it('sorts actions by offset_minutes for display', () => {
       const unsortedActions = [
-        { id: '1', type: 'gpio', name: 'Third', offset_minutes: 15, description: 'C', params: {} },
-        { id: '2', type: 'gpio', name: 'First', offset_minutes: 0, description: 'A', params: {} },
-        { id: '3', type: 'gpio', name: 'Second', offset_minutes: 5, description: 'B', params: {} }
+        { id: '1', action_type: 'gpio', action_name: 'Third', offset_minutes: 15, description: 'C', parameters: {} },
+        { id: '2', action_type: 'gpio', action_name: 'First', offset_minutes: 0, description: 'A', parameters: {} },
+        { id: '3', action_type: 'gpio', action_name: 'Second', offset_minutes: 5, description: 'B', parameters: {} }
       ]
 
       render(<ActionList actions={unsortedActions} onActionsChange={mockOnActionsChange} />)
@@ -195,11 +195,11 @@ describe('ActionList', () => {
     it('shows Add Action button when actions exist', () => {
       const actions = [{
         id: '1',
-        type: 'gpio',
-        name: 'Test',
+        action_type: 'gpio',
+        action_name: 'Test',
         offset_minutes: 0,
         description: 'Test',
-        params: {}
+        parameters: {}
       }]
 
       render(<ActionList actions={actions} onActionsChange={mockOnActionsChange} />)
@@ -231,8 +231,8 @@ describe('ActionList', () => {
       await waitFor(() => {
         expect(mockOnActionsChange).toHaveBeenCalledWith([
           expect.objectContaining({
-            type: 'gpio',
-            name: 'Test Action',
+            action_type: 'gpio',
+            action_name: 'Test Action',
             offset_minutes: 0,
             description: 'Test description'
           })
@@ -273,11 +273,11 @@ describe('ActionList', () => {
     const mockActions = [
       {
         id: 'action-1',
-        type: 'gpio',
-        name: 'Original Name',
+        action_type: 'gpio',
+        action_name: 'Original Name',
         offset_minutes: 5,
         description: 'Original description',
-        params: { pin: 'attract', state: 'on' }
+        parameters: { pin: 'attract', state: 'on' }
       }
     ]
 
@@ -307,7 +307,7 @@ describe('ActionList', () => {
         expect(mockOnActionsChange).toHaveBeenCalledWith([
           expect.objectContaining({
             id: 'action-1',
-            name: 'Test Action'
+            action_name: 'Test Action'
           })
         ])
       })
@@ -317,7 +317,7 @@ describe('ActionList', () => {
       const user = userEvent.setup()
       const multipleActions = [
         { ...mockActions[0] },
-        { id: 'action-2', type: 'camera', name: 'Second', offset_minutes: 10, description: 'Second action', params: {} }
+        { id: 'action-2', action_type: 'camera', action_name: 'Second', offset_minutes: 10, description: 'Second action', parameters: {} }
       ]
 
       render(<ActionList actions={multipleActions} onActionsChange={mockOnActionsChange} />)
@@ -331,7 +331,7 @@ describe('ActionList', () => {
         expect(mockOnActionsChange).toHaveBeenCalledWith(
           expect.arrayContaining([
             expect.objectContaining({ id: 'action-1' }),
-            expect.objectContaining({ id: 'action-2', name: 'Second' })
+            expect.objectContaining({ id: 'action-2', action_name: 'Second' })
           ])
         )
       })
@@ -355,19 +355,19 @@ describe('ActionList', () => {
     const mockActions = [
       {
         id: 'action-1',
-        type: 'gpio',
-        name: 'To Delete',
+        action_type: 'gpio',
+        action_name: 'To Delete',
         offset_minutes: 0,
         description: 'Will be deleted',
-        params: {}
+        parameters: {}
       },
       {
         id: 'action-2',
-        type: 'camera',
-        name: 'To Keep',
+        action_type: 'camera',
+        action_name: 'To Keep',
         offset_minutes: 5,
         description: 'Will remain',
-        params: {}
+        parameters: {}
       }
     ]
 
@@ -407,7 +407,7 @@ describe('ActionList', () => {
 
       await waitFor(() => {
         expect(mockOnActionsChange).toHaveBeenCalledWith([
-          expect.objectContaining({ id: 'action-2', name: 'To Keep' })
+          expect.objectContaining({ id: 'action-2', action_name: 'To Keep' })
         ])
       })
     })
@@ -448,9 +448,9 @@ describe('ActionList', () => {
 
   describe('Drag and Drop', () => {
     const mockActions = [
-      { id: 'action-1', type: 'gpio', name: 'First', offset_minutes: 0, description: 'A', params: {} },
-      { id: 'action-2', type: 'gpio', name: 'Second', offset_minutes: 5, description: 'B', params: {} },
-      { id: 'action-3', type: 'gpio', name: 'Third', offset_minutes: 10, description: 'C', params: {} }
+      { id: 'action-1', action_type: 'gpio', action_name: 'First', offset_minutes: 0, description: 'A', parameters: {} },
+      { id: 'action-2', action_type: 'gpio', action_name: 'Second', offset_minutes: 5, description: 'B', parameters: {} },
+      { id: 'action-3', action_type: 'gpio', action_name: 'Third', offset_minutes: 10, description: 'C', parameters: {} }
     ]
 
     it('renders actions in sortable context', () => {
@@ -498,11 +498,11 @@ describe('ActionList', () => {
     it('applies dark mode classes to action rows', () => {
       const actions = [{
         id: '1',
-        type: 'gpio',
-        name: 'Test',
+        action_type: 'gpio',
+        action_name: 'Test',
         offset_minutes: 0,
         description: 'Test',
-        params: {}
+        parameters: {}
       }]
 
       const { container } = render(<ActionList actions={actions} onActionsChange={mockOnActionsChange} />)
@@ -515,11 +515,11 @@ describe('ActionList', () => {
     it('applies dark mode classes to offset badge', () => {
       const actions = [{
         id: '1',
-        type: 'gpio',
-        name: 'Test',
+        action_type: 'gpio',
+        action_name: 'Test',
         offset_minutes: 5,
         description: 'Test',
-        params: {}
+        parameters: {}
       }]
 
       const { container } = render(<ActionList actions={actions} onActionsChange={mockOnActionsChange} />)
@@ -531,11 +531,11 @@ describe('ActionList', () => {
     it('applies dark mode classes to buttons', () => {
       const actions = [{
         id: '1',
-        type: 'gpio',
-        name: 'Test',
+        action_type: 'gpio',
+        action_name: 'Test',
         offset_minutes: 0,
         description: 'Test',
-        params: {}
+        parameters: {}
       }]
 
       const { container } = render(<ActionList actions={actions} onActionsChange={mockOnActionsChange} />)
@@ -548,8 +548,8 @@ describe('ActionList', () => {
   describe('ID Generation', () => {
     it('generates unique IDs for actions without IDs', async () => {
       const actionsWithoutIds = [
-        { type: 'gpio', name: 'Test 1', offset_minutes: 0, description: 'A', params: {} },
-        { type: 'gpio', name: 'Test 2', offset_minutes: 5, description: 'B', params: {} }
+        { action_type: 'gpio', action_name: 'Test 1', offset_minutes: 0, description: 'A', parameters: {} },
+        { action_type: 'gpio', action_name: 'Test 2', offset_minutes: 5, description: 'B', parameters: {} }
       ]
 
       render(<ActionList actions={actionsWithoutIds} onActionsChange={mockOnActionsChange} />)
@@ -564,10 +564,10 @@ describe('ActionList', () => {
     it('handles actions with missing descriptions', () => {
       const actionNoDesc = [{
         id: '1',
-        type: 'gpio',
-        name: 'Test',
+        action_type: 'gpio',
+        action_name: 'Test',
         offset_minutes: 0,
-        params: {}
+        parameters: {}
       }]
 
       render(<ActionList actions={actionNoDesc} onActionsChange={mockOnActionsChange} />)
@@ -578,11 +578,11 @@ describe('ActionList', () => {
     it('handles zero offset correctly', () => {
       const zeroOffset = [{
         id: '1',
-        type: 'gpio',
-        name: 'Test',
+        action_type: 'gpio',
+        action_name: 'Test',
         offset_minutes: 0,
         description: 'Test',
-        params: {}
+        parameters: {}
       }]
 
       render(<ActionList actions={zeroOffset} onActionsChange={mockOnActionsChange} />)
@@ -593,11 +593,11 @@ describe('ActionList', () => {
     it('handles large offset values', () => {
       const largeOffset = [{
         id: '1',
-        type: 'gpio',
-        name: 'Test',
+        action_type: 'gpio',
+        action_name: 'Test',
         offset_minutes: 1440,
         description: 'Test',
-        params: {}
+        parameters: {}
       }]
 
       render(<ActionList actions={largeOffset} onActionsChange={mockOnActionsChange} />)
