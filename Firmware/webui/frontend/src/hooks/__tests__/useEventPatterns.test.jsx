@@ -406,4 +406,21 @@ describe('usePatternDuration', () => {
     expect(result.current).toBe(firstResult);
     expect(result.current).toBe(10);
   });
+
+  it('handles decimal offset_minutes values', () => {
+    const pattern = {
+      name: 'Decimal Offsets',
+      actions: [
+        { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 5.5 },
+        { action_type: 'camera', action_name: 'takephoto', offset_minutes: 10.3 },
+        { action_type: 'gpio', action_name: 'attract_off', offset_minutes: 7.8 }
+      ]
+    };
+
+    const { result } = renderHook(() => usePatternDuration(pattern), {
+      wrapper: createWrapper()
+    });
+
+    expect(result.current).toBe(10.3);
+  });
 });
