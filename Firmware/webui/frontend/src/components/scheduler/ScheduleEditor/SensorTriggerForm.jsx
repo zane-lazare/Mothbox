@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { SENSOR_TYPES, SENSOR_COMPARISONS, SCHEDULE_LIMITS, validateNumericInput } from './constants';
 
@@ -115,17 +116,16 @@ const SensorTriggerForm = ({
   };
 
   /**
-   * Generate preview text
-   * @returns {string} Human-readable preview
+   * Memoized preview text to prevent recalculation on every render
    */
-  const getPreviewText = () => {
+  const previewText = useMemo(() => {
     const sensorLabel = getSensorLabel();
     const comparisonSymbol = getComparisonSymbol();
     const unit = getSensorUnit();
     const thresholdText = unit ? `${value.threshold} ${unit}` : value.threshold;
 
     return `When ${sensorLabel} ${comparisonSymbol} ${thresholdText}, cooldown: ${value.cooldown_minutes} min`;
-  };
+  }, [value.sensor_type, value.comparison, value.threshold, value.cooldown_minutes]);
 
   return (
     <div className="space-y-6">
@@ -268,7 +268,7 @@ const SensorTriggerForm = ({
           Preview:
         </label>
         <p className="text-sm text-gray-600 dark:text-gray-400 italic bg-gray-50 dark:bg-gray-800 p-3 rounded-md">
-          {getPreviewText()}
+          {previewText}
         </p>
       </div>
     </div>

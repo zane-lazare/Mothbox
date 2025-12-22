@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { SCHEDULE_LIMITS, DAYS_OF_WEEK, validateNumericInput } from './constants';
 import TimeWindowInput from './TimeWindowInput';
@@ -195,10 +196,9 @@ const IntervalTriggerForm = ({
   };
 
   /**
-   * Generate preview text
-   * @returns {string} Human-readable preview
+   * Memoized preview text to prevent recalculation on every render
    */
-  const getPreviewText = () => {
+  const previewText = useMemo(() => {
     const intervalText = formatInterval(value.interval_minutes);
     const windowText = formatTimeWindow(value.time_window);
     const daysText = formatDays(value.days_of_week);
@@ -212,7 +212,7 @@ const IntervalTriggerForm = ({
     }
 
     return preview;
-  };
+  }, [value.interval_minutes, value.time_window, value.days_of_week]);
 
   return (
     <div className="space-y-6">
@@ -312,7 +312,7 @@ const IntervalTriggerForm = ({
           Preview:
         </label>
         <p className="text-sm text-gray-600 dark:text-gray-400 italic bg-gray-50 dark:bg-gray-800 p-3 rounded-md">
-          {getPreviewText()}
+          {previewText}
         </p>
       </div>
     </div>

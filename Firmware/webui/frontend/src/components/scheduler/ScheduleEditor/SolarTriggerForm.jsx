@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { SOLAR_EVENTS, SCHEDULE_LIMITS, DAYS_OF_WEEK, validateNumericInput } from './constants';
 import DaysOfWeekSelector from './DaysOfWeekSelector';
@@ -156,10 +157,9 @@ const SolarTriggerForm = ({
   };
 
   /**
-   * Generate preview text
-   * @returns {string} Human-readable preview
+   * Memoized preview text to prevent recalculation on every render
    */
-  const getPreviewText = () => {
+  const previewText = useMemo(() => {
     const eventLabel = getEventLabel();
     const offsetText = formatOffset(value.offset_minutes);
     const daysText = formatDays(value.days_of_week);
@@ -178,7 +178,7 @@ const SolarTriggerForm = ({
     }
 
     return preview;
-  };
+  }, [value.solar_event, value.offset_minutes, value.days_of_week]);
 
   return (
     <div className="space-y-6">
@@ -295,7 +295,7 @@ const SolarTriggerForm = ({
           Preview:
         </label>
         <p className="text-sm text-gray-600 dark:text-gray-400 italic bg-gray-50 dark:bg-gray-800 p-3 rounded-md">
-          {getPreviewText()}
+          {previewText}
         </p>
       </div>
     </div>
