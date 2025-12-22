@@ -1,4 +1,107 @@
+import { useMemo } from 'react';
 import PropTypes from 'prop-types';
+
+/**
+ * Format interval for display
+ * @param {number} minutes - Interval in minutes
+ * @returns {string} Formatted interval string
+ */
+const formatInterval = (minutes) => {
+  if (minutes < 60) {
+    return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+  } else if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `${hours} hour${hours !== 1 ? 's' : ''}`;
+  } else {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins}m`;
+  }
+};
+
+/**
+ * Get trigger summary text
+ * @param {Object} trigger - Trigger configuration
+ * @returns {string|null} Human-readable trigger summary
+ */
+const getTriggerSummaryText = (trigger) => {
+  if (!trigger) return null;
+
+  switch (trigger.type) {
+    case 'interval':
+      return `Every ${formatInterval(trigger.interval_minutes)} from ${trigger.time_window?.start_time || ''} to ${trigger.time_window?.end_time || ''}`;
+
+    case 'solar': {
+      const event = trigger.solar_event?.replace(/_/g, ' ') || 'solar event';
+      if (trigger.offset_minutes > 0) {
+        return `${trigger.offset_minutes} minutes after ${event}`;
+      } else if (trigger.offset_minutes < 0) {
+        return `${Math.abs(trigger.offset_minutes)} minutes before ${event}`;
+      } else {
+        return `At ${event}`;
+      }
+    }
+
+    case 'fixed_time':
+      if (trigger.days_of_week && trigger.days_of_week.length < 7) {
+        const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const days = trigger.days_of_week.map(d => dayNames[d]).join(', ');
+        return `At ${trigger.time} on ${days}`;
+      }
+      return `Daily at ${trigger.time}`;
+
+    case 'moon_phase': {
+      const phase = trigger.phase?.replace(/_/g, ' ') || 'moon phase';
+      return `At ${trigger.time || 'sunset'} on ${phase}`;
+    }
+
+    case 'sensor':
+      return 'Preview not available for sensor triggers';
+
+    default:
+      return 'Unknown trigger type';
+  }
+};
+
+/**
+ * Calculate total pattern duration from wait actions
+ * @param {Array} actions - Array of action objects
+ * @returns {number} Total seconds
+ */
+const calculateDuration = (actions) => {
+  if (!actions) return 0;
+
+  return actions.reduce((total, action) => {
+    if (action.type === 'wait' && action.parameters?.duration_seconds) {
+      return total + action.parameters.duration_seconds;
+    }
+    return total;
+  }, 0);
+};
+
+/**
+ * Generate mock preview execution times
+ * @param {Object} trigger - Trigger configuration
+ * @param {Object} pattern - Pattern configuration
+ * @param {string|null} startDate - Start date string
+ * @returns {Array<Date>} Array of execution time dates
+ */
+const generateMockExecutionTimes = (trigger, pattern, startDate) => {
+  if (!trigger || !pattern) return [];
+
+  // Mock data - would be replaced with actual API call
+  const baseDate = startDate ? new Date(startDate) : new Date();
+
+  const times = [];
+  for (let i = 0; i < 5; i++) {
+    const date = new Date(baseDate);
+    date.setDate(date.getDate() + i);
+    date.setHours(21, 0, 0, 0); // Default to 9 PM
+    times.push(date);
+  }
+
+  return times;
+};
 
 /**
  * PreviewSection Component
@@ -35,21 +138,6 @@ const PreviewSection = ({
   };
 
   /**
-   * Calculate total pattern duration from wait actions
-   * @returns {number} Total seconds
-   */
-  const calculatePatternDuration = () => {
-    if (!pattern?.actions) return 0;
-
-    return pattern.actions.reduce((total, action) => {
-      if (action.type === 'wait' && action.parameters?.duration_seconds) {
-        return total + action.parameters.duration_seconds;
-      }
-      return total;
-    }, 0);
-  };
-
-  /**
    * Format duration in seconds to human-readable string
    * @param {number} seconds
    * @returns {string}
@@ -67,87 +155,6 @@ const PreviewSection = ({
     } else {
       return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
     }
-  };
-
-  /**
-   * Format interval for display
-   */
-  const formatInterval = (minutes) => {
-    if (minutes < 60) {
-      return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
-    } else if (minutes % 60 === 0) {
-      const hours = minutes / 60;
-      return `${hours} hour${hours !== 1 ? 's' : ''}`;
-    } else {
-      const hours = Math.floor(minutes / 60);
-      const mins = minutes % 60;
-      return `${hours}h ${mins}m`;
-    }
-  };
-
-  /**
-   * Get trigger summary text
-   */
-  const getTriggerSummary = () => {
-    if (!trigger) return null;
-
-    switch (trigger.type) {
-      case 'interval':
-        return `Every ${formatInterval(trigger.interval_minutes)} from ${trigger.time_window?.start_time || ''} to ${trigger.time_window?.end_time || ''}`;
-
-      case 'solar': {
-        const event = trigger.solar_event?.replace(/_/g, ' ') || 'solar event';
-        if (trigger.offset_minutes > 0) {
-          return `${trigger.offset_minutes} minutes after ${event}`;
-        } else if (trigger.offset_minutes < 0) {
-          return `${Math.abs(trigger.offset_minutes)} minutes before ${event}`;
-        } else {
-          return `At ${event}`;
-        }
-      }
-
-      case 'fixed_time':
-        if (trigger.days_of_week && trigger.days_of_week.length < 7) {
-          const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-          const days = trigger.days_of_week.map(d => dayNames[d]).join(', ');
-          return `At ${trigger.time} on ${days}`;
-        }
-        return `Daily at ${trigger.time}`;
-
-      case 'moon_phase': {
-        const phase = trigger.phase?.replace(/_/g, ' ') || 'moon phase';
-        return `At ${trigger.time || 'sunset'} on ${phase}`;
-      }
-
-      case 'sensor':
-        return 'Preview not available for sensor triggers';
-
-      default:
-        return 'Unknown trigger type';
-    }
-  };
-
-  /**
-   * Generate mock preview execution times
-   * In a real implementation, this would call a backend API
-   */
-  const getMockExecutionTimes = () => {
-    if (!trigger || !pattern) return [];
-
-    // Mock data - would be replaced with actual API call
-    const baseDate = dateRange?.start_date
-      ? new Date(dateRange.start_date)
-      : new Date();
-
-    const times = [];
-    for (let i = 0; i < 5; i++) {
-      const date = new Date(baseDate);
-      date.setDate(date.getDate() + i);
-      date.setHours(21, 0, 0, 0); // Default to 9 PM
-      times.push(date);
-    }
-
-    return times;
   };
 
   /**
@@ -177,9 +184,21 @@ const PreviewSection = ({
     });
   };
 
-  const executionTimes = getMockExecutionTimes();
-  const triggerSummary = getTriggerSummary();
-  const patternDuration = pattern ? calculatePatternDuration() : 0;
+  // Memoized computed values to prevent recalculation on every render
+  const executionTimes = useMemo(
+    () => generateMockExecutionTimes(trigger, pattern, dateRange?.start_date),
+    [trigger, pattern, dateRange?.start_date]
+  );
+
+  const triggerSummary = useMemo(
+    () => getTriggerSummaryText(trigger),
+    [trigger]
+  );
+
+  const patternDuration = useMemo(
+    () => calculateDuration(pattern?.actions),
+    [pattern?.actions]
+  );
 
   return (
     <div className="space-y-4" aria-label="Schedule preview">
