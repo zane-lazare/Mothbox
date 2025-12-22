@@ -1,0 +1,188 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import SchedulerUI from '../SchedulerUI'
+
+// Mock all hooks and components
+vi.mock('../../hooks/useSchedules', () => ({
+  useSchedules: vi.fn(),
+  useActiveSchedule: vi.fn(),
+  useDeactivateSchedule: vi.fn(),
+}))
+
+vi.mock('../../contexts/SchedulerContext', () => ({
+  SchedulerProvider: ({ children }) => <div data-testid="scheduler-provider">{children}</div>,
+  useSchedulerContext: vi.fn(() => ({
+    state: { schedules: [], activeSchedule: null },
+    scheduleActions: { setSchedules: vi.fn(), setActiveSchedule: vi.fn() }
+  })),
+}))
+
+vi.mock('../../components/scheduler/SchedulerHeader', () => ({
+  default: ({ children }) => <div data-testid="scheduler-header">{children}</div>
+}))
+
+vi.mock('../../components/scheduler/SchedulerToolbar', () => ({
+  default: () => <div data-testid="scheduler-toolbar">Toolbar</div>
+}))
+
+vi.mock('../../components/scheduler/SchedulerTabs', () => ({
+  default: ({ activeTab, onTabChange }) => (
+    <div data-testid="scheduler-tabs">
+      <button onClick={() => onTabChange('schedules')}>Schedules</button>
+      <button onClick={() => onTabChange('calendar')}>Calendar</button>
+      <span data-testid="active-tab">{activeTab}</span>
+    </div>
+  )
+}))
+
+vi.mock('../../components/scheduler/ActiveScheduleBanner', () => ({
+  default: () => <div data-testid="active-schedule-banner">Active Schedule</div>
+}))
+
+vi.mock('../../components/scheduler/ScheduleListPlaceholder', () => ({
+  default: () => <div data-testid="schedule-list-placeholder">Schedule List</div>
+}))
+
+vi.mock('../../components/scheduler/CalendarViewPlaceholder', () => ({
+  default: () => <div data-testid="calendar-view-placeholder">Calendar View</div>
+}))
+
+vi.mock('../../components/LoadingSpinner', () => ({
+  default: ({ size }) => <div data-testid="loading-spinner" data-size={size}>Loading...</div>
+}))
+
+// Import the mocked hooks to configure them
+import { useSchedules } from '../../hooks/useSchedules'
+
+// Create QueryClient wrapper
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } }
+  })
+  return ({ children }) => (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  )
+}
+
+describe('SchedulerUI', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Default mock implementation - success state
+    useSchedules.mockReturnValue({
+      isLoading: false,
+      error: null,
+      data: []
+    })
+  })
+
+  it('renders SchedulerHeader with title', () => {
+    render(<SchedulerUI />, { wrapper: createWrapper() })
+
+    expect(screen.getByTestId('scheduler-header')).toBeInTheDocument()
+  })
+
+  it('renders SchedulerToolbar', () => {
+    render(<SchedulerUI />, { wrapper: createWrapper() })
+
+    expect(screen.getByTestId('scheduler-toolbar')).toBeInTheDocument()
+  })
+
+  it('renders SchedulerTabs', () => {
+    render(<SchedulerUI />, { wrapper: createWrapper() })
+
+    expect(screen.getByTestId('scheduler-tabs')).toBeInTheDocument()
+  })
+
+  it('defaults to Schedules tab', () => {
+    render(<SchedulerUI />, { wrapper: createWrapper() })
+
+    expect(screen.getByTestId('active-tab')).toHaveTextContent('schedules')
+  })
+
+  it('shows ScheduleListPlaceholder initially', () => {
+    render(<SchedulerUI />, { wrapper: createWrapper() })
+
+    expect(screen.getByTestId('schedule-list-placeholder')).toBeInTheDocument()
+    expect(screen.queryByTestId('calendar-view-placeholder')).not.toBeInTheDocument()
+  })
+
+  it('switches to Calendar tab when clicked', async () => {
+    const user = userEvent.setup()
+    render(<SchedulerUI />, { wrapper: createWrapper() })
+
+    // Initially shows Schedules tab
+    expect(screen.getByTestId('schedule-list-placeholder')).toBeInTheDocument()
+
+    // Click Calendar tab
+    const calendarButton = screen.getByRole('button', { name: /calendar/i })
+    await user.click(calendarButton)
+
+    // Should show Calendar view
+    await waitFor(() => {
+      expect(screen.getByTestId('calendar-view-placeholder')).toBeInTheDocument()
+      expect(screen.queryByTestId('schedule-list-placeholder')).not.toBeInTheDocument()
+    })
+  })
+
+  it('shows CalendarViewPlaceholder when Calendar selected', async () => {
+    const user = userEvent.setup()
+    render(<SchedulerUI />, { wrapper: createWrapper() })
+
+    const calendarButton = screen.getByRole('button', { name: /calendar/i })
+    await user.click(calendarButton)
+
+    expect(screen.getByTestId('calendar-view-placeholder')).toBeInTheDocument()
+  })
+
+  it('shows loading spinner while fetching schedules', () => {
+    useSchedules.mockReturnValue({
+      isLoading: true,
+      error: null,
+      data: null
+    })
+
+    render(<SchedulerUI />, { wrapper: createWrapper() })
+
+    const spinner = screen.getByTestId('loading-spinner')
+    expect(spinner).toBeInTheDocument()
+    expect(spinner).toHaveAttribute('data-size', 'lg')
+
+    // Should not show other content
+    expect(screen.queryByTestId('scheduler-header')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('scheduler-tabs')).not.toBeInTheDocument()
+  })
+
+  it('shows error message on fetch failure', () => {
+    const errorMessage = 'Failed to fetch schedules'
+    useSchedules.mockReturnValue({
+      isLoading: false,
+      error: new Error(errorMessage),
+      data: null
+    })
+
+    render(<SchedulerUI />, { wrapper: createWrapper() })
+
+    expect(screen.getByText(/error loading schedules/i)).toBeInTheDocument()
+    expect(screen.getByText(new RegExp(errorMessage))).toBeInTheDocument()
+
+    // Should not show other content
+    expect(screen.queryByTestId('scheduler-header')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('scheduler-tabs')).not.toBeInTheDocument()
+  })
+
+  it('renders ActiveScheduleBanner', () => {
+    render(<SchedulerUI />, { wrapper: createWrapper() })
+
+    expect(screen.getByTestId('active-schedule-banner')).toBeInTheDocument()
+  })
+
+  it('wraps content in SchedulerProvider', () => {
+    render(<SchedulerUI />, { wrapper: createWrapper() })
+
+    expect(screen.getByTestId('scheduler-provider')).toBeInTheDocument()
+  })
+})
