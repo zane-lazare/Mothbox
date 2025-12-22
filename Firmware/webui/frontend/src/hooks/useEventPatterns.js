@@ -161,7 +161,8 @@ export function useValidatePattern() {
  *
  * @param {Object|null} pattern - Event pattern object (should be memoized)
  * @param {Array} [pattern.actions] - Array of action objects with offset_minutes
- * @returns {number} Maximum offset in minutes, or 0 if no actions
+ * @returns {number} Maximum offset in minutes, or 0 if no actions.
+ *   Decimal values are supported and preserved (e.g., 5.5 for 5m 30s).
  *
  * @example
  * // Good: Pattern is memoized, duration only recalculates when data changes
