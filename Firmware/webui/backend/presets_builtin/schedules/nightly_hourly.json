@@ -1,11 +1,11 @@
 {
   "schema_version": "2.0",
-  "schedule_id": "nightly_hourly",
+  "schedule_id": "faff1ef7-aa3c-56f6-b27d-0868793c1f9d",
   "name": "Nightly Hourly Survey",
   "description": "UV capture every hour from 1am-6am using a fixed time window. Ideal for consistent timing regardless of seasonal sunset variations. This schedule provides predictable capture times for long-term monitoring studies.",
   "event_patterns": [
     {
-      "pattern_id": "nightly_uv_capture",
+      "pattern_id": "8a5b7b49-00f6-577a-b275-9cb4a32f10ab",
       "name": "Nightly UV Capture",
       "description": "Standard UV capture cycle for nighttime moth surveys. Turns on UV attract lights, waits 5 minutes for moths to gather, captures a photo, then turns off lights after 15 minutes total.",
       "actions": [

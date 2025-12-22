@@ -442,29 +442,26 @@ def get_builtin_schedules() -> list[Schedule]:
     builtin_ids = list_schedule_ids(is_builtin=True)
     schedules = []
 
-    for schedule_id in builtin_ids:
-        schedule_path = get_schedule_path(schedule_id, is_builtin=True)
+    for filename_id in builtin_ids:
+        schedule_path = get_schedule_path(filename_id, is_builtin=True)
         if schedule_path is None:
-            logger.warning(f"Invalid built-in schedule ID: {schedule_id}")
+            logger.warning(f"Invalid built-in schedule file: {filename_id}")
             continue
 
         try:
             with open(schedule_path) as f:
                 data = json.load(f)
 
-            # Override schedule_id from filename (built-in schedules may have been renamed)
-            data["schedule_id"] = schedule_id
-
-            # Validate and create schedule
+            # Validate and create schedule (uses schedule_id from JSON, not filename)
             schedule = Schedule.from_dict(data)
             valid, error = validate_schedule(schedule)
             if valid:
                 schedules.append(schedule)
             else:
-                logger.warning(f"Invalid built-in schedule {schedule_id}: {error}")
+                logger.warning(f"Invalid built-in schedule {filename_id}: {error}")
 
         except Exception as e:
-            logger.warning(f"Failed to load built-in schedule {schedule_id}: {e}")
+            logger.warning(f"Failed to load built-in schedule {filename_id}: {e}")
 
     return schedules
 

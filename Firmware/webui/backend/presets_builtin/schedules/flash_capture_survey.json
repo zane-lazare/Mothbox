@@ -1,11 +1,11 @@
 {
   "schema_version": "2.0",
-  "schedule_id": "flash_capture_survey",
+  "schedule_id": "4c0b3eb4-ee3b-5de2-a026-20b9ac772c97",
   "name": "Flash Capture Survey",
   "description": "Fixed-time flash photography for nocturnal surveys. Uses camera flash for instant illumination without waiting for moths to gather. Ideal for quick sampling at regular intervals.",
   "event_patterns": [
     {
-      "pattern_id": "flash_capture",
+      "pattern_id": "5d0a96db-0ca8-5722-b45c-e071c8172a6b",
       "name": "Flash Capture",
       "description": "Instant flash photography sequence. Turns on flash, captures photo immediately, then turns off flash after 1 minute to allow for camera processing.",
       "actions": [

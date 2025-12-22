@@ -1,11 +1,11 @@
 {
   "schema_version": "2.0",
-  "schedule_id": "dusk_transect",
+  "schedule_id": "dd8e2da5-ed26-5f6d-a5e9-982f29568c7d",
   "name": "Dusk Transect Survey",
   "description": "Dusk photo transect for crepuscular species active at twilight. Triggers 15 minutes before sunset to capture the transition from day to night. Takes multiple photos at 15-minute intervals to document species active during the evening twilight period.",
   "event_patterns": [
     {
-      "pattern_id": "dusk_transect_solar",
+      "pattern_id": "d37a23d4-d910-5513-bbd2-ec931a25e89e",
       "name": "Dusk Transect (Solar)",
       "description": "Dusk transect capturing the transition from day to night. Takes multiple photos at 15-minute intervals to document crepuscular species active at twilight.",
       "actions": [

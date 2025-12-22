@@ -1,11 +1,11 @@
 {
   "schema_version": "2.0",
-  "schedule_id": "dawn_transect",
+  "schedule_id": "9ab841ca-b044-56c9-8b2a-3c2ae67fa2e2",
   "name": "Dawn Transect Survey",
   "description": "Dawn photo transect for crepuscular species active at first light. Triggers 15 minutes before sunrise to capture the transition from night to day. Takes multiple photos at 15-minute intervals to document species active during the dawn twilight period.",
   "event_patterns": [
     {
-      "pattern_id": "dawn_transect_solar",
+      "pattern_id": "2c6b82a5-4416-54cf-9ec6-84224acc7c48",
       "name": "Dawn Transect (Solar)",
       "description": "Dawn transect capturing the transition from night to day. Takes multiple photos at 15-minute intervals to document crepuscular species active at first light.",
       "actions": [

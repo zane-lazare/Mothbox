@@ -1,11 +1,11 @@
 {
   "schema_version": "2.0",
-  "schedule_id": "extended_attract_session",
+  "schedule_id": "cc108b27-e268-5de6-860a-e3b06ee4fb78",
   "name": "Extended Attract Session",
   "description": "Extended 60-minute UV attraction sessions for documenting insect accumulation patterns over time. UV attract lights remain on for the full duration with photos captured at 15-minute intervals to show how moth populations build up at the light source.",
   "event_patterns": [
     {
-      "pattern_id": "attract_session",
+      "pattern_id": "8deba3b6-3db6-5920-80fe-3d186359b254",
       "name": "Attract Session",
       "description": "60-minute UV attraction session with photos at 15-minute intervals. Documents the gradual accumulation of moths at the UV light source over time.",
       "actions": [

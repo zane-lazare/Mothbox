@@ -1,11 +1,11 @@
 {
   "schema_version": "2.0",
-  "schedule_id": "continuous_monitoring",
+  "schedule_id": "659b0d2b-d342-5dba-8db6-cffdd1fd131c",
   "name": "Continuous Monitoring Survey",
   "description": "UV capture every 30 minutes from sunset to sunrise. High-frequency monitoring for detailed temporal analysis of nocturnal moth activity patterns throughout the night.",
   "event_patterns": [
     {
-      "pattern_id": "continuous_uv_capture",
+      "pattern_id": "453818d2-f854-5651-b26f-a1e2d8f5e5eb",
       "name": "Continuous UV Capture",
       "description": "Quick UV capture cycle for continuous monitoring. Minimizes lights-on time (10 minutes) while maintaining regular 30-minute sampling frequency for consistent temporal data.",
       "actions": [
