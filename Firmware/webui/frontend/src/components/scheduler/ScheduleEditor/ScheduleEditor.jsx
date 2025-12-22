@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import TriggerForm from './TriggerForm';
 import EventPatternSelector from './EventPatternSelector';
@@ -81,8 +81,8 @@ const ScheduleEditor = ({
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
 
-  // Determine if editing existing schedule
-  const isEditMode = Boolean(schedule?.schedule_id);
+  // Determine if editing existing schedule (memoized to prevent recalculation on every render)
+  const isEditMode = useMemo(() => Boolean(schedule?.schedule_id), [schedule?.schedule_id]);
 
   /**
    * Initialize form from schedule prop
