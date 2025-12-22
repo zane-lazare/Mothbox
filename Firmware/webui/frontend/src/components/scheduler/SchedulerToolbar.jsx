@@ -28,16 +28,14 @@ function SchedulerToolbar({ onNewSchedule, isCreating = false }) {
   }
 
   return (
-    <div className="flex justify-between items-center mb-6">
-      <button
-        onClick={handleNewSchedule}
-        disabled={isCreating}
-        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
-      >
-        <PlusIcon className="h-5 w-5" />
-        New Schedule
-      </button>
-    </div>
+    <button
+      onClick={handleNewSchedule}
+      disabled={isCreating}
+      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+    >
+      <PlusIcon className="h-5 w-5" />
+      New Schedule
+    </button>
   )
 }
 

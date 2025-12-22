@@ -36,12 +36,21 @@ function SchedulerUIContent() {
       </SchedulerHeader>
       <ActiveScheduleBanner />
       <SchedulerTabs activeTab={activeTab} onTabChange={setActiveTab} />
-      {activeTab === 'schedules' && <ScheduleListPlaceholder />}
-      {activeTab === 'calendar' && <CalendarViewPlaceholder />}
+      {activeTab === 'schedules' && (
+        <div id="schedules-panel" role="tabpanel">
+          <ScheduleListPlaceholder />
+        </div>
+      )}
+      {activeTab === 'calendar' && (
+        <div id="calendar-panel" role="tabpanel">
+          <CalendarViewPlaceholder />
+        </div>
+      )}
     </div>
   )
 }
 
+// Wrap in SchedulerProvider to provide schedule state to all child components
 export default function SchedulerUI() {
   return (
     <SchedulerProvider>

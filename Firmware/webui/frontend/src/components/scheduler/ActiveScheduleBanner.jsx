@@ -1,4 +1,5 @@
 import PropTypes from 'prop-types'
+import toast from 'react-hot-toast'
 import { CheckCircleIcon } from '@heroicons/react/24/solid'
 import { useActiveSchedule, useDeactivateSchedule } from '../../hooks/useSchedules'
 
@@ -14,7 +15,14 @@ import { useActiveSchedule, useDeactivateSchedule } from '../../hooks/useSchedul
  */
 function ActiveScheduleBanner() {
   const { data } = useActiveSchedule()
-  const { mutate: deactivate, isPending } = useDeactivateSchedule()
+  const { mutate: deactivate, isPending } = useDeactivateSchedule({
+    onSuccess: () => {
+      toast.success('Schedule deactivated successfully')
+    },
+    onError: (error) => {
+      toast.error(`Failed to deactivate: ${error.message}`)
+    },
+  })
 
   // Don't render if no active schedule
   if (!data?.active_schedule) {
