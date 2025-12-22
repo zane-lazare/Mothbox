@@ -12,7 +12,7 @@
  * - OffsetTimeline: Visual timeline of action offsets
  */
 
-export { PatternEditor } from './PatternEditor'
-export { ActionList } from './ActionList'
-export { ActionForm } from './ActionForm'
-export { OffsetTimeline } from './OffsetTimeline'
+export { default as PatternEditor } from './PatternEditor'
+export { default as ActionList } from './ActionList'
+export { default as ActionForm } from './ActionForm'
+export { default as OffsetTimeline } from './OffsetTimeline'
