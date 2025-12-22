@@ -144,6 +144,7 @@ export function useTriggerDescription(schedule) {
       case 'fixed_time': {
         const time = trigger.time ?? '21:00'
         const days = trigger.days_of_week
+        // Show specific days only if subset selected (1-6 days); otherwise show "daily"
         if (days && days.length > 0 && days.length < 7) {
           const dayNames = days.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')
           return `At ${time} on ${dayNames}`
