@@ -6,23 +6,26 @@ import ActionList from '../ActionList'
 
 // Mock ActionForm component
 vi.mock('../ActionForm', () => ({
-  default: ({ action, onSave, onCancel }) => (
-    <div data-testid="action-form">
-      <div data-testid="form-action-type">{action?.action_type || 'new'}</div>
-      <div data-testid="form-action-name">{action?.action_name || ''}</div>
-      <button onClick={() => onSave({
-        id: action?.id || 'new-id',
-        action_type: 'gpio',
-        action_name: 'Test Action',
-        offset_minutes: 0,
-        description: 'Test description',
-        parameters: {}
-      })}>
-        Save
-      </button>
-      <button onClick={onCancel}>Cancel</button>
-    </div>
-  )
+  default: ({ action, onSave, onCancel, isOpen }) => {
+    if (!isOpen) return null
+    return (
+      <div data-testid="action-form">
+        <div data-testid="form-action-type">{action?.action_type || 'new'}</div>
+        <div data-testid="form-action-name">{action?.action_name || ''}</div>
+        <button onClick={() => onSave({
+          id: action?.id || 'new-id',
+          action_type: 'gpio',
+          action_name: 'Test Action',
+          offset_minutes: 0,
+          description: 'Test description',
+          parameters: {}
+        })}>
+          Save
+        </button>
+        <button onClick={onCancel}>Cancel</button>
+      </div>
+    )
+  }
 }))
 
 describe('ActionList', () => {

@@ -360,17 +360,12 @@ export default function ActionList({ actions = [], onActionsChange }) {
       </button>
 
       {/* Action Form Modal */}
-      {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <ActionForm
-              action={editingAction}
-              onSave={handleFormSave}
-              onCancel={handleFormCancel}
-            />
-          </div>
-        </div>
-      )}
+      <ActionForm
+        action={editingAction}
+        onSave={handleFormSave}
+        onCancel={handleFormCancel}
+        isOpen={isFormOpen}
+      />
 
       {/* Delete Confirmation Dialog */}
       {deletingAction && (
