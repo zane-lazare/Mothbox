@@ -23,7 +23,11 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
           offset_minutes: action.offset_minutes ?? '',
           description: action.description || '',
           parameters: action.parameters
-            ? Object.entries(action.parameters).map(([key, value]) => ({ key, value }))
+            ? Object.entries(action.parameters).map(([key, value]) => ({
+                id: crypto.randomUUID(),
+                key,
+                value
+              }))
             : [],
         });
       } else {
@@ -94,22 +98,22 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
   const handleAddParameter = () => {
     setFormData(prev => ({
       ...prev,
-      parameters: [...prev.parameters, { key: '', value: '' }],
+      parameters: [...prev.parameters, { id: crypto.randomUUID(), key: '', value: '' }],
     }));
   };
 
-  const handleRemoveParameter = (index) => {
+  const handleRemoveParameter = (id) => {
     setFormData(prev => ({
       ...prev,
-      parameters: prev.parameters.filter((_, i) => i !== index),
+      parameters: prev.parameters.filter((param) => param.id !== id),
     }));
   };
 
-  const handleParameterChange = (index, field, value) => {
+  const handleParameterChange = (id, field, value) => {
     setFormData(prev => ({
       ...prev,
-      parameters: prev.parameters.map((param, i) =>
-        i === index ? { ...param, [field]: value } : param
+      parameters: prev.parameters.map((param) =>
+        param.id === id ? { ...param, [field]: value } : param
       ),
     }));
   };
@@ -318,13 +322,13 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
               </div>
               {formData.parameters.length > 0 && (
                 <div className="space-y-2">
-                  {formData.parameters.map((param, index) => (
-                    <div key={index} className="flex gap-2">
+                  {formData.parameters.map((param) => (
+                    <div key={param.id} className="flex gap-2">
                       <input
                         type="text"
                         value={param.key}
                         onChange={(e) =>
-                          handleParameterChange(index, 'key', e.target.value)
+                          handleParameterChange(param.id, 'key', e.target.value)
                         }
                         placeholder="Key"
                         className="flex-1 rounded-md border border-gray-300 dark:border-gray-600
@@ -335,7 +339,7 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
                         type="text"
                         value={param.value}
                         onChange={(e) =>
-                          handleParameterChange(index, 'value', e.target.value)
+                          handleParameterChange(param.id, 'value', e.target.value)
                         }
                         placeholder="Value"
                         className="flex-1 rounded-md border border-gray-300 dark:border-gray-600
@@ -344,7 +348,7 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
                       />
                       <button
                         type="button"
-                        onClick={() => handleRemoveParameter(index)}
+                        onClick={() => handleRemoveParameter(param.id)}
                         className="px-3 py-2 text-sm bg-red-600 text-white rounded-md
                                  hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600
                                  focus:outline-none focus:ring-2 focus:ring-red-500"
