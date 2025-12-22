@@ -220,9 +220,10 @@ export default function ActionList({ actions = [], onActionsChange }) {
     [actions]
   )
 
-  // Sort actions by offset for display
-  const sortedActions = [...actionsWithIds].sort(
-    (a, b) => a.offset_minutes - b.offset_minutes
+  // Sort actions by offset for display (memoized to prevent re-sorting on every render)
+  const sortedActions = useMemo(() =>
+    [...actionsWithIds].sort((a, b) => a.offset_minutes - b.offset_minutes),
+    [actionsWithIds]
   )
 
   /**
