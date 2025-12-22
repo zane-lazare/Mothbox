@@ -40,10 +40,19 @@ const DateRangeSection = ({
   const { start_date, end_date } = value || {};
 
   /**
-   * Validate date range
+   * Validate date range (client-side)
    * - Checks for valid date format (not NaN)
    * - Checks that end_date >= start_date
    * - Checks that range doesn't exceed MAX_DATE_RANGE_DAYS (10 years)
+   *
+   * NOTE: Backend validation is also performed in schedule_schema.py:
+   * - _validate_date_string() validates ISO 8601 format (YYYY-MM-DD)
+   * - validate_schedule() checks start_date <= end_date
+   * - DATE_FORMAT_REGEX enforces format pattern
+   * - datetime.strptime validates actual date validity (e.g., rejects Feb 30)
+   *
+   * Both client and server validation use the same rules to ensure consistency.
+   *
    * @returns {string|null} Error message or null if valid
    */
   const validateDateRange = () => {
