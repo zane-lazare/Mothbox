@@ -150,8 +150,12 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
     }
 
     // Convert parameters array to object, excluding empty rows
+    // Warn about duplicate keys (last value wins)
     const parametersObj = formData.parameters.reduce((acc, param) => {
       if (param.key && param.value) {
+        if (acc[param.key]) {
+          console.warn(`Duplicate parameter key: ${param.key}`);
+        }
         acc[param.key] = param.value;
       }
       return acc;
