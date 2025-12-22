@@ -1,13 +1,6 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { ACTION_LIMITS } from './constants';
-
-const ACTION_NAMES = {
-  gpio: ['attract_on', 'attract_off', 'flash_on', 'flash_off'],
-  camera: ['takephoto'],
-  gps_sync: ['sync'],
-  service: ['backup', 'update_display'],
-};
+import { ACTION_LIMITS, ACTION_NAMES } from './constants';
 
 const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
   const [formData, setFormData] = useState({
