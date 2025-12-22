@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ACTION_LIMITS } from './constants';
 
 const ACTION_NAMES = {
   gpio: ['attract_on', 'attract_off', 'flash_on', 'flash_off'],
@@ -78,8 +79,8 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
   };
 
   const handleDescriptionChange = (value) => {
-    // Enforce 500 character limit
-    const truncated = value.slice(0, 500);
+    // Enforce character limit
+    const truncated = value.slice(0, ACTION_LIMITS.DESCRIPTION_MAX_LENGTH);
     setFormData(prev => ({
       ...prev,
       description: truncated,
@@ -124,8 +125,8 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
       newErrors.offset_minutes = 'Offset is required';
     } else {
       const offset = Number(formData.offset_minutes);
-      if (offset < 0 || offset > 1440) {
-        newErrors.offset_minutes = 'Offset must be between 0 and 1440 minutes';
+      if (offset < ACTION_LIMITS.MIN_OFFSET_MINUTES || offset > ACTION_LIMITS.MAX_OFFSET_MINUTES) {
+        newErrors.offset_minutes = `Offset must be between ${ACTION_LIMITS.MIN_OFFSET_MINUTES} and ${ACTION_LIMITS.MAX_OFFSET_MINUTES} minutes`;
       }
     }
 
@@ -246,14 +247,14 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
               <input
                 id="offset_minutes"
                 type="number"
-                min="0"
-                max="1440"
+                min={ACTION_LIMITS.MIN_OFFSET_MINUTES}
+                max={ACTION_LIMITS.MAX_OFFSET_MINUTES}
                 value={formData.offset_minutes}
                 onChange={(e) => handleInputChange('offset_minutes', e.target.value)}
                 className="w-full rounded-md border border-gray-300 dark:border-gray-600
                          bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
                          focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="0-1440"
+                placeholder={`${ACTION_LIMITS.MIN_OFFSET_MINUTES}-${ACTION_LIMITS.MAX_OFFSET_MINUTES}`}
               />
               {errors.offset_minutes && (
                 <p className="mt-1 text-sm text-red-600 dark:text-red-400">
@@ -275,14 +276,14 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
                 value={formData.description}
                 onChange={(e) => handleDescriptionChange(e.target.value)}
                 rows={3}
-                maxLength={500}
+                maxLength={ACTION_LIMITS.DESCRIPTION_MAX_LENGTH}
                 className="w-full rounded-md border border-gray-300 dark:border-gray-600
                          bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
                          focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Optional description"
               />
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 text-right">
-                {formData.description.length} / 500
+                {formData.description.length} / {ACTION_LIMITS.DESCRIPTION_MAX_LENGTH}
               </p>
             </div>
 

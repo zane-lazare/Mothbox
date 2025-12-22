@@ -3,6 +3,7 @@ import PropTypes from 'prop-types'
 import ActionList from './ActionList'
 import OffsetTimeline from './OffsetTimeline'
 import { useValidatePattern, usePatternDuration } from '@/hooks/useEventPatterns'
+import { PATTERN_LIMITS } from './constants'
 
 /**
  * Main container component for editing event patterns.
@@ -52,7 +53,7 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
   // Handle name change with max length
   const handleNameChange = (e) => {
     const value = e.target.value
-    if (value.length <= 200) {
+    if (value.length <= PATTERN_LIMITS.NAME_MAX_LENGTH) {
       setName(value)
     }
   }
@@ -60,7 +61,7 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
   // Handle description change with max length
   const handleDescriptionChange = (e) => {
     const value = e.target.value
-    if (value.length <= 2000) {
+    if (value.length <= PATTERN_LIMITS.DESCRIPTION_MAX_LENGTH) {
       setDescription(value)
     }
   }
@@ -155,7 +156,7 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
             type="text"
             value={name}
             onChange={handleNameChange}
-            maxLength={200}
+            maxLength={PATTERN_LIMITS.NAME_MAX_LENGTH}
             className="w-full rounded-md border border-gray-300 dark:border-gray-600
                        bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
                        focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -165,7 +166,7 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
             <p className="mt-1 text-sm text-red-500">{nameError}</p>
           )}
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {name.length}/200 characters
+            {name.length}/{PATTERN_LIMITS.NAME_MAX_LENGTH} characters
           </p>
         </div>
 
@@ -181,7 +182,7 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
             id="pattern-description"
             value={description}
             onChange={handleDescriptionChange}
-            maxLength={2000}
+            maxLength={PATTERN_LIMITS.DESCRIPTION_MAX_LENGTH}
             rows={3}
             className="w-full rounded-md border border-gray-300 dark:border-gray-600
                        bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
@@ -189,7 +190,7 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
             placeholder="Optional description"
           />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {description.length}/2000 characters
+            {description.length}/{PATTERN_LIMITS.DESCRIPTION_MAX_LENGTH} characters
           </p>
         </div>
 

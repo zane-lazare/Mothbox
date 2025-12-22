@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import PatternEditor from '../PatternEditor'
+import { PATTERN_LIMITS } from '../constants'
 
 // Mock the hooks
 vi.mock('@/hooks/useEventPatterns', () => ({
@@ -159,7 +160,7 @@ describe('PatternEditor', () => {
       expect(descInput).toHaveValue('Test description')
     })
 
-    it('enforces max 200 chars on name field', async () => {
+    it('enforces max chars on name field', async () => {
       const user = userEvent.setup()
       render(
         <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
@@ -167,14 +168,14 @@ describe('PatternEditor', () => {
       )
 
       const nameInput = screen.getByLabelText(/pattern name/i)
-      const longName = 'a'.repeat(250)
+      const longName = 'a'.repeat(PATTERN_LIMITS.NAME_MAX_LENGTH + 50)
 
       await user.type(nameInput, longName)
 
-      expect(nameInput.value.length).toBeLessThanOrEqual(200)
+      expect(nameInput.value.length).toBeLessThanOrEqual(PATTERN_LIMITS.NAME_MAX_LENGTH)
     })
 
-    it('enforces max 2000 chars on description field', async () => {
+    it('enforces max chars on description field', async () => {
       const user = userEvent.setup()
       render(
         <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
@@ -182,11 +183,11 @@ describe('PatternEditor', () => {
       )
 
       const descInput = screen.getByLabelText(/description/i)
-      const longDesc = 'a'.repeat(2500)
+      const longDesc = 'a'.repeat(PATTERN_LIMITS.DESCRIPTION_MAX_LENGTH + 500)
 
       await user.type(descInput, longDesc)
 
-      expect(descInput.value.length).toBeLessThanOrEqual(2000)
+      expect(descInput.value.length).toBeLessThanOrEqual(PATTERN_LIMITS.DESCRIPTION_MAX_LENGTH)
     })
   })
 

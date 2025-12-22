@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ActionForm from '../ActionForm';
+import { ACTION_LIMITS } from '../constants';
 
 describe('ActionForm', () => {
   const mockOnSave = vi.fn();
@@ -134,7 +135,7 @@ describe('ActionForm', () => {
       expect(mockOnSave).not.toHaveBeenCalled();
     });
 
-    it('should validate offset is between 0 and 1440', async () => {
+    it('should validate offset is within valid range', async () => {
       const user = userEvent.setup();
       render(<ActionForm {...defaultProps} />);
 
@@ -147,16 +148,16 @@ describe('ActionForm', () => {
       await user.click(saveButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/offset must be between 0 and 1440/i)).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`offset must be between ${ACTION_LIMITS.MIN_OFFSET_MINUTES} and ${ACTION_LIMITS.MAX_OFFSET_MINUTES}`, 'i'))).toBeInTheDocument();
       });
 
       // Test above maximum
       await user.clear(offsetInput);
-      await user.type(offsetInput, '1441');
+      await user.type(offsetInput, String(ACTION_LIMITS.MAX_OFFSET_MINUTES + 1));
       await user.click(saveButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/offset must be between 0 and 1440/i)).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`offset must be between ${ACTION_LIMITS.MIN_OFFSET_MINUTES} and ${ACTION_LIMITS.MAX_OFFSET_MINUTES}`, 'i'))).toBeInTheDocument();
       });
 
       expect(mockOnSave).not.toHaveBeenCalled();
@@ -178,23 +179,23 @@ describe('ActionForm', () => {
       expect(mockOnSave).not.toHaveBeenCalled();
     });
 
-    it('should enforce description max length of 500 characters', async () => {
+    it('should enforce description max length', async () => {
       const user = userEvent.setup();
       render(<ActionForm {...defaultProps} />);
 
       const descriptionInput = screen.getByLabelText(/description/i);
-      const longText = 'a'.repeat(501);
+      const longText = 'a'.repeat(ACTION_LIMITS.DESCRIPTION_MAX_LENGTH + 1);
 
       await user.type(descriptionInput, longText);
 
-      // Should be truncated to 500 chars
-      expect(descriptionInput.value.length).toBeLessThanOrEqual(500);
+      // Should be truncated to max length
+      expect(descriptionInput.value.length).toBeLessThanOrEqual(ACTION_LIMITS.DESCRIPTION_MAX_LENGTH);
     });
 
     it('should show character count for description', () => {
       render(<ActionForm {...defaultProps} />);
 
-      expect(screen.getByText(/0 \/ 500/i)).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`0 / ${ACTION_LIMITS.DESCRIPTION_MAX_LENGTH}`, 'i'))).toBeInTheDocument();
     });
 
     it('should update character count as user types', async () => {
@@ -204,7 +205,7 @@ describe('ActionForm', () => {
       const descriptionInput = screen.getByLabelText(/description/i);
       await user.type(descriptionInput, 'Test description');
 
-      expect(screen.getByText(/16 \/ 500/i)).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`16 / ${ACTION_LIMITS.DESCRIPTION_MAX_LENGTH}`, 'i'))).toBeInTheDocument();
     });
   });
 
