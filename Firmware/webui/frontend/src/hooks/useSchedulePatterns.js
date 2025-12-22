@@ -253,7 +253,8 @@ export function useMoonPhaseTriggerDefaults() {
  * @returns {Object} update - Update schedule mutation object
  * @returns {Object} delete - Delete schedule mutation object
  * @returns {boolean} isPending - True if any mutation is in progress
- * @returns {Array} errors - Array of errors from failed mutations
+ * @returns {Array} errors - Array of errors from failed mutations. Always an array,
+ *   so check `errors.length > 0` rather than just `if (errors)` for error state.
  *
  * @example
  * const { create, update, delete: deleteOp, isPending, errors } = useSchedulePatternOperations()
@@ -265,6 +266,7 @@ export function useMoonPhaseTriggerDefaults() {
  *   })
  * }
  *
+ * // Check errors.length, not just errors (which is always truthy as an array)
  * return (
  *   <div>
  *     {isPending && <Spinner />}
