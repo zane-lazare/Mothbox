@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -142,10 +142,24 @@ function SortableAction({ action, onEdit, onDelete }) {
  * Delete confirmation dialog
  */
 function DeleteConfirmDialog({ action, onConfirm, onCancel }) {
+  // Handle Escape key to close dialog
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [onCancel])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-dialog-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+    >
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+        <h3 id="delete-dialog-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
           Delete Action
         </h3>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">

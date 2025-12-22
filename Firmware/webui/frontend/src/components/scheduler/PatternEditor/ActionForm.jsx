@@ -46,6 +46,16 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
     }
   }, [action, isOpen]);
 
+  // Handle Escape key to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onCancel]);
+
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
@@ -167,10 +177,15 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
     : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="action-form-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+    >
       <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4">
         <div className="p-6">
-          <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+          <h2 id="action-form-title" className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
             {action ? 'Edit Action' : 'Create Action'}
           </h2>
 
