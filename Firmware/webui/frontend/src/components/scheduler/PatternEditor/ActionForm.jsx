@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { ACTION_LIMITS, ACTION_NAMES } from './constants';
 
@@ -14,6 +14,10 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
     parameters: [],
   });
   const [errors, setErrors] = useState({});
+
+  // Refs for focus management
+  const modalRef = useRef(null);
+  const previousActiveElement = useRef(null);
 
   // Initialize form data when action prop changes or modal opens
   useEffect(() => {
@@ -56,6 +60,23 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onCancel]);
+
+  // Focus management: move focus to modal on open, restore on close
+  useEffect(() => {
+    if (isOpen) {
+      // Store the currently focused element before opening
+      previousActiveElement.current = document.activeElement;
+      // Focus the modal after render
+      if (modalRef.current) {
+        modalRef.current.focus();
+      }
+    } else {
+      // Restore focus to the previously focused element
+      if (previousActiveElement.current && document.body.contains(previousActiveElement.current)) {
+        previousActiveElement.current.focus();
+      }
+    }
+  }, [isOpen]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -197,7 +218,11 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
       aria-labelledby="action-form-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
     >
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4 focus:outline-none"
+      >
         <div className="p-6">
           <h2 id="action-form-title" className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
             {action ? 'Edit Action' : 'Create Action'}

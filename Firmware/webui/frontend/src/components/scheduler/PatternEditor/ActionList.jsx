@@ -154,6 +154,10 @@ SortableAction.propTypes = {
  * Delete confirmation dialog
  */
 function DeleteConfirmDialog({ action, onConfirm, onCancel, isOpen = true }) {
+  // Refs for focus management
+  const modalRef = useRef(null)
+  const previousActiveElement = useRef(null)
+
   // Handle Escape key to close dialog
   useEffect(() => {
     if (!isOpen) return
@@ -164,6 +168,23 @@ function DeleteConfirmDialog({ action, onConfirm, onCancel, isOpen = true }) {
     return () => document.removeEventListener('keydown', handleEscape)
   }, [isOpen, onCancel])
 
+  // Focus management: move focus to modal on open, restore on close
+  useEffect(() => {
+    if (isOpen) {
+      // Store the currently focused element before opening
+      previousActiveElement.current = document.activeElement
+      // Focus the modal after render
+      if (modalRef.current) {
+        modalRef.current.focus()
+      }
+    } else {
+      // Restore focus to the previously focused element
+      if (previousActiveElement.current && document.body.contains(previousActiveElement.current)) {
+        previousActiveElement.current.focus()
+      }
+    }
+  }, [isOpen])
+
   return (
     <div
       role="dialog"
@@ -171,7 +192,11 @@ function DeleteConfirmDialog({ action, onConfirm, onCancel, isOpen = true }) {
       aria-labelledby="delete-dialog-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
     >
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4 focus:outline-none"
+      >
         <h3 id="delete-dialog-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
           Delete Action
         </h3>
