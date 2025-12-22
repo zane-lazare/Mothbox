@@ -233,19 +233,20 @@ export default function ActionList({ actions = [], onActionsChange }) {
   )
 
   // Track generated IDs for actions without stable IDs from parent
-  // Using WeakMap allows garbage collection when actions are removed
-  const generatedIdsRef = useRef(new WeakMap())
+  // Uses content-based key to ensure same logical action gets same ID
+  const generatedIdsRef = useRef(new Map())
 
   // Ensure all actions have stable IDs
   // Uses a ref to maintain consistent IDs for actions that lack them
   const actionsWithIds = useMemo(() =>
     actions.map(action => {
       if (action.id) return action
-      // Use action object reference as key to maintain stable ID
-      if (!generatedIdsRef.current.has(action)) {
-        generatedIdsRef.current.set(action, crypto.randomUUID())
+      // Create a stable key from action content
+      const contentKey = `${action.action_type}:${action.action_name}:${action.offset_minutes}`
+      if (!generatedIdsRef.current.has(contentKey)) {
+        generatedIdsRef.current.set(contentKey, crypto.randomUUID())
       }
-      return { ...action, id: generatedIdsRef.current.get(action) }
+      return { ...action, id: generatedIdsRef.current.get(contentKey) }
     }),
     [actions]
   )
