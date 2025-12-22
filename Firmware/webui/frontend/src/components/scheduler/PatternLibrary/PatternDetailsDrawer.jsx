@@ -25,12 +25,8 @@ const actionTypeLabels = {
 };
 
 function PatternDetailsDrawer({ pattern, isOpen, onClose, onSelect }) {
-  // Don't render if closed or no pattern
-  if (!isOpen || !pattern) {
-    return null;
-  }
-
-  // Handle escape key
+  // Handle escape key and body scroll lock
+  // Note: This hook must be called before any early returns to satisfy Rules of Hooks
   useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === 'Escape') {
@@ -40,8 +36,9 @@ function PatternDetailsDrawer({ pattern, isOpen, onClose, onSelect }) {
 
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
-      // Prevent body scroll when drawer is open
       document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
     }
 
     return () => {
@@ -49,6 +46,11 @@ function PatternDetailsDrawer({ pattern, isOpen, onClose, onSelect }) {
       document.body.style.overflow = 'unset';
     };
   }, [isOpen, onClose]);
+
+  // Don't render if closed or no pattern
+  if (!isOpen || !pattern) {
+    return null;
+  }
 
   // Sort actions by offset_minutes
   const sortedActions = [...(pattern.actions || [])].sort(
@@ -89,7 +91,7 @@ function PatternDetailsDrawer({ pattern, isOpen, onClose, onSelect }) {
                       className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
                         pattern.category === 'built-in'
                           ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                          : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                          : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
                       }`}
                     >
                       {pattern.category}
@@ -176,7 +178,7 @@ function PatternDetailsDrawer({ pattern, isOpen, onClose, onSelect }) {
                       const isLast = index === sortedActions.length - 1;
 
                       return (
-                        <div key={index} className="relative">
+                        <div key={`${action.action_name}-${action.offset_minutes}-${index}`} className="relative">
                           <div className="flex items-start">
                             {/* Timeline dot and line */}
                             <div className="relative mr-4 flex flex-col items-center">

@@ -1,7 +1,7 @@
 import { memo, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { BoltIcon, ClockIcon } from '@heroicons/react/24/outline';
-import TagChip from '../../gallery/TagChip';
+import TagChip from '@/components/gallery/TagChip';
 
 /**
  * PatternCard Component

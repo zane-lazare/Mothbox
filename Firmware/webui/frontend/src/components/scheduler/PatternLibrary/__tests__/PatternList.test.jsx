@@ -26,9 +26,7 @@ vi.mock('../PatternCard', () => ({
 
 vi.mock('../PatternFilters', () => ({
   default: ({
-    category,
     onCategoryChange,
-    viewMode,
     onViewModeChange,
     searchQuery,
     onSearchChange,

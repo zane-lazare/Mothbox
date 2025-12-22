@@ -34,6 +34,8 @@ function PatternFilters({
   }, [searchQuery]);
 
   // Debounce search input (300ms)
+  // Note: Parent component should memoize onSearchChange with useCallback
+  // to prevent unnecessary re-renders when the callback reference changes
   useEffect(() => {
     const timer = setTimeout(() => {
       if (localSearch !== searchQuery) {

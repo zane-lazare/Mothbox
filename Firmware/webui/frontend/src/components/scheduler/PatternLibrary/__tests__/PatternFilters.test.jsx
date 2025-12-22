@@ -218,7 +218,7 @@ describe('PatternFilters', () => {
 
     it('clear button clears searchQuery', async () => {
       const user = userEvent.setup();
-      const { rerender } = render(
+      render(
         <PatternFilters {...defaultProps} searchQuery="moth" />
       );
 
@@ -310,7 +310,7 @@ describe('PatternFilters', () => {
 
   describe('Edge Cases', () => {
     it('handles undefined availableTags gracefully', () => {
-      const { container } = render(
+      render(
         <PatternFilters {...defaultProps} availableTags={undefined} />
       );
 
