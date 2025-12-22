@@ -144,12 +144,37 @@ const TriggerForm = ({
   );
 };
 
+/** PropTypes shape for time window configuration */
+const TimeWindowPropType = PropTypes.shape({
+  start_time: PropTypes.string,
+  end_time: PropTypes.string,
+  start_offset_minutes: PropTypes.number,
+  end_offset_minutes: PropTypes.number,
+});
+
+/** PropTypes shape for trigger errors */
+const TriggerErrorsPropType = PropTypes.shape({
+  trigger_type: PropTypes.string,
+  interval_minutes: PropTypes.string,
+  time_window: PropTypes.object,
+  solar_event: PropTypes.string,
+  offset_minutes: PropTypes.string,
+  moon_phase: PropTypes.string,
+  time_of_day: PropTypes.string,
+  offset_days: PropTypes.string,
+  sensor_type: PropTypes.string,
+  comparison: PropTypes.string,
+  threshold: PropTypes.string,
+  cooldown_minutes: PropTypes.string,
+  days_of_week: PropTypes.string,
+});
+
 TriggerForm.propTypes = {
   value: PropTypes.shape({
-    trigger_type: PropTypes.oneOf(['interval', 'solar', 'moon_phase', 'fixed_time', 'sensor']),
+    trigger_type: PropTypes.oneOf(['interval', 'solar', 'moon_phase', 'fixed_time', 'sensor']).isRequired,
     // Interval trigger fields
     interval_minutes: PropTypes.number,
-    time_window: PropTypes.object,
+    time_window: TimeWindowPropType,
     // Solar trigger fields
     solar_event: PropTypes.string,
     offset_minutes: PropTypes.number,
@@ -169,7 +194,7 @@ TriggerForm.propTypes = {
   }),
   onChange: PropTypes.func.isRequired,
   disabled: PropTypes.bool,
-  errors: PropTypes.object,
+  errors: TriggerErrorsPropType,
 };
 
 export default TriggerForm;

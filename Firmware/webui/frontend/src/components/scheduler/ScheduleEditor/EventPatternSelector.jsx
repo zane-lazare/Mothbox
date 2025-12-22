@@ -218,17 +218,27 @@ const EventPatternSelector = ({
   );
 };
 
+/** PropTypes shape for action in a pattern */
+const ActionPropType = PropTypes.shape({
+  action_id: PropTypes.string,
+  type: PropTypes.string.isRequired,
+  parameters: PropTypes.object,
+});
+
+/** PropTypes shape for pattern */
+const PatternPropType = PropTypes.shape({
+  pattern_id: PropTypes.string,
+  name: PropTypes.string.isRequired,
+  description: PropTypes.string,
+  actions: PropTypes.arrayOf(ActionPropType).isRequired,
+  category: PropTypes.string,
+  tags: PropTypes.arrayOf(PropTypes.string),
+});
+
 EventPatternSelector.propTypes = {
   value: PropTypes.shape({
     source: PropTypes.oneOf(['library', 'custom']),
-    pattern: PropTypes.shape({
-      pattern_id: PropTypes.string,
-      name: PropTypes.string,
-      description: PropTypes.string,
-      actions: PropTypes.arrayOf(PropTypes.object),
-      category: PropTypes.string,
-      tags: PropTypes.arrayOf(PropTypes.string),
-    }),
+    pattern: PatternPropType,
   }),
   onChange: PropTypes.func.isRequired,
   disabled: PropTypes.bool,

@@ -270,49 +270,59 @@ const PreviewSection = ({
   );
 };
 
+/** PropTypes shape for time window configuration */
+const TimeWindowPropType = PropTypes.shape({
+  start_time: PropTypes.string,
+  end_time: PropTypes.string,
+  start_offset_minutes: PropTypes.number,
+  end_offset_minutes: PropTypes.number,
+});
+
+/** PropTypes shape for trigger configuration */
+const TriggerPropType = PropTypes.shape({
+  type: PropTypes.oneOf(['interval', 'solar', 'moon_phase', 'fixed_time', 'sensor']),
+  // Interval trigger
+  interval_minutes: PropTypes.number,
+  time_window: TimeWindowPropType,
+  // Solar trigger
+  solar_event: PropTypes.string,
+  offset_minutes: PropTypes.number,
+  // Fixed time trigger
+  time: PropTypes.string,
+  // Moon phase trigger
+  phase: PropTypes.string,
+  offset_days: PropTypes.number,
+  // Common
+  days_of_week: PropTypes.arrayOf(PropTypes.number),
+  // Sensor trigger
+  sensor_type: PropTypes.string,
+  threshold: PropTypes.number,
+});
+
+/** PropTypes shape for action in a pattern */
+const ActionPropType = PropTypes.shape({
+  action_id: PropTypes.string,
+  type: PropTypes.string.isRequired,
+  parameters: PropTypes.object,
+});
+
+/** PropTypes shape for pattern configuration */
+const PatternPropType = PropTypes.shape({
+  pattern_id: PropTypes.string,
+  name: PropTypes.string.isRequired,
+  description: PropTypes.string,
+  actions: PropTypes.arrayOf(ActionPropType).isRequired,
+  category: PropTypes.string,
+  tags: PropTypes.arrayOf(PropTypes.string),
+});
+
 PreviewSection.propTypes = {
-  trigger: PropTypes.shape({
-    type: PropTypes.oneOf(['interval', 'solar', 'moon_phase', 'fixed_time', 'sensor']),
-    // Interval trigger
-    interval_minutes: PropTypes.number,
-    time_window: PropTypes.shape({
-      start_time: PropTypes.string,
-      end_time: PropTypes.string,
-      start_offset_minutes: PropTypes.number,
-      end_offset_minutes: PropTypes.number,
-    }),
-    // Solar trigger
-    solar_event: PropTypes.string,
-    offset_minutes: PropTypes.number,
-    // Fixed time trigger
-    time: PropTypes.string,
-    // Moon phase trigger
-    phase: PropTypes.string,
-    offset_days: PropTypes.number,
-    // Common
-    days_of_week: PropTypes.arrayOf(PropTypes.number),
-    // Sensor trigger
-    sensor_type: PropTypes.string,
-    threshold: PropTypes.number,
-  }),
+  trigger: TriggerPropType,
   dateRange: PropTypes.shape({
     start_date: PropTypes.string,
     end_date: PropTypes.string,
   }),
-  pattern: PropTypes.shape({
-    pattern_id: PropTypes.string,
-    name: PropTypes.string,
-    description: PropTypes.string,
-    actions: PropTypes.arrayOf(
-      PropTypes.shape({
-        action_id: PropTypes.string,
-        type: PropTypes.string,
-        parameters: PropTypes.object,
-      })
-    ),
-    category: PropTypes.string,
-    tags: PropTypes.arrayOf(PropTypes.string),
-  }),
+  pattern: PatternPropType,
   disabled: PropTypes.bool,
 };
 

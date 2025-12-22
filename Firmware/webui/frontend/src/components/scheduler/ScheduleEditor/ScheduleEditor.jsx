@@ -428,14 +428,58 @@ const ScheduleEditor = ({
   );
 };
 
+/** PropTypes shape for trigger configuration */
+const TriggerPropType = PropTypes.shape({
+  trigger_type: PropTypes.oneOf(['interval', 'solar', 'moon_phase', 'fixed_time', 'sensor']),
+  // Interval trigger
+  interval_minutes: PropTypes.number,
+  time_window: PropTypes.shape({
+    start_time: PropTypes.string,
+    end_time: PropTypes.string,
+    start_offset_minutes: PropTypes.number,
+    end_offset_minutes: PropTypes.number,
+  }),
+  // Solar trigger
+  solar_event: PropTypes.string,
+  offset_minutes: PropTypes.number,
+  // Moon phase trigger
+  moon_phase: PropTypes.string,
+  time_of_day: PropTypes.string,
+  offset_days: PropTypes.number,
+  // Sensor trigger
+  sensor_type: PropTypes.string,
+  comparison: PropTypes.string,
+  threshold: PropTypes.number,
+  cooldown_minutes: PropTypes.number,
+  // Common
+  days_of_week: PropTypes.arrayOf(PropTypes.number),
+});
+
+/** PropTypes shape for action in a pattern */
+const ActionPropType = PropTypes.shape({
+  action_id: PropTypes.string,
+  type: PropTypes.string.isRequired,
+  parameters: PropTypes.object,
+});
+
+/** PropTypes shape for event pattern */
+const PatternPropType = PropTypes.shape({
+  pattern_id: PropTypes.string,
+  name: PropTypes.string.isRequired,
+  description: PropTypes.string,
+  actions: PropTypes.arrayOf(ActionPropType).isRequired,
+  category: PropTypes.string,
+  tags: PropTypes.arrayOf(PropTypes.string),
+});
+
 ScheduleEditor.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   schedule: PropTypes.shape({
     schedule_id: PropTypes.string,
     name: PropTypes.string,
     description: PropTypes.string,
-    trigger: PropTypes.object,
-    event_patterns: PropTypes.arrayOf(PropTypes.object),
+    trigger: TriggerPropType,
+    event_patterns: PropTypes.arrayOf(PatternPropType),
     date_range: PropTypes.shape({
       start_date: PropTypes.string,
       end_date: PropTypes.string,
