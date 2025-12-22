@@ -13,3 +13,6 @@ export { default as SchedulerTabs } from './SchedulerTabs'
 export { default as ActiveScheduleBanner } from './ActiveScheduleBanner'
 export { default as ScheduleListPlaceholder } from './ScheduleListPlaceholder'
 export { default as CalendarViewPlaceholder } from './CalendarViewPlaceholder'
+
+// Pattern Library Components (Issue #225)
+export { PatternList, PatternCard, PatternDetailsDrawer, PatternFilters } from './PatternLibrary'
