@@ -218,7 +218,8 @@ export default function ActionList({ actions = [], onActionsChange }) {
   )
 
   // Track generated IDs for actions without stable IDs from parent
-  const generatedIdsRef = useRef(new Map())
+  // Using WeakMap allows garbage collection when actions are removed
+  const generatedIdsRef = useRef(new WeakMap())
 
   // Ensure all actions have stable IDs
   // Uses a ref to maintain consistent IDs for actions that lack them
