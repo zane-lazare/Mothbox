@@ -18,10 +18,16 @@ Issue #216 - Scheduler Phase 4: Integration Tests
 import json
 import os
 import sys
+import uuid
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+
+
+def _test_uuid(name: str) -> str:
+    """Generate deterministic test UUID from name."""
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"test.integration.activation.{name}"))
 
 # Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration
@@ -69,19 +75,19 @@ class TestActivationWorkflow:
 
         # 1. CREATE - Create new schedule
         schedule = sample_schedule_factory(
-            schedule_id="workflow-test",
+            schedule_id=_test_uuid("workflow-test"),
             name="Full Workflow Test",
         )
         create_schedule(schedule)
 
         # Verify schedule exists but is not active
-        fetched = scheduler_service.get_schedule("workflow-test")
+        fetched = scheduler_service.get_schedule(_test_uuid("workflow-test"))
         assert fetched is not None, "Schedule should exist"
         assert fetched.is_active is False, "Schedule should not be active initially"
 
         # 2. ACTIVATE
         scheduler_service.activate_schedule(
-            "workflow-test",
+            _test_uuid("workflow-test"),
             check_conflicts=False,
         )
         # No exception = success
@@ -89,7 +95,7 @@ class TestActivationWorkflow:
         # 3. VERIFY ACTIVE
         active = scheduler_service.get_active_schedule()
         assert active is not None, "Should have an active schedule"
-        assert active.schedule_id == "workflow-test", "Active schedule should match"
+        assert active.schedule_id == _test_uuid("workflow-test"), "Active schedule should match"
         assert active.is_active is True, "Schedule should be marked active"
 
         # 4. DEACTIVATE
@@ -101,7 +107,7 @@ class TestActivationWorkflow:
         assert active_after is None, "Should have no active schedule"
 
         # Refetch to verify is_active flag
-        fetched_after = scheduler_service.get_schedule("workflow-test")
+        fetched_after = scheduler_service.get_schedule(_test_uuid("workflow-test"))
         assert fetched_after.is_active is False, "Schedule should be marked inactive"
 
     def test_only_one_schedule_active_at_time(
@@ -115,11 +121,11 @@ class TestActivationWorkflow:
 
         # Create two schedules
         schedule_a = sample_schedule_factory(
-            schedule_id="schedule-a",
+            schedule_id=_test_uuid("schedule-a"),
             name="Schedule A",
         )
         schedule_b = sample_schedule_factory(
-            schedule_id="schedule-b",
+            schedule_id=_test_uuid("schedule-b"),
             name="Schedule B",
         )
         create_schedule(schedule_a)
@@ -127,28 +133,28 @@ class TestActivationWorkflow:
 
         # Activate schedule A
         scheduler_service.activate_schedule(
-            "schedule-a",
+            _test_uuid("schedule-a"),
             check_conflicts=False,
         )
         # No exception = success
 
         # Verify A is active
         active1 = scheduler_service.get_active_schedule()
-        assert active1.schedule_id == "schedule-a", "Schedule A should be active"
+        assert active1.schedule_id == _test_uuid("schedule-a"), "Schedule A should be active"
 
         # Activate schedule B
         scheduler_service.activate_schedule(
-            "schedule-b",
+            _test_uuid("schedule-b"),
             check_conflicts=False,
         )
         # No exception = success
 
         # Verify B is now active and A is not
         active2 = scheduler_service.get_active_schedule()
-        assert active2.schedule_id == "schedule-b", "Schedule B should be active"
+        assert active2.schedule_id == _test_uuid("schedule-b"), "Schedule B should be active"
 
         # Verify A was deactivated
-        schedule_a_after = scheduler_service.get_schedule("schedule-a")
+        schedule_a_after = scheduler_service.get_schedule(_test_uuid("schedule-a"))
         assert schedule_a_after.is_active is False, "Schedule A should be deactivated"
 
     def test_activation_fails_for_disabled_schedule(
@@ -163,7 +169,7 @@ class TestActivationWorkflow:
 
         # Create disabled schedule
         schedule = sample_schedule_factory(
-            schedule_id="disabled-test",
+            schedule_id=_test_uuid("disabled-test"),
             name="Disabled Schedule",
             enabled=False,
         )
@@ -172,7 +178,7 @@ class TestActivationWorkflow:
         # Attempt activation - should raise exception
         with pytest.raises(ScheduleActivationError, match="(?i)disabled"):
             scheduler_service.activate_schedule(
-                "disabled-test",
+                _test_uuid("disabled-test"),
                 check_conflicts=False,
             )
 
@@ -188,14 +194,14 @@ class TestActivationWorkflow:
 
         # Create and activate schedule
         schedule = sample_schedule_factory(
-            schedule_id="idempotent-test",
+            schedule_id=_test_uuid("idempotent-test"),
             name="Idempotent Test",
         )
         create_schedule(schedule)
 
         # First activation
         scheduler_service.activate_schedule(
-            "idempotent-test",
+            _test_uuid("idempotent-test"),
             check_conflicts=False,
         )
         # No exception = success
@@ -205,7 +211,7 @@ class TestActivationWorkflow:
 
         # Second activation of same schedule (should also succeed without exception)
         scheduler_service.activate_schedule(
-            "idempotent-test",
+            _test_uuid("idempotent-test"),
             check_conflicts=False,
         )
         # No exception = success (idempotent)
@@ -236,18 +242,18 @@ class TestPersistenceAcrossRestarts:
 
         # Create and activate schedule
         schedule = sample_schedule_factory(
-            schedule_id="persist-test",
+            schedule_id=_test_uuid("persist-test"),
             name="Persistence Test",
         )
         create_schedule(schedule)
 
         scheduler_service.activate_schedule(
-            "persist-test",
+            _test_uuid("persist-test"),
             check_conflicts=False,
         )
 
         # Read JSON file directly from disk
-        schedule_file = user_dir / "persist-test.json"
+        schedule_file = user_dir / f"{_test_uuid('persist-test')}.json"
         assert schedule_file.exists(), "Schedule file should exist"
 
         with open(schedule_file) as f:
@@ -270,12 +276,12 @@ class TestPersistenceAcrossRestarts:
 
         # Create and activate schedule
         schedule = sample_schedule_factory(
-            schedule_id="restore-test",
+            schedule_id=_test_uuid("restore-test"),
             name="Restore Test",
         )
         create_schedule(schedule)
 
-        service1.activate_schedule("restore-test", check_conflicts=False)
+        service1.activate_schedule(_test_uuid("restore-test"), check_conflicts=False)
 
         # Verify active
         assert service1.get_active_schedule() is not None
@@ -287,7 +293,7 @@ class TestPersistenceAcrossRestarts:
         active = service2.get_active_schedule()
 
         assert active is not None, "New service should find previously active schedule"
-        assert active.schedule_id == "restore-test", "Should restore correct schedule"
+        assert active.schedule_id == _test_uuid("restore-test"), "Should restore correct schedule"
         assert active.is_active is True, "Should be marked as active"
 
     def test_activation_from_different_instance_when_already_active(
@@ -305,13 +311,13 @@ class TestPersistenceAcrossRestarts:
 
         # Create and activate schedule with service1
         schedule1 = sample_schedule_factory(
-            schedule_id="cross-instance-test-1",
+            schedule_id=_test_uuid("cross-instance-test-1"),
             name="First Schedule",
         )
         create_schedule(schedule1)
 
         service1.activate_schedule(
-            "cross-instance-test-1",
+            _test_uuid("cross-instance-test-1"),
             check_conflicts=False,
         )
         # No exception = success
@@ -322,13 +328,13 @@ class TestPersistenceAcrossRestarts:
         # Verify service2 discovers the previously active schedule from disk
         active_before = service2.get_active_schedule()
         assert active_before is not None, "Service2 should find active schedule from disk"
-        assert active_before.schedule_id == "cross-instance-test-1", (
+        assert active_before.schedule_id == _test_uuid("cross-instance-test-1"), (
             "Service2 should discover schedule1 as active"
         )
 
         # Create second schedule
         schedule2 = sample_schedule_factory(
-            schedule_id="cross-instance-test-2",
+            schedule_id=_test_uuid("cross-instance-test-2"),
             name="Second Schedule",
         )
         create_schedule(schedule2)
@@ -336,7 +342,7 @@ class TestPersistenceAcrossRestarts:
         # After discovering active schedule, service2's _active_schedule_id is set
         # Now activating a different schedule should deactivate the old one
         service2.activate_schedule(
-            "cross-instance-test-2",
+            _test_uuid("cross-instance-test-2"),
             check_conflicts=False,
         )
         # No exception = success
@@ -344,12 +350,12 @@ class TestPersistenceAcrossRestarts:
         # Verify new schedule is active
         active = service2.get_active_schedule()
         assert active is not None, "Should have an active schedule"
-        assert active.schedule_id == "cross-instance-test-2", (
+        assert active.schedule_id == _test_uuid("cross-instance-test-2"), (
             f"Active schedule should be the new one, got {active.schedule_id}"
         )
 
         # Verify old schedule is no longer active
-        old_schedule = service2.get_schedule("cross-instance-test-1")
+        old_schedule = service2.get_schedule(_test_uuid("cross-instance-test-1"))
         assert old_schedule is not None, "Old schedule should still exist"
         assert old_schedule.is_active is False, "Old schedule should be deactivated"
 
@@ -368,20 +374,20 @@ class TestPersistenceAcrossRestarts:
 
         # Create schedule with specific data
         schedule = sample_schedule_factory(
-            schedule_id="data-persist-test",
+            schedule_id=_test_uuid("data-persist-test"),
             name="Data Persistence Test",
             hour=22,
             minute=30,
         )
         create_schedule(schedule)
 
-        service1.activate_schedule("data-persist-test", check_conflicts=False)
+        service1.activate_schedule(_test_uuid("data-persist-test"), check_conflicts=False)
 
         # Create NEW service instance
         service2 = SchedulerService(cache_ttl=60, max_cache_size=50)
 
         # Read schedule on new instance
-        restored = service2.get_schedule("data-persist-test")
+        restored = service2.get_schedule(_test_uuid("data-persist-test"))
 
         # Verify all data persisted
         assert restored is not None, "Schedule should exist"
@@ -431,7 +437,7 @@ class TestErrorHandling:
         service = SchedulerService(cache_ttl=60, max_cache_size=50)
 
         schedule = sample_schedule_factory(
-            schedule_id="rollback-test",
+            schedule_id=_test_uuid("rollback-test"),
             name="Rollback Test",
         )
         create_schedule(schedule)
@@ -439,12 +445,12 @@ class TestErrorHandling:
         # Attempt activation (should raise exception)
         with pytest.raises(ScheduleActivationError, match="(?i)failed"):
             service.activate_schedule(
-                "rollback-test",
+                _test_uuid("rollback-test"),
                 check_conflicts=False,
             )
 
         # Verify rollback: schedule should NOT be active
-        fetched = service.get_schedule("rollback-test")
+        fetched = service.get_schedule(_test_uuid("rollback-test"))
         assert fetched.is_active is False, "Schedule should be rolled back to inactive"
 
         # Verify no active schedule
@@ -494,31 +500,31 @@ class TestErrorHandling:
 
         # Create and activate first schedule (succeeds)
         schedule1 = sample_schedule_factory(
-            schedule_id="preserve-test-1",
+            schedule_id=_test_uuid("preserve-test-1"),
             name="First Schedule",
         )
         create_schedule(schedule1)
-        service.activate_schedule("preserve-test-1", check_conflicts=False)
+        service.activate_schedule(_test_uuid("preserve-test-1"), check_conflicts=False)
         # No exception = success
 
         # Verify first schedule is active
         active1 = service.get_active_schedule()
         assert active1 is not None
-        assert active1.schedule_id == "preserve-test-1"
+        assert active1.schedule_id == _test_uuid("preserve-test-1")
 
         # Reset mock to track second activation
         remove_mock.reset_mock()
 
         # Create second schedule
         schedule2 = sample_schedule_factory(
-            schedule_id="preserve-test-2",
+            schedule_id=_test_uuid("preserve-test-2"),
             name="Second Schedule",
         )
         create_schedule(schedule2)
 
         # Attempt activation of second schedule (will raise exception)
         with pytest.raises(ScheduleActivationError, match="(?i)failed"):
-            service.activate_schedule("preserve-test-2", check_conflicts=False)
+            service.activate_schedule(_test_uuid("preserve-test-2"), check_conflicts=False)
 
         # Verify remove_from_system was called during deactivation of previous schedule
         # (called before attempting to apply new schedule)
@@ -532,5 +538,5 @@ class TestErrorHandling:
         assert clear_rtc is True, "Should clear RTC when deactivating previous schedule"
 
         # Verify second schedule is NOT active
-        fetched2 = service.get_schedule("preserve-test-2")
+        fetched2 = service.get_schedule(_test_uuid("preserve-test-2"))
         assert fetched2.is_active is False, "Failed schedule should not be active"

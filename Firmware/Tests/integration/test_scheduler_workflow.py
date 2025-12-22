@@ -18,10 +18,16 @@ Issue #216 - Scheduler Phase 4: Integration Tests
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+
+
+def _test_uuid(name: str) -> str:
+    """Generate deterministic test UUID from name."""
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"test.integration.workflow.{name}"))
 
 # Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration
@@ -90,7 +96,7 @@ class TestCronJobManagement:
         """Activating a schedule creates the expected cron entries."""
         # Create schedule with fixed time trigger at 21:00
         schedule = sample_schedule_factory(
-            schedule_id="cron-test-1",
+            schedule_id=_test_uuid("cron-test-1"),
             name="Cron Test Schedule",
             trigger_type="fixed_time",
             hour=21,
@@ -104,7 +110,7 @@ class TestCronJobManagement:
 
         # Activate schedule
         scheduler_service.activate_schedule(
-            "cron-test-1",
+            _test_uuid("cron-test-1"),
             check_conflicts=False,
         )
         # No exception = success
@@ -145,13 +151,13 @@ class TestCronJobManagement:
 
         # Create and activate first schedule
         schedule1 = sample_schedule_factory(
-            schedule_id="cron-test-2a",
+            schedule_id=_test_uuid("cron-test-2a"),
             name="First Schedule",
         )
         create_schedule(schedule1)
 
         scheduler_service.activate_schedule(
-            "cron-test-2a",
+            _test_uuid("cron-test-2a"),
             check_conflicts=False,
         )
         # No exception = success (first activation)
@@ -162,13 +168,13 @@ class TestCronJobManagement:
 
         # Create and activate second schedule
         schedule2 = sample_schedule_factory(
-            schedule_id="cron-test-2b",
+            schedule_id=_test_uuid("cron-test-2b"),
             name="Second Schedule",
         )
         create_schedule(schedule2)
 
         scheduler_service.activate_schedule(
-            "cron-test-2b",
+            _test_uuid("cron-test-2b"),
             check_conflicts=False,
         )
         # No exception = success (second activation)
@@ -190,13 +196,13 @@ class TestCronJobManagement:
 
         # Create and activate schedule
         schedule = sample_schedule_factory(
-            schedule_id="cron-test-3",
+            schedule_id=_test_uuid("cron-test-3"),
             name="Deactivation Test",
         )
         create_schedule(schedule)
 
         scheduler_service.activate_schedule(
-            "cron-test-3",
+            _test_uuid("cron-test-3"),
             check_conflicts=False,
         )
         # No exception = success
@@ -250,14 +256,14 @@ class TestRTCWakealarmManagement:
 
         # Create schedule
         schedule = sample_schedule_factory(
-            schedule_id="rtc-test-1",
+            schedule_id=_test_uuid("rtc-test-1"),
             name="RTC Set Test",
         )
         create_schedule(schedule)
 
         # Activate
         scheduler_service.activate_schedule(
-            "rtc-test-1",
+            _test_uuid("rtc-test-1"),
             check_conflicts=False,
         )
         # No exception = success
@@ -278,12 +284,12 @@ class TestRTCWakealarmManagement:
 
         # Create and activate schedule
         schedule = sample_schedule_factory(
-            schedule_id="rtc-test-2",
+            schedule_id=_test_uuid("rtc-test-2"),
             name="RTC Clear Test",
         )
         create_schedule(schedule)
 
-        scheduler_service.activate_schedule("rtc-test-2", check_conflicts=False)
+        scheduler_service.activate_schedule(_test_uuid("rtc-test-2"), check_conflicts=False)
         scheduler_service._remove_mock.reset_mock()
 
         # Deactivate
@@ -303,7 +309,7 @@ class TestRTCWakealarmManagement:
 
         # Create schedule with fixed time
         schedule = sample_schedule_factory(
-            schedule_id="rtc-test-3",
+            schedule_id=_test_uuid("rtc-test-3"),
             name="RTC Calculation Test",
             trigger_type="fixed_time",
             hour=21,
@@ -466,7 +472,7 @@ class TestTriggerTypeWorkflows:
         """Interval trigger within window creates entry per execution."""
         # Create schedule with interval trigger: every 60 min from 21:00-23:00
         schedule = sample_schedule_factory(
-            schedule_id="interval-test",
+            schedule_id=_test_uuid("interval-test"),
             name="Interval Test",
             trigger_type="interval",
             interval_minutes=60,
@@ -495,7 +501,7 @@ class TestTriggerTypeWorkflows:
         """Solar trigger creates entries for N days ahead."""
         # Create schedule with solar trigger: sunset+30
         schedule = sample_schedule_factory(
-            schedule_id="solar-test",
+            schedule_id=_test_uuid("solar-test"),
             name="Solar Test",
             trigger_type="solar",
         )
@@ -536,7 +542,7 @@ class TestTriggerTypeWorkflows:
         )
 
         pattern = EventPattern(
-            pattern_id="",
+            pattern_id=_test_uuid("sensor-pattern"),
             name="Motion Capture",
             description="Capture on motion detection",
             actions=[action],
@@ -552,7 +558,7 @@ class TestTriggerTypeWorkflows:
         )
 
         schedule = Schedule(
-            schedule_id="sensor-test",
+            schedule_id=_test_uuid("sensor-test"),
             name="Motion Detection Test",
             description="Test sensor trigger handling",
             event_patterns=[pattern],

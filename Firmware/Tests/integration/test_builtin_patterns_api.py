@@ -10,7 +10,14 @@ Tests the patterns/builtin endpoint and validates that:
 Requires the Flask app to be running or mocked.
 """
 
+import uuid
+
 import pytest
+
+
+def _test_uuid(name: str) -> str:
+    """Generate deterministic test UUID from name."""
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"test.integration.builtin.{name}"))
 
 # Try to import Flask app for testing
 try:
@@ -259,7 +266,7 @@ class TestPatternValidationEndpoint:
     def test_valid_pattern_passes_validation(self, client) -> None:
         """A valid pattern structure should pass validation."""
         pattern = {
-            "pattern_id": "test-pattern",
+            "pattern_id": _test_uuid("test-pattern"),
             "name": "Test Pattern",
             "description": "A test pattern for validation",
             "actions": [

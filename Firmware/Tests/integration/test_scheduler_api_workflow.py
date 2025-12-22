@@ -17,11 +17,17 @@ Issue #218 - Schedule Pattern API
 
 import os
 import sys
+import uuid
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 from flask import Flask
+
+
+def _test_uuid(name: str) -> str:
+    """Generate deterministic test UUID from name."""
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"test.integration.api.{name}"))
 
 # Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration
@@ -149,7 +155,7 @@ def sample_schedule_data():
         },
         "event_patterns": [
             {
-                "pattern_id": "test-pattern",
+                "pattern_id": _test_uuid("test-pattern"),
                 "name": "Test Pattern",
                 "description": "Test pattern for integration tests",
                 "actions": [
@@ -264,7 +270,7 @@ class TestBuiltinScheduleProtection:
         user_dir, builtin_dir = schedule_dirs
 
         # Create a built-in schedule directly in storage
-        builtin_id = "builtin-test-readonly"
+        builtin_id = _test_uuid("builtin-test-readonly")
 
         action = PatternAction(
             action_type="camera",
@@ -274,7 +280,7 @@ class TestBuiltinScheduleProtection:
         )
 
         pattern = EventPattern(
-            pattern_id="builtin-pattern",
+            pattern_id=_test_uuid("builtin-pattern"),
             name="Built-in Pattern",
             description="A built-in pattern",
             actions=[action],
@@ -327,7 +333,7 @@ class TestBuiltinScheduleProtection:
         user_dir, builtin_dir = schedule_dirs
 
         # Create a built-in schedule
-        builtin_id = "builtin-test-nodelete"
+        builtin_id = _test_uuid("builtin-test-nodelete")
 
         action = PatternAction(
             action_type="camera",
@@ -337,7 +343,7 @@ class TestBuiltinScheduleProtection:
         )
 
         pattern = EventPattern(
-            pattern_id="builtin-pattern-2",
+            pattern_id=_test_uuid("builtin-pattern-2"),
             name="Built-in Pattern",
             description="A built-in pattern",
             actions=[action],

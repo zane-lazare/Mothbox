@@ -22,10 +22,16 @@ import shutil
 import sys
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import pytest
+
+
+def _test_uuid(name: str) -> str:
+    """Generate deterministic test UUID from name."""
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"test.integration.storage.{name}"))
 
 # Mark all tests in this module as integration tests (but not hardware)
 pytestmark = pytest.mark.integration
@@ -88,6 +94,10 @@ def sample_schedule_factory():
 
     def _create_schedule(schedule_id="", name="Test Schedule", interval_minutes=60):
         """Create a valid schedule with specified parameters."""
+        # Generate UUIDs if not provided
+        if not schedule_id:
+            schedule_id = _test_uuid(f"default-{name}")
+
         action = PatternAction(
             action_type="gpio",
             action_name="attract_on",
@@ -96,7 +106,7 @@ def sample_schedule_factory():
         )
 
         pattern = EventPattern(
-            pattern_id="",
+            pattern_id=_test_uuid(f"pattern-{schedule_id}"),
             name="UV Capture Cycle",
             description="Test pattern",
             actions=[action],
@@ -138,7 +148,7 @@ class TestScheduleWorkflow:
 
         # 1. CREATE - Create new schedule
         schedule = sample_schedule_factory(
-            schedule_id="workflow-test",
+            schedule_id=_test_uuid("workflow-test"),
             name="Workflow Test Schedule",
         )
 
@@ -193,7 +203,7 @@ class TestScheduleWorkflow:
     ):
         """Multiple threads reading same schedule should not corrupt data."""
         schedule = sample_schedule_factory(
-            schedule_id="concurrent-read-test",
+            schedule_id=_test_uuid("concurrent-read-test"),
             name="Concurrent Read Test",
         )
 
@@ -243,7 +253,7 @@ class TestScheduleWorkflow:
 
         # Create and write schedule
         schedule = sample_schedule_factory(
-            schedule_id="persistence-test",
+            schedule_id=_test_uuid("persistence-test"),
             name="Persistence Test Schedule",
         )
 
@@ -303,11 +313,11 @@ class TestScheduleWorkflow:
         """International characters in schedule names should work correctly."""
         # Test various Unicode characters
         unicode_schedules = [
-            ("unicode-chinese", "夜间飞蛾调查"),  # Chinese
-            ("unicode-japanese", "夜間調査スケジュール"),  # Japanese
-            ("unicode-russian", "Ночной график мотыльков"),  # Russian
-            ("unicode-arabic", "جدول دراسة الفراشات الليلية"),  # Arabic
-            ("unicode-emoji", "Night Survey 🦋🌙"),  # Emoji
+            (_test_uuid("unicode-chinese"), "夜间飞蛾调查"),  # Chinese
+            (_test_uuid("unicode-japanese"), "夜間調査スケジュール"),  # Japanese
+            (_test_uuid("unicode-russian"), "Ночной график мотыльков"),  # Russian
+            (_test_uuid("unicode-arabic"), "جدول دراسة الفراشات الليلية"),  # Arabic
+            (_test_uuid("unicode-emoji"), "Night Survey 🦋🌙"),  # Emoji
         ]
 
         for schedule_id, unicode_name in unicode_schedules:
@@ -348,7 +358,7 @@ class TestScheduleWorkflow:
                 description=f"Action {i + 1}",
             )
             pattern = EventPattern(
-                pattern_id="",
+                pattern_id=_test_uuid(f"max-pattern-{i + 1}"),
                 name=f"Pattern {i + 1}",
                 description=f"Test pattern {i + 1}",
                 actions=[action],
@@ -360,7 +370,7 @@ class TestScheduleWorkflow:
         trigger = IntervalTrigger(interval_minutes=60, time_window=window)
 
         schedule = Schedule(
-            schedule_id="max-patterns-test",
+            schedule_id=_test_uuid("max-patterns-test"),
             name="Max Patterns Test",
             event_patterns=patterns,
             trigger_type="interval",
@@ -386,7 +396,7 @@ class TestScheduleWorkflow:
 
         # Create schedule
         schedule = sample_schedule_factory(
-            schedule_id="backup-restore-test",
+            schedule_id=_test_uuid("backup-restore-test"),
             name="Backup Restore Test",
         )
 
@@ -428,7 +438,7 @@ class TestScheduleWorkflow:
 
         # Create a built-in schedule
         builtin_schedule = sample_schedule_factory(
-            schedule_id="builtin-protected",
+            schedule_id=_test_uuid("builtin-protected"),
             name="Built-in Protected Schedule",
         )
 
