@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { DAYS_OF_WEEK } from './constants';
 
@@ -37,6 +38,16 @@ const DaysOfWeekSelector = ({
   allowEmpty = false,
   compact = false,
 }) => {
+  /**
+   * Initialize to valid state when allowEmpty=false and value is empty array
+   * This handles the edge case where value={[]} is passed but allowEmpty={false}
+   */
+  useEffect(() => {
+    if (!allowEmpty && Array.isArray(value) && value.length === 0) {
+      onChange([0]); // Default to Monday
+    }
+  }, [allowEmpty, value, onChange]);
+
   /**
    * Handle toggling a specific day of the week
    * @param {number} dayValue - Day value (0=Monday, 6=Sunday)
