@@ -508,4 +508,152 @@ describe('ScheduleEditor', () => {
       expect(header).toHaveClass('dark:text-white');
     });
   });
+
+  describe('Error Message Sanitization', () => {
+    it('displays known error codes as user-friendly messages', async () => {
+      const knownError = new Error();
+      knownError.code = 'NETWORK_ERROR';
+      mockOnSave.mockRejectedValue(knownError);
+
+      renderWithClient(
+        <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
+      );
+
+      // Fill required fields
+      const nameInput = screen.getByLabelText(/schedule name/i);
+      fireEvent.change(nameInput, { target: { value: 'Test' } });
+
+      const selectButton = screen.getByTestId('pattern-select');
+      fireEvent.click(selectButton);
+
+      const saveButton = screen.getByRole('button', { name: /save/i });
+      fireEvent.click(saveButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/unable to save.*connection/i)).toBeInTheDocument();
+      });
+    });
+
+    it('truncates long error messages to 200 characters', async () => {
+      const longMessage = 'A'.repeat(300);
+      mockOnSave.mockRejectedValue(new Error(longMessage));
+
+      renderWithClient(
+        <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
+      );
+
+      // Fill required fields
+      const nameInput = screen.getByLabelText(/schedule name/i);
+      fireEvent.change(nameInput, { target: { value: 'Test' } });
+
+      const selectButton = screen.getByTestId('pattern-select');
+      fireEvent.click(selectButton);
+
+      const saveButton = screen.getByRole('button', { name: /save/i });
+      fireEvent.click(saveButton);
+
+      await waitFor(() => {
+        const errorElement = screen.getByText(/A{50,}/);
+        // The error should be truncated - original was 300 chars
+        expect(errorElement.textContent.length).toBeLessThanOrEqual(200);
+      });
+    });
+
+    it('strips HTML-like characters from error messages', async () => {
+      const xssMessage = '<script>alert("xss")</script>';
+      mockOnSave.mockRejectedValue(new Error(xssMessage));
+
+      renderWithClient(
+        <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
+      );
+
+      // Fill required fields
+      const nameInput = screen.getByLabelText(/schedule name/i);
+      fireEvent.change(nameInput, { target: { value: 'Test' } });
+
+      const selectButton = screen.getByTestId('pattern-select');
+      fireEvent.click(selectButton);
+
+      const saveButton = screen.getByRole('button', { name: /save/i });
+      fireEvent.click(saveButton);
+
+      await waitFor(() => {
+        // Should not contain < or > characters
+        const errorContainer = document.querySelector('.text-red-600, .text-red-400');
+        expect(errorContainer).toBeInTheDocument();
+        expect(errorContainer.textContent).not.toContain('<');
+        expect(errorContainer.textContent).not.toContain('>');
+      });
+    });
+
+    it('handles validation errors with user-friendly message', async () => {
+      const validationError = new Error();
+      validationError.code = 'VALIDATION_ERROR';
+      mockOnSave.mockRejectedValue(validationError);
+
+      renderWithClient(
+        <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
+      );
+
+      // Fill required fields
+      const nameInput = screen.getByLabelText(/schedule name/i);
+      fireEvent.change(nameInput, { target: { value: 'Test' } });
+
+      const selectButton = screen.getByTestId('pattern-select');
+      fireEvent.click(selectButton);
+
+      const saveButton = screen.getByRole('button', { name: /save/i });
+      fireEvent.click(saveButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/fix the errors above/i)).toBeInTheDocument();
+      });
+    });
+
+    it('handles server errors with user-friendly message', async () => {
+      const serverError = new Error();
+      serverError.code = 'SERVER_ERROR';
+      mockOnSave.mockRejectedValue(serverError);
+
+      renderWithClient(
+        <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
+      );
+
+      // Fill required fields
+      const nameInput = screen.getByLabelText(/schedule name/i);
+      fireEvent.change(nameInput, { target: { value: 'Test' } });
+
+      const selectButton = screen.getByTestId('pattern-select');
+      fireEvent.click(selectButton);
+
+      const saveButton = screen.getByRole('button', { name: /save/i });
+      fireEvent.click(saveButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/server error.*try again/i)).toBeInTheDocument();
+      });
+    });
+
+    it('uses fallback message when error has no message', async () => {
+      mockOnSave.mockRejectedValue(new Error());
+
+      renderWithClient(
+        <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
+      );
+
+      // Fill required fields
+      const nameInput = screen.getByLabelText(/schedule name/i);
+      fireEvent.change(nameInput, { target: { value: 'Test' } });
+
+      const selectButton = screen.getByTestId('pattern-select');
+      fireEvent.click(selectButton);
+
+      const saveButton = screen.getByRole('button', { name: /save/i });
+      fireEvent.click(saveButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/failed to save schedule/i)).toBeInTheDocument();
+      });
+    });
+  });
 });

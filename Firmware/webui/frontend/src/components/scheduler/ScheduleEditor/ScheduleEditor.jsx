@@ -7,6 +7,37 @@ import PreviewSection from './PreviewSection';
 import { TRIGGER_DEFAULTS, SCHEDULE_LIMITS } from './constants';
 
 /**
+ * Known error codes and their user-friendly messages
+ */
+const KNOWN_ERROR_CODES = {
+  NETWORK_ERROR: 'Unable to save. Please check your connection.',
+  VALIDATION_ERROR: 'Please fix the errors above.',
+  SERVER_ERROR: 'Server error. Please try again later.',
+};
+
+/**
+ * Sanitize error messages for safe display
+ * - Maps known error codes to user-friendly messages
+ * - Truncates long messages to 200 characters
+ * - Strips HTML-like characters to prevent XSS
+ *
+ * @param {Error} error - The error object
+ * @returns {string} Sanitized error message
+ */
+const sanitizeErrorMessage = (error) => {
+  // Check for known error codes first
+  if (error?.code && KNOWN_ERROR_CODES[error.code]) {
+    return KNOWN_ERROR_CODES[error.code];
+  }
+
+  // Get message or use fallback
+  const message = String(error?.message || 'Failed to save schedule');
+
+  // Truncate to 200 characters and strip HTML-like characters
+  return message.slice(0, 200).replace(/[<>]/g, '');
+};
+
+/**
  * ScheduleEditor Component
  *
  * A drawer/panel component for creating and editing schedules.
@@ -184,7 +215,7 @@ const ScheduleEditor = ({
 
       await onSave(scheduleData);
     } catch (error) {
-      setErrors({ save: error.message || 'Failed to save schedule' });
+      setErrors({ save: sanitizeErrorMessage(error) });
     } finally {
       setIsSaving(false);
     }
