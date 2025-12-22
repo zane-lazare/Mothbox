@@ -15,8 +15,14 @@ Design Decisions:
 """
 
 import json
+import uuid
 
 import pytest
+
+
+def _test_uuid(name: str) -> str:
+    """Generate deterministic test UUID from name."""
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"test.storage.{name}"))
 
 # ============================================================================
 # Expected Interface
@@ -108,12 +114,12 @@ def sample_schedule_json():
     """Return valid schedule JSON string for testing."""
     return json.dumps({
         "schema_version": "2.0",
-        "schedule_id": "test-schedule-123",
+        "schedule_id": _test_uuid("test-schedule-123"),
         "name": "Test Schedule",
         "description": "A test schedule",
         "event_patterns": [
             {
-                "pattern_id": "pattern-1",
+                "pattern_id": _test_uuid("pattern-1"),
                 "name": "Test Pattern",
                 "description": "Test pattern description",
                 "actions": [
@@ -317,7 +323,7 @@ class TestCRUDOperations:
 
         # Create invalid schedule (missing required trigger config)
         invalid_schedule = Schedule(
-            schedule_id="invalid-schedule",
+            schedule_id=_test_uuid("invalid-schedule"),
             name="Invalid Schedule",
             event_patterns=[],  # Empty patterns (invalid)
             trigger_type="interval",
@@ -464,7 +470,7 @@ class TestBuiltinSchedules:
         (temp_builtin_dir / "nightly-survey.json").write_text(sample_schedule_json)
 
         schedule_data = json.loads(sample_schedule_json)
-        schedule_data["schedule_id"] = "hourly-capture"
+        schedule_data["schedule_id"] = _test_uuid("hourly-capture")
         (temp_builtin_dir / "hourly-capture.json").write_text(json.dumps(schedule_data))
 
         builtin_schedules = get_builtin_schedules()
@@ -476,10 +482,10 @@ class TestBuiltinSchedules:
         for schedule in builtin_schedules:
             assert isinstance(schedule, Schedule)
 
-        # Check schedule IDs
+        # Check schedule IDs are valid UUIDs
         schedule_ids = [s.schedule_id for s in builtin_schedules]
-        assert "nightly-survey" in schedule_ids
-        assert "hourly-capture" in schedule_ids
+        assert _test_uuid("test-schedule-123") in schedule_ids  # From sample_schedule_json
+        assert _test_uuid("hourly-capture") in schedule_ids
 
     def test_delete_builtin_schedule_raises_error(self, temp_builtin_dir, sample_schedule_json):
         """Deleting a built-in schedule raises ValueError."""
@@ -516,19 +522,19 @@ class TestBuiltinSchedules:
         sample_schedule_json
     ):
         """is_builtin_schedule() correctly identifies built-in vs user schedules."""
-        # Create built-in schedule
-        builtin_id = "nightly-survey"
-        (temp_builtin_dir / f"{builtin_id}.json").write_text(sample_schedule_json)
+        # Create built-in schedule (file key is just for lookup, doesn't need UUID)
+        builtin_file_key = "nightly-survey"
+        (temp_builtin_dir / f"{builtin_file_key}.json").write_text(sample_schedule_json)
 
         # Create user schedule
         user_schedule_data = json.loads(sample_schedule_json)
-        user_schedule_data["schedule_id"] = "my-custom-schedule"
-        user_id = "my-custom-schedule"
-        (temp_schedules_dir / f"{user_id}.json").write_text(json.dumps(user_schedule_data))
+        user_schedule_data["schedule_id"] = _test_uuid("my-custom-schedule")
+        user_file_key = "my-custom-schedule"
+        (temp_schedules_dir / f"{user_file_key}.json").write_text(json.dumps(user_schedule_data))
 
-        # Test identification
-        assert is_builtin_schedule(builtin_id) is True
-        assert is_builtin_schedule(user_id) is False
+        # Test identification (uses file keys, not schedule_id from JSON)
+        assert is_builtin_schedule(builtin_file_key) is True
+        assert is_builtin_schedule(user_file_key) is False
         assert is_builtin_schedule("nonexistent") is False
 
 
@@ -550,11 +556,11 @@ class TestListOperations:
         (temp_builtin_dir / "builtin-1.json").write_text(sample_schedule_json)
 
         schedule_data = json.loads(sample_schedule_json)
-        schedule_data["schedule_id"] = "builtin-2"
+        schedule_data["schedule_id"] = _test_uuid("builtin-2")
         (temp_builtin_dir / "builtin-2.json").write_text(json.dumps(schedule_data))
 
         # Create user schedules
-        schedule_data["schedule_id"] = "user-1"
+        schedule_data["schedule_id"] = _test_uuid("user-1")
         (temp_schedules_dir / "user-1.json").write_text(json.dumps(schedule_data))
 
         all_schedules = list_schedules(include_builtin=True)
@@ -566,11 +572,11 @@ class TestListOperations:
         for schedule in all_schedules:
             assert isinstance(schedule, Schedule)
 
-        # Check all IDs present
+        # Check all IDs present (use UUIDs)
         schedule_ids = [s.schedule_id for s in all_schedules]
-        assert "builtin-1" in schedule_ids
-        assert "builtin-2" in schedule_ids
-        assert "user-1" in schedule_ids
+        assert _test_uuid("test-schedule-123") in schedule_ids  # From sample_schedule_json
+        assert _test_uuid("builtin-2") in schedule_ids
+        assert _test_uuid("user-1") in schedule_ids
 
     def test_list_schedules_user_overrides_builtin_same_id(
         self,
@@ -579,19 +585,20 @@ class TestListOperations:
         sample_schedule_json
     ):
         """User schedule with same ID overrides built-in in list."""
-        schedule_id = "duplicate-schedule"
+        schedule_id = _test_uuid("duplicate-schedule")
+        file_key = "duplicate-schedule"
 
         # Create built-in schedule
         builtin_data = json.loads(sample_schedule_json)
         builtin_data["schedule_id"] = schedule_id
         builtin_data["name"] = "Built-in Schedule"
-        (temp_builtin_dir / f"{schedule_id}.json").write_text(json.dumps(builtin_data))
+        (temp_builtin_dir / f"{file_key}.json").write_text(json.dumps(builtin_data))
 
         # Create user schedule with same ID
         user_data = json.loads(sample_schedule_json)
         user_data["schedule_id"] = schedule_id
         user_data["name"] = "User Modified Schedule"
-        (temp_schedules_dir / f"{schedule_id}.json").write_text(json.dumps(user_data))
+        (temp_schedules_dir / f"{file_key}.json").write_text(json.dumps(user_data))
 
         all_schedules = list_schedules(include_builtin=True)
 
@@ -689,20 +696,20 @@ class TestEdgeCases:
         """list_schedules with include_builtin=False only returns user schedules."""
         # Create user schedule
         user_data = json.loads(sample_schedule_json)
-        user_data["schedule_id"] = "user-only"
+        user_data["schedule_id"] = _test_uuid("user-only")
         (temp_schedules_dir / "user-only.json").write_text(json.dumps(user_data))
 
         # Create builtin schedule
         builtin_data = json.loads(sample_schedule_json)
-        builtin_data["schedule_id"] = "builtin-only"
+        builtin_data["schedule_id"] = _test_uuid("builtin-only")
         (temp_builtin_dir / "builtin-only.json").write_text(json.dumps(builtin_data))
 
         # Get user schedules only
         schedules = list_schedules(include_builtin=False)
         schedule_ids = [s.schedule_id for s in schedules]
 
-        assert "user-only" in schedule_ids
-        assert "builtin-only" not in schedule_ids
+        assert _test_uuid("user-only") in schedule_ids
+        assert _test_uuid("builtin-only") not in schedule_ids
 
     def test_cleanup_temp_files_empty_directory(self, temp_schedules_dir):
         """cleanup_temp_files handles empty directory."""
@@ -742,16 +749,16 @@ class TestEdgeCases:
 
         # Create valid schedule
         valid_data = json.loads(sample_schedule_json)
-        valid_data["schedule_id"] = "valid-schedule"
+        valid_data["schedule_id"] = _test_uuid("valid-schedule")
         (temp_schedules_dir / "valid-schedule.json").write_text(json.dumps(valid_data))
 
         # Create invalid schedule (empty event_patterns after initial parse)
         invalid_data = json.loads(sample_schedule_json)
-        invalid_data["schedule_id"] = "invalid-schedule"
+        invalid_data["schedule_id"] = _test_uuid("invalid-schedule")
         invalid_data["event_patterns"] = []  # Invalid: no patterns
         (temp_schedules_dir / "invalid-schedule.json").write_text(json.dumps(invalid_data))
 
         # Only valid schedule should be returned
         schedules = list_schedules(include_builtin=False)
         assert len(schedules) == 1
-        assert schedules[0].schedule_id == "valid-schedule"
+        assert schedules[0].schedule_id == _test_uuid("valid-schedule")

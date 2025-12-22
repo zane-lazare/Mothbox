@@ -493,12 +493,13 @@ def list_schedules(include_builtin: bool = True) -> list[Schedule]:
     seen_ids = set()
 
     # Load user schedules first (they take precedence)
-    user_ids = list_schedule_ids(is_builtin=False)
-    for schedule_id in user_ids:
-        schedule = read_schedule(schedule_id)
+    user_file_keys = list_schedule_ids(is_builtin=False)
+    for file_key in user_file_keys:
+        schedule = read_schedule(file_key)
         if schedule:
             schedules.append(schedule)
-            seen_ids.add(schedule_id)
+            # Track by actual schedule_id (UUID), not filename
+            seen_ids.add(schedule.schedule_id)
 
     # Load built-in schedules (skip if user version exists)
     if include_builtin:

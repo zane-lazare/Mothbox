@@ -17,6 +17,7 @@ The 5 required schedules are:
 """
 
 import json
+import uuid
 from pathlib import Path
 
 import pytest
@@ -200,8 +201,12 @@ class TestNightlyHourlySchedule:
     """Tests for nightly_hourly.json schedule (Issue #220 acceptance criterion 1)."""
 
     def test_schedule_id_is_correct(self, nightly_hourly_schedule: dict) -> None:
-        """Schedule ID must be 'nightly_hourly'."""
-        assert nightly_hourly_schedule["schedule_id"] == "nightly_hourly"
+        """Schedule ID must be a valid UUID."""
+        schedule_id = nightly_hourly_schedule["schedule_id"]
+        try:
+            uuid.UUID(schedule_id)
+        except ValueError:
+            pytest.fail(f"schedule_id '{schedule_id}' is not a valid UUID")
 
     def test_has_interval_trigger(self, nightly_hourly_schedule: dict) -> None:
         """Must use interval trigger type."""
@@ -260,8 +265,12 @@ class TestFullMoonSurveySchedule:
     """Tests for full_moon_survey.json schedule (Issue #220 acceptance criterion 2)."""
 
     def test_schedule_id_is_correct(self, full_moon_survey_schedule: dict) -> None:
-        """Schedule ID must be 'full_moon_survey'."""
-        assert full_moon_survey_schedule["schedule_id"] == "full_moon_survey"
+        """Schedule ID must be a valid UUID."""
+        schedule_id = full_moon_survey_schedule["schedule_id"]
+        try:
+            uuid.UUID(schedule_id)
+        except ValueError:
+            pytest.fail(f"schedule_id '{schedule_id}' is not a valid UUID")
 
     def test_has_moon_phase_trigger(self, full_moon_survey_schedule: dict) -> None:
         """Must use moon_phase trigger type."""
@@ -316,8 +325,12 @@ class TestDawnTransectSchedule:
     """Tests for dawn_transect.json schedule (Issue #220 acceptance criterion 3a)."""
 
     def test_schedule_id_is_correct(self, dawn_transect_schedule: dict) -> None:
-        """Schedule ID must be 'dawn_transect'."""
-        assert dawn_transect_schedule["schedule_id"] == "dawn_transect"
+        """Schedule ID must be a valid UUID."""
+        schedule_id = dawn_transect_schedule["schedule_id"]
+        try:
+            uuid.UUID(schedule_id)
+        except ValueError:
+            pytest.fail(f"schedule_id '{schedule_id}' is not a valid UUID")
 
     def test_uses_solar_trigger(self, dawn_transect_schedule: dict) -> None:
         """Must use solar trigger type."""
@@ -377,8 +390,12 @@ class TestDuskTransectSchedule:
     """Tests for dusk_transect.json schedule (Issue #220 acceptance criterion 3b)."""
 
     def test_schedule_id_is_correct(self, dusk_transect_schedule: dict) -> None:
-        """Schedule ID must be 'dusk_transect'."""
-        assert dusk_transect_schedule["schedule_id"] == "dusk_transect"
+        """Schedule ID must be a valid UUID."""
+        schedule_id = dusk_transect_schedule["schedule_id"]
+        try:
+            uuid.UUID(schedule_id)
+        except ValueError:
+            pytest.fail(f"schedule_id '{schedule_id}' is not a valid UUID")
 
     def test_uses_solar_trigger(self, dusk_transect_schedule: dict) -> None:
         """Must use solar trigger type."""
@@ -440,8 +457,12 @@ class TestContinuousMonitoringSchedule:
     def test_schedule_id_is_correct(
         self, continuous_monitoring_schedule: dict
     ) -> None:
-        """Schedule ID must be 'continuous_monitoring'."""
-        assert continuous_monitoring_schedule["schedule_id"] == "continuous_monitoring"
+        """Schedule ID must be a valid UUID."""
+        schedule_id = continuous_monitoring_schedule["schedule_id"]
+        try:
+            uuid.UUID(schedule_id)
+        except ValueError:
+            pytest.fail(f"schedule_id '{schedule_id}' is not a valid UUID")
 
     def test_has_interval_trigger(
         self, continuous_monitoring_schedule: dict
