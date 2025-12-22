@@ -18,8 +18,8 @@ vi.mock('../PatternCard', () => ({
     >
       <h3>{pattern.name}</h3>
       <p>{pattern.description}</p>
-      <button onClick={() => onClick?.()}>View Details</button>
-      <button onClick={() => onSelect?.()}>Use Pattern</button>
+      <button onClick={() => onClick?.(pattern)}>View Details</button>
+      <button onClick={() => onSelect?.(pattern)}>Use Pattern</button>
     </div>
   )
 }))

@@ -235,8 +235,8 @@ function PatternList({
                 <PatternCard
                   key={pattern.pattern_id}
                   pattern={pattern}
-                  onClick={() => handleCardClick(pattern)}
-                  onSelect={() => handleUsePattern(pattern)}
+                  onClick={handleCardClick}
+                  onSelect={handleUsePattern}
                   isSelected={pattern.pattern_id === selectedPatternId}
                 />
               ))}
@@ -250,8 +250,8 @@ function PatternList({
                 <PatternCard
                   key={pattern.pattern_id}
                   pattern={pattern}
-                  onClick={() => handleCardClick(pattern)}
-                  onSelect={() => handleUsePattern(pattern)}
+                  onClick={handleCardClick}
+                  onSelect={handleUsePattern}
                   isSelected={pattern.pattern_id === selectedPatternId}
                 />
               ))}
