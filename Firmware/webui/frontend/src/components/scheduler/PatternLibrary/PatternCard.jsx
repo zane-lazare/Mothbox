@@ -93,7 +93,7 @@ function PatternCard({ pattern, onClick, onSelect, isSelected = false }) {
       <div className="flex items-center gap-4 text-sm text-gray-700 dark:text-gray-300">
         <div className="flex items-center gap-1">
           <BoltIcon className="h-4 w-4" />
-          <span>{pattern.actions.length} actions</span>
+          <span>{pattern.actions?.length || 0} actions</span>
         </div>
         <div className="flex items-center gap-1">
           <ClockIcon className="h-4 w-4" />
