@@ -253,3 +253,63 @@ export const TRIGGER_DEFAULTS = {
  * @constant {RegExp}
  */
 export const TIME_FORMAT_REGEX = /^([0-1][0-9]|2[0-3]):([0-5][0-9])$/
+
+/**
+ * Maximum date range in days (10 years)
+ * @constant {number}
+ */
+export const MAX_DATE_RANGE_DAYS = 3650
+
+/**
+ * Validates a numeric input value against optional min/max constraints.
+ * Returns the validated number or null if invalid.
+ *
+ * @param {string|number} value - The input value to validate
+ * @param {number} [min] - Optional minimum value (inclusive)
+ * @param {number} [max] - Optional maximum value (inclusive)
+ * @returns {number|null} The validated number or null if invalid
+ *
+ * @example
+ * validateNumericInput('42', 0, 100) // returns 42
+ * validateNumericInput('abc') // returns null
+ * validateNumericInput(150, 0, 100) // returns null (exceeds max)
+ */
+export const validateNumericInput = (value, min, max) => {
+  // Handle empty/whitespace strings (Number('') === 0, but we want null)
+  if (typeof value === 'string' && value.trim() === '') return null
+
+  // Handle undefined
+  if (value === undefined) return null
+
+  const num = Number(value)
+
+  // Reject NaN
+  if (isNaN(num)) return null
+
+  // Reject Infinity
+  if (!isFinite(num)) return null
+
+  // Check min constraint
+  if (min !== undefined && num < min) return null
+
+  // Check max constraint
+  if (max !== undefined && num > max) return null
+
+  return num
+}
+
+/**
+ * Checks if a value is a valid solar event name.
+ *
+ * @param {string} value - The value to check
+ * @returns {boolean} True if the value is a valid solar event
+ *
+ * @example
+ * isValidSolarEvent('sunset') // returns true
+ * isValidSolarEvent('12:00') // returns false
+ * isValidSolarEvent('invalid') // returns false
+ */
+export const isValidSolarEvent = (value) => {
+  if (typeof value !== 'string') return false
+  return SOLAR_EVENTS.some((event) => event.value === value)
+}

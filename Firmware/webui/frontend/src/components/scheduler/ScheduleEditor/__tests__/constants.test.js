@@ -14,6 +14,8 @@ import {
   SENSOR_COMPARISONS,
   TRIGGER_DEFAULTS,
   TIME_FORMAT_REGEX,
+  validateNumericInput,
+  isValidSolarEvent,
 } from '../constants'
 
 describe('SCHEDULE_LIMITS', () => {
@@ -512,5 +514,165 @@ describe('Constants integrity', () => {
     const uniqueValues = new Set(values)
 
     expect(values.length).toBe(uniqueValues.size)
+  })
+})
+
+describe('validateNumericInput', () => {
+  describe('basic validation', () => {
+    it('should return number for valid numeric string', () => {
+      expect(validateNumericInput('42')).toBe(42)
+      expect(validateNumericInput('0')).toBe(0)
+      expect(validateNumericInput('-10')).toBe(-10)
+      expect(validateNumericInput('3.14')).toBe(3.14)
+    })
+
+    it('should return number for numeric input', () => {
+      expect(validateNumericInput(42)).toBe(42)
+      expect(validateNumericInput(0)).toBe(0)
+      expect(validateNumericInput(-10)).toBe(-10)
+    })
+
+    it('should return null for NaN', () => {
+      expect(validateNumericInput('abc')).toBeNull()
+      expect(validateNumericInput('12abc')).toBeNull()
+      expect(validateNumericInput(NaN)).toBeNull()
+      expect(validateNumericInput('')).toBeNull()
+    })
+
+    it('should return null for Infinity', () => {
+      expect(validateNumericInput(Infinity)).toBeNull()
+      expect(validateNumericInput(-Infinity)).toBeNull()
+      expect(validateNumericInput('Infinity')).toBeNull()
+    })
+  })
+
+  describe('min/max constraints', () => {
+    it('should return null when below min', () => {
+      expect(validateNumericInput(5, 10)).toBeNull()
+      expect(validateNumericInput(-1, 0)).toBeNull()
+      expect(validateNumericInput('5', 10)).toBeNull()
+    })
+
+    it('should return number when at min', () => {
+      expect(validateNumericInput(10, 10)).toBe(10)
+      expect(validateNumericInput(0, 0)).toBe(0)
+    })
+
+    it('should return null when above max', () => {
+      expect(validateNumericInput(15, undefined, 10)).toBeNull()
+      expect(validateNumericInput(100, 0, 50)).toBeNull()
+    })
+
+    it('should return number when at max', () => {
+      expect(validateNumericInput(10, undefined, 10)).toBe(10)
+      expect(validateNumericInput(50, 0, 50)).toBe(50)
+    })
+
+    it('should return number when within range', () => {
+      expect(validateNumericInput(5, 0, 10)).toBe(5)
+      expect(validateNumericInput(0, -10, 10)).toBe(0)
+      expect(validateNumericInput(-5, -10, 0)).toBe(-5)
+    })
+
+    it('should handle min only', () => {
+      expect(validateNumericInput(100, 0)).toBe(100)
+      expect(validateNumericInput(-1, 0)).toBeNull()
+    })
+
+    it('should handle max only', () => {
+      expect(validateNumericInput(-100, undefined, 0)).toBe(-100)
+      expect(validateNumericInput(1, undefined, 0)).toBeNull()
+    })
+  })
+
+  describe('SCHEDULE_LIMITS integration', () => {
+    it('should validate interval_minutes with SCHEDULE_LIMITS', () => {
+      const min = SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES
+      const max = SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES
+
+      expect(validateNumericInput(60, min, max)).toBe(60)
+      expect(validateNumericInput(0, min, max)).toBeNull()
+      expect(validateNumericInput(10081, min, max)).toBeNull()
+    })
+
+    it('should validate cooldown_minutes with SCHEDULE_LIMITS', () => {
+      const max = SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES
+
+      expect(validateNumericInput(30, 0, max)).toBe(30)
+      expect(validateNumericInput(61, 0, max)).toBeNull()
+      expect(validateNumericInput(-1, 0, max)).toBeNull()
+    })
+
+    it('should validate offset_minutes with symmetric range', () => {
+      const max = SCHEDULE_LIMITS.MAX_OFFSET_MINUTES
+
+      expect(validateNumericInput(0, -max, max)).toBe(0)
+      expect(validateNumericInput(720, -max, max)).toBe(720)
+      expect(validateNumericInput(-720, -max, max)).toBe(-720)
+      expect(validateNumericInput(1441, -max, max)).toBeNull()
+      expect(validateNumericInput(-1441, -max, max)).toBeNull()
+    })
+
+    it('should validate offset_days with symmetric range', () => {
+      const max = SCHEDULE_LIMITS.MAX_OFFSET_DAYS
+
+      expect(validateNumericInput(0, -max, max)).toBe(0)
+      expect(validateNumericInput(7, -max, max)).toBe(7)
+      expect(validateNumericInput(-7, -max, max)).toBe(-7)
+      expect(validateNumericInput(8, -max, max)).toBeNull()
+      expect(validateNumericInput(-8, -max, max)).toBeNull()
+    })
+  })
+
+  describe('edge cases', () => {
+    it('should handle undefined and null input', () => {
+      expect(validateNumericInput(undefined)).toBeNull()
+      expect(validateNumericInput(null)).toBe(0) // Number(null) === 0
+    })
+
+    it('should handle whitespace strings', () => {
+      expect(validateNumericInput('  42  ')).toBe(42)
+      expect(validateNumericInput('   ')).toBeNull()
+    })
+
+    it('should handle scientific notation', () => {
+      expect(validateNumericInput('1e2')).toBe(100)
+      expect(validateNumericInput('1e-2')).toBe(0.01)
+    })
+  })
+})
+
+describe('isValidSolarEvent', () => {
+  it('should return true for valid solar events', () => {
+    expect(isValidSolarEvent('sunset')).toBe(true)
+    expect(isValidSolarEvent('sunrise')).toBe(true)
+    expect(isValidSolarEvent('civil_dawn')).toBe(true)
+    expect(isValidSolarEvent('astronomical_dusk')).toBe(true)
+    expect(isValidSolarEvent('noon')).toBe(true)
+  })
+
+  it('should return false for invalid solar events', () => {
+    expect(isValidSolarEvent('invalid_event')).toBe(false)
+    expect(isValidSolarEvent('midnight')).toBe(false)
+    expect(isValidSolarEvent('')).toBe(false)
+    expect(isValidSolarEvent('SUNSET')).toBe(false) // case-sensitive
+  })
+
+  it('should return false for non-string values', () => {
+    expect(isValidSolarEvent(null)).toBe(false)
+    expect(isValidSolarEvent(undefined)).toBe(false)
+    expect(isValidSolarEvent(123)).toBe(false)
+  })
+
+  it('should return false for time strings', () => {
+    expect(isValidSolarEvent('12:00')).toBe(false)
+    expect(isValidSolarEvent('00:00')).toBe(false)
+    expect(isValidSolarEvent('23:59')).toBe(false)
+  })
+
+  it('should validate all SOLAR_EVENTS values', () => {
+    SOLAR_EVENTS.forEach((event) => {
+      expect(isValidSolarEvent(event.value)).toBe(true)
+    })
   })
 })
