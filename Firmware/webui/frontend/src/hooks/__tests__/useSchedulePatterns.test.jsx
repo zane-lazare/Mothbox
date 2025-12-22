@@ -210,6 +210,118 @@ describe('useTriggerDescription', () => {
 
     expect(result.current).toBe('At sunrise -15 minutes');
   });
+
+  it('returns formatted description for fixed_time trigger - daily', () => {
+    const schedule = {
+      name: 'Daily Capture',
+      events: [
+        {
+          name: 'capture',
+          action: 'take_photo',
+          trigger: {
+            type: 'fixed_time',
+            time: '06:00'
+          }
+        }
+      ]
+    };
+
+    const { result } = renderHook(() => useTriggerDescription(schedule), {
+      wrapper: createWrapper()
+    });
+
+    expect(result.current).toBe('At 06:00 daily');
+  });
+
+  it('returns formatted description for fixed_time trigger - specific days', () => {
+    const schedule = {
+      name: 'Weekday Capture',
+      events: [
+        {
+          name: 'capture',
+          action: 'take_photo',
+          trigger: {
+            type: 'fixed_time',
+            time: '06:00',
+            days_of_week: [1, 3, 5]
+          }
+        }
+      ]
+    };
+
+    const { result } = renderHook(() => useTriggerDescription(schedule), {
+      wrapper: createWrapper()
+    });
+
+    expect(result.current).toBe('At 06:00 on Mon, Wed, Fri');
+  });
+
+  it('returns formatted description for fixed_time trigger - all 7 days shows daily', () => {
+    const schedule = {
+      name: 'Every Day Capture',
+      events: [
+        {
+          name: 'capture',
+          action: 'take_photo',
+          trigger: {
+            type: 'fixed_time',
+            time: '06:00',
+            days_of_week: [0, 1, 2, 3, 4, 5, 6]
+          }
+        }
+      ]
+    };
+
+    const { result } = renderHook(() => useTriggerDescription(schedule), {
+      wrapper: createWrapper()
+    });
+
+    expect(result.current).toBe('At 06:00 daily');
+  });
+
+  it('returns formatted description for sensor trigger', () => {
+    const schedule = {
+      name: 'Temperature Trigger',
+      events: [
+        {
+          name: 'capture',
+          action: 'take_photo',
+          trigger: {
+            type: 'sensor',
+            sensor_type: 'temperature',
+            condition: 'above 25C'
+          }
+        }
+      ]
+    };
+
+    const { result } = renderHook(() => useTriggerDescription(schedule), {
+      wrapper: createWrapper()
+    });
+
+    expect(result.current).toBe('When temperature above 25C');
+  });
+
+  it('returns formatted description for sensor trigger with defaults', () => {
+    const schedule = {
+      name: 'Sensor Trigger',
+      events: [
+        {
+          name: 'capture',
+          action: 'take_photo',
+          trigger: {
+            type: 'sensor'
+          }
+        }
+      ]
+    };
+
+    const { result } = renderHook(() => useTriggerDescription(schedule), {
+      wrapper: createWrapper()
+    });
+
+    expect(result.current).toBe('When unknown threshold');
+  });
 });
 
 // =============================================================================
