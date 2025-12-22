@@ -9,6 +9,26 @@ import DaysOfWeekSelector from './DaysOfWeekSelector';
  * A form for configuring interval-based triggers that execute patterns
  * at regular intervals within a time window.
  *
+ * ## Time Window Overnight Handling
+ *
+ * When end_time < start_time (e.g., 21:00 to 05:00), this represents an
+ * overnight window that spans across midnight. The backend handles this
+ * in cron_bridge.py by:
+ *
+ * 1. **Fixed times**: Generates separate cron entries for each execution
+ *    time, accounting for the day boundary (some entries run today,
+ *    others run tomorrow).
+ *
+ * 2. **Solar events**: parse_time_spec() in solar_time.py calculates
+ *    actual times for the given date, handling overnight naturally.
+ *
+ * 3. **Interval calculations**: The backend generates multiple cron
+ *    entries, one for each execution time within the window across
+ *    the midnight boundary.
+ *
+ * The frontend simply displays the times as configured; actual overnight
+ * logic is handled during cron expression generation.
+ *
  * @component
  * @example
  * <IntervalTriggerForm
