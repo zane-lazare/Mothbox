@@ -588,6 +588,37 @@ describe('useDuplicateSchedule', () => {
     expect(createCall).not.toHaveProperty('created_at');
     expect(createCall).not.toHaveProperty('modified_at');
   });
+
+  it('omits category field from duplicated schedule', async () => {
+    const sourceSchedule = {
+      id: 'schedule_1',
+      schedule_id: 'schedule_1',
+      name: 'Built-in Schedule',
+      category: 'built-in',
+      description: 'Test',
+      created_at: '2024-01-01T00:00:00Z',
+      modified_at: '2024-01-01T00:00:00Z',
+      events: []
+    };
+
+    schedulerApi.getSchedule.mockResolvedValue({ data: sourceSchedule });
+    schedulerApi.createSchedule.mockResolvedValue({
+      data: { id: 'schedule_2', message: 'Created' }
+    });
+
+    const { result } = renderHook(() => useDuplicateSchedule(), {
+      wrapper: createWrapper()
+    });
+
+    result.current.mutate({ sourceId: 'schedule_1', newName: 'Copy' });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    const createCall = schedulerApi.createSchedule.mock.calls[0][0];
+    expect(createCall).not.toHaveProperty('category');
+  });
 });
 
 // =============================================================================

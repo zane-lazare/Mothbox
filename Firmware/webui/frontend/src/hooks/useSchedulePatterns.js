@@ -368,8 +368,8 @@ export function useDuplicateSchedule() {
       const response = await getSchedule(sourceId)
       const sourceSchedule = response.data
 
-      // Create copy with new name and removed ID
-      const { id: _id, schedule_id: _scheduleId, created_at: _createdAt, modified_at: _modifiedAt, ...scheduleData } = sourceSchedule
+      // Create copy with new name, removing read-only and category fields
+      const { id: _id, schedule_id: _scheduleId, created_at: _createdAt, modified_at: _modifiedAt, category: _category, ...scheduleData } = sourceSchedule
       const newSchedule = {
         ...scheduleData,
         name: newName,
