@@ -409,4 +409,109 @@ describe('DateRangeSection', () => {
       expect(() => render(<DateRangeSection {...invalidProps} />)).not.toThrow();
     });
   });
+
+  describe('Enhanced Date Validation', () => {
+    it('should show error for invalid date format in start_date', () => {
+      const invalidProps = {
+        ...defaultProps,
+        value: {
+          start_date: 'not-a-date',
+          end_date: '2024-12-31',
+        },
+      };
+
+      render(<DateRangeSection {...invalidProps} />);
+
+      expect(screen.getByText(/invalid date format/i)).toBeInTheDocument();
+    });
+
+    it('should show error for invalid date format in end_date', () => {
+      const invalidProps = {
+        ...defaultProps,
+        value: {
+          start_date: '2024-01-01',
+          end_date: 'not-a-date',
+        },
+      };
+
+      render(<DateRangeSection {...invalidProps} />);
+
+      expect(screen.getByText(/invalid date format/i)).toBeInTheDocument();
+    });
+
+    it('should show error when date range exceeds 10 years', () => {
+      const excessiveRangeProps = {
+        ...defaultProps,
+        value: {
+          start_date: '2020-01-01',
+          end_date: '2035-01-01', // 15 years
+        },
+      };
+
+      render(<DateRangeSection {...excessiveRangeProps} />);
+
+      expect(screen.getByText(/date range cannot exceed 10 years/i)).toBeInTheDocument();
+    });
+
+    it('should not show excessive range error for exactly MAX_DATE_RANGE_DAYS', () => {
+      // Exactly 3650 days from start date
+      const tenYearRangeProps = {
+        ...defaultProps,
+        value: {
+          start_date: '2020-01-01',
+          end_date: '2029-12-29', // Exactly 3650 days
+        },
+      };
+
+      render(<DateRangeSection {...tenYearRangeProps} />);
+
+      expect(screen.queryByText(/date range cannot exceed 10 years/i)).not.toBeInTheDocument();
+    });
+
+    it('should not show excessive range error for reasonable date range', () => {
+      const normalRangeProps = {
+        ...defaultProps,
+        value: {
+          start_date: '2024-01-01',
+          end_date: '2024-12-31',
+        },
+      };
+
+      render(<DateRangeSection {...normalRangeProps} />);
+
+      expect(screen.queryByText(/date range cannot exceed 10 years/i)).not.toBeInTheDocument();
+    });
+
+    it('should prioritize invalid format error over ordering error', () => {
+      const invalidAndWrongOrderProps = {
+        ...defaultProps,
+        value: {
+          start_date: 'invalid',
+          end_date: '2020-01-01',
+        },
+      };
+
+      render(<DateRangeSection {...invalidAndWrongOrderProps} />);
+
+      // Should show format error, not ordering error
+      expect(screen.getByText(/invalid date format/i)).toBeInTheDocument();
+      expect(screen.queryByText(/end date must be greater/i)).not.toBeInTheDocument();
+    });
+
+    it('should prioritize ordering error over excessive range error', () => {
+      const wrongOrderAndExcessiveProps = {
+        ...defaultProps,
+        value: {
+          start_date: '2035-01-01',
+          end_date: '2020-01-01', // Wrong order
+        },
+      };
+
+      render(<DateRangeSection {...wrongOrderAndExcessiveProps} />);
+
+      // Should show ordering error, not excessive range error
+      expect(screen.getByText(/end date must be greater than or equal to start date/i)).toBeInTheDocument();
+      expect(screen.queryByText(/date range cannot exceed/i)).not.toBeInTheDocument();
+    });
+  });
 });

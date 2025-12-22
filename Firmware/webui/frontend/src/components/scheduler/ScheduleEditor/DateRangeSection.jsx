@@ -1,4 +1,5 @@
 import PropTypes from 'prop-types';
+import { MAX_DATE_RANGE_DAYS } from './constants';
 
 /**
  * DateRangeSection Component
@@ -39,17 +40,33 @@ const DateRangeSection = ({
   const { start_date, end_date } = value || {};
 
   /**
-   * Validate date range (end_date >= start_date)
+   * Validate date range
+   * - Checks for valid date format (not NaN)
+   * - Checks that end_date >= start_date
+   * - Checks that range doesn't exceed MAX_DATE_RANGE_DAYS (10 years)
    * @returns {string|null} Error message or null if valid
    */
   const validateDateRange = () => {
+    // Only validate when both dates are provided
     if (!start_date || !end_date) return null;
 
     const startDateObj = new Date(start_date);
     const endDateObj = new Date(end_date);
 
+    // Check for invalid date format (NaN)
+    if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+      return 'Invalid date format';
+    }
+
+    // Check ordering (must check this before range to give better error message)
     if (endDateObj < startDateObj) {
       return 'End date must be greater than or equal to start date';
+    }
+
+    // Check reasonable range (max 10 years = 3650 days)
+    const daysDiff = (endDateObj - startDateObj) / (1000 * 60 * 60 * 24);
+    if (daysDiff > MAX_DATE_RANGE_DAYS) {
+      return 'Date range cannot exceed 10 years';
     }
 
     return null;
