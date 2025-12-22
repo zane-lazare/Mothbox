@@ -179,6 +179,140 @@ describe('MoonPhaseTriggerForm', () => {
     });
   });
 
+  describe('Numeric Input Validation', () => {
+    it('does not call onChange for NaN input', () => {
+      const value = {
+        moon_phase: 'full',
+        time_of_day: '20:00',
+        offset_days: 0,
+      };
+
+      render(<MoonPhaseTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in days');
+      fireEvent.change(offsetInput, { target: { value: 'abc' } });
+
+      expect(mockOnChange).not.toHaveBeenCalled();
+    });
+
+    it('does not call onChange for empty input', () => {
+      const value = {
+        moon_phase: 'full',
+        time_of_day: '20:00',
+        offset_days: 2,
+      };
+
+      render(<MoonPhaseTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in days');
+      fireEvent.change(offsetInput, { target: { value: '' } });
+
+      expect(mockOnChange).not.toHaveBeenCalled();
+    });
+
+    it('does not call onChange for values below minimum', () => {
+      const value = {
+        moon_phase: 'full',
+        time_of_day: '20:00',
+        offset_days: 0,
+      };
+
+      render(<MoonPhaseTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in days');
+      fireEvent.change(offsetInput, { target: { value: String(-SCHEDULE_LIMITS.MAX_OFFSET_DAYS - 1) } });
+
+      expect(mockOnChange).not.toHaveBeenCalled();
+    });
+
+    it('does not call onChange for values above maximum', () => {
+      const value = {
+        moon_phase: 'full',
+        time_of_day: '20:00',
+        offset_days: 0,
+      };
+
+      render(<MoonPhaseTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in days');
+      fireEvent.change(offsetInput, { target: { value: String(SCHEDULE_LIMITS.MAX_OFFSET_DAYS + 1) } });
+
+      expect(mockOnChange).not.toHaveBeenCalled();
+    });
+
+    it('accepts valid values within symmetric range (negative)', () => {
+      const value = {
+        moon_phase: 'full',
+        time_of_day: '20:00',
+        offset_days: 0,
+      };
+
+      render(<MoonPhaseTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in days');
+      fireEvent.change(offsetInput, { target: { value: '-3' } });
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...value,
+        offset_days: -3,
+      });
+    });
+
+    it('accepts boundary value at minimum', () => {
+      const value = {
+        moon_phase: 'full',
+        time_of_day: '20:00',
+        offset_days: 0,
+      };
+
+      render(<MoonPhaseTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in days');
+      fireEvent.change(offsetInput, { target: { value: String(-SCHEDULE_LIMITS.MAX_OFFSET_DAYS) } });
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...value,
+        offset_days: -SCHEDULE_LIMITS.MAX_OFFSET_DAYS,
+      });
+    });
+
+    it('accepts boundary value at zero', () => {
+      const value = {
+        moon_phase: 'full',
+        time_of_day: '20:00',
+        offset_days: 2,
+      };
+
+      render(<MoonPhaseTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in days');
+      fireEvent.change(offsetInput, { target: { value: '0' } });
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...value,
+        offset_days: 0,
+      });
+    });
+
+    it('accepts boundary value at maximum', () => {
+      const value = {
+        moon_phase: 'full',
+        time_of_day: '20:00',
+        offset_days: 0,
+      };
+
+      render(<MoonPhaseTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in days');
+      fireEvent.change(offsetInput, { target: { value: String(SCHEDULE_LIMITS.MAX_OFFSET_DAYS) } });
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...value,
+        offset_days: SCHEDULE_LIMITS.MAX_OFFSET_DAYS,
+      });
+    });
+  });
+
   describe('Quick Offset Presets', () => {
     it('renders quick offset preset buttons', () => {
       render(<MoonPhaseTriggerForm onChange={mockOnChange} />);

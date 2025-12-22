@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import { SOLAR_EVENTS, SCHEDULE_LIMITS, DAYS_OF_WEEK } from './constants';
+import { SOLAR_EVENTS, SCHEDULE_LIMITS, DAYS_OF_WEEK, validateNumericInput } from './constants';
 import DaysOfWeekSelector from './DaysOfWeekSelector';
 
 /**
@@ -51,13 +51,18 @@ const SolarTriggerForm = ({
   };
 
   /**
-   * Handle offset minutes change
+   * Handle offset minutes change with validation
    */
   const handleOffsetChange = (newOffset) => {
-    const numOffset = Number(newOffset);
+    const validated = validateNumericInput(
+      newOffset,
+      -SCHEDULE_LIMITS.MAX_OFFSET_MINUTES,
+      SCHEDULE_LIMITS.MAX_OFFSET_MINUTES
+    );
+    if (validated === null) return;
     onChange({
       ...value,
-      offset_minutes: numOffset,
+      offset_minutes: validated,
     });
   };
 

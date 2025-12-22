@@ -195,6 +195,140 @@ describe('SolarTriggerForm', () => {
     });
   });
 
+  describe('Numeric Input Validation', () => {
+    it('does not call onChange for NaN input', () => {
+      const value = {
+        solar_event: 'sunset',
+        offset_minutes: 0,
+        days_of_week: null,
+      };
+
+      render(<SolarTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in minutes');
+      fireEvent.change(offsetInput, { target: { value: 'abc' } });
+
+      expect(mockOnChange).not.toHaveBeenCalled();
+    });
+
+    it('does not call onChange for empty input', () => {
+      const value = {
+        solar_event: 'sunset',
+        offset_minutes: 30,
+        days_of_week: null,
+      };
+
+      render(<SolarTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in minutes');
+      fireEvent.change(offsetInput, { target: { value: '' } });
+
+      expect(mockOnChange).not.toHaveBeenCalled();
+    });
+
+    it('does not call onChange for values below minimum', () => {
+      const value = {
+        solar_event: 'sunset',
+        offset_minutes: 0,
+        days_of_week: null,
+      };
+
+      render(<SolarTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in minutes');
+      fireEvent.change(offsetInput, { target: { value: String(-SCHEDULE_LIMITS.MAX_OFFSET_MINUTES - 1) } });
+
+      expect(mockOnChange).not.toHaveBeenCalled();
+    });
+
+    it('does not call onChange for values above maximum', () => {
+      const value = {
+        solar_event: 'sunset',
+        offset_minutes: 0,
+        days_of_week: null,
+      };
+
+      render(<SolarTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in minutes');
+      fireEvent.change(offsetInput, { target: { value: String(SCHEDULE_LIMITS.MAX_OFFSET_MINUTES + 1) } });
+
+      expect(mockOnChange).not.toHaveBeenCalled();
+    });
+
+    it('accepts valid values within symmetric range (negative)', () => {
+      const value = {
+        solar_event: 'sunset',
+        offset_minutes: 0,
+        days_of_week: null,
+      };
+
+      render(<SolarTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in minutes');
+      fireEvent.change(offsetInput, { target: { value: '-720' } });
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...value,
+        offset_minutes: -720,
+      });
+    });
+
+    it('accepts boundary value at minimum', () => {
+      const value = {
+        solar_event: 'sunset',
+        offset_minutes: 0,
+        days_of_week: null,
+      };
+
+      render(<SolarTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in minutes');
+      fireEvent.change(offsetInput, { target: { value: String(-SCHEDULE_LIMITS.MAX_OFFSET_MINUTES) } });
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...value,
+        offset_minutes: -SCHEDULE_LIMITS.MAX_OFFSET_MINUTES,
+      });
+    });
+
+    it('accepts boundary value at zero', () => {
+      const value = {
+        solar_event: 'sunset',
+        offset_minutes: 30,
+        days_of_week: null,
+      };
+
+      render(<SolarTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in minutes');
+      fireEvent.change(offsetInput, { target: { value: '0' } });
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...value,
+        offset_minutes: 0,
+      });
+    });
+
+    it('accepts boundary value at maximum', () => {
+      const value = {
+        solar_event: 'sunset',
+        offset_minutes: 0,
+        days_of_week: null,
+      };
+
+      render(<SolarTriggerForm value={value} onChange={mockOnChange} />);
+
+      const offsetInput = screen.getByLabelText('Offset in minutes');
+      fireEvent.change(offsetInput, { target: { value: String(SCHEDULE_LIMITS.MAX_OFFSET_MINUTES) } });
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...value,
+        offset_minutes: SCHEDULE_LIMITS.MAX_OFFSET_MINUTES,
+      });
+    });
+  });
+
   describe('Quick Offset Presets', () => {
     it('renders quick offset preset buttons', () => {
       render(<SolarTriggerForm onChange={mockOnChange} />);

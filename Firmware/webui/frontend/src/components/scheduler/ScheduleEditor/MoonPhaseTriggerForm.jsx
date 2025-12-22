@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import { MOON_PHASES, SCHEDULE_LIMITS } from './constants';
+import { MOON_PHASES, SCHEDULE_LIMITS, validateNumericInput } from './constants';
 
 /**
  * MoonPhaseTriggerForm Component
@@ -58,13 +58,18 @@ const MoonPhaseTriggerForm = ({
   };
 
   /**
-   * Handle offset days change
+   * Handle offset days change with validation
    */
   const handleOffsetChange = (newOffset) => {
-    const numOffset = Number(newOffset);
+    const validated = validateNumericInput(
+      newOffset,
+      -SCHEDULE_LIMITS.MAX_OFFSET_DAYS,
+      SCHEDULE_LIMITS.MAX_OFFSET_DAYS
+    );
+    if (validated === null) return;
     onChange({
       ...value,
-      offset_days: numOffset,
+      offset_days: validated,
     });
   };
 
