@@ -9,7 +9,7 @@ import MapPage from './pages/MapPage'
 import Settings from './pages/Settings'
 import Camera from './pages/Camera'
 import GPIO from './pages/GPIO'
-import Scheduler from './pages/Scheduler'
+import SchedulerUI from './pages/SchedulerUI'
 import Export from './pages/Export'
 import { FilterProvider } from './contexts/FilterContext'
 
@@ -139,7 +139,7 @@ function AppLayout() {
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/camera" element={<Camera />} />
           <Route path="/gpio" element={<GPIO />} />
-          <Route path="/scheduler" element={<Scheduler />} />
+          <Route path="/scheduler" element={<SchedulerUI />} />
           <Route path="/export" element={<Export />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
