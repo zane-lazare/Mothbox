@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import {
   XMarkIcon,
@@ -25,6 +25,16 @@ const actionTypeLabels = {
 };
 
 function PatternDetailsDrawer({ pattern, isOpen, onClose, onSelect }) {
+  const dialogRef = useRef(null);
+
+  // Focus first button when drawer opens (accessibility)
+  useEffect(() => {
+    if (isOpen && dialogRef.current) {
+      const firstButton = dialogRef.current.querySelector('button');
+      firstButton?.focus();
+    }
+  }, [isOpen]);
+
   // Handle escape key and body scroll lock
   // Note: This hook must be called before any early returns to satisfy Rules of Hooks
   useEffect(() => {
@@ -70,6 +80,7 @@ function PatternDetailsDrawer({ pattern, isOpen, onClose, onSelect }) {
 
       {/* Drawer */}
       <div
+        ref={dialogRef}
         role="dialog"
         aria-labelledby={headerId}
         className="fixed inset-y-0 right-0 flex max-w-full"
