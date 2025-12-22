@@ -579,4 +579,221 @@ describe('SensorTriggerForm', () => {
       });
     });
   });
+
+  describe('Numeric Input Validation', () => {
+    describe('Threshold Validation', () => {
+      it('does not call onChange for NaN threshold input', () => {
+        const value = {
+          sensor_type: 'light',
+          comparison: 'lt',
+          threshold: 100,
+          cooldown_minutes: 5,
+        };
+
+        render(<SensorTriggerForm value={value} onChange={mockOnChange} />);
+
+        const thresholdInput = screen.getByLabelText(/threshold/i);
+        fireEvent.change(thresholdInput, { target: { value: 'abc' } });
+
+        expect(mockOnChange).not.toHaveBeenCalled();
+      });
+
+      it('does not call onChange for empty threshold input', () => {
+        const value = {
+          sensor_type: 'light',
+          comparison: 'lt',
+          threshold: 100,
+          cooldown_minutes: 5,
+        };
+
+        render(<SensorTriggerForm value={value} onChange={mockOnChange} />);
+
+        const thresholdInput = screen.getByLabelText(/threshold/i);
+        fireEvent.change(thresholdInput, { target: { value: '' } });
+
+        expect(mockOnChange).not.toHaveBeenCalled();
+      });
+
+      it('does not call onChange for negative threshold input', () => {
+        const value = {
+          sensor_type: 'light',
+          comparison: 'lt',
+          threshold: 100,
+          cooldown_minutes: 5,
+        };
+
+        render(<SensorTriggerForm value={value} onChange={mockOnChange} />);
+
+        const thresholdInput = screen.getByLabelText(/threshold/i);
+        fireEvent.change(thresholdInput, { target: { value: '-10' } });
+
+        expect(mockOnChange).not.toHaveBeenCalled();
+      });
+
+      it('accepts valid threshold input', () => {
+        const value = {
+          sensor_type: 'light',
+          comparison: 'lt',
+          threshold: 100,
+          cooldown_minutes: 5,
+        };
+
+        render(<SensorTriggerForm value={value} onChange={mockOnChange} />);
+
+        const thresholdInput = screen.getByLabelText(/threshold/i);
+        fireEvent.change(thresholdInput, { target: { value: '250' } });
+
+        expect(mockOnChange).toHaveBeenCalledWith({
+          ...value,
+          threshold: 250,
+        });
+      });
+
+      it('accepts zero as valid threshold', () => {
+        const value = {
+          sensor_type: 'light',
+          comparison: 'lt',
+          threshold: 100,
+          cooldown_minutes: 5,
+        };
+
+        render(<SensorTriggerForm value={value} onChange={mockOnChange} />);
+
+        const thresholdInput = screen.getByLabelText(/threshold/i);
+        fireEvent.change(thresholdInput, { target: { value: '0' } });
+
+        expect(mockOnChange).toHaveBeenCalledWith({
+          ...value,
+          threshold: 0,
+        });
+      });
+    });
+
+    describe('Cooldown Validation', () => {
+      it('does not call onChange for NaN cooldown input', () => {
+        const value = {
+          sensor_type: 'light',
+          comparison: 'lt',
+          threshold: 100,
+          cooldown_minutes: 5,
+        };
+
+        render(<SensorTriggerForm value={value} onChange={mockOnChange} />);
+
+        const cooldownInput = screen.getByLabelText(/cooldown.*minutes/i);
+        fireEvent.change(cooldownInput, { target: { value: 'abc' } });
+
+        expect(mockOnChange).not.toHaveBeenCalled();
+      });
+
+      it('does not call onChange for empty cooldown input', () => {
+        const value = {
+          sensor_type: 'light',
+          comparison: 'lt',
+          threshold: 100,
+          cooldown_minutes: 5,
+        };
+
+        render(<SensorTriggerForm value={value} onChange={mockOnChange} />);
+
+        const cooldownInput = screen.getByLabelText(/cooldown.*minutes/i);
+        fireEvent.change(cooldownInput, { target: { value: '' } });
+
+        expect(mockOnChange).not.toHaveBeenCalled();
+      });
+
+      it('does not call onChange for negative cooldown input', () => {
+        const value = {
+          sensor_type: 'light',
+          comparison: 'lt',
+          threshold: 100,
+          cooldown_minutes: 5,
+        };
+
+        render(<SensorTriggerForm value={value} onChange={mockOnChange} />);
+
+        const cooldownInput = screen.getByLabelText(/cooldown.*minutes/i);
+        fireEvent.change(cooldownInput, { target: { value: '-5' } });
+
+        expect(mockOnChange).not.toHaveBeenCalled();
+      });
+
+      it('does not call onChange for cooldown exceeding max', () => {
+        const value = {
+          sensor_type: 'light',
+          comparison: 'lt',
+          threshold: 100,
+          cooldown_minutes: 5,
+        };
+
+        render(<SensorTriggerForm value={value} onChange={mockOnChange} />);
+
+        const cooldownInput = screen.getByLabelText(/cooldown.*minutes/i);
+        fireEvent.change(cooldownInput, {
+          target: { value: String(SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES + 1) },
+        });
+
+        expect(mockOnChange).not.toHaveBeenCalled();
+      });
+
+      it('accepts valid cooldown input', () => {
+        const value = {
+          sensor_type: 'light',
+          comparison: 'lt',
+          threshold: 100,
+          cooldown_minutes: 5,
+        };
+
+        render(<SensorTriggerForm value={value} onChange={mockOnChange} />);
+
+        const cooldownInput = screen.getByLabelText(/cooldown.*minutes/i);
+        fireEvent.change(cooldownInput, { target: { value: '30' } });
+
+        expect(mockOnChange).toHaveBeenCalledWith({
+          ...value,
+          cooldown_minutes: 30,
+        });
+      });
+
+      it('accepts zero as valid cooldown', () => {
+        const value = {
+          sensor_type: 'light',
+          comparison: 'lt',
+          threshold: 100,
+          cooldown_minutes: 5,
+        };
+
+        render(<SensorTriggerForm value={value} onChange={mockOnChange} />);
+
+        const cooldownInput = screen.getByLabelText(/cooldown.*minutes/i);
+        fireEvent.change(cooldownInput, { target: { value: '0' } });
+
+        expect(mockOnChange).toHaveBeenCalledWith({
+          ...value,
+          cooldown_minutes: 0,
+        });
+      });
+
+      it('accepts max cooldown value', () => {
+        const value = {
+          sensor_type: 'light',
+          comparison: 'lt',
+          threshold: 100,
+          cooldown_minutes: 5,
+        };
+
+        render(<SensorTriggerForm value={value} onChange={mockOnChange} />);
+
+        const cooldownInput = screen.getByLabelText(/cooldown.*minutes/i);
+        fireEvent.change(cooldownInput, {
+          target: { value: String(SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES) },
+        });
+
+        expect(mockOnChange).toHaveBeenCalledWith({
+          ...value,
+          cooldown_minutes: SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES,
+        });
+      });
+    });
+  });
 });

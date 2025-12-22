@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import { SENSOR_TYPES, SENSOR_COMPARISONS, SCHEDULE_LIMITS } from './constants';
+import { SENSOR_TYPES, SENSOR_COMPARISONS, SCHEDULE_LIMITS, validateNumericInput } from './constants';
 
 /**
  * SensorTriggerForm Component
@@ -51,24 +51,26 @@ const SensorTriggerForm = ({
   };
 
   /**
-   * Handle threshold change
+   * Handle threshold change with validation
    */
   const handleThresholdChange = (newThreshold) => {
-    const numThreshold = Number(newThreshold);
+    const validated = validateNumericInput(newThreshold, 0);
+    if (validated === null) return;
     onChange({
       ...value,
-      threshold: numThreshold,
+      threshold: validated,
     });
   };
 
   /**
-   * Handle cooldown minutes change
+   * Handle cooldown minutes change with validation
    */
   const handleCooldownChange = (newCooldown) => {
-    const numCooldown = Number(newCooldown);
+    const validated = validateNumericInput(newCooldown, 0, SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES);
+    if (validated === null) return;
     onChange({
       ...value,
-      cooldown_minutes: numCooldown,
+      cooldown_minutes: validated,
     });
   };
 
@@ -202,6 +204,7 @@ const SensorTriggerForm = ({
           <input
             id="threshold"
             type="number"
+            min={0}
             value={value.threshold}
             onChange={(e) => handleThresholdChange(e.target.value)}
             disabled={disabled}
