@@ -517,5 +517,6 @@ export default useSchedules
 // Re-exports for backward compatibility (Issue #222)
 // =============================================================================
 // Pattern hooks have been moved to useEventPatterns.js
+// usePatternDuration is a new utility hook added in #222
 // These re-exports maintain backward compatibility for existing imports
-export { useBuiltinPatterns, useValidatePattern } from './useEventPatterns'
+export { useBuiltinPatterns, useValidatePattern, usePatternDuration } from './useEventPatterns'
