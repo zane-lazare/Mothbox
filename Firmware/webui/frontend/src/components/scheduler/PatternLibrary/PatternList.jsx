@@ -139,7 +139,7 @@ function PatternList({
   // Empty state (no patterns at all)
   if (!data?.patterns || data.patterns.length === 0) {
     return (
-      <div className={`text-center py-8 text-gray-500 ${className}`}>
+      <div className={`text-center py-8 text-gray-500 dark:text-gray-400 ${className}`}>
         <p className="text-lg">No patterns available</p>
         <p className="text-sm mt-2">
           Pattern library is empty. Add patterns to get started.
@@ -200,7 +200,7 @@ function PatternList({
 
       {/* Filter count and reset */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-600 dark:text-gray-400">
           Showing {filteredCount} of {totalCount} patterns
         </p>
         {(category !== 'all' || searchQuery || selectedTags.length > 0) && (
@@ -215,7 +215,7 @@ function PatternList({
 
       {/* Empty filtered state */}
       {filteredPatterns.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
           <p className="text-lg">No patterns match your filters</p>
           <p className="text-sm mt-2">
             Try adjusting your filters or search query.
