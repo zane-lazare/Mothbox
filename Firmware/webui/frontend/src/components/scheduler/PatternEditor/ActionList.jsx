@@ -139,6 +139,12 @@ function SortableAction({ action, onEdit, onDelete }) {
   )
 }
 
+SortableAction.propTypes = {
+  action: PropTypes.object.isRequired,
+  onEdit: PropTypes.func.isRequired,
+  onDelete: PropTypes.func.isRequired
+}
+
 /**
  * Delete confirmation dialog
  */
@@ -194,6 +200,13 @@ function DeleteConfirmDialog({ action, onConfirm, onCancel, isOpen = true }) {
       </div>
     </div>
   )
+}
+
+DeleteConfirmDialog.propTypes = {
+  action: PropTypes.object.isRequired,
+  onConfirm: PropTypes.func.isRequired,
+  onCancel: PropTypes.func.isRequired,
+  isOpen: PropTypes.bool
 }
 
 /**
