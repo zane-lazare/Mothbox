@@ -89,6 +89,20 @@ const TimeWindowInput = ({
   };
 
   /**
+   * Validate time window combination (mixed solar/fixed warning)
+   * @returns {string|null} Warning message or null if no warning needed
+   */
+  const getMixedTimeWindowWarning = () => {
+    // Both fixed or both solar - no warning needed
+    if (startIsFixedTime === endIsFixedTime) return null;
+
+    // Mixed types - warn user about complexity
+    return 'Note: Mixing fixed time with solar event may result in time windows that vary with sunrise/sunset times.';
+  };
+
+  const mixedTimeWarning = getMixedTimeWindowWarning();
+
+  /**
    * Handle start time type change
    */
   const handleStartTypeChange = (isFixed) => {
@@ -391,6 +405,13 @@ const TimeWindowInput = ({
           </p>
         )}
       </div>
+
+      {/* Mixed Time Window Warning */}
+      {mixedTimeWarning && (
+        <p className="text-sm text-amber-600 dark:text-amber-400">
+          {mixedTimeWarning}
+        </p>
+      )}
 
       {/* General Errors */}
       {errors.general && (
