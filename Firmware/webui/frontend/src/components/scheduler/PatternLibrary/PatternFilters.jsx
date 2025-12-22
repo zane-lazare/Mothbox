@@ -169,20 +169,33 @@ function PatternFilters({
 }
 
 PatternFilters.propTypes = {
+  /** Current category filter value */
   category: PropTypes.oneOf(['all', 'built-in', 'user']).isRequired,
+  /** Callback when category changes */
   onCategoryChange: PropTypes.func.isRequired,
+  /** Currently selected tag filters */
   selectedTags: PropTypes.arrayOf(PropTypes.string),
+  /** Callback when selected tags change */
   onTagsChange: PropTypes.func.isRequired,
+  /** Available tags with counts for filter chips */
   availableTags: PropTypes.arrayOf(
     PropTypes.shape({
       tag: PropTypes.string.isRequired,
       count: PropTypes.number.isRequired,
     })
   ),
+  /** Current search query */
   searchQuery: PropTypes.string.isRequired,
+  /**
+   * Callback when search query changes (debounced 300ms internally).
+   * IMPORTANT: Should be memoized with useCallback to prevent unnecessary re-renders.
+   */
   onSearchChange: PropTypes.func.isRequired,
+  /** Current view mode */
   viewMode: PropTypes.oneOf(['grid', 'list']).isRequired,
+  /** Callback when view mode changes */
   onViewModeChange: PropTypes.func.isRequired,
+  /** Whether to show the grid/list view toggle (hidden in embedded mode) */
   showViewToggle: PropTypes.bool,
 };
 

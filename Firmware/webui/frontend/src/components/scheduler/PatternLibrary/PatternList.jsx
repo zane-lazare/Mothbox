@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import PropTypes from 'prop-types'
 import { useBuiltinPatterns } from '../../../hooks/useEventPatterns'
 import PatternCard from './PatternCard'
@@ -65,15 +65,15 @@ function PatternList({
   }, [data?.patterns, category, selectedTags, searchQuery])
 
   // Reset all filters
-  const handleResetFilters = () => {
+  const handleResetFilters = useCallback(() => {
     setCategory('all')
     setSearchQuery('')
     setSelectedTags([])
     setViewMode('grid')
-  }
+  }, [])
 
   // Handle card click
-  const handleCardClick = (pattern) => {
+  const handleCardClick = useCallback((pattern) => {
     if (mode === 'standalone') {
       // Open drawer in standalone mode
       setSelectedPattern(pattern)
@@ -82,23 +82,23 @@ function PatternList({
       // Direct selection in embedded mode
       onPatternSelect(pattern)
     }
-  }
+  }, [mode, onPatternSelect])
 
   // Handle "Use Pattern" from card
-  const handleUsePattern = (pattern) => {
+  const handleUsePattern = useCallback((pattern) => {
     onPatternSelect(pattern)
-  }
+  }, [onPatternSelect])
 
   // Handle drawer close
-  const handleDrawerClose = () => {
+  const handleDrawerClose = useCallback(() => {
     setDrawerOpen(false)
-  }
+  }, [])
 
   // Handle "Use Pattern" from drawer
-  const handleDrawerUsePattern = (pattern) => {
+  const handleDrawerUsePattern = useCallback((pattern) => {
     onPatternSelect(pattern)
     setDrawerOpen(false)
-  }
+  }, [onPatternSelect])
 
   // Loading state
   if (isLoading) {
