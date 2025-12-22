@@ -487,6 +487,56 @@ describe('ScheduleEditor', () => {
         expect(screen.getByLabelText(/schedule name/i)).toHaveFocus();
       });
     });
+
+    it('traps focus within drawer - Tab from last element goes to first', async () => {
+      renderWithClient(
+        <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
+      );
+
+      // Wait for drawer to be rendered
+      await waitFor(() => {
+        expect(screen.getByTestId('schedule-editor-drawer')).toBeInTheDocument();
+      });
+
+      // Focus the Save button (last focusable element in footer)
+      const saveButton = screen.getByRole('button', { name: /save/i });
+      saveButton.focus();
+      expect(saveButton).toHaveFocus();
+
+      // Simulate Tab key press
+      fireEvent.keyDown(document, { key: 'Tab' });
+
+      // Focus should wrap to first focusable element (close button in header)
+      await waitFor(() => {
+        const closeButton = screen.getByRole('button', { name: /close/i });
+        expect(closeButton).toHaveFocus();
+      });
+    });
+
+    it('traps focus within drawer - Shift+Tab from first element goes to last', async () => {
+      renderWithClient(
+        <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
+      );
+
+      // Wait for drawer to be rendered
+      await waitFor(() => {
+        expect(screen.getByTestId('schedule-editor-drawer')).toBeInTheDocument();
+      });
+
+      // Focus the close button (first focusable element in header)
+      const closeButton = screen.getByRole('button', { name: /close/i });
+      closeButton.focus();
+      expect(closeButton).toHaveFocus();
+
+      // Simulate Shift+Tab key press
+      fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+
+      // Focus should wrap to last focusable element (Save button)
+      await waitFor(() => {
+        const saveButton = screen.getByRole('button', { name: /save/i });
+        expect(saveButton).toHaveFocus();
+      });
+    });
   });
 
   describe('Dark Mode', () => {

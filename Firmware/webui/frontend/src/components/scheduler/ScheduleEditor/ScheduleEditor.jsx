@@ -159,6 +159,43 @@ const ScheduleEditor = ({
   }, [isOpen]);
 
   /**
+   * Focus trap - keep focus within drawer when open (WCAG 2.1.2)
+   */
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const drawer = document.querySelector('[data-testid="schedule-editor-drawer"]');
+    if (!drawer) return;
+
+    const getFocusableElements = () => {
+      return drawer.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+    };
+
+    const handleKeyDown = (e) => {
+      if (e.key !== 'Tab') return;
+
+      const focusableElements = getFocusableElements();
+      if (focusableElements.length === 0) return;
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey && document.activeElement === firstElement) {
+        e.preventDefault();
+        lastElement.focus();
+      } else if (!e.shiftKey && document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
+  /**
    * Handle backdrop click
    */
   const handleBackdropClick = useCallback(
