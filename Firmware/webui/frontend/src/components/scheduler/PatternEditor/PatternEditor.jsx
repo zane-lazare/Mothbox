@@ -28,7 +28,7 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
 
   // Hooks
   const { mutateAsync: validatePattern, isPending: isValidating } = useValidatePattern()
-  const { data: duration = 0 } = usePatternDuration(actions)
+  const { data: duration = 0 } = usePatternDuration({ actions })
 
   // Determine mode
   const isEditMode = Boolean(pattern?.pattern_id)
