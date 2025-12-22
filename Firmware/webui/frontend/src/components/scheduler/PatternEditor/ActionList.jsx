@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import PropTypes from 'prop-types'
 import {
   DndContext,
   closestCenter,
@@ -401,4 +402,9 @@ export default function ActionList({ actions = [], onActionsChange }) {
       )}
     </div>
   )
+}
+
+ActionList.propTypes = {
+  actions: PropTypes.arrayOf(PropTypes.object),
+  onActionsChange: PropTypes.func.isRequired
 }

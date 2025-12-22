@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { ACTION_LIMITS } from './constants';
 
 const ACTION_NAMES = {
@@ -391,6 +392,19 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
       </div>
     </div>
   );
+};
+
+ActionForm.propTypes = {
+  action: PropTypes.shape({
+    action_type: PropTypes.string,
+    action_name: PropTypes.string,
+    offset_minutes: PropTypes.number,
+    description: PropTypes.string,
+    parameters: PropTypes.object
+  }),
+  onSave: PropTypes.func.isRequired,
+  onCancel: PropTypes.func.isRequired,
+  isOpen: PropTypes.bool.isRequired
 };
 
 export default ActionForm;
