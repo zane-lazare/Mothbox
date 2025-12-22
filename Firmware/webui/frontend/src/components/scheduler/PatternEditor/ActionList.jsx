@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -203,12 +203,20 @@ export default function ActionList({ actions = [], onActionsChange }) {
     })
   )
 
-  // Ensure all actions have IDs (memoized to prevent re-generating UUIDs on each render)
+  // Track generated IDs for actions without stable IDs from parent
+  const generatedIdsRef = useRef(new Map())
+
+  // Ensure all actions have stable IDs
+  // Uses a ref to maintain consistent IDs for actions that lack them
   const actionsWithIds = useMemo(() =>
-    actions.map(action => ({
-      ...action,
-      id: action.id || crypto.randomUUID()
-    })),
+    actions.map(action => {
+      if (action.id) return action
+      // Use action object reference as key to maintain stable ID
+      if (!generatedIdsRef.current.has(action)) {
+        generatedIdsRef.current.set(action, crypto.randomUUID())
+      }
+      return { ...action, id: generatedIdsRef.current.get(action) }
+    }),
     [actions]
   )
 
