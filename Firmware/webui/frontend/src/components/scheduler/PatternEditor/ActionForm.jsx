@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { ACTION_LIMITS, ACTION_NAMES } from './constants';
 
+// Valid parameter key pattern: must start with letter, then alphanumeric/underscore/hyphen
+const PARAM_KEY_REGEX = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
+
 const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
   const [formData, setFormData] = useState({
     action_type: '',
@@ -136,6 +139,15 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
       if (offset < ACTION_LIMITS.MIN_OFFSET_MINUTES || offset > ACTION_LIMITS.MAX_OFFSET_MINUTES) {
         newErrors.offset_minutes = `Offset must be between ${ACTION_LIMITS.MIN_OFFSET_MINUTES} and ${ACTION_LIMITS.MAX_OFFSET_MINUTES} minutes`;
       }
+    }
+
+    // Validate parameter keys
+    const invalidKeys = formData.parameters
+      .filter(param => param.key && !PARAM_KEY_REGEX.test(param.key))
+      .map(param => param.key);
+
+    if (invalidKeys.length > 0) {
+      newErrors.parameters = `Invalid parameter key(s): ${invalidKeys.join(', ')}. Keys must start with a letter and contain only letters, numbers, underscores, or hyphens.`;
     }
 
     setErrors(newErrors);
@@ -322,43 +334,53 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
               </div>
               {formData.parameters.length > 0 && (
                 <div className="space-y-2">
-                  {formData.parameters.map((param) => (
-                    <div key={param.id} className="flex gap-2">
-                      <input
-                        type="text"
-                        value={param.key}
-                        onChange={(e) =>
-                          handleParameterChange(param.id, 'key', e.target.value)
-                        }
-                        placeholder="Key"
-                        className="flex-1 rounded-md border border-gray-300 dark:border-gray-600
-                                 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
-                                 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                      <input
-                        type="text"
-                        value={param.value}
-                        onChange={(e) =>
-                          handleParameterChange(param.id, 'value', e.target.value)
-                        }
-                        placeholder="Value"
-                        className="flex-1 rounded-md border border-gray-300 dark:border-gray-600
-                                 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
-                                 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveParameter(param.id)}
-                        className="px-3 py-2 text-sm bg-red-600 text-white rounded-md
-                                 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600
-                                 focus:outline-none focus:ring-2 focus:ring-red-500"
-                        aria-label="Remove"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                  {formData.parameters.map((param) => {
+                    const isKeyInvalid = param.key && !PARAM_KEY_REGEX.test(param.key);
+                    return (
+                      <div key={param.id} className="flex gap-2">
+                        <input
+                          type="text"
+                          value={param.key}
+                          onChange={(e) =>
+                            handleParameterChange(param.id, 'key', e.target.value)
+                          }
+                          placeholder="Key"
+                          className={`flex-1 rounded-md border px-3 py-2 text-gray-900 dark:text-white
+                                   bg-white dark:bg-gray-800 focus:ring-2 focus:border-transparent
+                                   ${isKeyInvalid
+                                     ? 'border-red-500 dark:border-red-400 focus:ring-red-500'
+                                     : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500'}`}
+                        />
+                        <input
+                          type="text"
+                          value={param.value}
+                          onChange={(e) =>
+                            handleParameterChange(param.id, 'value', e.target.value)
+                          }
+                          placeholder="Value"
+                          className="flex-1 rounded-md border border-gray-300 dark:border-gray-600
+                                   bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
+                                   focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveParameter(param.id)}
+                          className="px-3 py-2 text-sm bg-red-600 text-white rounded-md
+                                   hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600
+                                   focus:outline-none focus:ring-2 focus:ring-red-500"
+                          aria-label="Remove"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
+              )}
+              {errors.parameters && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.parameters}
+                </p>
               )}
             </div>
           </div>
