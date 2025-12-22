@@ -142,15 +142,16 @@ function SortableAction({ action, onEdit, onDelete }) {
 /**
  * Delete confirmation dialog
  */
-function DeleteConfirmDialog({ action, onConfirm, onCancel }) {
+function DeleteConfirmDialog({ action, onConfirm, onCancel, isOpen = true }) {
   // Handle Escape key to close dialog
   useEffect(() => {
+    if (!isOpen) return
     const handleEscape = (e) => {
       if (e.key === 'Escape') onCancel()
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [onCancel])
+  }, [isOpen, onCancel])
 
   return (
     <div
