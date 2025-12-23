@@ -2,7 +2,7 @@ import { CalendarDaysIcon } from '@heroicons/react/24/outline'
 
 /**
  * CalendarViewPlaceholder - Temporary placeholder for calendar view.
- * Will be replaced with full implementation in Issue #229.
+ * Will be replaced with full implementation in Issue #228.
  */
 export default function CalendarViewPlaceholder() {
   return (
@@ -10,7 +10,7 @@ export default function CalendarViewPlaceholder() {
       <CalendarDaysIcon className="h-16 w-16 mx-auto text-gray-300 mb-4" />
       <h3 className="text-lg font-medium text-gray-500 mb-2">Calendar View</h3>
       <p className="text-sm text-gray-400">
-        Full implementation coming in Issue #229
+        Full implementation coming in Issue #228
       </p>
     </div>
   )
