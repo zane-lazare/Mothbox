@@ -54,16 +54,13 @@ function CalendarCell({
   const visibleExecutions = executions.slice(0, 3)
   const hiddenCount = executions.length - visibleExecutions.length
 
+  // Use stable primitive for date dependency (Date objects create new instances on each render)
+  const dateTime = date.getTime()
+
   // Handle cell click - memoized to prevent unnecessary re-renders
   const handleCellClick = useCallback(() => {
     onClick(date)
-  }, [onClick, date])
-
-  // Handle execution click (prevent bubbling to cell) - memoized
-  const handleExecutionClick = useCallback((execution) => (e) => {
-    e.stopPropagation()
-    onExecutionClick(execution)
-  }, [onExecutionClick])
+  }, [onClick, dateTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build cell classes
   const cellClasses = [
@@ -118,7 +115,7 @@ function CalendarCell({
           <ExecutionMarker
             key={exec.id || `${exec.pattern_id}-${exec.start_time}-${index}`}
             execution={exec}
-            onClick={handleExecutionClick(exec)}
+            onClick={() => onExecutionClick(exec)}
             compact
           />
         ))}

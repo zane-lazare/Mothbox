@@ -24,7 +24,10 @@ vi.mock('../ExecutionMarker', () => ({
   default: ({ execution, onClick, compact }) => (
     <button
       data-testid={`execution-marker-${execution.pattern_id}`}
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation() // Mirror real ExecutionMarker behavior
+        onClick()
+      }}
       data-compact={compact}
     >
       {execution.pattern_name}
