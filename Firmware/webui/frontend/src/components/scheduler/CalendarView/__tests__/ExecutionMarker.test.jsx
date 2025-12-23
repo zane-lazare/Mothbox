@@ -249,6 +249,40 @@ describe('ExecutionMarker', () => {
     })
   })
 
+  describe('Static Color Class Mapping', () => {
+    it('uses static dark mode classes (Tailwind JIT compatible)', () => {
+      const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
+      const button = container.querySelector('button')
+      // Should have one of the static dark mode classes from COLOR_CLASS_MAP
+      const validDarkClasses = [
+        'dark:bg-blue-600',
+        'dark:bg-green-600',
+        'dark:bg-purple-600',
+        'dark:bg-orange-600',
+        'dark:bg-pink-600',
+        'dark:bg-cyan-600',
+      ]
+      const hasDarkClass = validDarkClasses.some((cls) => button.classList.contains(cls))
+      expect(hasDarkClass).toBe(true)
+    })
+
+    it('uses static focus ring classes (Tailwind JIT compatible)', () => {
+      const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
+      const button = container.querySelector('button')
+      // Should have one of the static focus ring classes from COLOR_CLASS_MAP
+      const validRingClasses = [
+        'focus:ring-blue-400',
+        'focus:ring-green-400',
+        'focus:ring-purple-400',
+        'focus:ring-orange-400',
+        'focus:ring-pink-400',
+        'focus:ring-cyan-400',
+      ]
+      const hasRingClass = validRingClasses.some((cls) => button.classList.contains(cls))
+      expect(hasRingClass).toBe(true)
+    })
+  })
+
   describe('Edge Cases', () => {
     it('handles missing optional fields gracefully', () => {
       const minimalExecution = {

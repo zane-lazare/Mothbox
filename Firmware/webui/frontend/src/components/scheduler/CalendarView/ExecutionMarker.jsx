@@ -12,6 +12,21 @@ import PropTypes from 'prop-types'
 import { getPatternColor, formatTime } from './calendarUtils'
 
 /**
+ * Static color class mappings for Tailwind JIT compatibility.
+ * Dynamic class construction like `dark:bg-${color}-500` doesn't work with
+ * Tailwind's JIT compiler, so we map each bg color to its corresponding
+ * dark mode and focus ring classes.
+ */
+const COLOR_CLASS_MAP = {
+  'bg-blue-500': { dark: 'dark:bg-blue-600', ring: 'focus:ring-blue-400' },
+  'bg-green-500': { dark: 'dark:bg-green-600', ring: 'focus:ring-green-400' },
+  'bg-purple-500': { dark: 'dark:bg-purple-600', ring: 'focus:ring-purple-400' },
+  'bg-orange-500': { dark: 'dark:bg-orange-600', ring: 'focus:ring-orange-400' },
+  'bg-pink-500': { dark: 'dark:bg-pink-600', ring: 'focus:ring-pink-400' },
+  'bg-cyan-500': { dark: 'dark:bg-cyan-600', ring: 'focus:ring-cyan-400' },
+}
+
+/**
  * Truncate text with ellipsis if longer than maxLength
  * @param {string} text - Text to truncate
  * @param {number} maxLength - Maximum length before truncation
@@ -59,11 +74,9 @@ function ExecutionMarker({ execution, onClick, compact = false }) {
   // Get consistent color for this pattern
   const colorClass = getPatternColor(pattern_id)
 
-  // Convert bg-color-500 to appropriate text and dark mode classes
-  const baseColor = colorClass.replace('bg-', '').split('-')[0]
-  const darkModeClass = `dark:bg-${baseColor}-500`
-  const textClass = 'text-white'
-  const hoverClass = `hover:brightness-110 hover:scale-105`
+  // Get static dark mode and focus ring classes from mapping
+  // Falls back to blue if color not in map (defensive)
+  const colorMapping = COLOR_CLASS_MAP[colorClass] || COLOR_CLASS_MAP['bg-blue-500']
 
   // Format time from start_time
   const timeStr = formatTime(start_time)
@@ -71,17 +84,17 @@ function ExecutionMarker({ execution, onClick, compact = false }) {
   // Prepare display text
   const displayName = compact ? truncateText(pattern_name, 10) : pattern_name
 
-  // Base classes for the marker
+  // Base classes for the marker - using static classes for Tailwind JIT
   const baseClasses = [
     'inline-flex items-center gap-1.5',
     'rounded-full px-2 py-1',
-    textClass,
+    'text-white',
     colorClass,
-    darkModeClass,
+    colorMapping.dark,
     'cursor-pointer transition-all duration-150',
-    hoverClass,
+    'hover:brightness-110 hover:scale-105',
     'focus:outline-none focus:ring-2 focus:ring-offset-1',
-    `focus:ring-${baseColor}-400`,
+    colorMapping.ring,
   ].join(' ')
 
   const textClasses = compact
