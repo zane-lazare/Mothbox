@@ -26,6 +26,16 @@ import ActiveScheduleBadge from './ActiveScheduleBadge'
 import { SchedulePropType } from '../ScheduleEditor/propTypes'
 import { MOON_PHASES } from '../ScheduleEditor/constants'
 
+/** Base button styles shared across all action buttons */
+const BUTTON_BASE =
+  'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed'
+
+/** Primary button style for Edit, Activate, Deactivate */
+const BUTTON_PRIMARY = `${BUTTON_BASE} text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600`
+
+/** Danger button style for Delete */
+const BUTTON_DANGER = `${BUTTON_BASE} text-red-700 bg-white border border-red-300 hover:bg-red-50 focus:ring-red-500 dark:bg-gray-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-900/20`
+
 /**
  * Get icon component for trigger type
  * @param {string} triggerType - Trigger type
@@ -192,7 +202,7 @@ export default function ScheduleCard({
           type="button"
           onClick={handleEdit}
           disabled={isEditing || isActivating || isDeactivating || isDeleting}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
+          className={BUTTON_PRIMARY}
         >
           <PencilIcon className="h-4 w-4" aria-hidden="true" />
           {isEditing ? 'Loading...' : 'Edit'}
@@ -203,7 +213,7 @@ export default function ScheduleCard({
             type="button"
             onClick={handleDeactivate}
             disabled={isEditing || isActivating || isDeactivating || isDeleting}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
+            className={BUTTON_PRIMARY}
           >
             <StopIcon className="h-4 w-4" aria-hidden="true" />
             {isDeactivating ? 'Loading...' : 'Deactivate'}
@@ -213,7 +223,7 @@ export default function ScheduleCard({
             type="button"
             onClick={handleActivate}
             disabled={isEditing || isActivating || isDeactivating || isDeleting}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
+            className={BUTTON_PRIMARY}
           >
             <PlayIcon className="h-4 w-4" aria-hidden="true" />
             {isActivating ? 'Loading...' : 'Activate'}
@@ -224,7 +234,7 @@ export default function ScheduleCard({
           type="button"
           onClick={handleDelete}
           disabled={isEditing || isActivating || isDeactivating || isDeleting}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-900/20"
+          className={BUTTON_DANGER}
         >
           <TrashIcon className="h-4 w-4" aria-hidden="true" />
           {isDeleting ? 'Loading...' : 'Delete'}
