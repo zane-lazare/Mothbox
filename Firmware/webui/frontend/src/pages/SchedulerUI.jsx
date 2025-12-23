@@ -6,7 +6,7 @@ import SchedulerTabs from '../components/scheduler/SchedulerTabs'
 import ActiveScheduleBanner from '../components/scheduler/ActiveScheduleBanner'
 import { ScheduleList } from '../components/scheduler/ScheduleList'
 import { ScheduleEditor } from '../components/scheduler/ScheduleEditor'
-import CalendarViewPlaceholder from '../components/scheduler/CalendarViewPlaceholder'
+import CalendarView from '../components/scheduler/CalendarView'
 import ErrorBoundary from '../components/ErrorBoundary'
 import { useCreateSchedule, useUpdateSchedule } from '../hooks/useSchedules'
 import toast from 'react-hot-toast'
@@ -91,7 +91,13 @@ function SchedulerUIContent() {
       )}
       {activeTab === 'calendar' && (
         <div id="calendar-panel" role="tabpanel">
-          <CalendarViewPlaceholder />
+          <ErrorBoundary
+            errorTitle="Error loading calendar"
+            errorMessage="Failed to load the calendar view"
+            onReset={() => window.location.reload()}
+          >
+            <CalendarView />
+          </ErrorBoundary>
         </div>
       )}
 
