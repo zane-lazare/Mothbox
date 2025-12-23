@@ -4,6 +4,7 @@ import ActionList from './ActionList'
 import OffsetTimeline from './OffsetTimeline'
 import { useValidatePattern, usePatternDuration } from '@/hooks/useEventPatterns'
 import { PATTERN_LIMITS } from './constants'
+import { generateUUID } from '../../../utils/uuid'
 
 /**
  * Main container component for editing event patterns.
@@ -108,7 +109,7 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
 
     // Build pattern object
     const patternData = {
-      pattern_id: pattern?.pattern_id || crypto.randomUUID(),
+      pattern_id: pattern?.pattern_id || generateUUID(),
       name: name.trim(),
       description: description.trim(),
       actions,

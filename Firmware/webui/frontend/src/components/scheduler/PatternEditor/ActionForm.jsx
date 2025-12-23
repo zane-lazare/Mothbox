@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { ACTION_LIMITS, ACTION_NAMES } from './constants';
+import { generateUUID } from '../../../utils/uuid';
 
 // Valid parameter key pattern: must start with letter, then alphanumeric/underscore/hyphen
 const PARAM_KEY_REGEX = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
@@ -31,7 +32,7 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
           description: action.description || '',
           parameters: action.parameters
             ? Object.entries(action.parameters).map(([key, value]) => ({
-                id: crypto.randomUUID(),
+                id: generateUUID(),
                 key,
                 value
               }))
@@ -122,7 +123,7 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
   const handleAddParameter = () => {
     setFormData(prev => ({
       ...prev,
-      parameters: [...prev.parameters, { id: crypto.randomUUID(), key: '', value: '' }],
+      parameters: [...prev.parameters, { id: generateUUID(), key: '', value: '' }],
     }));
   };
 

@@ -26,6 +26,7 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline'
 import ActionForm from './ActionForm'
+import { generateUUID } from '../../../utils/uuid'
 
 /**
  * Get icon component for action type
@@ -275,7 +276,7 @@ export default function ActionList({ actions = [], onActionsChange, disabled = f
       // Create a stable key from action content
       const contentKey = `${action.action_type}:${action.action_name}:${action.offset_minutes}`
       if (!generatedIdsRef.current.has(contentKey)) {
-        generatedIdsRef.current.set(contentKey, crypto.randomUUID())
+        generatedIdsRef.current.set(contentKey, generateUUID())
       }
       return { ...action, id: generatedIdsRef.current.get(contentKey) }
     }),
@@ -364,7 +365,7 @@ export default function ActionList({ actions = [], onActionsChange, disabled = f
       // Add new action
       const newAction = {
         ...actionData,
-        id: actionData.id || crypto.randomUUID()
+        id: actionData.id || generateUUID()
       }
       onActionsChange([...actionsWithIds, newAction])
     }
