@@ -147,7 +147,11 @@ const ScheduleEditor = ({
   }, [isOpen, onCancel]);
 
   /**
-   * Prevent body scroll when drawer is open
+   * Body scroll lock effect.
+   *
+   * ASSUMPTION: Only one drawer/modal is open at a time in this application.
+   * If multiple concurrent drawers are needed, consider using a library like
+   * body-scroll-lock for proper reference counting.
    */
   useEffect(() => {
     if (isOpen) {
