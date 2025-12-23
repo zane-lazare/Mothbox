@@ -587,7 +587,80 @@ describe('CalendarCell', () => {
       expect(cellDiv).toHaveAttribute('tabIndex', '0')
     })
 
-    it('has aria-label with date and execution count', () => {
+    it('has descriptive aria-label with weekday, month name, and year', () => {
+      const date = new Date(2025, 11, 17) // Wednesday, December 17, 2025
+      const { container } = render(
+        <CalendarCell
+          date={date}
+          isCurrentMonth={true}
+          onClick={mockOnClick}
+          onExecutionClick={mockOnExecutionClick}
+        />
+      )
+
+      const cellDiv = container.querySelector('[role="button"]')
+      const ariaLabel = cellDiv.getAttribute('aria-label')
+
+      expect(ariaLabel).toContain('Wednesday')
+      expect(ariaLabel).toContain('December')
+      expect(ariaLabel).toContain('17')
+      expect(ariaLabel).toContain('2025')
+    })
+
+    it('includes moon phase in aria-label when present', () => {
+      const date = new Date(2025, 11, 17)
+      const moonPhase = {
+        phase: 'full',
+        phase_name: 'Full Moon',
+        illumination: 1.0,
+      }
+
+      const { container } = render(
+        <CalendarCell
+          date={date}
+          isCurrentMonth={true}
+          moonPhase={moonPhase}
+          onClick={mockOnClick}
+          onExecutionClick={mockOnExecutionClick}
+        />
+      )
+
+      const cellDiv = container.querySelector('[role="button"]')
+      const ariaLabel = cellDiv.getAttribute('aria-label')
+
+      expect(ariaLabel).toContain('Wednesday, December 17, 2025')
+      expect(ariaLabel).toContain('Full Moon')
+    })
+
+    it('includes execution count with correct pluralization (singular)', () => {
+      const date = new Date(2025, 11, 17)
+      const executions = [
+        {
+          id: '1',
+          pattern_id: 'pattern1',
+          pattern_name: 'Pattern 1',
+          start_time: '2025-12-17T08:00:00Z',
+        },
+      ]
+
+      const { container } = render(
+        <CalendarCell
+          date={date}
+          isCurrentMonth={true}
+          executions={executions}
+          onClick={mockOnClick}
+          onExecutionClick={mockOnExecutionClick}
+        />
+      )
+
+      const cellDiv = container.querySelector('[role="button"]')
+      const ariaLabel = cellDiv.getAttribute('aria-label')
+
+      expect(ariaLabel).toContain('1 scheduled execution')
+      expect(ariaLabel).not.toContain('executions') // Should be singular
+    })
+
+    it('includes execution count with correct pluralization (plural)', () => {
       const date = new Date(2025, 11, 17)
       const executions = [
         {
@@ -615,8 +688,73 @@ describe('CalendarCell', () => {
       )
 
       const cellDiv = container.querySelector('[role="button"]')
-      expect(cellDiv).toHaveAttribute('aria-label')
-      expect(cellDiv.getAttribute('aria-label')).toContain('2 executions')
+      const ariaLabel = cellDiv.getAttribute('aria-label')
+
+      expect(ariaLabel).toContain('2 scheduled executions')
+    })
+
+    it('omits execution count when no executions', () => {
+      const date = new Date(2025, 11, 17)
+      const { container } = render(
+        <CalendarCell
+          date={date}
+          isCurrentMonth={true}
+          executions={[]}
+          onClick={mockOnClick}
+          onExecutionClick={mockOnExecutionClick}
+        />
+      )
+
+      const cellDiv = container.querySelector('[role="button"]')
+      const ariaLabel = cellDiv.getAttribute('aria-label')
+
+      expect(ariaLabel).toBe('Wednesday, December 17, 2025')
+      expect(ariaLabel).not.toContain('execution')
+    })
+
+    it('includes both moon phase and executions in aria-label', () => {
+      const date = new Date(2025, 11, 17)
+      const moonPhase = {
+        phase: 'full',
+        phase_name: 'Full Moon',
+        illumination: 1.0,
+      }
+      const executions = [
+        {
+          id: '1',
+          pattern_id: 'pattern1',
+          pattern_name: 'Pattern 1',
+          start_time: '2025-12-17T08:00:00Z',
+        },
+        {
+          id: '2',
+          pattern_id: 'pattern2',
+          pattern_name: 'Pattern 2',
+          start_time: '2025-12-17T12:00:00Z',
+        },
+        {
+          id: '3',
+          pattern_id: 'pattern3',
+          pattern_name: 'Pattern 3',
+          start_time: '2025-12-17T18:00:00Z',
+        },
+      ]
+
+      const { container } = render(
+        <CalendarCell
+          date={date}
+          isCurrentMonth={true}
+          moonPhase={moonPhase}
+          executions={executions}
+          onClick={mockOnClick}
+          onExecutionClick={mockOnExecutionClick}
+        />
+      )
+
+      const cellDiv = container.querySelector('[role="button"]')
+      const ariaLabel = cellDiv.getAttribute('aria-label')
+
+      expect(ariaLabel).toBe('Wednesday, December 17, 2025, Full Moon, 3 scheduled executions')
     })
   })
 

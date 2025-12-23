@@ -13,6 +13,10 @@ import MoonPhaseIcon from './MoonPhaseIcon'
 import ExecutionMarker from './ExecutionMarker'
 import { isToday } from './calendarUtils'
 
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December']
+
 /**
  * CalendarCell component
  *
@@ -94,7 +98,9 @@ function CalendarCell({
       onClick={handleCellClick}
       role="button"
       tabIndex={0}
-      aria-label={`${date.toLocaleDateString()}, ${executions.length} executions`}
+      aria-label={`${WEEKDAYS[date.getDay()]}, ${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}${
+  moonPhase ? `, ${moonPhase.phase_name}` : ''
+}${executions.length > 0 ? `, ${executions.length} scheduled execution${executions.length > 1 ? 's' : ''}` : ''}`}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
