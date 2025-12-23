@@ -80,23 +80,29 @@ const calculateDuration = (actions) => {
 };
 
 /**
- * Generate mock preview execution times
+ * Generate example preview execution times
+ *
+ * TODO(#227): Replace with actual preview calculation API.
+ * Currently shows example times at 9 PM for illustration purposes only.
+ * Actual execution times will be computed by the backend based on
+ * trigger configuration, solar calculations, and location settings.
+ *
  * @param {Object} trigger - Trigger configuration
  * @param {Object} pattern - Pattern configuration
  * @param {string|null} startDate - Start date string
- * @returns {Array<Date>} Array of execution time dates
+ * @returns {Array<Date>} Array of example execution time dates
  */
-const generateMockExecutionTimes = (trigger, pattern, startDate) => {
+const generateExampleExecutionTimes = (trigger, pattern, startDate) => {
   if (!trigger || !pattern) return [];
 
-  // Mock data - would be replaced with actual API call
+  // Example data - times shown at 9 PM for illustration only
   const baseDate = startDate ? new Date(startDate) : new Date();
 
   const times = [];
   for (let i = 0; i < 5; i++) {
     const date = new Date(baseDate);
     date.setDate(date.getDate() + i);
-    date.setHours(21, 0, 0, 0); // Default to 9 PM
+    date.setHours(21, 0, 0, 0); // Example: 9 PM each day
     times.push(date);
   }
 
@@ -186,7 +192,7 @@ const PreviewSection = ({
 
   // Memoized computed values to prevent recalculation on every render
   const executionTimes = useMemo(
-    () => generateMockExecutionTimes(trigger, pattern, dateRange?.start_date),
+    () => generateExampleExecutionTimes(trigger, pattern, dateRange?.start_date),
     [trigger, pattern, dateRange?.start_date]
   );
 
@@ -267,12 +273,12 @@ const PreviewSection = ({
       {trigger && pattern && trigger.type !== 'sensor' && (
         <div>
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Next Executions:
+            Example Executions:
           </p>
           <ul
             className="space-y-2"
             role="list"
-            aria-label="Next execution times"
+            aria-label="Example execution times"
           >
             {executionTimes.map((time, index) => (
               <li
@@ -283,6 +289,9 @@ const PreviewSection = ({
               </li>
             ))}
           </ul>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic">
+            Example preview - actual times will vary based on location and trigger settings
+          </p>
         </div>
       )}
     </div>

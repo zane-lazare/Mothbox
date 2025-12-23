@@ -215,7 +215,7 @@ describe('PreviewSection', () => {
         />
       );
 
-      expect(screen.getByText('Next Executions:')).toBeInTheDocument();
+      expect(screen.getByText('Example Executions:')).toBeInTheDocument();
     });
 
     it('displays next 5 execution times by default', () => {
@@ -506,7 +506,7 @@ describe('PreviewSection', () => {
         />
       );
 
-      const list = screen.getByRole('list', { name: /next execution times/i });
+      const list = screen.getByRole('list', { name: /example execution times/i });
       expect(list).toBeInTheDocument();
     });
 
