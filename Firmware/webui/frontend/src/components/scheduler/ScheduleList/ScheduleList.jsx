@@ -2,6 +2,16 @@ import { useState } from 'react'
 import PropTypes from 'prop-types'
 import { CalendarDaysIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
+
+/** Toast message constants for i18n and consistency */
+const TOAST_MESSAGES = {
+  ACTIVATE_SUCCESS: 'Schedule activated successfully',
+  ACTIVATE_ERROR: (msg) => `Failed to activate schedule: ${msg}`,
+  DEACTIVATE_SUCCESS: 'Schedule deactivated successfully',
+  DEACTIVATE_ERROR: (msg) => `Failed to deactivate schedule: ${msg}`,
+  DELETE_SUCCESS: 'Schedule deleted successfully',
+  DELETE_ERROR: (msg) => `Failed to delete schedule: ${msg}`,
+}
 import {
   useSchedules,
   useActiveSchedule,
@@ -35,11 +45,11 @@ export function ScheduleList({ onEditSchedule }) {
       { id: schedule.id },
       {
         onSuccess: () => {
-          toast.success('Schedule activated successfully')
+          toast.success(TOAST_MESSAGES.ACTIVATE_SUCCESS)
           setActivatingId(null)
         },
         onError: (error) => {
-          toast.error(`Failed to activate schedule: ${error.message}`)
+          toast.error(TOAST_MESSAGES.ACTIVATE_ERROR(error.message))
           setActivatingId(null)
         },
       }
@@ -49,10 +59,10 @@ export function ScheduleList({ onEditSchedule }) {
   const handleDeactivate = () => {
     deactivate(undefined, {
       onSuccess: () => {
-        toast.success('Schedule deactivated successfully')
+        toast.success(TOAST_MESSAGES.DEACTIVATE_SUCCESS)
       },
       onError: (error) => {
-        toast.error(`Failed to deactivate schedule: ${error.message}`)
+        toast.error(TOAST_MESSAGES.DEACTIVATE_ERROR(error.message))
       },
     })
   }
@@ -69,11 +79,11 @@ export function ScheduleList({ onEditSchedule }) {
 
     deleteSchedule(deleteConfirmation.schedule.id, {
       onSuccess: () => {
-        toast.success('Schedule deleted successfully')
+        toast.success(TOAST_MESSAGES.DELETE_SUCCESS)
         setDeleteConfirmation({ isOpen: false, schedule: null })
       },
       onError: (error) => {
-        toast.error(`Failed to delete schedule: ${error.message}`)
+        toast.error(TOAST_MESSAGES.DELETE_ERROR(error.message))
         setDeleteConfirmation({ isOpen: false, schedule: null })
       },
     })
