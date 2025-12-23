@@ -165,7 +165,13 @@ const ScheduleEditor = ({
   }, [isOpen]);
 
   /**
-   * Focus trap - keep focus within drawer when open (WCAG 2.1.2)
+   * Focus trap implementation for WCAG 2.1.2 compliance.
+   *
+   * This implementation queries focusable elements on each Tab keypress.
+   * If drawer content becomes highly dynamic (conditional fields based on
+   * server responses), consider migrating to focus-trap-react for robustness.
+   *
+   * Current implementation handles static drawer content correctly.
    */
   useEffect(() => {
     if (!isOpen) return;
