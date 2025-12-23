@@ -11,7 +11,7 @@
  * @module components/scheduler/ScheduleList/ScheduleCard
  */
 
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
 import PropTypes from 'prop-types'
 import {
   ClockIcon,
@@ -37,21 +37,13 @@ const BUTTON_PRIMARY = `${BUTTON_BASE} text-gray-700 bg-white border border-gray
 /** Danger button style for Delete */
 const BUTTON_DANGER = `${BUTTON_BASE} text-red-700 bg-white border border-red-300 hover:bg-red-50 focus:ring-red-500 dark:bg-gray-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-900/20`
 
-/**
- * Get icon component for trigger type
- * @param {string} triggerType - Trigger type
- * @returns {JSX.Element} Icon component
- */
-function getTriggerIcon(triggerType) {
-  const iconMap = {
-    interval: ClockIcon,
-    solar: SunIcon,
-    moon_phase: MoonIcon,
-    fixed_time: ClockIcon,
-    sensor: BoltIcon,
-  }
-  const Icon = iconMap[triggerType] || ClockIcon
-  return <Icon className="h-5 w-5 text-gray-400 dark:text-gray-500" aria-hidden="true" />
+/** Icon component map for trigger types */
+const TRIGGER_ICON_MAP = {
+  interval: ClockIcon,
+  solar: SunIcon,
+  moon_phase: MoonIcon,
+  fixed_time: ClockIcon,
+  sensor: BoltIcon,
 }
 
 /**
@@ -152,7 +144,12 @@ function ScheduleCard({
 }) {
   const nameId = `schedule-name-${schedule.schedule_id}`
   const triggerSummary = formatTriggerSummary(schedule.trigger)
-  const triggerIcon = getTriggerIcon(schedule.trigger?.trigger_type)
+
+  // Memoize icon to avoid recreating on every render
+  const triggerIcon = useMemo(() => {
+    const Icon = TRIGGER_ICON_MAP[schedule.trigger?.trigger_type] || ClockIcon
+    return <Icon className="h-5 w-5 text-gray-400 dark:text-gray-500" aria-hidden="true" />
+  }, [schedule.trigger?.trigger_type])
 
   const handleEdit = () => {
     onEdit(schedule)
