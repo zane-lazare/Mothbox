@@ -326,20 +326,79 @@ describe('calendarUtils', () => {
   })
 
   describe('formatTime', () => {
-    it('formats time from ISO string', () => {
+    it('formats time from ISO string with Z timezone', () => {
       const result = formatTime('2025-12-17T08:30:00Z')
-      // Should contain hour and minute in some format
+      expect(result).toBe('8:30')
+    })
+
+    it('formats time from ISO string with +05:00 timezone offset', () => {
+      // 08:30 +05:00 = 03:30 UTC
+      const result = formatTime('2025-12-17T08:30:00+05:00')
+      expect(result).toBe('3:30')
+    })
+
+    it('formats time from ISO string with -0530 timezone offset (no colon)', () => {
+      // 14:30 -05:30 = 20:00 UTC
+      const result = formatTime('2025-12-17T14:30:00-0530')
+      expect(result).toBe('20:00')
+    })
+
+    it('formats time from ISO string with negative timezone offset', () => {
+      // 20:00 -05:00 = 01:00 UTC (next day)
+      const result = formatTime('2025-12-17T20:00:00-05:00')
+      expect(result).toBe('1:00')
+    })
+
+    it('formats time from local ISO string (no timezone)', () => {
+      // Without timezone, should use local time
+      const result = formatTime('2025-12-17T08:30:00')
       expect(result).toMatch(/\d{1,2}:\d{2}/)
     })
 
-    it('handles midnight', () => {
+    it('handles midnight UTC', () => {
       const result = formatTime('2025-12-17T00:00:00Z')
-      expect(result).toMatch(/12:00|0:00|00:00/)
+      expect(result).toBe('0:00')
     })
 
-    it('handles noon', () => {
+    it('handles noon UTC', () => {
       const result = formatTime('2025-12-17T12:00:00Z')
-      expect(result).toMatch(/12:00/)
+      expect(result).toBe('12:00')
+    })
+
+    it('pads minutes with leading zero', () => {
+      const result = formatTime('2025-12-17T08:05:00Z')
+      expect(result).toBe('8:05')
+    })
+
+    it('returns empty string for null input', () => {
+      const result = formatTime(null)
+      expect(result).toBe('')
+    })
+
+    it('returns empty string for undefined input', () => {
+      const result = formatTime(undefined)
+      expect(result).toBe('')
+    })
+
+    it('returns empty string for invalid ISO string', () => {
+      const result = formatTime('not-a-valid-date')
+      expect(result).toBe('')
+    })
+
+    it('returns empty string for non-string input', () => {
+      const result = formatTime(12345)
+      expect(result).toBe('')
+    })
+
+    it('handles various timezone offset formats', () => {
+      // All of these should parse correctly (converted to UTC)
+      expect(formatTime('2025-12-17T10:00:00Z')).toBe('10:00')
+      expect(formatTime('2025-12-17T10:00:00+00:00')).toBe('10:00')
+      expect(formatTime('2025-12-17T10:00:00-00:00')).toBe('10:00')
+      // 15:30 +05:30 = 10:00 UTC
+      expect(formatTime('2025-12-17T15:30:00+05:30')).toBe('10:00')
+      // 15:30 -08:00 = 23:30 UTC
+      expect(formatTime('2025-12-17T15:30:00-08:00')).toBe('23:30')
     })
   })
 

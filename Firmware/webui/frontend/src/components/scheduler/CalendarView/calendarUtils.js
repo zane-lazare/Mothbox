@@ -220,13 +220,23 @@ export function isSameDay(date1, date2) {
  * @returns {string} Formatted time string (e.g., "8:30")
  */
 export function formatTime(isoString) {
+  if (!isoString || typeof isoString !== 'string') {
+    return ''
+  }
+
   const date = new Date(isoString)
+  if (isNaN(date.getTime())) {
+    console.warn('Invalid ISO string passed to formatTime:', isoString)
+    return ''
+  }
 
-  // Use UTC hours and minutes if the string contains 'Z' (UTC indicator)
-  const hours = isoString.includes('Z') ? date.getUTCHours() : date.getHours()
-  const minutes = isoString.includes('Z') ? date.getUTCMinutes() : date.getMinutes()
+  // Check for timezone indicator (Z or offset like +05:00 or -0530)
+  const hasTimezone = /Z|[+-]\d{2}:?\d{2}$/.test(isoString)
 
-  // Format as H:MM or HH:MM (no leading zero for single-digit hours)
+  // Use UTC if timezone specified, local otherwise
+  const hours = hasTimezone ? date.getUTCHours() : date.getHours()
+  const minutes = hasTimezone ? date.getUTCMinutes() : date.getMinutes()
+
   const formattedMinutes = minutes.toString().padStart(2, '0')
   return `${hours}:${formattedMinutes}`
 }
