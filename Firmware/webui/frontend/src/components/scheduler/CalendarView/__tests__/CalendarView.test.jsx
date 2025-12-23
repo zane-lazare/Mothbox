@@ -295,6 +295,22 @@ describe('CalendarView', () => {
 
       expect(screen.getByTestId('current-view-mode')).toHaveTextContent('month')
     })
+
+    it('falls back to month view days (35) for unknown view modes', () => {
+      // Test the PREVIEW_DAYS constant fallback behavior
+      // This ensures that if an invalid view mode somehow gets set,
+      // we default to month view's 35 days
+      localStorage.setItem('mothbox-calendar-view-mode', 'invalid-mode')
+
+      render(<CalendarView />)
+
+      // Should use month's preview days (35) as fallback
+      expect(useSchedulePreview).toHaveBeenCalledWith(
+        null,
+        { days: 35 },
+        { enabled: false }
+      )
+    })
   })
 
   describe('Navigation', () => {

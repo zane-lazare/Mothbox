@@ -25,6 +25,17 @@ import { getDateKey } from './calendarUtils'
 const VIEW_MODE_STORAGE_KEY = 'mothbox-calendar-view-mode'
 
 /**
+ * Number of days to fetch for each view mode.
+ * Month: 35 days covers 5 weeks which is sufficient for most month views
+ * (some months need 6 weeks, but 5 covers the main content)
+ */
+const PREVIEW_DAYS = {
+  month: 35,
+  week: 7,
+  day: 1,
+}
+
+/**
  * CalendarView component
  *
  * @returns {JSX.Element} Calendar view container
@@ -49,16 +60,7 @@ export function CalendarView() {
 
   // Calculate preview days based on view mode
   const previewDays = useMemo(() => {
-    switch (viewMode) {
-      case 'month':
-        return 35
-      case 'week':
-        return 7
-      case 'day':
-        return 1
-      default:
-        return 35
-    }
+    return PREVIEW_DAYS[viewMode] || PREVIEW_DAYS.month
   }, [viewMode])
 
   // Fetch schedule preview (only when schedule is selected)
