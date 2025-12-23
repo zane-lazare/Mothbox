@@ -303,13 +303,17 @@ const SolarTriggerForm = ({
 };
 
 SolarTriggerForm.propTypes = {
+  /** Solar trigger configuration containing solar_event, offset_minutes, and optional days_of_week */
   value: PropTypes.shape({
     solar_event: PropTypes.string.isRequired,
     offset_minutes: PropTypes.number.isRequired,
     days_of_week: PropTypes.arrayOf(PropTypes.number),
   }),
+  /** Callback when solar trigger configuration changes */
   onChange: PropTypes.func.isRequired,
+  /** Whether the form is disabled */
   disabled: PropTypes.bool,
+  /** Validation errors for solar trigger fields */
   errors: PropTypes.shape({
     solar_event: PropTypes.string,
     offset_minutes: PropTypes.string,

@@ -289,14 +289,18 @@ const SensorTriggerForm = ({
 };
 
 SensorTriggerForm.propTypes = {
+  /** Sensor trigger configuration containing sensor_type, comparison, threshold, and cooldown_minutes */
   value: PropTypes.shape({
     sensor_type: PropTypes.string.isRequired,
     comparison: PropTypes.string.isRequired,
     threshold: PropTypes.number.isRequired,
     cooldown_minutes: PropTypes.number.isRequired,
   }),
+  /** Callback when sensor trigger configuration changes */
   onChange: PropTypes.func.isRequired,
+  /** Whether the form is disabled */
   disabled: PropTypes.bool,
+  /** Validation errors for sensor trigger fields */
   errors: PropTypes.shape({
     sensor_type: PropTypes.string,
     comparison: PropTypes.string,
