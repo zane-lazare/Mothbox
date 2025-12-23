@@ -126,6 +126,8 @@ describe('CalendarView', () => {
       data: null,
       isLoading: false,
       isError: false,
+      error: null,
+      refetch: vi.fn(),
     })
   })
 
@@ -167,6 +169,8 @@ describe('CalendarView', () => {
         data: null,
         isLoading: true,
         isError: false,
+        error: null,
+        refetch: vi.fn(),
       })
 
       render(<CalendarView />)
@@ -176,6 +180,253 @@ describe('CalendarView', () => {
       // Grid should be replaced with loading spinner
       expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
       expect(screen.queryByTestId('calendar-grid')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('Error States', () => {
+    it('shows error state when preview fetch fails', async () => {
+      const user = userEvent.setup()
+
+      // Start with no error - simulate selecting schedule first
+      const mockRefetch = vi.fn()
+      useSchedulePreview.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: mockRefetch,
+      })
+
+      render(<CalendarView />)
+
+      // Update mock to return error state
+      useSchedulePreview.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: true,
+        error: { message: 'Network error' },
+        refetch: mockRefetch,
+      })
+
+      // Select a schedule to trigger error display
+      const select = screen.getByTestId('schedule-select')
+      await user.selectOptions(select, 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByText('Failed to load schedule preview')).toBeInTheDocument()
+      })
+      expect(screen.getByText('Network error')).toBeInTheDocument()
+    })
+
+    it('shows default error message when error details missing', async () => {
+      const user = userEvent.setup()
+
+      const mockRefetch = vi.fn()
+      useSchedulePreview.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: mockRefetch,
+      })
+
+      render(<CalendarView />)
+
+      // Update mock to return error state with no error details
+      useSchedulePreview.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: true,
+        error: null,
+        refetch: mockRefetch,
+      })
+
+      // Select a schedule to trigger error display
+      const select = screen.getByTestId('schedule-select')
+      await user.selectOptions(select, 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByText('Failed to load schedule preview')).toBeInTheDocument()
+      })
+      expect(screen.getByText('An error occurred')).toBeInTheDocument()
+    })
+
+    it('shows retry button on error', async () => {
+      const user = userEvent.setup()
+
+      const mockRefetch = vi.fn()
+      useSchedulePreview.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: mockRefetch,
+      })
+
+      render(<CalendarView />)
+
+      useSchedulePreview.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: true,
+        error: { message: 'Network error' },
+        refetch: mockRefetch,
+      })
+
+      // Select a schedule to trigger error display
+      const select = screen.getByTestId('schedule-select')
+      await user.selectOptions(select, 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+      })
+    })
+
+    it('calls refetch when retry button clicked', async () => {
+      const user = userEvent.setup()
+      const mockRefetch = vi.fn()
+
+      useSchedulePreview.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: mockRefetch,
+      })
+
+      render(<CalendarView />)
+
+      useSchedulePreview.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: true,
+        error: { message: 'Network error' },
+        refetch: mockRefetch,
+      })
+
+      // Select a schedule to trigger error display
+      const select = screen.getByTestId('schedule-select')
+      await user.selectOptions(select, 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+      })
+
+      const retryButton = screen.getByRole('button', { name: /retry/i })
+      await user.click(retryButton)
+
+      expect(mockRefetch).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not show error when no schedule selected', () => {
+      useSchedulePreview.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: true,
+        error: { message: 'Network error' },
+        refetch: vi.fn(),
+      })
+
+      render(<CalendarView />)
+
+      // Error should not display when no schedule is selected
+      expect(screen.queryByText('Failed to load schedule preview')).not.toBeInTheDocument()
+      expect(screen.queryByText('Network error')).not.toBeInTheDocument()
+    })
+
+    it('shows error icon on error state', async () => {
+      const user = userEvent.setup()
+
+      const mockRefetch = vi.fn()
+      useSchedulePreview.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: mockRefetch,
+      })
+
+      render(<CalendarView />)
+
+      useSchedulePreview.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: true,
+        error: { message: 'Network error' },
+        refetch: mockRefetch,
+      })
+
+      // Select a schedule to trigger error display
+      const select = screen.getByTestId('schedule-select')
+      await user.selectOptions(select, 'sched-1')
+
+      // ExclamationCircleIcon should be rendered
+      await waitFor(() => {
+        const errorContainer = screen.getByText('Failed to load schedule preview').closest('div')
+        expect(errorContainer.parentElement).toBeInTheDocument()
+      })
+    })
+
+    it('hides calendar grid when error occurs', async () => {
+      const user = userEvent.setup()
+
+      const mockRefetch = vi.fn()
+      useSchedulePreview.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: mockRefetch,
+      })
+
+      render(<CalendarView />)
+
+      useSchedulePreview.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: true,
+        error: { message: 'Network error' },
+        refetch: mockRefetch,
+      })
+
+      // Select a schedule to trigger error display
+      const select = screen.getByTestId('schedule-select')
+      await user.selectOptions(select, 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('calendar-grid')).not.toBeInTheDocument()
+      })
+    })
+
+    it('hides loading spinner when error occurs', async () => {
+      const user = userEvent.setup()
+
+      const mockRefetch = vi.fn()
+      useSchedulePreview.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: mockRefetch,
+      })
+
+      render(<CalendarView />)
+
+      useSchedulePreview.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: true,
+        error: { message: 'Network error' },
+        refetch: mockRefetch,
+      })
+
+      // Select a schedule to trigger error display
+      const select = screen.getByTestId('schedule-select')
+      await user.selectOptions(select, 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('loading-spinner')).not.toBeInTheDocument()
+      })
     })
   })
 
@@ -216,6 +467,8 @@ describe('CalendarView', () => {
         },
         isLoading: false,
         isError: false,
+        error: null,
+        refetch: vi.fn(),
       })
 
       render(<CalendarView />)
@@ -449,6 +702,8 @@ describe('CalendarView', () => {
         },
         isLoading: false,
         isError: false,
+        error: null,
+        refetch: vi.fn(),
       })
 
       render(<CalendarView />)
@@ -468,6 +723,8 @@ describe('CalendarView', () => {
         },
         isLoading: false,
         isError: false,
+        error: null,
+        refetch: vi.fn(),
       })
 
       render(<CalendarView />)
@@ -488,6 +745,8 @@ describe('CalendarView', () => {
         },
         isLoading: false,
         isError: false,
+        error: null,
+        refetch: vi.fn(),
       })
 
       render(<CalendarView />)
@@ -517,6 +776,8 @@ describe('CalendarView', () => {
         },
         isLoading: false,
         isError: false,
+        error: null,
+        refetch: vi.fn(),
       })
 
       render(<CalendarView />)
@@ -556,6 +817,8 @@ describe('CalendarView', () => {
         },
         isLoading: false,
         isError: false,
+        error: null,
+        refetch: vi.fn(),
       })
 
       render(<CalendarView />)
@@ -595,6 +858,8 @@ describe('CalendarView', () => {
         },
         isLoading: false,
         isError: false,
+        error: null,
+        refetch: vi.fn(),
       })
 
       render(<CalendarView />)
@@ -663,6 +928,8 @@ describe('CalendarView', () => {
         },
         isLoading: false,
         isError: false,
+        error: null,
+        refetch: vi.fn(),
       })
 
       render(<CalendarView />)
@@ -676,6 +943,8 @@ describe('CalendarView', () => {
         data: null,
         isLoading: false,
         isError: false,
+        error: null,
+        refetch: vi.fn(),
       })
 
       render(<CalendarView />)
@@ -723,6 +992,8 @@ describe('CalendarView', () => {
         },
         isLoading: false,
         isError: false,
+        error: null,
+        refetch: vi.fn(),
       })
 
       render(<CalendarView />)

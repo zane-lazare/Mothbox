@@ -15,6 +15,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import { ExclamationCircleIcon } from '@heroicons/react/24/outline'
 import CalendarHeader from './CalendarHeader'
 import CalendarGrid from './CalendarGrid'
 import ExecutionDetailModal from './ExecutionDetailModal'
@@ -67,6 +68,9 @@ export function CalendarView() {
   const {
     data: previewData,
     isLoading: previewLoading,
+    isError: previewError,
+    error: previewErrorDetails,
+    refetch: refetchPreview,
   } = useSchedulePreview(
     selectedScheduleId,
     { days: previewDays },
@@ -167,11 +171,32 @@ export function CalendarView() {
         onScheduleSelect={handleScheduleSelect}
       />
 
-      {previewLoading ? (
+      {previewError && selectedScheduleId && (
+        <div className="flex flex-col items-center justify-center h-64 text-center">
+          <ExclamationCircleIcon className="h-12 w-12 text-red-500 dark:text-red-400 mb-4" />
+          <p className="text-gray-700 dark:text-gray-300 mb-2">
+            Failed to load schedule preview
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            {previewErrorDetails?.message || 'An error occurred'}
+          </p>
+          <button
+            onClick={() => refetchPreview()}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600
+                       focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!previewError && previewLoading && (
         <div className="flex justify-center items-center h-64">
           <LoadingSpinner />
         </div>
-      ) : (
+      )}
+
+      {!previewError && !previewLoading && (
         <CalendarGrid
           viewMode={viewMode}
           currentDate={currentDate}
