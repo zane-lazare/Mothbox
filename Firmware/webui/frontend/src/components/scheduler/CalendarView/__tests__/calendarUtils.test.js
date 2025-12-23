@@ -385,6 +385,27 @@ describe('calendarUtils', () => {
       const leapDay = new Date(2024, 1, 29) // February 29, 2024
       expect(getDateKey(leapDay)).toBe('2024-02-29')
     })
+
+    it('returns null for null input', () => {
+      expect(getDateKey(null)).toBe(null)
+    })
+
+    it('returns null for undefined input', () => {
+      expect(getDateKey(undefined)).toBe(null)
+    })
+
+    it('returns null for invalid Date object', () => {
+      const invalidDate = new Date('invalid')
+      expect(getDateKey(invalidDate)).toBe(null)
+    })
+
+    it('continues to work with valid Date objects after invalid input', () => {
+      // Ensure validation doesn't break subsequent valid calls
+      getDateKey(null) // Invalid
+      getDateKey(new Date('invalid')) // Invalid
+      const validDate = new Date(2025, 11, 17)
+      expect(getDateKey(validDate)).toBe('2025-12-17') // Should still work
+    })
   })
 
   describe('PATTERN_COLORS', () => {
