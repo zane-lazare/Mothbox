@@ -66,16 +66,27 @@ function CalendarGrid({
     )
 
     return (
-      <div className="grid grid-cols-7 border-t border-l border-gray-200 dark:border-gray-700">
-        {/* Day-of-week headers */}
-        {DAYS.map((day) => (
-          <div
-            key={day}
-            className="py-2 text-center text-sm font-medium text-gray-500 dark:text-gray-400 border-r border-b border-gray-200 dark:border-gray-700"
-          >
-            {day}
-          </div>
-        ))}
+      <div className="relative">
+        {/* Skip link for keyboard navigation (WCAG 2.1) */}
+        <a
+          href="#calendar-grid-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:z-10 focus:top-0 focus:left-0 focus:p-2 focus:bg-blue-500 focus:text-white focus:rounded focus:m-1"
+        >
+          Skip to calendar content
+        </a>
+        <div
+          id="calendar-grid-content"
+          className="grid grid-cols-7 border-t border-l border-gray-200 dark:border-gray-700"
+        >
+          {/* Day-of-week headers */}
+          {DAYS.map((day) => (
+            <div
+              key={day}
+              className="py-2 text-center text-sm font-medium text-gray-500 dark:text-gray-400 border-r border-b border-gray-200 dark:border-gray-700"
+            >
+              {day}
+            </div>
+          ))}
 
         {/* Calendar cells - 42 cells (6 weeks) */}
         {gridDates.map((date) => {
@@ -96,6 +107,7 @@ function CalendarGrid({
             />
           )
         })}
+        </div>
       </div>
     )
   }
