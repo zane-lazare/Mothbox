@@ -480,6 +480,123 @@ describe('CalendarView', () => {
 
       expect(screen.getByTestId('modal-moon-phase')).toHaveTextContent('waning_gibbous')
     })
+
+    it('handles execution with missing start_time gracefully', async () => {
+      const user = userEvent.setup()
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      const invalidExecution = {
+        execution_id: 'exec-invalid',
+        event_name: 'Invalid Capture',
+        // start_time is missing
+        end_time: '2025-12-17T08:30:00Z',
+        action: 'take_photo',
+        scheduled_time: '2025-12-17T08:00:00Z',
+      }
+
+      useSchedulePreview.mockReturnValue({
+        data: {
+          executions: [invalidExecution],
+          moon_phases: mockMoonPhases,
+        },
+        isLoading: false,
+        isError: false,
+      })
+
+      render(<CalendarView />)
+
+      await user.click(screen.getByTestId('execution-exec-invalid'))
+
+      // Modal should open but moon phase should be null
+      expect(screen.getByTestId('execution-detail-modal')).toBeInTheDocument()
+      expect(screen.queryByTestId('modal-moon-phase')).not.toBeInTheDocument()
+
+      // Should log warning
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Invalid start_time in execution:',
+        expect.objectContaining({ execution_id: 'exec-invalid' })
+      )
+
+      warnSpy.mockRestore()
+    })
+
+    it('handles execution with null start_time gracefully', async () => {
+      const user = userEvent.setup()
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      const invalidExecution = {
+        execution_id: 'exec-null',
+        event_name: 'Null Start Time',
+        start_time: null,
+        end_time: '2025-12-17T08:30:00Z',
+        action: 'take_photo',
+        scheduled_time: '2025-12-17T08:00:00Z',
+      }
+
+      useSchedulePreview.mockReturnValue({
+        data: {
+          executions: [invalidExecution],
+          moon_phases: mockMoonPhases,
+        },
+        isLoading: false,
+        isError: false,
+      })
+
+      render(<CalendarView />)
+
+      await user.click(screen.getByTestId('execution-exec-null'))
+
+      // Modal should open but moon phase should be null
+      expect(screen.getByTestId('execution-detail-modal')).toBeInTheDocument()
+      expect(screen.queryByTestId('modal-moon-phase')).not.toBeInTheDocument()
+
+      // Should log warning
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Invalid start_time in execution:',
+        expect.objectContaining({ execution_id: 'exec-null' })
+      )
+
+      warnSpy.mockRestore()
+    })
+
+    it('handles execution with non-string start_time gracefully', async () => {
+      const user = userEvent.setup()
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      const invalidExecution = {
+        execution_id: 'exec-number',
+        event_name: 'Number Start Time',
+        start_time: 1234567890, // number instead of string
+        end_time: '2025-12-17T08:30:00Z',
+        action: 'take_photo',
+        scheduled_time: '2025-12-17T08:00:00Z',
+      }
+
+      useSchedulePreview.mockReturnValue({
+        data: {
+          executions: [invalidExecution],
+          moon_phases: mockMoonPhases,
+        },
+        isLoading: false,
+        isError: false,
+      })
+
+      render(<CalendarView />)
+
+      await user.click(screen.getByTestId('execution-exec-number'))
+
+      // Modal should open but moon phase should be null
+      expect(screen.getByTestId('execution-detail-modal')).toBeInTheDocument()
+      expect(screen.queryByTestId('modal-moon-phase')).not.toBeInTheDocument()
+
+      // Should log warning
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Invalid start_time in execution:',
+        expect.objectContaining({ execution_id: 'exec-number' })
+      )
+
+      warnSpy.mockRestore()
+    })
   })
 
   describe('Cell Click', () => {

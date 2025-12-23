@@ -20,6 +20,7 @@ import CalendarGrid from './CalendarGrid'
 import ExecutionDetailModal from './ExecutionDetailModal'
 import LoadingSpinner from '../../LoadingSpinner'
 import { useSchedules, useSchedulePreview } from '../../../hooks/useSchedules'
+import { getDateKey } from './calendarUtils'
 
 const VIEW_MODE_STORAGE_KEY = 'mothbox-calendar-view-mode'
 
@@ -135,7 +136,11 @@ export function CalendarView() {
   // Get moon phase for selected execution's date
   const executionMoonPhase = useMemo(() => {
     if (!selectedExecution || !previewData?.moon_phases) return null
-    const dateKey = selectedExecution.start_time.split('T')[0]
+    if (!selectedExecution.start_time || typeof selectedExecution.start_time !== 'string') {
+      console.warn('Invalid start_time in execution:', selectedExecution)
+      return null
+    }
+    const dateKey = getDateKey(selectedExecution.start_time)
     return previewData.moon_phases[dateKey] || null
   }, [selectedExecution, previewData])
 
