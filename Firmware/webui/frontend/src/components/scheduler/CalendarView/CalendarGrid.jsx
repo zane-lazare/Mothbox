@@ -17,23 +17,10 @@ import {
   isToday,
   formatTime,
   getPatternColor,
+  getDateKey,
 } from './calendarUtils'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-/**
- * Get timezone-agnostic date key from Date object (YYYY-MM-DD format)
- * Uses local date components to avoid UTC conversion issues
- *
- * @param {Date} date - The date to convert
- * @returns {string} Date key in YYYY-MM-DD format
- */
-function getDateKey(date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
 
 /**
  * CalendarGrid component

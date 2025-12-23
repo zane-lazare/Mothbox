@@ -230,3 +230,20 @@ export function formatTime(isoString) {
   const formattedMinutes = minutes.toString().padStart(2, '0')
   return `${hours}:${formattedMinutes}`
 }
+
+/**
+ * Get ISO date key (YYYY-MM-DD) from a Date object or ISO string
+ *
+ * @param {Date|string} date - Date object or ISO date string
+ * @returns {string} Date key in YYYY-MM-DD format
+ */
+export function getDateKey(date) {
+  if (typeof date === 'string') {
+    // Handle ISO string input - extract date portion
+    return date.split('T')[0]
+  }
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}

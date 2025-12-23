@@ -9,6 +9,7 @@ import {
   isToday,
   isSameDay,
   formatTime,
+  getDateKey,
   PATTERN_COLORS,
 } from '../calendarUtils'
 
@@ -339,6 +340,50 @@ describe('calendarUtils', () => {
     it('handles noon', () => {
       const result = formatTime('2025-12-17T12:00:00Z')
       expect(result).toMatch(/12:00/)
+    })
+  })
+
+  describe('getDateKey', () => {
+    it('formats Date object to YYYY-MM-DD', () => {
+      const date = new Date(2025, 11, 17) // December 17, 2025
+      expect(getDateKey(date)).toBe('2025-12-17')
+    })
+
+    it('handles single-digit months with zero-padding', () => {
+      const date = new Date(2025, 0, 5) // January 5, 2025
+      expect(getDateKey(date)).toBe('2025-01-05')
+    })
+
+    it('handles single-digit days with zero-padding', () => {
+      const date = new Date(2025, 11, 9) // December 9, 2025
+      expect(getDateKey(date)).toBe('2025-12-09')
+    })
+
+    it('handles ISO string input with time component', () => {
+      const isoString = '2025-12-17T20:30:00Z'
+      expect(getDateKey(isoString)).toBe('2025-12-17')
+    })
+
+    it('handles date-only ISO string input', () => {
+      const isoString = '2025-12-17'
+      expect(getDateKey(isoString)).toBe('2025-12-17')
+    })
+
+    it('handles ISO string with timezone offset', () => {
+      const isoString = '2025-12-17T14:30:00-05:00'
+      expect(getDateKey(isoString)).toBe('2025-12-17')
+    })
+
+    it('handles year boundary dates', () => {
+      const newYearsDay = new Date(2025, 0, 1)
+      const newYearsEve = new Date(2025, 11, 31)
+      expect(getDateKey(newYearsDay)).toBe('2025-01-01')
+      expect(getDateKey(newYearsEve)).toBe('2025-12-31')
+    })
+
+    it('handles leap year dates', () => {
+      const leapDay = new Date(2024, 1, 29) // February 29, 2024
+      expect(getDateKey(leapDay)).toBe('2024-02-29')
     })
   })
 
