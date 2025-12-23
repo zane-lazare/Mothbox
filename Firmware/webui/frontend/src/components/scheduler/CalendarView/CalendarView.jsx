@@ -14,7 +14,7 @@
  * @module components/scheduler/CalendarView
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, startTransition } from 'react'
 import { CalendarDaysIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline'
 import CalendarHeader from './CalendarHeader'
 import CalendarGrid from './CalendarGrid'
@@ -142,8 +142,11 @@ export function CalendarView() {
   }, [])
 
   const handleCellClick = useCallback((date) => {
-    setCurrentDate(date)
-    setViewMode('day')
+    // Use startTransition to batch non-urgent state updates and reduce re-renders
+    startTransition(() => {
+      setCurrentDate(date)
+      setViewMode('day')
+    })
   }, [])
 
   const handleExecutionClick = useCallback((execution) => {
