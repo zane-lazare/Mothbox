@@ -249,6 +249,25 @@ describe('calendarUtils', () => {
       const color = getPatternColor('pattern_with-special.chars/123')
       expect(PATTERN_COLORS).toContain(color)
     })
+
+    it('handles hash overflow correctly with 32-bit conversion', () => {
+      // Test with a long string that will cause hash overflow
+      const longPattern = 'very-long-pattern-id-that-will-definitely-overflow-the-hash-calculation-with-many-characters'
+      const color = getPatternColor(longPattern)
+      expect(PATTERN_COLORS).toContain(color)
+
+      // Verify consistency even with overflow
+      const color2 = getPatternColor(longPattern)
+      expect(color).toBe(color2)
+    })
+
+    it('handles large Unicode characters', () => {
+      // Test with emojis and special Unicode
+      const unicodePattern = '🦋-pattern-123-🌙'
+      const color = getPatternColor(unicodePattern)
+      expect(PATTERN_COLORS).toContain(color)
+      expect(color).toBe(getPatternColor(unicodePattern))
+    })
   })
 
   describe('isToday', () => {

@@ -179,7 +179,7 @@ export function getPatternColor(patternId) {
   let hash = 0
   for (let i = 0; i < patternId.length; i++) {
     hash = ((hash << 5) - hash) + patternId.charCodeAt(i)
-    hash = hash & hash // Convert to 32-bit integer
+    hash = hash >>> 0 // Convert to 32-bit unsigned integer
   }
 
   // Map hash to color index
