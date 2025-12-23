@@ -33,13 +33,23 @@ export const TimeWindowPropType = PropTypes.shape({
 });
 
 /**
+ * PropTypes shape for time window validation errors.
+ * Used within TriggerErrorsPropType for time window field errors.
+ */
+export const TimeWindowErrorsPropType = PropTypes.shape({
+  start_time: PropTypes.string,
+  end_time: PropTypes.string,
+  general: PropTypes.string,
+});
+
+/**
  * PropTypes shape for trigger validation errors.
  * Each field corresponds to a potential error message for that trigger field.
  */
 export const TriggerErrorsPropType = PropTypes.shape({
   trigger_type: PropTypes.string,
   interval_minutes: PropTypes.string,
-  time_window: PropTypes.object,
+  time_window: TimeWindowErrorsPropType,
   solar_event: PropTypes.string,
   offset_minutes: PropTypes.string,
   moon_phase: PropTypes.string,

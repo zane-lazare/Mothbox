@@ -8,6 +8,7 @@
 import PropTypes from 'prop-types';
 import {
   TimeWindowPropType,
+  TimeWindowErrorsPropType,
   TriggerErrorsPropType,
   TriggerPropType,
   ActionPropType,
@@ -39,6 +40,10 @@ const checkPropType = (propType, value, propName = 'testProp') => {
 describe('propTypes exports', () => {
   it('exports TimeWindowPropType', () => {
     expect(TimeWindowPropType).toBeDefined();
+  });
+
+  it('exports TimeWindowErrorsPropType', () => {
+    expect(TimeWindowErrorsPropType).toBeDefined();
   });
 
   it('exports TriggerErrorsPropType', () => {
@@ -97,6 +102,36 @@ describe('TimeWindowPropType', () => {
   });
 });
 
+describe('TimeWindowErrorsPropType', () => {
+  it('accepts valid time window errors', () => {
+    const validTimeWindowErrors = {
+      start_time: 'Invalid start time format',
+      end_time: 'End time must be after start time',
+      general: 'Time window is required',
+    };
+    const error = checkPropType(TimeWindowErrorsPropType, validTimeWindowErrors);
+    expect(error).toBeNull();
+  });
+
+  it('accepts partial time window errors', () => {
+    const partialErrors = {
+      start_time: 'Invalid format',
+    };
+    const error = checkPropType(TimeWindowErrorsPropType, partialErrors);
+    expect(error).toBeNull();
+  });
+
+  it('accepts empty error object', () => {
+    const error = checkPropType(TimeWindowErrorsPropType, {});
+    expect(error).toBeNull();
+  });
+
+  it('accepts null/undefined', () => {
+    const error = checkPropType(TimeWindowErrorsPropType, null);
+    expect(error).toBeNull();
+  });
+});
+
 describe('TriggerErrorsPropType', () => {
   it('accepts valid error object', () => {
     const validErrors = {
@@ -109,6 +144,19 @@ describe('TriggerErrorsPropType', () => {
 
   it('accepts empty error object', () => {
     const error = checkPropType(TriggerErrorsPropType, {});
+    expect(error).toBeNull();
+  });
+
+  it('accepts nested time_window errors', () => {
+    const errorsWithTimeWindow = {
+      interval_minutes: 'Required',
+      time_window: {
+        start_time: 'Invalid format',
+        end_time: 'Must be after start',
+        general: 'Time window is required',
+      },
+    };
+    const error = checkPropType(TriggerErrorsPropType, errorsWithTimeWindow);
     expect(error).toBeNull();
   });
 });

@@ -69,6 +69,7 @@ export {
 // PropTypes (shared shapes)
 export {
   TimeWindowPropType,
+  TimeWindowErrorsPropType,
   TriggerErrorsPropType,
   TriggerPropType,
   ActionPropType,
