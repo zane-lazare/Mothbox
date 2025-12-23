@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { SENSOR_TYPES, SENSOR_COMPARISONS, SCHEDULE_LIMITS, validateNumericInput } from './constants';
+import { NUMERIC_ERRORS } from './errorMessages';
 
 /**
  * SensorTriggerForm Component
@@ -31,6 +32,10 @@ const SensorTriggerForm = ({
   disabled = false,
   errors = {},
 }) => {
+  // Local validation error states
+  const [thresholdError, setThresholdError] = useState(null);
+  const [cooldownError, setCooldownError] = useState(null);
+
   /**
    * Handle sensor type change
    */
@@ -56,7 +61,11 @@ const SensorTriggerForm = ({
    */
   const handleThresholdChange = (newThreshold) => {
     const validated = validateNumericInput(newThreshold, 0);
-    if (validated === null) return;
+    if (validated === null) {
+      setThresholdError(NUMERIC_ERRORS.INVALID_THRESHOLD);
+      return;
+    }
+    setThresholdError(null);
     onChange({
       ...value,
       threshold: validated,
@@ -68,7 +77,11 @@ const SensorTriggerForm = ({
    */
   const handleCooldownChange = (newCooldown) => {
     const validated = validateNumericInput(newCooldown, 0, SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES);
-    if (validated === null) return;
+    if (validated === null) {
+      setCooldownError(NUMERIC_ERRORS.INVALID_COOLDOWN(SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES));
+      return;
+    }
+    setCooldownError(null);
     onChange({
       ...value,
       cooldown_minutes: validated,
@@ -220,9 +233,9 @@ const SensorTriggerForm = ({
             </span>
           )}
         </div>
-        {errors.threshold && (
+        {(thresholdError || errors.threshold) && (
           <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-            {errors.threshold}
+            {thresholdError || errors.threshold}
           </p>
         )}
       </div>
@@ -255,9 +268,9 @@ const SensorTriggerForm = ({
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-300">
           Minimum time between consecutive triggers
         </p>
-        {errors.cooldown_minutes && (
+        {(cooldownError || errors.cooldown_minutes) && (
           <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-            {errors.cooldown_minutes}
+            {cooldownError || errors.cooldown_minutes}
           </p>
         )}
       </div>

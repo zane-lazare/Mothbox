@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { SCHEDULE_LIMITS, DAYS_OF_WEEK, validateNumericInput } from './constants';
+import { NUMERIC_ERRORS } from './errorMessages';
 import TimeWindowInput from './TimeWindowInput';
 import DaysOfWeekSelector from './DaysOfWeekSelector';
 
@@ -59,6 +60,9 @@ const IntervalTriggerForm = ({
   disabled = false,
   errors = {},
 }) => {
+  // Local validation error state
+  const [intervalError, setIntervalError] = useState(null);
+
   /**
    * Quick preset intervals in minutes
    */
@@ -79,7 +83,16 @@ const IntervalTriggerForm = ({
       SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES,
       SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES
     );
-    if (validated === null) return;
+    if (validated === null) {
+      setIntervalError(
+        NUMERIC_ERRORS.INVALID_INTERVAL(
+          SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES,
+          SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES
+        )
+      );
+      return;
+    }
+    setIntervalError(null);
     onChange({
       ...value,
       interval_minutes: validated,
@@ -246,9 +259,9 @@ const IntervalTriggerForm = ({
           />
           <span className="text-sm text-gray-700 dark:text-gray-300">minutes</span>
         </div>
-        {errors.interval_minutes && (
+        {(intervalError || errors.interval_minutes) && (
           <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-            {errors.interval_minutes}
+            {intervalError || errors.interval_minutes}
           </p>
         )}
       </div>
