@@ -80,7 +80,9 @@ function CalendarGrid({
         {/* Calendar cells - 42 cells (6 weeks) */}
         {gridDates.map((date) => {
           const dateKey = getDateKey(date)
-          const isCurrentMonth = date.getMonth() === currentDate.getMonth()
+          const isCurrentMonth =
+            date.getMonth() === currentDate.getMonth() &&
+            date.getFullYear() === currentDate.getFullYear()
 
           return (
             <CalendarCell

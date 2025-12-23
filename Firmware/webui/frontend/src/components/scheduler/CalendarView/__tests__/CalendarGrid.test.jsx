@@ -146,6 +146,68 @@ describe('CalendarGrid', () => {
       expect(currentMonthCells.length).toBe(31)
     })
 
+    it('does NOT mark same month in different year as current month', () => {
+      // Test January 2024 when viewing January 2025
+      const { container } = render(
+        <CalendarGrid
+          viewMode="month"
+          currentDate={new Date(2025, 0, 15)} // January 2025
+          executions={[]}
+          moonPhases={{}}
+          onCellClick={mockOnCellClick}
+          onExecutionClick={mockOnExecutionClick}
+        />
+      )
+
+      // Find cells for January 2025 dates
+      const jan1_2025 = container.querySelector('[data-date="2025-01-01"]')
+      const jan15_2025 = container.querySelector('[data-date="2025-01-15"]')
+      const jan31_2025 = container.querySelector('[data-date="2025-01-31"]')
+
+      // All January 2025 dates should be marked as current month
+      expect(jan1_2025?.getAttribute('data-is-current-month')).toBe('true')
+      expect(jan15_2025?.getAttribute('data-is-current-month')).toBe('true')
+      expect(jan31_2025?.getAttribute('data-is-current-month')).toBe('true')
+
+      // Dates from previous/next month in same year should NOT be current month
+      const dec31_2024 = container.querySelector('[data-date="2024-12-31"]')
+      const feb1_2025 = container.querySelector('[data-date="2025-02-01"]')
+
+      if (dec31_2024) {
+        expect(dec31_2024.getAttribute('data-is-current-month')).toBe('false')
+      }
+      if (feb1_2025) {
+        expect(feb1_2025.getAttribute('data-is-current-month')).toBe('false')
+      }
+    })
+
+    it('correctly marks current month when viewing same month in different year', () => {
+      // Render January 2024 grid
+      const { container: container2024 } = render(
+        <CalendarGrid
+          viewMode="month"
+          currentDate={new Date(2024, 0, 15)} // January 2024
+          executions={[]}
+          moonPhases={{}}
+          onCellClick={mockOnCellClick}
+          onExecutionClick={mockOnExecutionClick}
+        />
+      )
+
+      // Cells in January 2024 grid should be marked as current month
+      const cells2024 = container2024.querySelectorAll('[data-testid="calendar-cell"]')
+      const currentMonthCells2024 = Array.from(cells2024).filter(
+        (cell) => cell.getAttribute('data-is-current-month') === 'true'
+      )
+
+      // January 2024 has 31 days
+      expect(currentMonthCells2024.length).toBe(31)
+
+      // Verify specific date is marked correctly
+      const jan15_2024 = container2024.querySelector('[data-date="2024-01-15"]')
+      expect(jan15_2024?.getAttribute('data-is-current-month')).toBe('true')
+    })
+
     it('groups executions by date correctly', () => {
       const { container } = render(
         <CalendarGrid
