@@ -81,8 +81,10 @@ function ExecutionMarker({ execution, onClick, compact = false }) {
   // Format time from start_time
   const timeStr = formatTime(start_time)
 
-  // Prepare display text
-  const displayName = compact ? truncateText(pattern_name, 10) : pattern_name
+  // Prepare display text - truncate in both modes to prevent layout breaks
+  const displayName = compact
+    ? truncateText(pattern_name, 10)
+    : truncateText(pattern_name, 30)
 
   // Base classes for the marker - using static classes for Tailwind JIT
   const baseClasses = [
