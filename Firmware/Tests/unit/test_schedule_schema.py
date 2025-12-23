@@ -105,7 +105,7 @@ def sample_pattern_action_camera():
 def sample_event_pattern(sample_pattern_action, sample_pattern_action_camera):
     """Create a sample EventPattern for testing."""
     return EventPattern(
-        pattern_id="test-pattern-id",
+        pattern_id="12345678-1234-5678-1234-567812345678",
         name="UV Capture Cycle",
         description="Turn on lights, take photo, turn off lights",
         actions=[
@@ -199,7 +199,7 @@ def sample_sensor_trigger(sample_time_window):
 def sample_schedule(sample_event_pattern, sample_interval_trigger):
     """Create a sample Schedule for testing."""
     return Schedule(
-        schedule_id="test-schedule-id",
+        schedule_id="87654321-4321-8765-4321-876543218765",
         name="Nightly Moth Survey",
         description="Hourly captures from dusk to dawn",
         event_patterns=[sample_event_pattern],
@@ -367,13 +367,13 @@ class TestEventPattern:
 
     def test_duration_minutes_empty_actions(self):
         """EventPattern.duration_minutes is 0 with no actions."""
-        pattern = EventPattern(pattern_id="test", name="Empty")
+        pattern = EventPattern(pattern_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", name="Empty")
         assert pattern.duration_minutes == 0
 
     def test_to_dict(self, sample_event_pattern):
         """EventPattern.to_dict() returns correct dict."""
         data = sample_event_pattern.to_dict()
-        assert data["pattern_id"] == "test-pattern-id"
+        assert data["pattern_id"] == "12345678-1234-5678-1234-567812345678"
         assert data["name"] == "UV Capture Cycle"
         assert len(data["actions"]) == 3
         assert data["category"] == "user"
@@ -684,7 +684,7 @@ class TestSchedule:
 
     def test_instantiation(self, sample_schedule):
         """Schedule can be created."""
-        assert sample_schedule.schedule_id == "test-schedule-id"
+        assert sample_schedule.schedule_id == "87654321-4321-8765-4321-876543218765"
         assert sample_schedule.name == "Nightly Moth Survey"
         assert len(sample_schedule.event_patterns) == 1
         assert sample_schedule.trigger_type == "interval"
@@ -699,7 +699,7 @@ class TestSchedule:
 
     def test_timestamps_generated(self):
         """Schedule generates timestamps when empty."""
-        schedule = Schedule(schedule_id="test", name="Test", trigger_type="interval")
+        schedule = Schedule(schedule_id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", name="Test", trigger_type="interval")
         assert schedule.created_at != ""
         assert schedule.modified_at != ""
         # Validate ISO format
@@ -713,14 +713,14 @@ class TestSchedule:
     def test_total_duration_multiple_patterns(self, sample_event_pattern):
         """Schedule.total_duration_minutes handles multiple patterns."""
         pattern2 = EventPattern(
-            pattern_id="p2",
+            pattern_id="cccccccc-cccc-cccc-cccc-cccccccccccc",
             name="Extra",
             actions=[
                 PatternAction(action_type="gpio", action_name="flash_on", offset_minutes=10),
             ],
         )
         schedule = Schedule(
-            schedule_id="s1",
+            schedule_id="dddddddd-dddd-dddd-dddd-dddddddddddd",
             name="Multi",
             trigger_type="interval",
             event_patterns=[sample_event_pattern, pattern2],
@@ -732,7 +732,7 @@ class TestSchedule:
         """Schedule.to_dict() includes schema_version."""
         data = sample_schedule.to_dict()
         assert data["schema_version"] == SCHEDULE_SCHEMA_VERSION
-        assert data["schedule_id"] == "test-schedule-id"
+        assert data["schedule_id"] == "87654321-4321-8765-4321-876543218765"
         assert data["name"] == "Nightly Moth Survey"
         assert len(data["event_patterns"]) == 1
 
@@ -740,7 +740,7 @@ class TestSchedule:
         """Schedule.from_dict() creates instance from dict."""
         data = {
             "schema_version": "2.0",
-            "schedule_id": "s-123",
+            "schedule_id": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
             "name": "Test Schedule",
             "description": "A test schedule",
             "event_patterns": [sample_event_pattern.to_dict()],
@@ -756,7 +756,7 @@ class TestSchedule:
             "sensor_trigger": None,
             "start_date": "2024-01-01",
             "end_date": "2024-12-31",
-            "deployment_id": "dep-456",
+            "deployment_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
             "create_deployment": True,
             "enabled": True,
             "is_active": False,
@@ -765,7 +765,7 @@ class TestSchedule:
             "modified_by": "user123",
         }
         schedule = Schedule.from_dict(data)
-        assert schedule.schedule_id == "s-123"
+        assert schedule.schedule_id == "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
         assert schedule.name == "Test Schedule"
         assert len(schedule.event_patterns) == 1
         assert schedule.interval_trigger is not None
@@ -846,21 +846,21 @@ class TestValidateEventPattern:
 
     def test_empty_name_fails(self):
         """Empty name fails validation."""
-        pattern = EventPattern(pattern_id="test", name="")
+        pattern = EventPattern(pattern_id="11111111-1111-1111-1111-111111111111", name="")
         valid, error = validate_event_pattern(pattern)
         assert valid is False
         assert "name" in error.lower()
 
     def test_name_too_long_fails(self):
         """Name exceeding MAX_PATTERN_NAME_LENGTH fails validation."""
-        pattern = EventPattern(pattern_id="test", name="x" * (MAX_PATTERN_NAME_LENGTH + 1))
+        pattern = EventPattern(pattern_id="22222222-2222-2222-2222-222222222222", name="x" * (MAX_PATTERN_NAME_LENGTH + 1))
         valid, error = validate_event_pattern(pattern)
         assert valid is False
         assert "name" in error.lower()
 
     def test_no_actions_fails(self):
         """Pattern with no actions fails validation."""
-        pattern = EventPattern(pattern_id="test", name="Empty Pattern", actions=[])
+        pattern = EventPattern(pattern_id="33333333-3333-3333-3333-333333333333", name="Empty Pattern", actions=[])
         valid, error = validate_event_pattern(pattern)
         assert valid is False
         assert "action" in error.lower()
@@ -871,7 +871,7 @@ class TestValidateEventPattern:
             PatternAction(action_type="gpio", action_name="attract_on", offset_minutes=i)
             for i in range(MAX_ACTIONS_PER_PATTERN + 1)
         ]
-        pattern = EventPattern(pattern_id="test", name="Too Many", actions=actions)
+        pattern = EventPattern(pattern_id="44444444-4444-4444-4444-444444444444", name="Too Many", actions=actions)
         valid, error = validate_event_pattern(pattern)
         assert valid is False
         assert "action" in error.lower()
@@ -879,12 +879,24 @@ class TestValidateEventPattern:
     def test_invalid_action_fails(self):
         """Pattern with invalid action fails validation."""
         pattern = EventPattern(
-            pattern_id="test",
+            pattern_id="55555555-5555-5555-5555-555555555555",
             name="Bad Action",
             actions=[PatternAction(action_type="invalid", action_name="test")],
         )
         valid, error = validate_event_pattern(pattern)
         assert valid is False
+
+    def test_invalid_pattern_id_format_fails(self):
+        """Pattern with invalid UUID format for pattern_id fails validation."""
+        pattern = EventPattern(
+            pattern_id="not-a-uuid",
+            name="Test Pattern",
+            actions=[PatternAction(action_type="gpio", action_name="attract_on")],
+        )
+        valid, error = validate_event_pattern(pattern)
+        assert valid is False
+        assert "pattern_id" in error.lower()
+        assert "uuid" in error.lower()
 
 
 # =============================================================================
@@ -1056,7 +1068,7 @@ class TestValidateSchedule:
     def test_empty_name_fails(self, sample_event_pattern):
         """Empty name fails validation."""
         schedule = Schedule(
-            schedule_id="test",
+            schedule_id="66666666-6666-6666-6666-666666666666",
             name="",
             trigger_type="interval",
             event_patterns=[sample_event_pattern],
@@ -1068,7 +1080,7 @@ class TestValidateSchedule:
     def test_no_patterns_fails(self):
         """Schedule with no patterns fails validation."""
         schedule = Schedule(
-            schedule_id="test", name="Empty", trigger_type="interval", event_patterns=[]
+            schedule_id="77777777-7777-7777-7777-777777777777", name="Empty", trigger_type="interval", event_patterns=[]
         )
         valid, error = validate_schedule(schedule)
         assert valid is False
@@ -1077,7 +1089,7 @@ class TestValidateSchedule:
     def test_invalid_trigger_type_fails(self, sample_event_pattern):
         """Invalid trigger_type fails validation."""
         schedule = Schedule(
-            schedule_id="test",
+            schedule_id="88888888-8888-8888-8888-888888888888",
             name="Bad Trigger",
             trigger_type="invalid",
             event_patterns=[sample_event_pattern],
@@ -1089,7 +1101,7 @@ class TestValidateSchedule:
     def test_missing_trigger_config_fails(self, sample_event_pattern):
         """Missing trigger config for trigger_type fails validation."""
         schedule = Schedule(
-            schedule_id="test",
+            schedule_id="99999999-9999-9999-9999-999999999999",
             name="No Config",
             trigger_type="interval",
             event_patterns=[sample_event_pattern],
@@ -1102,7 +1114,7 @@ class TestValidateSchedule:
     def test_invalid_date_format_fails(self, sample_event_pattern, sample_interval_trigger):
         """Invalid date format fails validation."""
         schedule = Schedule(
-            schedule_id="test",
+            schedule_id="aaaa1111-aaaa-1111-aaaa-111111111111",
             name="Bad Date",
             trigger_type="interval",
             event_patterns=[sample_event_pattern],
@@ -1112,3 +1124,17 @@ class TestValidateSchedule:
         valid, error = validate_schedule(schedule)
         assert valid is False
         assert "date" in error.lower()
+
+    def test_invalid_schedule_id_format_fails(self, sample_event_pattern, sample_interval_trigger):
+        """Schedule with invalid UUID format for schedule_id fails validation."""
+        schedule = Schedule(
+            schedule_id="not-a-uuid",
+            name="Invalid ID",
+            trigger_type="interval",
+            event_patterns=[sample_event_pattern],
+            interval_trigger=sample_interval_trigger,
+        )
+        valid, error = validate_schedule(schedule)
+        assert valid is False
+        assert "schedule_id" in error.lower()
+        assert "uuid" in error.lower()

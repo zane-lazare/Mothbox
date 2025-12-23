@@ -1,11 +1,11 @@
 {
   "schema_version": "2.0",
-  "schedule_id": "full_moon_survey",
+  "schedule_id": "c00f5267-b9ef-52f9-ae12-6ca078a24872",
   "name": "Full Moon Survey",
   "description": "UV capture during full moon periods (+/-2 days) with solar-based time window (civil dusk to civil dawn). Studies how moon brightness affects moth attraction to UV lights and overall nocturnal activity patterns.",
   "event_patterns": [
     {
-      "pattern_id": "full_moon_uv_capture",
+      "pattern_id": "a2a68d6e-9d5b-5324-852d-2a4cea63435a",
       "name": "Full Moon UV Capture",
       "description": "Extended UV capture during full moon nights. Takes photos at 10-minute intervals (5, 15, 25 minutes) to document moth activity patterns under bright moonlight conditions.",
       "actions": [

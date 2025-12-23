@@ -1,11 +1,11 @@
 {
   "schema_version": "2.0",
-  "schedule_id": "dawn_dusk_survey",
+  "schedule_id": "ab39fa94-db02-5cbf-bc17-b058c499e0cd",
   "name": "Dawn & Dusk Survey",
   "description": "Solar-triggered schedule for photographing crepuscular species (active at dawn and dusk). Triggers at civil dusk each evening to capture the transition period when many moth species begin activity. Contains both dawn and dusk transect patterns for the pattern library.",
   "event_patterns": [
     {
-      "pattern_id": "dusk_transect",
+      "pattern_id": "7d856921-7fe0-5ff0-9d67-ec62f450ab94",
       "name": "Dusk Transect",
       "description": "Dusk transect pattern for capturing crepuscular species active at twilight. Takes multiple photos as light decreases to document species transitioning from diurnal to nocturnal behavior.",
       "actions": [
@@ -49,7 +49,7 @@
       "tags": ["dusk", "crepuscular", "transect", "survey", "solar"]
     },
     {
-      "pattern_id": "dawn_transect",
+      "pattern_id": "ea6ebb76-21cf-5c62-b5d7-06d033a69d4e",
       "name": "Dawn Transect",
       "description": "Dawn transect pattern for capturing crepuscular species active at first light. Takes multiple photos as light increases to document species transitioning from nocturnal to diurnal behavior.",
       "actions": [

@@ -9,9 +9,15 @@ Coverage Target: 85%+
 Test Count Target: 25+
 """
 
+import uuid
 from unittest.mock import patch
 
 import pytest
+
+
+def _test_uuid(name: str) -> str:
+    """Generate deterministic test UUID from name."""
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"test.api.{name}"))
 
 # Try to import Flask app for testing
 try:
@@ -86,7 +92,7 @@ def valid_minimal_pattern():
 def valid_full_pattern():
     """Create a valid pattern with all fields."""
     return {
-        "pattern_id": "test-pattern-001",
+        "pattern_id": _test_uuid("test-pattern-001"),
         "name": "Full Test Pattern",
         "description": "A complete test pattern with all fields",
         "actions": [

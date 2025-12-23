@@ -187,8 +187,10 @@ describe('ExportPreview', () => {
       expect(navigator.clipboard.writeText).toHaveBeenCalled()
     })
 
-    // Should show success message
-    expect(screen.getByText(/copied/i)).toBeInTheDocument()
+    // Should show success message (wait for state update)
+    await waitFor(() => {
+      expect(screen.getByText(/copied/i)).toBeInTheDocument()
+    })
   })
 
   it('full preview button opens modal', () => {

@@ -1,11 +1,11 @@
 {
   "schema_version": "2.0",
-  "schedule_id": "full_moon_special",
+  "schedule_id": "35733526-f32c-5a89-9e35-0b8abd33758e",
   "name": "Full Moon Special Survey",
   "description": "Extended survey during full moon periods (±2 days). Research shows moon phase affects moth activity. This schedule runs an intensive capture session from 22:00 to 04:00 during the brightest nights of the lunar cycle.",
   "event_patterns": [
     {
-      "pattern_id": "extended_moon_session",
+      "pattern_id": "b37b1517-30e3-5d46-879f-b39246154c98",
       "name": "Extended Full Moon Session",
       "description": "Extended UV session with multiple photos to study moon phase effects on moth behavior",
       "actions": [

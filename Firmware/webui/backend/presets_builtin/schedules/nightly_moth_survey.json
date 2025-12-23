@@ -1,11 +1,11 @@
 {
   "schema_version": "2.0",
-  "schedule_id": "nightly_moth_survey",
+  "schedule_id": "1f91abfa-f216-59eb-ba9c-e831882fdde8",
   "name": "Nightly Moth Survey",
   "description": "Standard nightly moth capture schedule. Runs every 60 minutes from sunset to sunrise. Each cycle turns on UV attract lights, captures a photo after 5 minutes to allow moths to gather, then turns off lights after 15 minutes.",
   "event_patterns": [
     {
-      "pattern_id": "uv_capture_cycle",
+      "pattern_id": "2bb3975f-0879-565e-bf78-b1b780d8db04",
       "name": "UV Capture Cycle",
       "description": "Turn on UV attract lights, wait for moths to gather, take photo, turn off lights",
       "actions": [

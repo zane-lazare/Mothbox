@@ -785,6 +785,23 @@ def _validate_date_string(date_str: str | None) -> tuple[bool, str | None]:
     return True, None
 
 
+def _is_valid_uuid(uuid_string: str) -> bool:
+    """
+    Check if string is a valid UUID format.
+
+    Args:
+        uuid_string: String to validate as UUID
+
+    Returns:
+        True if valid UUID format, False otherwise
+    """
+    try:
+        uuid.UUID(uuid_string)
+        return True
+    except (ValueError, AttributeError):
+        return False
+
+
 def validate_pattern_action(action: PatternAction) -> tuple[bool, str | None]:
     """
     Validate a single pattern action.
@@ -827,6 +844,10 @@ def validate_event_pattern(pattern: EventPattern) -> tuple[bool, str | None]:
     Returns:
         (True, None) if valid, (False, error_message) if invalid
     """
+    # Validate pattern_id format if provided (auto-generated UUIDs are always valid)
+    if pattern.pattern_id and not _is_valid_uuid(pattern.pattern_id):
+        return False, "Invalid pattern_id format: must be a valid UUID"
+
     # Validate name
     if not pattern.name or not pattern.name.strip():
         return False, "Pattern name is required"
@@ -1108,6 +1129,10 @@ def validate_schedule(schedule: Schedule) -> tuple[bool, str | None]:
     Returns:
         (True, None) if valid, (False, error_message) if invalid
     """
+    # Validate schedule_id format if provided (auto-generated UUIDs are always valid)
+    if schedule.schedule_id and not _is_valid_uuid(schedule.schedule_id):
+        return False, "Invalid schedule_id format: must be a valid UUID"
+
     # Validate name
     if not schedule.name or not schedule.name.strip():
         return False, "Schedule name is required"
