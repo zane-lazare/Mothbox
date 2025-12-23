@@ -193,38 +193,40 @@ function CalendarGrid({
         </div>
 
         {/* Day content - show all executions for the day */}
-        <div className="p-4 space-y-2">
-          {dayExecutions.map((exec) => (
-            <div
-              key={exec.start_time}
-              className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-150"
-              onClick={() => onExecutionClick(exec)}
-              role="button"
-              tabIndex={0}
-              aria-label={`${exec.pattern_name} at ${formatTime(exec.start_time)}`}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  onExecutionClick(exec)
-                }
-              }}
-            >
-              <div className="flex items-center gap-2">
+        <div className="p-4 max-h-96 overflow-y-auto">
+          {dayExecutions.length > 0 ? (
+            <div className="space-y-2">
+              {dayExecutions.map((exec) => (
                 <div
-                  className={`w-3 h-3 rounded-full ${getPatternColor(exec.pattern_id)}`}
-                />
-                <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {exec.pattern_name}
-                </span>
-                <span className="text-gray-500 dark:text-gray-400 ml-auto">
-                  {formatTime(exec.start_time)}
-                </span>
-              </div>
+                  key={exec.start_time}
+                  className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-150"
+                  onClick={() => onExecutionClick(exec)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${exec.pattern_name} at ${formatTime(exec.start_time)}`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onExecutionClick(exec)
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-3 h-3 rounded-full ${getPatternColor(exec.pattern_id)}`}
+                    />
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {exec.pattern_name}
+                    </span>
+                    <span className="text-gray-500 dark:text-gray-400 ml-auto">
+                      {formatTime(exec.start_time)}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-
-          {/* Empty state */}
-          {dayExecutions.length === 0 && (
+          ) : (
+            /* Empty state */
             <p className="text-gray-500 dark:text-gray-400 text-center py-8">
               No executions scheduled
             </p>

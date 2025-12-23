@@ -450,6 +450,41 @@ describe('CalendarGrid', () => {
       const colorDots = container.querySelectorAll('.w-3.h-3.rounded-full')
       expect(colorDots.length).toBe(2) // Two executions on this day
     })
+
+    it('has scrollable container with max height in day view', () => {
+      const { container } = render(
+        <CalendarGrid
+          viewMode="day"
+          currentDate={new Date(2025, 0, 15)}
+          executions={mockExecutions}
+          moonPhases={{}}
+          onCellClick={mockOnCellClick}
+          onExecutionClick={mockOnExecutionClick}
+        />
+      )
+
+      // Find the scrollable container
+      const scrollableContainer = container.querySelector('.max-h-96.overflow-y-auto')
+      expect(scrollableContainer).toBeInTheDocument()
+    })
+
+    it('has scrollable container in empty state', () => {
+      const { container } = render(
+        <CalendarGrid
+          viewMode="day"
+          currentDate={new Date(2025, 0, 10)} // Day with no executions
+          executions={mockExecutions}
+          moonPhases={{}}
+          onCellClick={mockOnCellClick}
+          onExecutionClick={mockOnExecutionClick}
+        />
+      )
+
+      // Scrollable container should exist even in empty state
+      const scrollableContainer = container.querySelector('.max-h-96.overflow-y-auto')
+      expect(scrollableContainer).toBeInTheDocument()
+      expect(screen.getByText('No executions scheduled')).toBeInTheDocument()
+    })
   })
 
   describe('Edge Cases', () => {
