@@ -11,6 +11,7 @@
  * @module components/scheduler/ScheduleList/ScheduleCard
  */
 
+import { memo } from 'react'
 import PropTypes from 'prop-types'
 import {
   ClockIcon,
@@ -137,7 +138,7 @@ function formatTriggerSummary(trigger) {
  *   onDelete={handleDelete}
  * />
  */
-export default function ScheduleCard({
+function ScheduleCard({
   schedule,
   isActive,
   onEdit,
@@ -257,3 +258,4 @@ ScheduleCard.propTypes = {
   isDeleting: PropTypes.bool,
 }
 
+export default memo(ScheduleCard)
