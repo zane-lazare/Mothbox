@@ -9,6 +9,8 @@ vi.mock('../../hooks/useSchedules', () => ({
   useSchedules: vi.fn(),
   useActiveSchedule: vi.fn(),
   useDeactivateSchedule: vi.fn(),
+  useCreateSchedule: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  useUpdateSchedule: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
 }))
 
 vi.mock('../../contexts/SchedulerContext', () => ({
@@ -41,8 +43,8 @@ vi.mock('../../components/scheduler/ActiveScheduleBanner', () => ({
   default: () => <div data-testid="active-schedule-banner">Active Schedule</div>
 }))
 
-vi.mock('../../components/scheduler/ScheduleListPlaceholder', () => ({
-  default: () => <div data-testid="schedule-list-placeholder">Schedule List</div>
+vi.mock('../../components/scheduler/ScheduleList', () => ({
+  ScheduleList: () => <div data-testid="schedule-list">Schedule List</div>
 }))
 
 vi.mock('../../components/scheduler/CalendarViewPlaceholder', () => ({
@@ -51,6 +53,10 @@ vi.mock('../../components/scheduler/CalendarViewPlaceholder', () => ({
 
 vi.mock('../../components/LoadingSpinner', () => ({
   default: ({ size }) => <div data-testid="loading-spinner" data-size={size}>Loading...</div>
+}))
+
+vi.mock('../../components/scheduler/ScheduleEditor', () => ({
+  ScheduleEditor: () => <div data-testid="schedule-editor">Schedule Editor</div>
 }))
 
 // Import the mocked hooks to configure them
@@ -103,10 +109,10 @@ describe('SchedulerUI', () => {
     expect(screen.getByTestId('active-tab')).toHaveTextContent('schedules')
   })
 
-  it('shows ScheduleListPlaceholder initially', () => {
+  it('shows ScheduleList initially', () => {
     render(<SchedulerUI />, { wrapper: createWrapper() })
 
-    expect(screen.getByTestId('schedule-list-placeholder')).toBeInTheDocument()
+    expect(screen.getByTestId('schedule-list')).toBeInTheDocument()
     expect(screen.queryByTestId('calendar-view-placeholder')).not.toBeInTheDocument()
   })
 
@@ -115,7 +121,7 @@ describe('SchedulerUI', () => {
     render(<SchedulerUI />, { wrapper: createWrapper() })
 
     // Initially shows Schedules tab
-    expect(screen.getByTestId('schedule-list-placeholder')).toBeInTheDocument()
+    expect(screen.getByTestId('schedule-list')).toBeInTheDocument()
 
     // Click Calendar tab
     const calendarButton = screen.getByRole('button', { name: /calendar/i })
@@ -124,7 +130,7 @@ describe('SchedulerUI', () => {
     // Should show Calendar view
     await waitFor(() => {
       expect(screen.getByTestId('calendar-view-placeholder')).toBeInTheDocument()
-      expect(screen.queryByTestId('schedule-list-placeholder')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('schedule-list')).not.toBeInTheDocument()
     })
   })
 
@@ -138,40 +144,10 @@ describe('SchedulerUI', () => {
     expect(screen.getByTestId('calendar-view-placeholder')).toBeInTheDocument()
   })
 
-  it('shows loading spinner while fetching schedules', () => {
-    useSchedules.mockReturnValue({
-      isLoading: true,
-      error: null,
-      data: null
-    })
-
+  it('renders ScheduleEditor', () => {
     render(<SchedulerUI />, { wrapper: createWrapper() })
 
-    const spinner = screen.getByTestId('loading-spinner')
-    expect(spinner).toBeInTheDocument()
-    expect(spinner).toHaveAttribute('data-size', 'lg')
-
-    // Should not show other content
-    expect(screen.queryByTestId('scheduler-header')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('scheduler-tabs')).not.toBeInTheDocument()
-  })
-
-  it('shows error message on fetch failure', () => {
-    const errorMessage = 'Failed to fetch schedules'
-    useSchedules.mockReturnValue({
-      isLoading: false,
-      error: new Error(errorMessage),
-      data: null
-    })
-
-    render(<SchedulerUI />, { wrapper: createWrapper() })
-
-    expect(screen.getByText(/error loading schedules/i)).toBeInTheDocument()
-    expect(screen.getByText(new RegExp(errorMessage))).toBeInTheDocument()
-
-    // Should not show other content
-    expect(screen.queryByTestId('scheduler-header')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('scheduler-tabs')).not.toBeInTheDocument()
+    expect(screen.getByTestId('schedule-editor')).toBeInTheDocument()
   })
 
   it('renders ActiveScheduleBanner', () => {

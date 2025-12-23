@@ -55,9 +55,9 @@ function SchedulerUIContent() {
       }
       setEditorOpen(false)
       setEditingSchedule(null)
-    } catch (error) {
-      // Error is handled by toast in the mutation, but we need to keep editor open
-      toast.error(`Failed to save: ${error.message}`)
+    } catch {
+      // Error toast is handled by mutation's onError callback
+      // Keep editor open so user can retry
     }
   }, [editingSchedule, createSchedule, updateSchedule])
 
