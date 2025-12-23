@@ -257,10 +257,3 @@ ScheduleCard.propTypes = {
   isDeleting: PropTypes.bool,
 }
 
-ScheduleCard.defaultProps = {
-  isActive: false,
-  isEditing: false,
-  isActivating: false,
-  isDeactivating: false,
-  isDeleting: false,
-}
