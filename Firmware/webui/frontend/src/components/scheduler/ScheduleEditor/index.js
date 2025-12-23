@@ -65,3 +65,15 @@ export {
   TRIGGER_DEFAULTS,
   TIME_FORMAT_REGEX,
 } from './constants';
+
+// PropTypes (shared shapes)
+export {
+  TimeWindowPropType,
+  TriggerErrorsPropType,
+  TriggerPropType,
+  ActionPropType,
+  PatternPropType,
+  DateRangePropType,
+  PatternSelectionPropType,
+  SchedulePropType,
+} from './propTypes';

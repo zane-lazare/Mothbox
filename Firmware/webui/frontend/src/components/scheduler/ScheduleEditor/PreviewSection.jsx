@@ -1,5 +1,10 @@
 import { useMemo } from 'react';
 import PropTypes from 'prop-types';
+import {
+  TriggerPropType,
+  PatternPropType,
+  DateRangePropType,
+} from './propTypes';
 
 /**
  * Format interval for display
@@ -27,7 +32,10 @@ const formatInterval = (minutes) => {
 const getTriggerSummaryText = (trigger) => {
   if (!trigger) return null;
 
-  switch (trigger.type) {
+  // Use trigger_type (standardized field name)
+  const triggerType = trigger.trigger_type;
+
+  switch (triggerType) {
     case 'interval':
       return `Every ${formatInterval(trigger.interval_minutes)} from ${trigger.time_window?.start_time || ''} to ${trigger.time_window?.end_time || ''}`;
 
@@ -46,13 +54,13 @@ const getTriggerSummaryText = (trigger) => {
       if (trigger.days_of_week && trigger.days_of_week.length < 7) {
         const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         const days = trigger.days_of_week.map(d => dayNames[d]).join(', ');
-        return `At ${trigger.time} on ${days}`;
+        return `At ${trigger.time_of_day} on ${days}`;
       }
-      return `Daily at ${trigger.time}`;
+      return `Daily at ${trigger.time_of_day}`;
 
     case 'moon_phase': {
-      const phase = trigger.phase?.replace(/_/g, ' ') || 'moon phase';
-      return `At ${trigger.time || 'sunset'} on ${phase}`;
+      const phase = trigger.moon_phase?.replace(/_/g, ' ') || 'moon phase';
+      return `At ${trigger.time_of_day || 'sunset'} on ${phase}`;
     }
 
     case 'sensor':
@@ -270,7 +278,7 @@ const PreviewSection = ({
       )}
 
       {/* Execution Preview */}
-      {trigger && pattern && trigger.type !== 'sensor' && (
+      {trigger && pattern && trigger.trigger_type !== 'sensor' && (
         <div>
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Example Executions:
@@ -298,58 +306,9 @@ const PreviewSection = ({
   );
 };
 
-/** PropTypes shape for time window configuration */
-const TimeWindowPropType = PropTypes.shape({
-  start_time: PropTypes.string,
-  end_time: PropTypes.string,
-  start_offset_minutes: PropTypes.number,
-  end_offset_minutes: PropTypes.number,
-});
-
-/** PropTypes shape for trigger configuration */
-const TriggerPropType = PropTypes.shape({
-  type: PropTypes.oneOf(['interval', 'solar', 'moon_phase', 'fixed_time', 'sensor']),
-  // Interval trigger
-  interval_minutes: PropTypes.number,
-  time_window: TimeWindowPropType,
-  // Solar trigger
-  solar_event: PropTypes.string,
-  offset_minutes: PropTypes.number,
-  // Fixed time trigger
-  time: PropTypes.string,
-  // Moon phase trigger
-  phase: PropTypes.string,
-  offset_days: PropTypes.number,
-  // Common
-  days_of_week: PropTypes.arrayOf(PropTypes.number),
-  // Sensor trigger
-  sensor_type: PropTypes.string,
-  threshold: PropTypes.number,
-});
-
-/** PropTypes shape for action in a pattern */
-const ActionPropType = PropTypes.shape({
-  action_id: PropTypes.string,
-  type: PropTypes.string.isRequired,
-  parameters: PropTypes.object,
-});
-
-/** PropTypes shape for pattern configuration */
-const PatternPropType = PropTypes.shape({
-  pattern_id: PropTypes.string,
-  name: PropTypes.string.isRequired,
-  description: PropTypes.string,
-  actions: PropTypes.arrayOf(ActionPropType).isRequired,
-  category: PropTypes.string,
-  tags: PropTypes.arrayOf(PropTypes.string),
-});
-
 PreviewSection.propTypes = {
   trigger: TriggerPropType,
-  dateRange: PropTypes.shape({
-    start_date: PropTypes.string,
-    end_date: PropTypes.string,
-  }),
+  dateRange: DateRangePropType,
   pattern: PatternPropType,
   disabled: PropTypes.bool,
 };
