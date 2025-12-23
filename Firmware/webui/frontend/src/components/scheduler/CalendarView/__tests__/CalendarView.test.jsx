@@ -727,6 +727,82 @@ describe('CalendarView', () => {
       const daysDiff = Math.floor((newDate - initialDate) / (1000 * 60 * 60 * 24))
       expect(daysDiff).toBe(1)
     })
+
+    it('navigates from Jan 31 to Feb without month overflow', async () => {
+      const user = userEvent.setup()
+
+      // Mock the current date to Jan 31
+      const jan31 = new Date(2025, 0, 31)
+      vi.setSystemTime(jan31)
+
+      render(<CalendarView />)
+
+      // Click Month to ensure we're in month view
+      await user.click(screen.getByText('Month'))
+
+      // Click Today to set to Jan 31
+      await user.click(screen.getByText('Today'))
+
+      // Click Next to go to next month
+      await user.click(screen.getByText('Next'))
+
+      const newDateStr = screen.getByTestId('current-date').textContent
+      const newDate = new Date(newDateStr)
+
+      // Should be February (month 1), not March (month 2)
+      expect(newDate.getMonth()).toBe(1)
+      expect(newDate.getFullYear()).toBe(2025)
+
+      vi.useRealTimers()
+    })
+
+    it('navigates from Mar 31 to Feb to Jan without skipping months', async () => {
+      const user = userEvent.setup()
+
+      // Mock the current date to Mar 31, 2025
+      const mar31 = new Date(2025, 2, 31)
+      vi.setSystemTime(mar31)
+
+      render(<CalendarView />)
+
+      // Click Month to ensure we're in month view
+      await user.click(screen.getByText('Month'))
+
+      // Click Today to set to Mar 31
+      await user.click(screen.getByText('Today'))
+
+      // Click Previous to go to February
+      await user.click(screen.getByText('Previous'))
+
+      let dateStr = screen.getByTestId('current-date').textContent
+      let date = new Date(dateStr)
+
+      // Should be February (month 1), not January or skipped
+      expect(date.getMonth()).toBe(1)
+      expect(date.getFullYear()).toBe(2025)
+
+      // Click Previous again to go to January
+      await user.click(screen.getByText('Previous'))
+
+      dateStr = screen.getByTestId('current-date').textContent
+      date = new Date(dateStr)
+
+      // Should be January (month 0)
+      expect(date.getMonth()).toBe(0)
+      expect(date.getFullYear()).toBe(2025)
+
+      // Click Next to go back to February
+      await user.click(screen.getByText('Next'))
+
+      dateStr = screen.getByTestId('current-date').textContent
+      date = new Date(dateStr)
+
+      // Should be February (month 1) again
+      expect(date.getMonth()).toBe(1)
+      expect(date.getFullYear()).toBe(2025)
+
+      vi.useRealTimers()
+    })
   })
 
   describe('Execution Modal', () => {

@@ -96,6 +96,7 @@ export function CalendarView() {
             return new Date()
           case 'prev':
             if (viewMode === 'month') {
+              newDate.setDate(1) // Set to 1st to avoid overflow
               newDate.setMonth(newDate.getMonth() - 1)
             } else if (viewMode === 'week') {
               newDate.setDate(newDate.getDate() - 7)
@@ -105,6 +106,7 @@ export function CalendarView() {
             return newDate
           case 'next':
             if (viewMode === 'month') {
+              newDate.setDate(1) // Set to 1st to avoid overflow
               newDate.setMonth(newDate.getMonth() + 1)
             } else if (viewMode === 'week') {
               newDate.setDate(newDate.getDate() + 7)
