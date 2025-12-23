@@ -51,8 +51,10 @@ function getActionTypeColor(type) {
 function ExecutionDetailModal({ isOpen, onClose, execution, moonPhase }) {
   // Handle ESC key to close modal
   useEffect(() => {
+    if (!isOpen) return;
+
     const handleEsc = (e) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
         onClose();
       }
     };

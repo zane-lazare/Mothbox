@@ -399,6 +399,26 @@ describe('ExecutionDetailModal', () => {
       expect(mockOnClose).toHaveBeenCalledTimes(1);
     });
 
+    it('attaches event listener when modal is open', () => {
+      const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
+      const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
+
+      render(
+        <ExecutionDetailModal
+          isOpen={true}
+          onClose={mockOnClose}
+          execution={mockExecution}
+          moonPhase={mockMoonPhase}
+        />
+      );
+
+      // Verify addEventListener was called for keydown when modal is open
+      expect(addEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function));
+
+      addEventListenerSpy.mockRestore();
+      removeEventListenerSpy.mockRestore();
+    });
+
     it('closes on ESC key press', () => {
       render(
         <ExecutionDetailModal
@@ -414,7 +434,10 @@ describe('ExecutionDetailModal', () => {
       expect(mockOnClose).toHaveBeenCalledTimes(1);
     });
 
-    it('does not close on ESC when modal is closed', () => {
+    it('does not attach event listener when modal is closed', () => {
+      const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
+      const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
+
       render(
         <ExecutionDetailModal
           isOpen={false}
@@ -424,9 +447,14 @@ describe('ExecutionDetailModal', () => {
         />
       );
 
-      fireEvent.keyDown(window, { key: 'Escape' });
+      // Verify addEventListener was not called for keydown when modal is closed
+      expect(addEventListenerSpy).not.toHaveBeenCalledWith('keydown', expect.any(Function));
 
+      fireEvent.keyDown(window, { key: 'Escape' });
       expect(mockOnClose).not.toHaveBeenCalled();
+
+      addEventListenerSpy.mockRestore();
+      removeEventListenerSpy.mockRestore();
     });
 
     it('closes on backdrop click', () => {
