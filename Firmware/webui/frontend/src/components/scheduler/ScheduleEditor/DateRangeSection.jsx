@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { MAX_DATE_RANGE_DAYS } from './constants';
 
@@ -125,8 +126,11 @@ const DateRangeSection = ({
     });
   };
 
-  // Get validation error
-  const validationError = validateDateRange();
+  // Memoize validation to avoid recalculating on every render
+  const validationError = useMemo(
+    () => validateDateRange(),
+    [start_date, end_date]
+  );
 
   return (
     <div className="space-y-4">
