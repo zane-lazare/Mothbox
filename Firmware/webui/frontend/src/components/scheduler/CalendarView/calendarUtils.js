@@ -215,9 +215,10 @@ export function isSameDay(date1, date2) {
 
 /**
  * Formats ISO datetime string to time string (HH:MM format)
+ * Always displays in user's local timezone for consistent display.
  *
  * @param {string} isoString - ISO datetime string (e.g., "2025-12-17T08:30:00Z")
- * @returns {string} Formatted time string (e.g., "8:30")
+ * @returns {string} Formatted time string in local timezone (e.g., "8:30")
  */
 export function formatTime(isoString) {
   if (!isoString || typeof isoString !== 'string') {
@@ -230,13 +231,9 @@ export function formatTime(isoString) {
     return ''
   }
 
-  // Check for timezone indicator (Z or offset like +05:00 or -0530)
-  const hasTimezone = /Z|[+-]\d{2}:?\d{2}$/.test(isoString)
-
-  // Use UTC if timezone specified, local otherwise
-  const hours = hasTimezone ? date.getUTCHours() : date.getHours()
-  const minutes = hasTimezone ? date.getUTCMinutes() : date.getMinutes()
-
+  // Always display in user's local timezone for consistent behavior
+  const hours = date.getHours()
+  const minutes = date.getMinutes()
   const formattedMinutes = minutes.toString().padStart(2, '0')
   return `${hours}:${formattedMinutes}`
 }
@@ -249,8 +246,13 @@ export function formatTime(isoString) {
  */
 export function getDateKey(date) {
   if (typeof date === 'string') {
-    // Handle ISO string input - extract date portion
-    return date.split('T')[0]
+    // Validate ISO date format (YYYY-MM-DD at start of string)
+    const isoDateMatch = date.match(/^(\d{4}-\d{2}-\d{2})/)
+    if (!isoDateMatch) {
+      console.warn('Invalid ISO string passed to getDateKey:', date)
+      return null
+    }
+    return isoDateMatch[1]
   }
   if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
     console.warn('Invalid Date passed to getDateKey:', date)
