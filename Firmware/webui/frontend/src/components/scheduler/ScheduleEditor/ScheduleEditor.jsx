@@ -22,7 +22,9 @@ const KNOWN_ERROR_CODES = {
  * Sanitize error messages for safe display
  * - Maps known error codes to user-friendly messages
  * - Truncates long messages to 200 characters
- * - Strips HTML-like characters to prevent XSS
+ *
+ * Note: React automatically escapes text content when rendering,
+ * so manual HTML character stripping is not needed for XSS prevention.
  *
  * @param {Error} error - The error object
  * @returns {string} Sanitized error message
@@ -36,8 +38,8 @@ const sanitizeErrorMessage = (error) => {
   // Get message or use fallback
   const message = String(error?.message || 'Failed to save schedule');
 
-  // Truncate to 200 characters and strip HTML-like characters
-  return message.slice(0, 200).replace(/[<>]/g, '');
+  // Truncate to 200 characters (React auto-escapes text content)
+  return message.length > 200 ? message.slice(0, 200) + '...' : message;
 };
 
 /**
