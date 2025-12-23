@@ -224,7 +224,7 @@ export default function ScheduleCard({
           type="button"
           onClick={handleDelete}
           disabled={isEditing || isActivating || isDeactivating || isDeleting}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-950"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-900/20"
         >
           <TrashIcon className="h-4 w-4" aria-hidden="true" />
           {isDeleting ? 'Loading...' : 'Delete'}
