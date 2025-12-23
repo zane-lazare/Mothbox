@@ -24,7 +24,7 @@ import {
 } from '@heroicons/react/24/outline'
 import ActiveScheduleBadge from './ActiveScheduleBadge'
 import { SchedulePropType } from '../ScheduleEditor/propTypes'
-import { TRIGGER_TYPES, MOON_PHASES } from '../ScheduleEditor/constants'
+import { MOON_PHASES } from '../ScheduleEditor/constants'
 
 /**
  * Get icon component for trigger type
