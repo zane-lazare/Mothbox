@@ -116,9 +116,9 @@ function CalendarCell({
 
       {/* Executions container */}
       <div className="space-y-1 mt-1 overflow-y-auto max-h-16">
-        {visibleExecutions.map((exec) => (
+        {visibleExecutions.map((exec, index) => (
           <ExecutionMarker
-            key={exec.id || exec.start_time}
+            key={exec.id || `${exec.pattern_id}-${exec.start_time}-${index}`}
             execution={exec}
             onClick={handleExecutionClick(exec)}
             compact

@@ -387,6 +387,52 @@ describe('CalendarCell', () => {
       const marker = screen.getByTestId('execution-marker-pattern1')
       expect(marker).toHaveAttribute('data-compact', 'true')
     })
+
+    it('renders without warning when executions have same start_time', () => {
+      const date = new Date(2025, 11, 17)
+      const executions = [
+        {
+          pattern_id: 'pattern1',
+          pattern_name: 'Pattern 1',
+          start_time: '2025-12-17T08:00:00Z',
+        },
+        {
+          pattern_id: 'pattern2',
+          pattern_name: 'Pattern 2',
+          start_time: '2025-12-17T08:00:00Z', // Same start_time as pattern1
+        },
+        {
+          pattern_id: 'pattern3',
+          pattern_name: 'Pattern 3',
+          start_time: '2025-12-17T08:00:00Z', // Same start_time as pattern1 & pattern2
+        },
+      ]
+
+      // Mock console.error to catch React warnings
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      render(
+        <CalendarCell
+          date={date}
+          isCurrentMonth={true}
+          executions={executions}
+          onClick={mockOnClick}
+          onExecutionClick={mockOnExecutionClick}
+        />
+      )
+
+      // All 3 executions should be rendered
+      expect(screen.getByTestId('execution-marker-pattern1')).toBeInTheDocument()
+      expect(screen.getByTestId('execution-marker-pattern2')).toBeInTheDocument()
+      expect(screen.getByTestId('execution-marker-pattern3')).toBeInTheDocument()
+
+      // No React duplicate key warnings should have been logged
+      expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('Encountered two children with the same key')
+      )
+
+      consoleErrorSpy.mockRestore()
+    })
   })
 
   describe('Click Handlers', () => {
