@@ -333,6 +333,7 @@ const IntervalTriggerForm = ({
 };
 
 IntervalTriggerForm.propTypes = {
+  /** Interval trigger configuration with repeat interval, time window, and optional days */
   value: PropTypes.shape({
     interval_minutes: PropTypes.number.isRequired,
     time_window: PropTypes.shape({
@@ -343,8 +344,11 @@ IntervalTriggerForm.propTypes = {
     }).isRequired,
     days_of_week: PropTypes.arrayOf(PropTypes.number), // null = all days
   }),
+  /** Callback when interval trigger configuration changes */
   onChange: PropTypes.func.isRequired,
+  /** Whether the form is disabled */
   disabled: PropTypes.bool,
+  /** Validation errors for interval trigger fields */
   errors: PropTypes.shape({
     interval_minutes: PropTypes.string,
     time_window: PropTypes.object,

@@ -424,15 +424,20 @@ const TimeWindowInput = ({
 };
 
 TimeWindowInput.propTypes = {
+  /** Time window configuration with start/end times (HH:MM or solar event) and optional offset minutes */
   value: PropTypes.shape({
     start_time: PropTypes.string,
     end_time: PropTypes.string,
     start_offset_minutes: PropTypes.number,
     end_offset_minutes: PropTypes.number,
   }),
+  /** Callback when time window configuration changes */
   onChange: PropTypes.func.isRequired,
+  /** Whether the time window input is disabled */
   disabled: PropTypes.bool,
+  /** Whether to show solar event options (default true) */
   showSolarEvents: PropTypes.bool,
+  /** Validation errors for time window fields */
   errors: PropTypes.shape({
     start_time: PropTypes.string,
     end_time: PropTypes.string,

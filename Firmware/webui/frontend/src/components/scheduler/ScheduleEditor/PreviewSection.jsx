@@ -307,9 +307,13 @@ const PreviewSection = ({
 };
 
 PreviewSection.propTypes = {
+  /** Trigger configuration object defining when the schedule executes */
   trigger: TriggerPropType,
+  /** Date range configuration with optional start_date and end_date */
   dateRange: DateRangePropType,
+  /** Pattern configuration with name and actions array */
   pattern: PatternPropType,
+  /** Whether the preview section is disabled */
   disabled: PropTypes.bool,
 };
 

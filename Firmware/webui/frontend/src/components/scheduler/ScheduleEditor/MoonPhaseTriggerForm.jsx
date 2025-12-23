@@ -264,13 +264,17 @@ const MoonPhaseTriggerForm = ({
 };
 
 MoonPhaseTriggerForm.propTypes = {
+  /** Moon phase trigger configuration containing moon_phase, time_of_day, and offset_days */
   value: PropTypes.shape({
     moon_phase: PropTypes.string.isRequired,
     time_of_day: PropTypes.string.isRequired,
     offset_days: PropTypes.number.isRequired,
   }),
+  /** Callback when moon phase trigger configuration changes */
   onChange: PropTypes.func.isRequired,
+  /** Whether the form is disabled */
   disabled: PropTypes.bool,
+  /** Validation errors for moon phase trigger fields */
   errors: PropTypes.shape({
     moon_phase: PropTypes.string,
     time_of_day: PropTypes.string,

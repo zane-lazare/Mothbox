@@ -510,7 +510,9 @@ const ScheduleEditor = ({
 };
 
 ScheduleEditor.propTypes = {
+  /** Whether the editor drawer is open */
   isOpen: PropTypes.bool.isRequired,
+  /** Schedule to edit (null for new). Contains trigger, patterns, date range. */
   schedule: PropTypes.shape({
     schedule_id: PropTypes.string,
     name: PropTypes.string,
@@ -519,7 +521,9 @@ ScheduleEditor.propTypes = {
     event_patterns: PropTypes.arrayOf(PatternPropType),
     date_range: DateRangePropType,
   }),
+  /** Callback when schedule is saved. Receives complete schedule object. */
   onSave: PropTypes.func.isRequired,
+  /** Callback when editor is cancelled/closed */
   onCancel: PropTypes.func.isRequired,
 };
 

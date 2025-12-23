@@ -199,12 +199,16 @@ const FixedTimeTriggerForm = ({
 };
 
 FixedTimeTriggerForm.propTypes = {
+  /** Fixed time trigger configuration with time_of_day (HH:MM) and optional days_of_week array */
   value: PropTypes.shape({
     time_of_day: PropTypes.string.isRequired,
     days_of_week: PropTypes.arrayOf(PropTypes.number),
   }),
+  /** Callback when fixed time trigger configuration changes */
   onChange: PropTypes.func.isRequired,
+  /** Whether the form is disabled */
   disabled: PropTypes.bool,
+  /** Validation errors for fixed time trigger fields */
   errors: PropTypes.shape({
     time_of_day: PropTypes.string,
     days_of_week: PropTypes.string,

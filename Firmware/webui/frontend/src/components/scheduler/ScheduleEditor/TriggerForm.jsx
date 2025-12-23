@@ -146,6 +146,7 @@ const TriggerForm = ({
 };
 
 TriggerForm.propTypes = {
+  /** Trigger configuration with type-specific fields. Type determines which fields are active. */
   value: PropTypes.shape({
     trigger_type: PropTypes.oneOf(['interval', 'solar', 'moon_phase', 'fixed_time', 'sensor']).isRequired,
     // Interval trigger fields
@@ -168,8 +169,11 @@ TriggerForm.propTypes = {
     // Common fields
     days_of_week: PropTypes.arrayOf(PropTypes.number),
   }),
+  /** Callback when trigger configuration changes */
   onChange: PropTypes.func.isRequired,
+  /** Whether the form is disabled */
   disabled: PropTypes.bool,
+  /** Validation errors for trigger fields */
   errors: TriggerErrorsPropType,
 };
 

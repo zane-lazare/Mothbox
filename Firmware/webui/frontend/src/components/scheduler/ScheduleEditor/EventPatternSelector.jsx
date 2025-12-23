@@ -220,9 +220,13 @@ const EventPatternSelector = ({
 };
 
 EventPatternSelector.propTypes = {
+  /** Pattern selection configuration with source ('library' or 'custom') and selected pattern */
   value: PatternSelectionPropType,
+  /** Callback when pattern selection changes */
   onChange: PropTypes.func.isRequired,
+  /** Whether the pattern selector is disabled */
   disabled: PropTypes.bool,
+  /** Validation errors for pattern fields */
   errors: PropTypes.shape({
     pattern: PropTypes.string,
   }),
