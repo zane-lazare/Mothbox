@@ -19,8 +19,8 @@ vi.mock('../ScheduleCard', () => ({
       <h3>{schedule.name}</h3>
       <span data-testid={`active-status-${schedule.id}`}>{isActive ? 'active' : 'inactive'}</span>
       <span data-testid={`activating-status-${schedule.id}`}>{isActivating ? 'activating' : 'idle'}</span>
-      <button onClick={() => onActivate(schedule.id)}>Activate</button>
-      <button onClick={onDeactivate}>Deactivate</button>
+      <button onClick={() => onActivate(schedule)}>Activate</button>
+      <button onClick={() => onDeactivate(schedule)}>Deactivate</button>
       <button onClick={() => onEdit(schedule)}>Edit</button>
       <button onClick={() => onDelete(schedule)}>Delete</button>
     </div>

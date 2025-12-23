@@ -29,10 +29,10 @@ export function ScheduleList({ onEditSchedule }) {
   const schedules = data?.schedules || []
   const activeScheduleId = activeData?.active_schedule?.id || null
 
-  const handleActivate = (scheduleId) => {
-    setActivatingId(scheduleId)
+  const handleActivate = (schedule) => {
+    setActivatingId(schedule.id)
     activate(
-      { id: scheduleId },
+      { id: schedule.id },
       {
         onSuccess: () => {
           toast.success('Schedule activated successfully')
