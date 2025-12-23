@@ -136,11 +136,34 @@ describe('CalendarView', () => {
   })
 
   describe('Rendering', () => {
-    it('renders CalendarHeader and CalendarGrid', () => {
+    it('renders CalendarHeader', () => {
       render(<CalendarView />)
 
       expect(screen.getByTestId('calendar-header')).toBeInTheDocument()
-      expect(screen.getByTestId('calendar-grid')).toBeInTheDocument()
+    })
+
+    it('renders CalendarGrid when schedule is selected', async () => {
+      const user = userEvent.setup()
+
+      useSchedulePreview.mockReturnValue({
+        data: {
+          executions: mockExecutions,
+          moon_phases: mockMoonPhases,
+        },
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      })
+
+      render(<CalendarView />)
+
+      // Select a schedule
+      await user.selectOptions(screen.getByTestId('schedule-select'), 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('calendar-grid')).toBeInTheDocument()
+      })
     })
 
     it('does not render modal when not open', () => {
@@ -164,7 +187,9 @@ describe('CalendarView', () => {
       expect(screen.queryByTestId('calendar-header')).not.toBeInTheDocument()
     })
 
-    it('shows loading state when fetching preview', () => {
+    it('shows loading state when fetching preview', async () => {
+      const user = userEvent.setup()
+
       useSchedulePreview.mockReturnValue({
         data: null,
         isLoading: true,
@@ -175,10 +200,15 @@ describe('CalendarView', () => {
 
       render(<CalendarView />)
 
-      // Header should still render
-      expect(screen.getByTestId('calendar-header')).toBeInTheDocument()
-      // Grid should be replaced with loading spinner
-      expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
+      // Select a schedule to trigger loading
+      await user.selectOptions(screen.getByTestId('schedule-select'), 'sched-1')
+
+      await waitFor(() => {
+        // Header should still render
+        expect(screen.getByTestId('calendar-header')).toBeInTheDocument()
+        // Grid should be replaced with loading spinner
+        expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
+      })
       expect(screen.queryByTestId('calendar-grid')).not.toBeInTheDocument()
     })
   })
@@ -459,7 +489,9 @@ describe('CalendarView', () => {
       )
     })
 
-    it('passes preview data to CalendarGrid', () => {
+    it('passes preview data to CalendarGrid', async () => {
+      const user = userEvent.setup()
+
       useSchedulePreview.mockReturnValue({
         data: {
           executions: mockExecutions,
@@ -473,7 +505,12 @@ describe('CalendarView', () => {
 
       render(<CalendarView />)
 
-      expect(screen.getByTestId('grid-executions-count')).toHaveTextContent('2')
+      // Select a schedule to see the grid
+      await user.selectOptions(screen.getByTestId('schedule-select'), 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('grid-executions-count')).toHaveTextContent('2')
+      })
       expect(screen.getByTestId('grid-moon-phases-count')).toHaveTextContent('2')
     })
   })
@@ -708,6 +745,13 @@ describe('CalendarView', () => {
 
       render(<CalendarView />)
 
+      // Select a schedule to see executions
+      await user.selectOptions(screen.getByTestId('schedule-select'), 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('execution-exec-1')).toBeInTheDocument()
+      })
+
       await user.click(screen.getByTestId('execution-exec-1'))
 
       expect(screen.getByTestId('execution-detail-modal')).toBeInTheDocument()
@@ -728,6 +772,13 @@ describe('CalendarView', () => {
       })
 
       render(<CalendarView />)
+
+      // Select a schedule to see executions
+      await user.selectOptions(screen.getByTestId('schedule-select'), 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('execution-exec-1')).toBeInTheDocument()
+      })
 
       await user.click(screen.getByTestId('execution-exec-1'))
       expect(screen.getByTestId('execution-detail-modal')).toBeInTheDocument()
@@ -750,6 +801,13 @@ describe('CalendarView', () => {
       })
 
       render(<CalendarView />)
+
+      // Select a schedule to see executions
+      await user.selectOptions(screen.getByTestId('schedule-select'), 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('execution-exec-1')).toBeInTheDocument()
+      })
 
       await user.click(screen.getByTestId('execution-exec-1'))
 
@@ -781,6 +839,13 @@ describe('CalendarView', () => {
       })
 
       render(<CalendarView />)
+
+      // Select a schedule to see executions
+      await user.selectOptions(screen.getByTestId('schedule-select'), 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('execution-exec-invalid')).toBeInTheDocument()
+      })
 
       await user.click(screen.getByTestId('execution-exec-invalid'))
 
@@ -823,6 +888,13 @@ describe('CalendarView', () => {
 
       render(<CalendarView />)
 
+      // Select a schedule to see executions
+      await user.selectOptions(screen.getByTestId('schedule-select'), 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('execution-exec-null')).toBeInTheDocument()
+      })
+
       await user.click(screen.getByTestId('execution-exec-null'))
 
       // Modal should open but moon phase should be null
@@ -864,6 +936,13 @@ describe('CalendarView', () => {
 
       render(<CalendarView />)
 
+      // Select a schedule to see executions
+      await user.selectOptions(screen.getByTestId('schedule-select'), 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('execution-exec-number')).toBeInTheDocument()
+      })
+
       await user.click(screen.getByTestId('execution-exec-number'))
 
       // Modal should open but moon phase should be null
@@ -883,9 +962,26 @@ describe('CalendarView', () => {
   describe('Cell Click', () => {
     it('switches to day view on cell click', async () => {
       const user = userEvent.setup()
+
+      useSchedulePreview.mockReturnValue({
+        data: {
+          executions: mockExecutions,
+          moon_phases: mockMoonPhases,
+        },
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      })
+
       render(<CalendarView />)
 
-      expect(screen.getByTestId('current-view-mode')).toHaveTextContent('month')
+      // Select a schedule to see the grid
+      await user.selectOptions(screen.getByTestId('schedule-select'), 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('current-view-mode')).toHaveTextContent('month')
+      })
 
       await user.click(screen.getByText('Cell Click'))
 
@@ -894,7 +990,26 @@ describe('CalendarView', () => {
 
     it('updates current date on cell click', async () => {
       const user = userEvent.setup()
+
+      useSchedulePreview.mockReturnValue({
+        data: {
+          executions: mockExecutions,
+          moon_phases: mockMoonPhases,
+        },
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      })
+
       render(<CalendarView />)
+
+      // Select a schedule to see the grid
+      await user.selectOptions(screen.getByTestId('schedule-select'), 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('calendar-grid')).toBeInTheDocument()
+      })
 
       await user.click(screen.getByText('Cell Click'))
 
@@ -907,6 +1022,52 @@ describe('CalendarView', () => {
   })
 
   describe('Empty States', () => {
+    it('shows empty state when no schedule selected', () => {
+      render(<CalendarView />)
+
+      expect(screen.getByText('No schedule selected')).toBeInTheDocument()
+      expect(screen.getByText('Select a schedule from the dropdown above to view its execution preview')).toBeInTheDocument()
+    })
+
+    it('shows CalendarDaysIcon when no schedule selected', () => {
+      render(<CalendarView />)
+
+      // Check for the empty state container
+      const emptyStateText = screen.getByText('No schedule selected')
+      const emptyStateContainer = emptyStateText.closest('div')
+      expect(emptyStateContainer).toBeInTheDocument()
+    })
+
+    it('hides calendar grid when no schedule selected', () => {
+      render(<CalendarView />)
+
+      expect(screen.queryByTestId('calendar-grid')).not.toBeInTheDocument()
+    })
+
+    it('hides empty state when schedule is selected', async () => {
+      const user = userEvent.setup()
+
+      useSchedulePreview.mockReturnValue({
+        data: {
+          executions: mockExecutions,
+          moon_phases: mockMoonPhases,
+        },
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      })
+
+      render(<CalendarView />)
+
+      // Select a schedule
+      await user.selectOptions(screen.getByTestId('schedule-select'), 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.queryByText('No schedule selected')).not.toBeInTheDocument()
+      })
+    })
+
     it('handles empty schedules list', () => {
       useSchedules.mockReturnValue({
         data: { schedules: [], total: 0 },
@@ -920,7 +1081,9 @@ describe('CalendarView', () => {
       expect(select.options).toHaveLength(1) // Only placeholder
     })
 
-    it('handles empty preview data', () => {
+    it('handles empty preview data', async () => {
+      const user = userEvent.setup()
+
       useSchedulePreview.mockReturnValue({
         data: {
           executions: [],
@@ -934,11 +1097,18 @@ describe('CalendarView', () => {
 
       render(<CalendarView />)
 
-      expect(screen.getByTestId('grid-executions-count')).toHaveTextContent('0')
+      // Select a schedule to see grid with empty data
+      await user.selectOptions(screen.getByTestId('schedule-select'), 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('grid-executions-count')).toHaveTextContent('0')
+      })
       expect(screen.getByTestId('grid-moon-phases-count')).toHaveTextContent('0')
     })
 
-    it('handles missing preview data gracefully', () => {
+    it('handles missing preview data gracefully', async () => {
+      const user = userEvent.setup()
+
       useSchedulePreview.mockReturnValue({
         data: null,
         isLoading: false,
@@ -949,8 +1119,12 @@ describe('CalendarView', () => {
 
       render(<CalendarView />)
 
-      // Should pass empty arrays
-      expect(screen.getByTestId('grid-executions-count')).toHaveTextContent('0')
+      // Select a schedule to trigger grid rendering
+      await user.selectOptions(screen.getByTestId('schedule-select'), 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('grid-executions-count')).toHaveTextContent('0')
+      })
       expect(screen.getByTestId('grid-moon-phases-count')).toHaveTextContent('0')
     })
   })
@@ -997,6 +1171,13 @@ describe('CalendarView', () => {
       })
 
       render(<CalendarView />)
+
+      // Select a schedule to see executions
+      await user.selectOptions(screen.getByTestId('schedule-select'), 'sched-1')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('execution-exec-1')).toBeInTheDocument()
+      })
 
       // Open modal
       await user.click(screen.getByTestId('execution-exec-1'))

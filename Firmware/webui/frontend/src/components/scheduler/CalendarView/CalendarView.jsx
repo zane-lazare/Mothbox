@@ -15,7 +15,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { ExclamationCircleIcon } from '@heroicons/react/24/outline'
+import { CalendarDaysIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline'
 import CalendarHeader from './CalendarHeader'
 import CalendarGrid from './CalendarGrid'
 import ExecutionDetailModal from './ExecutionDetailModal'
@@ -171,6 +171,18 @@ export function CalendarView() {
         onScheduleSelect={handleScheduleSelect}
       />
 
+      {!selectedScheduleId && (
+        <div className="flex flex-col items-center justify-center h-64 text-center">
+          <CalendarDaysIcon className="h-16 w-16 text-gray-300 dark:text-gray-600 mb-4" />
+          <p className="text-lg text-gray-600 dark:text-gray-400 mb-2">
+            No schedule selected
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-500">
+            Select a schedule from the dropdown above to view its execution preview
+          </p>
+        </div>
+      )}
+
       {previewError && selectedScheduleId && (
         <div className="flex flex-col items-center justify-center h-64 text-center">
           <ExclamationCircleIcon className="h-12 w-12 text-red-500 dark:text-red-400 mb-4" />
@@ -190,13 +202,13 @@ export function CalendarView() {
         </div>
       )}
 
-      {!previewError && previewLoading && (
+      {!previewError && previewLoading && selectedScheduleId && (
         <div className="flex justify-center items-center h-64">
           <LoadingSpinner />
         </div>
       )}
 
-      {!previewError && !previewLoading && (
+      {!previewError && !previewLoading && selectedScheduleId && (
         <CalendarGrid
           viewMode={viewMode}
           currentDate={currentDate}
