@@ -6,6 +6,9 @@ import DateRangeSection from './DateRangeSection';
 import PreviewSection from './PreviewSection';
 import { TRIGGER_DEFAULTS, SCHEDULE_LIMITS } from './constants';
 
+/** Delay before focusing name input to allow drawer animation to start */
+const FOCUS_DELAY_MS = 100;
+
 /**
  * Known error codes and their user-friendly messages
  */
@@ -120,10 +123,7 @@ const ScheduleEditor = ({
    */
   useEffect(() => {
     if (isOpen && nameInputRef.current) {
-      // Small delay to allow animation to start
-      const timer = setTimeout(() => {
-        nameInputRef.current?.focus();
-      }, 100);
+      const timer = setTimeout(() => nameInputRef.current?.focus(), FOCUS_DELAY_MS);
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
