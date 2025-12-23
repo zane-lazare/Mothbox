@@ -109,6 +109,16 @@ const DaysOfWeekSelector = ({
   };
 
   /**
+   * Check if a day is the last selected (cannot be deselected when !allowEmpty)
+   * @param {number} dayValue - Day value to check
+   * @returns {boolean}
+   */
+  const isLastSelectedDay = (dayValue) => {
+    if (allowEmpty) return false;
+    return Array.isArray(value) && value.length === 1 && value.includes(dayValue);
+  };
+
+  /**
    * Get button label for a day
    * @param {Object} day - Day object from DAYS_OF_WEEK
    * @returns {string}
@@ -132,14 +142,17 @@ const DaysOfWeekSelector = ({
       <div className="flex flex-wrap gap-2">
         {DAYS_OF_WEEK.map((day) => {
           const selected = isDaySelected(day.value);
+          const isLast = isLastSelectedDay(day.value);
           return (
             <button
               key={day.value}
               type="button"
-              onClick={() => handleDayToggle(day.value)}
+              onClick={() => !isLast && handleDayToggle(day.value)}
               disabled={disabled}
               aria-pressed={selected}
+              aria-disabled={isLast}
               aria-label={day.label}
+              title={isLast ? 'At least one day must be selected' : undefined}
               className={`
                 px-3 py-2 rounded-md text-sm font-medium
                 transition-colors duration-150
@@ -151,6 +164,7 @@ const DaysOfWeekSelector = ({
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
                 }
                 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                ${isLast ? 'opacity-60 cursor-not-allowed' : ''}
                 ${compact ? 'min-w-[2.5rem]' : 'min-w-[3.5rem]'}
               `}
             >
