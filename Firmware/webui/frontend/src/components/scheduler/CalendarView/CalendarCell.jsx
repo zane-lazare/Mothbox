@@ -7,7 +7,7 @@
  * @module components/scheduler/CalendarView/CalendarCell
  */
 
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
 import PropTypes from 'prop-types'
 import MoonPhaseIcon from './MoonPhaseIcon'
 import ExecutionMarker from './ExecutionMarker'
@@ -54,18 +54,16 @@ function CalendarCell({
   const visibleExecutions = executions.slice(0, 3)
   const hiddenCount = executions.length - visibleExecutions.length
 
-  // Handle cell click
-  const handleCellClick = () => {
+  // Handle cell click - memoized to prevent unnecessary re-renders
+  const handleCellClick = useCallback(() => {
     onClick(date)
-  }
+  }, [onClick, date])
 
-  // Handle execution click (prevent bubbling to cell)
-  const handleExecutionClick = (execution) => {
-    return (e) => {
-      e.stopPropagation()
-      onExecutionClick(execution)
-    }
-  }
+  // Handle execution click (prevent bubbling to cell) - memoized
+  const handleExecutionClick = useCallback((execution) => (e) => {
+    e.stopPropagation()
+    onExecutionClick(execution)
+  }, [onExecutionClick])
 
   // Build cell classes
   const cellClasses = [
