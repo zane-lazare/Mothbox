@@ -106,7 +106,8 @@ describe('CalendarHeader', () => {
       const dayButton = screen.getByText('Day')
       await user.click(dayButton)
 
-      expect(defaultProps.onViewModeChange).toHaveBeenCalledExactlyOnceWith('day')
+      expect(defaultProps.onViewModeChange).toHaveBeenCalledTimes(1)
+      expect(defaultProps.onViewModeChange).toHaveBeenCalledWith('day')
     })
 
     it('calls onViewModeChange when week button clicked', async () => {
@@ -116,7 +117,8 @@ describe('CalendarHeader', () => {
       const weekButton = screen.getByText('Week')
       await user.click(weekButton)
 
-      expect(defaultProps.onViewModeChange).toHaveBeenCalledExactlyOnceWith('week')
+      expect(defaultProps.onViewModeChange).toHaveBeenCalledTimes(1)
+      expect(defaultProps.onViewModeChange).toHaveBeenCalledWith('week')
     })
 
     it('calls onViewModeChange when month button clicked', async () => {
@@ -126,7 +128,8 @@ describe('CalendarHeader', () => {
       const monthButton = screen.getByText('Month')
       await user.click(monthButton)
 
-      expect(defaultProps.onViewModeChange).toHaveBeenCalledExactlyOnceWith('month')
+      expect(defaultProps.onViewModeChange).toHaveBeenCalledTimes(1)
+      expect(defaultProps.onViewModeChange).toHaveBeenCalledWith('month')
     })
   })
 
@@ -138,7 +141,8 @@ describe('CalendarHeader', () => {
       const prevButton = screen.getByLabelText('Previous')
       await user.click(prevButton)
 
-      expect(defaultProps.onNavigate).toHaveBeenCalledExactlyOnceWith('prev')
+      expect(defaultProps.onNavigate).toHaveBeenCalledTimes(1)
+      expect(defaultProps.onNavigate).toHaveBeenCalledWith('prev')
     })
 
     it('calls onNavigate with "next" when next button clicked', async () => {
@@ -148,7 +152,8 @@ describe('CalendarHeader', () => {
       const nextButton = screen.getByLabelText('Next')
       await user.click(nextButton)
 
-      expect(defaultProps.onNavigate).toHaveBeenCalledExactlyOnceWith('next')
+      expect(defaultProps.onNavigate).toHaveBeenCalledTimes(1)
+      expect(defaultProps.onNavigate).toHaveBeenCalledWith('next')
     })
 
     it('calls onNavigate with "today" when today button clicked', async () => {
@@ -158,7 +163,8 @@ describe('CalendarHeader', () => {
       const todayButton = screen.getByText('Today')
       await user.click(todayButton)
 
-      expect(defaultProps.onNavigate).toHaveBeenCalledExactlyOnceWith('today')
+      expect(defaultProps.onNavigate).toHaveBeenCalledTimes(1)
+      expect(defaultProps.onNavigate).toHaveBeenCalledWith('today')
     })
   })
 
@@ -184,7 +190,8 @@ describe('CalendarHeader', () => {
       const dropdown = screen.getByLabelText('Select schedule')
       await user.selectOptions(dropdown, 'sched-1')
 
-      expect(defaultProps.onScheduleSelect).toHaveBeenCalledExactlyOnceWith('sched-1')
+      expect(defaultProps.onScheduleSelect).toHaveBeenCalledTimes(1)
+      expect(defaultProps.onScheduleSelect).toHaveBeenCalledWith('sched-1')
     })
 
     it('calls onScheduleSelect with null when placeholder selected', async () => {
@@ -194,7 +201,8 @@ describe('CalendarHeader', () => {
       const dropdown = screen.getByLabelText('Select schedule')
       await user.selectOptions(dropdown, '')
 
-      expect(defaultProps.onScheduleSelect).toHaveBeenCalledExactlyOnceWith(null)
+      expect(defaultProps.onScheduleSelect).toHaveBeenCalledTimes(1)
+      expect(defaultProps.onScheduleSelect).toHaveBeenCalledWith(null)
     })
 
     it('renders empty schedule list gracefully', () => {
