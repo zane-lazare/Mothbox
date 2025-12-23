@@ -26,6 +26,12 @@ import { getDateKey } from './calendarUtils'
 const VIEW_MODE_STORAGE_KEY = 'mothbox-calendar-view-mode'
 
 /**
+ * Valid view mode values.
+ * Used to validate localStorage values before using them.
+ */
+const VALID_VIEW_MODES = ['month', 'week', 'day']
+
+/**
  * Number of days to fetch for each view mode.
  * Month: 35 days covers 5 weeks which is sufficient for most month views
  * (some months need 6 weeks, but 5 covers the main content)
@@ -48,7 +54,7 @@ export function CalendarView() {
   // State management
   const [viewMode, setViewMode] = useState(() => {
     const stored = localStorage.getItem(VIEW_MODE_STORAGE_KEY)
-    return stored || 'month'
+    return VALID_VIEW_MODES.includes(stored) ? stored : 'month'
   })
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [selectedScheduleId, setSelectedScheduleId] = useState(null)

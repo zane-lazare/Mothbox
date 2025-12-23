@@ -586,6 +586,22 @@ describe('CalendarView', () => {
       expect(screen.getByTestId('current-view-mode')).toHaveTextContent('month')
     })
 
+    it('defaults to month view when localStorage has invalid value', () => {
+      localStorage.setItem('mothbox-calendar-view-mode', 'invalid-view')
+
+      render(<CalendarView />)
+
+      expect(screen.getByTestId('current-view-mode')).toHaveTextContent('month')
+    })
+
+    it('uses week view when localStorage has valid week value', () => {
+      localStorage.setItem('mothbox-calendar-view-mode', 'week')
+
+      render(<CalendarView />)
+
+      expect(screen.getByTestId('current-view-mode')).toHaveTextContent('week')
+    })
+
     it('falls back to month view days (35) for unknown view modes', () => {
       // Test the PREVIEW_DAYS constant fallback behavior
       // This ensures that if an invalid view mode somehow gets set,
