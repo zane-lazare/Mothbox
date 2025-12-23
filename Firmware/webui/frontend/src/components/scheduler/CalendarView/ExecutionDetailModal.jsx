@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { XMarkIcon, ClockIcon } from '@heroicons/react/24/outline';
 import MoonPhaseIcon from './MoonPhaseIcon';
 import { formatTime, getPatternColor } from './calendarUtils';
@@ -49,18 +49,47 @@ function getActionTypeColor(type) {
  * />
  */
 function ExecutionDetailModal({ isOpen, onClose, execution, moonPhase }) {
-  // Handle ESC key to close modal
+  const modalRef = useRef(null);
+
+  // Handle ESC key and focus trap for accessibility (WCAG 2.1)
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleEsc = (e) => {
+    const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         onClose();
+        return;
+      }
+
+      // Focus trap: keep focus within modal
+      if (e.key !== 'Tab' || !modalRef.current) return;
+
+      const focusableElements = modalRef.current.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey && document.activeElement === firstElement) {
+        e.preventDefault();
+        lastElement.focus();
+      } else if (!e.shiftKey && document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement.focus();
       }
     };
 
-    window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
+    window.addEventListener('keydown', handleKeyDown);
+
+    // Focus first element on open
+    const focusableElements = modalRef.current?.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusableElements?.[0]) {
+      focusableElements[0].focus();
+    }
+
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
   if (!isOpen || !execution) {
@@ -73,6 +102,7 @@ function ExecutionDetailModal({ isOpen, onClose, execution, moonPhase }) {
       onClick={onClose}
     >
       <div
+        ref={modalRef}
         className="max-w-lg w-full mx-4 bg-white dark:bg-gray-800 rounded-lg shadow-xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"

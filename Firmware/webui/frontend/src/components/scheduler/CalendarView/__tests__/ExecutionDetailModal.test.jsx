@@ -553,4 +553,61 @@ describe('ExecutionDetailModal', () => {
       expect(screen.getByText('Action 10')).toBeInTheDocument();
     });
   });
+
+  describe('Focus Trap', () => {
+    it('focuses the close button when modal opens', () => {
+      render(
+        <ExecutionDetailModal
+          isOpen={true}
+          onClose={mockOnClose}
+          execution={mockExecution}
+          moonPhase={null}
+        />
+      );
+
+      // The close button should receive focus when modal opens
+      const closeButton = screen.getByLabelText('Close');
+      expect(document.activeElement).toBe(closeButton);
+    });
+
+    it('traps focus within modal on Tab', () => {
+      render(
+        <ExecutionDetailModal
+          isOpen={true}
+          onClose={mockOnClose}
+          execution={mockExecution}
+          moonPhase={null}
+        />
+      );
+
+      const closeButton = screen.getByLabelText('Close');
+
+      // Focus should be on close button (the only focusable element)
+      expect(document.activeElement).toBe(closeButton);
+
+      // Tab should keep focus on close button (only one focusable element)
+      fireEvent.keyDown(window, { key: 'Tab' });
+      expect(document.activeElement).toBe(closeButton);
+    });
+
+    it('traps focus within modal on Shift+Tab', () => {
+      render(
+        <ExecutionDetailModal
+          isOpen={true}
+          onClose={mockOnClose}
+          execution={mockExecution}
+          moonPhase={null}
+        />
+      );
+
+      const closeButton = screen.getByLabelText('Close');
+
+      // Focus should be on close button
+      expect(document.activeElement).toBe(closeButton);
+
+      // Shift+Tab should keep focus on close button (only one focusable element)
+      fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+      expect(document.activeElement).toBe(closeButton);
+    });
+  });
 });
