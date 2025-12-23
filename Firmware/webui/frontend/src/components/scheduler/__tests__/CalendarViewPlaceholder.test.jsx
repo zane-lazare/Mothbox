@@ -6,7 +6,7 @@ describe('CalendarViewPlaceholder', () => {
   it('renders placeholder message', () => {
     render(<CalendarViewPlaceholder />)
     expect(screen.getByText('Calendar View')).toBeInTheDocument()
-    expect(screen.getByText(/Issue #229/)).toBeInTheDocument()
+    expect(screen.getByText(/Issue #228/)).toBeInTheDocument()
   })
 
   it('renders icon', () => {

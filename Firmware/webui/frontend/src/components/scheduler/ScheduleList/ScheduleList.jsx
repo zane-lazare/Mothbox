@@ -9,14 +9,14 @@ import {
   useDeactivateSchedule,
   useDeleteSchedule,
 } from '../../../hooks/useSchedules'
-import { ScheduleCard } from './ScheduleCard'
-import { ConfirmDialog } from '../../common/ConfirmDialog'
+import ScheduleCard from './ScheduleCard'
+import ConfirmDialog from '../../common/ConfirmDialog'
 import LoadingSpinner from '../../LoadingSpinner'
 
 export function ScheduleList({ onEditSchedule }) {
   const { data, isLoading, error, refetch } = useSchedules()
   const { data: activeData } = useActiveSchedule()
-  const { mutate: activate, isPending: isActivating } = useActivateSchedule()
+  const { mutate: activate } = useActivateSchedule()
   const { mutate: deactivate, isPending: isDeactivating } = useDeactivateSchedule()
   const { mutate: deleteSchedule, isPending: isDeleting } = useDeleteSchedule()
 
@@ -131,6 +131,8 @@ export function ScheduleList({ onEditSchedule }) {
             schedule={schedule}
             isActive={schedule.id === activeScheduleId}
             isActivating={schedule.id === activatingId}
+            isDeactivating={isDeactivating && schedule.id === activeScheduleId}
+            isDeleting={isDeleting && deleteConfirmation.schedule?.id === schedule.id}
             onActivate={handleActivate}
             onDeactivate={handleDeactivate}
             onEdit={onEditSchedule}
@@ -148,7 +150,7 @@ export function ScheduleList({ onEditSchedule }) {
             : ''
         }
         onConfirm={handleDeleteConfirm}
-        onCancel={handleDeleteCancel}
+        onClose={handleDeleteCancel}
       />
     </>
   )

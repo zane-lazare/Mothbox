@@ -2,7 +2,7 @@ import { ListBulletIcon } from '@heroicons/react/24/outline'
 
 /**
  * ScheduleListPlaceholder - Temporary placeholder for schedule list.
- * Will be replaced with full implementation in Issue #226.
+ * Will be replaced with full implementation in Issue #266.
  */
 export default function ScheduleListPlaceholder() {
   return (
@@ -10,7 +10,7 @@ export default function ScheduleListPlaceholder() {
       <ListBulletIcon className="h-16 w-16 mx-auto text-gray-300 mb-4" />
       <h3 className="text-lg font-medium text-gray-500 mb-2">Schedule List</h3>
       <p className="text-sm text-gray-400">
-        Full implementation coming in Issue #226
+        Full implementation coming in Issue #266
       </p>
     </div>
   )

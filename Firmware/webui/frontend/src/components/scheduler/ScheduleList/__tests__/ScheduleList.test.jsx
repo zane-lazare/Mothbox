@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { ScheduleList } from '../ScheduleList'
 
-// Mock dependencies
+// Mock dependencies BEFORE imports
 vi.mock('../../../../hooks/useSchedules', () => ({
   useSchedules: vi.fn(),
   useActiveSchedule: vi.fn(),
@@ -12,20 +11,10 @@ vi.mock('../../../../hooks/useSchedules', () => ({
   useDeleteSchedule: vi.fn(),
 }))
 
-vi.mock('../../common/ConfirmDialog', () => ({
-  ConfirmDialog: ({ isOpen, title, message, onConfirm, onCancel }) =>
-    isOpen ? (
-      <div data-testid="confirm-dialog">
-        <h2>{title}</h2>
-        <p>{message}</p>
-        <button onClick={onConfirm}>Confirm</button>
-        <button onClick={onCancel}>Cancel</button>
-      </div>
-    ) : null,
-}))
+// Note: ConfirmDialog is NOT mocked - we test with the real component
 
 vi.mock('../ScheduleCard', () => ({
-  ScheduleCard: ({ schedule, isActive, isActivating, onActivate, onDeactivate, onEdit, onDelete }) => (
+  default: ({ schedule, isActive, isActivating, onActivate, onDeactivate, onEdit, onDelete }) => (
     <div data-testid={`schedule-card-${schedule.id}`} role="listitem">
       <h3>{schedule.name}</h3>
       <span data-testid={`active-status-${schedule.id}`}>{isActive ? 'active' : 'inactive'}</span>
@@ -33,7 +22,7 @@ vi.mock('../ScheduleCard', () => ({
       <button onClick={() => onActivate(schedule.id)}>Activate</button>
       <button onClick={onDeactivate}>Deactivate</button>
       <button onClick={() => onEdit(schedule)}>Edit</button>
-      <button onClick={() => onDelete(schedule.id)}>Delete</button>
+      <button onClick={() => onDelete(schedule)}>Delete</button>
     </div>
   ),
 }))
@@ -57,6 +46,7 @@ import {
   useDeleteSchedule,
 } from '../../../../hooks/useSchedules'
 import toast from 'react-hot-toast'
+import { ScheduleList } from '../ScheduleList'
 
 describe('ScheduleList', () => {
   const mockSchedules = [
@@ -241,7 +231,7 @@ describe('ScheduleList', () => {
         refetch: vi.fn(),
       })
 
-      const { container } = render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
 
       const emptyStateContainer = screen.getByText(/no schedules yet/i).parentElement
       expect(emptyStateContainer).toHaveClass('text-center')
@@ -318,26 +308,30 @@ describe('ScheduleList', () => {
 
     it('should track activating state for specific schedule', async () => {
       const user = userEvent.setup()
-      let mockActivate = vi.fn()
+      const mockActivate = vi.fn()
 
-      const { rerender } = render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      useActivateSchedule.mockReturnValue({
+        mutate: mockActivate,
+        isPending: false,
+      })
+
+      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
 
       // Initially not activating
       expect(screen.getByTestId('activating-status-schedule-1')).toHaveTextContent('idle')
 
-      // Click activate and update to pending state
+      // Click activate
       const activateButton = screen.getAllByRole('button', { name: /activate/i })[0]
-
-      useActivateSchedule.mockReturnValue({
-        mutate: mockActivate,
-        isPending: true,
-      })
-
       await user.click(activateButton)
 
-      // Need to check the activatingId state is set
-      // This is tested indirectly by checking if isActivating prop is passed correctly
-      expect(mockActivate).toHaveBeenCalled()
+      // Verify mutation was called with correct schedule ID
+      expect(mockActivate).toHaveBeenCalledWith(
+        { id: 'schedule-1' },
+        expect.objectContaining({
+          onSuccess: expect.any(Function),
+          onError: expect.any(Function),
+        })
+      )
     })
 
     it('should show success toast on successful activation', async () => {
@@ -390,8 +384,6 @@ describe('ScheduleList', () => {
     })
 
     it('should pass isActivating=true only to the schedule being activated', async () => {
-      const user = userEvent.setup()
-
       render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
 
       // Before activation
@@ -490,7 +482,7 @@ describe('ScheduleList', () => {
       const deleteButton = screen.getAllByRole('button', { name: /delete/i })[0]
       await user.click(deleteButton)
 
-      expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument()
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
       expect(screen.getByText(/delete schedule/i)).toBeInTheDocument()
       expect(screen.getByText(/are you sure you want to delete/i)).toBeInTheDocument()
     })
@@ -503,7 +495,8 @@ describe('ScheduleList', () => {
       const deleteButton = screen.getAllByRole('button', { name: /delete/i })[0]
       await user.click(deleteButton)
 
-      expect(screen.getByText(/morning schedule/i)).toBeInTheDocument()
+      // Check for the specific confirmation message with schedule name
+      expect(screen.getByText(/are you sure you want to delete "morning schedule"/i)).toBeInTheDocument()
     })
 
     it('should call delete mutation when confirmed', async () => {
@@ -550,7 +543,10 @@ describe('ScheduleList', () => {
       await user.click(cancelButton)
 
       expect(mockDelete).not.toHaveBeenCalled()
-      expect(screen.queryByTestId('confirm-dialog')).not.toBeInTheDocument()
+
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      })
     })
 
     it('should show success toast on successful deletion', async () => {
@@ -633,7 +629,7 @@ describe('ScheduleList', () => {
       onSuccessCallback()
 
       await waitFor(() => {
-        expect(screen.queryByTestId('confirm-dialog')).not.toBeInTheDocument()
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       })
     })
   })

@@ -6,7 +6,7 @@ describe('ScheduleListPlaceholder', () => {
   it('renders placeholder message', () => {
     render(<ScheduleListPlaceholder />)
     expect(screen.getByText('Schedule List')).toBeInTheDocument()
-    expect(screen.getByText(/Issue #226/)).toBeInTheDocument()
+    expect(screen.getByText(/Issue #266/)).toBeInTheDocument()
   })
 
   it('renders icon', () => {
