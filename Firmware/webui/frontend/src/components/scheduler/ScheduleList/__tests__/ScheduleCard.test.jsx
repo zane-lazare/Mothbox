@@ -446,7 +446,7 @@ describe('ScheduleCard', () => {
       trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
     }
 
-    it('disables and shows "Loading..." on Edit button when isEditing is true', () => {
+    it('disables and shows "Editing..." on Edit button when isEditing is true', () => {
       render(
         <ScheduleCard
           schedule={schedule}
@@ -458,12 +458,12 @@ describe('ScheduleCard', () => {
           isEditing={true}
         />
       )
-      const editButton = screen.getByRole('button', { name: /loading/i })
+      const editButton = screen.getByRole('button', { name: /editing/i })
       expect(editButton).toBeDisabled()
-      expect(editButton).toHaveTextContent('Loading...')
+      expect(editButton).toHaveTextContent('Editing...')
     })
 
-    it('disables and shows "Loading..." on Activate button when isActivating is true', () => {
+    it('disables and shows "Activating..." on Activate button when isActivating is true', () => {
       render(
         <ScheduleCard
           schedule={schedule}
@@ -475,12 +475,12 @@ describe('ScheduleCard', () => {
           isActivating={true}
         />
       )
-      const activateButton = screen.getByRole('button', { name: /loading/i })
+      const activateButton = screen.getByRole('button', { name: /activating/i })
       expect(activateButton).toBeDisabled()
-      expect(activateButton).toHaveTextContent('Loading...')
+      expect(activateButton).toHaveTextContent('Activating...')
     })
 
-    it('disables and shows "Loading..." on Deactivate button when isDeactivating is true', () => {
+    it('disables and shows "Deactivating..." on Deactivate button when isDeactivating is true', () => {
       render(
         <ScheduleCard
           schedule={schedule}
@@ -492,12 +492,12 @@ describe('ScheduleCard', () => {
           isDeactivating={true}
         />
       )
-      const deactivateButton = screen.getByRole('button', { name: /loading/i })
+      const deactivateButton = screen.getByRole('button', { name: /deactivating/i })
       expect(deactivateButton).toBeDisabled()
-      expect(deactivateButton).toHaveTextContent('Loading...')
+      expect(deactivateButton).toHaveTextContent('Deactivating...')
     })
 
-    it('disables and shows "Loading..." on Delete button when isDeleting is true', () => {
+    it('disables and shows "Deleting..." on Delete button when isDeleting is true', () => {
       render(
         <ScheduleCard
           schedule={schedule}
@@ -509,9 +509,9 @@ describe('ScheduleCard', () => {
           isDeleting={true}
         />
       )
-      const deleteButton = screen.getByRole('button', { name: /loading/i })
+      const deleteButton = screen.getByRole('button', { name: /deleting/i })
       expect(deleteButton).toBeDisabled()
-      expect(deleteButton).toHaveTextContent('Loading...')
+      expect(deleteButton).toHaveTextContent('Deleting...')
     })
 
     it('disables all buttons when multiple loading states are true', () => {

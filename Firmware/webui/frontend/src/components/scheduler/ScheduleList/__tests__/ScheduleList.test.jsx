@@ -15,10 +15,10 @@ vi.mock('../../../../hooks/useSchedules', () => ({
 
 vi.mock('../ScheduleCard', () => ({
   default: ({ schedule, isActive, isActivating, onActivate, onDeactivate, onEdit, onDelete }) => (
-    <div data-testid={`schedule-card-${schedule.id}`} role="listitem">
+    <div data-testid={`schedule-card-${schedule.schedule_id}`} role="listitem">
       <h3>{schedule.name}</h3>
-      <span data-testid={`active-status-${schedule.id}`}>{isActive ? 'active' : 'inactive'}</span>
-      <span data-testid={`activating-status-${schedule.id}`}>{isActivating ? 'activating' : 'idle'}</span>
+      <span data-testid={`active-status-${schedule.schedule_id}`}>{isActive ? 'active' : 'inactive'}</span>
+      <span data-testid={`activating-status-${schedule.schedule_id}`}>{isActivating ? 'activating' : 'idle'}</span>
       <button onClick={() => onActivate(schedule)}>Activate</button>
       <button onClick={() => onDeactivate(schedule)}>Deactivate</button>
       <button onClick={() => onEdit(schedule)}>Edit</button>
@@ -51,17 +51,17 @@ import { ScheduleList } from '../ScheduleList'
 describe('ScheduleList', () => {
   const mockSchedules = [
     {
-      id: 'schedule-1',
+      schedule_id: 'schedule-1',
       name: 'Morning Schedule',
       description: 'Runs in the morning',
     },
     {
-      id: 'schedule-2',
+      schedule_id: 'schedule-2',
       name: 'Evening Schedule',
       description: 'Runs in the evening',
     },
     {
-      id: 'schedule-3',
+      schedule_id: 'schedule-3',
       name: 'Night Schedule',
       description: 'Runs at night',
     },
@@ -259,7 +259,7 @@ describe('ScheduleList', () => {
 
     it('should pass isActive=true to active schedule card', () => {
       useActiveSchedule.mockReturnValue({
-        data: { active_schedule: { id: 'schedule-2' } },
+        data: { active_schedule: { schedule_id: 'schedule-2' } },
       })
 
       render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
@@ -406,7 +406,7 @@ describe('ScheduleList', () => {
       })
 
       useActiveSchedule.mockReturnValue({
-        data: { active_schedule: { id: 'schedule-1' } },
+        data: { active_schedule: { schedule_id: 'schedule-1' } },
       })
 
       render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)

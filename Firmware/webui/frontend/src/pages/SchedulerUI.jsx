@@ -7,6 +7,7 @@ import ActiveScheduleBanner from '../components/scheduler/ActiveScheduleBanner'
 import { ScheduleList } from '../components/scheduler/ScheduleList'
 import { ScheduleEditor } from '../components/scheduler/ScheduleEditor'
 import CalendarViewPlaceholder from '../components/scheduler/CalendarViewPlaceholder'
+import ErrorBoundary from '../components/ErrorBoundary'
 import { useCreateSchedule, useUpdateSchedule } from '../hooks/useSchedules'
 import toast from 'react-hot-toast'
 
@@ -55,9 +56,10 @@ function SchedulerUIContent() {
       }
       setEditorOpen(false)
       setEditingSchedule(null)
-    } catch {
+    } catch (error) {
       // Error toast is handled by mutation's onError callback
       // Keep editor open so user can retry
+      console.error('Error saving schedule:', error)
     }
   }, [editingSchedule, createSchedule, updateSchedule])
 
@@ -78,7 +80,13 @@ function SchedulerUIContent() {
       <SchedulerTabs activeTab={activeTab} onTabChange={setActiveTab} />
       {activeTab === 'schedules' && (
         <div id="schedules-panel" role="tabpanel">
-          <ScheduleList onEditSchedule={handleEditSchedule} />
+          <ErrorBoundary
+            errorTitle="Error loading schedules"
+            errorMessage="Failed to load the schedule list"
+            onReset={() => window.location.reload()}
+          >
+            <ScheduleList onEditSchedule={handleEditSchedule} />
+          </ErrorBoundary>
         </div>
       )}
       {activeTab === 'calendar' && (

@@ -2,16 +2,6 @@ import { useState } from 'react'
 import PropTypes from 'prop-types'
 import { CalendarDaysIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-
-/** Toast message constants for i18n and consistency */
-const TOAST_MESSAGES = {
-  ACTIVATE_SUCCESS: 'Schedule activated successfully',
-  ACTIVATE_ERROR: (msg) => `Failed to activate schedule: ${msg}`,
-  DEACTIVATE_SUCCESS: 'Schedule deactivated successfully',
-  DEACTIVATE_ERROR: (msg) => `Failed to deactivate schedule: ${msg}`,
-  DELETE_SUCCESS: 'Schedule deleted successfully',
-  DELETE_ERROR: (msg) => `Failed to delete schedule: ${msg}`,
-}
 import {
   useSchedules,
   useActiveSchedule,
@@ -22,6 +12,19 @@ import {
 import ScheduleCard from './ScheduleCard'
 import ConfirmDialog from '../../common/ConfirmDialog'
 import LoadingSpinner from '../../LoadingSpinner'
+
+/** Toast message constants for i18n and consistency */
+const TOAST_MESSAGES = {
+  ACTIVATE_SUCCESS: 'Schedule activated successfully',
+  ACTIVATE_ERROR: (msg) => `Failed to activate schedule: ${msg}`,
+  DEACTIVATE_SUCCESS: 'Schedule deactivated successfully',
+  DEACTIVATE_ERROR: (msg) => `Failed to deactivate schedule: ${msg}`,
+  DELETE_SUCCESS: 'Schedule deleted successfully',
+  DELETE_ERROR: (msg) => `Failed to delete schedule: ${msg}`,
+}
+
+/** Responsive grid layout for schedule cards */
+const GRID_CLASSES = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'
 
 export function ScheduleList({ onEditSchedule }) {
   const { data, isLoading, error, refetch } = useSchedules()
@@ -37,12 +40,12 @@ export function ScheduleList({ onEditSchedule }) {
   })
 
   const schedules = data?.schedules || []
-  const activeScheduleId = activeData?.active_schedule?.id || null
+  const activeScheduleId = activeData?.active_schedule?.schedule_id || null
 
   const handleActivate = (schedule) => {
-    setActivatingId(schedule.id)
+    setActivatingId(schedule.schedule_id)
     activate(
-      { id: schedule.id },
+      { id: schedule.schedule_id },
       {
         onSuccess: () => {
           toast.success(TOAST_MESSAGES.ACTIVATE_SUCCESS)
@@ -77,7 +80,7 @@ export function ScheduleList({ onEditSchedule }) {
   const handleDeleteConfirm = () => {
     if (!deleteConfirmation.schedule) return
 
-    deleteSchedule(deleteConfirmation.schedule.id, {
+    deleteSchedule(deleteConfirmation.schedule.schedule_id, {
       onSuccess: () => {
         toast.success(TOAST_MESSAGES.DELETE_SUCCESS)
         setDeleteConfirmation({ isOpen: false, schedule: null })
@@ -131,18 +134,15 @@ export function ScheduleList({ onEditSchedule }) {
   // List state
   return (
     <>
-      <div
-        role="list"
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-      >
+      <div role="list" className={GRID_CLASSES}>
         {schedules.map((schedule) => (
           <ScheduleCard
-            key={schedule.id}
+            key={schedule.schedule_id}
             schedule={schedule}
-            isActive={schedule.id === activeScheduleId}
-            isActivating={schedule.id === activatingId}
-            isDeactivating={isDeactivating && schedule.id === activeScheduleId}
-            isDeleting={isDeleting && deleteConfirmation.schedule?.id === schedule.id}
+            isActive={schedule.schedule_id === activeScheduleId}
+            isActivating={schedule.schedule_id === activatingId}
+            isDeactivating={isDeactivating && schedule.schedule_id === activeScheduleId}
+            isDeleting={isDeleting && deleteConfirmation.schedule?.schedule_id === schedule.schedule_id}
             onActivate={handleActivate}
             onDeactivate={handleDeactivate}
             onEdit={onEditSchedule}
