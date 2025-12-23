@@ -102,8 +102,13 @@ export function CalendarView() {
             return new Date()
           case 'prev':
             if (viewMode === 'month') {
-              newDate.setDate(1) // Set to 1st to avoid overflow
+              // Preserve day-of-month when navigating months (e.g., Jan 30 → Dec 30)
+              const originalDay = prev.getDate()
+              newDate.setDate(1) // Set to 1st to avoid overflow during month change
               newDate.setMonth(newDate.getMonth() - 1)
+              // Clamp to last day of month if original day exceeds it
+              const lastDayOfMonth = new Date(newDate.getFullYear(), newDate.getMonth() + 1, 0).getDate()
+              newDate.setDate(Math.min(originalDay, lastDayOfMonth))
             } else if (viewMode === 'week') {
               newDate.setDate(newDate.getDate() - 7)
             } else {
@@ -112,8 +117,13 @@ export function CalendarView() {
             return newDate
           case 'next':
             if (viewMode === 'month') {
-              newDate.setDate(1) // Set to 1st to avoid overflow
+              // Preserve day-of-month when navigating months (e.g., Jan 31 → Feb 28/29)
+              const originalDay = prev.getDate()
+              newDate.setDate(1) // Set to 1st to avoid overflow during month change
               newDate.setMonth(newDate.getMonth() + 1)
+              // Clamp to last day of month if original day exceeds it
+              const lastDayOfMonth = new Date(newDate.getFullYear(), newDate.getMonth() + 1, 0).getDate()
+              newDate.setDate(Math.min(originalDay, lastDayOfMonth))
             } else if (viewMode === 'week') {
               newDate.setDate(newDate.getDate() + 7)
             } else {
@@ -148,15 +158,19 @@ export function CalendarView() {
   }, [])
 
   // Get moon phase for selected execution's date
+  // Using specific moon_phases dependency instead of entire previewData object
+  const moonPhases = previewData?.moon_phases
   const executionMoonPhase = useMemo(() => {
-    if (!selectedExecution || !previewData?.moon_phases) return null
+    if (!selectedExecution || !moonPhases) return null
     if (!selectedExecution.start_time || typeof selectedExecution.start_time !== 'string') {
-      console.warn('Invalid start_time in execution:', selectedExecution)
+      if (import.meta.env.DEV) {
+        console.warn('Invalid start_time in execution:', selectedExecution)
+      }
       return null
     }
     const dateKey = getDateKey(selectedExecution.start_time)
-    return previewData.moon_phases[dateKey] || null
-  }, [selectedExecution, previewData])
+    return moonPhases[dateKey] || null
+  }, [selectedExecution, moonPhases])
 
   // Loading state
   if (schedulesLoading) {
@@ -168,7 +182,7 @@ export function CalendarView() {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow" aria-hidden={isModalOpen}>
       <CalendarHeader
         viewMode={viewMode}
         currentDate={currentDate}
