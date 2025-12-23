@@ -18,7 +18,7 @@ describe('PreviewSection', () => {
   };
 
   const mockIntervalTrigger = {
-    type: 'interval',
+    trigger_type: 'interval',
     interval_minutes: 60,
     time_window: {
       start_time: '21:00',
@@ -30,15 +30,15 @@ describe('PreviewSection', () => {
   };
 
   const mockSolarTrigger = {
-    type: 'solar',
+    trigger_type: 'solar',
     solar_event: 'sunset',
     offset_minutes: 30,
     days_of_week: [0, 1, 2, 3, 4], // Mon-Fri
   };
 
   const mockFixedTimeTrigger = {
-    type: 'fixed_time',
-    time: '21:00',
+    trigger_type: 'fixed_time',
+    time_of_day: '21:00',
     days_of_week: null,
   };
 
@@ -342,7 +342,8 @@ describe('PreviewSection', () => {
 
     it('shows days of week when specified', () => {
       const weekdayTrigger = {
-        ...mockFixedTimeTrigger,
+        trigger_type: 'fixed_time',
+        time_of_day: '21:00',
         days_of_week: [0, 1, 2, 3, 4], // Mon-Fri
       };
 
@@ -571,7 +572,7 @@ describe('PreviewSection', () => {
 
     it('handles sensor trigger type (not supported for preview)', () => {
       const sensorTrigger = {
-        type: 'sensor',
+        trigger_type: 'sensor',
         sensor_type: 'light_level',
         threshold: 100,
       };
@@ -590,10 +591,10 @@ describe('PreviewSection', () => {
 
     it('handles moon_phase trigger type', () => {
       const moonTrigger = {
-        type: 'moon_phase',
-        phase: 'full_moon',
+        trigger_type: 'moon_phase',
+        moon_phase: 'full_moon',
         offset_days: 0,
-        time: '21:00',
+        time_of_day: '21:00',
       };
 
       render(
