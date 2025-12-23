@@ -33,11 +33,10 @@ const VALID_VIEW_MODES = ['month', 'week', 'day']
 
 /**
  * Number of days to fetch for each view mode.
- * Month: 35 days covers 5 weeks which is sufficient for most month views
- * (some months need 6 weeks, but 5 covers the main content)
+ * Month: 42 days covers full 6-week grid (7 days × 6 weeks)
  */
 const PREVIEW_DAYS = {
-  month: 35,
+  month: 42,
   week: 7,
   day: 1,
 }

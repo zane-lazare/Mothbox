@@ -472,7 +472,7 @@ describe('CalendarView', () => {
       await waitFor(() => {
         expect(useSchedulePreview).toHaveBeenCalledWith(
           'sched-1',
-          { days: 35 }, // Default is month view (35 days)
+          { days: 42 }, // Default is month view (42 days = 6 weeks)
           { enabled: true }
         )
       })
@@ -484,7 +484,7 @@ describe('CalendarView', () => {
       // Verify useSchedulePreview was called with null and enabled: false
       expect(useSchedulePreview).toHaveBeenCalledWith(
         null,
-        { days: 35 },
+        { days: 42 },
         { enabled: false }
       )
     })
@@ -525,7 +525,7 @@ describe('CalendarView', () => {
       await waitFor(() => {
         expect(useSchedulePreview).toHaveBeenCalledWith(
           null,
-          { days: 35 },
+          { days: 42 },
           { enabled: false }
         )
       })
@@ -613,7 +613,7 @@ describe('CalendarView', () => {
       // Should use month's preview days (35) as fallback
       expect(useSchedulePreview).toHaveBeenCalledWith(
         null,
-        { days: 35 },
+        { days: 42 },
         { enabled: false }
       )
     })
@@ -1232,7 +1232,7 @@ describe('CalendarView', () => {
       await waitFor(() => {
         expect(useSchedulePreview).toHaveBeenCalledWith(
           'sched-1',
-          { days: 35 },
+          { days: 42 },
           { enabled: true }
         )
       })
