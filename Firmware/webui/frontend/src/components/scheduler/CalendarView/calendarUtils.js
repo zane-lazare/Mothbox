@@ -227,7 +227,9 @@ export function formatTime(isoString) {
 
   const date = new Date(isoString)
   if (isNaN(date.getTime())) {
-    console.warn('Invalid ISO string passed to formatTime:', isoString)
+    if (import.meta.env.DEV) {
+      console.warn('Invalid ISO string passed to formatTime:', isoString)
+    }
     return ''
   }
 
@@ -249,13 +251,17 @@ export function getDateKey(date) {
     // Validate ISO date format (YYYY-MM-DD at start of string)
     const isoDateMatch = date.match(/^(\d{4}-\d{2}-\d{2})/)
     if (!isoDateMatch) {
-      console.warn('Invalid ISO string passed to getDateKey:', date)
+      if (import.meta.env.DEV) {
+        console.warn('Invalid ISO string passed to getDateKey:', date)
+      }
       return null
     }
     return isoDateMatch[1]
   }
   if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
-    console.warn('Invalid Date passed to getDateKey:', date)
+    if (import.meta.env.DEV) {
+      console.warn('Invalid Date passed to getDateKey:', date)
+    }
     return null
   }
   const year = date.getFullYear()
