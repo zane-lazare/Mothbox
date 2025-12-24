@@ -17,7 +17,7 @@ import { Z_INDEX } from '../../constants/config'
  *   isSaving={false}
  * />
  */
-export function SaveFilterPresetModal({ isOpen, onClose, onSave, isSaving }) {
+export function SaveFilterPresetModal({ isOpen, onClose, onSave, isSaving = false }) {
   const [presetName, setPresetName] = useState('')
   const [nameError, setNameError] = useState('')
 
@@ -186,10 +186,6 @@ SaveFilterPresetModal.propTypes = {
   onClose: PropTypes.func.isRequired,
   onSave: PropTypes.func.isRequired,
   isSaving: PropTypes.bool,
-}
-
-SaveFilterPresetModal.defaultProps = {
-  isSaving: false,
 }
 
 export default SaveFilterPresetModal

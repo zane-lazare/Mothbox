@@ -459,6 +459,7 @@ describe('StackedPhotoCard', () => {
       selectPhotos.forEach(path => {
         selection.selectPhoto(path)
       })
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []) // Empty deps - only run once on mount
 
     return children

@@ -792,6 +792,11 @@ export function useSchedulerContext() {
  * @param {Function} [onError] - Callback when error caught (error, errorInfo) => void
  */
 export class SchedulerErrorBoundary extends React.Component {
+  static defaultProps = {
+    fallback: null,
+    onError: null,
+  }
+
   constructor(props) {
     super(props)
     this.state = { hasError: false }
@@ -818,11 +823,6 @@ SchedulerErrorBoundary.propTypes = {
   children: PropTypes.node.isRequired,
   fallback: PropTypes.node,
   onError: PropTypes.func,
-}
-
-SchedulerErrorBoundary.defaultProps = {
-  fallback: null,
-  onError: null,
 }
 
 export default SchedulerContext

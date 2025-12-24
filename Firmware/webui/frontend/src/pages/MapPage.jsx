@@ -57,7 +57,11 @@ export default function MapPage() {
   })
 
   // Flatten all pages into single photo array
-  const photos = photosData?.pages.flatMap((page) => page.photos) ?? []
+  // Memoize to prevent new array reference on each render when data is undefined
+  const photos = useMemo(
+    () => photosData?.pages.flatMap((page) => page.photos) ?? [],
+    [photosData?.pages]
+  )
 
   // Fetch clustered photo locations (includes both clusters and unclustered)
   const {

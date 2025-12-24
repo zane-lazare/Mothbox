@@ -47,8 +47,8 @@ vi.mock('../../components/scheduler/ScheduleList', () => ({
   ScheduleList: () => <div data-testid="schedule-list">Schedule List</div>
 }))
 
-vi.mock('../../components/scheduler/CalendarViewPlaceholder', () => ({
-  default: () => <div data-testid="calendar-view-placeholder">Calendar View</div>
+vi.mock('../../components/scheduler/CalendarView', () => ({
+  default: () => <div data-testid="calendar-view">Calendar View</div>
 }))
 
 vi.mock('../../components/LoadingSpinner', () => ({
@@ -113,7 +113,7 @@ describe('SchedulerUI', () => {
     render(<SchedulerUI />, { wrapper: createWrapper() })
 
     expect(screen.getByTestId('schedule-list')).toBeInTheDocument()
-    expect(screen.queryByTestId('calendar-view-placeholder')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('calendar-view')).not.toBeInTheDocument()
   })
 
   it('switches to Calendar tab when clicked', async () => {
@@ -129,19 +129,19 @@ describe('SchedulerUI', () => {
 
     // Should show Calendar view
     await waitFor(() => {
-      expect(screen.getByTestId('calendar-view-placeholder')).toBeInTheDocument()
+      expect(screen.getByTestId('calendar-view')).toBeInTheDocument()
       expect(screen.queryByTestId('schedule-list')).not.toBeInTheDocument()
     })
   })
 
-  it('shows CalendarViewPlaceholder when Calendar selected', async () => {
+  it('shows CalendarView when Calendar tab selected', async () => {
     const user = userEvent.setup()
     render(<SchedulerUI />, { wrapper: createWrapper() })
 
     const calendarButton = screen.getByRole('button', { name: /calendar/i })
     await user.click(calendarButton)
 
-    expect(screen.getByTestId('calendar-view-placeholder')).toBeInTheDocument()
+    expect(screen.getByTestId('calendar-view')).toBeInTheDocument()
   })
 
   it('renders ScheduleEditor', () => {

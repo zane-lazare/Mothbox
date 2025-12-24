@@ -1,3 +1,13 @@
+/**
+ * ScheduleList - Container for displaying and managing all schedules (Issue #266)
+ *
+ * Displays schedules in a responsive grid with loading/error/empty states.
+ * Handles schedule activation, deactivation, editing, and deletion with
+ * confirmation dialogs and toast notifications.
+ *
+ * @module components/scheduler/ScheduleList/ScheduleList
+ */
+
 import { useState } from 'react'
 import PropTypes from 'prop-types'
 import { CalendarDaysIcon } from '@heroicons/react/24/outline'

@@ -6,6 +6,7 @@ import DateRangeSection from './DateRangeSection';
 import PreviewSection from './PreviewSection';
 import { TRIGGER_DEFAULTS, SCHEDULE_LIMITS } from './constants';
 import { TriggerPropType, PatternPropType, DateRangePropType } from './propTypes';
+import { generateUUID } from '../../../utils/uuid';
 
 /** Delay before focusing name input to allow drawer animation to start */
 const FOCUS_DELAY_MS = 100;
@@ -252,7 +253,7 @@ const ScheduleEditor = ({
 
     try {
       const scheduleData = {
-        schedule_id: schedule?.schedule_id || crypto.randomUUID(),
+        schedule_id: schedule?.schedule_id || generateUUID(),
         name: name.trim(),
         description: description.trim(),
         trigger,

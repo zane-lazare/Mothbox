@@ -134,6 +134,8 @@ export default function useProgressiveImage(photoPath, options = {}) {
   // Auto-load on mount or when photoPath changes
   useEffect(() => {
     isMountedRef.current = true;
+    // Capture ref value for cleanup to avoid stale reference warning
+    const pendingImages = pendingImagesRef.current;
 
     if (autoLoad) {
       startLoading();
@@ -144,12 +146,12 @@ export default function useProgressiveImage(photoPath, options = {}) {
 
       // Abort all pending image loads to prevent memory leaks and race conditions
       // This is critical when component unmounts while images are still loading
-      pendingImagesRef.current.forEach(img => {
+      pendingImages.forEach(img => {
         img.onload = null;
         img.onerror = null;
         img.src = ''; // Abort network request
       });
-      pendingImagesRef.current.clear();
+      pendingImages.clear();
     };
   }, [autoLoad, startLoading]);
 
