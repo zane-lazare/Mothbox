@@ -83,12 +83,12 @@ const BUTTON_BASE = [
  * ConflictWarningBanner displays a warning when conflicts are detected
  */
 function ConflictWarningBanner({
-  conflicts,
+  conflicts = null,
   hasBlockingConflicts = false,
-  blockingCount = 0,
-  warningCount = 0,
-  onViewDetails,
-  onDismiss,
+  blockingCount,
+  warningCount,
+  onViewDetails = undefined,
+  onDismiss = undefined,
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
 
@@ -97,9 +97,9 @@ function ConflictWarningBanner({
     return null
   }
 
-  // Calculate counts if not provided
-  const actualBlockingCount = blockingCount || conflicts.filter((c) => c.severity === 'error').length
-  const actualWarningCount = warningCount || conflicts.filter((c) => c.severity === 'warning').length
+  // Calculate counts if not provided (use nullish coalescing to allow 0)
+  const actualBlockingCount = blockingCount ?? conflicts.filter((c) => c.severity === 'error').length
+  const actualWarningCount = warningCount ?? conflicts.filter((c) => c.severity === 'warning').length
   const isBlocking = hasBlockingConflicts || actualBlockingCount > 0
   const totalCount = conflicts.length
 
@@ -199,23 +199,14 @@ ConflictWarningBanner.propTypes = {
   conflicts: ConflictsPropType,
   /** Whether there are blocking (error severity) conflicts */
   hasBlockingConflicts: PropTypes.bool,
-  /** Number of blocking conflicts */
+  /** Number of blocking conflicts (uses nullish coalescing, so 0 is valid) */
   blockingCount: PropTypes.number,
-  /** Number of warning conflicts */
+  /** Number of warning conflicts (uses nullish coalescing, so 0 is valid) */
   warningCount: PropTypes.number,
   /** Callback when "View Details" is clicked */
   onViewDetails: PropTypes.func,
   /** Callback when "Dismiss" is clicked (warnings only) */
   onDismiss: PropTypes.func,
-}
-
-ConflictWarningBanner.defaultProps = {
-  conflicts: null,
-  hasBlockingConflicts: false,
-  blockingCount: 0,
-  warningCount: 0,
-  onViewDetails: undefined,
-  onDismiss: undefined,
 }
 
 export default ConflictWarningBanner

@@ -211,10 +211,17 @@ describe('ConflictList', () => {
     })
 
     it('shows "+N more" when more conflicts exist in compact mode', () => {
-      render(<ConflictList conflicts={mixedConflicts} compact />)
+      render(<ConflictList conflicts={mixedConflicts} compact onViewAll={() => {}} />)
 
       // 4 conflicts - 3 shown = 1 more
       expect(screen.getByText(/\+1 more/i)).toBeInTheDocument()
+    })
+
+    it('does not show "+N more" button when onViewAll is not provided', () => {
+      render(<ConflictList conflicts={mixedConflicts} compact />)
+
+      // Even though there are hidden conflicts, button should not render without callback
+      expect(screen.queryByText(/\+\d+ more/i)).not.toBeInTheDocument()
     })
 
     it('does not show "+N more" when all conflicts fit in compact mode', () => {
@@ -240,7 +247,7 @@ describe('ConflictList', () => {
 
     it('respects custom compactLimit prop', () => {
       const { container } = render(
-        <ConflictList conflicts={mixedConflicts} compact compactLimit={2} />
+        <ConflictList conflicts={mixedConflicts} compact compactLimit={2} onViewAll={() => {}} />
       )
 
       // Should only show 2 items with custom limit

@@ -190,10 +190,4 @@ ExecutionMarker.propTypes = {
   conflictMessage: PropTypes.string,
 }
 
-ExecutionMarker.defaultProps = {
-  compact: false,
-  conflictSeverity: null,
-  conflictMessage: '',
-}
-
 export default memo(ExecutionMarker)

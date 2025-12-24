@@ -38,7 +38,7 @@ function groupConflicts(conflicts) {
 /**
  * ConflictList displays conflicts grouped by severity with optional compact mode
  */
-function ConflictList({ conflicts, compact = false, compactLimit = DEFAULT_COMPACT_LIMIT, onViewAll }) {
+function ConflictList({ conflicts = null, compact = false, compactLimit = DEFAULT_COMPACT_LIMIT, onViewAll = undefined }) {
   // Handle empty/null/undefined conflicts
   if (!conflicts || conflicts.length === 0) {
     return null
@@ -132,7 +132,7 @@ function ConflictList({ conflicts, compact = false, compactLimit = DEFAULT_COMPA
       )}
 
       {/* Show "+N more" link in compact mode if there are hidden conflicts */}
-      {compact && hiddenCount > 0 && (
+      {compact && hiddenCount > 0 && onViewAll && (
         <button
           type="button"
           onClick={onViewAll}
@@ -154,13 +154,6 @@ ConflictList.propTypes = {
   compactLimit: PropTypes.number,
   /** Callback when "+N more" is clicked in compact mode */
   onViewAll: PropTypes.func,
-}
-
-ConflictList.defaultProps = {
-  conflicts: null,
-  compact: false,
-  compactLimit: DEFAULT_COMPACT_LIMIT,
-  onViewAll: undefined,
 }
 
 export default ConflictList
