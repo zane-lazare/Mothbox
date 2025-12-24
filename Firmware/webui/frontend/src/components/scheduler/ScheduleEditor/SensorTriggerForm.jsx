@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { SENSOR_TYPES, SENSOR_COMPARISONS, SCHEDULE_LIMITS, validateNumericInput } from './constants';
 import { NUMERIC_ERRORS } from './errorMessages';
@@ -101,32 +101,32 @@ const SensorTriggerForm = ({
    * Get label for the selected sensor type
    * @returns {string} Label text
    */
-  const getSensorLabel = () => {
+  const getSensorLabel = useCallback(() => {
     const sensor = SENSOR_TYPES.find((s) => s.value === value.sensor_type);
     return sensor ? sensor.label.toLowerCase() : value.sensor_type;
-  };
+  }, [value.sensor_type]);
 
   /**
    * Get symbol for the selected comparison operator
    * @returns {string} Symbol
    */
-  const getComparisonSymbol = () => {
+  const getComparisonSymbol = useCallback(() => {
     const comparison = SENSOR_COMPARISONS.find((c) => c.value === value.comparison);
     return comparison ? comparison.symbol : value.comparison;
-  };
+  }, [value.comparison]);
 
   /**
    * Get unit for the selected sensor type
    * @returns {string} Unit string
    */
-  const getSensorUnit = () => {
+  const getSensorUnit = useCallback(() => {
     const units = {
       motion: '',
       light: 'lux',
       temperature: '°C',
     };
     return units[value.sensor_type] || '';
-  };
+  }, [value.sensor_type]);
 
   /**
    * Memoized preview text to prevent recalculation on every render
@@ -138,7 +138,7 @@ const SensorTriggerForm = ({
     const thresholdText = unit ? `${value.threshold} ${unit}` : value.threshold;
 
     return `When ${sensorLabel} ${comparisonSymbol} ${thresholdText}, cooldown: ${value.cooldown_minutes} min`;
-  }, [value.sensor_type, value.comparison, value.threshold, value.cooldown_minutes]);
+  }, [getSensorLabel, getComparisonSymbol, getSensorUnit, value.threshold, value.cooldown_minutes]);
 
   return (
     <div className="space-y-6">

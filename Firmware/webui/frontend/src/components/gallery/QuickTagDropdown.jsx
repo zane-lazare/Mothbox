@@ -46,8 +46,9 @@ function QuickTagDropdown({ filename, isOpen, onClose, anchorEl }) {
   })
 
   // Derive tag data from queries (must be before early return for hooks rules)
-  const allTags = tagsData?.tags || []
-  const appliedTags = sidecarData?.tags || []
+  // Memoize to prevent new array references on each render when data is undefined
+  const allTags = useMemo(() => tagsData?.tags || [], [tagsData?.tags])
+  const appliedTags = useMemo(() => sidecarData?.tags || [], [sidecarData?.tags])
   const quickTags = useMemo(() => allTags.slice(0, 8), [allTags])
 
   // Event handlers (must be before early return for hooks rules)

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { SOLAR_EVENTS, SCHEDULE_LIMITS, DAYS_OF_WEEK, validateNumericInput } from './constants';
 import DaysOfWeekSelector from './DaysOfWeekSelector';
@@ -100,10 +100,10 @@ const SolarTriggerForm = ({
    * Get label for the selected solar event
    * @returns {string} Label text
    */
-  const getEventLabel = () => {
+  const getEventLabel = useCallback(() => {
     const event = SOLAR_EVENTS.find((e) => e.value === value.solar_event);
     return event ? event.label.toLowerCase() : value.solar_event;
-  };
+  }, [value.solar_event]);
 
   /**
    * Format offset for display
@@ -178,7 +178,7 @@ const SolarTriggerForm = ({
     }
 
     return preview;
-  }, [value.solar_event, value.offset_minutes, value.days_of_week]);
+  }, [getEventLabel, value.offset_minutes, value.days_of_week]);
 
   return (
     <div className="space-y-6">

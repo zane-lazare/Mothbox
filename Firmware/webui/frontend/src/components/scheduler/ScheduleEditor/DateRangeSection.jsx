@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { MAX_DATE_RANGE_DAYS } from './constants';
 
@@ -56,7 +56,7 @@ const DateRangeSection = ({
    *
    * @returns {string|null} Error message or null if valid
    */
-  const validateDateRange = () => {
+  const validateDateRange = useCallback(() => {
     // Only validate when both dates are provided
     if (!start_date || !end_date) return null;
 
@@ -80,7 +80,7 @@ const DateRangeSection = ({
     }
 
     return null;
-  };
+  }, [start_date, end_date]);
 
   /**
    * Handle start date change
@@ -129,7 +129,7 @@ const DateRangeSection = ({
   // Memoize validation to avoid recalculating on every render
   const validationError = useMemo(
     () => validateDateRange(),
-    [start_date, end_date]
+    [validateDateRange]
   );
 
   return (

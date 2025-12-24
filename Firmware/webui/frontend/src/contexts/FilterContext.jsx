@@ -359,7 +359,7 @@ export function FilterProvider({ children }) {
   // Computed values - count active filters (uses shared utility to avoid duplication)
   const activeFilterCount = useMemo(
     () => countActiveFilters(state),
-    [state.dateRange, state.tags, state.species, state.fileTypes, state.cameraSettings, state.notes, state.customFields]
+    [state]
   )
 
   // Helper to check if any filters are active

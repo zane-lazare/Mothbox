@@ -157,7 +157,12 @@ function ScheduleCard({
   isDeleting = false,
 }) {
   const nameId = `schedule-name-${schedule.schedule_id}`
-  const triggerSummary = formatTriggerSummary(schedule.trigger)
+
+  // Memoize trigger summary to avoid recalculating on every render
+  const triggerSummary = useMemo(
+    () => formatTriggerSummary(schedule.trigger),
+    [schedule.trigger]
+  )
 
   // Memoize icon to avoid recreating on every render
   const triggerIcon = useMemo(() => {
