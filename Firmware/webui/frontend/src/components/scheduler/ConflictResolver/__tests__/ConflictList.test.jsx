@@ -237,6 +237,32 @@ describe('ConflictList', () => {
 
       expect(handleViewAll).toHaveBeenCalled()
     })
+
+    it('respects custom compactLimit prop', () => {
+      const { container } = render(
+        <ConflictList conflicts={mixedConflicts} compact compactLimit={2} />
+      )
+
+      // Should only show 2 items with custom limit
+      const listItems = container.querySelectorAll('li')
+      expect(listItems.length).toBe(2)
+
+      // 4 conflicts - 2 shown = 2 more
+      expect(screen.getByText(/\+2 more/i)).toBeInTheDocument()
+    })
+
+    it('shows all conflicts when compactLimit exceeds conflict count', () => {
+      const { container } = render(
+        <ConflictList conflicts={mixedConflicts} compact compactLimit={10} />
+      )
+
+      // Should show all 4 items since limit is higher
+      const listItems = container.querySelectorAll('li')
+      expect(listItems.length).toBe(4)
+
+      // No "+N more" since all are shown
+      expect(screen.queryByText(/\+\d+ more/i)).not.toBeInTheDocument()
+    })
   })
 
   describe('Dark Mode', () => {

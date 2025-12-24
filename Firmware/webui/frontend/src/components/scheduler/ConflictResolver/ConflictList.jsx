@@ -11,6 +11,9 @@
  *
  * // Compact mode (max 3, with "+N more" link)
  * <ConflictList conflicts={conflicts} compact onViewAll={() => setShowAll(true)} />
+ *
+ * // Compact mode with custom limit
+ * <ConflictList conflicts={conflicts} compact compactLimit={5} onViewAll={() => setShowAll(true)} />
  */
 
 import PropTypes from 'prop-types'
@@ -19,9 +22,9 @@ import { ConflictsPropType } from './ConflictPropTypes'
 import ConflictItem from './ConflictItem'
 
 /**
- * Maximum conflicts to show in compact mode
+ * Default maximum conflicts to show in compact mode
  */
-const COMPACT_LIMIT = 3
+const DEFAULT_COMPACT_LIMIT = 3
 
 /**
  * Sort and group conflicts by severity (errors first)
@@ -35,7 +38,7 @@ function groupConflicts(conflicts) {
 /**
  * ConflictList displays conflicts grouped by severity with optional compact mode
  */
-function ConflictList({ conflicts, compact = false, onViewAll }) {
+function ConflictList({ conflicts, compact = false, compactLimit = DEFAULT_COMPACT_LIMIT, onViewAll }) {
   // Handle empty/null/undefined conflicts
   if (!conflicts || conflicts.length === 0) {
     return null
@@ -45,14 +48,14 @@ function ConflictList({ conflicts, compact = false, onViewAll }) {
   const totalCount = conflicts.length
   const blockingCount = errors.length
 
-  // In compact mode, limit to COMPACT_LIMIT conflicts
+  // In compact mode, limit to compactLimit conflicts
   let displayConflicts = []
   let hiddenCount = 0
 
   if (compact) {
     // Prioritize errors, then warnings
     const combined = [...errors, ...warnings]
-    displayConflicts = combined.slice(0, COMPACT_LIMIT)
+    displayConflicts = combined.slice(0, compactLimit)
     hiddenCount = combined.length - displayConflicts.length
   } else {
     displayConflicts = [...errors, ...warnings]
@@ -145,8 +148,10 @@ function ConflictList({ conflicts, compact = false, onViewAll }) {
 ConflictList.propTypes = {
   /** Array of conflict objects to display */
   conflicts: ConflictsPropType,
-  /** Whether to show compact mode (max 3 conflicts) */
+  /** Whether to show compact mode (limits visible conflicts) */
   compact: PropTypes.bool,
+  /** Maximum conflicts to show in compact mode (default: 3) */
+  compactLimit: PropTypes.number,
   /** Callback when "+N more" is clicked in compact mode */
   onViewAll: PropTypes.func,
 }
@@ -154,6 +159,7 @@ ConflictList.propTypes = {
 ConflictList.defaultProps = {
   conflicts: null,
   compact: false,
+  compactLimit: DEFAULT_COMPACT_LIMIT,
   onViewAll: undefined,
 }
 
