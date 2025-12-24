@@ -860,8 +860,8 @@ class TestGetHardwareConfig:
     - All other modules: False (disabled by default)
     """
 
-    def test_returns_all_32_keys(self, tmp_path, monkeypatch):
-        """Should return dict with all 32 hardware configuration keys"""
+    def test_returns_all_37_keys(self, tmp_path, monkeypatch):
+        """Should return dict with all 37 hardware configuration keys"""
         import mothbox_paths
 
         non_existent = tmp_path / "missing.txt"
@@ -870,9 +870,9 @@ class TestGetHardwareConfig:
         from mothbox_paths import get_hardware_config
         config = get_hardware_config()
 
-        # Should have exactly 32 keys
-        assert len(config) == 32, f"Expected 32 keys, got {len(config)}"
-        print(f"\n✓ All 32 hardware config keys present")
+        # Should have exactly 37 keys (32 original + 5 sensor keys from #230)
+        assert len(config) == 37, f"Expected 37 keys, got {len(config)}"
+        print(f"\n✓ All 37 hardware config keys present")
 
     def test_relay_enabled_defaults_true(self, tmp_path, monkeypatch):
         """Relay module should be enabled by default"""
@@ -1035,10 +1035,10 @@ class TestGetHardwareConfig:
         from mothbox_paths import get_hardware_config
         config = get_hardware_config()
 
-        assert len(config) == 32
+        assert len(config) == 37  # 32 original + 5 sensor keys from #230
         assert config['relay_enabled'] is True
         assert config['gps_device'] == '/dev/ttyAMA0'
-        print("✓ Missing file returns all 32 defaults")
+        print("✓ Missing file returns all 37 defaults")
 
     def test_handles_partial_configuration(self, temp_controls_file, monkeypatch):
         """Should use defaults for missing keys in partial config"""

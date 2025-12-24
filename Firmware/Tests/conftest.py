@@ -3001,3 +3001,115 @@ def mock_rtc_functions(monkeypatch):
     )
 
     return {"set": set_mock, "clear": clear_mock}
+
+
+# =============================================================================
+# SENSOR MONITOR FIXTURES
+# =============================================================================
+
+
+class MockSMBus:
+    """Mock smbus2.SMBus for I2C sensor tests."""
+
+    def __init__(self, bus: int = 1):
+        self.bus = bus
+        self.written: list[tuple] = []
+        self.read_data: list[int] = [0x00, 0x64]  # Default: ~83 lux for BH1750
+
+    def write_byte(self, addr: int, data: int) -> None:
+        """Record write_byte calls."""
+        self.written.append(("write_byte", addr, data))
+
+    def write_byte_data(self, addr: int, reg: int, data: int) -> None:
+        """Record write_byte_data calls."""
+        self.written.append(("write_byte_data", addr, reg, data))
+
+    def read_byte_data(self, addr: int, reg: int) -> int:
+        """Return mock byte data."""
+        return self.read_data[0] if self.read_data else 0
+
+    def read_i2c_block_data(self, addr: int, reg: int, length: int) -> list[int]:
+        """Return mock block data."""
+        return self.read_data[:length]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+
+@pytest.fixture
+def mock_smbus(monkeypatch):
+    """
+    Mock smbus2.SMBus for I2C sensor tests.
+
+    Patches the smbus2 module to use MockSMBus.
+
+    Returns:
+        MockSMBus class for configuring read data
+
+    Related: Issue #230 - Sensor Monitor
+    """
+    monkeypatch.setattr("smbus2.SMBus", MockSMBus)
+    return MockSMBus
+
+
+@pytest.fixture
+def mock_sensor_hardware(monkeypatch):
+    """
+    Mock all sensor hardware dependencies for sensor_monitor tests.
+
+    Mocks:
+    - RPi.GPIO for motion sensor
+    - smbus2 for I2C sensors
+    - mothbox_paths.get_hardware_config for sensor configuration
+
+    Returns:
+        dict with 'gpio', 'smbus', and 'hw_config' mock objects
+
+    Related: Issue #230 - Sensor Monitor
+    """
+    from unittest.mock import MagicMock
+
+    # Mock GPIO
+    mock_gpio = MagicMock()
+    mock_gpio.BCM = "BCM"
+    mock_gpio.IN = "IN"
+    mock_gpio.setmode = MagicMock()
+    mock_gpio.setwarnings = MagicMock()
+    mock_gpio.setup = MagicMock()
+    mock_gpio.input = MagicMock(return_value=0)  # No motion by default
+
+    # Mock smbus2
+    mock_smbus_instance = MockSMBus()
+
+    # Mock hardware config - all sensors enabled
+    hw_config = {
+        "motion_sensor_enabled": True,
+        "motion_sensor_pin": 17,
+        "light_sensor_enabled": True,
+        "light_sensor_type": "BH1750",
+        "light_sensor_address": 0x23,
+        "temperature_sensor_enabled": True,
+        "temperature_sensor_type": "TMP102",
+        "temperature_sensor_address": 0x48,
+    }
+
+    # Apply patches
+    import sys
+
+    sys.modules["RPi"] = MagicMock()
+    sys.modules["RPi.GPIO"] = mock_gpio
+
+    monkeypatch.setattr("smbus2.SMBus", lambda bus: mock_smbus_instance)
+    monkeypatch.setattr(
+        "mothbox_paths.get_hardware_config",
+        lambda: hw_config,
+    )
+
+    return {
+        "gpio": mock_gpio,
+        "smbus": mock_smbus_instance,
+        "hw_config": hw_config,
+    }

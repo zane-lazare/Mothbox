@@ -496,10 +496,26 @@ def get_hardware_config() -> dict[str, Any]:
             "gps_timeout_almanac": int(
                 config.get("gps_timeout_almanac", "1200")
             ),  # Almanac expired (>28d)
+            # Motion sensor (PIR) - GPIO interrupt-based
+            "motion_sensor_enabled": config.get("motion_sensor_enabled", "false").lower()
+            == "true",
+            "motion_sensor_pin": int(config.get("motion_sensor_pin", "17")),
             # Light sensor (optional)
-            "light_sensor_enabled": config.get("light_sensor_enabled", "false").lower() == "true",
-            "light_sensor_type": config.get("light_sensor_type", "LTR303"),  # BH1750 or LTR303
-            "light_sensor_address": int(config.get("light_sensor_address", "0x29"), 16),
+            "light_sensor_enabled": config.get("light_sensor_enabled", "false").lower()
+            == "true",
+            "light_sensor_type": config.get("light_sensor_type", "BH1750"),  # BH1750 or LTR303
+            "light_sensor_address": int(config.get("light_sensor_address", "0x23"), 16),
+            # Temperature sensor (optional)
+            "temperature_sensor_enabled": config.get(
+                "temperature_sensor_enabled", "false"
+            ).lower()
+            == "true",
+            "temperature_sensor_type": config.get(
+                "temperature_sensor_type", "TMP102"
+            ),  # TMP102 or MCP9808
+            "temperature_sensor_address": int(
+                config.get("temperature_sensor_address", "0x48"), 16
+            ),
             # PCA9536 GPIO expander (optional)
             "pca9536_enabled": config.get("pca9536_enabled", "false").lower() == "true",
             "pca9536_address": int(config.get("pca9536_address", "0x21"), 16),
@@ -541,9 +557,14 @@ def get_hardware_config() -> dict[str, Any]:
             "gps_timeout_warm": 60,
             "gps_timeout_cold": 90,
             "gps_timeout_almanac": 1200,
+            "motion_sensor_enabled": False,
+            "motion_sensor_pin": 17,
             "light_sensor_enabled": False,
-            "light_sensor_type": "LTR303",
-            "light_sensor_address": 0x29,
+            "light_sensor_type": "BH1750",
+            "light_sensor_address": 0x23,
+            "temperature_sensor_enabled": False,
+            "temperature_sensor_type": "TMP102",
+            "temperature_sensor_address": 0x48,
             "pca9536_enabled": False,
             "pca9536_address": 0x21,
             "mux_enabled": False,
