@@ -77,9 +77,10 @@ describe('ConflictItem', () => {
 
       // Should display formatted time (may vary by locale/timezone)
       // Check that a time range element exists with the expected format
+      // Hours may be 1 or 2 digits, minutes are always 2 digits
       const timeRange = container.querySelector('.text-xs.opacity-75.mb-2')
       expect(timeRange).toBeInTheDocument()
-      expect(timeRange.textContent).toMatch(/\d{2}:\d{2}/)
+      expect(timeRange.textContent).toMatch(/\d{1,2}:\d{2}/)
       expect(timeRange.textContent).toMatch(/–/)
     })
 

@@ -20,6 +20,7 @@
  * return <ConflictItem conflict={conflict} />
  */
 
+import { memo } from 'react'
 import PropTypes from 'prop-types'
 import {
   ExclamationTriangleIcon,
@@ -29,22 +30,7 @@ import {
   BoltIcon,
 } from '@heroicons/react/24/outline'
 import { ConflictPropType, CONFLICT_TYPE_LABELS } from './ConflictPropTypes'
-
-/**
- * Format ISO timestamp to HH:MM display
- */
-function formatTime(isoString) {
-  try {
-    const date = new Date(isoString)
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    })
-  } catch {
-    return isoString
-  }
-}
+import { formatTime } from '../CalendarView/calendarUtils'
 
 /**
  * Get the appropriate icon for a conflict type
@@ -166,4 +152,4 @@ ConflictItem.propTypes = {
   conflict: ConflictPropType.isRequired,
 }
 
-export default ConflictItem
+export default memo(ConflictItem)
