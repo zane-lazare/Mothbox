@@ -3,6 +3,7 @@
  *
  * Displays pattern executions as colored pills/badges in the calendar view.
  * Supports both compact (month view) and full (week/day view) display modes.
+ * Supports conflict highlighting for schedule conflicts (Issue #229).
  *
  * @module components/scheduler/CalendarView/ExecutionMarker
  */
@@ -24,6 +25,15 @@ const COLOR_CLASS_MAP = {
   'bg-orange-500': { dark: 'dark:bg-orange-600', ring: 'focus:ring-orange-400' },
   'bg-pink-500': { dark: 'dark:bg-pink-600', ring: 'focus:ring-pink-400' },
   'bg-cyan-500': { dark: 'dark:bg-cyan-600', ring: 'focus:ring-cyan-400' },
+}
+
+/**
+ * Conflict severity ring classes for highlighting conflicting executions (Issue #229).
+ * Error severity shows red ring, warning severity shows amber ring.
+ */
+const CONFLICT_RING_CLASSES = {
+  error: 'ring-2 ring-red-500 dark:ring-red-400',
+  warning: 'ring-2 ring-amber-500 dark:ring-amber-400',
 }
 
 /**
@@ -51,6 +61,8 @@ function truncateText(text, maxLength) {
  * @param {Array} [props.execution.actions] - Array of action objects
  * @param {Function} props.onClick - Click handler
  * @param {boolean} [props.compact=false] - Compact display mode for month view
+ * @param {string|null} [props.conflictSeverity=null] - Conflict severity for highlighting ('error'|'warning'|null)
+ * @param {string} [props.conflictMessage] - Message describing the conflict
  * @returns {JSX.Element} Execution marker component
  *
  * @example
@@ -67,8 +79,17 @@ function truncateText(text, maxLength) {
  *   onClick={() => handleClick(execution)}
  *   compact
  * />
+ *
+ * @example
+ * // With conflict highlighting (Issue #229)
+ * <ExecutionMarker
+ *   execution={execution}
+ *   onClick={() => handleClick(execution)}
+ *   conflictSeverity="error"
+ *   conflictMessage="Camera resource conflict with Flash Photo"
+ * />
  */
-function ExecutionMarker({ execution, onClick, compact = false }) {
+function ExecutionMarker({ execution, onClick, compact = false, conflictSeverity = null, conflictMessage = '' }) {
   const { pattern_id, pattern_name, start_time } = execution
 
   // Get consistent color for this pattern
@@ -86,6 +107,9 @@ function ExecutionMarker({ execution, onClick, compact = false }) {
     ? truncateText(pattern_name, 10)
     : truncateText(pattern_name, 30)
 
+  // Get conflict ring classes if there's a conflict (Issue #229)
+  const conflictRingClass = conflictSeverity ? CONFLICT_RING_CLASSES[conflictSeverity] : ''
+
   // Base classes for the marker - using static classes for Tailwind JIT
   const baseClasses = [
     'inline-flex items-center gap-1.5',
@@ -97,7 +121,8 @@ function ExecutionMarker({ execution, onClick, compact = false }) {
     'hover:brightness-110 hover:scale-105',
     'focus:outline-none focus:ring-2 focus:ring-offset-1',
     colorMapping.ring,
-  ].join(' ')
+    conflictRingClass, // Add conflict highlighting if present
+  ].filter(Boolean).join(' ')
 
   const textClasses = compact
     ? 'text-xs font-medium truncate max-w-[80px]'
@@ -116,14 +141,23 @@ function ExecutionMarker({ execution, onClick, compact = false }) {
     }
   }
 
+  // Build title and aria-label, including conflict info if present (Issue #229)
+  const baseTitle = `${pattern_name} at ${timeStr}`
+  const baseAriaLabel = `Scheduled execution: ${pattern_name} at ${timeStr}`
+
+  const title = conflictMessage ? `${baseTitle} - ${conflictMessage}` : baseTitle
+  const ariaLabel = conflictSeverity
+    ? `${baseAriaLabel} - conflict: ${conflictMessage || conflictSeverity}`
+    : baseAriaLabel
+
   return (
     <button
       type="button"
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       className={baseClasses}
-      title={`${pattern_name} at ${timeStr}`}
-      aria-label={`Scheduled execution: ${pattern_name} at ${timeStr}`}
+      title={title}
+      aria-label={ariaLabel}
     >
       {/* Time display (hidden in compact mode) */}
       {!compact && (
@@ -137,6 +171,7 @@ function ExecutionMarker({ execution, onClick, compact = false }) {
 }
 
 ExecutionMarker.propTypes = {
+  /** Execution object containing pattern and timing details */
   execution: PropTypes.shape({
     pattern_id: PropTypes.string.isRequired,
     pattern_name: PropTypes.string.isRequired,
@@ -145,8 +180,14 @@ ExecutionMarker.propTypes = {
     trigger_info: PropTypes.string,
     actions: PropTypes.array,
   }).isRequired,
+  /** Click handler for when marker is selected */
   onClick: PropTypes.func.isRequired,
+  /** Compact display mode for month view */
   compact: PropTypes.bool,
+  /** Conflict severity for highlighting ('error'|'warning'|null) - Issue #229 */
+  conflictSeverity: PropTypes.oneOf(['error', 'warning', null]),
+  /** Message describing the conflict - Issue #229 */
+  conflictMessage: PropTypes.string,
 }
 
 export default memo(ExecutionMarker)

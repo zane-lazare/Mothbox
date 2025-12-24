@@ -283,6 +283,84 @@ describe('ExecutionMarker', () => {
     })
   })
 
+  describe('Conflict Highlighting (Issue #229)', () => {
+    it('shows red ring for error severity conflict', () => {
+      const { container } = render(
+        <ExecutionMarker
+          execution={mockExecution}
+          onClick={mockOnClick}
+          conflictSeverity="error"
+        />
+      )
+      const button = container.querySelector('button')
+      expect(button.className).toMatch(/ring-red/)
+    })
+
+    it('shows amber ring for warning severity conflict', () => {
+      const { container } = render(
+        <ExecutionMarker
+          execution={mockExecution}
+          onClick={mockOnClick}
+          conflictSeverity="warning"
+        />
+      )
+      const button = container.querySelector('button')
+      expect(button.className).toMatch(/ring-amber/)
+    })
+
+    it('shows no conflict ring when conflictSeverity is null', () => {
+      const { container } = render(
+        <ExecutionMarker
+          execution={mockExecution}
+          onClick={mockOnClick}
+          conflictSeverity={null}
+        />
+      )
+      const button = container.querySelector('button')
+      // Should not have conflict ring classes (ring-red or ring-amber)
+      expect(button.className).not.toMatch(/ring-red/)
+      expect(button.className).not.toMatch(/ring-amber/)
+    })
+
+    it('includes conflict message in title when provided', () => {
+      render(
+        <ExecutionMarker
+          execution={mockExecution}
+          onClick={mockOnClick}
+          conflictSeverity="error"
+          conflictMessage="Camera resource conflict"
+        />
+      )
+      const button = screen.getByRole('button')
+      expect(button.getAttribute('title')).toContain('Camera resource conflict')
+    })
+
+    it('includes conflict message in aria-label when provided', () => {
+      render(
+        <ExecutionMarker
+          execution={mockExecution}
+          onClick={mockOnClick}
+          conflictSeverity="error"
+          conflictMessage="Camera resource conflict"
+        />
+      )
+      const button = screen.getByRole('button')
+      expect(button.getAttribute('aria-label')).toContain('conflict')
+    })
+
+    it('has dark mode classes for conflict ring', () => {
+      const { container } = render(
+        <ExecutionMarker
+          execution={mockExecution}
+          onClick={mockOnClick}
+          conflictSeverity="error"
+        />
+      )
+      const button = container.querySelector('button')
+      expect(button.className).toMatch(/dark:ring-red/)
+    })
+  })
+
   describe('Edge Cases', () => {
     it('handles missing optional fields gracefully', () => {
       const minimalExecution = {
