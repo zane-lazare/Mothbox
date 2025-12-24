@@ -104,8 +104,16 @@ The scheduler uses a **two-tier conceptual model** to enable flexible scheduling
 | **Interval** | Every N minutes within time window | Every 60 min from 21:00-05:00 |
 | **Solar** | Relative to sun position | sunset+30, astronomical_dusk |
 | **Moon Phase** | On specific lunar phases | Full moon ±2 days |
-| **Sensor** | Based on sensor readings | Motion detected, light < 10 lux |
 | **Fixed Time** | Specific clock time | Every day at 21:00 |
+
+### Pre-conditions (Optional)
+
+Any trigger type can have optional sensor pre-conditions. Pre-conditions are checked at capture time and skip the capture if not met:
+
+| Sensor | Description | Example |
+|--------|-------------|---------|
+| **Light** | BH1750/LTR303 I2C lux sensor | Only capture if light < 100 lux |
+| **Temperature** | TMP102/MCP9808 I2C temp sensor | Skip if temperature < 5°C |
 
 ### Related Documentation
 
@@ -796,9 +804,9 @@ GPIO_ACTIONS: Final[list[str]] = [
     "uv_on", "uv_off"
 ]
 
-# Trigger types
+# Trigger types (note: "sensor" removed - sensors are now pre-conditions, not triggers)
 TRIGGER_TYPES: Final[list[str]] = [
-    "interval", "solar", "moon_phase", "fixed_time", "sensor"
+    "interval", "solar", "moon_phase", "fixed_time"
 ]
 
 # Moon phases
@@ -820,8 +828,8 @@ SOLAR_EVENTS: Final[list[str]] = [
     "blue_hour_start", "blue_hour_end",
 ]
 
-# Sensor types for sensor triggers
-SENSOR_TYPES: Final[list[str]] = ["motion", "light", "temperature"]
+# Sensor types for sensor pre-conditions (I2C sensors only, no GPIO)
+SENSOR_TYPES: Final[list[str]] = ["light", "temperature"]
 SENSOR_COMPARISONS: Final[list[str]] = ["gt", "lt", "eq", "gte", "lte"]
 
 
@@ -1076,45 +1084,42 @@ class MoonPhaseTrigger:
 
 
 @dataclass
-class SensorTrigger:
+class SensorPrecondition:
     """
-    Execute pattern based on sensor readings.
+    Pre-condition check based on sensor readings.
 
-    Supported sensors:
-    - "motion": PIR sensor, trigger on detection (threshold ignored)
-    - "light": LDR sensor, trigger when lux crosses threshold
-    - "temperature": Temp sensor, trigger on threshold crossing
+    Evaluated at scheduled capture time - NOT real-time triggers.
+    If pre-condition fails, capture is skipped (with logging).
+
+    Supported sensors (I2C only):
+    - "light": BH1750/LTR303 lux sensor, check ambient light
+    - "temperature": TMP102/MCP9808 temp sensor, check ambient temperature
+
+    Example use case:
+    "Capture every hour, but only if light < 100 lux"
 
     Attributes:
-        sensor_type: Sensor type ("motion", "light", "temperature")
-        threshold: Trigger threshold value
+        sensor_type: Sensor type ("light", "temperature")
+        threshold: Value to compare against
         comparison: Comparison operator ("gt", "lt", "eq", "gte", "lte")
-        cooldown_minutes: Min time between triggers (default 5)
-        time_window: Optional window to restrict sensor triggers
     """
     sensor_type: str
     threshold: float = 0.0
-    comparison: str = "gt"
-    cooldown_minutes: int = 5
-    time_window: TimeWindow | None = None
+    comparison: str = "lt"  # Default "less than" for light threshold
 
     def to_dict(self) -> dict:
         return {
             "sensor_type": self.sensor_type,
             "threshold": self.threshold,
             "comparison": self.comparison,
-            "cooldown_minutes": self.cooldown_minutes,
-            "time_window": self.time_window.to_dict() if self.time_window else None,
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "SensorTrigger":
+    def from_dict(cls, data: dict) -> "SensorPrecondition":
         return cls(
             sensor_type=data["sensor_type"],
             threshold=data.get("threshold", 0.0),
-            comparison=data.get("comparison", "gt"),
-            cooldown_minutes=data.get("cooldown_minutes", 5),
-            time_window=TimeWindow.from_dict(data["time_window"]) if data.get("time_window") else None,
+            comparison=data.get("comparison", "lt"),
         )
 
 
@@ -1131,11 +1136,12 @@ class Schedule:
         name: Human-readable name
         description: Detailed description
         event_patterns: Embedded EventPattern objects (not references)
-        trigger_type: Type of trigger ("interval", "solar", "moon_phase", "sensor")
+        trigger_type: Type of trigger ("interval", "solar", "moon_phase", "fixed_time")
         interval_trigger: Config for interval triggers
         solar_trigger: Config for solar triggers
         moon_phase_trigger: Config for moon phase triggers
-        sensor_trigger: Config for sensor triggers
+        fixed_time_trigger: Config for fixed time triggers
+        preconditions: Optional sensor pre-conditions (checked at capture time)
         start_date: Start of schedule validity (ISO 8601)
         end_date: End of schedule validity (ISO 8601)
         deployment_id: Linked deployment
@@ -1147,13 +1153,16 @@ class Schedule:
     name: str
     description: str
     event_patterns: list[EventPattern]  # Embedded patterns, not references
-    trigger_type: str  # "interval", "solar", "moon_phase", "fixed_time", "sensor"
+    trigger_type: str  # "interval", "solar", "moon_phase", "fixed_time"
 
     # Trigger configs (one active based on trigger_type)
     interval_trigger: IntervalTrigger | None = None
     solar_trigger: SolarTrigger | None = None
     moon_phase_trigger: MoonPhaseTrigger | None = None
-    sensor_trigger: SensorTrigger | None = None
+    fixed_time_trigger: FixedTimeTrigger | None = None
+
+    # Sensor pre-conditions (optional, checked at capture time)
+    preconditions: list[SensorPrecondition] | None = None
 
     # Date constraints
     start_date: str | None = None
@@ -1196,7 +1205,8 @@ class Schedule:
             "interval_trigger": self.interval_trigger.to_dict() if self.interval_trigger else None,
             "solar_trigger": self.solar_trigger.to_dict() if self.solar_trigger else None,
             "moon_phase_trigger": self.moon_phase_trigger.to_dict() if self.moon_phase_trigger else None,
-            "sensor_trigger": self.sensor_trigger.to_dict() if self.sensor_trigger else None,
+            "fixed_time_trigger": self.fixed_time_trigger.to_dict() if self.fixed_time_trigger else None,
+            "preconditions": [p.to_dict() for p in self.preconditions] if self.preconditions else None,
             "start_date": self.start_date,
             "end_date": self.end_date,
             "deployment_id": self.deployment_id,
@@ -1219,7 +1229,8 @@ class Schedule:
             interval_trigger=IntervalTrigger.from_dict(data["interval_trigger"]) if data.get("interval_trigger") else None,
             solar_trigger=SolarTrigger.from_dict(data["solar_trigger"]) if data.get("solar_trigger") else None,
             moon_phase_trigger=MoonPhaseTrigger.from_dict(data["moon_phase_trigger"]) if data.get("moon_phase_trigger") else None,
-            sensor_trigger=SensorTrigger.from_dict(data["sensor_trigger"]) if data.get("sensor_trigger") else None,
+            fixed_time_trigger=FixedTimeTrigger.from_dict(data["fixed_time_trigger"]) if data.get("fixed_time_trigger") else None,
+            preconditions=[SensorPrecondition.from_dict(p) for p in data["preconditions"]] if data.get("preconditions") else None,
             start_date=data.get("start_date"),
             end_date=data.get("end_date"),
             deployment_id=data.get("deployment_id"),
@@ -1284,8 +1295,16 @@ def validate_schedule(schedule: Schedule) -> tuple[bool, str | None]:
         return False, "Solar trigger requires solar_trigger config"
     if schedule.trigger_type == "moon_phase" and not schedule.moon_phase_trigger:
         return False, "Moon phase trigger requires moon_phase_trigger config"
-    if schedule.trigger_type == "sensor" and not schedule.sensor_trigger:
-        return False, "Sensor trigger requires sensor_trigger config"
+    if schedule.trigger_type == "fixed_time" and not schedule.fixed_time_trigger:
+        return False, "Fixed time trigger requires fixed_time_trigger config"
+
+    # Validate pre-conditions if present (optional for any trigger type)
+    if schedule.preconditions:
+        for precondition in schedule.preconditions:
+            if precondition.sensor_type not in SENSOR_TYPES:
+                return False, f"Invalid sensor type: {precondition.sensor_type}"
+            if precondition.comparison not in SENSOR_COMPARISONS:
+                return False, f"Invalid comparison: {precondition.comparison}"
 
     return True, None
 
@@ -1922,54 +1941,42 @@ def get_daylight_hours(
     return daylight.total_seconds() / 3600
 ```
 
-### Step 2.3: Sensor Monitoring (for Sensor Triggers)
+### Step 2.3: Sensor Reading Library (for Pre-conditions)
 
-**Create file**: `webui/backend/lib/sensor_monitor.py`
+**Create file**: `webui/backend/lib/sensor_reader.py`
 
-Provides GPIO interrupt-based monitoring for sensor triggers.
+Provides one-shot I2C sensor reading for pre-condition checks and environmental logging.
 
 ```python
 """
-Sensor monitoring for trigger-based scheduling.
+Sensor reading library for I2C-based environmental sensors.
 
-Monitors GPIO inputs for motion sensors, light sensors, and temperature
-sensors, dispatching events when thresholds are crossed.
+Simple one-shot read functions for light and temperature sensors.
+Used for:
+1. Pre-condition checks at scheduled capture time
+2. Environmental logging (recording ambient conditions with photos)
 
-Supported sensor types:
-- motion: PIR motion sensor (digital input, rising edge trigger)
-- light: LDR/photoresistor with ADC (analog, threshold comparison)
-- temperature: Temperature sensor with ADC (analog, threshold comparison)
+Supported sensors (I2C only):
+- light: BH1750 or LTR303 ambient light sensor
+- temperature: TMP102 or MCP9808 temperature sensor
+
+NOTE: This is NOT a real-time monitoring daemon. Sensors are read
+on-demand at capture time, making it compatible with cron-based
+scheduling and power-saving modes.
 """
 
 import logging
-import threading
-import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable, Final
-from collections import deque
+from typing import Final
 
 logger = logging.getLogger(__name__)
 
-# Sensor type configuration
-SENSOR_CONFIGS: Final[dict] = {
-    "motion": {
-        "gpio_mode": "digital",
-        "default_pin": 17,
-        "edge_type": "rising",
-        "debounce_ms": 200,
-    },
-    "light": {
-        "gpio_mode": "analog",
-        "adc_channel": 0,
-        "sample_interval_ms": 1000,
-    },
-    "temperature": {
-        "gpio_mode": "analog",
-        "adc_channel": 1,
-        "sample_interval_ms": 5000,
-    },
-}
+# Supported sensor types
+SENSOR_TYPES: Final[list[str]] = ["light", "temperature"]
+
+# Comparison operators for pre-conditions
+SENSOR_COMPARISONS: Final[list[str]] = ["gt", "lt", "eq", "gte", "lte"]
 
 
 @dataclass
@@ -1978,253 +1985,289 @@ class SensorReading:
     sensor_type: str
     value: float
     timestamp: datetime
-    triggered: bool = False
+    unit: str  # "lux" or "celsius"
 
 
-@dataclass
-class SensorTriggerConfig:
-    """Configuration for a sensor trigger."""
-    sensor_type: str
-    threshold: float
-    comparison: str  # "gt", "lt", "eq", "gte", "lte"
-    cooldown_minutes: int
-    callback: Callable[[SensorReading], None]
-
-
-class SensorMonitor:
+def read_light_sensor() -> float | None:
     """
-    Monitors sensors and dispatches trigger callbacks.
+    Read current lux value from light sensor (BH1750 or LTR303).
 
-    Thread-safe monitoring with configurable cooldown periods.
+    Returns:
+        Lux value, or None if sensor unavailable/disabled
     """
+    try:
+        from mothbox_paths import get_hardware_config
 
-    def __init__(self):
-        self._triggers: list[SensorTriggerConfig] = []
-        self._last_trigger_times: dict[str, datetime] = {}
-        self._running = False
-        self._thread: threading.Thread | None = None
-        self._lock = threading.RLock()
-        self._readings: deque[SensorReading] = deque(maxlen=100)
+        hw_config = get_hardware_config()
 
-    def register_trigger(self, config: SensorTriggerConfig):
-        """Register a new sensor trigger."""
-        with self._lock:
-            self._triggers.append(config)
-            logger.info(f"Registered {config.sensor_type} trigger")
+        if not hw_config.get("light_sensor_enabled", False):
+            return None
 
-    def unregister_trigger(self, sensor_type: str):
-        """Unregister all triggers for a sensor type."""
-        with self._lock:
-            self._triggers = [t for t in self._triggers if t.sensor_type != sensor_type]
+        from smbus2 import SMBus
 
-    def start(self):
-        """Start sensor monitoring."""
-        if self._running:
-            return
+        sensor_type = hw_config.get("light_sensor_type", "BH1750")
+        address = hw_config.get("light_sensor_address", 0x23)
 
-        self._running = True
-        self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
-        self._thread.start()
-        logger.info("Sensor monitoring started")
+        with SMBus(1) as bus:
+            if sensor_type == "BH1750":
+                # BH1750 one-time high resolution mode
+                bus.write_byte(address, 0x20)
+                import time
+                time.sleep(0.2)
+                data = bus.read_i2c_block_data(address, 0x00, 2)
+                raw_val = (data[0] << 8) | data[1]
+                return raw_val / 1.2
 
-    def stop(self):
-        """Stop sensor monitoring."""
-        self._running = False
-        if self._thread:
-            self._thread.join(timeout=5)
-        logger.info("Sensor monitoring stopped")
+            elif sensor_type == "LTR303":
+                # LTR303 ambient light sensor
+                bus.write_byte_data(address, 0x80, 0x01)
+                import time
+                time.sleep(0.1)
+                ch1_low = bus.read_byte_data(address, 0x88)
+                ch1_high = bus.read_byte_data(address, 0x89)
+                ch1 = (ch1_high << 8) | ch1_low
+                return ch1 * 0.5
 
-    def _monitor_loop(self):
-        """Main monitoring loop."""
-        while self._running:
-            try:
-                for trigger in self._triggers:
-                    reading = self._read_sensor(trigger.sensor_type)
-                    if reading and self._check_trigger(trigger, reading):
-                        self._dispatch_trigger(trigger, reading)
-            except Exception as e:
-                logger.error(f"Sensor monitoring error: {e}")
+            else:
+                logger.warning(f"Unknown light sensor type: {sensor_type}")
+                return None
 
-            time.sleep(0.1)  # 100ms loop interval
-
-    def _read_sensor(self, sensor_type: str) -> SensorReading | None:
-        """Read current value from sensor."""
-        # Implementation depends on hardware
-        # This is a stub - actual implementation reads GPIO/ADC
+    except ImportError:
+        logger.debug("smbus2 not available")
+        return None
+    except Exception as e:
+        logger.debug(f"Light sensor read error: {e}")
         return None
 
-    def _check_trigger(
-        self,
-        trigger: SensorTriggerConfig,
-        reading: SensorReading
-    ) -> bool:
-        """Check if reading triggers the condition."""
-        value = reading.value
-        threshold = trigger.threshold
 
-        comparisons = {
-            "gt": value > threshold,
-            "lt": value < threshold,
-            "eq": abs(value - threshold) < 0.01,
-            "gte": value >= threshold,
-            "lte": value <= threshold,
-        }
+def read_temperature_sensor() -> float | None:
+    """
+    Read current temperature from sensor (TMP102 or MCP9808).
 
-        return comparisons.get(trigger.comparison, False)
+    Returns:
+        Temperature in Celsius, or None if sensor unavailable/disabled
+    """
+    try:
+        from mothbox_paths import get_hardware_config
 
-    def _dispatch_trigger(
-        self,
-        trigger: SensorTriggerConfig,
-        reading: SensorReading
-    ):
-        """Dispatch trigger callback if cooldown allows."""
-        now = datetime.now()
-        key = f"{trigger.sensor_type}_{trigger.comparison}_{trigger.threshold}"
+        hw_config = get_hardware_config()
 
-        with self._lock:
-            last_time = self._last_trigger_times.get(key)
-            if last_time:
-                elapsed = (now - last_time).total_seconds() / 60
-                if elapsed < trigger.cooldown_minutes:
-                    return  # Still in cooldown
+        if not hw_config.get("temperature_sensor_enabled", False):
+            return None
 
-            self._last_trigger_times[key] = now
-            reading.triggered = True
-            self._readings.append(reading)
+        from smbus2 import SMBus
 
-        # Call trigger callback
-        try:
-            trigger.callback(reading)
-            logger.info(f"Sensor trigger dispatched: {trigger.sensor_type}")
-        except Exception as e:
-            logger.error(f"Trigger callback error: {e}")
+        sensor_type = hw_config.get("temperature_sensor_type", "TMP102")
+        address = hw_config.get("temperature_sensor_address", 0x48)
 
-    def get_recent_readings(self, limit: int = 10) -> list[SensorReading]:
-        """Get recent sensor readings."""
-        with self._lock:
-            return list(self._readings)[-limit:]
+        with SMBus(1) as bus:
+            if sensor_type == "TMP102":
+                # TMP102 temperature register
+                data = bus.read_i2c_block_data(address, 0x00, 2)
+                raw = (data[0] << 4) | (data[1] >> 4)
+                if raw > 2047:  # Negative temperature
+                    raw -= 4096
+                return raw * 0.0625
 
+            elif sensor_type == "MCP9808":
+                # MCP9808 ambient temperature register
+                data = bus.read_i2c_block_data(address, 0x05, 2)
+                raw = (data[0] << 8) | data[1]
+                raw &= 0x1FFF
+                if raw > 4095:  # Negative temperature
+                    raw -= 8192
+                return raw / 16.0
 
-# Singleton instance
-_sensor_monitor: SensorMonitor | None = None
+            else:
+                logger.warning(f"Unknown temperature sensor type: {sensor_type}")
+                return None
+
+    except ImportError:
+        logger.debug("smbus2 not available")
+        return None
+    except Exception as e:
+        logger.debug(f"Temperature sensor read error: {e}")
+        return None
 
 
-def get_sensor_monitor() -> SensorMonitor:
-    """Get the singleton SensorMonitor instance."""
-    global _sensor_monitor
-    if _sensor_monitor is None:
-        _sensor_monitor = SensorMonitor()
-    return _sensor_monitor
+def check_precondition(sensor_type: str, threshold: float, comparison: str) -> bool:
+    """
+    Check if sensor reading meets threshold condition.
+
+    Args:
+        sensor_type: "light" or "temperature"
+        threshold: Value to compare against
+        comparison: "gt", "lt", "eq", "gte", "lte"
+
+    Returns:
+        True if condition met, False otherwise (including if sensor unavailable)
+    """
+    if sensor_type == "light":
+        value = read_light_sensor()
+    elif sensor_type == "temperature":
+        value = read_temperature_sensor()
+    else:
+        logger.warning(f"Unknown sensor type: {sensor_type}")
+        return False
+
+    if value is None:
+        logger.debug(f"Sensor {sensor_type} unavailable, precondition fails")
+        return False
+
+    comparisons = {
+        "gt": value > threshold,
+        "lt": value < threshold,
+        "eq": abs(value - threshold) < 0.01,
+        "gte": value >= threshold,
+        "lte": value <= threshold,
+    }
+
+    result = comparisons.get(comparison, False)
+    logger.debug(f"Precondition check: {sensor_type} {value} {comparison} {threshold} = {result}")
+    return result
+
+
+def get_environmental_readings() -> dict:
+    """
+    Get current environmental sensor readings for logging.
+
+    Returns dict suitable for embedding in photo metadata.
+    """
+    return {
+        "ambient_light_lux": read_light_sensor(),
+        "ambient_temperature_celsius": read_temperature_sensor(),
+        "sensor_reading_timestamp": datetime.now().isoformat(),
+    }
 ```
 
-**Sensor Service** (`webui/backend/services/sensor_service.py`):
+**Sensor Pre-condition Service** (`webui/backend/services/sensor_service.py`):
 
 ```python
 """
-Sensor service for managing sensor triggers and state.
+Sensor service for pre-condition evaluation.
 
-Coordinates sensor monitoring with schedule execution.
+Evaluates sensor thresholds at scheduled capture time.
+NOT a real-time monitoring daemon - reads sensors on-demand.
 """
 
+import logging
+from collections import deque
+from dataclasses import dataclass
 from datetime import datetime
 from threading import RLock
-from typing import Final
 
-from webui.backend.lib.sensor_monitor import (
-    SensorMonitor,
-    SensorTriggerConfig,
+from webui.backend.lib.sensor_reader import (
+    read_light_sensor,
+    read_temperature_sensor,
+    check_precondition,
     SensorReading,
-    get_sensor_monitor,
 )
-from webui.backend.lib.schedule_schema import SensorTrigger, SchedulePattern
-
-import logging
+from webui.backend.lib.schedule_schema import SensorPrecondition
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class PreconditionResult:
+    """Result of evaluating a pre-condition."""
+    precondition: SensorPrecondition
+    reading_value: float | None
+    passed: bool
+    timestamp: datetime
+    reason: str  # "passed", "failed", "sensor_unavailable"
+
+
 class SensorService:
     """
-    Service for managing sensor-triggered schedules.
+    Service for evaluating sensor pre-conditions.
 
-    Integrates sensor monitoring with schedule execution.
+    Called at scheduled capture time to check if conditions are met.
     """
 
     def __init__(self):
-        self._monitor = get_sensor_monitor()
-        self._active_triggers: dict[str, SensorTriggerConfig] = {}
+        self._evaluation_history: deque[PreconditionResult] = deque(maxlen=100)
         self._lock = RLock()
 
-    def register_schedule_trigger(
-        self,
-        schedule: SchedulePattern,
-        execution_callback: callable
-    ):
-        """Register sensor trigger for a schedule."""
-        if schedule.trigger_type != "sensor" or not schedule.sensor_trigger:
-            return
+    def evaluate_preconditions(self, preconditions: list[SensorPrecondition]) -> bool:
+        """
+        Evaluate all pre-conditions.
 
-        trigger = schedule.sensor_trigger
+        Args:
+            preconditions: List of sensor pre-conditions to check
 
-        config = SensorTriggerConfig(
-            sensor_type=trigger.sensor_type,
-            threshold=trigger.threshold,
-            comparison=trigger.comparison,
-            cooldown_minutes=trigger.cooldown_minutes,
-            callback=lambda reading: self._handle_trigger(
-                schedule, reading, execution_callback
-            ),
+        Returns:
+            True if ALL conditions pass, False if any fail
+        """
+        if not preconditions:
+            return True
+
+        for precondition in preconditions:
+            result = self._evaluate_single(precondition)
+            with self._lock:
+                self._evaluation_history.append(result)
+
+            if not result.passed:
+                logger.info(
+                    f"Pre-condition failed: {precondition.sensor_type} "
+                    f"{precondition.comparison} {precondition.threshold} "
+                    f"(actual: {result.reading_value}, reason: {result.reason})"
+                )
+                return False
+
+        return True
+
+    def _evaluate_single(self, precondition: SensorPrecondition) -> PreconditionResult:
+        """Evaluate a single pre-condition."""
+        # Read current sensor value
+        if precondition.sensor_type == "light":
+            value = read_light_sensor()
+        elif precondition.sensor_type == "temperature":
+            value = read_temperature_sensor()
+        else:
+            return PreconditionResult(
+                precondition=precondition,
+                reading_value=None,
+                passed=False,
+                timestamp=datetime.now(),
+                reason="unknown_sensor_type",
+            )
+
+        if value is None:
+            return PreconditionResult(
+                precondition=precondition,
+                reading_value=None,
+                passed=False,
+                timestamp=datetime.now(),
+                reason="sensor_unavailable",
+            )
+
+        # Check threshold
+        passed = check_precondition(
+            precondition.sensor_type,
+            precondition.threshold,
+            precondition.comparison,
         )
 
-        with self._lock:
-            self._active_triggers[schedule.schedule_id] = config
-            self._monitor.register_trigger(config)
+        return PreconditionResult(
+            precondition=precondition,
+            reading_value=value,
+            passed=passed,
+            timestamp=datetime.now(),
+            reason="passed" if passed else "failed",
+        )
 
-        logger.info(f"Registered sensor trigger for schedule: {schedule.name}")
-
-    def unregister_schedule_trigger(self, schedule_id: str):
-        """Unregister sensor trigger for a schedule."""
-        with self._lock:
-            if schedule_id in self._active_triggers:
-                config = self._active_triggers.pop(schedule_id)
-                self._monitor.unregister_trigger(config.sensor_type)
-                logger.info(f"Unregistered sensor trigger: {schedule_id}")
-
-    def _handle_trigger(
-        self,
-        schedule: SchedulePattern,
-        reading: SensorReading,
-        callback: callable
-    ):
-        """Handle a sensor trigger event."""
-        # Check time window if configured
-        trigger = schedule.sensor_trigger
-        if trigger.time_window:
-            if not self._is_within_time_window(trigger.time_window):
-                logger.debug(f"Trigger outside time window: {schedule.name}")
-                return
-
-        # Execute the schedule
-        logger.info(f"Executing sensor-triggered schedule: {schedule.name}")
-        callback(schedule, reading)
-
-    def _is_within_time_window(self, time_window) -> bool:
-        """Check if current time is within the time window."""
-        # Implementation depends on solar time calculations
-        # for "sunset"/"sunrise" windows
-        from webui.backend.lib.solar_time import parse_time_spec
-
+    def get_current_readings(self) -> dict[str, SensorReading | None]:
+        """Get current readings from all sensors (for diagnostics/UI)."""
         now = datetime.now()
-        # Simplified check - full implementation uses GPS location
-        return True  # Placeholder
+        return {
+            "light": SensorReading("light", val, now, "lux") if (val := read_light_sensor()) else None,
+            "temperature": SensorReading("temperature", val, now, "celsius") if (val := read_temperature_sensor()) else None,
+        }
 
-    def start(self):
-        """Start sensor monitoring."""
-        self._monitor.start()
-
-    def stop(self):
-        """Stop sensor monitoring."""
-        self._monitor.stop()
+    def get_evaluation_history(self, limit: int = 10) -> list[PreconditionResult]:
+        """Get recent pre-condition evaluation results."""
+        with self._lock:
+            return list(self._evaluation_history)[-limit:]
 
 
 # Singleton
@@ -2864,8 +2907,8 @@ Each schedule is self-contained with event patterns embedded inline.
 **Request** (Sensor Trigger):
 ```json
 {
-  "name": "Motion-Triggered Capture",
-  "description": "Capture when motion detected at night",
+  "name": "Nightly Capture with Light Check",
+  "description": "Capture hourly between sunset and sunrise, only if ambient light < 100 lux",
   "event_patterns": [
     {
       "pattern_id": "flash-capture",
@@ -2878,15 +2921,22 @@ Each schedule is self-contained with event patterns embedded inline.
       "duration_minutes": 1
     }
   ],
-  "trigger_type": "sensor",
-  "sensor_trigger": {
-    "sensor_type": "motion",
-    "cooldown_minutes": 5,
+  "trigger_type": "solar",
+  "solar_trigger": {
+    "event_type": "sunset",
+    "offset_minutes": 30,
     "time_window": {
       "start_time": "sunset",
       "end_time": "sunrise"
     }
-  }
+  },
+  "preconditions": [
+    {
+      "sensor_type": "light",
+      "threshold": 100.0,
+      "comparison": "lt"
+    }
+  ]
 }
 ```
 
@@ -3078,7 +3128,8 @@ Each schedule file contains both the scheduling configuration (when to run) and 
   },
   "solar_trigger": null,
   "moon_phase_trigger": null,
-  "sensor_trigger": null,
+  "fixed_time_trigger": null,
+  "preconditions": null,
 
   "start_date": "2024-06-01",
   "end_date": "2024-08-31",
@@ -3145,14 +3196,14 @@ Each schedule file contains both the scheduling configuration (when to run) and 
 }
 ```
 
-### Example: Motion-Triggered Capture
+### Example: Pre-condition Guarded Capture
 
 ```json
 {
   "schema_version": "2.0",
-  "schedule_id": "motion-capture",
-  "name": "Motion-Triggered Night Capture",
-  "description": "Capture when motion detected during nighttime",
+  "schedule_id": "precondition-capture",
+  "name": "Dark-Only Night Capture",
+  "description": "Capture every 30 minutes during nighttime, but only if ambient light is below 50 lux",
 
   "event_patterns": [
     {
@@ -3167,21 +3218,34 @@ Each schedule file contains both the scheduling configuration (when to run) and 
     }
   ],
 
-  "trigger_type": "sensor",
-  "sensor_trigger": {
-    "sensor_type": "motion",
-    "threshold": 0,
-    "comparison": "gt",
-    "cooldown_minutes": 5,
+  "trigger_type": "interval",
+  "interval_trigger": {
+    "interval_minutes": 30,
     "time_window": {
       "start_time": "sunset",
       "end_time": "sunrise"
     }
   },
+  "preconditions": [
+    {
+      "sensor_type": "light",
+      "threshold": 50.0,
+      "comparison": "lt"
+    },
+    {
+      "sensor_type": "temperature",
+      "threshold": 5.0,
+      "comparison": "gt"
+    }
+  ],
   "enabled": true,
   "is_active": false
 }
 ```
+
+> **Note**: Pre-conditions are optional and checked at capture time. If any pre-condition
+> fails, the capture is skipped (with logging). This example requires light < 50 lux AND
+> temperature > 5°C for capture to proceed.
 
 ### Conflict Detection
 
@@ -3701,36 +3765,36 @@ export function useCreateSchedule() {
       - [ ] Overlap detection display
       - [ ] Resolution suggestions
 
-### Phase 9: Sensor Triggers
+### Phase 9: Sensor Pre-conditions
 
-**Goal**: Full sensor trigger implementation
+**Goal**: Sensor reading and pre-condition evaluation
 
 **Issues**:
-23. **Sensor Monitor** (3 story points)
+23. **Sensor Reader Library** (#230, 2 story points)
     - Labels: `backend`, `hardware`
-    - Create `lib/sensor_monitor.py`
+    - Create `lib/sensor_reader.py`
     - Acceptance criteria:
-      - [ ] Motion sensor (PIR) support
-      - [ ] Light sensor (LDR) support
-      - [ ] Temperature sensor support
-      - [ ] Cooldown handling
-      - [ ] 25+ unit tests passing
+      - [ ] Light sensor (BH1750/LTR303 I2C) support
+      - [ ] Temperature sensor (TMP102/MCP9808 I2C) support
+      - [ ] Pre-condition check function
+      - [ ] Environmental reading helper
+      - [ ] 20+ unit tests passing
 
-24. **Sensor Service** (2 story points)
+24. **Sensor Pre-condition Service** (#231, 2 story points)
     - Labels: `backend`, `service`
     - Create `services/sensor_service.py`
     - Acceptance criteria:
-      - [ ] Schedule trigger registration
-      - [ ] Time window checking
-      - [ ] 20+ unit tests passing
+      - [ ] Pre-condition evaluation at capture time
+      - [ ] Evaluation history tracking
+      - [ ] 15+ unit tests passing
 
-25. **Sensor Integration Tests** (2 story points)
+25. **Sensor Integration Tests** (#232, 2 story points)
     - Labels: `backend`, `testing`
     - Create sensor integration tests
     - Acceptance criteria:
-      - [ ] Mock sensor tests
-      - [ ] Cooldown tests
-      - [ ] Time window tests
+      - [ ] Mock I2C sensor tests
+      - [ ] Pre-condition evaluation tests
+      - [ ] Environmental logging tests
 
 ### Phase 10: Polish
 
@@ -3775,11 +3839,11 @@ export function useCreateSchedule() {
 - [ ] `webui/backend/lib/solar_time.py` - Solar calculations (astral)
 - [ ] `webui/backend/lib/schedule_conflict.py` - Overlap detection
 - [ ] `webui/backend/lib/schedule_preview.py` - Execution preview generation
-- [ ] `webui/backend/lib/sensor_monitor.py` - GPIO interrupt handling for sensors
+- [ ] `webui/backend/lib/sensor_reader.py` - I2C sensor reading for pre-conditions
 
 **Backend - Services (2 files)**:
 - [ ] `webui/backend/services/scheduler_service.py` - CRUD + activation + preview
-- [ ] `webui/backend/services/sensor_service.py` - Sensor state + trigger dispatch
+- [ ] `webui/backend/services/sensor_service.py` - Pre-condition evaluation
 
 **Backend - Routes (1 file)**:
 - [ ] `webui/backend/routes/scheduler_ui.py` - All scheduler endpoints
@@ -3830,12 +3894,12 @@ export function useCreateSchedule() {
 - [ ] `Tests/unit/test_schedule_conflict.py`
 - [ ] `Tests/unit/test_schedule_preview.py`
 - [ ] `Tests/unit/test_cron_bridge.py`
-- [ ] `Tests/unit/test_sensor_monitor.py`
+- [ ] `Tests/unit/test_sensor_reader.py`
 - [ ] `Tests/unit/test_sensor_service.py`
 - [ ] `Tests/unit/test_scheduler_ui_api.py`
 - [ ] `Tests/integration/test_scheduler_workflow.py`
 - [ ] `Tests/integration/test_scheduler_activation.py`
-- [ ] `Tests/integration/test_scheduler_sensors.py`
+- [ ] `Tests/integration/test_sensor_workflow.py`
 - [ ] `Tests/performance/test_scheduler_performance.py`
 - [ ] `webui/frontend/e2e/tests/scheduler-schedules.spec.js`
 - [ ] `webui/frontend/e2e/tests/scheduler-calendar.spec.js`

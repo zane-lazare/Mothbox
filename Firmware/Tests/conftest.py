@@ -3004,7 +3004,7 @@ def mock_rtc_functions(monkeypatch):
 
 
 # =============================================================================
-# SENSOR MONITOR FIXTURES
+# SENSOR READER FIXTURES
 # =============================================================================
 
 
@@ -3058,36 +3058,29 @@ def mock_smbus(monkeypatch):
 @pytest.fixture
 def mock_sensor_hardware(monkeypatch):
     """
-    Mock all sensor hardware dependencies for sensor_monitor tests.
+    Mock all sensor hardware dependencies for sensor_reader tests.
 
     Mocks:
-    - RPi.GPIO for motion sensor
-    - smbus2 for I2C sensors
+    - smbus2 for I2C sensors (light and temperature)
     - mothbox_paths.get_hardware_config for sensor configuration
 
     Returns:
-        dict with 'gpio', 'smbus', and 'hw_config' mock objects
+        dict with 'smbus' and 'hw_config' mock objects
 
-    Related: Issue #230 - Sensor Monitor
+    Related: Issue #230 - Sensor Reader Library
     """
     from unittest.mock import MagicMock
 
-    # Mock GPIO
-    mock_gpio = MagicMock()
-    mock_gpio.BCM = "BCM"
-    mock_gpio.IN = "IN"
-    mock_gpio.setmode = MagicMock()
-    mock_gpio.setwarnings = MagicMock()
-    mock_gpio.setup = MagicMock()
-    mock_gpio.input = MagicMock(return_value=0)  # No motion by default
+    import sys
 
-    # Mock smbus2
+    # Mock smbus2 module - must add to sys.modules before sensor_reader imports it
     mock_smbus_instance = MockSMBus()
+    mock_smbus_module = MagicMock()
+    mock_smbus_module.SMBus = lambda bus: mock_smbus_instance
+    sys.modules["smbus2"] = mock_smbus_module
 
-    # Mock hardware config - all sensors enabled
+    # Mock hardware config - I2C sensors only (no motion sensor)
     hw_config = {
-        "motion_sensor_enabled": True,
-        "motion_sensor_pin": 17,
         "light_sensor_enabled": True,
         "light_sensor_type": "BH1750",
         "light_sensor_address": 0x23,
@@ -3096,20 +3089,17 @@ def mock_sensor_hardware(monkeypatch):
         "temperature_sensor_address": 0x48,
     }
 
-    # Apply patches
-    import sys
-
-    sys.modules["RPi"] = MagicMock()
-    sys.modules["RPi.GPIO"] = mock_gpio
-
-    monkeypatch.setattr("smbus2.SMBus", lambda bus: mock_smbus_instance)
     monkeypatch.setattr(
         "mothbox_paths.get_hardware_config",
         lambda: hw_config,
     )
 
+    # Reset sensor reader's I2C availability flag so it re-checks
+    from webui.backend.lib.sensor_reader import reset_i2c_availability
+
+    reset_i2c_availability()
+
     return {
-        "gpio": mock_gpio,
         "smbus": mock_smbus_instance,
         "hw_config": hw_config,
     }
