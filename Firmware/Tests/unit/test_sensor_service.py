@@ -16,8 +16,9 @@ Test structure:
 - TestClearHistory (1 test)
 - TestResetStatistics (2 tests)
 - TestSingleton (1 test)
+- TestThreadSafety (1 test)
 
-Total: 28 tests
+Total: 29 tests
 """
 
 from datetime import datetime
@@ -667,3 +668,54 @@ class TestSingleton:
         service2 = get_sensor_service()
 
         assert service1 is service2
+
+
+# =============================================================================
+# TEST THREAD SAFETY
+# =============================================================================
+
+
+class TestThreadSafety:
+    """Tests for thread-safety of SensorService."""
+
+    def test_concurrent_evaluations_statistics_consistent(
+        self, mock_sensor_reading, mock_check_precondition
+    ):
+        """Test that concurrent evaluations maintain consistent statistics."""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        from webui.backend.lib.sensor_reader import SensorReading
+
+        mock_sensor_reading.return_value = SensorReading(
+            sensor_type="light",
+            value=50.0,
+            timestamp=datetime.now(),
+            unit="lux",
+        )
+        mock_check_precondition.return_value = True
+
+        service = SensorService()
+        num_threads = 10
+        evaluations_per_thread = 50
+
+        def evaluate_batch():
+            """Run multiple evaluations in a thread."""
+            for _ in range(evaluations_per_thread):
+                service.evaluate_preconditions(
+                    [SensorPrecondition(sensor_type="light", threshold=100, comparison="lt")]
+                )
+            return evaluations_per_thread
+
+        # Run concurrent evaluations
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            futures = [executor.submit(evaluate_batch) for _ in range(num_threads)]
+            total_submitted = sum(f.result() for f in as_completed(futures))
+
+        # Verify statistics are consistent
+        stats = service.get_statistics()
+        expected_total = num_threads * evaluations_per_thread
+
+        assert stats["total_evaluations"] == expected_total
+        assert stats["passed_count"] == expected_total
+        assert stats["failed_count"] == 0
+        assert total_submitted == expected_total
