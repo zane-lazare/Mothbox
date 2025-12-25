@@ -88,6 +88,46 @@ MCP9808_RESOLUTION: Final[float] = 1 / 16.0  # 0.0625°C per LSB
 MCP9808_DATA_MASK: Final[int] = 0x1FFF  # 13-bit data mask
 MCP9808_NEGATIVE_THRESHOLD: Final[int] = 4095  # 13-bit sign boundary
 MCP9808_TWOS_COMPLEMENT: Final[int] = 8192  # 2^13 for negative conversion
+MCP9808_AMBIENT_TEMP_REG: Final[int] = 0x05  # Ambient temperature register
+
+# TMP102 register
+TMP102_TEMP_REG: Final[int] = 0x00  # Temperature register
+
+# BH1750 constants
+BH1750_ONE_TIME_HIGH_RES: Final[int] = 0x20  # One-time high resolution mode
+
+# LTR303 constants (registers and calibration data)
+LTR303_CONTROL_REG: Final[int] = 0x80  # ALS control register
+LTR303_MEAS_RATE_REG: Final[int] = 0x85  # ALS measurement rate register
+LTR303_CH1_LOW: Final[int] = 0x88  # ALS data CH1 low byte
+LTR303_CH1_HIGH: Final[int] = 0x89  # ALS data CH1 high byte
+LTR303_CH0_LOW: Final[int] = 0x8A  # ALS data CH0 low byte
+LTR303_CH0_HIGH: Final[int] = 0x8B  # ALS data CH0 high byte
+LTR303_ENABLE: Final[int] = 0x01  # Enable ALS in active mode
+
+# LTR303 gain values (bits 2-4 of control register)
+# Key = gain bits value, Value = gain multiplier
+LTR303_GAIN_MAP: Final[dict[int, int]] = {
+    0: 1,    # 1x gain (default)
+    1: 2,    # 2x gain
+    2: 4,    # 4x gain
+    3: 8,    # 8x gain
+    6: 48,   # 48x gain
+    7: 96,   # 96x gain
+}
+
+# LTR303 integration time values (bits 3-5 of meas rate register)
+# Key = int time bits value, Value = integration time in ms
+LTR303_INT_TIME_MAP: Final[dict[int, int]] = {
+    0: 100,   # 100ms (default)
+    1: 50,    # 50ms
+    2: 200,   # 200ms
+    3: 400,   # 400ms
+    4: 150,   # 150ms
+    5: 250,   # 250ms
+    6: 300,   # 300ms
+    7: 350,   # 350ms
+}
 
 # Comparison tolerance for sensor values
 COMPARISON_TOLERANCE: Final[dict[str, float]] = {
@@ -191,8 +231,8 @@ def read_light_sensor() -> float | None:
 
         with SMBus(i2c_bus) as bus:
             if sensor_type == "BH1750":
-                # BH1750 one-time high resolution mode (0x20)
-                bus.write_byte(address, 0x20)
+                # BH1750 one-time high resolution mode
+                bus.write_byte(address, BH1750_ONE_TIME_HIGH_RES)
                 time.sleep(0.2)  # Wait for measurement
                 data = bus.read_i2c_block_data(address, 0x00, 2)
                 raw_val = (data[0] << 8) | data[1]
@@ -200,17 +240,49 @@ def read_light_sensor() -> float | None:
                 return lux
 
             elif sensor_type == "LTR303":
-                # LTR303 ambient light sensor
-                # Enable sensor
-                bus.write_byte_data(address, 0x80, 0x01)
-                time.sleep(0.1)
-                # Read channel 1 (visible + IR)
-                ch1_low = bus.read_byte_data(address, 0x88)
-                ch1_high = bus.read_byte_data(address, 0x89)
+                # LTR303 ambient light sensor - proper lux calculation
+                # Enable sensor in active mode
+                bus.write_byte_data(address, LTR303_CONTROL_REG, LTR303_ENABLE)
+                time.sleep(0.1)  # Wait for measurement
+
+                # Read gain setting from control register (bits 2-4)
+                control = bus.read_byte_data(address, LTR303_CONTROL_REG)
+                gain_bits = (control >> 2) & 0x07
+                gain = LTR303_GAIN_MAP.get(gain_bits, 1)
+
+                # Read integration time from measurement rate register (bits 3-5)
+                meas_rate = bus.read_byte_data(address, LTR303_MEAS_RATE_REG)
+                int_time_bits = (meas_rate >> 3) & 0x07
+                int_time_ms = LTR303_INT_TIME_MAP.get(int_time_bits, 100)
+
+                # Read channel 1 (visible + IR) and channel 0 (IR only)
+                ch1_low = bus.read_byte_data(address, LTR303_CH1_LOW)
+                ch1_high = bus.read_byte_data(address, LTR303_CH1_HIGH)
                 ch1 = (ch1_high << 8) | ch1_low
-                # Approximate lux calculation
-                lux = ch1 * 0.5  # Simplified conversion
-                return lux
+
+                ch0_low = bus.read_byte_data(address, LTR303_CH0_LOW)
+                ch0_high = bus.read_byte_data(address, LTR303_CH0_HIGH)
+                ch0 = (ch0_high << 8) | ch0_low
+
+                # Calculate lux using ratio method (per LTR303 datasheet)
+                # Normalize by gain and integration time
+                if ch1 == 0:
+                    return 0.0
+
+                ratio = ch0 / ch1 if ch1 > 0 else 0
+                int_time_factor = int_time_ms / 100.0  # Normalize to 100ms
+
+                # Apply ratio-based formula (simplified from datasheet)
+                if ratio < 0.45:
+                    lux = (1.7743 * ch1 + 1.1059 * ch0) / (gain * int_time_factor)
+                elif ratio < 0.64:
+                    lux = (4.2785 * ch1 - 1.9548 * ch0) / (gain * int_time_factor)
+                elif ratio < 0.85:
+                    lux = (0.5926 * ch1 + 0.1185 * ch0) / (gain * int_time_factor)
+                else:
+                    lux = 0.0  # High IR ratio indicates dark/invalid
+
+                return max(0.0, lux)
 
             else:
                 logger.warning(f"Unknown light sensor type: {sensor_type}")
@@ -264,7 +336,7 @@ def read_temperature_sensor() -> float | None:
         with SMBus(i2c_bus) as bus:
             if sensor_type == "TMP102":
                 # TMP102 temperature register
-                data = bus.read_i2c_block_data(address, 0x00, 2)
+                data = bus.read_i2c_block_data(address, TMP102_TEMP_REG, 2)
                 raw = (data[0] << 4) | (data[1] >> 4)
                 if raw > TMP102_NEGATIVE_THRESHOLD:  # Negative temperature
                     raw -= TMP102_TWOS_COMPLEMENT
@@ -273,7 +345,7 @@ def read_temperature_sensor() -> float | None:
 
             elif sensor_type == "MCP9808":
                 # MCP9808 ambient temperature register
-                data = bus.read_i2c_block_data(address, 0x05, 2)
+                data = bus.read_i2c_block_data(address, MCP9808_AMBIENT_TEMP_REG, 2)
                 raw = (data[0] << 8) | data[1]
                 raw &= MCP9808_DATA_MASK
                 if raw > MCP9808_NEGATIVE_THRESHOLD:  # Negative temperature

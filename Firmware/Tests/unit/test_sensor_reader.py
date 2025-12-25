@@ -148,16 +148,32 @@ class TestReadLightSensor:
         assert 83.0 <= result <= 84.0
 
     def test_read_light_sensor_ltr303(self, mock_sensor_hardware):
-        """Test reading LTR303 light sensor returns lux value."""
+        """Test reading LTR303 light sensor returns lux value with proper calibration."""
         mock_sensor_hardware["hw_config"]["light_sensor_type"] = "LTR303"
-        # MockSMBus read_byte_data returns 0x64 = 100, so ch1 = (100 << 8) | 100 = 25700
-        # lux = 25700 * 0.5 = 12850
-        mock_sensor_hardware["smbus"].read_byte_data = MagicMock(return_value=100)
+
+        # Mock realistic register values:
+        # Control reg (0x80): 0x01 = active, gain bits 0 = 1x gain
+        # Meas rate reg (0x85): 0x00 = 100ms integration time
+        # CH1 (visible+IR): low=0x64, high=0x00 → 100 counts
+        # CH0 (IR only): low=0x32, high=0x00 → 50 counts
+        ltr303_registers = {
+            0x80: 0x01,  # Control: active mode, 1x gain
+            0x85: 0x00,  # Meas rate: 100ms integration
+            0x88: 0x64,  # CH1 low: 100
+            0x89: 0x00,  # CH1 high
+            0x8A: 0x32,  # CH0 low: 50
+            0x8B: 0x00,  # CH0 high
+        }
+        mock_sensor_hardware["smbus"].read_byte_data = MagicMock(
+            side_effect=lambda addr, reg: ltr303_registers.get(reg, 0)
+        )
 
         result = read_light_sensor()
 
+        # With ch1=100, ch0=50: ratio=0.5, in range [0.45, 0.64)
+        # lux = (4.2785 * 100 - 1.9548 * 50) / (1 * 1.0) = 427.85 - 97.74 = 330.11
         assert result is not None
-        assert result == 12850.0  # ch1 * 0.5
+        assert 329.0 <= result <= 331.0
 
     def test_read_light_sensor_unknown_type(self, mock_sensor_hardware):
         """Test reading unknown light sensor type returns None."""
