@@ -339,10 +339,36 @@ class SensorService:
             return history
 
     def clear_history(self) -> None:
-        """Clear all evaluation history."""
+        """
+        Clear all evaluation history.
+
+        Note:
+            This clears only the history buffer (recent evaluation records).
+            Lifetime statistics (total_evaluations, passed_count, etc.) are
+            preserved. Use reset_statistics() to reset counters.
+        """
         with self._lock:
             self._evaluation_history.clear()
             logger.debug("Cleared evaluation history")
+
+    def reset_statistics(self) -> None:
+        """
+        Reset all lifetime statistics counters.
+
+        Resets total_evaluations, passed_count, failed_count, and
+        unavailable_count to zero. Does NOT clear evaluation history.
+
+        Note:
+            History (evaluation records) and statistics (lifetime counters)
+            are tracked separately. Use clear_history() to clear records,
+            or call both methods to fully reset the service state.
+        """
+        with self._lock:
+            self._total_evaluations = 0
+            self._passed_count = 0
+            self._failed_count = 0
+            self._unavailable_count = 0
+            logger.debug("Reset statistics counters")
 
     def get_statistics(self) -> dict:
         """

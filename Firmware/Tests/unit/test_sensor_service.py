@@ -14,9 +14,10 @@ Test structure:
 - TestGetEvaluationHistory (3 tests)
 - TestGetStatistics (2 tests)
 - TestClearHistory (1 test)
+- TestResetStatistics (2 tests)
 - TestSingleton (1 test)
 
-Total: 26 tests (exceeds 15+ requirement)
+Total: 28 tests
 """
 
 from datetime import datetime
@@ -581,6 +582,75 @@ class TestClearHistory:
         service.clear_history()
 
         assert len(service.get_evaluation_history()) == 0
+
+
+# =============================================================================
+# TEST RESET STATISTICS
+# =============================================================================
+
+
+class TestResetStatistics:
+    """Tests for reset_statistics method."""
+
+    def test_reset_statistics_clears_counters(
+        self, mock_sensor_reading, mock_check_precondition
+    ):
+        """Test that reset_statistics clears all counters."""
+        from webui.backend.lib.sensor_reader import SensorReading
+
+        mock_sensor_reading.return_value = SensorReading(
+            sensor_type="light",
+            value=50.0,
+            timestamp=datetime.now(),
+            unit="lux",
+        )
+        mock_check_precondition.return_value = True
+
+        service = SensorService()
+        service.evaluate_preconditions(
+            [SensorPrecondition(sensor_type="light", threshold=100, comparison="lt")]
+        )
+
+        # Verify stats are populated
+        stats = service.get_statistics()
+        assert stats["total_evaluations"] == 1
+        assert stats["passed_count"] == 1
+
+        # Reset and verify
+        service.reset_statistics()
+        stats = service.get_statistics()
+
+        assert stats["total_evaluations"] == 0
+        assert stats["passed_count"] == 0
+        assert stats["failed_count"] == 0
+        assert stats["unavailable_count"] == 0
+
+    def test_reset_statistics_preserves_history(
+        self, mock_sensor_reading, mock_check_precondition
+    ):
+        """Test that reset_statistics does NOT clear history."""
+        from webui.backend.lib.sensor_reader import SensorReading
+
+        mock_sensor_reading.return_value = SensorReading(
+            sensor_type="light",
+            value=50.0,
+            timestamp=datetime.now(),
+            unit="lux",
+        )
+        mock_check_precondition.return_value = True
+
+        service = SensorService()
+        service.evaluate_preconditions(
+            [SensorPrecondition(sensor_type="light", threshold=100, comparison="lt")]
+        )
+
+        # Verify history exists
+        assert len(service.get_evaluation_history()) == 1
+
+        # Reset stats - history should remain
+        service.reset_statistics()
+
+        assert len(service.get_evaluation_history()) == 1
 
 
 # =============================================================================
