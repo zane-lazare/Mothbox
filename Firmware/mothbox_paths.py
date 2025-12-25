@@ -472,6 +472,8 @@ def get_hardware_config() -> dict[str, Any]:
     try:
         config = get_control_values(CONTROLS_FILE)
         return {
+            # I2C bus configuration
+            "i2c_bus": int(config.get("i2c_bus", "1")),
             # Relay module (already implemented via get_gpio_pins)
             "relay_enabled": config.get("relay_enabled", "true").lower() == "true",
             # INA260 power sensor
@@ -540,6 +542,7 @@ def get_hardware_config() -> dict[str, Any]:
         )
         # Return defaults for all modules - all disabled by default except relays
         return {
+            "i2c_bus": 1,
             "relay_enabled": True,  # Relays are core hardware, enabled by default
             "ina260_enabled": False,
             "ina260_address": 0x40,

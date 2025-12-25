@@ -3062,16 +3062,15 @@ def mock_sensor_hardware(monkeypatch):
 
     Mocks:
     - smbus2 for I2C sensors (light and temperature)
-    - mothbox_paths.get_hardware_config for sensor configuration
+    - sensor_reader._get_cached_hw_config for sensor configuration
 
     Returns:
         dict with 'smbus' and 'hw_config' mock objects
 
     Related: Issue #230 - Sensor Reader Library
     """
-    from unittest.mock import MagicMock
-
     import sys
+    from unittest.mock import MagicMock
 
     # Mock smbus2 module - must add to sys.modules before sensor_reader imports it
     mock_smbus_instance = MockSMBus()
@@ -3081,6 +3080,7 @@ def mock_sensor_hardware(monkeypatch):
 
     # Mock hardware config - I2C sensors only (no motion sensor)
     hw_config = {
+        "i2c_bus": 1,
         "light_sensor_enabled": True,
         "light_sensor_type": "BH1750",
         "light_sensor_address": 0x23,
@@ -3089,15 +3089,19 @@ def mock_sensor_hardware(monkeypatch):
         "temperature_sensor_address": 0x48,
     }
 
+    # Must patch the cached function directly in sensor_reader module
+    # because the lru_cache wrapper captures the original get_hardware_config
+    # reference at import time
+    from webui.backend.lib import sensor_reader
+
     monkeypatch.setattr(
-        "mothbox_paths.get_hardware_config",
+        sensor_reader,
+        "_get_cached_hw_config",
         lambda: hw_config,
     )
 
-    # Reset sensor reader's I2C availability flag so it re-checks
-    from webui.backend.lib.sensor_reader import reset_i2c_availability
-
-    reset_i2c_availability()
+    # Reset I2C availability flag for fresh state
+    sensor_reader.reset_i2c_availability()
 
     return {
         "smbus": mock_smbus_instance,

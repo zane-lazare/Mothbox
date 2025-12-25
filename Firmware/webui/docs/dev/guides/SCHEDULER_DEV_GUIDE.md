@@ -2140,6 +2140,34 @@ def get_environmental_readings() -> dict:
     }
 ```
 
+**Usage Example**:
+
+```python
+import logging
+import subprocess
+from webui.backend.lib.sensor_reader import check_precondition
+
+logger = logging.getLogger(__name__)
+
+# Example: Only capture if ambient light is below 100 lux
+if check_precondition("light", threshold=100, comparison="lt"):
+    # Conditions met, proceed with capture
+    logger.info("Light precondition met, starting capture")
+    subprocess.run(["/opt/mothbox/TakePhoto.py"])
+else:
+    # Too bright, skip capture
+    logger.info("Skipping capture: light precondition not met")
+
+# Example: Only capture if temperature is above 5°C
+if check_precondition("temperature", threshold=5.0, comparison="gte"):
+    # Temperature acceptable, proceed
+    logger.info("Temperature precondition met, starting capture")
+    subprocess.run(["/opt/mothbox/TakePhoto.py"])
+else:
+    # Too cold, skip capture
+    logger.info("Skipping capture: temperature too low")
+```
+
 **Sensor Pre-condition Service** (`webui/backend/services/sensor_service.py`):
 
 ```python

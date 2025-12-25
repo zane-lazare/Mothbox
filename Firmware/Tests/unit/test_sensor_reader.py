@@ -7,14 +7,14 @@ Covers: dataclasses, constants, light sensor, temperature sensor, preconditions.
 Test structure:
 - TestSensorReading (3 tests)
 - TestConstants (2 tests)
-- TestReadLightSensor (5 tests)
-- TestReadTemperatureSensor (5 tests)
+- TestReadLightSensor (6 tests)
+- TestReadTemperatureSensor (6 tests)
 - TestCheckPrecondition (7 tests)
 - TestGetEnvironmentalReadings (2 tests)
 - TestGetSensorReading (2 tests)
 - TestResetI2CAvailability (1 test)
 
-Total: 27 tests (exceeds 20+ requirement)
+Total: 29 tests (exceeds 20+ requirement)
 """
 
 from datetime import datetime
@@ -40,8 +40,8 @@ from webui.backend.lib.sensor_reader import (
 
 
 @pytest.fixture(autouse=True)
-def reset_i2c_state():
-    """Reset I2C availability state before each test."""
+def reset_sensor_state():
+    """Reset sensor reader I2C state before each test."""
     reset_i2c_availability()
     yield
     reset_i2c_availability()
@@ -191,6 +191,15 @@ class TestReadLightSensor:
 
         assert result is None
 
+    def test_read_light_sensor_i2c_error(self, mock_sensor_hardware):
+        """Test that I2C errors are handled gracefully."""
+        mock_sensor_hardware["smbus"].read_i2c_block_data = MagicMock(
+            side_effect=OSError("I2C read failed")
+        )
+        reset_i2c_availability()
+        result = read_light_sensor()
+        assert result is None
+
 
 # =============================================================================
 # TEST READ TEMPERATURE SENSOR
@@ -253,6 +262,15 @@ class TestReadTemperatureSensor:
         assert result is not None
         # (0xF6 << 4) | 0 = 0xF60 = 3936, 3936 > 2047, so (3936 - 4096) * 0.0625 = -10.0
         assert result == -10.0
+
+    def test_read_temperature_sensor_i2c_error(self, mock_sensor_hardware):
+        """Test that I2C errors are handled gracefully."""
+        mock_sensor_hardware["smbus"].read_i2c_block_data = MagicMock(
+            side_effect=OSError("I2C read failed")
+        )
+        reset_i2c_availability()
+        result = read_temperature_sensor()
+        assert result is None
 
 
 # =============================================================================
