@@ -211,8 +211,6 @@ class SensorService:
         all_passed = True
         for precondition in preconditions:
             result = self._evaluate_single(precondition)
-            with self._lock:
-                self._evaluation_history.append(result)
             if not result.passed:
                 all_passed = False
                 # Continue evaluating all for complete history
@@ -237,16 +235,18 @@ class SensorService:
                 f"Invalid sensor type: {precondition.sensor_type}. "
                 f"Valid: {SENSOR_TYPES}"
             )
-            with self._lock:
-                self._total_evaluations += 1
-                self._failed_count += 1
-            return PreconditionResult(
+            result = PreconditionResult(
                 precondition=precondition,
                 reading_value=None,
                 passed=False,
                 timestamp=timestamp,
                 reason=REASON_FAILED,
             )
+            with self._lock:
+                self._total_evaluations += 1
+                self._failed_count += 1
+                self._evaluation_history.append(result)
+            return result
 
         # Validate comparison operator
         if precondition.comparison not in SENSOR_COMPARISONS:
@@ -254,32 +254,36 @@ class SensorService:
                 f"Invalid comparison: {precondition.comparison}. "
                 f"Valid: {SENSOR_COMPARISONS}"
             )
-            with self._lock:
-                self._total_evaluations += 1
-                self._failed_count += 1
-            return PreconditionResult(
+            result = PreconditionResult(
                 precondition=precondition,
                 reading_value=None,
                 passed=False,
                 timestamp=timestamp,
                 reason=REASON_FAILED,
             )
+            with self._lock:
+                self._total_evaluations += 1
+                self._failed_count += 1
+                self._evaluation_history.append(result)
+            return result
 
         # Get sensor reading
         reading = get_sensor_reading(precondition.sensor_type)
 
         if reading is None:
             logger.debug(f"Sensor unavailable: {precondition.sensor_type}")
-            with self._lock:
-                self._total_evaluations += 1
-                self._unavailable_count += 1
-            return PreconditionResult(
+            result = PreconditionResult(
                 precondition=precondition,
                 reading_value=None,
                 passed=False,
                 timestamp=timestamp,
                 reason=REASON_SENSOR_UNAVAILABLE,
             )
+            with self._lock:
+                self._total_evaluations += 1
+                self._unavailable_count += 1
+                self._evaluation_history.append(result)
+            return result
 
         # Evaluate the condition
         passed = check_precondition(
@@ -288,26 +292,29 @@ class SensorService:
             comparison=precondition.comparison,
         )
 
-        with self._lock:
-            self._total_evaluations += 1
-            if passed:
-                self._passed_count += 1
-            else:
-                self._failed_count += 1
-
         logger.debug(
             f"Precondition {precondition.sensor_type} "
             f"{reading.value:.2f} {precondition.comparison} "
             f"{precondition.threshold} = {passed}"
         )
 
-        return PreconditionResult(
+        result = PreconditionResult(
             precondition=precondition,
             reading_value=reading.value,
             passed=passed,
             timestamp=timestamp,
             reason=REASON_PASSED if passed else REASON_FAILED,
         )
+
+        with self._lock:
+            self._total_evaluations += 1
+            if passed:
+                self._passed_count += 1
+            else:
+                self._failed_count += 1
+            self._evaluation_history.append(result)
+
+        return result
 
     def get_current_readings(self) -> dict[str, SensorReading | None]:
         """
