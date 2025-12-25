@@ -200,6 +200,10 @@ class SensorService:
         Note:
             Empty list returns True (no conditions = no restrictions).
             Each evaluation is recorded in history.
+
+            All preconditions are evaluated even if one fails early.
+            This ensures complete diagnostic history is captured for
+            debugging why a capture was skipped.
         """
         if not preconditions:
             return True
