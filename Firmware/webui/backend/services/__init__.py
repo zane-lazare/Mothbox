@@ -15,6 +15,7 @@ _locations_service = None
 _sidecar_service = None
 _deployment_service = None
 _scheduler_service = None
+_sensor_service = None
 
 
 def get_clustering_service():
@@ -101,6 +102,28 @@ def get_scheduler_service():
     return _scheduler_service
 
 
+def get_sensor_service():
+    """
+    Get singleton SensorService instance with lazy initialization.
+
+    Returns:
+        SensorService: The singleton service instance
+
+    Example:
+        from webui.backend.services import get_sensor_service
+
+        service = get_sensor_service()
+        if service.evaluate_preconditions(preconditions):
+            # Proceed with capture
+            pass
+    """
+    global _sensor_service
+    if _sensor_service is None:
+        from .sensor_service import SensorService
+        _sensor_service = SensorService(max_history=100)
+    return _sensor_service
+
+
 __all__ = [
     'PhotoService',
     'PaginationError',
@@ -112,4 +135,5 @@ __all__ = [
     'get_sidecar_service',
     'get_deployment_service',
     'get_scheduler_service',
+    'get_sensor_service',
 ]
