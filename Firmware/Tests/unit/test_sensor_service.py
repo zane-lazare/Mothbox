@@ -7,7 +7,7 @@ and thread-safety.
 Test structure:
 - TestSensorPrecondition (3 tests)
 - TestPreconditionResult (2 tests)
-- TestSensorServiceInit (3 tests)
+- TestSensorServiceInit (4 tests)
 - TestEvaluateSingle (5 tests)
 - TestEvaluatePreconditions (4 tests)
 - TestGetCurrentReadings (2 tests)
@@ -18,7 +18,7 @@ Test structure:
 - TestSingleton (1 test)
 - TestThreadSafety (1 test)
 
-Total: 29 tests
+Total: 30 tests
 """
 
 from datetime import datetime
@@ -193,13 +193,35 @@ class TestSensorServiceInit:
 
         assert service._max_history == 50
 
-    def test_invalid_max_history_raises(self):
-        """Test that invalid max_history raises ValueError."""
-        with pytest.raises(ValueError):
-            SensorService(max_history=0)
+    def test_invalid_max_history_auto_corrects(self, caplog):
+        """Test that max_history < 1 is auto-corrected to 1 with warning."""
+        import logging
 
-        with pytest.raises(ValueError):
-            SensorService(max_history=-1)
+        with caplog.at_level(logging.WARNING):
+            service = SensorService(max_history=0)
+
+        assert service._max_history == 1
+        assert "max_history must be at least 1" in caplog.text
+
+        caplog.clear()
+
+        with caplog.at_level(logging.WARNING):
+            service = SensorService(max_history=-1)
+
+        assert service._max_history == 1
+        assert "max_history must be at least 1" in caplog.text
+
+    def test_max_history_capped_at_limit(self, caplog):
+        """Test that max_history > MAX_HISTORY_SIZE is capped with warning."""
+        import logging
+
+        from webui.backend.services.sensor_service import MAX_HISTORY_SIZE
+
+        with caplog.at_level(logging.WARNING):
+            service = SensorService(max_history=500)  # Exceeds MAX_HISTORY_SIZE (100)
+
+        assert service._max_history == MAX_HISTORY_SIZE
+        assert f"max_history capped at {MAX_HISTORY_SIZE}" in caplog.text
 
 
 # =============================================================================

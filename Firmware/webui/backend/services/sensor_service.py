@@ -164,13 +164,13 @@ class SensorService:
         Initialize SensorService.
 
         Args:
-            max_history: Maximum history entries to retain (default 100)
-
-        Raises:
-            ValueError: If max_history is less than 1
+            max_history: Maximum history entries to retain (default 100).
+                         Values < 1 are auto-corrected to 1 with a warning.
+                         Values > MAX_HISTORY_SIZE are capped with a warning.
         """
         if max_history < 1:
-            raise ValueError("max_history must be at least 1")
+            max_history = 1
+            logger.warning("max_history must be at least 1, using 1")
         if max_history > MAX_HISTORY_SIZE:
             max_history = MAX_HISTORY_SIZE
             logger.warning(f"max_history capped at {MAX_HISTORY_SIZE}")
