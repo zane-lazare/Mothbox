@@ -3001,3 +3001,109 @@ def mock_rtc_functions(monkeypatch):
     )
 
     return {"set": set_mock, "clear": clear_mock}
+
+
+# =============================================================================
+# SENSOR READER FIXTURES
+# =============================================================================
+
+
+class MockSMBus:
+    """Mock smbus2.SMBus for I2C sensor tests."""
+
+    def __init__(self, bus: int = 1):
+        self.bus = bus
+        self.written: list[tuple] = []
+        self.read_data: list[int] = [0x00, 0x64]  # Default: ~83 lux for BH1750
+
+    def write_byte(self, addr: int, data: int) -> None:
+        """Record write_byte calls."""
+        self.written.append(("write_byte", addr, data))
+
+    def write_byte_data(self, addr: int, reg: int, data: int) -> None:
+        """Record write_byte_data calls."""
+        self.written.append(("write_byte_data", addr, reg, data))
+
+    def read_byte_data(self, addr: int, reg: int) -> int:
+        """Return mock byte data."""
+        return self.read_data[0] if self.read_data else 0
+
+    def read_i2c_block_data(self, addr: int, reg: int, length: int) -> list[int]:
+        """Return mock block data."""
+        return self.read_data[:length]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+
+@pytest.fixture
+def mock_smbus(monkeypatch):
+    """
+    Mock smbus2.SMBus for I2C sensor tests.
+
+    Patches the smbus2 module to use MockSMBus.
+
+    Returns:
+        MockSMBus class for configuring read data
+
+    Related: Issue #230 - Sensor Monitor
+    """
+    monkeypatch.setattr("smbus2.SMBus", MockSMBus)
+    return MockSMBus
+
+
+@pytest.fixture
+def mock_sensor_hardware(monkeypatch):
+    """
+    Mock all sensor hardware dependencies for sensor_reader tests.
+
+    Mocks:
+    - smbus2 for I2C sensors (light and temperature)
+    - sensor_reader._get_cached_hw_config for sensor configuration
+
+    Returns:
+        dict with 'smbus' and 'hw_config' mock objects
+
+    Related: Issue #230 - Sensor Reader Library
+    """
+    import sys
+    from unittest.mock import MagicMock
+
+    # Mock smbus2 module - must add to sys.modules before sensor_reader imports it
+    mock_smbus_instance = MockSMBus()
+    mock_smbus_module = MagicMock()
+    mock_smbus_module.SMBus = lambda bus: mock_smbus_instance
+    sys.modules["smbus2"] = mock_smbus_module
+
+    # Mock hardware config - I2C sensors only (no motion sensor)
+    hw_config = {
+        "i2c_bus": 1,
+        "light_sensor_enabled": True,
+        "light_sensor_type": "BH1750",
+        "light_sensor_address": 0x23,
+        "temperature_sensor_enabled": True,
+        "temperature_sensor_type": "TMP102",
+        "temperature_sensor_address": 0x48,
+    }
+
+    # Must patch the cached function directly in sensor_reader module
+    # because the lru_cache wrapper captures the original get_hardware_config
+    # reference at import time
+    from webui.backend.lib import sensor_reader
+
+    monkeypatch.setattr(
+        sensor_reader,
+        "_get_cached_hw_config",
+        lambda: hw_config,
+    )
+
+    # Reset I2C availability flag for fresh state
+    sensor_reader.reset_i2c_availability()
+
+    return {
+        "smbus": mock_smbus_instance,
+        "hw_config": hw_config,
+    }
