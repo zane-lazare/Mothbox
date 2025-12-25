@@ -47,6 +47,25 @@ from mothbox_paths import get_hardware_config
 logger = logging.getLogger(__name__)
 
 # =============================================================================
+# PUBLIC API
+# =============================================================================
+
+__all__ = [
+    "SensorReading",
+    "read_light_sensor",
+    "read_temperature_sensor",
+    "check_precondition",
+    "get_environmental_readings",
+    "get_sensor_reading",
+    # Constants (for type checking and validation)
+    "SENSOR_TYPES",
+    "SENSOR_COMPARISONS",
+    # Cache management (for testing)
+    "clear_hw_config_cache",
+    "reset_i2c_availability",
+]
+
+# =============================================================================
 # CONSTANTS
 # =============================================================================
 
