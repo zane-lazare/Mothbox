@@ -498,10 +498,6 @@ def get_hardware_config() -> dict[str, Any]:
             "gps_timeout_almanac": int(
                 config.get("gps_timeout_almanac", "1200")
             ),  # Almanac expired (>28d)
-            # Motion sensor (PIR) - GPIO interrupt-based
-            "motion_sensor_enabled": config.get("motion_sensor_enabled", "false").lower()
-            == "true",
-            "motion_sensor_pin": int(config.get("motion_sensor_pin", "17")),
             # Light sensor (optional)
             "light_sensor_enabled": config.get("light_sensor_enabled", "false").lower()
             == "true",
@@ -560,8 +556,6 @@ def get_hardware_config() -> dict[str, Any]:
             "gps_timeout_warm": 60,
             "gps_timeout_cold": 90,
             "gps_timeout_almanac": 1200,
-            "motion_sensor_enabled": False,
-            "motion_sensor_pin": 17,
             "light_sensor_enabled": False,
             "light_sensor_type": "BH1750",
             "light_sensor_address": 0x23,
