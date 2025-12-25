@@ -157,6 +157,14 @@ class SensorService:
         _evaluation_history: Circular buffer of recent evaluation results
         _lock: RLock for thread-safe access
         _max_history: Maximum history entries to retain
+
+    Thread-Safety:
+        The RLock protects shared mutable state (statistics counters and
+        evaluation history). Sensor I/O operations (get_sensor_reading,
+        check_precondition) are intentionally performed outside the lock
+        to avoid blocking other threads during potentially slow hardware
+        reads. Statistics and history are updated atomically within a
+        single lock acquisition after each evaluation completes.
     """
 
     def __init__(self, max_history: int = DEFAULT_HISTORY_SIZE):
@@ -192,7 +200,9 @@ class SensorService:
         Evaluate multiple pre-conditions (ALL must pass).
 
         Args:
-            preconditions: List of SensorPrecondition to evaluate
+            preconditions: List of SensorPrecondition to evaluate.
+                           Type hints are assumed enforced by callers;
+                           no runtime type checking is performed.
 
         Returns:
             True if ALL pre-conditions pass, False if any fail
@@ -204,6 +214,10 @@ class SensorService:
             All preconditions are evaluated even if one fails early.
             This ensures complete diagnostic history is captured for
             debugging why a capture was skipped.
+
+            Each precondition gets its own timestamp at evaluation time.
+            Batch evaluations may have slightly different timestamps,
+            which is intentional for accurate per-condition timing.
         """
         if not preconditions:
             return True
