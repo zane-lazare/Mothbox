@@ -217,9 +217,8 @@ def read_light_sensor() -> float | None:
     Performs a one-shot I2C read. Returns None if sensor is disabled,
     unavailable, or if an error occurs.
 
-    WARNING: LTR303 lux calculation is approximate and based on simplified
-    conversion. For accurate measurements, use BH1750 or implement full
-    LTR303 calibration algorithm with integration time compensation.
+    Note: LTR303 uses the ratio-based lux formula from the datasheet with
+    gain and integration time compensation. BH1750 uses direct lux output.
 
     Returns:
         Lux value as float, or None if unavailable
