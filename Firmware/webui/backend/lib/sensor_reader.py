@@ -183,6 +183,28 @@ def clear_hw_config_cache():
     _get_cached_hw_config.cache_clear()
 
 
+def _check_i2c_available() -> bool:
+    """
+    Check if I2C/smbus2 is available on this system.
+
+    Performs a lazy check on first call and caches the result.
+    Used by sensor reading functions to early-exit if I2C unavailable.
+
+    Returns:
+        True if smbus2 is importable, False otherwise
+    """
+    global _i2c_available
+    if _i2c_available is None:
+        try:
+            from smbus2 import SMBus  # noqa: F401
+
+            _i2c_available = True
+        except ImportError:
+            _i2c_available = False
+            logger.warning("smbus2 not available for I2C sensors")
+    return _i2c_available
+
+
 # =============================================================================
 # SENSOR READING FUNCTIONS
 # =============================================================================
@@ -210,17 +232,8 @@ def read_light_sensor() -> float | None:
         if not hw_config.get("light_sensor_enabled", False):
             return None
 
-        # Lazy check I2C availability
-        if _i2c_available is None:
-            try:
-                from smbus2 import SMBus  # noqa: F401
-
-                _i2c_available = True
-            except ImportError:
-                _i2c_available = False
-                logger.warning("smbus2 not available for I2C sensors")
-
-        if not _i2c_available:
+        # Check I2C availability (lazy check with caching)
+        if not _check_i2c_available():
             return None
 
         from smbus2 import SMBus
@@ -314,17 +327,8 @@ def read_temperature_sensor() -> float | None:
         if not hw_config.get("temperature_sensor_enabled", False):
             return None
 
-        # Lazy check I2C availability
-        if _i2c_available is None:
-            try:
-                from smbus2 import SMBus  # noqa: F401
-
-                _i2c_available = True
-            except ImportError:
-                _i2c_available = False
-                logger.warning("smbus2 not available for I2C sensors")
-
-        if not _i2c_available:
+        # Check I2C availability (lazy check with caching)
+        if not _check_i2c_available():
             return None
 
         from smbus2 import SMBus
