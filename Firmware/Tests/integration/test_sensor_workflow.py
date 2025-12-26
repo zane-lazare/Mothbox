@@ -36,12 +36,15 @@ from unittest.mock import MagicMock
 import pytest
 
 from webui.backend.lib.sensor_reader import (
+    COMPARISON_TOLERANCE,
     get_environmental_readings,
+    get_sensor_reading,
     read_light_sensor,
     read_temperature_sensor,
     reset_i2c_availability,
 )
 from webui.backend.services.sensor_service import (
+    REASON_FAILED,
     REASON_PASSED,
     REASON_SENSOR_UNAVAILABLE,
     SensorPrecondition,
@@ -54,12 +57,9 @@ pytestmark = pytest.mark.integration
 # =============================================================================
 # TOLERANCE CONSTANTS
 # =============================================================================
-# These constants match COMPARISON_TOLERANCE from sensor_reader.py and provide
-# consistent tolerance values across all sensor integration tests.
-
-# Absolute tolerances for sensor readings (match sensor_reader.py)
-LIGHT_SENSOR_TOLERANCE = 1.0  # ±1 lux
-TEMPERATURE_SENSOR_TOLERANCE = 0.1  # ±0.1°C
+# Import absolute tolerances from sensor_reader.py (single source of truth)
+LIGHT_SENSOR_TOLERANCE = COMPARISON_TOLERANCE["light"]  # 1.0 lux
+TEMPERATURE_SENSOR_TOLERANCE = COMPARISON_TOLERANCE["temperature"]  # 0.1°C
 
 # Percentage tolerance for readings where absolute value varies
 # Used for calculations like: expected_value * (1 ± PERCENT_TOLERANCE)
@@ -68,6 +68,31 @@ PERCENT_TOLERANCE = 0.01  # ±1%
 # LTR303 uses ratio-based calculation with higher variance due to
 # channel ratio interpolation and gain/integration time compensation
 LTR303_PERCENT_TOLERANCE = 0.10  # ±10%
+
+
+# =============================================================================
+# TEST HELPER FUNCTIONS
+# =============================================================================
+
+
+def assert_within_tolerance(
+    actual: float, expected: float, tolerance: float, msg: str = ""
+) -> None:
+    """
+    Assert actual value is within ±tolerance of expected.
+
+    Args:
+        actual: The actual value to check
+        expected: The expected value
+        tolerance: Absolute tolerance (±)
+        msg: Optional message for assertion failure
+    """
+    lower = expected - tolerance
+    upper = expected + tolerance
+    assert lower <= actual <= upper, (
+        f"{msg + ': ' if msg else ''}"
+        f"{actual} not within ±{tolerance} of {expected} (range: [{lower}, {upper}])"
+    )
 
 
 # =============================================================================
@@ -97,6 +122,20 @@ def reset_sensor_service_singleton():
 def sensor_service():
     """Fresh SensorService instance for each test."""
     service = SensorService(max_history=100)
+    yield service
+    service.clear_history()
+    service.reset_statistics()
+
+
+@pytest.fixture
+def hardware_sensor_service():
+    """
+    SensorService for hardware tests with automatic cleanup.
+
+    Use this fixture in hardware tests instead of manually creating
+    SensorService instances with try/finally blocks.
+    """
+    service = SensorService(max_history=10)
     yield service
     service.clear_history()
     service.reset_statistics()
@@ -242,27 +281,61 @@ class TestLightSensorWorkflow:
         # Verify lux calculation: 120 / 1.2 = 100
         assert result is not None
         expected_lux = 100.0
-        assert expected_lux - LIGHT_SENSOR_TOLERANCE <= result <= expected_lux + LIGHT_SENSOR_TOLERANCE
+        assert_within_tolerance(result, expected_lux, LIGHT_SENSOR_TOLERANCE)
 
-    def test_ltr303_read_workflow_with_gain_compensation(
-        self, mock_light_sensor_ltr303
-    ):
-        """LTR303 I2C read applies gain and integration time compensation."""
+    def test_ltr303_ratio_045_to_064(self, mock_light_sensor_ltr303):
+        """LTR303 ratio in [0.45, 0.64) uses formula: (4.2785*ch1 - 1.9548*ch0)."""
         # Setup: CH1=100, CH0=50 -> ratio = 0.5 (in [0.45, 0.64) range)
         # Formula: lux = (4.2785 * ch1 - 1.9548 * ch0) / gain_factor
         # With gain=0 (1x), int_time=0 (100ms): gain_factor = 1.0
         # lux = 4.2785*100 - 1.9548*50 = 427.85 - 97.74 = 330.11
         mock_light_sensor_ltr303(ch1=100, ch0=50, gain=0, int_time=0)
 
-        # Execute
         result = read_light_sensor()
 
-        # Verify ratio-based calculation
-        # Expected: 4.2785*100 - 1.9548*50 = 330.11 lux
         assert result is not None
         expected_lux = 330.0
         tolerance = expected_lux * LTR303_PERCENT_TOLERANCE
         assert expected_lux - tolerance <= result <= expected_lux + tolerance
+
+    def test_ltr303_ratio_below_045(self, mock_light_sensor_ltr303):
+        """LTR303 ratio < 0.45 uses formula: (1.7743*ch1 + 1.1059*ch0)."""
+        # Setup: CH1=100, CH0=30 -> ratio = 30/100 = 0.3 (< 0.45)
+        # Formula: lux = (1.7743 * ch1 + 1.1059 * ch0) / gain_factor
+        # lux = 1.7743*100 + 1.1059*30 = 177.43 + 33.177 = 210.607
+        mock_light_sensor_ltr303(ch1=100, ch0=30, gain=0, int_time=0)
+
+        result = read_light_sensor()
+
+        assert result is not None
+        expected_lux = 210.6
+        tolerance = expected_lux * LTR303_PERCENT_TOLERANCE
+        assert expected_lux - tolerance <= result <= expected_lux + tolerance
+
+    def test_ltr303_ratio_064_to_085(self, mock_light_sensor_ltr303):
+        """LTR303 ratio in [0.64, 0.85) uses formula: (0.5926*ch1 + 0.1185*ch0)."""
+        # Setup: CH1=100, CH0=75 -> ratio = 75/100 = 0.75 (in [0.64, 0.85))
+        # Formula: lux = (0.5926 * ch1 + 0.1185 * ch0) / gain_factor
+        # lux = 0.5926*100 + 0.1185*75 = 59.26 + 8.8875 = 68.1475
+        mock_light_sensor_ltr303(ch1=100, ch0=75, gain=0, int_time=0)
+
+        result = read_light_sensor()
+
+        assert result is not None
+        expected_lux = 68.15
+        tolerance = expected_lux * LTR303_PERCENT_TOLERANCE
+        assert expected_lux - tolerance <= result <= expected_lux + tolerance
+
+    def test_ltr303_ratio_above_085(self, mock_light_sensor_ltr303):
+        """LTR303 ratio >= 0.85 returns 0 (high IR ratio indicates dark/invalid)."""
+        # Setup: CH1=100, CH0=90 -> ratio = 90/100 = 0.9 (>= 0.85)
+        # Formula: lux = 0.0 (dark/invalid reading)
+        mock_light_sensor_ltr303(ch1=100, ch0=90, gain=0, int_time=0)
+
+        result = read_light_sensor()
+
+        assert result is not None
+        assert result == 0.0
 
     def test_light_sensor_multiple_reads_consistent(self, mock_light_sensor_bh1750):
         """Multiple consecutive light sensor reads return consistent values."""
@@ -299,7 +372,7 @@ class TestTemperatureSensorWorkflow:
 
         # Verify: 400 * 0.0625 = 25.0
         assert result is not None
-        assert expected_temp - TEMPERATURE_SENSOR_TOLERANCE <= result <= expected_temp + TEMPERATURE_SENSOR_TOLERANCE
+        assert_within_tolerance(result, expected_temp, TEMPERATURE_SENSOR_TOLERANCE)
 
     def test_mcp9808_read_workflow_returns_celsius(
         self, mock_temperature_sensor_mcp9808
@@ -314,7 +387,7 @@ class TestTemperatureSensorWorkflow:
 
         # Verify
         assert result is not None
-        assert expected_temp - TEMPERATURE_SENSOR_TOLERANCE <= result <= expected_temp + TEMPERATURE_SENSOR_TOLERANCE
+        assert_within_tolerance(result, expected_temp, TEMPERATURE_SENSOR_TOLERANCE)
 
     def test_negative_temperature_workflow(self, mock_temperature_sensor_tmp102):
         """Temperature sensor handles negative temperatures via two's complement."""
@@ -327,7 +400,62 @@ class TestTemperatureSensorWorkflow:
 
         # Verify negative temperature
         assert result is not None
-        assert expected_temp - TEMPERATURE_SENSOR_TOLERANCE <= result <= expected_temp + TEMPERATURE_SENSOR_TOLERANCE
+        assert_within_tolerance(result, expected_temp, TEMPERATURE_SENSOR_TOLERANCE)
+
+
+# =============================================================================
+# TEST SENSOR READING DATACLASS
+# =============================================================================
+
+
+class TestSensorReadingDataclass:
+    """Integration tests for get_sensor_reading() and get_current_readings()."""
+
+    def test_get_sensor_reading_light_returns_dataclass(self, mock_light_sensor_bh1750):
+        """get_sensor_reading returns SensorReading with correct fields for light."""
+        expected_lux = 100.0
+        mock_light_sensor_bh1750(expected_lux)
+
+        reading = get_sensor_reading("light")
+
+        assert reading is not None
+        assert reading.sensor_type == "light"
+        assert reading.unit == "lux"
+        assert reading.timestamp is not None
+        assert_within_tolerance(reading.value, expected_lux, LIGHT_SENSOR_TOLERANCE)
+
+    def test_get_sensor_reading_temperature_returns_dataclass(
+        self, mock_temperature_sensor_tmp102
+    ):
+        """get_sensor_reading returns SensorReading with correct fields for temperature."""
+        expected_temp = 25.0
+        mock_temperature_sensor_tmp102(expected_temp)
+
+        reading = get_sensor_reading("temperature")
+
+        assert reading is not None
+        assert reading.sensor_type == "temperature"
+        assert reading.unit == "celsius"
+        assert reading.timestamp is not None
+        assert_within_tolerance(reading.value, expected_temp, TEMPERATURE_SENSOR_TOLERANCE)
+
+    def test_get_sensor_reading_invalid_type_returns_none(self):
+        """get_sensor_reading returns None for invalid sensor type."""
+        reading = get_sensor_reading("invalid_sensor")
+        assert reading is None
+
+    def test_get_current_readings_returns_dict_with_all_types(
+        self, mock_sensor_hardware, sensor_service
+    ):
+        """get_current_readings returns dict with all sensor types."""
+        # Configure mock to return valid readings
+        mock_sensor_hardware["smbus"].read_data = [0x00, 0x78]  # 100 lux
+
+        readings = sensor_service.get_current_readings()
+
+        # Should have entries for all sensor types
+        assert "light" in readings
+        assert "temperature" in readings
 
 
 # =============================================================================
@@ -338,8 +466,8 @@ class TestTemperatureSensorWorkflow:
 class TestPreconditionEvaluationWorkflow:
     """Integration tests for precondition evaluation workflows."""
 
-    def test_empty_preconditions_returns_true(self, sensor_service):
-        """Empty preconditions list should return True (vacuous truth).
+    def test_empty_preconditions_passes(self, sensor_service):
+        """Empty preconditions list should pass (vacuous truth).
 
         When no preconditions are specified, all conditions are trivially
         satisfied, so evaluate_preconditions([]) should return True.
@@ -353,6 +481,32 @@ class TestPreconditionEvaluationWorkflow:
         # Verify no history entries (nothing was evaluated)
         history = sensor_service.get_evaluation_history(limit=10)
         assert len(history) == 0
+
+    def test_invalid_sensor_type_fails_gracefully(self, sensor_service):
+        """Invalid sensor type returns False without exception.
+
+        The service validates sensor types and fails gracefully rather than
+        raising an exception, allowing the scheduler to continue.
+        """
+        preconditions = [
+            SensorPrecondition(
+                sensor_type="invalid_sensor",
+                threshold=100.0,
+                comparison="lt",
+            )
+        ]
+
+        # Execute - should not raise exception
+        result = sensor_service.evaluate_preconditions(preconditions)
+
+        # Verify graceful failure
+        assert result is False
+
+        # Verify history records the failure with correct reason
+        history = sensor_service.get_evaluation_history(limit=1)
+        assert len(history) == 1
+        assert history[0].passed is False
+        assert history[0].reason == REASON_FAILED
 
     def test_single_precondition_passes_when_threshold_met(
         self, mock_light_sensor_bh1750, sensor_service
@@ -403,7 +557,13 @@ class TestPreconditionEvaluationWorkflow:
     def test_multiple_preconditions_and_logic(
         self, mock_sensor_hardware, sensor_service
     ):
-        """Multiple preconditions must ALL pass (AND logic)."""
+        """Multiple preconditions must ALL pass (AND logic).
+
+        Note: This test uses mock_sensor_hardware directly instead of the
+        convenience fixtures (mock_light_sensor_bh1750, mock_temperature_sensor_tmp102)
+        because we need custom read_i2c_block_data behavior that routes different
+        sensor addresses to different return values in a single mock.
+        """
         # Setup: Configure mock to return different values for light vs temp
         # Light sensor: 50 lux (raw = 60 for BH1750: 60 / 1.2 = 50)
         # Temperature sensor: 25C (raw = 400 for TMP102: 400 * 0.0625 = 25)
@@ -467,7 +627,9 @@ class TestPreconditionEvaluationWorkflow:
         assert history[0].passed is True
         assert history[0].reason == REASON_PASSED
         assert history[0].reading_value is not None
-        assert expected_lux - LIGHT_SENSOR_TOLERANCE <= history[0].reading_value <= expected_lux + LIGHT_SENSOR_TOLERANCE
+        assert_within_tolerance(
+            history[0].reading_value, expected_lux, LIGHT_SENSOR_TOLERANCE
+        )
 
 
 # =============================================================================
@@ -521,7 +683,7 @@ class TestSensorUnavailableWorkflow:
         # Light should work
         light_result = read_light_sensor()
         assert light_result is not None
-        assert expected_lux - LIGHT_SENSOR_TOLERANCE <= light_result <= expected_lux + LIGHT_SENSOR_TOLERANCE
+        assert_within_tolerance(light_result, expected_lux, LIGHT_SENSOR_TOLERANCE)
 
         # Temperature should return None
         temp_result = read_temperature_sensor()
@@ -672,6 +834,20 @@ class TestSensorServiceIntegration:
         assert stats["total_evaluations"] == total_evaluations
         assert stats["passed_count"] == total_evaluations
 
+        # Verify history integrity (no corruption from concurrent access)
+        # Note: history is limited to max_history (100 by default), so we check
+        # up to that limit
+        max_history = sensor_service._max_history
+        expected_history_len = min(total_evaluations, max_history)
+        history = sensor_service.get_evaluation_history(limit=total_evaluations)
+        assert len(history) == expected_history_len
+
+        # All history entries should have valid data (no None from race conditions)
+        for entry in history:
+            assert entry.timestamp is not None
+            assert entry.reason == REASON_PASSED
+            assert entry.reading_value is not None  # All passed, so should have value
+
 
 # =============================================================================
 # TEST SENSOR WORKFLOW WITH REAL HARDWARE
@@ -689,14 +865,13 @@ class TestSensorWorkflowHardware:
     To run: pytest Tests/integration/test_sensor_workflow.py -v -m hardware
     """
 
-    def test_precondition_service_with_real_light_sensor(self):
+    def test_precondition_service_with_real_light_sensor(self, hardware_sensor_service):
         """
         Full workflow: Real light sensor -> SensorService evaluation.
 
         Tests that the service layer correctly integrates with real I2C hardware.
         """
         from webui.backend.lib.sensor_reader import read_light_sensor
-        from webui.backend.services.sensor_service import SensorService
 
         # First check if sensor is available
         reading = read_light_sensor()
@@ -704,44 +879,39 @@ class TestSensorWorkflowHardware:
         if reading is None:
             pytest.skip("Light sensor not available on this hardware")
 
-        # Create service and evaluate precondition
-        service = SensorService(max_history=10)
-        try:
-            # Use current reading + buffer as threshold to ensure pass
-            threshold = reading + 50.0
-            preconditions = [
-                SensorPrecondition(
-                    sensor_type="light",
-                    threshold=threshold,
-                    comparison="lt",
-                    description="Current ambient light check",
-                )
-            ]
+        # Use current reading + buffer as threshold to ensure pass
+        threshold = reading + 50.0
+        preconditions = [
+            SensorPrecondition(
+                sensor_type="light",
+                threshold=threshold,
+                comparison="lt",
+                description="Current ambient light check",
+            )
+        ]
 
-            result = service.evaluate_preconditions(preconditions)
+        result = hardware_sensor_service.evaluate_preconditions(preconditions)
 
-            # Should pass since we set threshold above current reading
-            assert result is True
+        # Should pass since we set threshold above current reading
+        assert result is True
 
-            # Verify history was recorded
-            history = service.get_evaluation_history(limit=1)
-            assert len(history) == 1
-            assert history[0].passed is True
-            assert history[0].reading_value is not None
-            # Reading should be close to what we measured
-            assert abs(history[0].reading_value - reading) < 10.0  # Allow for variance
-        finally:
-            service.clear_history()
-            service.reset_statistics()
+        # Verify history was recorded
+        history = hardware_sensor_service.get_evaluation_history(limit=1)
+        assert len(history) == 1
+        assert history[0].passed is True
+        assert history[0].reading_value is not None
+        # Reading should be close to what we measured
+        assert abs(history[0].reading_value - reading) < 10.0  # Allow for variance
 
-    def test_precondition_service_with_real_temperature_sensor(self):
+    def test_precondition_service_with_real_temperature_sensor(
+        self, hardware_sensor_service
+    ):
         """
         Full workflow: Real temperature sensor -> SensorService evaluation.
 
         Tests that the service layer correctly integrates with real I2C hardware.
         """
         from webui.backend.lib.sensor_reader import read_temperature_sensor
-        from webui.backend.services.sensor_service import SensorService
 
         # First check if sensor is available
         reading = read_temperature_sensor()
@@ -749,34 +919,28 @@ class TestSensorWorkflowHardware:
         if reading is None:
             pytest.skip("Temperature sensor not available on this hardware")
 
-        # Create service and evaluate precondition
-        service = SensorService(max_history=10)
-        try:
-            # Use current reading + buffer as threshold to ensure pass
-            threshold = reading + 10.0
-            preconditions = [
-                SensorPrecondition(
-                    sensor_type="temperature",
-                    threshold=threshold,
-                    comparison="lte",
-                    description="Current ambient temperature check",
-                )
-            ]
+        # Use current reading + buffer as threshold to ensure pass
+        threshold = reading + 10.0
+        preconditions = [
+            SensorPrecondition(
+                sensor_type="temperature",
+                threshold=threshold,
+                comparison="lte",
+                description="Current ambient temperature check",
+            )
+        ]
 
-            result = service.evaluate_preconditions(preconditions)
+        result = hardware_sensor_service.evaluate_preconditions(preconditions)
 
-            # Should pass since we set threshold above current reading
-            assert result is True
+        # Should pass since we set threshold above current reading
+        assert result is True
 
-            # Verify history was recorded
-            history = service.get_evaluation_history(limit=1)
-            assert len(history) == 1
-            assert history[0].passed is True
-        finally:
-            service.clear_history()
-            service.reset_statistics()
+        # Verify history was recorded
+        history = hardware_sensor_service.get_evaluation_history(limit=1)
+        assert len(history) == 1
+        assert history[0].passed is True
 
-    def test_multiple_preconditions_with_real_sensors(self):
+    def test_multiple_preconditions_with_real_sensors(self, hardware_sensor_service):
         """
         Full workflow: Multiple real sensors -> combined precondition evaluation.
 
@@ -786,7 +950,6 @@ class TestSensorWorkflowHardware:
             read_light_sensor,
             read_temperature_sensor,
         )
-        from webui.backend.services.sensor_service import SensorService
 
         light = read_light_sensor()
         temp = read_temperature_sensor()
@@ -795,40 +958,35 @@ class TestSensorWorkflowHardware:
         if light is None and temp is None:
             pytest.skip("No sensors available on this hardware")
 
-        service = SensorService(max_history=10)
-        try:
-            preconditions = []
+        preconditions = []
 
-            if light is not None:
-                preconditions.append(
-                    SensorPrecondition(
-                        sensor_type="light",
-                        threshold=light + 100.0,
-                        comparison="lt",
-                    )
+        if light is not None:
+            preconditions.append(
+                SensorPrecondition(
+                    sensor_type="light",
+                    threshold=light + 100.0,
+                    comparison="lt",
                 )
+            )
 
-            if temp is not None:
-                preconditions.append(
-                    SensorPrecondition(
-                        sensor_type="temperature",
-                        threshold=temp + 20.0,
-                        comparison="lte",
-                    )
+        if temp is not None:
+            preconditions.append(
+                SensorPrecondition(
+                    sensor_type="temperature",
+                    threshold=temp + 20.0,
+                    comparison="lte",
                 )
+            )
 
-            result = service.evaluate_preconditions(preconditions)
+        result = hardware_sensor_service.evaluate_preconditions(preconditions)
 
-            # Should pass since thresholds are set above current readings
-            assert result is True
+        # Should pass since thresholds are set above current readings
+        assert result is True
 
-            # All preconditions should be in history
-            history = service.get_evaluation_history(limit=len(preconditions))
-            assert len(history) == len(preconditions)
-            assert all(h.passed for h in history)
-        finally:
-            service.clear_history()
-            service.reset_statistics()
+        # All preconditions should be in history
+        history = hardware_sensor_service.get_evaluation_history(limit=len(preconditions))
+        assert len(history) == len(preconditions)
+        assert all(h.passed for h in history)
 
     def test_environmental_logging_workflow_real_hardware(self):
         """
@@ -858,43 +1016,37 @@ class TestSensorWorkflowHardware:
         if readings["ambient_temperature_celsius"] is not None:
             assert -40 <= readings["ambient_temperature_celsius"] <= 85  # Sensor range
 
-    def test_service_statistics_with_real_hardware(self):
+    def test_service_statistics_with_real_hardware(self, hardware_sensor_service):
         """
         Full workflow: Real sensor evaluations -> accurate statistics tracking.
 
         Tests that statistics are correctly maintained across real evaluations.
         """
         from webui.backend.lib.sensor_reader import read_light_sensor
-        from webui.backend.services.sensor_service import SensorService
 
         reading = read_light_sensor()
 
         if reading is None:
             pytest.skip("Light sensor not available on this hardware")
 
-        service = SensorService(max_history=10)
-        try:
-            # Do several evaluations with different thresholds
-            # Some should pass, some should fail
-            pass_threshold = reading + 50.0  # Should pass
-            fail_threshold = reading - 50.0 if reading > 50 else 0.1  # Should fail
+        # Do several evaluations with different thresholds
+        # Some should pass, some should fail
+        pass_threshold = reading + 50.0  # Should pass
+        fail_threshold = reading - 50.0 if reading > 50 else 0.1  # Should fail
 
-            # Evaluate passing condition
-            service.evaluate_preconditions(
-                [SensorPrecondition(sensor_type="light", threshold=pass_threshold, comparison="lt")]
-            )
+        # Evaluate passing condition
+        hardware_sensor_service.evaluate_preconditions(
+            [SensorPrecondition(sensor_type="light", threshold=pass_threshold, comparison="lt")]
+        )
 
-            # Evaluate failing condition
-            service.evaluate_preconditions(
-                [SensorPrecondition(sensor_type="light", threshold=fail_threshold, comparison="lt")]
-            )
+        # Evaluate failing condition
+        hardware_sensor_service.evaluate_preconditions(
+            [SensorPrecondition(sensor_type="light", threshold=fail_threshold, comparison="lt")]
+        )
 
-            stats = service.get_statistics()
+        stats = hardware_sensor_service.get_statistics()
 
-            assert stats["total_evaluations"] == 2
-            assert stats["passed_count"] == 1
-            assert stats["failed_count"] == 1
-            assert stats["unavailable_count"] == 0
-        finally:
-            service.clear_history()
-            service.reset_statistics()
+        assert stats["total_evaluations"] == 2
+        assert stats["passed_count"] == 1
+        assert stats["failed_count"] == 1
+        assert stats["unavailable_count"] == 0
