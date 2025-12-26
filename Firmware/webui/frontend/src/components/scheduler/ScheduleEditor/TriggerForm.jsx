@@ -1,4 +1,5 @@
 import PropTypes from 'prop-types';
+import { useState, useEffect } from 'react';
 import { TRIGGER_TYPES, TRIGGER_DEFAULTS } from './constants';
 import { TimeWindowPropType, TriggerErrorsPropType } from './propTypes';
 import IntervalTriggerForm from './IntervalTriggerForm';
@@ -6,6 +7,8 @@ import SolarTriggerForm from './SolarTriggerForm';
 import MoonPhaseTriggerForm from './MoonPhaseTriggerForm';
 import FixedTimeTriggerForm from './FixedTimeTriggerForm';
 import SensorTriggerForm from './SensorTriggerForm';
+import ExpertModeToggle from '../ExpertMode/ExpertModeToggle';
+import CronExpressionInput from '../ExpertMode/CronExpressionInput';
 
 /**
  * TriggerForm Component
@@ -41,6 +44,53 @@ const TriggerForm = ({
   const triggerType = value.trigger_type || 'interval';
 
   /**
+   * Expert mode state - true if trigger_type is 'cron'
+   */
+  const [expertMode, setExpertMode] = useState(triggerType === 'cron' ? 'expert' : 'visual');
+
+  /**
+   * Store previous trigger type for switching back from expert mode
+   */
+  const [previousTriggerType, setPreviousTriggerType] = useState(
+    triggerType === 'cron' ? 'interval' : triggerType
+  );
+
+  /**
+   * Sync expert mode when trigger_type changes externally
+   */
+  useEffect(() => {
+    if (triggerType === 'cron') {
+      setExpertMode('expert');
+    } else {
+      setExpertMode('visual');
+      setPreviousTriggerType(triggerType);
+    }
+  }, [triggerType]);
+
+  /**
+   * Handle expert mode toggle
+   */
+  const handleExpertModeChange = (newMode) => {
+    setExpertMode(newMode);
+
+    if (newMode === 'expert') {
+      // Switch to cron trigger type
+      const defaults = TRIGGER_DEFAULTS.cron;
+      onChange({
+        ...defaults,
+        trigger_type: 'cron',
+      });
+    } else {
+      // Switch back to previous trigger type
+      const defaults = TRIGGER_DEFAULTS[previousTriggerType] || TRIGGER_DEFAULTS.interval;
+      onChange({
+        ...defaults,
+        trigger_type: previousTriggerType,
+      });
+    }
+  };
+
+  /**
    * Handle trigger type change
    * Resets the value to defaults for the new trigger type
    */
@@ -51,6 +101,7 @@ const TriggerForm = ({
       ...defaults,
       trigger_type: newType,
     });
+    setPreviousTriggerType(newType);
   };
 
   /**
@@ -61,6 +112,17 @@ const TriggerForm = ({
     onChange({
       ...newValue,
       trigger_type: triggerType,
+    });
+  };
+
+  /**
+   * Handle cron expression change
+   */
+  const handleCronExpressionChange = (newExpression) => {
+    onChange({
+      ...value,
+      trigger_type: 'cron',
+      cron_expression: newExpression,
     });
   };
 
@@ -105,42 +167,78 @@ const TriggerForm = ({
         Trigger Configuration
       </h3>
 
-      {/* Trigger Type Selector */}
+      {/* Expert Mode Toggle */}
       <div>
-        <label
-          htmlFor="trigger_type"
-          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-        >
-          Trigger Type:
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Mode:
         </label>
-        <select
-          id="trigger_type"
-          value={triggerType}
-          onChange={(e) => handleTriggerTypeChange(e.target.value)}
-          disabled={disabled}
-          className="w-full rounded-md border border-gray-300 dark:border-gray-600
-                   bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
-                   focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                   disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="Trigger type"
-        >
-          {Object.values(TRIGGER_TYPES).map((type) => (
-            <option key={type.value} value={type.value}>
-              {type.label}
-            </option>
-          ))}
-        </select>
-        {/* Type Description */}
-        <p className="mt-2 text-sm text-gray-500 dark:text-gray-300">
-          {getDescription()}
+        <ExpertModeToggle
+          mode={expertMode}
+          onChange={handleExpertModeChange}
+        />
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          {expertMode === 'expert'
+            ? 'Expert mode allows you to enter a raw cron expression for maximum flexibility.'
+            : 'Visual mode provides an intuitive interface for common scheduling patterns.'
+          }
         </p>
       </div>
 
-      {/* Divider */}
-      <div className="border-t border-gray-200 dark:border-gray-700" />
+      {expertMode === 'expert' ? (
+        /* Expert Mode: Cron Expression Input */
+        <>
+          {/* Divider */}
+          <div className="border-t border-gray-200 dark:border-gray-700" />
 
-      {/* Specific Trigger Form */}
-      {renderTriggerForm()}
+          <CronExpressionInput
+            value={value.cron_expression || '0 21 * * *'}
+            onChange={handleCronExpressionChange}
+            disabled={disabled}
+          />
+        </>
+      ) : (
+        /* Visual Mode: Standard Trigger Forms */
+        <>
+          {/* Trigger Type Selector */}
+          <div>
+            <label
+              htmlFor="trigger_type"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            >
+              Trigger Type:
+            </label>
+            <select
+              id="trigger_type"
+              value={triggerType}
+              onChange={(e) => handleTriggerTypeChange(e.target.value)}
+              disabled={disabled}
+              className="w-full rounded-md border border-gray-300 dark:border-gray-600
+                       bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
+                       focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                       disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Trigger type"
+            >
+              {Object.values(TRIGGER_TYPES)
+                .filter((type) => type.value !== 'cron')
+                .map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+            </select>
+            {/* Type Description */}
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-300">
+              {getDescription()}
+            </p>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-gray-200 dark:border-gray-700" />
+
+          {/* Specific Trigger Form */}
+          {renderTriggerForm()}
+        </>
+      )}
     </div>
   );
 };
@@ -148,7 +246,7 @@ const TriggerForm = ({
 TriggerForm.propTypes = {
   /** Trigger configuration with type-specific fields. Type determines which fields are active. */
   value: PropTypes.shape({
-    trigger_type: PropTypes.oneOf(['interval', 'solar', 'moon_phase', 'fixed_time', 'sensor']).isRequired,
+    trigger_type: PropTypes.oneOf(['interval', 'solar', 'moon_phase', 'fixed_time', 'sensor', 'cron']).isRequired,
     // Interval trigger fields
     interval_minutes: PropTypes.number,
     time_window: TimeWindowPropType,
@@ -166,6 +264,8 @@ TriggerForm.propTypes = {
     comparison: PropTypes.string,
     threshold: PropTypes.number,
     cooldown_minutes: PropTypes.number,
+    // Cron trigger fields
+    cron_expression: PropTypes.string,
     // Common fields
     days_of_week: PropTypes.arrayOf(PropTypes.number),
   }),

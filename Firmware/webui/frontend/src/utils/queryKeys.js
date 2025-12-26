@@ -80,4 +80,7 @@ export const QUERY_KEYS = {
   SCHEDULE_PREVIEW: (id) => ['schedules', id, 'preview'],
   BUILTIN_SCHEDULES: ['schedules', 'builtin'],
   BUILTIN_PATTERNS: ['schedules', 'patterns', 'builtin'],
+
+  // Cron Validation (Issue #233)
+  CRON_VALIDATION: (expression) => ['cron-validation', expression],
 }

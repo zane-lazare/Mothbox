@@ -82,6 +82,42 @@ vi.mock('../SensorTriggerForm', () => ({
   ),
 }));
 
+// Mock ExpertModeToggle
+vi.mock('../../ExpertMode/ExpertModeToggle', () => ({
+  default: ({ mode, onChange }) => (
+    <div data-testid="expert-mode-toggle">
+      <button
+        data-testid="toggle-visual"
+        onClick={() => onChange('visual')}
+        aria-pressed={mode === 'visual'}
+      >
+        Visual
+      </button>
+      <button
+        data-testid="toggle-expert"
+        onClick={() => onChange('expert')}
+        aria-pressed={mode === 'expert'}
+      >
+        Expert
+      </button>
+    </div>
+  ),
+}));
+
+// Mock CronExpressionInput
+vi.mock('../../ExpertMode/CronExpressionInput', () => ({
+  default: ({ value, onChange, disabled }) => (
+    <div data-testid="cron-expression-input">
+      <input
+        data-testid="cron-input"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+      />
+    </div>
+  ),
+}));
+
 describe('TriggerForm', () => {
   let mockOnChange;
 
@@ -96,15 +132,21 @@ describe('TriggerForm', () => {
       expect(screen.getByLabelText(/trigger type/i)).toBeInTheDocument();
     });
 
-    it('renders all trigger type options', () => {
+    it('renders all trigger type options except cron in visual mode', () => {
       render(<TriggerForm onChange={mockOnChange} />);
 
       const select = screen.getByLabelText(/trigger type/i);
       const options = Array.from(select.options).map((opt) => opt.value);
 
-      Object.keys(TRIGGER_TYPES).forEach((type) => {
-        expect(options).toContain(type);
-      });
+      // All trigger types except 'cron' should be in the select in visual mode
+      Object.keys(TRIGGER_TYPES)
+        .filter((type) => type !== 'cron')
+        .forEach((type) => {
+          expect(options).toContain(type);
+        });
+
+      // Cron should NOT be in the select in visual mode
+      expect(options).not.toContain('cron');
     });
 
     it('renders with default interval trigger type', () => {
@@ -461,6 +503,114 @@ describe('TriggerForm', () => {
           offset_minutes: expect.any(Number),
         })
       );
+    });
+  });
+
+  describe('Expert Mode (Issue #233)', () => {
+    it('renders expert mode toggle', () => {
+      render(<TriggerForm onChange={mockOnChange} />);
+
+      expect(screen.getByTestId('expert-mode-toggle')).toBeInTheDocument();
+    });
+
+    it('switches to cron input when expert mode enabled', () => {
+      render(<TriggerForm onChange={mockOnChange} />);
+
+      // Initially in visual mode
+      expect(screen.getByTestId('interval-trigger-form')).toBeInTheDocument();
+      expect(screen.queryByTestId('cron-expression-input')).not.toBeInTheDocument();
+
+      // Switch to expert mode
+      const expertButton = screen.getByTestId('toggle-expert');
+      fireEvent.click(expertButton);
+
+      // Should show cron input and hide trigger forms
+      expect(screen.getByTestId('cron-expression-input')).toBeInTheDocument();
+      expect(screen.queryByTestId('interval-trigger-form')).not.toBeInTheDocument();
+    });
+
+    it('preserves cron expression in trigger value', () => {
+      const value = {
+        trigger_type: 'cron',
+        cron_expression: '*/5 * * * *',
+      };
+
+      render(<TriggerForm value={value} onChange={mockOnChange} />);
+
+      const cronInput = screen.getByTestId('cron-input');
+      expect(cronInput).toHaveValue('*/5 * * * *');
+    });
+
+    it('syncs expert mode with trigger_type cron', () => {
+      const value = {
+        trigger_type: 'cron',
+        cron_expression: '0 21 * * *',
+      };
+
+      render(<TriggerForm value={value} onChange={mockOnChange} />);
+
+      // Should be in expert mode
+      const expertButton = screen.getByTestId('toggle-expert');
+      expect(expertButton).toHaveAttribute('aria-pressed', 'true');
+
+      // Should show cron input
+      expect(screen.getByTestId('cron-expression-input')).toBeInTheDocument();
+    });
+
+    it('calls onChange with cron_expression when changed', () => {
+      const value = {
+        trigger_type: 'cron',
+        cron_expression: '0 21 * * *',
+      };
+
+      render(<TriggerForm value={value} onChange={mockOnChange} />);
+
+      const cronInput = screen.getByTestId('cron-input');
+      fireEvent.change(cronInput, { target: { value: '0 */2 * * *' } });
+
+      expect(mockOnChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          trigger_type: 'cron',
+          cron_expression: '0 */2 * * *',
+        })
+      );
+    });
+
+    it('switches back to visual mode when clicking visual button', () => {
+      const value = {
+        trigger_type: 'cron',
+        cron_expression: '0 21 * * *',
+      };
+
+      render(<TriggerForm value={value} onChange={mockOnChange} />);
+
+      // Initially in expert mode
+      expect(screen.getByTestId('cron-expression-input')).toBeInTheDocument();
+
+      // Switch to visual mode
+      const visualButton = screen.getByTestId('toggle-visual');
+      fireEvent.click(visualButton);
+
+      // Should call onChange with interval defaults
+      expect(mockOnChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          trigger_type: 'interval',
+        })
+      );
+    });
+
+    it('hides trigger type selector in expert mode', () => {
+      render(<TriggerForm onChange={mockOnChange} />);
+
+      // Initially shows trigger type selector
+      expect(screen.getByLabelText(/trigger type/i)).toBeInTheDocument();
+
+      // Switch to expert mode
+      const expertButton = screen.getByTestId('toggle-expert');
+      fireEvent.click(expertButton);
+
+      // Should hide trigger type selector
+      expect(screen.queryByLabelText(/trigger type/i)).not.toBeInTheDocument();
     });
   });
 });

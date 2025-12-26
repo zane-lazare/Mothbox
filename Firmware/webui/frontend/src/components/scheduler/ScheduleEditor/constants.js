@@ -63,6 +63,12 @@ export const TRIGGER_TYPES = {
     icon: 'BoltIcon',
     description: 'Trigger based on sensor readings',
   },
+  cron: {
+    value: 'cron',
+    label: 'Expert Mode (Cron)',
+    icon: 'CodeBracketIcon',
+    description: 'Advanced cron expression for custom scheduling',
+  },
 }
 
 /**
@@ -245,6 +251,10 @@ export const TRIGGER_DEFAULTS = {
     comparison: 'lt',
     threshold: 100,
     cooldown_minutes: 5,
+  },
+  cron: {
+    trigger_type: 'cron',
+    cron_expression: '0 21 * * *',
   },
 }
 

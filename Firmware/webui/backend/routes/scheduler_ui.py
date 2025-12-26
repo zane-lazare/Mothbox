@@ -16,6 +16,7 @@ Issue #218 - Schedule Pattern API
 import json
 import logging
 import threading
+from datetime import datetime
 from functools import wraps
 from pathlib import Path
 
@@ -23,6 +24,11 @@ from flask import Blueprint, Response, jsonify, request
 from werkzeug.exceptions import BadRequest
 
 from webui.backend.constants import MAX_BUILTIN_SCHEDULE_FILES
+from webui.backend.lib.cron_bridge import (
+    CronEntry,
+    calculate_next_waketime,
+    cron_to_human_readable,
+)
 from webui.backend.lib.schedule_preview import (
     DEFAULT_PREVIEW_DAYS,
     generate_preview,
@@ -1234,6 +1240,148 @@ def validate_pattern_endpoint() -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error validating pattern: {e}", exc_info=True)
+        return jsonify(
+            {
+                "valid": False,
+                "error": "Internal server error during validation",
+            }
+        ), 500
+
+
+# ============================================================================
+# Cron Validation Endpoint (Issue #233 - Phase 1)
+# ============================================================================
+
+
+@scheduler_ui_bp.route("/cron/validate", methods=["POST"])
+@limiter.limit("30 per minute")
+@require_json
+def validate_cron_expression(json_data: dict) -> tuple[Response, int]:
+    """
+    Validate a cron expression and preview next executions.
+
+    POST /api/scheduler/ui/cron/validate
+
+    Request Body:
+    {
+        "expression": "*/5 * * * *",  // required, max 100 chars
+        "count": 5                    // optional, 1-20 (default: 5)
+    }
+
+    Returns:
+        200 OK: {
+            "valid": true,
+            "expression": "*/5 * * * *",
+            "next_executions": ["2025-12-26T10:05:00", ...],
+            "human_readable": "Every 5 minutes"
+        }
+        400 Bad Request: {
+            "valid": false,
+            "error": "Invalid cron expression: ..."
+        }
+    """
+    try:
+        # Extract and validate expression field
+        expression = json_data.get("expression")
+
+        if expression is None:
+            return jsonify(
+                {
+                    "valid": False,
+                    "error": "Missing required field: expression",
+                }
+            ), 400
+
+        # Type validation
+        if not isinstance(expression, str):
+            return jsonify(
+                {
+                    "valid": False,
+                    "error": "Expression must be a string",
+                }
+            ), 400
+
+        # Empty string check
+        if not expression or not expression.strip():
+            return jsonify(
+                {
+                    "valid": False,
+                    "error": "Expression cannot be empty",
+                }
+            ), 400
+
+        # Length validation (security check)
+        if len(expression) > 100:
+            return jsonify(
+                {
+                    "valid": False,
+                    "error": "Expression too long (max 100 characters)",
+                }
+            ), 400
+
+        # Get count parameter (default 5, range 1-20)
+        count = json_data.get("count", 5)
+
+        # Validate count type
+        if not isinstance(count, int):
+            return jsonify(
+                {
+                    "valid": False,
+                    "error": "Count must be an integer",
+                }
+            ), 400
+
+        # Validate count range
+        if count < 1 or count > 20:
+            return jsonify(
+                {
+                    "valid": False,
+                    "error": "Count must be between 1 and 20",
+                }
+            ), 400
+
+        # Validate cron expression syntax
+        if not CronEntry.is_valid_expression(expression):
+            return jsonify(
+                {
+                    "valid": False,
+                    "error": "Invalid cron expression syntax",
+                }
+            ), 400
+
+        # Calculate next execution times
+        next_executions = []
+        current_time = datetime.now()
+
+        try:
+            for _ in range(count):
+                next_time = calculate_next_waketime(expression, current_time)
+                next_executions.append(datetime.fromtimestamp(next_time).isoformat())
+                # Advance time by 1 second to get next occurrence
+                current_time = datetime.fromtimestamp(next_time + 1)
+        except ValueError as e:
+            logger.debug(f"Failed to calculate next execution times: {e}")
+            return jsonify(
+                {
+                    "valid": False,
+                    "error": "Invalid cron expression: cannot calculate execution times",
+                }
+            ), 400
+
+        # Get human-readable description
+        human_readable = cron_to_human_readable(expression)
+
+        return jsonify(
+            {
+                "valid": True,
+                "expression": expression,
+                "next_executions": next_executions,
+                "human_readable": human_readable,
+            }
+        ), 200
+
+    except Exception as e:
+        logger.error(f"Error validating cron expression: {e}", exc_info=True)
         return jsonify(
             {
                 "valid": False,
