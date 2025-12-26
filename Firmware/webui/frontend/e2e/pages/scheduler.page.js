@@ -65,8 +65,8 @@ export class SchedulerPage {
       weekViewButton: 'button:has-text("Week")',
       monthViewButton: 'button:has-text("Month")',
       todayButton: 'button:has-text("Today")',
-      prevButton: 'button[aria-label*="Previous"], button[aria-label*="Prev"]',
-      nextButton: 'button[aria-label*="Next"]',
+      prevButton: '[data-testid="calendar-nav-previous"], button[aria-label="Previous"]',
+      nextButton: '[data-testid="calendar-nav-next"], button[aria-label="Next"]',
       emptyCalendarState: 'text=No schedule selected',
       calendarDateDisplay: '#calendar-panel header, #calendar-panel h2, #calendar-panel [class*="header"]',
 
@@ -488,14 +488,7 @@ export class SchedulerPage {
    * Click Previous navigation button
    */
   async clickPrevious() {
-    // Find any button that looks like a previous navigation
-    const prevButton = this.page.locator('button').filter({ has: this.page.locator('[class*="chevron-left"], [class*="ChevronLeft"], svg') }).first()
-    if (await prevButton.isVisible()) {
-      await prevButton.click()
-    } else {
-      // Fallback to aria-label pattern
-      await this.page.locator(this.selectors.prevButton).first().click()
-    }
+    await this.page.click(this.selectors.prevButton)
     await this.page.waitForLoadState('networkidle')
   }
 
@@ -503,12 +496,7 @@ export class SchedulerPage {
    * Click Next navigation button
    */
   async clickNext() {
-    const nextButton = this.page.locator('button').filter({ has: this.page.locator('[class*="chevron-right"], [class*="ChevronRight"], svg') }).last()
-    if (await nextButton.isVisible()) {
-      await nextButton.click()
-    } else {
-      await this.page.locator(this.selectors.nextButton).first().click()
-    }
+    await this.page.click(this.selectors.nextButton)
     await this.page.waitForLoadState('networkidle')
   }
 

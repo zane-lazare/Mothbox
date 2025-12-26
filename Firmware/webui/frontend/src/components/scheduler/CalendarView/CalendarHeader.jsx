@@ -58,6 +58,7 @@ export default function CalendarHeader({
             onClick={() => onNavigate('prev')}
             className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
             aria-label="Previous"
+            data-testid="calendar-nav-previous"
             type="button"
           >
             <ChevronLeftIcon className="h-5 w-5" />
@@ -75,6 +76,7 @@ export default function CalendarHeader({
             onClick={() => onNavigate('next')}
             className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
             aria-label="Next"
+            data-testid="calendar-nav-next"
             type="button"
           >
             <ChevronRightIcon className="h-5 w-5" />
