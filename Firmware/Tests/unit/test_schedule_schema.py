@@ -58,6 +58,7 @@ try:
         validate_pattern_action,
         validate_schedule,
         validate_sensor_trigger,
+        validate_cron_trigger,
         validate_solar_trigger,
         validate_time_window,
     )
@@ -1164,6 +1165,45 @@ class TestCronTrigger:
     def test_cron_in_trigger_types(self):
         """'cron' is included in TRIGGER_TYPES constant."""
         assert "cron" in TRIGGER_TYPES
+
+
+class TestValidateCronTrigger:
+    """Tests for validate_cron_trigger function."""
+
+    def test_validate_cron_trigger_valid_expression(self):
+        """Valid cron expression passes validation."""
+        trigger = CronTrigger(cron_expression="0 21 * * *")
+        valid, error = validate_cron_trigger(trigger)
+        assert valid is True
+        assert error is None
+
+    def test_validate_cron_trigger_empty_string_returns_error(self):
+        """Empty string cron expression fails validation."""
+        trigger = CronTrigger(cron_expression="")
+        valid, error = validate_cron_trigger(trigger)
+        assert valid is False
+        assert "empty" in error.lower()
+
+    def test_validate_cron_trigger_whitespace_only_returns_error(self):
+        """Whitespace-only cron expression fails validation."""
+        trigger = CronTrigger(cron_expression="   ")
+        valid, error = validate_cron_trigger(trigger)
+        assert valid is False
+        assert "empty" in error.lower()
+
+    def test_validate_cron_trigger_invalid_expression_returns_error(self):
+        """Invalid cron syntax fails validation."""
+        trigger = CronTrigger(cron_expression="not a cron")
+        valid, error = validate_cron_trigger(trigger)
+        assert valid is False
+        assert error is not None
+
+    def test_validate_cron_trigger_complex_expression(self):
+        """Complex cron expression validates correctly."""
+        trigger = CronTrigger(cron_expression="*/15 9-17 * * 1-5")
+        valid, error = validate_cron_trigger(trigger)
+        assert valid is True
+        assert error is None
 
 
 class TestScheduleWithCronTrigger:

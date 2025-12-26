@@ -1162,14 +1162,15 @@ def validate_cron_trigger(trigger: CronTrigger) -> tuple[bool, str | None]:
     Returns:
         (True, None) if valid, (False, error_message) if invalid
     """
+    # Explicit validation: cron_expression must not be empty
+    if not trigger.cron_expression or not trigger.cron_expression.strip():
+        return False, "Cron expression cannot be empty"
+
     # Import CronEntry here to avoid circular imports
     try:
         from webui.backend.lib.cron_bridge import CronEntry
     except ImportError:
         # If cron_bridge not available, do basic validation
-        if not trigger.cron_expression or not trigger.cron_expression.strip():
-            return False, "Cron expression is required"
-
         # Basic 5-field check
         fields = trigger.cron_expression.strip().split()
         if len(fields) != 5:
