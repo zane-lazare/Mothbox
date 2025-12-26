@@ -343,4 +343,95 @@ describe('useCronValidation', () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true))
     })
   })
+
+  describe('Error Message Normalization', () => {
+    it('should return null errorMessage for valid expression', async () => {
+      const mockResponse = {
+        valid: true,
+        expression: '0 * * * *',
+        description: 'At minute 0 of every hour',
+        next_executions: ['2024-12-26T14:00:00'],
+      }
+
+      cronApi.validateCronExpression.mockResolvedValue(mockResponse)
+
+      const { result } = renderHook(() => useCronValidation('0 * * * *'), { wrapper })
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+      expect(result.current.errorMessage).toBeNull()
+    })
+
+    it('should return validation error from API response', async () => {
+      const mockResponse = {
+        valid: false,
+        expression: 'invalid',
+        error: 'Invalid cron syntax: too few fields',
+      }
+
+      cronApi.validateCronExpression.mockResolvedValue(mockResponse)
+
+      const { result } = renderHook(() => useCronValidation('invalid'), { wrapper })
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+      expect(result.current.errorMessage).toBe('Invalid cron syntax: too few fields')
+    })
+
+    it('should return fallback message when API returns invalid without error', async () => {
+      const mockResponse = {
+        valid: false,
+        expression: 'bad',
+      }
+
+      cronApi.validateCronExpression.mockResolvedValue(mockResponse)
+
+      const { result } = renderHook(() => useCronValidation('bad'), { wrapper })
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+      expect(result.current.errorMessage).toBe('Invalid cron expression')
+    })
+
+    it('should return network error message on request failure', async () => {
+      const networkError = new Error('Network Error')
+
+      cronApi.validateCronExpression.mockRejectedValue(networkError)
+
+      const { result } = renderHook(() => useCronValidation('0 * * * *'), { wrapper })
+
+      await waitFor(() => expect(result.current.isError).toBe(true))
+
+      expect(result.current.errorMessage).toBe('Validation failed: Network Error')
+    })
+
+    it('should extract server error from response data', async () => {
+      const serverError = new Error('Request failed')
+      serverError.response = {
+        data: {
+          error: 'Server validation failed',
+        },
+      }
+
+      cronApi.validateCronExpression.mockRejectedValue(serverError)
+
+      const { result } = renderHook(() => useCronValidation('0 * * * *'), { wrapper })
+
+      await waitFor(() => expect(result.current.isError).toBe(true))
+
+      expect(result.current.errorMessage).toBe('Server validation failed')
+    })
+
+    it('should return generic message when no error details available', async () => {
+      const unknownError = {}
+
+      cronApi.validateCronExpression.mockRejectedValue(unknownError)
+
+      const { result } = renderHook(() => useCronValidation('0 * * * *'), { wrapper })
+
+      await waitFor(() => expect(result.current.isError).toBe(true))
+
+      expect(result.current.errorMessage).toBe('Unable to validate expression. Please try again.')
+    })
+  })
 })

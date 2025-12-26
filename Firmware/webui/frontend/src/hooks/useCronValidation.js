@@ -53,7 +53,7 @@ const STALE_TIME_MS = 60 * 1000
  * @param {Object} [options] - Hook options
  * @param {number} [options.count=5] - Number of next execution times to fetch
  * @param {Object} [options.queryOptions] - Additional React Query options
- * @returns {Object} React Query result
+ * @returns {Object} React Query result with additional errorMessage property
  * @returns {Object} data - Validation result
  * @returns {boolean} data.valid - Whether expression is valid
  * @returns {string} data.expression - The validated expression
@@ -63,10 +63,14 @@ const STALE_TIME_MS = 60 * 1000
  * @returns {boolean} isLoading - Whether query is loading
  * @returns {boolean} isError - Whether query failed
  * @returns {Object} error - Error object if query failed
+ * @returns {string|null} errorMessage - Normalized error message for UI display
  *
  * @example
- * // Basic usage
- * const { data, isLoading } = useCronValidation(expression)
+ * // Basic usage with normalized error message
+ * const { data, isLoading, errorMessage } = useCronValidation(expression)
+ * if (errorMessage) {
+ *   showError(errorMessage)
+ * }
  *
  * @example
  * // With custom count and options
@@ -89,13 +93,34 @@ export function useCronValidation(expression, options = {}) {
     return () => clearTimeout(timer)
   }, [expression])
 
-  return useQuery({
+  const query = useQuery({
     queryKey: QUERY_KEYS.CRON_VALIDATION(debouncedExpression),
     queryFn: () => validateCronExpression(debouncedExpression, count),
     enabled: Boolean(debouncedExpression?.trim()),
     staleTime: STALE_TIME_MS,
     ...queryOptions,
   })
+
+  // Normalize error messages for consistent UX
+  const getErrorMessage = () => {
+    if (query.isError) {
+      // Network/server error
+      const serverError = query.error?.response?.data?.error
+      if (serverError) return serverError
+      if (query.error?.message) return `Validation failed: ${query.error.message}`
+      return 'Unable to validate expression. Please try again.'
+    }
+    if (query.data?.valid === false) {
+      // Validation error from API
+      return query.data.error || 'Invalid cron expression'
+    }
+    return null
+  }
+
+  return {
+    ...query,
+    errorMessage: getErrorMessage(),
+  }
 }
 
 export default useCronValidation

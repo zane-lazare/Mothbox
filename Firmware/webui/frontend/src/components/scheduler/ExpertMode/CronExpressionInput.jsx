@@ -28,7 +28,7 @@ import { CRON_PRESETS, CRON_HELP } from './constants'
  */
 const CronExpressionInput = ({ value = '', onChange, disabled = false }) => {
   // Validate the expression with debouncing
-  const { data: validation, isLoading } = useCronValidation(value)
+  const { data: validation, isLoading, errorMessage } = useCronValidation(value)
 
   /**
    * Handle input change
@@ -209,7 +209,7 @@ const CronExpressionInput = ({ value = '', onChange, disabled = false }) => {
             </div>
           ) : (
             <p className="text-sm text-red-600 dark:text-red-400">
-              {validation.error || 'Invalid cron expression'}
+              {errorMessage}
             </p>
           )}
         </div>
