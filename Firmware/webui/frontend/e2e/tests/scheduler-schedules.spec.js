@@ -270,33 +270,21 @@ test.describe('Scheduler Schedules', () => {
     // Fill description (optional)
     await scheduler.fillScheduleDescription('E2E test schedule - can be deleted')
 
-    // Note: Full creation requires selecting an event pattern
-    // For basic testing, just verify the form interaction
-    // The Save may fail validation if pattern is required
+    // Select an event pattern (required)
+    const patternSelected = await scheduler.selectFirstEventPattern()
+    expect(patternSelected, 'Event patterns should be available in library').toBeTruthy()
 
-    // Try to save - this tests the form submission flow
+    // Save the schedule
     await scheduler.clickSave()
 
-    // Wait a moment for any response
+    // Wait for save to complete
     await page.waitForTimeout(1000)
 
-    // If editor is still open, there might be a validation error
-    // or pattern selection is required - this is expected behavior
-    if (await scheduler.isEditorOpen()) {
-      // Editor still open means validation might have failed
-      // Check for error messages
-      const hasError = await page.locator('text=required, text=error').first().isVisible().catch(() => false)
+    // Verify save succeeded (editor should close)
+    const editorStillOpen = await scheduler.isEditorOpen()
+    expect(editorStillOpen, 'Editor should close after successful save').toBeFalsy()
 
-      // Close editor and skip test with explanation
-      await scheduler.clickCancel()
-
-      if (hasError) {
-        test.skip(true, 'Schedule creation requires event pattern selection')
-      }
-      return
-    }
-
-    // If we got here, schedule was created
+    // Verify schedule was created
     const finalCount = await scheduler.getScheduleCount()
     expect(finalCount).toBeGreaterThanOrEqual(initialCount)
 
@@ -320,23 +308,21 @@ test.describe('Scheduler Schedules', () => {
     await scheduler.fillScheduleName(testName)
     await scheduler.fillScheduleDescription('E2E CRUD test')
 
-    // Attempt save
+    // Select an event pattern (required)
+    const patternSelected = await scheduler.selectFirstEventPattern()
+    expect(patternSelected, 'Event patterns should be available in library').toBeTruthy()
+
+    // Save
     await scheduler.clickSave()
     await page.waitForTimeout(1000)
 
-    // If editor still open, skip (pattern required)
-    if (await scheduler.isEditorOpen()) {
-      await scheduler.clickCancel()
-      test.skip(true, 'Schedule creation requires event pattern selection')
-      return
-    }
+    // Verify save succeeded (editor should close)
+    const editorStillOpen = await scheduler.isEditorOpen()
+    expect(editorStillOpen, 'Editor should close after successful save').toBeFalsy()
 
     // Verify creation
-    let scheduleExists = await scheduler.hasScheduleWithName(testName)
-    if (!scheduleExists) {
-      test.skip(true, 'Failed to create test schedule')
-      return
-    }
+    const scheduleExists = await scheduler.hasScheduleWithName(testName)
+    expect(scheduleExists, 'Schedule should appear in list after creation').toBeTruthy()
 
     // Edit schedule
     const card = scheduler.getScheduleCardByName(testName)

@@ -77,6 +77,11 @@ export class SchedulerPage {
       // Toast notifications
       toastSuccess: '.toast-success, [class*="toast"]:has-text("success")',
       toastError: '.toast-error, [class*="toast"]:has-text("error"), [class*="toast"]:has-text("fail")',
+
+      // Event Pattern Selection
+      patternTabLibrary: '[data-testid="pattern-tab-library"], button[role="tab"]:has-text("Library")',
+      patternTabCustom: '[data-testid="pattern-tab-custom"], button[role="tab"]:has-text("Custom")',
+      patternCard: '[role="article"][aria-label^="Pattern:"]',
     }
   }
 
@@ -398,6 +403,37 @@ export class SchedulerPage {
       await this.page.keyboard.press('Escape')
     }
     await this.waitForEditorClose()
+  }
+
+  // ============================================================
+  // Event Pattern Selection
+  // ============================================================
+
+  /**
+   * Select the first available event pattern from the library
+   * @returns {Promise<boolean>} True if a pattern was selected
+   */
+  async selectFirstEventPattern() {
+    // Wait for patterns to load
+    const patternCard = this.page.locator(this.selectors.patternCard).first()
+    try {
+      await patternCard.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
+      await patternCard.click()
+      return true
+    } catch {
+      // No patterns available
+      return false
+    }
+  }
+
+  /**
+   * Check if an event pattern is currently selected
+   * @returns {Promise<boolean>}
+   */
+  async isEventPatternSelected() {
+    // Look for the pattern summary showing a selected pattern name
+    const summary = this.page.locator('[data-testid="schedule-editor-drawer"] .bg-gray-50 .font-medium')
+    return summary.isVisible()
   }
 
   // ============================================================
