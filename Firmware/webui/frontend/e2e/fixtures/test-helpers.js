@@ -9,6 +9,10 @@
  * These values account for network latency to remote Pi server
  */
 export const TIMEOUTS = {
+  /** Very short delay for UI transitions and animations */
+  TRANSITION: 500,
+  /** Short delay for save operations to complete */
+  SAVE: 1000,
   /** Short timeout for optional/fast elements (e.g., spinners that may not appear) */
   SHORT: 2000,
   /** Medium timeout for UI transitions and state changes */

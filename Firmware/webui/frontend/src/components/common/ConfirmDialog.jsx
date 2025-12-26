@@ -117,6 +117,7 @@ export default function ConfirmDialog({
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
         aria-describedby="confirm-dialog-message"
+        data-testid="confirm-dialog"
         className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl
                    w-full max-w-md p-6 mx-4"
         onClick={(e) => e.stopPropagation()}
@@ -153,6 +154,7 @@ export default function ConfirmDialog({
             type="button"
             onClick={onClose}
             disabled={isLoading}
+            data-testid="confirm-dialog-cancel"
             className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                        hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100
                        disabled:opacity-50 disabled:cursor-not-allowed"
@@ -164,6 +166,7 @@ export default function ConfirmDialog({
             type="button"
             onClick={handleConfirm}
             disabled={isLoading}
+            data-testid="confirm-dialog-confirm"
             className={`flex-1 px-4 py-2 rounded-md font-medium
                        disabled:opacity-50 disabled:cursor-not-allowed ${styles.confirmButton}`}
           >

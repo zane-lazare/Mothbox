@@ -57,6 +57,7 @@ function PatternCard({ pattern, onClick, onSelect, isSelected = false }) {
     <article
       role="article"
       tabIndex={0}
+      data-testid={`pattern-card-${pattern.pattern_id}`}
       className={`
         bg-white dark:bg-gray-800
         border dark:border-gray-700
