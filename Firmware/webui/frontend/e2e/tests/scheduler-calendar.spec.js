@@ -139,62 +139,44 @@ test.describe('Scheduler Calendar View', () => {
 
   test('navigate to previous period', async ({ page }) => {
     const scheduler = new SchedulerPage(page)
-
-    // Switch to calendar tab
     await scheduler.switchToCalendarTab()
 
-    // Try to find a previous button by position or icon
-    const calendarNav = page.locator('#calendar-panel button').first()
-    if (await calendarNav.isVisible()) {
-      await calendarNav.click()
-      await page.waitForLoadState('networkidle')
-    }
+    const beforeDate = await scheduler.getCalendarDateDisplay()
+    await scheduler.clickPrevious()
+    const afterDate = await scheduler.getCalendarDateDisplay()
 
-    // Verify navigation buttons still work after click
-    const todayButton = page.locator('button:has-text("Today")')
-    await expect(todayButton).toBeVisible()
+    expect(beforeDate).not.toBe(afterDate)
   })
 
   test('navigate to next period', async ({ page }) => {
     const scheduler = new SchedulerPage(page)
-
-    // Switch to calendar tab
     await scheduler.switchToCalendarTab()
 
-    // Find navigation buttons - typically last buttons in header
-    const navButtons = page.locator('#calendar-panel button')
-    const count = await navButtons.count()
+    const beforeDate = await scheduler.getCalendarDateDisplay()
+    await scheduler.clickNext()
+    const afterDate = await scheduler.getCalendarDateDisplay()
 
-    if (count >= 2) {
-      // Last button is typically "next"
-      await navButtons.last().click()
-      await page.waitForLoadState('networkidle')
-    }
+    expect(beforeDate).not.toBe(afterDate)
   })
 
   test('Today button returns to current date', async ({ page }) => {
     const scheduler = new SchedulerPage(page)
-
-    // Switch to calendar tab
     await scheduler.switchToCalendarTab()
 
-    // Navigate away first (if possible)
-    const navButtons = page.locator('#calendar-panel button')
-    const count = await navButtons.count()
-    if (count >= 2) {
-      // Click next a couple times
-      await navButtons.last().click()
-      await page.waitForTimeout(300)
-      await navButtons.last().click()
-      await page.waitForTimeout(300)
-    }
+    // Capture today's display
+    const todayDisplay = await scheduler.getCalendarDateDisplay()
 
-    // Click Today button
+    // Navigate away
+    await scheduler.clickNext()
+    await scheduler.clickNext()
+    const awayDisplay = await scheduler.getCalendarDateDisplay()
+    expect(todayDisplay).not.toBe(awayDisplay)
+
+    // Return to today
     await scheduler.clickToday()
+    const returnDisplay = await scheduler.getCalendarDateDisplay()
 
-    // Verify we're back to today (implementation-specific check)
-    const todayButton = page.locator('button:has-text("Today")')
-    await expect(todayButton).toBeVisible()
+    expect(returnDisplay).toBe(todayDisplay)
   })
 
   test('month view shows calendar grid', async ({ page }) => {

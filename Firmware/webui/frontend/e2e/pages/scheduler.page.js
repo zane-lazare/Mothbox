@@ -55,9 +55,9 @@ export class SchedulerPage {
       closeButton: 'button[aria-label="Close"]',
 
       // Delete Confirmation Dialog
-      confirmDialog: '[role="alertdialog"], [role="dialog"]:has-text("Delete")',
-      confirmDeleteButton: 'button:has-text("Confirm"), button:has-text("Delete"):not([role="dialog"] button:first-of-type)',
-      cancelDeleteButton: '[role="alertdialog"] button:has-text("Cancel"), [role="dialog"]:has-text("Delete") button:has-text("Cancel")',
+      confirmDialog: '[data-testid="confirm-dialog"], [role="alertdialog"], [role="dialog"]:has-text("Delete")',
+      confirmDeleteButton: '[data-testid="confirm-dialog-confirm"], button:has-text("Confirm")',
+      cancelDeleteButton: '[data-testid="confirm-dialog-cancel"], button:has-text("Cancel")',
 
       // Calendar View
       scheduleSelector: '#calendar-panel select',
