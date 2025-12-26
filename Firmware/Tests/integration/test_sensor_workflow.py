@@ -9,12 +9,13 @@ Tests end-to-end sensor workflows including:
 - Graceful fallback when sensors unavailable
 - Sensor service integration with scheduler
 
-Run with: MOTHBOX_ENV=test pytest Tests/integration/test_sensor_workflow.py -v -s
+Run mocked tests: MOTHBOX_ENV=test pytest Tests/integration/test_sensor_workflow.py -v
+Run hardware tests: pytest Tests/integration/test_sensor_workflow.py -v -m hardware
 
 These tests are marked as @pytest.mark.integration.
 Tests requiring real I2C hardware are marked with @pytest.mark.hardware.
 
-Test structure:
+Test structure (mocked - CI/CD compatible):
 - TestLightSensorWorkflow (3 tests)
 - TestTemperatureSensorWorkflow (3 tests)
 - TestPreconditionEvaluationWorkflow (4 tests)
@@ -22,7 +23,10 @@ Test structure:
 - TestEnvironmentalLoggingWorkflow (3 tests)
 - TestSensorServiceIntegration (2 tests)
 
-Total: 18 tests (exceeds 15+ requirement)
+Test structure (hardware - requires Raspberry Pi with I2C sensors):
+- TestSensorWorkflowHardware (5 tests)
+
+Total: 23 tests (18 mocked + 5 hardware)
 """
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -615,3 +619,217 @@ class TestSensorServiceIntegration:
         stats = sensor_service.get_statistics()
         assert stats["total_evaluations"] == total_evaluations
         assert stats["passed_count"] == total_evaluations
+
+
+# =============================================================================
+# TEST SENSOR WORKFLOW WITH REAL HARDWARE
+# =============================================================================
+
+
+@pytest.mark.hardware
+class TestSensorWorkflowHardware:
+    """
+    Integration tests requiring real I2C sensors on Raspberry Pi.
+
+    These tests verify end-to-end sensor workflow on actual hardware.
+    They are skipped in CI/CD and on non-Pi systems.
+
+    To run: pytest Tests/integration/test_sensor_workflow.py -v -m hardware
+    """
+
+    def test_precondition_service_with_real_light_sensor(self):
+        """
+        Full workflow: Real light sensor -> SensorService evaluation.
+
+        Tests that the service layer correctly integrates with real I2C hardware.
+        """
+        from webui.backend.lib.sensor_reader import read_light_sensor
+        from webui.backend.services.sensor_service import SensorService
+
+        # First check if sensor is available
+        reading = read_light_sensor()
+
+        if reading is None:
+            pytest.skip("Light sensor not available on this hardware")
+
+        # Create service and evaluate precondition
+        service = SensorService(max_history=10)
+
+        # Use current reading + buffer as threshold to ensure pass
+        threshold = reading + 50.0
+        preconditions = [
+            SensorPrecondition(
+                sensor_type="light",
+                threshold=threshold,
+                comparison="lt",
+                description="Current ambient light check",
+            )
+        ]
+
+        result = service.evaluate_preconditions(preconditions)
+
+        # Should pass since we set threshold above current reading
+        assert result is True
+
+        # Verify history was recorded
+        history = service.get_evaluation_history(limit=1)
+        assert len(history) == 1
+        assert history[0].passed is True
+        assert history[0].reading_value is not None
+        # Reading should be close to what we measured
+        assert abs(history[0].reading_value - reading) < 10.0  # Allow for variance
+
+    def test_precondition_service_with_real_temperature_sensor(self):
+        """
+        Full workflow: Real temperature sensor -> SensorService evaluation.
+
+        Tests that the service layer correctly integrates with real I2C hardware.
+        """
+        from webui.backend.lib.sensor_reader import read_temperature_sensor
+        from webui.backend.services.sensor_service import SensorService
+
+        # First check if sensor is available
+        reading = read_temperature_sensor()
+
+        if reading is None:
+            pytest.skip("Temperature sensor not available on this hardware")
+
+        # Create service and evaluate precondition
+        service = SensorService(max_history=10)
+
+        # Use current reading + buffer as threshold to ensure pass
+        threshold = reading + 10.0
+        preconditions = [
+            SensorPrecondition(
+                sensor_type="temperature",
+                threshold=threshold,
+                comparison="lte",
+                description="Current ambient temperature check",
+            )
+        ]
+
+        result = service.evaluate_preconditions(preconditions)
+
+        # Should pass since we set threshold above current reading
+        assert result is True
+
+        # Verify history was recorded
+        history = service.get_evaluation_history(limit=1)
+        assert len(history) == 1
+        assert history[0].passed is True
+
+    def test_multiple_preconditions_with_real_sensors(self):
+        """
+        Full workflow: Multiple real sensors -> combined precondition evaluation.
+
+        Tests AND logic with real sensor readings.
+        """
+        from webui.backend.lib.sensor_reader import (
+            read_light_sensor,
+            read_temperature_sensor,
+        )
+        from webui.backend.services.sensor_service import SensorService
+
+        light = read_light_sensor()
+        temp = read_temperature_sensor()
+
+        # Need at least one sensor for this test
+        if light is None and temp is None:
+            pytest.skip("No sensors available on this hardware")
+
+        service = SensorService(max_history=10)
+        preconditions = []
+
+        if light is not None:
+            preconditions.append(
+                SensorPrecondition(
+                    sensor_type="light",
+                    threshold=light + 100.0,
+                    comparison="lt",
+                )
+            )
+
+        if temp is not None:
+            preconditions.append(
+                SensorPrecondition(
+                    sensor_type="temperature",
+                    threshold=temp + 20.0,
+                    comparison="lte",
+                )
+            )
+
+        result = service.evaluate_preconditions(preconditions)
+
+        # Should pass since thresholds are set above current readings
+        assert result is True
+
+        # All preconditions should be in history
+        history = service.get_evaluation_history(limit=len(preconditions))
+        assert len(history) == len(preconditions)
+        assert all(h.passed for h in history)
+
+    def test_environmental_logging_workflow_real_hardware(self):
+        """
+        Full workflow: Real sensors -> environmental readings for photo metadata.
+
+        Tests that environmental data can be captured and formatted correctly.
+        """
+        from webui.backend.lib.sensor_reader import get_environmental_readings
+
+        readings = get_environmental_readings()
+
+        # Should always return a properly structured dict
+        assert isinstance(readings, dict)
+        assert "ambient_light_lux" in readings
+        assert "ambient_temperature_celsius" in readings
+        assert "sensor_reading_timestamp" in readings
+
+        # Timestamp should always be present and valid
+        timestamp = readings["sensor_reading_timestamp"]
+        assert timestamp is not None
+        datetime.fromisoformat(timestamp)
+
+        # If sensors are available, values should be reasonable
+        if readings["ambient_light_lux"] is not None:
+            assert 0 <= readings["ambient_light_lux"] <= 100000  # Reasonable lux range
+
+        if readings["ambient_temperature_celsius"] is not None:
+            assert -40 <= readings["ambient_temperature_celsius"] <= 85  # Sensor range
+
+    def test_service_statistics_with_real_hardware(self):
+        """
+        Full workflow: Real sensor evaluations -> accurate statistics tracking.
+
+        Tests that statistics are correctly maintained across real evaluations.
+        """
+        from webui.backend.lib.sensor_reader import read_light_sensor
+        from webui.backend.services.sensor_service import SensorService
+
+        reading = read_light_sensor()
+
+        if reading is None:
+            pytest.skip("Light sensor not available on this hardware")
+
+        service = SensorService(max_history=10)
+
+        # Do several evaluations with different thresholds
+        # Some should pass, some should fail
+        pass_threshold = reading + 50.0  # Should pass
+        fail_threshold = reading - 50.0 if reading > 50 else 0.1  # Should fail
+
+        # Evaluate passing condition
+        service.evaluate_preconditions(
+            [SensorPrecondition(sensor_type="light", threshold=pass_threshold, comparison="lt")]
+        )
+
+        # Evaluate failing condition
+        service.evaluate_preconditions(
+            [SensorPrecondition(sensor_type="light", threshold=fail_threshold, comparison="lt")]
+        )
+
+        stats = service.get_statistics()
+
+        assert stats["total_evaluations"] == 2
+        assert stats["passed_count"] == 1
+        assert stats["failed_count"] == 1
+        assert stats["unavailable_count"] == 0
