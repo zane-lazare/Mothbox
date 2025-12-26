@@ -128,13 +128,12 @@ test.describe('Scheduler Calendar View', () => {
 
     await scheduler.selectScheduleInCalendar(scheduleToSelect)
 
-    // If a schedule is selected, empty state should eventually be hidden
-    // Note: might take a moment to load calendar data
+    // Wait for calendar to update after selection
     await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
-    // Verify the selection worked - empty state may or may not be hidden
-    // depending on whether schedule has any executions to display
-    void (await scheduler.isEmptyCalendarStateVisible())
+    // Test verifies that schedule selection completes without error.
+    // We can't assert on empty state since it depends on whether the
+    // selected schedule has any executions to display.
   })
 
   test('navigate to previous period', async ({ page }) => {

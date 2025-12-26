@@ -164,7 +164,10 @@ const EventPatternSelector = ({
 
       {/* Selected Pattern Summary */}
       {activeTab === 'library' && (
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+        <div
+          className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4"
+          data-testid="selected-pattern-summary"
+        >
           {pattern ? (
             <div className="flex items-center justify-between">
               <div>

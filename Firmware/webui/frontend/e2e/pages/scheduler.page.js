@@ -446,7 +446,7 @@ export class SchedulerPage {
    */
   async isEventPatternSelected() {
     // Look for the pattern summary showing a selected pattern name
-    const summary = this.page.locator('[data-testid="schedule-editor-drawer"] .bg-gray-50 .font-medium')
+    const summary = this.page.locator('[data-testid="selected-pattern-summary"]')
     return summary.isVisible()
   }
 

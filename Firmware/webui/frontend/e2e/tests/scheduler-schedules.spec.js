@@ -261,38 +261,46 @@ test.describe('Scheduler Schedules', () => {
     const initialCount = await scheduler.getScheduleCount()
     const testName = scheduler.generateTestScheduleName()
 
-    // Open editor
-    await scheduler.clickNewSchedule()
+    try {
+      // Open editor
+      await scheduler.clickNewSchedule()
 
-    // Fill name
-    await scheduler.fillScheduleName(testName)
+      // Fill name
+      await scheduler.fillScheduleName(testName)
 
-    // Fill description (optional)
-    await scheduler.fillScheduleDescription('E2E test schedule - can be deleted')
+      // Fill description (optional)
+      await scheduler.fillScheduleDescription('E2E test schedule - can be deleted')
 
-    // Select an event pattern (required)
-    const patternSelected = await scheduler.selectFirstEventPattern()
-    expect(patternSelected, 'Event patterns should be available in library').toBeTruthy()
+      // Select an event pattern (required)
+      const patternSelected = await scheduler.selectFirstEventPattern()
+      expect(patternSelected, 'Event patterns should be available in library').toBeTruthy()
 
-    // Save the schedule
-    await scheduler.clickSave()
+      // Save the schedule
+      await scheduler.clickSave()
 
-    // Verify save succeeded (editor should close)
-    const editorStillOpen = await scheduler.isEditorOpen()
-    expect(editorStillOpen, 'Editor should close after successful save').toBeFalsy()
+      // Verify save succeeded (editor should close)
+      const editorStillOpen = await scheduler.isEditorOpen()
+      expect(editorStillOpen, 'Editor should close after successful save').toBeFalsy()
 
-    // Verify schedule was created
-    const finalCount = await scheduler.getScheduleCount()
-    expect(finalCount).toBeGreaterThanOrEqual(initialCount)
+      // Verify schedule was created
+      const finalCount = await scheduler.getScheduleCount()
+      expect(finalCount).toBeGreaterThanOrEqual(initialCount)
 
-    // Verify schedule appears in list
-    const scheduleExists = await scheduler.hasScheduleWithName(testName)
-    expect(scheduleExists).toBeTruthy()
-
-    // Cleanup: Delete the created schedule
-    await scheduler.clickDeleteOnScheduleByName(testName)
-    if (await scheduler.isConfirmDialogOpen()) {
-      await scheduler.confirmDelete()
+      // Verify schedule appears in list
+      const scheduleExists = await scheduler.hasScheduleWithName(testName)
+      expect(scheduleExists).toBeTruthy()
+    } finally {
+      // Guaranteed cleanup even if test fails
+      try {
+        if (await scheduler.hasScheduleWithName(testName)) {
+          await scheduler.clickDeleteOnScheduleByName(testName)
+          if (await scheduler.isConfirmDialogOpen()) {
+            await scheduler.confirmDelete()
+          }
+        }
+      } catch {
+        // Cleanup failure is acceptable
+      }
     }
   })
 
@@ -300,57 +308,75 @@ test.describe('Scheduler Schedules', () => {
     const testName = scheduler.generateTestScheduleName()
     const updatedName = `${testName}-updated`
 
-    // Create schedule
-    await scheduler.clickNewSchedule()
-    await scheduler.fillScheduleName(testName)
-    await scheduler.fillScheduleDescription('E2E CRUD test')
+    try {
+      // Create schedule
+      await scheduler.clickNewSchedule()
+      await scheduler.fillScheduleName(testName)
+      await scheduler.fillScheduleDescription('E2E CRUD test')
 
-    // Select an event pattern (required)
-    const patternSelected = await scheduler.selectFirstEventPattern()
-    expect(patternSelected, 'Event patterns should be available in library').toBeTruthy()
+      // Select an event pattern (required)
+      const patternSelected = await scheduler.selectFirstEventPattern()
+      expect(patternSelected, 'Event patterns should be available in library').toBeTruthy()
 
-    // Save
-    await scheduler.clickSave()
+      // Save
+      await scheduler.clickSave()
 
-    // Verify save succeeded (editor should close)
-    const editorStillOpen = await scheduler.isEditorOpen()
-    expect(editorStillOpen, 'Editor should close after successful save').toBeFalsy()
+      // Verify save succeeded (editor should close)
+      const editorStillOpen = await scheduler.isEditorOpen()
+      expect(editorStillOpen, 'Editor should close after successful save').toBeFalsy()
 
-    // Verify creation
-    const scheduleExists = await scheduler.hasScheduleWithName(testName)
-    expect(scheduleExists, 'Schedule should appear in list after creation').toBeTruthy()
+      // Verify creation
+      const scheduleExists = await scheduler.hasScheduleWithName(testName)
+      expect(scheduleExists, 'Schedule should appear in list after creation').toBeTruthy()
 
-    // Edit schedule
-    const card = scheduler.getScheduleCardByName(testName)
-    await card.locator('button:has-text("Edit")').click()
-    await scheduler.waitForEditorOpen()
+      // Edit schedule
+      const card = scheduler.getScheduleCardByName(testName)
+      await card.locator('button:has-text("Edit")').click()
+      await scheduler.waitForEditorOpen()
 
-    // Update name
-    await scheduler.fillScheduleName(updatedName)
-    await scheduler.clickSave()
+      // Update name
+      await scheduler.fillScheduleName(updatedName)
+      await scheduler.clickSave()
 
-    // If editor still open, close it
-    if (await scheduler.isEditorOpen()) {
-      await scheduler.clickCancel()
-    }
+      // If editor still open, close it
+      if (await scheduler.isEditorOpen()) {
+        await scheduler.clickCancel()
+      }
 
-    // Wait for update
-    await scheduler.waitForLoad()
-
-    // Verify update (check either original or updated exists)
-    const updatedExists = await scheduler.hasScheduleWithName(updatedName)
-    const nameToDelete = updatedExists ? updatedName : testName
-
-    // Delete schedule
-    await scheduler.clickDeleteOnScheduleByName(nameToDelete)
-    if (await scheduler.isConfirmDialogOpen()) {
-      await scheduler.confirmDelete()
+      // Wait for update
       await scheduler.waitForLoad()
-    }
 
-    // Verify deletion
-    const stillExists = await scheduler.hasScheduleWithName(nameToDelete)
-    expect(stillExists).toBeFalsy()
+      // Verify update (check either original or updated exists)
+      const updatedExists = await scheduler.hasScheduleWithName(updatedName)
+      const nameToDelete = updatedExists ? updatedName : testName
+
+      // Delete schedule
+      await scheduler.clickDeleteOnScheduleByName(nameToDelete)
+      if (await scheduler.isConfirmDialogOpen()) {
+        await scheduler.confirmDelete()
+        await scheduler.waitForLoad()
+      }
+
+      // Verify deletion
+      const stillExists = await scheduler.hasScheduleWithName(nameToDelete)
+      expect(stillExists).toBeFalsy()
+    } finally {
+      // Guaranteed cleanup even if test fails
+      try {
+        // Try to delete by updated name first, then original name
+        for (const name of [updatedName, testName]) {
+          if (await scheduler.hasScheduleWithName(name)) {
+            await scheduler.clickDeleteOnScheduleByName(name)
+            if (await scheduler.isConfirmDialogOpen()) {
+              await scheduler.confirmDelete()
+            }
+            break // Only delete once
+          }
+        }
+      } catch {
+        // Cleanup failure is acceptable
+      }
+    }
   })
 
   // ============================================================
