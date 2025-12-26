@@ -53,11 +53,11 @@ describe('SCHEDULE_LIMITS', () => {
 })
 
 describe('TRIGGER_TYPES', () => {
-  it('should have all 5 trigger types from backend', () => {
-    const expectedTypes = ['interval', 'solar', 'moon_phase', 'fixed_time', 'sensor']
+  it('should have all 6 trigger types from backend including cron for expert mode', () => {
+    const expectedTypes = ['interval', 'solar', 'moon_phase', 'fixed_time', 'sensor', 'cron']
     const actualTypes = Object.keys(TRIGGER_TYPES)
 
-    expect(actualTypes).toHaveLength(5)
+    expect(actualTypes).toHaveLength(6)
     expect(actualTypes.sort()).toEqual(expectedTypes.sort())
   })
 
@@ -82,6 +82,7 @@ describe('TRIGGER_TYPES', () => {
       'MoonIcon',
       'BoltIcon',
       'CalendarIcon',
+      'CodeBracketIcon',
     ]
 
     Object.values(TRIGGER_TYPES).forEach(({ icon }) => {

@@ -22,6 +22,7 @@ from webui.backend.lib.cron_security import (
 )
 from webui.backend.lib.moon_phase import get_moon_phase, is_within_moon_phase
 from webui.backend.lib.schedule_schema import (
+    CronTrigger,
     EventPattern,
     FixedTimeTrigger,
     IntervalTrigger,
@@ -633,6 +634,118 @@ def moon_phase_trigger_to_cron(
     return entries
 
 
+def cron_to_human_readable(expression: str) -> str:
+    """Convert cron expression to human-readable text.
+
+    Handles common patterns and provides a fallback for complex expressions.
+
+    Args:
+        expression: Cron expression string (e.g., "*/5 * * * *")
+
+    Returns:
+        Human-readable description of the schedule
+
+    Examples:
+        - "*/5 * * * *" -> "Every 5 minutes"
+        - "0 * * * *" -> "Every hour"
+        - "0 21 * * *" -> "Daily at 9:00 PM"
+        - "0 0 * * 0" -> "Weekly on Sunday at midnight"
+        - "0,30 * * * *" -> "At minute 0 and 30"
+    """
+    if not expression or not isinstance(expression, str):
+        return "Custom schedule"
+
+    fields = expression.split()
+    if len(fields) != 5:
+        return "Custom schedule"
+
+    minute, hour, day, month, weekday = fields
+
+    # Every minute
+    if expression == "* * * * *":
+        return "Every minute"
+
+    # Every N minutes: */N * * * *
+    if minute.startswith("*/") and hour == "*" and day == "*" and month == "*" and weekday == "*":
+        try:
+            interval = int(minute[2:])
+            return f"Every {interval} minutes"
+        except ValueError:
+            pass
+
+    # Every N hours: 0 */N * * *
+    if minute == "0" and hour.startswith("*/") and day == "*" and month == "*" and weekday == "*":
+        try:
+            interval = int(hour[2:])
+            if interval == 1:
+                return "Every hour"
+            return f"Every {interval} hours"
+        except ValueError:
+            pass
+
+    # Every hour at specific minute: M * * * *
+    if hour == "*" and day == "*" and month == "*" and weekday == "*" and not minute.startswith("*"):
+        try:
+            min_val = int(minute)
+            return f"Every hour at minute {min_val}"
+        except ValueError:
+            pass
+
+    # Daily at midnight: 0 0 * * *
+    if minute == "0" and hour == "0" and day == "*" and month == "*" and weekday == "*":
+        return "Daily at midnight"
+
+    # Daily at specific time: M H * * *
+    if day == "*" and month == "*" and weekday == "*" and not hour.startswith("*") and not minute.startswith("*"):
+        try:
+            hour_val = int(hour)
+            min_val = int(minute)
+            # Convert to 12-hour format
+            if hour_val == 0:
+                time_str = f"12:{min_val:02d} AM"
+            elif hour_val < 12:
+                time_str = f"{hour_val}:{min_val:02d} AM"
+            elif hour_val == 12:
+                time_str = f"12:{min_val:02d} PM"
+            else:
+                time_str = f"{hour_val - 12}:{min_val:02d} PM"
+            return f"Daily at {time_str}"
+        except ValueError:
+            pass
+
+    # Weekly on specific day: M H * * W
+    if day == "*" and month == "*" and weekday.isdigit():
+        try:
+            weekday_names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+            day_num = int(weekday) % 7
+            hour_val = int(hour)
+            min_val = int(minute)
+
+            if hour_val == 0 and min_val == 0:
+                return f"Weekly on {weekday_names[day_num]} at midnight"
+
+            # Convert to 12-hour format
+            if hour_val == 0:
+                time_str = f"12:{min_val:02d} AM"
+            elif hour_val < 12:
+                time_str = f"{hour_val}:{min_val:02d} AM"
+            elif hour_val == 12:
+                time_str = f"12:{min_val:02d} PM"
+            else:
+                time_str = f"{hour_val - 12}:{min_val:02d} PM"
+
+            return f"Weekly on {weekday_names[day_num]} at {time_str}"
+        except ValueError:
+            pass
+
+    # List patterns (e.g., 0,30 * * * *)
+    if "," in minute and hour == "*" and day == "*" and month == "*" and weekday == "*":
+        return f"At minute {minute}"
+
+    # Fallback for complex patterns
+    return "Custom schedule"
+
+
 def sensor_trigger_to_cron(
     trigger: SensorTrigger,
     command: str,
@@ -657,6 +770,34 @@ def sensor_trigger_to_cron(
         f"Sensor type: {trigger.sensor_type}"
     )
     return []
+
+
+def cron_trigger_to_cron(
+    trigger: CronTrigger,
+    command: str,
+    comment_prefix: str = CRON_COMMENT_PREFIX,
+) -> list[CronEntry]:
+    """Convert raw cron expression trigger to cron entries.
+
+    Args:
+        trigger: CronTrigger with cron_expression
+        command: Full command to execute
+        comment_prefix: Prefix for cron job comment
+
+    Returns:
+        List with single CronEntry using the raw expression
+    """
+    if not CronEntry.is_valid_expression(trigger.cron_expression):
+        return []
+
+    return [
+        CronEntry(
+            expression=trigger.cron_expression,
+            command=command,
+            comment=f"{comment_prefix} Expert Mode",
+            enabled=True,
+        )
+    ]
 
 
 def pattern_to_cron_entries(
@@ -929,6 +1070,28 @@ def schedule_to_cron(
     elif schedule.trigger_type == "sensor" and schedule.sensor_trigger:
         # Sensor triggers are stubbed
         result.errors.append("Sensor triggers not yet implemented for cron scheduling")
+
+    elif schedule.trigger_type == "cron" and schedule.cron_trigger:
+        # Cron triggers: Use raw cron expression for all pattern actions
+        entries = []
+        for pattern in schedule.event_patterns:
+            for action in pattern.actions:
+                # Get validated command for this action
+                script_key = get_script_key_for_action(action.action_type, action.action_name)
+                command = get_validated_command(script_key) if script_key else f"# Unknown: {action.action_type}/{action.action_name}"
+
+                # Use the raw cron expression (action offsets not supported in expert mode)
+                cron_entries = cron_trigger_to_cron(
+                    schedule.cron_trigger,
+                    command=command,
+                )
+                entries.extend(cron_entries)
+
+        result = CronBridgeResult(
+            entries=entries,
+            rtc_waketime=calculate_next_from_entries(entries) if entries else None,
+            schedule_id=schedule.schedule_id,
+        )
 
     else:
         result.errors.append(f"Unsupported or invalid trigger type: {schedule.trigger_type}")

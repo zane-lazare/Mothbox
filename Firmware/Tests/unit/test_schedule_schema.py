@@ -39,6 +39,7 @@ try:
         SUPPORTED_VERSIONS,
         TRIGGER_TYPES,
         # Dataclasses
+        CronTrigger,
         EventPattern,
         FixedTimeTrigger,
         IntervalTrigger,
@@ -57,6 +58,7 @@ try:
         validate_pattern_action,
         validate_schedule,
         validate_sensor_trigger,
+        validate_cron_trigger,
         validate_solar_trigger,
         validate_time_window,
     )
@@ -241,8 +243,8 @@ class TestScheduleSchemaConstants:
         assert GPIO_ACTIONS == expected
 
     def test_trigger_types_defined(self):
-        """TRIGGER_TYPES should include all expected types."""
-        expected = ["interval", "solar", "moon_phase", "fixed_time", "sensor"]
+        """TRIGGER_TYPES should include all expected types including cron for expert mode."""
+        expected = ["interval", "solar", "moon_phase", "fixed_time", "sensor", "cron"]
         assert TRIGGER_TYPES == expected
 
     def test_moon_phases_defined(self):
@@ -1138,3 +1140,133 @@ class TestValidateSchedule:
         assert valid is False
         assert "schedule_id" in error.lower()
         assert "uuid" in error.lower()
+
+
+# =============================================================================
+# CRON TRIGGER TESTS (Issue #233)
+# =============================================================================
+
+
+class TestCronTrigger:
+    """Tests for CronTrigger dataclass."""
+
+    def test_cron_trigger_to_dict(self):
+        """CronTrigger serializes to dict correctly."""
+        trigger = CronTrigger(cron_expression="0 21 * * *")
+        result = trigger.to_dict()
+        assert result == {"cron_expression": "0 21 * * *"}
+
+    def test_cron_trigger_from_dict(self):
+        """CronTrigger deserializes from dict correctly."""
+        data = {"cron_expression": "*/5 * * * *"}
+        trigger = CronTrigger.from_dict(data)
+        assert trigger.cron_expression == "*/5 * * * *"
+
+    def test_cron_in_trigger_types(self):
+        """'cron' is included in TRIGGER_TYPES constant."""
+        assert "cron" in TRIGGER_TYPES
+
+
+class TestValidateCronTrigger:
+    """Tests for validate_cron_trigger function."""
+
+    def test_validate_cron_trigger_valid_expression(self):
+        """Valid cron expression passes validation."""
+        trigger = CronTrigger(cron_expression="0 21 * * *")
+        valid, error = validate_cron_trigger(trigger)
+        assert valid is True
+        assert error is None
+
+    def test_validate_cron_trigger_empty_string_returns_error(self):
+        """Empty string cron expression fails validation."""
+        trigger = CronTrigger(cron_expression="")
+        valid, error = validate_cron_trigger(trigger)
+        assert valid is False
+        assert "empty" in error.lower()
+
+    def test_validate_cron_trigger_whitespace_only_returns_error(self):
+        """Whitespace-only cron expression fails validation."""
+        trigger = CronTrigger(cron_expression="   ")
+        valid, error = validate_cron_trigger(trigger)
+        assert valid is False
+        assert "empty" in error.lower()
+
+    def test_validate_cron_trigger_invalid_expression_returns_error(self):
+        """Invalid cron syntax fails validation."""
+        trigger = CronTrigger(cron_expression="not a cron")
+        valid, error = validate_cron_trigger(trigger)
+        assert valid is False
+        assert error is not None
+
+    def test_validate_cron_trigger_complex_expression(self):
+        """Complex cron expression validates correctly."""
+        trigger = CronTrigger(cron_expression="*/15 9-17 * * 1-5")
+        valid, error = validate_cron_trigger(trigger)
+        assert valid is True
+        assert error is None
+
+
+class TestScheduleWithCronTrigger:
+    """Tests for Schedule with cron trigger type."""
+
+    def test_schedule_with_cron_trigger_validates(self, sample_event_pattern):
+        """Schedule with valid cron trigger passes validation."""
+        cron_trigger = CronTrigger(cron_expression="0 21 * * *")
+        schedule = Schedule(
+            schedule_id="",
+            name="Expert Mode Schedule",
+            event_patterns=[sample_event_pattern],
+            trigger_type="cron",
+            cron_trigger=cron_trigger,
+        )
+        valid, error = validate_schedule(schedule)
+        assert valid is True
+        assert error is None
+
+    def test_schedule_cron_trigger_type_requires_cron_trigger(self, sample_event_pattern):
+        """Schedule with trigger_type='cron' but missing cron_trigger fails validation."""
+        schedule = Schedule(
+            schedule_id="",
+            name="Missing Cron Config",
+            event_patterns=[sample_event_pattern],
+            trigger_type="cron",
+            cron_trigger=None,
+        )
+        valid, error = validate_schedule(schedule)
+        assert valid is False
+        assert "cron" in error.lower()
+
+    def test_schedule_with_invalid_cron_expression_fails(self, sample_event_pattern):
+        """Schedule with invalid cron expression fails validation."""
+        cron_trigger = CronTrigger(cron_expression="invalid cron")
+        schedule = Schedule(
+            schedule_id="",
+            name="Bad Cron",
+            event_patterns=[sample_event_pattern],
+            trigger_type="cron",
+            cron_trigger=cron_trigger,
+        )
+        valid, error = validate_schedule(schedule)
+        assert valid is False
+        assert "cron" in error.lower()
+
+    def test_schedule_cron_trigger_serialization(self, sample_event_pattern):
+        """Schedule with cron trigger serializes and deserializes correctly."""
+        cron_trigger = CronTrigger(cron_expression="0 */2 * * *")
+        schedule = Schedule(
+            schedule_id="",
+            name="Cron Schedule",
+            event_patterns=[sample_event_pattern],
+            trigger_type="cron",
+            cron_trigger=cron_trigger,
+        )
+
+        # Serialize
+        data = schedule.to_dict()
+        assert data["trigger_type"] == "cron"
+        assert data["cron_trigger"]["cron_expression"] == "0 */2 * * *"
+
+        # Deserialize
+        restored = Schedule.from_dict(data)
+        assert restored.trigger_type == "cron"
+        assert restored.cron_trigger.cron_expression == "0 */2 * * *"

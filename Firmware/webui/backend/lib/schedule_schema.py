@@ -93,6 +93,7 @@ TRIGGER_TYPES: Final[list[str]] = [
     "moon_phase",
     "fixed_time",
     "sensor",
+    "cron",
 ]
 
 # Moon phases (8 phases of lunar cycle)
@@ -556,6 +557,29 @@ class SensorTrigger:
         )
 
 
+@dataclass
+class CronTrigger:
+    """Raw cron expression trigger for expert mode.
+
+    Attributes:
+        cron_expression: Standard 5-field cron expression (minute hour day month weekday)
+    """
+    cron_expression: str
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "cron_expression": self.cron_expression,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CronTrigger":
+        """Create from dictionary."""
+        return cls(
+            cron_expression=data["cron_expression"],
+        )
+
+
 # =============================================================================
 # TIER 2: SCHEDULE
 # =============================================================================
@@ -615,6 +639,7 @@ class Schedule:
     moon_phase_trigger: MoonPhaseTrigger | None = None
     fixed_time_trigger: FixedTimeTrigger | None = None
     sensor_trigger: SensorTrigger | None = None
+    cron_trigger: CronTrigger | None = None
 
     # Date constraints
     start_date: str | None = None
@@ -671,6 +696,9 @@ class Schedule:
             "sensor_trigger": (
                 self.sensor_trigger.to_dict() if self.sensor_trigger else None
             ),
+            "cron_trigger": (
+                self.cron_trigger.to_dict() if self.cron_trigger else None
+            ),
             "start_date": self.start_date,
             "end_date": self.end_date,
             "deployment_id": self.deployment_id,
@@ -716,6 +744,11 @@ class Schedule:
             sensor_trigger=(
                 SensorTrigger.from_dict(data["sensor_trigger"])
                 if data.get("sensor_trigger")
+                else None
+            ),
+            cron_trigger=(
+                CronTrigger.from_dict(data["cron_trigger"])
+                if data.get("cron_trigger")
                 else None
             ),
             start_date=data.get("start_date"),
@@ -1119,6 +1152,38 @@ def validate_sensor_trigger(trigger: SensorTrigger) -> tuple[bool, str | None]:
     return True, None
 
 
+def validate_cron_trigger(trigger: CronTrigger) -> tuple[bool, str | None]:
+    """
+    Validate cron trigger configuration.
+
+    Args:
+        trigger: CronTrigger to validate
+
+    Returns:
+        (True, None) if valid, (False, error_message) if invalid
+    """
+    # Explicit validation: cron_expression must not be empty
+    if not trigger.cron_expression or not trigger.cron_expression.strip():
+        return False, "Cron expression cannot be empty"
+
+    # Import CronEntry here to avoid circular imports
+    try:
+        from webui.backend.lib.cron_bridge import CronEntry
+    except ImportError:
+        # If cron_bridge not available, do basic validation
+        # Basic 5-field check
+        fields = trigger.cron_expression.strip().split()
+        if len(fields) != 5:
+            return False, "Cron expression must have exactly 5 fields (minute hour day month weekday)"
+        return True, None
+
+    # Use CronEntry.is_valid_expression for thorough validation
+    if not CronEntry.is_valid_expression(trigger.cron_expression):
+        return False, f"Invalid cron expression: '{trigger.cron_expression}'"
+
+    return True, None
+
+
 def validate_schedule(schedule: Schedule) -> tuple[bool, str | None]:
     """
     Validate a complete schedule with all embedded patterns.
@@ -1181,6 +1246,7 @@ def validate_schedule(schedule: Schedule) -> tuple[bool, str | None]:
         "moon_phase": (schedule.moon_phase_trigger, validate_moon_phase_trigger),
         "fixed_time": (schedule.fixed_time_trigger, validate_fixed_time_trigger),
         "sensor": (schedule.sensor_trigger, validate_sensor_trigger),
+        "cron": (schedule.cron_trigger, validate_cron_trigger),
     }
 
     trigger_config, validator = trigger_validators.get(
