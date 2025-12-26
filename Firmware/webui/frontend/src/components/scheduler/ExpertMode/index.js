@@ -5,5 +5,6 @@
  */
 
 export { default as CronExpressionInput } from './CronExpressionInput'
+export { default as CronExpressionErrorBoundary } from './CronExpressionErrorBoundary'
 export { default as ExpertModeToggle } from './ExpertModeToggle'
 export * from './constants'

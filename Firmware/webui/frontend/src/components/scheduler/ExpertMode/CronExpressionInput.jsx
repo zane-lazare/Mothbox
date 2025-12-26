@@ -52,7 +52,7 @@ const CronExpressionInput = ({ value = '', onChange, disabled = false }) => {
   const formatExecutionTime = (isoTime) => {
     try {
       const date = new Date(isoTime)
-      return date.toLocaleString('en-US', {
+      return date.toLocaleString(undefined, {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
@@ -195,9 +195,9 @@ const CronExpressionInput = ({ value = '', onChange, disabled = false }) => {
                     Next executions:
                   </p>
                   <ul className="space-y-1">
-                    {validation.next_executions.map((time, idx) => (
+                    {validation.next_executions.map((time) => (
                       <li
-                        key={idx}
+                        key={time}
                         className="text-xs text-gray-600 dark:text-gray-400 font-mono"
                       >
                         {formatExecutionTime(time)}

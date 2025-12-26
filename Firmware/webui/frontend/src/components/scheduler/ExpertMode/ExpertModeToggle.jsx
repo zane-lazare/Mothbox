@@ -62,7 +62,7 @@ const ExpertModeToggle = ({ mode = 'visual', onChange }) => {
 
 ExpertModeToggle.propTypes = {
   /** Current mode: 'visual' or 'expert' */
-  mode: PropTypes.oneOf(['visual', 'expert']).isRequired,
+  mode: PropTypes.oneOf(['visual', 'expert']),
   /** Callback when mode changes */
   onChange: PropTypes.func.isRequired,
 }
