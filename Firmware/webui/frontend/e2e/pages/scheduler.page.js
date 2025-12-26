@@ -374,12 +374,26 @@ export class SchedulerPage {
   }
 
   /**
-   * Click Save button in editor
+   * Click Save button in editor and wait for API response
    */
   async clickSave() {
+    // Wait for either create (POST) or update (PUT) API response
+    const savePromise = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/scheduler/ui/schedules') &&
+        (resp.request().method() === 'POST' || resp.request().method() === 'PUT') &&
+        resp.status() < 400,
+      { timeout: TIMEOUTS.NETWORK }
+    )
+
     await this.page.click(this.selectors.saveButton)
-    // Wait for network operation
-    await this.page.waitForLoadState('networkidle')
+
+    try {
+      await savePromise
+    } catch {
+      // If no API response (e.g., validation error prevented submission),
+      // the test will verify this via isEditorOpen() check
+    }
   }
 
   /**

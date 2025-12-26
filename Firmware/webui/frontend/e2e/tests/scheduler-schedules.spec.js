@@ -277,9 +277,6 @@ test.describe('Scheduler Schedules', () => {
     // Save the schedule
     await scheduler.clickSave()
 
-    // Wait for save to complete
-    await page.waitForTimeout(TIMEOUTS.SAVE)
-
     // Verify save succeeded (editor should close)
     const editorStillOpen = await scheduler.isEditorOpen()
     expect(editorStillOpen, 'Editor should close after successful save').toBeFalsy()
@@ -314,7 +311,6 @@ test.describe('Scheduler Schedules', () => {
 
     // Save
     await scheduler.clickSave()
-    await page.waitForTimeout(TIMEOUTS.SAVE)
 
     // Verify save succeeded (editor should close)
     const editorStillOpen = await scheduler.isEditorOpen()
@@ -332,7 +328,6 @@ test.describe('Scheduler Schedules', () => {
     // Update name
     await scheduler.fillScheduleName(updatedName)
     await scheduler.clickSave()
-    await page.waitForTimeout(TIMEOUTS.SAVE)
 
     // If editor still open, close it
     if (await scheduler.isEditorOpen()) {
