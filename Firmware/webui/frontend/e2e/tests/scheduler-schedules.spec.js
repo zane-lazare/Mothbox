@@ -161,7 +161,7 @@ test.describe('Scheduler Schedules', () => {
 
     // Wait for confirmation dialog or just verify the action was triggered
     // Some implementations may show inline confirmation
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
     // If dialog appeared, cancel it
     if (await scheduler.isConfirmDialogOpen()) {
@@ -278,7 +278,7 @@ test.describe('Scheduler Schedules', () => {
     await scheduler.clickSave()
 
     // Wait for save to complete
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(TIMEOUTS.SAVE)
 
     // Verify save succeeded (editor should close)
     const editorStillOpen = await scheduler.isEditorOpen()
@@ -314,7 +314,7 @@ test.describe('Scheduler Schedules', () => {
 
     // Save
     await scheduler.clickSave()
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(TIMEOUTS.SAVE)
 
     // Verify save succeeded (editor should close)
     const editorStillOpen = await scheduler.isEditorOpen()
@@ -332,7 +332,7 @@ test.describe('Scheduler Schedules', () => {
     // Update name
     await scheduler.fillScheduleName(updatedName)
     await scheduler.clickSave()
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(TIMEOUTS.SAVE)
 
     // If editor still open, close it
     if (await scheduler.isEditorOpen()) {
@@ -356,5 +356,95 @@ test.describe('Scheduler Schedules', () => {
     // Verify deletion
     const stillExists = await scheduler.hasScheduleWithName(nameToDelete)
     expect(stillExists).toBeFalsy()
+  })
+
+  // ============================================================
+  // Form Validation Tests
+  // ============================================================
+
+  test('save without name shows validation error', async ({ page }) => {
+    await scheduler.clickNewSchedule()
+
+    // Select pattern but don't fill name
+    await scheduler.selectFirstEventPattern()
+    await scheduler.clickSave()
+    await page.waitForTimeout(TIMEOUTS.TRANSITION)
+
+    // Editor should stay open with error
+    expect(await scheduler.isEditorOpen()).toBeTruthy()
+    const errorVisible = await page.locator('text=required').first().isVisible()
+    expect(errorVisible).toBeTruthy()
+
+    await scheduler.clickCancel()
+  })
+
+  test('save without event pattern shows validation error', async ({ page }) => {
+    await scheduler.clickNewSchedule()
+    await scheduler.fillScheduleName(scheduler.generateTestScheduleName())
+
+    // Don't select pattern, try to save
+    await scheduler.clickSave()
+    await page.waitForTimeout(TIMEOUTS.TRANSITION)
+
+    // Editor should stay open with error
+    expect(await scheduler.isEditorOpen()).toBeTruthy()
+    const errorVisible = await page.locator('text=pattern').first().isVisible()
+    expect(errorVisible).toBeTruthy()
+
+    await scheduler.clickCancel()
+  })
+
+  // ============================================================
+  // Edge Cases
+  // ============================================================
+
+  test('deleting active schedule removes active banner', async () => {
+    const activeIndex = await scheduler.findActiveSchedule()
+    if (activeIndex === -1) {
+      test.skip(true, 'No active schedule to test deletion')
+      return
+    }
+
+    // Delete the active schedule
+    await scheduler.clickDeleteOnSchedule(activeIndex)
+
+    if (await scheduler.isConfirmDialogOpen()) {
+      await scheduler.confirmDelete()
+      await scheduler.waitForLoad()
+    }
+
+    // Verify active banner is gone
+    const bannerVisible = await scheduler.isActiveBannerVisible()
+    expect(bannerVisible).toBeFalsy()
+  })
+
+  // ============================================================
+  // Toast Notifications
+  // ============================================================
+
+  test('successful activation shows success toast', async () => {
+    const inactiveIndex = await scheduler.findFirstInactiveSchedule()
+    if (inactiveIndex === -1) {
+      test.skip(true, 'No inactive schedules available')
+      return
+    }
+
+    await scheduler.clickActivateOnSchedule(inactiveIndex)
+
+    const toastAppeared = await scheduler.waitForToast('success')
+    expect(toastAppeared).toBeTruthy()
+  })
+
+  // ============================================================
+  // Keyboard Accessibility
+  // ============================================================
+
+  test('escape key closes editor', async ({ page }) => {
+    await scheduler.clickNewSchedule()
+    expect(await scheduler.isEditorOpen()).toBeTruthy()
+
+    await page.keyboard.press('Escape')
+
+    expect(await scheduler.isEditorOpen()).toBeFalsy()
   })
 })

@@ -130,7 +130,7 @@ test.describe('Scheduler Calendar View', () => {
 
     // If a schedule is selected, empty state should eventually be hidden
     // Note: might take a moment to load calendar data
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
     // Verify the selection worked - empty state may or may not be hidden
     // depending on whether schedule has any executions to display
