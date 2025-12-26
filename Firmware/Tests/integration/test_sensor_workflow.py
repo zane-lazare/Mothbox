@@ -51,6 +51,24 @@ from webui.backend.services.sensor_service import (
 # Mark all tests as integration tests
 pytestmark = pytest.mark.integration
 
+# =============================================================================
+# TOLERANCE CONSTANTS
+# =============================================================================
+# These constants match COMPARISON_TOLERANCE from sensor_reader.py and provide
+# consistent tolerance values across all sensor integration tests.
+
+# Absolute tolerances for sensor readings (match sensor_reader.py)
+LIGHT_SENSOR_TOLERANCE = 1.0  # ±1 lux
+TEMPERATURE_SENSOR_TOLERANCE = 0.1  # ±0.1°C
+
+# Percentage tolerance for readings where absolute value varies
+# Used for calculations like: expected_value * (1 ± PERCENT_TOLERANCE)
+PERCENT_TOLERANCE = 0.01  # ±1%
+
+# LTR303 uses ratio-based calculation with higher variance due to
+# channel ratio interpolation and gain/integration time compensation
+LTR303_PERCENT_TOLERANCE = 0.10  # ±10%
+
 
 # =============================================================================
 # FIXTURES
@@ -223,7 +241,8 @@ class TestLightSensorWorkflow:
 
         # Verify lux calculation: 120 / 1.2 = 100
         assert result is not None
-        assert 99.0 <= result <= 101.0  # Allow small tolerance
+        expected_lux = 100.0
+        assert expected_lux - LIGHT_SENSOR_TOLERANCE <= result <= expected_lux + LIGHT_SENSOR_TOLERANCE
 
     def test_ltr303_read_workflow_with_gain_compensation(
         self, mock_light_sensor_ltr303
@@ -239,20 +258,26 @@ class TestLightSensorWorkflow:
         result = read_light_sensor()
 
         # Verify ratio-based calculation
+        # Expected: 4.2785*100 - 1.9548*50 = 330.11 lux
         assert result is not None
-        assert 300.0 <= result <= 360.0  # Allow for calculation variations
+        expected_lux = 330.0
+        tolerance = expected_lux * LTR303_PERCENT_TOLERANCE
+        assert expected_lux - tolerance <= result <= expected_lux + tolerance
 
     def test_light_sensor_multiple_reads_consistent(self, mock_light_sensor_bh1750):
         """Multiple consecutive light sensor reads return consistent values."""
-        mock_light_sensor_bh1750(250.0)
+        expected_lux = 250.0
+        mock_light_sensor_bh1750(expected_lux)
 
         # Execute multiple reads
         results = [read_light_sensor() for _ in range(5)]
 
-        # All should be consistent
+        # All should be consistent within tolerance
         assert all(r is not None for r in results)
+        # Use percentage tolerance for higher readings
+        tolerance = expected_lux * PERCENT_TOLERANCE
         for result in results:
-            assert 248.0 <= result <= 252.0
+            assert expected_lux - tolerance <= result <= expected_lux + tolerance
 
 
 # =============================================================================
@@ -266,40 +291,43 @@ class TestTemperatureSensorWorkflow:
     def test_tmp102_read_workflow_returns_celsius(self, mock_temperature_sensor_tmp102):
         """TMP102 I2C read returns correct celsius value from raw bytes."""
         # Setup: 25.0C (raw = 400)
-        mock_temperature_sensor_tmp102(25.0)
+        expected_temp = 25.0
+        mock_temperature_sensor_tmp102(expected_temp)
 
         # Execute
         result = read_temperature_sensor()
 
         # Verify: 400 * 0.0625 = 25.0
         assert result is not None
-        assert 24.9 <= result <= 25.1
+        assert expected_temp - TEMPERATURE_SENSOR_TOLERANCE <= result <= expected_temp + TEMPERATURE_SENSOR_TOLERANCE
 
     def test_mcp9808_read_workflow_returns_celsius(
         self, mock_temperature_sensor_mcp9808
     ):
         """MCP9808 I2C read returns correct celsius value from raw bytes."""
         # Setup: 30.0C
-        mock_temperature_sensor_mcp9808(30.0)
+        expected_temp = 30.0
+        mock_temperature_sensor_mcp9808(expected_temp)
 
         # Execute
         result = read_temperature_sensor()
 
         # Verify
         assert result is not None
-        assert 29.9 <= result <= 30.1
+        assert expected_temp - TEMPERATURE_SENSOR_TOLERANCE <= result <= expected_temp + TEMPERATURE_SENSOR_TOLERANCE
 
     def test_negative_temperature_workflow(self, mock_temperature_sensor_tmp102):
         """Temperature sensor handles negative temperatures via two's complement."""
         # Setup: -10.0C (two's complement)
-        mock_temperature_sensor_tmp102(-10.0)
+        expected_temp = -10.0
+        mock_temperature_sensor_tmp102(expected_temp)
 
         # Execute
         result = read_temperature_sensor()
 
         # Verify negative temperature
         assert result is not None
-        assert -10.1 <= result <= -9.9
+        assert expected_temp - TEMPERATURE_SENSOR_TOLERANCE <= result <= expected_temp + TEMPERATURE_SENSOR_TOLERANCE
 
 
 # =============================================================================
@@ -309,6 +337,22 @@ class TestTemperatureSensorWorkflow:
 
 class TestPreconditionEvaluationWorkflow:
     """Integration tests for precondition evaluation workflows."""
+
+    def test_empty_preconditions_returns_true(self, sensor_service):
+        """Empty preconditions list should return True (vacuous truth).
+
+        When no preconditions are specified, all conditions are trivially
+        satisfied, so evaluate_preconditions([]) should return True.
+        """
+        # Execute with empty list
+        result = sensor_service.evaluate_preconditions([])
+
+        # Verify vacuous truth - no conditions means all conditions pass
+        assert result is True
+
+        # Verify no history entries (nothing was evaluated)
+        history = sensor_service.get_evaluation_history(limit=10)
+        assert len(history) == 0
 
     def test_single_precondition_passes_when_threshold_met(
         self, mock_light_sensor_bh1750, sensor_service
@@ -364,17 +408,19 @@ class TestPreconditionEvaluationWorkflow:
         # Light sensor: 50 lux (raw = 60 for BH1750: 60 / 1.2 = 50)
         # Temperature sensor: 25C (raw = 400 for TMP102: 400 * 0.0625 = 25)
 
-        # Track which sensor is being read to return appropriate data
-        call_count = [0]
+        # Extract I2C addresses from hardware config (not hardcoded)
+        light_addr = mock_sensor_hardware["hw_config"]["light_sensor_address"]
+        temp_addr = mock_sensor_hardware["hw_config"]["temperature_sensor_address"]
 
-        def mock_read_block(addr, reg, length):
-            call_count[0] += 1
-            if addr == 0x23:  # BH1750 light sensor
+        def mock_read_block_side_effect(addr, reg, length):
+            if addr == light_addr:  # Light sensor (from config)
                 return [0x00, 0x3C]  # 60 raw = 50 lux
-            elif addr == 0x48:  # TMP102 temperature sensor
+            elif addr == temp_addr:  # Temperature sensor (from config)
                 return [0x19, 0x00]  # 400 raw = 25C
             return [0x00, 0x00]
 
+        # Use MagicMock for built-in call tracking
+        mock_read_block = MagicMock(side_effect=mock_read_block_side_effect)
         mock_sensor_hardware["smbus"].read_i2c_block_data = mock_read_block
 
         # Both conditions should pass
@@ -393,6 +439,9 @@ class TestPreconditionEvaluationWorkflow:
         # Verify all passed
         assert result is True
 
+        # Verify both sensors were read (using MagicMock's built-in tracking)
+        assert mock_read_block.call_count >= 2
+
         # Verify history shows both evaluated
         history = sensor_service.get_evaluation_history(limit=10)
         assert len(history) == 2
@@ -401,7 +450,8 @@ class TestPreconditionEvaluationWorkflow:
         self, mock_light_sensor_bh1750, sensor_service
     ):
         """Precondition evaluation records result in service history."""
-        mock_light_sensor_bh1750(50.0)
+        expected_lux = 50.0
+        mock_light_sensor_bh1750(expected_lux)
 
         preconditions = [
             SensorPrecondition(sensor_type="light", threshold=100.0, comparison="lt")
@@ -416,7 +466,7 @@ class TestPreconditionEvaluationWorkflow:
         assert history[0].passed is True
         assert history[0].reason == REASON_PASSED
         assert history[0].reading_value is not None
-        assert 49.0 <= history[0].reading_value <= 51.0
+        assert expected_lux - LIGHT_SENSOR_TOLERANCE <= history[0].reading_value <= expected_lux + LIGHT_SENSOR_TOLERANCE
 
 
 # =============================================================================
@@ -465,11 +515,12 @@ class TestSensorUnavailableWorkflow:
         mock_sensor_hardware["hw_config"]["light_sensor_enabled"] = True
         mock_sensor_hardware["hw_config"]["temperature_sensor_enabled"] = False
         mock_sensor_hardware["smbus"].read_data = [0x00, 0x78]  # 100 lux
+        expected_lux = 100.0
 
         # Light should work
         light_result = read_light_sensor()
         assert light_result is not None
-        assert 99.0 <= light_result <= 101.0
+        assert expected_lux - LIGHT_SENSOR_TOLERANCE <= light_result <= expected_lux + LIGHT_SENSOR_TOLERANCE
 
         # Temperature should return None
         temp_result = read_temperature_sensor()
