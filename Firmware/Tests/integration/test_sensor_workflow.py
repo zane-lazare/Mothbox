@@ -440,6 +440,7 @@ class TestPreconditionEvaluationWorkflow:
         assert result is True
 
         # Verify both sensors were read (using MagicMock's built-in tracking)
+        # Use >= 2 to allow for implementation details (e.g., init reads, retries)
         assert mock_read_block.call_count >= 2
 
         # Verify history shows both evaluated
@@ -705,30 +706,33 @@ class TestSensorWorkflowHardware:
 
         # Create service and evaluate precondition
         service = SensorService(max_history=10)
+        try:
+            # Use current reading + buffer as threshold to ensure pass
+            threshold = reading + 50.0
+            preconditions = [
+                SensorPrecondition(
+                    sensor_type="light",
+                    threshold=threshold,
+                    comparison="lt",
+                    description="Current ambient light check",
+                )
+            ]
 
-        # Use current reading + buffer as threshold to ensure pass
-        threshold = reading + 50.0
-        preconditions = [
-            SensorPrecondition(
-                sensor_type="light",
-                threshold=threshold,
-                comparison="lt",
-                description="Current ambient light check",
-            )
-        ]
+            result = service.evaluate_preconditions(preconditions)
 
-        result = service.evaluate_preconditions(preconditions)
+            # Should pass since we set threshold above current reading
+            assert result is True
 
-        # Should pass since we set threshold above current reading
-        assert result is True
-
-        # Verify history was recorded
-        history = service.get_evaluation_history(limit=1)
-        assert len(history) == 1
-        assert history[0].passed is True
-        assert history[0].reading_value is not None
-        # Reading should be close to what we measured
-        assert abs(history[0].reading_value - reading) < 10.0  # Allow for variance
+            # Verify history was recorded
+            history = service.get_evaluation_history(limit=1)
+            assert len(history) == 1
+            assert history[0].passed is True
+            assert history[0].reading_value is not None
+            # Reading should be close to what we measured
+            assert abs(history[0].reading_value - reading) < 10.0  # Allow for variance
+        finally:
+            service.clear_history()
+            service.reset_statistics()
 
     def test_precondition_service_with_real_temperature_sensor(self):
         """
@@ -747,27 +751,30 @@ class TestSensorWorkflowHardware:
 
         # Create service and evaluate precondition
         service = SensorService(max_history=10)
+        try:
+            # Use current reading + buffer as threshold to ensure pass
+            threshold = reading + 10.0
+            preconditions = [
+                SensorPrecondition(
+                    sensor_type="temperature",
+                    threshold=threshold,
+                    comparison="lte",
+                    description="Current ambient temperature check",
+                )
+            ]
 
-        # Use current reading + buffer as threshold to ensure pass
-        threshold = reading + 10.0
-        preconditions = [
-            SensorPrecondition(
-                sensor_type="temperature",
-                threshold=threshold,
-                comparison="lte",
-                description="Current ambient temperature check",
-            )
-        ]
+            result = service.evaluate_preconditions(preconditions)
 
-        result = service.evaluate_preconditions(preconditions)
+            # Should pass since we set threshold above current reading
+            assert result is True
 
-        # Should pass since we set threshold above current reading
-        assert result is True
-
-        # Verify history was recorded
-        history = service.get_evaluation_history(limit=1)
-        assert len(history) == 1
-        assert history[0].passed is True
+            # Verify history was recorded
+            history = service.get_evaluation_history(limit=1)
+            assert len(history) == 1
+            assert history[0].passed is True
+        finally:
+            service.clear_history()
+            service.reset_statistics()
 
     def test_multiple_preconditions_with_real_sensors(self):
         """
@@ -789,35 +796,39 @@ class TestSensorWorkflowHardware:
             pytest.skip("No sensors available on this hardware")
 
         service = SensorService(max_history=10)
-        preconditions = []
+        try:
+            preconditions = []
 
-        if light is not None:
-            preconditions.append(
-                SensorPrecondition(
-                    sensor_type="light",
-                    threshold=light + 100.0,
-                    comparison="lt",
+            if light is not None:
+                preconditions.append(
+                    SensorPrecondition(
+                        sensor_type="light",
+                        threshold=light + 100.0,
+                        comparison="lt",
+                    )
                 )
-            )
 
-        if temp is not None:
-            preconditions.append(
-                SensorPrecondition(
-                    sensor_type="temperature",
-                    threshold=temp + 20.0,
-                    comparison="lte",
+            if temp is not None:
+                preconditions.append(
+                    SensorPrecondition(
+                        sensor_type="temperature",
+                        threshold=temp + 20.0,
+                        comparison="lte",
+                    )
                 )
-            )
 
-        result = service.evaluate_preconditions(preconditions)
+            result = service.evaluate_preconditions(preconditions)
 
-        # Should pass since thresholds are set above current readings
-        assert result is True
+            # Should pass since thresholds are set above current readings
+            assert result is True
 
-        # All preconditions should be in history
-        history = service.get_evaluation_history(limit=len(preconditions))
-        assert len(history) == len(preconditions)
-        assert all(h.passed for h in history)
+            # All preconditions should be in history
+            history = service.get_evaluation_history(limit=len(preconditions))
+            assert len(history) == len(preconditions)
+            assert all(h.passed for h in history)
+        finally:
+            service.clear_history()
+            service.reset_statistics()
 
     def test_environmental_logging_workflow_real_hardware(self):
         """
@@ -862,25 +873,28 @@ class TestSensorWorkflowHardware:
             pytest.skip("Light sensor not available on this hardware")
 
         service = SensorService(max_history=10)
+        try:
+            # Do several evaluations with different thresholds
+            # Some should pass, some should fail
+            pass_threshold = reading + 50.0  # Should pass
+            fail_threshold = reading - 50.0 if reading > 50 else 0.1  # Should fail
 
-        # Do several evaluations with different thresholds
-        # Some should pass, some should fail
-        pass_threshold = reading + 50.0  # Should pass
-        fail_threshold = reading - 50.0 if reading > 50 else 0.1  # Should fail
+            # Evaluate passing condition
+            service.evaluate_preconditions(
+                [SensorPrecondition(sensor_type="light", threshold=pass_threshold, comparison="lt")]
+            )
 
-        # Evaluate passing condition
-        service.evaluate_preconditions(
-            [SensorPrecondition(sensor_type="light", threshold=pass_threshold, comparison="lt")]
-        )
+            # Evaluate failing condition
+            service.evaluate_preconditions(
+                [SensorPrecondition(sensor_type="light", threshold=fail_threshold, comparison="lt")]
+            )
 
-        # Evaluate failing condition
-        service.evaluate_preconditions(
-            [SensorPrecondition(sensor_type="light", threshold=fail_threshold, comparison="lt")]
-        )
+            stats = service.get_statistics()
 
-        stats = service.get_statistics()
-
-        assert stats["total_evaluations"] == 2
-        assert stats["passed_count"] == 1
-        assert stats["failed_count"] == 1
-        assert stats["unavailable_count"] == 0
+            assert stats["total_evaluations"] == 2
+            assert stats["passed_count"] == 1
+            assert stats["failed_count"] == 1
+            assert stats["unavailable_count"] == 0
+        finally:
+            service.clear_history()
+            service.reset_statistics()
