@@ -5,7 +5,7 @@
  * Covers schedule CRUD, activation/deactivation, and calendar navigation.
  */
 
-import { TIMEOUTS } from '../fixtures/test-helpers.js'
+import { TIMEOUTS, optionalWait } from '../fixtures/test-helpers.js'
 
 export class SchedulerPage {
   /**
@@ -214,7 +214,7 @@ export class SchedulerPage {
     const card = this.getScheduleCardByIndex(index)
     await card.locator(this.selectors.deleteButton).click()
     // Wait for confirmation dialog
-    await this.page.locator(this.selectors.confirmDialog).waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }).catch(() => {})
+    await optionalWait(this.page.locator(this.selectors.confirmDialog).waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }))
   }
 
   /**
@@ -224,7 +224,7 @@ export class SchedulerPage {
   async clickDeleteOnScheduleByName(name) {
     const card = this.getScheduleCardByName(name)
     await card.locator(this.selectors.deleteButton).click()
-    await this.page.locator(this.selectors.confirmDialog).waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }).catch(() => {})
+    await optionalWait(this.page.locator(this.selectors.confirmDialog).waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }))
   }
 
   /**
@@ -425,7 +425,7 @@ export class SchedulerPage {
    */
   async cancelDelete() {
     await this.page.click(this.selectors.cancelDeleteButton)
-    await this.page.locator(this.selectors.confirmDialog).waitFor({ state: 'hidden', timeout: TIMEOUTS.SHORT }).catch(() => {})
+    await optionalWait(this.page.locator(this.selectors.confirmDialog).waitFor({ state: 'hidden', timeout: TIMEOUTS.SHORT }))
   }
 
   // ============================================================
