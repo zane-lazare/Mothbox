@@ -157,6 +157,7 @@ export default function MetadataEXIF({ data = {} }) {
             label="GPS"
             value={formatGPS(location.latitude, location.longitude)}
             copyable
+            testId="gps-coordinates"
           />
           <MetadataField
             label="Altitude"

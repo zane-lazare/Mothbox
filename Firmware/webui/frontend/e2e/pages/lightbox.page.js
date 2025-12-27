@@ -39,7 +39,7 @@ export class LightboxPage {
       customFieldsSection: '[data-testid="metadata-panel"] [role="button"]:has-text("Custom Fields")',
 
       // GPS display (from MetadataEXIF component)
-      gpsCoordinates: 'text=/\\d+\\.\\d+°\\s*[NS],\\s*\\d+\\.\\d+°\\s*[EW]/',
+      gpsCoordinates: '[data-testid="gps-coordinates"]',
       altitudeDisplay: 'text=/\\d+(\\.\\d+)?m/',
       copyButton: 'button[aria-label*="Copy"]',
 
@@ -292,13 +292,18 @@ export class LightboxPage {
   }
 
   /**
-   * Check if GPS coordinates are displayed
+   * Check if GPS coordinates are displayed (has a non-N/A value)
    * @returns {Promise<boolean>}
    */
   async hasGPSCoordinates() {
     await this.expandSection('EXIF Data')
     const gps = this.page.locator(this.selectors.gpsCoordinates)
-    return gps.isVisible().catch(() => false)
+    if (await gps.isVisible().catch(() => false)) {
+      const text = await gps.textContent()
+      // Check if GPS field exists and has actual coordinates (not "N/A")
+      return text && !text.includes('N/A') && /\d+\.\d+°/.test(text)
+    }
+    return false
   }
 
   /**
@@ -309,7 +314,10 @@ export class LightboxPage {
     await this.expandSection('EXIF Data')
     const gps = this.page.locator(this.selectors.gpsCoordinates)
     if (await gps.isVisible().catch(() => false)) {
-      return gps.textContent()
+      const text = await gps.textContent()
+      // Extract just the coordinate part (after "GPS" label)
+      const match = text?.match(/(\d+\.\d+°\s*[NS],\s*\d+\.\d+°\s*[EW])/)
+      return match ? match[1] : null
     }
     return null
   }

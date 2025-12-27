@@ -1,0 +1,5 @@
+# Treat E2E test fixture photos as binary files
+# This ensures Git handles them correctly and improves diff display
+photos/**/*.jpg binary
+photos/**/*.jpeg binary
+photos/**/*.png binary
