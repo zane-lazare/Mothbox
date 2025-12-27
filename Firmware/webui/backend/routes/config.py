@@ -2,7 +2,8 @@
 
 import csv
 import shutil
-from contextlib import suppress
+from collections.abc import Callable
+from typing import Any
 
 # Setup path to import mothbox_paths
 # Import camera control mapping
@@ -194,6 +195,23 @@ def update_schedule_settings():
         return jsonify({"error": str(e)}), 500
 
 
+def safe_convert(value: Any, converter: Callable, default: Any) -> Any:
+    """Safely convert a value, returning default on failure.
+
+    Args:
+        value: Value to convert (typically string from config file)
+        converter: Conversion function (int, float, etc.)
+        default: Value to return if conversion fails
+
+    Returns:
+        Converted value on success, default on ValueError/TypeError
+    """
+    try:
+        return converter(value)
+    except (ValueError, TypeError):
+        return default
+
+
 @config_bp.route("/webui", methods=["GET"])
 def get_webui_settings():
     """Get WebUI stream settings"""
@@ -264,8 +282,7 @@ def get_webui_settings():
                         "analogue_gain",
                     ]:
                         # Float values
-                        with suppress(ValueError):
-                            defaults[key] = float(settings[key])
+                        defaults[key] = safe_convert(settings[key], float, defaults[key])
                     elif key in [
                         "noise_reduction_mode",
                         "ae_metering_mode",
@@ -273,12 +290,10 @@ def get_webui_settings():
                         "focus_peaking_intensity",
                     ]:
                         # Integer values (noise_reduction_mode: 0-2, ae_metering_mode: 0-2, exposure_time: microseconds, focus_peaking_intensity: 50-200)
-                        with suppress(ValueError):
-                            defaults[key] = int(settings[key])
+                        defaults[key] = safe_convert(settings[key], int, defaults[key])
                     else:
                         # Other integer values
-                        with suppress(ValueError):
-                            defaults[key] = int(settings[key])
+                        defaults[key] = safe_convert(settings[key], int, defaults[key])
 
         return jsonify(defaults)
     except Exception as e:
