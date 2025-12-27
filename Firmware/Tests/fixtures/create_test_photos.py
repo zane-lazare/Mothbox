@@ -43,6 +43,12 @@ _fixtures_dir = Path(__file__).resolve().parent
 _tests_dir = _fixtures_dir.parent
 _firmware_root = _tests_dir.parent
 
+# Allowed output directories for path validation
+_ALLOWED_OUTPUT_ROOTS = [
+    _firmware_root,  # Project directory
+    Path('/tmp'),    # System temp directory
+]
+
 if str(_firmware_root) not in sys.path:
     sys.path.insert(0, str(_firmware_root))
 
@@ -82,7 +88,7 @@ CAMERA_EXIF = {
         piexif.ImageIFD.Software: b"Mothbox Test Fixture Generator",
     },
     "Exif": {
-        piexif.ExifIFD.ISOSpeed: 400,
+        piexif.ExifIFD.ISOSpeedRatings: 400,
         piexif.ExifIFD.ExposureTime: (1, 100),  # 1/100 second
         piexif.ExifIFD.FNumber: (28, 10),  # f/2.8
         piexif.ExifIFD.FocalLength: (6, 1),  # 6mm
@@ -186,6 +192,34 @@ FIXTURES = [
         'description': 'Focus bracket photo 5 (farthest)',
     },
 ]
+
+
+def validate_output_dir(output_dir: Path) -> bool:
+    """Validate that output directory is within allowed paths.
+
+    Args:
+        output_dir: Directory to validate
+
+    Returns:
+        bool: True if directory is within allowed paths, False otherwise
+
+    Note:
+        Prevents directory traversal attacks by ensuring output is within
+        either the project directory or /tmp.
+    """
+    try:
+        resolved = output_dir.resolve()
+        for allowed_root in _ALLOWED_OUTPUT_ROOTS:
+            allowed_resolved = allowed_root.resolve()
+            # Check if resolved path is within allowed root
+            try:
+                resolved.relative_to(allowed_resolved)
+                return True
+            except ValueError:
+                continue
+        return False
+    except (OSError, ValueError):
+        return False
 
 
 def create_test_image(
@@ -481,6 +515,15 @@ Camera EXIF:
     args = parser.parse_args()
 
     verbose = not args.quiet
+
+    # Validate output directory to prevent directory traversal
+    if not validate_output_dir(args.output_dir):
+        print(
+            f"ERROR: Output directory '{args.output_dir}' is not within allowed paths.\n"
+            f"Allowed paths: project directory ({_firmware_root}) or /tmp",
+            file=sys.stderr
+        )
+        return 1
 
     # Verify-only mode
     if args.verify_only:
