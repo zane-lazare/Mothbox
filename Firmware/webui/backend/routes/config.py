@@ -6,7 +6,11 @@ from contextlib import suppress
 
 # Setup path to import mothbox_paths
 # Import camera control mapping
-from camera_control_mapping import SNAKE_TO_PASCAL, convert_to_settings_file
+from camera_control_mapping import (
+    SNAKE_TO_PASCAL,
+    convert_from_settings_file,
+    convert_to_settings_file,
+)
 from flask import Blueprint, jsonify, request
 
 # Import shared utilities
@@ -680,9 +684,14 @@ def copy_settings():
             "awb_mode",
         ]
 
-        # Generate mappings from centralized source
+        # Generate mappings from centralized source (4-tuple: snake, pascal, to_file, from_file)
         compatible_mappings = [
-            (snake, SNAKE_TO_PASCAL[snake], lambda v, k=snake: convert_to_settings_file(k, v))
+            (
+                snake,
+                SNAKE_TO_PASCAL[snake],
+                lambda v, k=snake: convert_to_settings_file(k, v),
+                lambda v, k=snake: convert_from_settings_file(k, v),
+            )
             for snake in compatible_keys
         ]
 
@@ -719,7 +728,7 @@ def copy_settings():
                     capture_settings_dict[setting_name] = setting_value
 
             # Copy compatible settings
-            for preview_key, capture_key, converter in compatible_mappings:
+            for preview_key, capture_key, to_file_converter, _from_file in compatible_mappings:
                 if preview_key in preview_settings:
                     try:
                         # Convert live view value to capture format
@@ -733,8 +742,8 @@ def copy_settings():
                         elif preview_key == "awb_enable":
                             preview_value = preview_value.lower() == "true"
 
-                        # Convert to capture format
-                        capture_value = converter(preview_value)
+                        # Convert to capture format using centralized converter
+                        capture_value = to_file_converter(preview_value)
 
                         # Validate using capture validator
                         if capture_key in ALLOWED_CAMERA_SETTINGS:
@@ -793,20 +802,13 @@ def copy_settings():
                 preview_settings = response.get_json()
 
             # Copy compatible settings
-            for preview_key, capture_key, _converter in compatible_mappings:
+            for preview_key, capture_key, _to_file, from_file_converter in compatible_mappings:
                 if capture_key in capture_settings_dict:
                     try:
                         capture_value = capture_settings_dict[capture_key]
 
-                        # Convert to live view type
-                        if preview_key in ["sharpness", "brightness", "contrast", "saturation"]:
-                            preview_value = float(capture_value)
-                        elif preview_key in ["af_mode", "af_speed", "af_range", "awb_mode"]:
-                            preview_value = int(capture_value)
-                        elif preview_key == "awb_enable":
-                            preview_value = capture_value.lower() == "true"
-                        else:
-                            preview_value = capture_value
+                        # Convert to live view type using centralized converter
+                        preview_value = from_file_converter(capture_value)
 
                         # Validate ranges (basic validation)
                         valid = True
