@@ -63,6 +63,9 @@ from webui.backend.lib.sidecar_metadata import (
 # Matches: name_YYYY_MM_DD__HH_MM_SS... or ManFocus_name_YYYY_MM_DD__...
 FILENAME_DATE_PATTERN = re.compile(r'(\d{4})_(\d{2})_(\d{2})__')
 
+# Cache schema version - bump when sidecar structure changes
+CACHE_SCHEMA_VERSION = "1.1"
+
 logger = logging.getLogger(__name__)
 
 
@@ -702,6 +705,15 @@ class SidecarService:
                 with open(cache_file) as f:
                     data = json.load(f)
                     entry = CacheEntry.from_dict(data)
+
+                # Invalidate if schema version mismatch
+                if entry.cache_version != self.cache_version:
+                    logger.debug(
+                        f"Cache version mismatch for {photo_path}: "
+                        f"{entry.cache_version} != {self.cache_version}"
+                    )
+                    cache_file.unlink()
+                    return None
 
                 # Update file mtime for LRU tracking (non-critical)
                 with contextlib.suppress(Exception):

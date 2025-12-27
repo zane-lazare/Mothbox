@@ -1028,3 +1028,80 @@ class TestSidecarServiceSearchIntegration:
         metadata = service.get_metadata(str(photo))
         assert metadata is not None
         assert "test" in metadata.tags
+
+
+# ============================================================================
+# Test Cache Version Invalidation (Issue #185)
+# ============================================================================
+
+class TestCacheVersionInvalidation:
+    """Tests for schema version-based cache invalidation."""
+
+    def test_version_mismatch_returns_none(self, cache_dir):
+        """Cache entry with old version is treated as miss."""
+        from webui.backend.services.sidecar_service import SidecarService, CacheEntry
+        import json
+
+        service = SidecarService(cache_dir=cache_dir, cache_version="2.0")
+
+        # Create cache file with old version
+        photo_path = "/photos/test.jpg"
+        cache_file = service._get_cache_file_path(photo_path)
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+        old_entry = {
+            "photo_path": photo_path,
+            "metadata": {"test": "data"},
+            "cached_at": 123456.0,
+            "cache_version": "1.0",  # Old version
+        }
+        cache_file.write_text(json.dumps(old_entry))
+
+        # Should return None due to version mismatch
+        result = service._get_l2(photo_path)
+        assert result is None
+
+    def test_version_mismatch_deletes_cache_file(self, cache_dir):
+        """Cache file with old version is deleted."""
+        from webui.backend.services.sidecar_service import SidecarService
+        import json
+
+        service = SidecarService(cache_dir=cache_dir, cache_version="2.0")
+
+        photo_path = "/photos/test.jpg"
+        cache_file = service._get_cache_file_path(photo_path)
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+        old_entry = {
+            "photo_path": photo_path,
+            "metadata": {"test": "data"},
+            "cached_at": 123456.0,
+            "cache_version": "1.0",
+        }
+        cache_file.write_text(json.dumps(old_entry))
+
+        service._get_l2(photo_path)
+        assert not cache_file.exists()  # File should be deleted
+
+    def test_matching_version_returns_entry(self, cache_dir):
+        """Cache entry with matching version is returned."""
+        from webui.backend.services.sidecar_service import SidecarService
+        import json
+
+        service = SidecarService(cache_dir=cache_dir, cache_version="2.0")
+
+        photo_path = "/photos/test.jpg"
+        cache_file = service._get_cache_file_path(photo_path)
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+        entry = {
+            "photo_path": photo_path,
+            "metadata": {"species": "Moth"},
+            "cached_at": 123456.0,
+            "cache_version": "2.0",  # Matches service version
+        }
+        cache_file.write_text(json.dumps(entry))
+
+        result = service._get_l2(photo_path)
+        assert result is not None
+        assert result.metadata["species"] == "Moth"

@@ -61,12 +61,31 @@ def get_sidecar_service():
     """
     global _sidecar_service
     if _sidecar_service is None:
+        import contextlib
+        import logging
+
         from mothbox_paths import DATA_DIR
 
-        from .sidecar_service import SidecarService
+        from .sidecar_service import CACHE_SCHEMA_VERSION, SidecarService
+
+        logger = logging.getLogger(__name__)
 
         cache_dir = DATA_DIR / "cache" / "sidecar"
-        _sidecar_service = SidecarService(cache_dir=cache_dir)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # Check version file and purge if schema changed
+        version_file = cache_dir / ".version"
+        if version_file.exists() and version_file.read_text().strip() != CACHE_SCHEMA_VERSION:
+            logger.info("Cache schema version changed, purging L2 cache")
+            for f in cache_dir.glob("*.json"):
+                with contextlib.suppress(Exception):
+                    f.unlink()
+        version_file.write_text(CACHE_SCHEMA_VERSION)
+
+        _sidecar_service = SidecarService(
+            cache_dir=cache_dir,
+            cache_version=CACHE_SCHEMA_VERSION,
+        )
     return _sidecar_service
 
 
