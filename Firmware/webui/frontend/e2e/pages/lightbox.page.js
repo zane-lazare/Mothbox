@@ -30,12 +30,22 @@ export class LightboxPage {
 
       // Metadata panel
       metadataPanel: '[data-testid="metadata-panel"], .metadata-panel, [class*="MetadataPanel"]',
-      metadataTab: '[role="tab"]',
-      cameraTab: '[role="tab"]:has-text("Camera")',
-      locationTab: '[role="tab"]:has-text("Location")',
-      captureTab: '[role="tab"]:has-text("Capture")',
-      tagsTab: '[role="tab"]:has-text("Tags")',
-      deploymentTab: '[role="tab"]:has-text("Deployment")',
+
+      // Accordion sections (matches MetadataPanel.jsx lines 272-306)
+      tagsSection: '[data-testid="metadata-panel"] [role="button"]:has-text("Tags")',
+      speciesSection: '[data-testid="metadata-panel"] [role="button"]:has-text("Species")',
+      notesSection: '[data-testid="metadata-panel"] [role="button"]:has-text("Notes")',
+      exifSection: '[data-testid="metadata-panel"] [role="button"]:has-text("EXIF Data")',
+      customFieldsSection: '[data-testid="metadata-panel"] [role="button"]:has-text("Custom Fields")',
+
+      // GPS display (from MetadataEXIF component)
+      gpsCoordinates: '[data-testid="gps-coordinates"]',
+      altitudeDisplay: 'text=/\\d+(\\.\\d+)?m/',
+      copyButton: 'button[aria-label*="Copy"]',
+
+      // Series indicator
+      seriesIndicator: '[data-testid="series-indicator"]',
+      seriesCounter: '[data-testid="series-counter"]',
 
       // Zoom controls
       zoomInButton: 'button[aria-label*="Zoom in"], button:has([class*="ZoomIn"])',
@@ -179,32 +189,199 @@ export class LightboxPage {
   }
 
   /**
-   * Click a metadata tab
-   * @param {'Camera' | 'Location' | 'Capture' | 'Tags' | 'Deployment'} tabName
+   * Click a metadata section to expand/collapse (accordion pattern)
+   * @param {'Tags' | 'Species' | 'Notes' | 'EXIF Data' | 'Custom Fields'} sectionName
+   * @returns {Promise<void>}
+   */
+  async clickMetadataSection(sectionName) {
+    const sectionSelector = {
+      'Tags': this.selectors.tagsSection,
+      'Species': this.selectors.speciesSection,
+      'Notes': this.selectors.notesSection,
+      'EXIF Data': this.selectors.exifSection,
+      'Custom Fields': this.selectors.customFieldsSection,
+    }[sectionName]
+
+    if (sectionSelector) {
+      const section = this.page.locator(sectionSelector)
+      await section.click()
+      // Wait for aria-expanded to update
+      await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
+    }
+  }
+
+  /**
+   * DEPRECATED: Use clickMetadataSection instead
+   * @deprecated
    */
   async clickMetadataTab(tabName) {
-    const tabSelector = {
-      Camera: this.selectors.cameraTab,
-      Location: this.selectors.locationTab,
-      Capture: this.selectors.captureTab,
-      Tags: this.selectors.tagsTab,
-      Deployment: this.selectors.deploymentTab,
-    }[tabName]
-
-    if (tabSelector) {
-      const tab = this.page.locator(tabSelector)
-      await tab.click()
-      // Wait for tab to become selected
-      await tab.getAttribute('aria-selected').then(async (selected) => {
-        if (selected !== 'true') {
-          await this.page.waitForFunction(
-            (sel) => document.querySelector(sel)?.getAttribute('aria-selected') === 'true',
-            tabSelector,
-            { timeout: TIMEOUTS.SHORT }
-          ).catch(() => {})
-        }
-      })
+    console.warn('clickMetadataTab is deprecated. Use clickMetadataSection instead.')
+    // Map old tab names to new section names for backward compatibility
+    const sectionMap = {
+      'Camera': 'EXIF Data',
+      'Location': 'EXIF Data',
+      'Capture': 'EXIF Data',
+      'Tags': 'Tags',
+      'Deployment': 'EXIF Data',
     }
+    const sectionName = sectionMap[tabName]
+    if (sectionName) {
+      await this.clickMetadataSection(sectionName)
+    }
+  }
+
+  /**
+   * Expand a metadata section (accordion pattern)
+   * @param {'Tags' | 'Species' | 'Notes' | 'EXIF Data' | 'Custom Fields'} sectionName
+   * @returns {Promise<void>}
+   */
+  async expandSection(sectionName) {
+    const isExpanded = await this.isSectionExpanded(sectionName)
+    if (!isExpanded) {
+      await this.clickMetadataSection(sectionName)
+    }
+  }
+
+  /**
+   * Check if a metadata section is expanded
+   * @param {'Tags' | 'Species' | 'Notes' | 'EXIF Data' | 'Custom Fields'} sectionName
+   * @returns {Promise<boolean>}
+   */
+  async isSectionExpanded(sectionName) {
+    const sectionSelector = {
+      'Tags': this.selectors.tagsSection,
+      'Species': this.selectors.speciesSection,
+      'Notes': this.selectors.notesSection,
+      'EXIF Data': this.selectors.exifSection,
+      'Custom Fields': this.selectors.customFieldsSection,
+    }[sectionName]
+
+    if (!sectionSelector) return false
+
+    const section = this.page.locator(sectionSelector)
+    const ariaExpanded = await section.getAttribute('aria-expanded')
+    return ariaExpanded === 'true'
+  }
+
+  /**
+   * Get text content of a metadata section
+   * @param {'Tags' | 'Species' | 'Notes' | 'EXIF Data' | 'Custom Fields'} sectionName
+   * @returns {Promise<string|null>}
+   */
+  async getSectionContent(sectionName) {
+    // Ensure section is expanded first
+    await this.expandSection(sectionName)
+
+    const sectionSelector = {
+      'Tags': this.selectors.tagsSection,
+      'Species': this.selectors.speciesSection,
+      'Notes': this.selectors.notesSection,
+      'EXIF Data': this.selectors.exifSection,
+      'Custom Fields': this.selectors.customFieldsSection,
+    }[sectionName]
+
+    if (!sectionSelector) return null
+
+    // Get the content div (next sibling of the button)
+    const section = this.page.locator(sectionSelector)
+    const contentId = await section.getAttribute('aria-controls')
+    if (!contentId) return null
+
+    const contentDiv = this.page.locator(`#${contentId}`)
+    return contentDiv.textContent()
+  }
+
+  /**
+   * Check if GPS coordinates are displayed (has a non-N/A value)
+   * @returns {Promise<boolean>}
+   */
+  async hasGPSCoordinates() {
+    await this.expandSection('EXIF Data')
+    const gps = this.page.locator(this.selectors.gpsCoordinates)
+    if (await gps.isVisible().catch(() => false)) {
+      const text = await gps.textContent()
+      // Check if GPS field exists and has actual coordinates (not "N/A")
+      return text && !text.includes('N/A') && /\d+\.\d+°/.test(text)
+    }
+    return false
+  }
+
+  /**
+   * Get GPS coordinates text
+   * @returns {Promise<string|null>} GPS text in format "37.7749° N, 122.4194° W" or null if not found
+   */
+  async getGPSText() {
+    await this.expandSection('EXIF Data')
+    const gps = this.page.locator(this.selectors.gpsCoordinates)
+    if (await gps.isVisible().catch(() => false)) {
+      const text = await gps.textContent()
+      // Extract just the coordinate part (after "GPS" label)
+      const match = text?.match(/(\d+\.\d+°\s*[NS],\s*\d+\.\d+°\s*[EW])/)
+      return match ? match[1] : null
+    }
+    return null
+  }
+
+  /**
+   * Copy GPS coordinates to clipboard
+   * @returns {Promise<boolean>} True if copy succeeded, false otherwise
+   */
+  async copyCoordinatesToClipboard() {
+    await this.expandSection('EXIF Data')
+
+    // Find the GPS field and its associated copy button
+    // The MetadataField component places the copy button next to the value
+    const gpsField = this.page.locator('text="GPS"').locator('..')
+    const copyBtn = gpsField.locator(this.selectors.copyButton).first()
+
+    if (await copyBtn.isVisible().catch(() => false)) {
+      await copyBtn.click()
+      // Wait for copy animation to complete
+      await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
+      return true
+    }
+    return false
+  }
+
+  /**
+   * Get EXIF field value by label
+   * @param {'Make' | 'Model' | 'Lens' | 'ISO' | 'Shutter Speed' | 'Aperture' | 'Focal Length' | 'Exposure Mode' | 'White Balance' | 'Captured' | 'GPS' | 'Altitude' | 'Deployment' | 'Device'} fieldLabel
+   * @returns {Promise<string|null>} Field value or null if not found
+   */
+  async getEXIFFieldValue(fieldLabel) {
+    await this.expandSection('EXIF Data')
+
+    // Find the MetadataField with the matching label
+    const field = this.page.locator(`text="${fieldLabel}"`).locator('..')
+    if (await field.isVisible().catch(() => false)) {
+      // The value is in the second div child of the field container
+      const valueDiv = field.locator('div').nth(1)
+      const value = await valueDiv.textContent()
+      // Return null if the value is "N/A"
+      return value === 'N/A' ? null : value
+    }
+    return null
+  }
+
+  /**
+   * Check if photo is part of a series (HDR or Focus Bracket)
+   * @returns {Promise<boolean>}
+   */
+  async isPartOfSeries() {
+    const indicator = this.page.locator(this.selectors.seriesIndicator)
+    return indicator.isVisible().catch(() => false)
+  }
+
+  /**
+   * Get series indicator text (e.g., "HDR Series: 3/5" or "Focus Bracket: 2/7")
+   * @returns {Promise<string|null>}
+   */
+  async getSeriesIndicatorText() {
+    const indicator = this.page.locator(this.selectors.seriesIndicator)
+    if (await indicator.isVisible().catch(() => false)) {
+      return indicator.textContent()
+    }
+    return null
   }
 
   /**
