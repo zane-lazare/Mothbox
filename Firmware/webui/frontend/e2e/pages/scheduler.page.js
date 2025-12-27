@@ -390,9 +390,13 @@ export class SchedulerPage {
 
     try {
       await savePromise
+      // Wait for drawer to close after successful save
+      await this.waitForEditorClose()
     } catch {
       // If no API response (e.g., validation error prevented submission),
       // the test will verify this via isEditorOpen() check
+      // Still wait a moment for any error messages to appear
+      await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
     }
   }
 
@@ -428,15 +432,27 @@ export class SchedulerPage {
    * @returns {Promise<boolean>} True if a pattern was selected
    */
   async selectFirstEventPattern() {
-    // Wait for patterns to load
-    const patternCard = this.page.locator(this.selectors.patternCard).first()
+    // Wait for patterns to load - look for "Use Pattern" button with aria-label
+    const usePatternButton = this.page.locator('button[aria-label="Use Pattern"]').first()
     try {
-      await patternCard.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
-      await patternCard.click()
+      await usePatternButton.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
+      // Scroll the button into view to ensure it's clickable
+      await usePatternButton.scrollIntoViewIfNeeded()
+      await usePatternButton.click()
+      // Wait for pattern to be applied and UI to update
+      await this.page.waitForTimeout(TIMEOUTS.SAVE)
       return true
     } catch {
-      // No patterns available
-      return false
+      // No patterns available or button not found, try clicking pattern card as fallback
+      const patternCard = this.page.locator(this.selectors.patternCard).first()
+      try {
+        await patternCard.waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT })
+        await patternCard.scrollIntoViewIfNeeded()
+        await patternCard.click()
+        return true
+      } catch {
+        return false
+      }
     }
   }
 
