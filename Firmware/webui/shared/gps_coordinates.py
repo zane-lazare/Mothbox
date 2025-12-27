@@ -14,8 +14,9 @@ from typing import Literal
 __all__ = [
     "decimal_to_dms",
     "dms_to_decimal",
-    "validate_coordinate",
     "format_coordinate_display",
+    "format_coordinate_pair",
+    "validate_coordinate",
 ]
 
 
@@ -211,3 +212,51 @@ def format_coordinate_display(
         return f"{abs(decimal):.2f}°{ref}"
     else:
         raise ValueError(f"Invalid format: {format} (must be 'dms', 'decimal', or 'short')")
+
+
+def format_coordinate_pair(
+    latitude: float,
+    longitude: float,
+    format: Literal["dms", "decimal", "short"] = "dms"
+) -> str:
+    """Format a coordinate pair (latitude, longitude) for display.
+
+    This convenience function combines latitude and longitude formatting into
+    a single call, making it easier to display complete location coordinates.
+
+    Args:
+        latitude: Latitude in decimal degrees (-90.0 to 90.0)
+        longitude: Longitude in decimal degrees (-180.0 to 180.0)
+        format: Display format ('dms', 'decimal', or 'short')
+
+    Returns:
+        Formatted string: "LAT_STRING LON_STRING"
+        Examples:
+            - DMS: "37°46'29.64\"N 122°25'9.84\"W"
+            - Decimal: "37.774900°N 122.419400°W"
+            - Short: "37.77°N 122.42°W"
+
+    Raises:
+        ValueError: If either coordinate is invalid
+
+    Example:
+        >>> format_coordinate_pair(37.7749, -122.4194)
+        '37°46\\'29.64"N 122°25\\'9.84"W'
+        >>> format_coordinate_pair(37.7749, -122.4194, format='decimal')
+        '37.774900°N 122.419400°W'
+        >>> format_coordinate_pair(37.7749, -122.4194, format='short')
+        '37.77°N 122.42°W'
+    """
+    # Validate latitude
+    if not validate_coordinate(latitude, is_latitude=True):
+        raise ValueError(f"Invalid latitude: {latitude}")
+
+    # Validate longitude
+    if not validate_coordinate(longitude, is_latitude=False):
+        raise ValueError(f"Invalid longitude: {longitude}")
+
+    # Format both coordinates
+    lat_str = format_coordinate_display(latitude, is_latitude=True, format=format)
+    lon_str = format_coordinate_display(longitude, is_latitude=False, format=format)
+
+    return f"{lat_str} {lon_str}"
