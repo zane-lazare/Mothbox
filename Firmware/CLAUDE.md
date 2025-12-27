@@ -159,6 +159,28 @@ Core scripts in each version:
 
 **Tests**: `Tests/unit/test_cron_bridge.py` (96 tests)
 
+### Visual Scheduler System (Issues #208-233)
+
+**Purpose**: Two-tier scheduling system with visual UI for automated photo capture, GPIO control, and service execution.
+
+**Key Components**:
+- `webui/backend/lib/schedule_schema.py`: Data structures (`Schedule`, `EventPattern`, triggers)
+- `webui/backend/lib/schedule_storage.py`: JSON file persistence with file locking
+- `webui/backend/services/scheduler_service.py`: LRU-cached service layer with conflict detection
+- `webui/backend/routes/scheduler_ui.py`: Visual scheduler REST API (CRUD, activation, preview)
+- `webui/backend/routes/scheduler.py`: Legacy cron job management API
+- Frontend hooks: `useSchedules.js`, `useEventPatterns.js`, `useSchedulePatterns.js`
+
+**Architecture**:
+- **Two-tier model**: EventPatterns (reusable action sequences) + Schedules (timing triggers)
+- **Single-file storage**: Self-contained JSON files with embedded patterns
+- **Trigger types**: Interval, Solar, Moon Phase, Fixed Time, Sensor, Cron (expert mode)
+- **Actions**: GPIO (attract_on/off, flash_on/off), Camera (takephoto), GPS sync, Service
+
+**Documentation**: See `webui/docs/dev/api/scheduler.md` (API) and `webui/docs/SCHEDULER_USER_GUIDE.md` (usage).
+
+**Tests**: `Tests/unit/test_schedule*.py`, `Tests/unit/test_cron_bridge.py` (96 tests), E2E: `scheduler-*.spec.js`
+
 ### Deployment Metadata Sidecar System (Issue #114)
 
 **Purpose**: Directory-level metadata files (deployment.json) for photo collections with location, dates, and custom fields.

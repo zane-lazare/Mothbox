@@ -390,9 +390,13 @@ export class SchedulerPage {
 
     try {
       await savePromise
+      // Wait for drawer to close after successful save
+      await this.waitForEditorClose()
     } catch {
       // If no API response (e.g., validation error prevented submission),
       // the test will verify this via isEditorOpen() check
+      // Still wait a moment for any error messages to appear
+      await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
     }
   }
 
@@ -428,15 +432,27 @@ export class SchedulerPage {
    * @returns {Promise<boolean>} True if a pattern was selected
    */
   async selectFirstEventPattern() {
-    // Wait for patterns to load
-    const patternCard = this.page.locator(this.selectors.patternCard).first()
+    // Wait for patterns to load - look for "Use Pattern" button with aria-label
+    const usePatternButton = this.page.locator('button[aria-label="Use Pattern"]').first()
     try {
-      await patternCard.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
-      await patternCard.click()
+      await usePatternButton.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
+      // Scroll the button into view to ensure it's clickable
+      await usePatternButton.scrollIntoViewIfNeeded()
+      await usePatternButton.click()
+      // Wait for pattern to be applied and UI to update
+      await this.page.waitForTimeout(TIMEOUTS.SAVE)
       return true
     } catch {
-      // No patterns available
-      return false
+      // No patterns available or button not found, try clicking pattern card as fallback
+      const patternCard = this.page.locator(this.selectors.patternCard).first()
+      try {
+        await patternCard.waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT })
+        await patternCard.scrollIntoViewIfNeeded()
+        await patternCard.click()
+        return true
+      } catch {
+        return false
+      }
     }
   }
 
@@ -609,5 +625,451 @@ export class SchedulerPage {
     } catch {
       return false
     }
+  }
+
+  // ============================================================
+  // Trigger Type Selection
+  // ============================================================
+
+  /**
+   * Select a trigger type from the dropdown
+   * @param {'interval' | 'solar' | 'moon_phase' | 'fixed_time' | 'sensor'} triggerType
+   */
+  async selectTriggerType(triggerType) {
+    await this.page.selectOption('#trigger_type', triggerType)
+    // Wait for the form to update
+    await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
+  }
+
+  /**
+   * Get currently selected trigger type
+   * @returns {Promise<string>}
+   */
+  async getSelectedTriggerType() {
+    return this.page.locator('#trigger_type').inputValue()
+  }
+
+  // ============================================================
+  // Interval Trigger Form
+  // ============================================================
+
+  /**
+   * Fill the interval minutes field
+   * @param {number} minutes
+   */
+  async fillIntervalMinutes(minutes) {
+    await this.page.fill('#interval_minutes', String(minutes))
+  }
+
+  /**
+   * Click an interval preset button
+   * @param {string} label - e.g., '15 min', '30 min', '60 min'
+   */
+  async clickIntervalPreset(label) {
+    await this.page.click(`button:has-text("${label}")`)
+  }
+
+  /**
+   * Select start time type (fixed or solar)
+   * @param {'fixed' | 'solar'} type
+   */
+  async selectStartTimeType(type) {
+    if (type === 'fixed') {
+      await this.page.click('label:has-text("Fixed Time"):near(:text("Start Time"))')
+    } else {
+      await this.page.click('label:has-text("Solar Event"):near(:text("Start Time"))')
+    }
+    await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
+  }
+
+  /**
+   * Select end time type (fixed or solar)
+   * @param {'fixed' | 'solar'} type
+   */
+  async selectEndTimeType(type) {
+    if (type === 'fixed') {
+      await this.page.click('label:has-text("Fixed Time"):near(:text("End Time"))')
+    } else {
+      await this.page.click('label:has-text("Solar Event"):near(:text("End Time"))')
+    }
+    await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
+  }
+
+  /**
+   * Fill fixed start time
+   * @param {string} time - HH:MM format
+   */
+  async fillStartTime(time) {
+    await this.page.fill('input[aria-label="Start time (fixed)"]', time)
+  }
+
+  /**
+   * Fill fixed end time
+   * @param {string} time - HH:MM format
+   */
+  async fillEndTime(time) {
+    await this.page.fill('input[aria-label="End time (fixed)"]', time)
+  }
+
+  /**
+   * Select solar event for start time
+   * @param {string} event - e.g., 'sunset', 'sunrise', 'dusk', 'dawn'
+   */
+  async selectStartSolarEvent(event) {
+    await this.page.selectOption('select[aria-label="Start time (solar event)"]', event)
+  }
+
+  /**
+   * Select solar event for end time
+   * @param {string} event - e.g., 'sunset', 'sunrise', 'dusk', 'dawn'
+   */
+  async selectEndSolarEvent(event) {
+    await this.page.selectOption('select[aria-label="End time (solar event)"]', event)
+  }
+
+  /**
+   * Fill start time offset (for solar events)
+   * @param {number} minutes
+   */
+  async fillStartOffset(minutes) {
+    await this.page.fill('#start_offset', String(minutes))
+  }
+
+  /**
+   * Fill end time offset (for solar events)
+   * @param {number} minutes
+   */
+  async fillEndOffset(minutes) {
+    await this.page.fill('#end_offset', String(minutes))
+  }
+
+  // ============================================================
+  // Moon Phase Trigger Form
+  // ============================================================
+
+  /**
+   * Select a moon phase
+   * @param {string} phase - e.g., 'full', 'new', 'first_quarter', 'last_quarter'
+   */
+  async selectMoonPhase(phase) {
+    await this.page.selectOption('#moon_phase', phase)
+  }
+
+  /**
+   * Get selected moon phase
+   * @returns {Promise<string>}
+   */
+  async getSelectedMoonPhase() {
+    return this.page.locator('#moon_phase').inputValue()
+  }
+
+  /**
+   * Fill moon phase time of day
+   * @param {string} time - HH:MM format
+   */
+  async fillMoonPhaseTime(time) {
+    await this.page.fill('#time_of_day', time)
+  }
+
+  /**
+   * Fill moon phase offset days
+   * @param {number} days
+   */
+  async fillMoonPhaseOffset(days) {
+    await this.page.fill('#offset_days', String(days))
+  }
+
+  /**
+   * Click moon phase offset preset
+   * @param {string} label - e.g., '-1 day', 'No offset', '+1 day'
+   */
+  async clickMoonPhaseOffsetPreset(label) {
+    await this.page.click(`button:has-text("${label}")`)
+  }
+
+  // ============================================================
+  // Fixed Time Trigger Form
+  // ============================================================
+
+  /**
+   * Fill fixed time of day (for fixed_time trigger)
+   * @param {string} time - HH:MM format
+   */
+  async fillFixedTimeOfDay(time) {
+    await this.page.fill('#time_of_day', time)
+  }
+
+  /**
+   * Click a time preset button
+   * @param {string} label - e.g., '6 AM', '12 PM', '6 PM', '9 PM'
+   */
+  async clickTimePreset(label) {
+    await this.page.click(`button:has-text("${label}")`)
+  }
+
+  // ============================================================
+  // Days of Week Selector
+  // ============================================================
+
+  /**
+   * Toggle a specific day of the week
+   * @param {string} dayLabel - e.g., 'Mon', 'Tue', 'Wed', etc.
+   */
+  async toggleDay(dayLabel) {
+    await this.page.click(`button[aria-label="${this.getDayFullLabel(dayLabel)}"]`)
+  }
+
+  /**
+   * Click "All Days" button
+   */
+  async clickAllDays() {
+    await this.page.click('button:has-text("All Days")')
+  }
+
+  /**
+   * Get full day label from short label
+   * @param {string} shortLabel
+   * @returns {string}
+   */
+  getDayFullLabel(shortLabel) {
+    const dayMap = {
+      'Mon': 'Monday',
+      'Tue': 'Tuesday',
+      'Wed': 'Wednesday',
+      'Thu': 'Thursday',
+      'Fri': 'Friday',
+      'Sat': 'Saturday',
+      'Sun': 'Sunday',
+    }
+    return dayMap[shortLabel] || shortLabel
+  }
+
+  // ============================================================
+  // Date Range Section
+  // ============================================================
+
+  /**
+   * Fill start date
+   * @param {string} date - YYYY-MM-DD format
+   */
+  async fillStartDate(date) {
+    await this.page.fill('#start-date', date)
+  }
+
+  /**
+   * Fill end date
+   * @param {string} date - YYYY-MM-DD format
+   */
+  async fillEndDate(date) {
+    await this.page.fill('#end-date', date)
+  }
+
+  /**
+   * Clear start date
+   */
+  async clearStartDate() {
+    await this.page.click('button[aria-label="Clear start date"]')
+  }
+
+  /**
+   * Clear end date
+   */
+  async clearEndDate() {
+    await this.page.click('button[aria-label="Clear end date"]')
+  }
+
+  // ============================================================
+  // Event Pattern Selection (Extended)
+  // ============================================================
+
+  /**
+   * Select an event pattern by name
+   * @param {string} patternName
+   * @returns {Promise<boolean>} True if pattern was found and selected
+   */
+  async selectEventPatternByName(patternName) {
+    const patternCard = this.page.locator(`[role="article"][aria-label^="Pattern: ${patternName}"]`)
+    try {
+      await patternCard.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
+      await patternCard.click()
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Check if a pattern with the given name exists
+   * @param {string} patternName
+   * @returns {Promise<boolean>}
+   */
+  async hasPatternWithName(patternName) {
+    const patternCard = this.page.locator(`[role="article"][aria-label^="Pattern: ${patternName}"]`)
+    return patternCard.isVisible()
+  }
+
+  /**
+   * Get count of available patterns
+   * @returns {Promise<number>}
+   */
+  async getPatternCount() {
+    return this.page.locator(this.selectors.patternCard).count()
+  }
+
+  // ============================================================
+  // Preview Section
+  // ============================================================
+
+  /**
+   * Get the trigger preview text
+   * @returns {Promise<string|null>}
+   */
+  async getTriggerPreviewText() {
+    const preview = this.page.locator('.italic.bg-gray-50, .italic.dark\\:bg-gray-800')
+    if (await preview.isVisible()) {
+      return preview.textContent()
+    }
+    return null
+  }
+
+  // ============================================================
+  // Full Scenario Helpers
+  // ============================================================
+
+  /**
+   * Create a complete schedule with interval trigger
+   * @param {Object} config - Schedule configuration
+   * @param {string} config.name - Schedule name
+   * @param {string} config.description - Schedule description
+   * @param {number} config.intervalMinutes - Interval in minutes
+   * @param {Object} config.timeWindow - Time window configuration
+   * @param {string} config.startDate - Start date (YYYY-MM-DD)
+   * @param {string} config.endDate - End date (YYYY-MM-DD)
+   * @returns {Promise<boolean>} True if schedule was created successfully
+   */
+  async createIntervalSchedule(config) {
+    await this.clickNewSchedule()
+
+    // Fill basic info
+    await this.fillScheduleName(config.name)
+    if (config.description) {
+      await this.fillScheduleDescription(config.description)
+    }
+
+    // Select interval trigger
+    await this.selectTriggerType('interval')
+    await this.fillIntervalMinutes(config.intervalMinutes)
+
+    // Configure time window
+    if (config.timeWindow) {
+      if (config.timeWindow.startType === 'solar') {
+        await this.selectStartTimeType('solar')
+        await this.selectStartSolarEvent(config.timeWindow.startEvent)
+        if (config.timeWindow.startOffset) {
+          await this.fillStartOffset(config.timeWindow.startOffset)
+        }
+      } else {
+        await this.fillStartTime(config.timeWindow.startTime)
+      }
+
+      if (config.timeWindow.endType === 'solar') {
+        await this.selectEndTimeType('solar')
+        await this.selectEndSolarEvent(config.timeWindow.endEvent)
+        if (config.timeWindow.endOffset) {
+          await this.fillEndOffset(config.timeWindow.endOffset)
+        }
+      } else {
+        await this.fillEndTime(config.timeWindow.endTime)
+      }
+    }
+
+    // Set date range
+    if (config.startDate) {
+      await this.fillStartDate(config.startDate)
+    }
+    if (config.endDate) {
+      await this.fillEndDate(config.endDate)
+    }
+
+    // Select pattern
+    const patternSelected = await this.selectFirstEventPattern()
+    if (!patternSelected) return false
+
+    // Save
+    await this.clickSave()
+    return !(await this.isEditorOpen())
+  }
+
+  /**
+   * Create a complete schedule with moon phase trigger
+   * @param {Object} config - Schedule configuration
+   * @param {string} config.name - Schedule name
+   * @param {string} config.description - Schedule description
+   * @param {string} config.moonPhase - Moon phase (full, new, etc.)
+   * @param {string} config.timeOfDay - Time of day (HH:MM)
+   * @param {number} config.offsetDays - Offset days
+   * @returns {Promise<boolean>} True if schedule was created successfully
+   */
+  async createMoonPhaseSchedule(config) {
+    await this.clickNewSchedule()
+
+    // Fill basic info
+    await this.fillScheduleName(config.name)
+    if (config.description) {
+      await this.fillScheduleDescription(config.description)
+    }
+
+    // Select moon phase trigger
+    await this.selectTriggerType('moon_phase')
+    await this.selectMoonPhase(config.moonPhase)
+    await this.fillMoonPhaseTime(config.timeOfDay)
+    if (config.offsetDays !== undefined) {
+      await this.fillMoonPhaseOffset(config.offsetDays)
+    }
+
+    // Select pattern
+    const patternSelected = await this.selectFirstEventPattern()
+    if (!patternSelected) return false
+
+    // Save
+    await this.clickSave()
+    return !(await this.isEditorOpen())
+  }
+
+  /**
+   * Create a complete schedule with fixed time trigger
+   * @param {Object} config - Schedule configuration
+   * @param {string} config.name - Schedule name
+   * @param {string} config.description - Schedule description
+   * @param {string} config.timeOfDay - Time of day (HH:MM)
+   * @param {Array<number>|null} config.daysOfWeek - Days of week (null for all days)
+   * @returns {Promise<boolean>} True if schedule was created successfully
+   */
+  async createFixedTimeSchedule(config) {
+    await this.clickNewSchedule()
+
+    // Fill basic info
+    await this.fillScheduleName(config.name)
+    if (config.description) {
+      await this.fillScheduleDescription(config.description)
+    }
+
+    // Select fixed time trigger
+    await this.selectTriggerType('fixed_time')
+    await this.fillFixedTimeOfDay(config.timeOfDay)
+
+    // Configure days of week if specified
+    if (config.daysOfWeek !== null && config.daysOfWeek !== undefined) {
+      // First click All Days to ensure we start fresh
+      await this.clickAllDays()
+    }
+
+    // Select pattern
+    const patternSelected = await this.selectFirstEventPattern()
+    if (!patternSelected) return false
+
+    // Save
+    await this.clickSave()
+    return !(await this.isEditorOpen())
   }
 }
