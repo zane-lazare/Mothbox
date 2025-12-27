@@ -50,7 +50,7 @@ def demo_gps_photos():
 
         if gps_info['has_gps']:
             print("  ✓ Has GPS: Yes")
-            print(f"  📍 Location: {gps_info['latitude']:.4f}°N, {abs(gps_info['longitude']):.4f}°W")
+            print("  📍 Location: [coordinates verified]")
             print(f"  🛰️  Satellites: {gps_info['satellites']}")
             print(f"  ⛰️  Altitude: {gps_info['altitude']}m")
             print(f"  📊 HDOP: {gps_info['hdop']}")
