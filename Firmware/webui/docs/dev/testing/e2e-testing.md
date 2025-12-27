@@ -104,7 +104,134 @@ test.beforeEach(async ({ page }) => {
 - Bulk tag tests use unique timestamped tags for cleanup
 - Export tests are reversible (files auto-cleanup)
 
+## Photo Viewer Testing
+
+### Overview
+
+E2E tests for the photo viewer workflow are in `e2e/tests/photo-viewer-exif.spec.js`. These tests verify EXIF metadata display, GPS coordinates, series detection, and navigation.
+
+### Test Fixtures
+
+Photo fixtures with controlled EXIF data enable reliable testing without depending on real photo content. See [E2E Photo Fixtures](./e2e-photo-fixtures.md) for complete documentation.
+
+**Fixture categories:**
+- `with-gps/` - Photos with GPS coordinates for testing coordinate display and copy
+- `without-gps/` - Photos without GPS for testing graceful handling
+- `hdr-series/` - HDR series for testing series detection and navigation
+- `focus-bracket/` - Focus bracket series for multi-image navigation
+
+### LightboxPage Methods
+
+The `LightboxPage` page object provides methods for EXIF testing. See [Lightbox Page Usage](../../../frontend/e2e/pages/LIGHTBOX_PAGE_USAGE.md) for complete API.
+
+**Accordion Section Methods:**
+```javascript
+await lightbox.expandSection('EXIF Data')
+await lightbox.clickMetadataSection('Tags')
+const isExpanded = await lightbox.isSectionExpanded('EXIF Data')
+const content = await lightbox.getSectionContent('EXIF Data')
+```
+
+**GPS Methods:**
+```javascript
+const hasGPS = await lightbox.hasGPSCoordinates()
+const gpsText = await lightbox.getGPSText()  // "9.15° N, 79.85° W"
+await lightbox.copyCoordinatesToClipboard()
+```
+
+**EXIF Field Methods:**
+```javascript
+const make = await lightbox.getEXIFFieldValue('Make')
+const iso = await lightbox.getEXIFFieldValue('ISO')
+const altitude = await lightbox.getEXIFFieldValue('Altitude')
+```
+
+**Series Methods:**
+```javascript
+const isSeries = await lightbox.isPartOfSeries()
+const seriesText = await lightbox.getSeriesIndicatorText()  // "HDR Series: 1/3"
+```
+
+### Graceful Skipping
+
+Tests skip gracefully when required data isn't available:
+
+```javascript
+test('displays GPS coordinates', async () => {
+  const hasGPS = await lightbox.hasGPSCoordinates()
+  if (!hasGPS) {
+    test.skip(true, 'No photos with GPS available')
+    return
+  }
+
+  const gpsText = await lightbox.getGPSText()
+  expect(gpsText).toMatch(/\d+\.\d+°\s*[NS],\s*\d+\.\d+°\s*[EW]/)
+})
+```
+
+### Clipboard Testing
+
+Clipboard tests require browser permissions:
+
+```javascript
+test('copies GPS coordinates', async ({ page, context }) => {
+  // Grant clipboard permissions
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+
+  // Copy coordinates
+  await lightbox.copyCoordinatesToClipboard()
+
+  // Verify clipboard content
+  const clipboardText = await page.evaluate(() => navigator.clipboard.readText())
+  expect(clipboardText).toMatch(/°/)
+})
+```
+
+### Series Detection Testing
+
+Series tests verify detection and navigation:
+
+```javascript
+test('detects HDR series', async () => {
+  // Check if photo is part of series
+  const isSeries = await lightbox.isPartOfSeries()
+  if (!isSeries) {
+    test.skip(true, 'No series photos available')
+    return
+  }
+
+  // Verify series indicator
+  const seriesText = await lightbox.getSeriesIndicatorText()
+  expect(seriesText).toMatch(/HDR Series: \d+\/\d+/)
+})
+```
+
+### EXIF Field Testing
+
+Test camera metadata display:
+
+```javascript
+test('displays camera EXIF fields', async () => {
+  await lightbox.expandSection('EXIF Data')
+
+  // Verify camera metadata
+  const make = await lightbox.getEXIFFieldValue('Make')
+  expect(make).toBeTruthy()
+
+  const model = await lightbox.getEXIFFieldValue('Model')
+  expect(model).toBeTruthy()
+
+  // Verify capture settings (may be N/A)
+  const iso = await lightbox.getEXIFFieldValue('ISO')
+  if (iso) {
+    expect(iso).toMatch(/ISO \d+/)
+  }
+})
+```
+
 ## Related Documentation
 
+- [E2E Photo Fixtures](./e2e-photo-fixtures.md) - Test photo fixture system
+- [Lightbox Page Usage](../../../frontend/e2e/pages/LIGHTBOX_PAGE_USAGE.md) - Lightbox page object API
 - [Gallery Testing](./gallery-testing.md) - Unit and integration tests for gallery
 - [Camera Hardware Testing](./camera-hardware-testing.md) - Hardware-specific tests
