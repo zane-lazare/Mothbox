@@ -7,12 +7,10 @@ TDD approach: tests written first, then implementation.
 Coverage Target: 85%+
 """
 
-import pytest
 import threading
 import time
-import json
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+
+import pytest
 
 # Import will fail until implementation exists - that's expected in TDD
 try:
@@ -137,7 +135,7 @@ class TestSidecarServiceInit:
         cache_dir = tmp_path / "nonexistent_cache"
         assert not cache_dir.exists()
 
-        service = SidecarService(cache_dir=cache_dir)
+        SidecarService(cache_dir=cache_dir)
         assert cache_dir.exists()
         assert cache_dir.is_dir()
 
@@ -872,7 +870,7 @@ class TestListAllSidecars:
     def test_list_all_sidecars_uses_cache(self, service, sample_photo_with_sidecar, photos_dir):
         """list_all_sidecars should populate cache for efficient repeat access."""
         # First call - should populate cache
-        results1 = service.list_all_sidecars(photos_dir)
+        service.list_all_sidecars(photos_dir)
         stats1 = service.get_statistics()
 
         # Access same photo - should be L1 hit
@@ -1028,3 +1026,78 @@ class TestSidecarServiceSearchIntegration:
         metadata = service.get_metadata(str(photo))
         assert metadata is not None
         assert "test" in metadata.tags
+
+
+# ============================================================================
+# Test Response Time Metrics (Issue #173)
+# ============================================================================
+
+class TestResponseTimeMetrics:
+    """Tests for response time metrics in get_statistics()."""
+
+    def test_empty_response_times_returns_none(self, service):
+        """When no operations performed, response time metrics should be None."""
+        # Fresh service with empty _total_response_times deque
+        stats = service.get_statistics()
+
+        # Response time metrics should be None when no operations performed
+        assert stats['avg_response_time_ms'] is None
+        assert stats['p99_response_time_ms'] is None
+        assert stats['response_time_samples'] == 0
+
+    def test_avg_response_time_calculation(self, service):
+        """Test average response time is calculated correctly."""
+        # Manually add known response times to deque
+        service._total_response_times.extend([10.0, 20.0, 30.0, 40.0])
+
+        stats = service.get_statistics()
+
+        # Average should be (10 + 20 + 30 + 40) / 4 = 25.0
+        assert stats['avg_response_time_ms'] == 25.0
+        assert stats['response_time_samples'] == 4
+
+    def test_p99_response_time_calculation(self, service):
+        """Test p99 percentile is calculated correctly."""
+        # Add 100 values (1.0 to 100.0)
+        service._total_response_times.extend([float(i) for i in range(1, 101)])
+
+        stats = service.get_statistics()
+
+        # 99th percentile of 1-100: int(100 * 0.99) = 99 (index), which is value 100.0
+        assert stats['p99_response_time_ms'] == 100.0
+        assert stats['response_time_samples'] == 100
+
+    def test_response_time_samples_count(self, service):
+        """Verify response_time_samples reflects deque size."""
+        # Add 50 samples
+        service._total_response_times.extend([5.0] * 50)
+
+        stats = service.get_statistics()
+
+        assert stats['response_time_samples'] == 50
+
+    def test_single_response_time(self, service):
+        """Test metrics with a single response time."""
+        service._total_response_times.append(42.5)
+
+        stats = service.get_statistics()
+
+        # With single value, avg and p99 should be the same
+        assert stats['avg_response_time_ms'] == 42.5
+        assert stats['p99_response_time_ms'] == 42.5
+        assert stats['response_time_samples'] == 1
+
+    def test_response_times_from_actual_operations(self, service, sample_photo_with_sidecar):
+        """Response times should be tracked from actual cache operations."""
+        # Perform some operations to generate response times
+        service.get_metadata(str(sample_photo_with_sidecar))
+        service.get_metadata(str(sample_photo_with_sidecar))
+
+        stats = service.get_statistics()
+
+        # Should have response times recorded
+        assert stats['response_time_samples'] > 0
+        assert stats['avg_response_time_ms'] is not None
+        assert stats['p99_response_time_ms'] is not None
+        assert stats['avg_response_time_ms'] >= 0
+        assert stats['p99_response_time_ms'] >= 0

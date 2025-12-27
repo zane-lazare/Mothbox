@@ -392,6 +392,9 @@ class SidecarService:
             - l2_hits: L2 cache hits
             - l2_misses: L2 cache misses (complete cache misses)
             - hit_ratio: Overall cache hit ratio
+            - avg_response_time_ms: Average response time in milliseconds (None if no samples)
+            - p99_response_time_ms: 99th percentile response time in milliseconds (None if no samples)
+            - response_time_samples: Number of response time samples collected
         """
         with self._stats_lock:
             total_hits = self._l1_hits + self._l2_hits
@@ -402,12 +405,26 @@ class SidecarService:
             if total_requests > 0:
                 hit_ratio = total_hits / total_requests
 
+            # Response time metrics
+            avg_response_time_ms = None
+            p99_response_time_ms = None
+
+            if self._total_response_times:
+                times = list(self._total_response_times)
+                avg_response_time_ms = sum(times) / len(times)
+                sorted_times = sorted(times)
+                p99_index = min(int(len(sorted_times) * 0.99), len(sorted_times) - 1)
+                p99_response_time_ms = sorted_times[p99_index]
+
             return {
                 'l1_hits': self._l1_hits,
                 'l1_misses': self._l1_misses,
                 'l2_hits': self._l2_hits,
                 'l2_misses': self._l2_misses,
                 'hit_ratio': hit_ratio,
+                'avg_response_time_ms': avg_response_time_ms,
+                'p99_response_time_ms': p99_response_time_ms,
+                'response_time_samples': len(self._total_response_times),
             }
 
     # ========================================================================
