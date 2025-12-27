@@ -34,9 +34,8 @@ The scheduler system allows you to create automated capture sessions that run au
 - GPS module configured (for solar/lunar triggers)
 
 ### Optional for Advanced Features
-- BH1750/LTR303 light sensor (for light-level triggers)
-- TMP102/MCP9808 temperature sensor (for temperature triggers)
-- PIR motion sensor (for motion triggers)
+- BH1750 or LTR303 light sensor (for light-level triggers)
+- TMP102 or MCP9808 temperature sensor (for temperature triggers)
 
 ---
 
@@ -310,9 +309,8 @@ Note: Only one schedule can be active at a time. For multiple times, use Interva
 **Best for**: Activity-based capture, environmental condition monitoring, adaptive sampling
 
 **Supported sensors**:
-- **motion**: PIR motion sensor (triggers on detection, threshold ignored)
-- **light**: BH1750/LTR303 lux sensor (triggers when light level crosses threshold)
-- **temperature**: TMP102/MCP9808 temperature sensor (triggers on temperature threshold)
+- **light**: BH1750 or LTR303 lux sensor (triggers when light level crosses threshold)
+- **temperature**: TMP102 or MCP9808 temperature sensor (triggers on temperature threshold)
 
 **Comparison operators**:
 - **gt**: Greater than (e.g., temperature > 20°C)
@@ -322,25 +320,13 @@ Note: Only one schedule can be active at a time. For multiple times, use Interva
 - **lte**: Less than or equal to
 
 **Configuration fields**:
-- **Sensor Type**: Which sensor to read
-- **Threshold**: Numeric threshold value (ignored for motion sensor)
+- **Sensor Type**: Which sensor to read (light or temperature)
+- **Threshold**: Numeric threshold value (lux for light, °C for temperature)
 - **Comparison**: Operator to use (gt, lt, eq, gte, lte)
 - **Cooldown Minutes**: Minimum time between triggers (1-60 minutes)
 - **Time Window**: Optional time window to restrict sensor checking
 
-**Example 1: Motion detection at night**
-```
-Sensor Type: motion
-Threshold: 0 (ignored for motion)
-Comparison: gt (ignored for motion)
-Cooldown: 5 minutes
-Time Window:
-  Start: 21:00
-  End: 06:00
-```
-Triggers on any motion detection between 9pm-6am, with 5-minute cooldown to prevent rapid repeated triggers.
-
-**Example 2: Low-light capture**
+**Example 1: Low-light capture**
 ```
 Sensor Type: light
 Threshold: 100
@@ -350,7 +336,7 @@ Time Window: None
 ```
 Triggers when ambient light drops below 100 lux, checking continuously with 10-minute cooldown.
 
-**Example 3: Temperature-based activation**
+**Example 2: Temperature-based activation**
 ```
 Sensor Type: temperature
 Threshold: 15
@@ -362,12 +348,14 @@ Time Window:
 ```
 Triggers when temperature is ≥15°C during nighttime hours, checking every 30 minutes.
 
-**Hardware Requirements**: Sensor triggers require the corresponding I2C sensor to be connected and configured in `controls.txt`.
+**Hardware Requirements**: Sensor triggers require an I2C sensor to be connected and enabled in `controls.txt`:
+- Light sensor: Set `light_sensor_enabled=True` and optionally `light_sensor_type` (BH1750 or LTR303)
+- Temperature sensor: Set `temperature_sensor_enabled=True` and optionally `temperature_sensor_type` (TMP102 or MCP9808)
 
 **Step-by-step setup**:
 1. Select "Sensor" trigger type
-2. Choose sensor type (motion, light, temperature)
-3. Set threshold value (for light/temperature sensors)
+2. Choose sensor type (light or temperature)
+3. Set threshold value (lux for light, °C for temperature)
 4. Choose comparison operator
 5. Set cooldown period in minutes
 6. Optionally add time window to restrict checking hours

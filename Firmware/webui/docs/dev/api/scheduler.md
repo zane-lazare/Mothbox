@@ -23,6 +23,40 @@
 
 ---
 
+## Endpoint Quick Reference
+
+**18 endpoints total** (14 Visual UI + 4 Legacy Cron)
+
+### Visual Scheduler UI Endpoints (14)
+
+| # | Method | Endpoint | Description |
+|---|--------|----------|-------------|
+| 1 | GET | `/api/scheduler/ui/schedules` | [List Schedules](#1-list-schedules) |
+| 2 | GET | `/api/scheduler/ui/schedules/<id>` | [Get Schedule](#2-get-schedule) |
+| 3 | GET | `/api/scheduler/ui/schedules/active` | [Get Active Schedule](#3-get-active-schedule) |
+| 4 | GET | `/api/scheduler/ui/schedules/builtin` | [Get Built-in Schedules](#4-get-built-in-schedules) |
+| 5 | POST | `/api/scheduler/ui/schedules` | [Create Schedule](#5-create-schedule) |
+| 6 | PUT | `/api/scheduler/ui/schedules/<id>` | [Update Schedule](#6-update-schedule) |
+| 7 | DELETE | `/api/scheduler/ui/schedules/<id>` | [Delete Schedule](#7-delete-schedule) |
+| 8 | POST | `/api/scheduler/ui/schedules/<id>/activate` | [Activate Schedule](#8-activate-schedule) |
+| 9 | POST | `/api/scheduler/ui/schedules/deactivate` | [Deactivate Schedule](#9-deactivate-schedule) |
+| 10 | POST | `/api/scheduler/ui/schedules/<id>/validate` | [Validate Schedule](#10-validate-schedule) |
+| 11 | GET | `/api/scheduler/ui/schedules/<id>/preview` | [Get Schedule Preview](#11-get-schedule-preview) |
+| 12 | GET | `/api/scheduler/ui/patterns/builtin` | [List Built-in Patterns](#12-list-built-in-patterns) |
+| 13 | POST | `/api/scheduler/ui/patterns/validate` | [Validate Pattern](#13-validate-pattern) |
+| 14 | POST | `/api/scheduler/ui/cron/validate` | [Validate Cron Expression](#14-validate-cron-expression) |
+
+### Legacy Cron Endpoints (4)
+
+| # | Method | Endpoint | Description |
+|---|--------|----------|-------------|
+| 1 | GET | `/api/scheduler/jobs` | [List Cron Jobs](#1-list-cron-jobs) |
+| 2 | POST | `/api/scheduler/job` | [Add Cron Job](#2-add-cron-job) |
+| 3 | DELETE | `/api/scheduler/job` | [Delete Cron Job](#3-delete-cron-job) |
+| 4 | GET | `/api/scheduler/status` | [Get Scheduler Status](#4-get-scheduler-status) |
+
+---
+
 ## Overview
 
 The Scheduler API provides two systems for managing automated photography schedules:
@@ -1082,7 +1116,7 @@ List all built-in event patterns extracted from built-in schedules.
 {
   "patterns": [
     {
-      "pattern_id": "builtin_uv_capture",
+      "pattern_id": "550e8400-e29b-41d4-a716-446655440010",
       "name": "UV Light Capture",
       "description": "Standard UV light photography cycle",
       "actions": [
