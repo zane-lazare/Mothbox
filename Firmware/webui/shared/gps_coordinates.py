@@ -57,12 +57,15 @@ def validate_coordinate(decimal: float, is_latitude: bool) -> bool:
         return -180 <= decimal <= 180
 
 
-def decimal_to_dms(decimal: float, is_latitude: bool) -> tuple[int, int, float, str]:
+def decimal_to_dms(
+    decimal: float, is_latitude: bool, seconds_precision: int = 2
+) -> tuple[int, int, float, str]:
     """Convert decimal degrees to DMS format.
 
     Args:
         decimal: Decimal degrees (e.g., 37.7749 or -122.4194)
         is_latitude: True if latitude, False if longitude
+        seconds_precision: Number of decimal places for seconds (0-6, default 2)
 
     Returns:
         Tuple of (degrees, minutes, seconds, reference)
@@ -72,14 +75,23 @@ def decimal_to_dms(decimal: float, is_latitude: bool) -> tuple[int, int, float, 
         - reference: 'N', 'S', 'E', or 'W'
 
     Raises:
-        ValueError: If coordinate is invalid (out of range, NaN, infinity)
+        ValueError: If coordinate is invalid (out of range, NaN, infinity) or
+                    if seconds_precision is out of range
 
     Example:
         >>> decimal_to_dms(37.7749, is_latitude=True)
         (37, 46, 29.64, 'N')
         >>> decimal_to_dms(-122.4194, is_latitude=False)
         (122, 25, 9.84, 'W')
+        >>> decimal_to_dms(37.7749, is_latitude=True, seconds_precision=4)
+        (37, 46, 29.6400, 'N')
     """
+    # Validate seconds_precision
+    if not isinstance(seconds_precision, int) or not (0 <= seconds_precision <= 6):
+        raise ValueError(
+            f"Invalid seconds_precision: {seconds_precision} (must be integer in range [0, 6])"
+        )
+
     # Validate input coordinate
     if decimal is None:
         raise ValueError("Coordinate cannot be None")
@@ -115,8 +127,8 @@ def decimal_to_dms(decimal: float, is_latitude: bool) -> tuple[int, int, float, 
     # Extract seconds (remaining fractional minutes * 60)
     seconds_decimal = (minutes_decimal - minutes) * 60
 
-    # Round to 2 decimal places
-    seconds = round(seconds_decimal, 2)
+    # Round to specified precision
+    seconds = round(seconds_decimal, seconds_precision)
 
     # Handle seconds overflow (rounding 59.995 -> 60.00)
     if seconds >= 60.0:
@@ -167,7 +179,10 @@ def dms_to_decimal(degrees: int, minutes: int, seconds: float, ref: str) -> floa
 
 
 def format_coordinate_display(
-    decimal: float, is_latitude: bool, format: Literal["dms", "decimal", "short"] = "dms"
+    decimal: float,
+    is_latitude: bool,
+    format: Literal["dms", "decimal", "short"] = "dms",
+    seconds_precision: int = 2,
 ) -> str:
     """Format a coordinate for display.
 
@@ -178,12 +193,13 @@ def format_coordinate_display(
             - 'dms': Degrees, minutes, seconds with symbols (e.g., "37°46'29.64\"N")
             - 'decimal': Decimal degrees with direction (e.g., "37.774900°N")
             - 'short': Short decimal with direction (e.g., "37.77°N")
+        seconds_precision: Number of decimal places for seconds in DMS format (0-6, default 2)
 
     Returns:
         Formatted coordinate string
 
     Raises:
-        ValueError: If coordinate is invalid
+        ValueError: If coordinate is invalid or seconds_precision is out of range
 
     Example:
         >>> format_coordinate_display(37.7749, is_latitude=True, format="dms")
@@ -192,10 +208,12 @@ def format_coordinate_display(
         '37.774900°N'
         >>> format_coordinate_display(37.7749, is_latitude=True, format="short")
         '37.77°N'
+        >>> format_coordinate_display(37.7749, is_latitude=True, format="dms", seconds_precision=4)
+        "37°46'29.6400\\"N"
     """
     if format == "dms":
-        deg, min, sec, ref = decimal_to_dms(decimal, is_latitude)
-        return f"{deg}°{min}'{sec:.2f}\"{ref}"
+        deg, min, sec, ref = decimal_to_dms(decimal, is_latitude, seconds_precision)
+        return f"{deg}°{min}'{sec:.{seconds_precision}f}\"{ref}"
     elif format == "decimal":
         # Determine reference
         if is_latitude:  # noqa: SIM108  # More readable than nested ternary
@@ -217,7 +235,8 @@ def format_coordinate_display(
 def format_coordinate_pair(
     latitude: float,
     longitude: float,
-    format: Literal["dms", "decimal", "short"] = "dms"
+    format: Literal["dms", "decimal", "short"] = "dms",
+    seconds_precision: int = 2,
 ) -> str:
     """Format a coordinate pair (latitude, longitude) for display.
 
@@ -228,6 +247,7 @@ def format_coordinate_pair(
         latitude: Latitude in decimal degrees (-90.0 to 90.0)
         longitude: Longitude in decimal degrees (-180.0 to 180.0)
         format: Display format ('dms', 'decimal', or 'short')
+        seconds_precision: Number of decimal places for seconds in DMS format (0-6, default 2)
 
     Returns:
         Formatted string: "LAT_STRING LON_STRING"
@@ -237,7 +257,7 @@ def format_coordinate_pair(
             - Short: "37.77°N 122.42°W"
 
     Raises:
-        ValueError: If either coordinate is invalid
+        ValueError: If either coordinate is invalid or seconds_precision is out of range
 
     Example:
         >>> format_coordinate_pair(37.7749, -122.4194)
@@ -246,6 +266,8 @@ def format_coordinate_pair(
         '37.774900°N 122.419400°W'
         >>> format_coordinate_pair(37.7749, -122.4194, format='short')
         '37.77°N 122.42°W'
+        >>> format_coordinate_pair(37.7749, -122.4194, seconds_precision=4)
+        '37°46\\'29.6400"N 122°25\\'9.8400"W'
     """
     # Validate latitude
     if not validate_coordinate(latitude, is_latitude=True):
@@ -256,7 +278,11 @@ def format_coordinate_pair(
         raise ValueError(f"Invalid longitude: {longitude} (must be in range [-180, 180])")
 
     # Format both coordinates
-    lat_str = format_coordinate_display(latitude, is_latitude=True, format=format)
-    lon_str = format_coordinate_display(longitude, is_latitude=False, format=format)
+    lat_str = format_coordinate_display(
+        latitude, is_latitude=True, format=format, seconds_precision=seconds_precision
+    )
+    lon_str = format_coordinate_display(
+        longitude, is_latitude=False, format=format, seconds_precision=seconds_precision
+    )
 
     return f"{lat_str} {lon_str}"
