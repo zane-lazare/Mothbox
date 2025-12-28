@@ -546,28 +546,52 @@ class ExportMetadataService:
     # Format Transformers
     # ========================================================================
 
+    def _apply_gps_precision(
+        self,
+        value: float | None,
+        precision: int | None
+    ) -> float | None:
+        """Apply GPS precision rounding to a coordinate value.
+
+        Args:
+            value: Coordinate value (latitude or longitude)
+            precision: Number of decimal places (0-6), None for no rounding
+
+        Returns:
+            Rounded coordinate or original if precision is None
+        """
+        if value is None or precision is None:
+            return value
+        return round(value, precision)
+
     def transform_to_generic(
         self,
         metadata: ExportMetadata,
         flat: bool = False,
+        gps_precision: int | None = None,
     ) -> dict:
         """Transform to generic JSON/CSV format.
 
         Args:
             metadata: ExportMetadata to transform
             flat: If True, flatten for CSV (no nested dicts)
+            gps_precision: GPS coordinate precision (0-6 decimals), None for full precision
 
         Returns:
             Dictionary with nested (JSON) or flat (CSV) structure
         """
+        # Apply GPS precision if specified
+        latitude = self._apply_gps_precision(metadata.latitude, gps_precision)
+        longitude = self._apply_gps_precision(metadata.longitude, gps_precision)
+
         if flat:
             # Flatten for CSV - prefix nested fields
             return {
                 'photo_path': metadata.photo_path,
                 'filename': metadata.filename,
                 'timestamp': metadata.timestamp,
-                'latitude': metadata.latitude,
-                'longitude': metadata.longitude,
+                'latitude': latitude,
+                'longitude': longitude,
                 'altitude': metadata.altitude,
                 'gps_accuracy': metadata.gps_accuracy,
                 'camera_make': metadata.camera_make,
@@ -605,8 +629,8 @@ class ExportMetadataService:
                     'height': metadata.height,
                 },
                 'location': {
-                    'latitude': metadata.latitude,
-                    'longitude': metadata.longitude,
+                    'latitude': latitude,
+                    'longitude': longitude,
                     'altitude': metadata.altitude,
                     'accuracy': metadata.gps_accuracy,
                 },

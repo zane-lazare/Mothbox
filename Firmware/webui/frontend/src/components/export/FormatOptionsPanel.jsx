@@ -1,4 +1,5 @@
 import PropTypes from 'prop-types'
+import { GPS_PRECISION_OPTIONS, getGpsPrecision } from '../../utils/gpsPrecision'
 
 function FormatOptionsPanel({ format, options = {}, onChange, disabled = false }) {
   const handleOptionChange = (key, value) => {
@@ -10,11 +11,43 @@ function FormatOptionsPanel({ format, options = {}, onChange, disabled = false }
     return null
   }
 
+  // Get current GPS precision value (from options or global setting)
+  const currentPrecision = options.gps_precision ?? getGpsPrecision()
+
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
         Format Options
       </h3>
+
+      {/* GPS Precision - Common to all formats (Issue #288) */}
+      <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+        <label
+          htmlFor="gps-precision"
+          className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-1"
+        >
+          GPS Precision
+        </label>
+        <select
+          id="gps-precision"
+          value={currentPrecision}
+          onChange={(e) => handleOptionChange('gps_precision', parseInt(e.target.value, 10))}
+          disabled={disabled}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
+                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                    bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                    disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {GPS_PRECISION_OPTIONS.map(({ value, label }) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+          Reduce precision for privacy when sharing location data
+        </p>
+      </div>
 
       {/* Darwin Core Options */}
       {format === 'darwin_core' && (
