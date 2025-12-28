@@ -9,9 +9,29 @@ core coordinate math from the EXIF-specific implementation in webui/backend/lib/
 """
 
 import math
-from typing import Literal
+from typing import Literal, NamedTuple
+
+
+class DMSCoordinate(NamedTuple):
+    """Represents a coordinate in Degrees, Minutes, Seconds format.
+
+    This NamedTuple provides named field access for better IDE support while
+    remaining fully backward-compatible with tuple unpacking and indexing.
+
+    Attributes:
+        degrees: Integer degrees (0-180)
+        minutes: Integer minutes (0-59)
+        seconds: Float seconds (0.0-59.999...)
+        reference: Cardinal direction ('N', 'S', 'E', or 'W')
+    """
+
+    degrees: int
+    minutes: int
+    seconds: float
+    reference: str
 
 __all__ = [
+    "DMSCoordinate",
     "decimal_to_dms",
     "dms_to_decimal",
     "format_coordinate_display",
@@ -59,7 +79,7 @@ def validate_coordinate(decimal: float, is_latitude: bool) -> bool:
 
 def decimal_to_dms(
     decimal: float, is_latitude: bool, seconds_precision: int = 2
-) -> tuple[int, int, float, str]:
+) -> DMSCoordinate:
     """Convert decimal degrees to DMS format.
 
     Args:
@@ -68,7 +88,7 @@ def decimal_to_dms(
         seconds_precision: Number of decimal places for seconds (0-6, default 2)
 
     Returns:
-        Tuple of (degrees, minutes, seconds, reference)
+        DMSCoordinate with named fields:
         - degrees: Integer degrees (0-180)
         - minutes: Integer minutes (0-59)
         - seconds: Float seconds (0.0-59.999...)
@@ -80,11 +100,11 @@ def decimal_to_dms(
 
     Example:
         >>> decimal_to_dms(37.7749, is_latitude=True)
-        (37, 46, 29.64, 'N')
+        DMSCoordinate(degrees=37, minutes=46, seconds=29.64, reference='N')
         >>> decimal_to_dms(-122.4194, is_latitude=False)
-        (122, 25, 9.84, 'W')
+        DMSCoordinate(degrees=122, minutes=25, seconds=9.84, reference='W')
         >>> decimal_to_dms(37.7749, is_latitude=True, seconds_precision=4)
-        (37, 46, 29.6400, 'N')
+        DMSCoordinate(degrees=37, minutes=46, seconds=29.64, reference='N')
     """
     # Validate seconds_precision
     if not isinstance(seconds_precision, int) or not (0 <= seconds_precision <= 6):
@@ -140,7 +160,7 @@ def decimal_to_dms(
         degrees += 1
         minutes = 0
 
-    return (degrees, minutes, seconds, ref)
+    return DMSCoordinate(degrees, minutes, seconds, ref)
 
 
 def dms_to_decimal(degrees: int, minutes: int, seconds: float, ref: str) -> float:
