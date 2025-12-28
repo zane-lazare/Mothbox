@@ -142,8 +142,9 @@ test.describe('GPS Settings', () => {
   })
 
   test('precision setting has descriptive help text', async ({ page }) => {
-    // Look for help text near the precision dropdown
-    const helpText = page.locator('text=Controls decimal places shown for GPS coordinates')
+    // Use structural selector that's less prone to text changes
+    const precisionSection = page.locator('select[aria-label="GPS Coordinate Precision"]').locator('..')
+    const helpText = precisionSection.locator('.text-xs.text-gray-500')
 
     await expect(helpText).toBeVisible({ timeout: TIMEOUTS.NETWORK })
   })

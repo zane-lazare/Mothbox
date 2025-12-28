@@ -5,7 +5,7 @@ import { validateDevicePath, validateBaudrate } from '../utils/gpsValidation'
 import { formatCoordinateDisplay } from '../utils/gpsCoordinates'
 import { GPS_PRECISION_OPTIONS, getGpsPrecision, setGpsPrecision } from '../utils/gpsPrecision'
 import { QUERY_KEYS } from '../utils/queryKeys'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import CollapsibleCard from './CollapsibleCard'
 import ConfirmDialog from './common/ConfirmDialog'
@@ -45,6 +45,35 @@ export default function GPSSettings() {
     // Pause polling during sync to avoid spam, otherwise poll every 15s
     refetchInterval: () => syncing ? false : 15000,
   })
+
+  // Memoize formatted coordinates to avoid unnecessary re-renders
+  const formattedCurrentLat = useMemo(
+    () => gpsStatus?.latitude
+      ? formatCoordinateDisplay(parseFloat(gpsStatus.latitude), true, 'dms', gpsPrecision)
+      : null,
+    [gpsStatus?.latitude, gpsPrecision]
+  )
+
+  const formattedCurrentLon = useMemo(
+    () => gpsStatus?.longitude
+      ? formatCoordinateDisplay(parseFloat(gpsStatus.longitude), false, 'dms', gpsPrecision)
+      : null,
+    [gpsStatus?.longitude, gpsPrecision]
+  )
+
+  const formattedLastLat = useMemo(
+    () => gpsStatus?.last_known_lat
+      ? formatCoordinateDisplay(parseFloat(gpsStatus.last_known_lat), true, 'dms', gpsPrecision)
+      : null,
+    [gpsStatus?.last_known_lat, gpsPrecision]
+  )
+
+  const formattedLastLon = useMemo(
+    () => gpsStatus?.last_known_lon
+      ? formatCoordinateDisplay(parseFloat(gpsStatus.last_known_lon), false, 'dms', gpsPrecision)
+      : null,
+    [gpsStatus?.last_known_lon, gpsPrecision]
+  )
 
   const updateConfigMutation = useMutation({
     mutationFn: updateGpsConfig,
@@ -301,11 +330,11 @@ export default function GPSSettings() {
                       <>
                         <p className="text-blue-700 text-xs">
                           <span className="font-medium">Lat:</span>{' '}
-                          {formatCoordinateDisplay(parseFloat(gpsStatus.latitude), true, 'dms', gpsPrecision)}
+                          {formattedCurrentLat}
                         </p>
                         <p className="text-blue-700 text-xs">
                           <span className="font-medium">Lon:</span>{' '}
-                          {formatCoordinateDisplay(parseFloat(gpsStatus.longitude), false, 'dms', gpsPrecision)}
+                          {formattedCurrentLon}
                         </p>
                         <p className="text-blue-700 text-xs">
                           <span className="font-medium">UTC Offset:</span> {gpsStatus.utc_offset}h
@@ -321,8 +350,8 @@ export default function GPSSettings() {
                       <div className="mt-2 pt-2 border-t border-blue-300">
                         <p className="text-blue-700 font-medium mb-1 text-xs">Last Known Position:</p>
                         <p className="text-blue-700 text-xs">
-                          📍 {formatCoordinateDisplay(parseFloat(gpsStatus.last_known_lat), true, 'dms', gpsPrecision)},{' '}
-                          {formatCoordinateDisplay(parseFloat(gpsStatus.last_known_lon), false, 'dms', gpsPrecision)}
+                          📍 {formattedLastLat},{' '}
+                          {formattedLastLon}
                         </p>
                         <p className="text-blue-700 text-xs">
                           <span className="font-medium">Acquired:</span> {formatTimestamp(gpsStatus.last_position_time)}
@@ -461,7 +490,7 @@ export default function GPSSettings() {
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  Controls decimal places shown for GPS coordinates throughout the UI
+                  Controls decimal places shown for GPS coordinates throughout the UI (display only - does not affect GPS accuracy)
                 </p>
               </div>
 
