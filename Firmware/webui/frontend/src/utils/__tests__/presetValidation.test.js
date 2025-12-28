@@ -28,7 +28,7 @@ describe('presetValidation', () => {
         'af_mode',
         'af_speed',
         'af_range',
-        'af_metering',
+        // Note: af_metering removed - it's set automatically by click-to-focus
         'awb_mode',
         'noise_reduction_mode',
         'ae_metering_mode',
@@ -108,12 +108,7 @@ describe('presetValidation', () => {
       expect(validateSetting('af_range', 3)).not.toBeNull()
     })
 
-    it('should validate af_metering (0, 1, 2)', () => {
-      expect(validateSetting('af_metering', 0)).toBeNull()
-      expect(validateSetting('af_metering', 1)).toBeNull()
-      expect(validateSetting('af_metering', 2)).toBeNull()
-      expect(validateSetting('af_metering', 3)).not.toBeNull()
-    })
+    // Note: af_metering test removed - it's set automatically by click-to-focus
 
     it('should validate awb_mode (0-7)', () => {
       for (let i = 0; i <= 7; i++) {

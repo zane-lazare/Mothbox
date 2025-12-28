@@ -9,6 +9,11 @@
  * - Provide clear, user-friendly error messages
  * - Prevent confusing backend validation errors
  *
+ * IMPORTANT - Boolean String Requirement:
+ * Boolean settings must be string literals "true" or "false", NOT actual boolean values.
+ * This matches the backend behavior where settings are stored as CSV strings.
+ * Example: awb_enable: "true" (valid), awb_enable: true (INVALID)
+ *
  * Usage:
  * ```js
  * import { validatePresetSettings } from '../utils/presetValidation'
@@ -111,7 +116,6 @@ const createStringEnumValidator = (allowedValues) => {
  * @property {Object} af_mode - Enum: 0 (Manual), 1 (Auto Single), 2 (Continuous)
  * @property {Object} af_speed - Enum: 0 (Normal), 1 (Fast)
  * @property {Object} af_range - Enum: 0 (Normal), 1 (Macro), 2 (Full)
- * @property {Object} af_metering - Enum: 0 (Auto), 1 (Windows), 2 (Off)
  * @property {Object} awb_mode - Enum: 0-7 (Auto, Incandescent, etc.)
  * @property {Object} noise_reduction_mode - Enum: 0 (Off), 1 (Fast), 2 (High Quality)
  * @property {Object} ae_metering_mode - Enum: 0 (Centre), 1 (Spot), 2 (Matrix)
@@ -170,10 +174,8 @@ export const LIVEVIEW_VALIDATION_RULES = {
     validator: createEnumValidator([0, 1, 2]),
     errorMessage: 'AF range must be 0 (Normal), 1 (Macro), or 2 (Full)'
   },
-  af_metering: {
-    validator: createEnumValidator([0, 1, 2]),
-    errorMessage: 'AF metering must be 0 (Auto), 1 (Windows), or 2 (Off)'
-  },
+  // Note: af_metering is NOT validated here - it's set automatically by click-to-focus
+  // and is not included in currentSettings/liveControls passed to the modal
   awb_mode: {
     validator: createEnumValidator([0, 1, 2, 3, 4, 5, 6, 7]),
     errorMessage: 'AWB mode must be between 0 (Auto) and 7'
