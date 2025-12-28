@@ -141,6 +141,32 @@ def get_system_status():
         return jsonify({"error": "Failed to get storage info"}), 500
 
 
+def _read_ina260_sensor(address: int):
+    """
+    Read INA260 power sensor from I2C bus.
+
+    Args:
+        address: I2C address for the sensor (typically 0x40)
+
+    Returns:
+        INA260 sensor object with voltage, current, power properties,
+        or None if sensor not available
+
+    Raises:
+        OSError: If I2C bus communication fails
+    """
+    try:
+        import adafruit_ina260
+        import board
+
+        i2c = board.I2C()
+        return adafruit_ina260.INA260(i2c, address=address)
+    except (ImportError, ValueError):
+        # ImportError: adafruit libraries not installed
+        # ValueError: Sensor not found at address
+        return None
+
+
 @system_bp.route("/power", methods=["GET"])
 def get_power_status():
     """Get power metrics from INA260 if available"""
@@ -149,9 +175,34 @@ def get_power_status():
         if not hw_config.get("ina260_enabled"):
             return jsonify({"enabled": False})
 
-        # TODO: Implement power monitoring
-        # See: https://github.com/zane-lazare/Mothbox/issues/73
-        return jsonify({"enabled": True, "voltage": None, "current": None, "power": None})
+        # Read from INA260 sensor
+        address = hw_config.get("ina260_address", 0x40)
+        try:
+            sensor = _read_ina260_sensor(address)
+            if sensor is None:
+                return jsonify({
+                    "enabled": True,
+                    "voltage": None,
+                    "current": None,
+                    "power": None,
+                    "error": "Sensor not available"
+                })
+
+            return jsonify({
+                "enabled": True,
+                "voltage": round(sensor.voltage, 2),
+                "current": round(sensor.current, 2),
+                "power": round(sensor.power, 2)
+            })
+        except OSError as e:
+            print(f"INA260 I2C error: {e}")
+            return jsonify({
+                "enabled": True,
+                "voltage": None,
+                "current": None,
+                "power": None,
+                "error": "I2C communication error"
+            })
     except Exception as e:
         print(f"Error getting power status: {e}")
         return jsonify({"error": "Failed to get power status"}), 500

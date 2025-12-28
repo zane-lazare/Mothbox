@@ -231,20 +231,70 @@ class TestSystemPower:
             data = json.loads(response.data)
             assert data['enabled'] is False
 
-    def test_power_ina260_enabled_but_not_implemented(self, system_client, mock_paths):
-        """GET /power returns TODO status when INA260 is enabled"""
-        with patch('routes.system.get_hardware_config', return_value={'ina260_enabled': True}):
+    def test_power_returns_sensor_readings_when_available(self, system_client, mock_paths):
+        """GET /power returns actual sensor readings when INA260 connected"""
+        # Mock sensor object with realistic values
+        mock_ina260 = MagicMock()
+        mock_ina260.voltage = 12.45  # 12.45V
+        mock_ina260.current = 350.5  # 350.5mA
+        mock_ina260.power = 4360.0   # 4360mW
+
+        with patch('routes.system.get_hardware_config', return_value={
+            'ina260_enabled': True,
+            'ina260_address': 0x40
+        }), \
+             patch('routes.system._read_ina260_sensor', return_value=mock_ina260):
+
             response = system_client.get('/api/system/power')
 
             assert response.status_code == 200
             data = json.loads(response.data)
+
             assert data['enabled'] is True
-            # Implementation is TODO (issue #73)
+            assert data['voltage'] == 12.45
+            assert data['current'] == 350.5
+            assert data['power'] == 4360.0
+
+    def test_power_returns_null_when_sensor_not_connected(self, system_client, mock_paths):
+        """GET /power returns null values when sensor not connected"""
+        with patch('routes.system.get_hardware_config', return_value={
+            'ina260_enabled': True,
+            'ina260_address': 0x40
+        }), \
+             patch('routes.system._read_ina260_sensor', return_value=None):
+
+            response = system_client.get('/api/system/power')
+
+            assert response.status_code == 200
+            data = json.loads(response.data)
+
+            assert data['enabled'] is True
             assert data['voltage'] is None
             assert data['current'] is None
             assert data['power'] is None
+            assert 'error' in data  # Should indicate sensor not available
 
-    def test_power_handles_error(self, system_client, mock_paths):
+    def test_power_handles_sensor_oserror(self, system_client, mock_paths):
+        """GET /power handles OSError when I2C bus unavailable"""
+        with patch('routes.system.get_hardware_config', return_value={
+            'ina260_enabled': True,
+            'ina260_address': 0x40
+        }), \
+             patch('routes.system._read_ina260_sensor', side_effect=OSError("I2C bus error")):
+
+            response = system_client.get('/api/system/power')
+
+            assert response.status_code == 200
+            data = json.loads(response.data)
+
+            # Should return enabled but with null values and error message
+            assert data['enabled'] is True
+            assert data['voltage'] is None
+            assert data['current'] is None
+            assert data['power'] is None
+            assert 'error' in data
+
+    def test_power_handles_config_error(self, system_client, mock_paths):
         """GET /power handles errors gracefully"""
         with patch('routes.system.get_hardware_config', side_effect=Exception("Config error")):
             response = system_client.get('/api/system/power')
@@ -252,6 +302,28 @@ class TestSystemPower:
             assert response.status_code == 500
             data = json.loads(response.data)
             assert 'error' in data
+
+    def test_power_rounds_values_to_two_decimals(self, system_client, mock_paths):
+        """GET /power rounds sensor readings to 2 decimal places"""
+        mock_ina260 = MagicMock()
+        mock_ina260.voltage = 12.456789
+        mock_ina260.current = 350.123456
+        mock_ina260.power = 4360.987654
+
+        with patch('routes.system.get_hardware_config', return_value={
+            'ina260_enabled': True,
+            'ina260_address': 0x40
+        }), \
+             patch('routes.system._read_ina260_sensor', return_value=mock_ina260):
+
+            response = system_client.get('/api/system/power')
+
+            assert response.status_code == 200
+            data = json.loads(response.data)
+
+            assert data['voltage'] == 12.46  # Rounded
+            assert data['current'] == 350.12  # Rounded
+            assert data['power'] == 4360.99  # Rounded
 
 
 # ============================================================================
