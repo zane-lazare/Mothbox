@@ -100,6 +100,35 @@ const createStringEnumValidator = (allowedValues) => {
  *
  * Key format: snake_case (backend format)
  * Values: { validator: Function, errorMessage: string }
+ *
+ * @type {Object.<string, {validator: Function, errorMessage: string}>}
+ * @property {Object} focus_peaking_enabled - Boolean: "true" or "false"
+ * @property {Object} awb_enable - Boolean: "true" or "false"
+ * @property {Object} ae_enable - Boolean: "true" or "false"
+ * @property {Object} lens_shading_enable - Boolean: "true" or "false"
+ * @property {Object} defect_correction_enable - Boolean: "true" or "false"
+ * @property {Object} use_custom_tuning - Boolean: "true" or "false"
+ * @property {Object} af_mode - Enum: 0 (Manual), 1 (Auto Single), 2 (Continuous)
+ * @property {Object} af_speed - Enum: 0 (Normal), 1 (Fast)
+ * @property {Object} af_range - Enum: 0 (Normal), 1 (Macro), 2 (Full)
+ * @property {Object} af_metering - Enum: 0 (Auto), 1 (Windows), 2 (Off)
+ * @property {Object} awb_mode - Enum: 0-7 (Auto, Incandescent, etc.)
+ * @property {Object} noise_reduction_mode - Enum: 0 (Off), 1 (Fast), 2 (High Quality)
+ * @property {Object} ae_metering_mode - Enum: 0 (Centre), 1 (Spot), 2 (Matrix)
+ * @property {Object} sharpness - Float: 0.0 to 4.0
+ * @property {Object} brightness - Float: -1.0 to 1.0
+ * @property {Object} contrast - Float: 0.0 to 4.0
+ * @property {Object} saturation - Float: 0.0 to 4.0
+ * @property {Object} lens_position - Float: 0.0 to 10.0 diopters
+ * @property {Object} exposure_value - Float: -8.0 to 8.0 EV
+ * @property {Object} analogue_gain - Float: 1.0 to 16.0
+ * @property {Object} colour_gains_red - Float: 1.0 to 4.0
+ * @property {Object} colour_gains_blue - Float: 1.0 to 4.0
+ * @property {Object} exposure_time - Integer: 1 to 999,999 microseconds
+ * @property {Object} focus_peaking_intensity - Integer: 50 to 200
+ * @property {Object} focus_peaking_colour - String: green, red, yellow, cyan, magenta
+ * @property {Object} focus_peaking_color - String: green, red, yellow, cyan, magenta (US spelling)
+ * @property {Object} focus_peaking_algorithm - String: laplacian, sobel, canny
  */
 export const LIVEVIEW_VALIDATION_RULES = {
   // Boolean controls - Enable/disable features
