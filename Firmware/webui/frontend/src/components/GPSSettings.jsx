@@ -24,7 +24,9 @@ export default function GPSSettings() {
   const handlePrecisionChange = (newPrecision) => {
     const precision = parseInt(newPrecision, 10)
     setGpsPrecisionState(precision)
-    setGpsPrecision(precision)
+    if (!setGpsPrecision(precision)) {
+      toast.error('Precision changed but could not be saved (private browsing?)', { duration: 4000 })
+    }
   }
 
   const { data: gpsConfig, isLoading: configLoading } = useQuery({

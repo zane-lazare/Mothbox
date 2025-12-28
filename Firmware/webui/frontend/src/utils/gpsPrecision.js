@@ -39,11 +39,14 @@ export function getGpsPrecision() {
 /**
  * Set GPS precision preference in localStorage
  * @param {number} precision - Precision value (0-6)
+ * @returns {boolean} True if saved successfully, false if localStorage unavailable
  */
 export function setGpsPrecision(precision) {
   try {
     localStorage.setItem(GPS_PRECISION_KEY, String(precision))
-  } catch {
-    // localStorage not available
+    return true
+  } catch (error) {
+    console.warn('Failed to save GPS precision preference:', error)
+    return false
   }
 }
