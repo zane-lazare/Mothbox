@@ -56,8 +56,9 @@ export type CoordinateType = 'latitude' | 'longitude';
  *
  * @param decimal - Decimal degrees (e.g., 37.7749 or -122.4194)
  * @param isLatitude - True if latitude, False if longitude
+ * @param secondsPrecision - Number of decimal places for seconds (0-6, default 2)
  * @returns DMS coordinate with degrees, minutes, seconds, and reference
- * @throws Error if coordinate is invalid (out of range, NaN, infinity)
+ * @throws Error if coordinate is invalid (out of range, NaN, infinity) or secondsPrecision is invalid
  *
  * @example
  * ```typescript
@@ -66,9 +67,23 @@ export type CoordinateType = 'latitude' | 'longitude';
  *
  * decimalToDMS(-122.4194, false);
  * // Returns: { degrees: 122, minutes: 25, seconds: 9.84, reference: 'W' }
+ *
+ * decimalToDMS(37.7749, true, 4);
+ * // Returns: { degrees: 37, minutes: 46, seconds: 29.6400, reference: 'N' }
  * ```
  */
-export function decimalToDMS(decimal: number, isLatitude: boolean): DMSCoordinate {
+export function decimalToDMS(
+  decimal: number,
+  isLatitude: boolean,
+  secondsPrecision: number = 2
+): DMSCoordinate {
+  // 0. Validate secondsPrecision
+  if (!Number.isInteger(secondsPrecision) || secondsPrecision < 0 || secondsPrecision > 6) {
+    throw new Error(
+      `Invalid secondsPrecision: ${secondsPrecision} (must be integer in range [0, 6])`
+    );
+  }
+
   // 1. Validate input is not null/undefined
   if (decimal === null || decimal === undefined) {
     throw new Error('Coordinate cannot be null or undefined');
@@ -113,8 +128,9 @@ export function decimalToDMS(decimal: number, isLatitude: boolean): DMSCoordinat
   // 9. Extract seconds (remaining fractional minutes * 60)
   const secondsDecimal = (minutesDecimal - minutes) * 60;
 
-  // 10. Round to 2 decimal places (matching Python's round(x, 2))
-  let seconds = Math.round(secondsDecimal * 100) / 100;
+  // 10. Round to specified precision
+  const multiplier = Math.pow(10, secondsPrecision);
+  let seconds = Math.round(secondsDecimal * multiplier) / multiplier;
 
   // 11. Handle seconds overflow (rounding 59.995 -> 60.00)
   if (seconds >= 60.0) {
@@ -252,8 +268,9 @@ export function validateCoordinate(
  * @param decimal - Decimal degrees
  * @param isLatitude - True if latitude, False if longitude
  * @param format - Display format ('dms', 'decimal', or 'short')
+ * @param secondsPrecision - Number of decimal places for seconds in DMS format (0-6, default 2)
  * @returns Formatted coordinate string
- * @throws Error if coordinate is invalid or format is invalid
+ * @throws Error if coordinate is invalid, format is invalid, or secondsPrecision is invalid
  *
  * @example
  * ```typescript
@@ -265,17 +282,25 @@ export function validateCoordinate(
  *
  * formatCoordinateDisplay(37.7749, true, 'short');
  * // Returns: "37.77°N"
+ *
+ * formatCoordinateDisplay(37.7749, true, 'dms', 4);
+ * // Returns: "37°46'29.6400\"N"
  * ```
  */
 export function formatCoordinateDisplay(
   decimal: number,
   isLatitude: boolean,
-  format: CoordinateFormat = 'dms'
+  format: CoordinateFormat = 'dms',
+  secondsPrecision: number = 2
 ): string {
   if (format === 'dms') {
     // DMS format: "37°46'29.64\"N"
-    const { degrees, minutes, seconds, reference } = decimalToDMS(decimal, isLatitude);
-    return `${degrees}°${minutes}'${seconds.toFixed(2)}"${reference}`;
+    const { degrees, minutes, seconds, reference } = decimalToDMS(
+      decimal,
+      isLatitude,
+      secondsPrecision
+    );
+    return `${degrees}°${minutes}'${seconds.toFixed(secondsPrecision)}"${reference}`;
   } else if (format === 'decimal') {
     // Decimal format: "37.774900°N" (6 decimal places)
     const reference = isLatitude
@@ -302,8 +327,9 @@ export function formatCoordinateDisplay(
  * @param latitude - Latitude in decimal degrees (-90.0 to 90.0)
  * @param longitude - Longitude in decimal degrees (-180.0 to 180.0)
  * @param format - Display format ('dms', 'decimal', or 'short')
+ * @param secondsPrecision - Number of decimal places for seconds in DMS format (0-6, default 2)
  * @returns Formatted string: "LAT_STRING LON_STRING"
- * @throws Error if either coordinate is invalid
+ * @throws Error if either coordinate is invalid or secondsPrecision is invalid
  *
  * @example
  * ```typescript
@@ -315,12 +341,16 @@ export function formatCoordinateDisplay(
  *
  * formatCoordinatePair(37.7749, -122.4194, 'short');
  * // Returns: "37.77°N 122.42°W"
+ *
+ * formatCoordinatePair(37.7749, -122.4194, 'dms', 4);
+ * // Returns: "37°46'29.6400\"N 122°25'9.8400\"W"
  * ```
  */
 export function formatCoordinatePair(
   latitude: number,
   longitude: number,
-  format: CoordinateFormat = 'dms'
+  format: CoordinateFormat = 'dms',
+  secondsPrecision: number = 2
 ): string {
   // Validate latitude
   const latValidation = validateCoordinate(latitude, 'latitude');
@@ -335,8 +365,8 @@ export function formatCoordinatePair(
   }
 
   // Format both coordinates
-  const latStr = formatCoordinateDisplay(latitude, true, format);
-  const lonStr = formatCoordinateDisplay(longitude, false, format);
+  const latStr = formatCoordinateDisplay(latitude, true, format, secondsPrecision);
+  const lonStr = formatCoordinateDisplay(longitude, false, format, secondsPrecision);
 
   return `${latStr} ${lonStr}`;
 }

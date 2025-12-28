@@ -636,3 +636,160 @@ describe('formatCoordinatePair', () => {
     });
   });
 });
+
+// ============================================================================
+// TestPrecisionControl: Test configurable precision for DMS seconds
+// ============================================================================
+
+describe('precision control', () => {
+  describe('decimalToDMS with seconds precision', () => {
+    test('precision=0 (whole seconds, ±30m accuracy)', () => {
+      // Act: Convert with precision=0
+      const result = decimalToDMS(37.7749, true, 0);
+
+      // Assert: Seconds should be whole number
+      expect(result.reference).toBe('N');
+      expect(result.degrees).toBe(37);
+      expect(result.minutes).toBe(46);
+      expect(Number.isInteger(result.seconds)).toBe(true);
+      expect(result.seconds).toBeGreaterThanOrEqual(29);
+      expect(result.seconds).toBeLessThanOrEqual(30);
+    });
+
+    test('precision=1 (1 decimal place, ±3m accuracy)', () => {
+      // Act: Convert with precision=1
+      const result = decimalToDMS(37.7749, true, 1);
+
+      // Assert: Verify 1 decimal place
+      expect(result.reference).toBe('N');
+      expect(result.degrees).toBe(37);
+      expect(result.minutes).toBe(46);
+      expect(Math.abs(result.seconds - 29.6)).toBeLessThan(0.05);
+    });
+
+    test('precision=2 (2 decimal places, ±30cm accuracy) - DEFAULT', () => {
+      // Act: Convert with default precision (should be 2)
+      const result = decimalToDMS(37.7749, true);
+
+      // Assert: Verify 2 decimal places (default behavior)
+      expect(result.reference).toBe('N');
+      expect(result.degrees).toBe(37);
+      expect(result.minutes).toBe(46);
+      expect(Math.abs(result.seconds - 29.64)).toBeLessThan(0.01);
+    });
+
+    test('precision=4 (4 decimal places, ±3mm accuracy)', () => {
+      // Act: Convert with precision=4
+      const result = decimalToDMS(37.7749, true, 4);
+
+      // Assert: Verify 4 decimal places
+      expect(result.reference).toBe('N');
+      expect(result.degrees).toBe(37);
+      expect(result.minutes).toBe(46);
+      expect(Math.abs(result.seconds - 29.64)).toBeLessThan(0.0001);
+    });
+
+    test('precision=6 (6 decimal places, ±0.03mm accuracy) - MAXIMUM', () => {
+      // Act: Convert with precision=6
+      const result = decimalToDMS(37.7749, true, 6);
+
+      // Assert: Verify 6 decimal places
+      expect(result.reference).toBe('N');
+      expect(result.degrees).toBe(37);
+      expect(result.minutes).toBe(46);
+      expect(Math.abs(result.seconds - 29.64)).toBeLessThan(0.000001);
+    });
+
+    test('throws error for negative precision', () => {
+      expect(() => decimalToDMS(37.7749, true, -1)).toThrow(/secondsPrecision.*range/i);
+    });
+
+    test('throws error for precision > 6', () => {
+      expect(() => decimalToDMS(37.7749, true, 7)).toThrow(/secondsPrecision.*range/i);
+    });
+
+    test('throws error for non-integer precision', () => {
+      expect(() => decimalToDMS(37.7749, true, 2.5)).toThrow(/secondsPrecision/i);
+    });
+
+    test.each([
+      [0, 29, 30],           // ±30m accuracy
+      [1, 29.6, 29.7],       // ±3m accuracy
+      [2, 29.63, 29.65],     // ±30cm accuracy
+      [3, 29.639, 29.641],   // ±3cm accuracy
+      [4, 29.6399, 29.6401], // ±3mm accuracy
+    ])(
+      'precision=%i produces seconds in range [%f, %f]',
+      (precision, expectedMin, expectedMax) => {
+        // Act: Convert with specified precision
+        const result = decimalToDMS(37.7749, true, precision);
+
+        // Assert: Verify seconds in expected range
+        expect(result.seconds).toBeGreaterThanOrEqual(expectedMin);
+        expect(result.seconds).toBeLessThanOrEqual(expectedMax);
+      }
+    );
+  });
+
+  describe('formatCoordinateDisplay with precision', () => {
+    test('formats with different precision values', () => {
+      // Act: Format with different precisions
+      const fmt0 = formatCoordinateDisplay(37.7749, true, 'dms', 0);
+      const fmt2 = formatCoordinateDisplay(37.7749, true, 'dms', 2);
+      const fmt4 = formatCoordinateDisplay(37.7749, true, 'dms', 4);
+
+      // Assert: Verify different format strings
+      expect(fmt0).toContain("37°46'");
+      expect(fmt0).toContain('"N');
+      expect(fmt2).toContain("37°46'");
+      expect(fmt2).toContain('"N');
+      expect(fmt4).toContain("37°46'");
+      expect(fmt4).toContain('"N');
+
+      // Verify precision affects decimal places in output
+      // precision=0: "30\"N" or "29\"N"
+      expect(fmt0).toMatch(/\d+"N/);
+      // precision=2: "29.64\"N"
+      expect(fmt2).toMatch(/\d+\.\d{2}"N/);
+      // precision=4: "29.6400\"N"
+      expect(fmt4).toMatch(/\d+\.\d{4}"N/);
+    });
+
+    test('precision only affects DMS format, not decimal or short', () => {
+      // Act: Format with different formats
+      const dms = formatCoordinateDisplay(37.7749, true, 'dms', 4);
+      const decimal = formatCoordinateDisplay(37.7749, true, 'decimal', 4);
+      const short = formatCoordinateDisplay(37.7749, true, 'short', 4);
+
+      // Assert: DMS should be affected, others should not
+      expect(dms).toContain("37°46'");
+      expect(decimal).toContain('37.774900°N'); // Always 6 decimal places
+      expect(short).toContain('37.77°N'); // Always 2 decimal places
+    });
+  });
+
+  describe('formatCoordinatePair with precision', () => {
+    test('formats coordinate pair with custom precision', () => {
+      // Act: Format with precision=4
+      const result = formatCoordinatePair(37.7749, -122.4194, 'dms', 4);
+
+      // Assert: Verify both coordinates present
+      expect(result).toContain("37°46'");
+      expect(result).toContain("122°25'");
+      expect(result).toContain('N');
+      expect(result).toContain('W');
+
+      // Verify 4 decimal places in seconds
+      expect(result).toMatch(/\d+\.\d{4}"/);
+    });
+
+    test('uses default precision=2 when not specified', () => {
+      // Act: Format without precision parameter
+      const result = formatCoordinatePair(37.7749, -122.4194);
+
+      // Assert: Should use default precision=2
+      expect(result).toContain("37°46'");
+      expect(result).toMatch(/\d+\.\d{2}"/); // 2 decimal places
+    });
+  });
+});

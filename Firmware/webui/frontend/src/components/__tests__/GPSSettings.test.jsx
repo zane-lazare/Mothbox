@@ -95,8 +95,9 @@ describe('GPSSettings', () => {
     })
 
     expect(screen.getByText(/GPS Fix/i)).toBeInTheDocument()
-    expect(screen.getByText(/37.7749/)).toBeInTheDocument()
-    expect(screen.getByText(/-122.4194/)).toBeInTheDocument()
+    // Coordinates are displayed in DMS format (e.g., 37°46'29.64"N)
+    expect(screen.getByText(/37°46/)).toBeInTheDocument()  // Latitude: 37.7749 → 37°46'
+    expect(screen.getByText(/122°25/)).toBeInTheDocument() // Longitude: -122.4194 → 122°25'
   })
 
   it('displays "No GPS Fix" when GPS has no fix', async () => {

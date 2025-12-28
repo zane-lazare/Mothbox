@@ -2,8 +2,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getGpsConfig, updateGpsConfig, getGpsStatus, syncGps } from '../utils/api'
 import { formatTimestamp } from '../utils/helpers'
 import { validateDevicePath, validateBaudrate } from '../utils/gpsValidation'
+import { formatCoordinateDisplay } from '../utils/gpsCoordinates'
+import { GPS_PRECISION_OPTIONS, getGpsPrecision, setGpsPrecision } from '../utils/gpsPrecision'
 import { QUERY_KEYS } from '../utils/queryKeys'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import CollapsibleCard from './CollapsibleCard'
 import ConfirmDialog from './common/ConfirmDialog'
@@ -16,6 +18,16 @@ export default function GPSSettings() {
   const [localConfig, setLocalConfig] = useState(null)
   const [validationErrors, setValidationErrors] = useState({})
   const [showRestartConfirm, setShowRestartConfirm] = useState(false)
+  const [gpsPrecision, setGpsPrecisionState] = useState(() => getGpsPrecision())
+
+  // Handle precision change
+  const handlePrecisionChange = (newPrecision) => {
+    const precision = parseInt(newPrecision, 10)
+    setGpsPrecisionState(precision)
+    if (!setGpsPrecision(precision)) {
+      toast.error('Precision changed but could not be saved (private browsing?)', { duration: 4000 })
+    }
+  }
 
   const { data: gpsConfig, isLoading: configLoading } = useQuery({
     queryKey: QUERY_KEYS.GPS_CONFIG,
@@ -35,6 +47,28 @@ export default function GPSSettings() {
     // Pause polling during sync to avoid spam, otherwise poll every 15s
     refetchInterval: () => syncing ? false : 15000,
   })
+
+  // Memoize formatted coordinates to avoid unnecessary re-renders
+  // Defensive: parseFloat("N/A") returns NaN, which would throw in formatCoordinateDisplay
+  const formattedCurrentLat = useMemo(() => {
+    const val = parseFloat(gpsStatus?.latitude)
+    return !Number.isNaN(val) ? formatCoordinateDisplay(val, true, 'dms', gpsPrecision) : null
+  }, [gpsStatus?.latitude, gpsPrecision])
+
+  const formattedCurrentLon = useMemo(() => {
+    const val = parseFloat(gpsStatus?.longitude)
+    return !Number.isNaN(val) ? formatCoordinateDisplay(val, false, 'dms', gpsPrecision) : null
+  }, [gpsStatus?.longitude, gpsPrecision])
+
+  const formattedLastLat = useMemo(() => {
+    const val = parseFloat(gpsStatus?.last_known_lat)
+    return !Number.isNaN(val) ? formatCoordinateDisplay(val, true, 'dms', gpsPrecision) : null
+  }, [gpsStatus?.last_known_lat, gpsPrecision])
+
+  const formattedLastLon = useMemo(() => {
+    const val = parseFloat(gpsStatus?.last_known_lon)
+    return !Number.isNaN(val) ? formatCoordinateDisplay(val, false, 'dms', gpsPrecision) : null
+  }, [gpsStatus?.last_known_lon, gpsPrecision])
 
   const updateConfigMutation = useMutation({
     mutationFn: updateGpsConfig,
@@ -290,10 +324,12 @@ export default function GPSSettings() {
                     {gpsStatus.has_fix && (
                       <>
                         <p className="text-blue-700 text-xs">
-                          <span className="font-medium">Lat:</span> {gpsStatus.latitude}
+                          <span className="font-medium">Lat:</span>{' '}
+                          {formattedCurrentLat}
                         </p>
                         <p className="text-blue-700 text-xs">
-                          <span className="font-medium">Lon:</span> {gpsStatus.longitude}
+                          <span className="font-medium">Lon:</span>{' '}
+                          {formattedCurrentLon}
                         </p>
                         <p className="text-blue-700 text-xs">
                           <span className="font-medium">UTC Offset:</span> {gpsStatus.utc_offset}h
@@ -309,7 +345,8 @@ export default function GPSSettings() {
                       <div className="mt-2 pt-2 border-t border-blue-300">
                         <p className="text-blue-700 font-medium mb-1 text-xs">Last Known Position:</p>
                         <p className="text-blue-700 text-xs">
-                          📍 {gpsStatus.last_known_lat}, {gpsStatus.last_known_lon}
+                          📍 {formattedLastLat},{' '}
+                          {formattedLastLon}
                         </p>
                         <p className="text-blue-700 text-xs">
                           <span className="font-medium">Acquired:</span> {formatTimestamp(gpsStatus.last_position_time)}
@@ -428,6 +465,28 @@ export default function GPSSettings() {
                     Serial communication speed (9600 is default for NEO-M8N)
                   </p>
                 )}
+              </div>
+
+              {/* GPS Coordinate Precision */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Coordinate Display Precision
+                </label>
+                <select
+                  value={gpsPrecision}
+                  onChange={(e) => handlePrecisionChange(e.target.value)}
+                  aria-label="GPS Coordinate Precision"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {GPS_PRECISION_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label} - {option.description}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Controls decimal places shown for GPS coordinates throughout the UI (display only - does not affect GPS accuracy)
+                </p>
               </div>
 
               {/* Advanced Timeout Configuration */}

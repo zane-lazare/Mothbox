@@ -1127,3 +1127,241 @@ class TestFormatCoordinatePair:
             format_coordinate_pair(0.0, 181.0)
 
         print("✓ Invalid longitude rejected")
+
+
+# ============================================================================
+# TestPrecisionControl: Test configurable precision for DMS seconds
+# ============================================================================
+
+class TestPrecisionControl:
+    """
+    Test seconds_precision parameter for coordinate formatting precision control.
+
+    Tests configurable precision (0-6 decimal places) for seconds in DMS format,
+    allowing users to control coordinate accuracy display.
+
+    Related to Issue #158: Coordinate Precision Control
+    """
+
+    def test_precision_0_no_decimals(self):
+        """
+        Test precision=0 (whole seconds, ±30m accuracy).
+
+        Scenario: San Francisco latitude with 0 decimal places
+        Expected: Seconds rounded to nearest whole number
+        """
+        from utils.gps_coordinates import decimal_to_dms
+
+        # Act: Convert with precision=0
+        degrees, minutes, seconds, ref = decimal_to_dms(37.7749, is_latitude=True, seconds_precision=0)
+
+        # Assert: Seconds should be integer (30 or 29)
+        assert ref == 'N'
+        assert degrees == 37
+        assert minutes == 46
+        assert isinstance(seconds, float), "Seconds should be float type"
+        assert seconds == int(seconds), f"Seconds {seconds} should be whole number"
+        assert 29 <= seconds <= 30, f"Seconds should be 29 or 30, got {seconds}"
+
+        print(f"\n✓ Precision 0: {degrees}° {minutes}' {seconds:.0f}\" {ref}")
+
+    def test_precision_1_one_decimal(self):
+        """
+        Test precision=1 (1 decimal place, ±3m accuracy).
+
+        Scenario: San Francisco latitude with 1 decimal place
+        Expected: Seconds rounded to 1 decimal place
+        """
+        from utils.gps_coordinates import decimal_to_dms
+
+        # Act: Convert with precision=1
+        degrees, minutes, seconds, ref = decimal_to_dms(37.7749, is_latitude=True, seconds_precision=1)
+
+        # Assert: Verify 1 decimal place
+        assert ref == 'N'
+        assert degrees == 37
+        assert minutes == 46
+        # 29.64 → 29.6 with 1 decimal
+        assert abs(seconds - 29.6) < 0.05, f"Expected ~29.6, got {seconds}"
+
+        print(f"✓ Precision 1: {degrees}° {minutes}' {seconds:.1f}\" {ref}")
+
+    def test_precision_2_default(self):
+        """
+        Test precision=2 (2 decimal places, ±30cm accuracy) - DEFAULT.
+
+        Scenario: San Francisco latitude with default precision
+        Expected: Seconds with 2 decimal places (backward compatible)
+        """
+        from utils.gps_coordinates import decimal_to_dms
+
+        # Act: Convert with default precision (should be 2)
+        degrees, minutes, seconds, ref = decimal_to_dms(37.7749, is_latitude=True)
+
+        # Assert: Verify 2 decimal places (default behavior)
+        assert ref == 'N'
+        assert degrees == 37
+        assert minutes == 46
+        assert abs(seconds - 29.64) < 0.01, f"Expected ~29.64, got {seconds}"
+
+        print(f"✓ Precision 2 (default): {degrees}° {minutes}' {seconds:.2f}\" {ref}")
+
+    def test_precision_4_high_accuracy(self):
+        """
+        Test precision=4 (4 decimal places, ±3mm accuracy).
+
+        Scenario: San Francisco latitude with 4 decimal places
+        Expected: High-precision seconds
+        """
+        from utils.gps_coordinates import decimal_to_dms
+
+        # Act: Convert with precision=4
+        degrees, minutes, seconds, ref = decimal_to_dms(37.7749, is_latitude=True, seconds_precision=4)
+
+        # Assert: Verify 4 decimal places
+        assert ref == 'N'
+        assert degrees == 37
+        assert minutes == 46
+        # Should preserve 4 decimal places
+        assert abs(seconds - 29.64) < 0.0001, f"Expected ~29.6400, got {seconds}"
+
+        print(f"✓ Precision 4: {degrees}° {minutes}' {seconds:.4f}\" {ref}")
+
+    def test_precision_6_maximum(self):
+        """
+        Test precision=6 (6 decimal places, ±0.03mm accuracy) - MAXIMUM.
+
+        Scenario: San Francisco latitude with maximum precision
+        Expected: Ultra-high-precision seconds
+        """
+        from utils.gps_coordinates import decimal_to_dms
+
+        # Act: Convert with precision=6
+        degrees, minutes, seconds, ref = decimal_to_dms(37.7749, is_latitude=True, seconds_precision=6)
+
+        # Assert: Verify 6 decimal places
+        assert ref == 'N'
+        assert degrees == 37
+        assert minutes == 46
+        assert abs(seconds - 29.64) < 0.000001, f"Expected ~29.640000, got {seconds}"
+
+        print(f"✓ Precision 6: {degrees}° {minutes}' {seconds:.6f}\" {ref}")
+
+    def test_format_coordinate_display_precision(self):
+        """
+        Test format_coordinate_display() with different precision values.
+
+        Scenario: Format same coordinate with varying precision
+        Expected: Different seconds precision in output strings
+        """
+        from utils.gps_coordinates import format_coordinate_display
+
+        # Act: Format with different precisions
+        fmt_0 = format_coordinate_display(37.7749, is_latitude=True, format='dms', seconds_precision=0)
+        fmt_2 = format_coordinate_display(37.7749, is_latitude=True, format='dms', seconds_precision=2)
+        fmt_4 = format_coordinate_display(37.7749, is_latitude=True, format='dms', seconds_precision=4)
+
+        # Assert: Verify different format strings
+        assert '37°46\'' in fmt_0, "Should contain degrees and minutes"
+        assert '37°46\'' in fmt_2, "Should contain degrees and minutes"
+        assert '37°46\'' in fmt_4, "Should contain degrees and minutes"
+
+        # Check that precision affects output
+        assert '"N' in fmt_0, "Should end with reference"
+        assert '"N' in fmt_2, "Should end with reference"
+        assert '"N' in fmt_4, "Should end with reference"
+
+        print(f"✓ Format precision 0: {fmt_0}")
+        print(f"✓ Format precision 2: {fmt_2}")
+        print(f"✓ Format precision 4: {fmt_4}")
+
+    def test_format_coordinate_pair_precision(self):
+        """
+        Test format_coordinate_pair() with precision parameter.
+
+        Scenario: Format coordinate pair with custom precision
+        Expected: Both lat/lon use specified precision
+        """
+        from utils.gps_coordinates import format_coordinate_pair
+
+        # Act: Format with precision=4
+        result = format_coordinate_pair(37.7749, -122.4194, format='dms', seconds_precision=4)
+
+        # Assert: Verify both coordinates present
+        assert '37°46\'' in result, "Should contain latitude"
+        assert '122°25\'' in result, "Should contain longitude"
+        assert 'N' in result, "Should contain North reference"
+        assert 'W' in result, "Should contain West reference"
+
+        print(f"✓ Coordinate pair (precision 4): {result}")
+
+    def test_invalid_precision_negative(self):
+        """
+        Test rejection of negative precision.
+
+        Scenario: seconds_precision = -1
+        Expected: ValueError
+        """
+        from utils.gps_coordinates import decimal_to_dms
+
+        # Act & Assert: Should raise ValueError
+        with pytest.raises(ValueError, match="seconds_precision.*range"):
+            decimal_to_dms(37.7749, is_latitude=True, seconds_precision=-1)
+
+        print("✓ Negative precision rejected")
+
+    def test_invalid_precision_too_high(self):
+        """
+        Test rejection of precision > 6.
+
+        Scenario: seconds_precision = 7
+        Expected: ValueError
+        """
+        from utils.gps_coordinates import decimal_to_dms
+
+        # Act & Assert: Should raise ValueError
+        with pytest.raises(ValueError, match="seconds_precision.*range"):
+            decimal_to_dms(37.7749, is_latitude=True, seconds_precision=7)
+
+        print("✓ Precision > 6 rejected")
+
+    def test_invalid_precision_float(self):
+        """
+        Test rejection of non-integer precision.
+
+        Scenario: seconds_precision = 2.5 (float)
+        Expected: ValueError
+        """
+        from utils.gps_coordinates import decimal_to_dms
+
+        # Act & Assert: Should raise ValueError
+        with pytest.raises(ValueError, match="seconds_precision"):
+            decimal_to_dms(37.7749, is_latitude=True, seconds_precision=2.5)
+
+        print("✓ Float precision rejected")
+
+    @pytest.mark.parametrize("precision,expected_range", [
+        (0, (29, 30)),      # ±30m accuracy
+        (1, (29.6, 29.7)),  # ±3m accuracy
+        (2, (29.63, 29.65)),  # ±30cm accuracy
+        (3, (29.639, 29.641)),  # ±3cm accuracy
+        (4, (29.6399, 29.6401)),  # ±3mm accuracy
+    ])
+    def test_precision_accuracy_parametrized(self, precision, expected_range):
+        """
+        Parametrized test for different precision levels.
+
+        Tests that different precision values produce appropriately rounded results.
+        """
+        from utils.gps_coordinates import decimal_to_dms
+
+        # Act: Convert with specified precision
+        degrees, minutes, seconds, ref = decimal_to_dms(
+            37.7749, is_latitude=True, seconds_precision=precision
+        )
+
+        # Assert: Verify seconds in expected range
+        assert expected_range[0] <= seconds <= expected_range[1], \
+            f"Precision {precision}: expected {expected_range}, got {seconds}"
+
+        print(f"✓ Precision {precision}: {degrees}° {minutes}' {seconds:.{precision}f}\" {ref}")
