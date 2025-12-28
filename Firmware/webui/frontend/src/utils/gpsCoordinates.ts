@@ -292,3 +292,51 @@ export function formatCoordinateDisplay(
     throw new Error(`Invalid format: ${format} (must be 'dms', 'decimal', or 'short')`);
   }
 }
+
+/**
+ * Format a coordinate pair (latitude, longitude) for display.
+ *
+ * This convenience function combines latitude and longitude formatting into
+ * a single call, making it easier to display complete location coordinates.
+ *
+ * @param latitude - Latitude in decimal degrees (-90.0 to 90.0)
+ * @param longitude - Longitude in decimal degrees (-180.0 to 180.0)
+ * @param format - Display format ('dms', 'decimal', or 'short')
+ * @returns Formatted string: "LAT_STRING LON_STRING"
+ * @throws Error if either coordinate is invalid
+ *
+ * @example
+ * ```typescript
+ * formatCoordinatePair(37.7749, -122.4194);
+ * // Returns: "37°46'29.64\"N 122°25'9.84\"W"
+ *
+ * formatCoordinatePair(37.7749, -122.4194, 'decimal');
+ * // Returns: "37.774900°N 122.419400°W"
+ *
+ * formatCoordinatePair(37.7749, -122.4194, 'short');
+ * // Returns: "37.77°N 122.42°W"
+ * ```
+ */
+export function formatCoordinatePair(
+  latitude: number,
+  longitude: number,
+  format: CoordinateFormat = 'dms'
+): string {
+  // Validate latitude
+  const latValidation = validateCoordinate(latitude, 'latitude');
+  if (!latValidation.isValid) {
+    throw new Error(latValidation.error || `Invalid latitude: ${latitude}`);
+  }
+
+  // Validate longitude
+  const lonValidation = validateCoordinate(longitude, 'longitude');
+  if (!lonValidation.isValid) {
+    throw new Error(lonValidation.error || `Invalid longitude: ${longitude}`);
+  }
+
+  // Format both coordinates
+  const latStr = formatCoordinateDisplay(latitude, true, format);
+  const lonStr = formatCoordinateDisplay(longitude, false, format);
+
+  return `${latStr} ${lonStr}`;
+}

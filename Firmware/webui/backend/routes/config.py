@@ -2,15 +2,25 @@
 
 import csv
 import shutil
-from contextlib import suppress
+from collections.abc import Callable
+from typing import Any
 
 # Setup path to import mothbox_paths
 # Import camera control mapping
-from camera_control_mapping import SNAKE_TO_PASCAL, convert_to_settings_file
+from camera_control_mapping import (
+    SNAKE_TO_PASCAL,
+    convert_from_settings_file,
+    convert_to_settings_file,
+)
 from flask import Blueprint, jsonify, request
 
 # Import shared utilities
-from utils import ALLOWED_CAMERA_SETTINGS, create_backup, sanitize_csv_value
+from utils import (
+    ALLOWED_CAMERA_SETTINGS,
+    ALLOWED_LIVEVIEW_SETTINGS,
+    create_backup,
+    sanitize_csv_value,
+)
 
 from mothbox_paths import (
     CAMERA_SETTINGS_FILE,
@@ -19,6 +29,39 @@ from mothbox_paths import (
     SCHEDULE_SETTINGS_FILE,
     get_control_values,
 )
+
+# ============================================================================
+# Converter Factory Functions
+# ============================================================================
+
+
+def make_to_file_converter(key: str) -> Callable[[Any], str]:
+    """Create a converter that formats values for settings files.
+
+    Args:
+        key: The setting key (used to determine conversion rules)
+
+    Returns:
+        A function that converts Python values to file-format strings
+    """
+    def converter(value: Any) -> str:
+        return convert_to_settings_file(key, value)
+    return converter
+
+
+def make_from_file_converter(key: str) -> Callable[[str], Any]:
+    """Create a converter that parses values from settings files.
+
+    Args:
+        key: The setting key (used to determine conversion rules)
+
+    Returns:
+        A function that converts file-format strings to Python values
+    """
+    def converter(value: str) -> Any:
+        return convert_from_settings_file(key, value)
+    return converter
+
 
 # Valid BCM GPIO pins (BCM mode: GPIO 2-27)
 VALID_BCM_GPIO_PINS = [
@@ -194,6 +237,23 @@ def update_schedule_settings():
         return jsonify({"error": str(e)}), 500
 
 
+def safe_convert(value: Any, converter: Callable, default: Any) -> Any:
+    """Safely convert a value, returning default on failure.
+
+    Args:
+        value: Value to convert (typically string from config file)
+        converter: Conversion function (int, float, etc.)
+        default: Value to return if conversion fails
+
+    Returns:
+        Converted value on success, default on ValueError/TypeError
+    """
+    try:
+        return converter(value)
+    except (ValueError, TypeError):
+        return default
+
+
 @config_bp.route("/webui", methods=["GET"])
 def get_webui_settings():
     """Get WebUI stream settings"""
@@ -264,8 +324,7 @@ def get_webui_settings():
                         "analogue_gain",
                     ]:
                         # Float values
-                        with suppress(ValueError):
-                            defaults[key] = float(settings[key])
+                        defaults[key] = safe_convert(settings[key], float, defaults[key])
                     elif key in [
                         "noise_reduction_mode",
                         "ae_metering_mode",
@@ -273,12 +332,10 @@ def get_webui_settings():
                         "focus_peaking_intensity",
                     ]:
                         # Integer values (noise_reduction_mode: 0-2, ae_metering_mode: 0-2, exposure_time: microseconds, focus_peaking_intensity: 50-200)
-                        with suppress(ValueError):
-                            defaults[key] = int(settings[key])
+                        defaults[key] = safe_convert(settings[key], int, defaults[key])
                     else:
                         # Other integer values
-                        with suppress(ValueError):
-                            defaults[key] = int(settings[key])
+                        defaults[key] = safe_convert(settings[key], int, defaults[key])
 
         return jsonify(defaults)
     except Exception as e:
@@ -680,9 +737,17 @@ def copy_settings():
             "awb_mode",
         ]
 
-        # Generate mappings from centralized source
+        # Generate mappings with bidirectional converters
+        # Format: (snake_case_key, PascalCase_key, to_file_func, from_file_func)
+        # - to_file_func: converts Python value → string for settings file
+        # - from_file_func: converts string from settings file → Python type
         compatible_mappings = [
-            (snake, SNAKE_TO_PASCAL[snake], lambda v, k=snake: convert_to_settings_file(k, v))
+            (
+                snake,
+                SNAKE_TO_PASCAL[snake],
+                make_to_file_converter(snake),
+                make_from_file_converter(snake),
+            )
             for snake in compatible_keys
         ]
 
@@ -719,22 +784,13 @@ def copy_settings():
                     capture_settings_dict[setting_name] = setting_value
 
             # Copy compatible settings
-            for preview_key, capture_key, converter in compatible_mappings:
+            for preview_key, capture_key, to_file_converter, from_file_converter in compatible_mappings:
                 if preview_key in preview_settings:
                     try:
-                        # Convert live view value to capture format
-                        preview_value = preview_settings[preview_key]
-
-                        # Type conversion for live view settings
-                        if preview_key in ["sharpness", "brightness", "contrast", "saturation"]:
-                            preview_value = float(preview_value)
-                        elif preview_key in ["af_mode", "af_speed", "af_range", "awb_mode"]:
-                            preview_value = int(preview_value)
-                        elif preview_key == "awb_enable":
-                            preview_value = preview_value.lower() == "true"
-
-                        # Convert to capture format
-                        capture_value = converter(preview_value)
+                        # Convert file string → Python type → file string
+                        preview_value_str = preview_settings[preview_key]
+                        preview_value = from_file_converter(preview_value_str)
+                        capture_value = to_file_converter(preview_value)
 
                         # Validate using capture validator
                         if capture_key in ALLOWED_CAMERA_SETTINGS:
@@ -793,40 +849,22 @@ def copy_settings():
                 preview_settings = response.get_json()
 
             # Copy compatible settings
-            for preview_key, capture_key, _converter in compatible_mappings:
+            for preview_key, capture_key, _to_file, from_file_converter in compatible_mappings:
                 if capture_key in capture_settings_dict:
                     try:
                         capture_value = capture_settings_dict[capture_key]
 
-                        # Convert to live view type
-                        if preview_key in ["sharpness", "brightness", "contrast", "saturation"]:
-                            preview_value = float(capture_value)
-                        elif preview_key in ["af_mode", "af_speed", "af_range", "awb_mode"]:
-                            preview_value = int(capture_value)
-                        elif preview_key == "awb_enable":
-                            preview_value = capture_value.lower() == "true"
-                        else:
-                            preview_value = capture_value
+                        # Convert to live view type using centralized converter
+                        preview_value = from_file_converter(capture_value)
 
-                        # Validate ranges (basic validation)
-                        valid = True
-                        if (
-                            preview_key == "sharpness"
-                            and not (0.0 <= preview_value <= 16.0)
-                            or preview_key == "brightness"
-                            and not (-1.0 <= preview_value <= 1.0)
-                            or preview_key in ["contrast", "saturation"]
-                            and not (0.0 <= preview_value <= 32.0)
-                            or preview_key == "af_mode"
-                            and preview_value not in [0, 1, 2]
-                            or preview_key == "af_speed"
-                            and preview_value not in [0, 1]
-                            or preview_key == "af_range"
-                            and preview_value not in [0, 1, 2]
-                            or preview_key == "awb_mode"
-                            and not (0 <= preview_value <= 7)
-                        ):
-                            valid = False
+                        # Validate using centralized live view validator
+                        if preview_key in ALLOWED_LIVEVIEW_SETTINGS:
+                            try:
+                                valid = ALLOWED_LIVEVIEW_SETTINGS[preview_key](preview_value)
+                            except (ValueError, TypeError):
+                                valid = False
+                        else:
+                            valid = True  # No validator = allow
 
                         if valid:
                             preview_settings[preview_key] = preview_value

@@ -964,3 +964,166 @@ class TestRoundTripAccuracy:
 
         coord_type = "lat" if is_latitude else "lon"
         print(f"✓ Round-trip {coord_type}: {decimal}° → {degrees}°{minutes}'{seconds:.2f}\"{ref} → {decimal_result}° (Δ{abs(decimal_result - decimal):.6f})")
+
+
+# ============================================================================
+# TestFormatCoordinatePair: Test coordinate pair formatting convenience function
+# ============================================================================
+
+class TestFormatCoordinatePair:
+    """
+    Test format_coordinate_pair() convenience function for formatting coordinate pairs.
+
+    This function combines latitude and longitude formatting into a single call,
+    making it easier to display complete location coordinates.
+
+    Expected function signature:
+        def format_coordinate_pair(
+            latitude: float,
+            longitude: float,
+            format: Literal["dms", "decimal", "short"] = "dms"
+        ) -> str:
+            Args:
+                latitude: Latitude in decimal degrees (-90.0 to 90.0)
+                longitude: Longitude in decimal degrees (-180.0 to 180.0)
+                format: Display format ('dms', 'decimal', or 'short')
+            Returns:
+                Formatted string: "LAT_STRING LON_STRING"
+            Raises:
+                ValueError: If either coordinate is invalid
+    """
+
+    def test_dms_format_san_francisco(self):
+        """
+        Test DMS format for San Francisco coordinates.
+
+        Scenario: San Francisco (37.7749, -122.4194)
+        Expected: "37°46'29.64\"N 122°25'9.84\"W"
+        """
+        from utils.gps_coordinates import format_coordinate_pair
+
+        # Act: Format coordinate pair
+        result = format_coordinate_pair(37.7749, -122.4194, format='dms')
+
+        # Assert: Verify both coordinates are present
+        assert '37°' in result, "Should contain latitude degrees"
+        assert 'N' in result, "Should contain North reference"
+        assert '122°' in result, "Should contain longitude degrees"
+        assert 'W' in result, "Should contain West reference"
+
+        print(f"\n✓ DMS format: {result}")
+
+    def test_decimal_format(self):
+        """
+        Test decimal format for coordinate pair.
+
+        Scenario: San Francisco (37.7749, -122.4194)
+        Expected: "37.774900°N 122.419400°W"
+        """
+        from utils.gps_coordinates import format_coordinate_pair
+
+        # Act: Format coordinate pair
+        result = format_coordinate_pair(37.7749, -122.4194, format='decimal')
+
+        # Assert: Verify decimal format
+        assert '°N' in result, "Should contain N with degree symbol"
+        assert '°W' in result, "Should contain W with degree symbol"
+
+        print(f"✓ Decimal format: {result}")
+
+    def test_short_format(self):
+        """
+        Test short format for coordinate pair.
+
+        Scenario: San Francisco (37.7749, -122.4194)
+        Expected: "37.77°N 122.42°W"
+        """
+        from utils.gps_coordinates import format_coordinate_pair
+
+        # Act: Format coordinate pair
+        result = format_coordinate_pair(37.7749, -122.4194, format='short')
+
+        # Assert: Verify short format
+        assert 'N' in result, "Should contain North reference"
+        assert 'W' in result, "Should contain West reference"
+
+        print(f"✓ Short format: {result}")
+
+    def test_all_hemispheres(self):
+        """
+        Test all 4 hemisphere combinations.
+
+        Scenarios:
+        - NE: London-ish (51.5, 0.1)
+        - SE: Sydney (-33.87, 151.21)
+        - SW: Buenos Aires (-34.6, -58.4)
+        - NW: San Francisco (37.77, -122.42)
+        """
+        from utils.gps_coordinates import format_coordinate_pair
+
+        # Act: Test all hemisphere combinations
+        ne_result = format_coordinate_pair(51.5, 0.1)
+        se_result = format_coordinate_pair(-33.87, 151.21)
+        sw_result = format_coordinate_pair(-34.6, -58.4)
+        nw_result = format_coordinate_pair(37.77, -122.42)
+
+        # Assert: Verify hemisphere references
+        assert 'N' in ne_result and 'E' in ne_result, "NE quadrant should have N and E"
+        assert 'S' in se_result and 'E' in se_result, "SE quadrant should have S and E"
+        assert 'S' in sw_result and 'W' in sw_result, "SW quadrant should have S and W"
+        assert 'N' in nw_result and 'W' in nw_result, "NW quadrant should have N and W"
+
+        print(f"✓ All hemispheres: NE={ne_result}, SE={se_result}, SW={sw_result}, NW={nw_result}")
+
+    def test_edge_cases(self):
+        """
+        Test edge case coordinates.
+
+        Scenarios:
+        - Null Island (0.0, 0.0)
+        - North Pole (90.0, 0.0)
+        - South Pole (-90.0, 0.0)
+        """
+        from utils.gps_coordinates import format_coordinate_pair
+
+        # Act: Test edge cases
+        null_island = format_coordinate_pair(0.0, 0.0)
+        north_pole = format_coordinate_pair(90.0, 0.0)
+        south_pole = format_coordinate_pair(-90.0, 0.0)
+
+        # Assert: Should not crash and should have valid format
+        assert null_island, "Null Island should format successfully"
+        assert 'N' in north_pole, "North Pole should be North"
+        assert 'S' in south_pole, "South Pole should be South"
+
+        print(f"✓ Edge cases handled: Null Island={null_island}, North Pole={north_pole}, South Pole={south_pole}")
+
+    def test_invalid_latitude_raises(self):
+        """
+        Invalid latitude should raise ValueError.
+
+        Scenario: Latitude 91.0° (invalid)
+        Expected: ValueError with "latitude" in message
+        """
+        from utils.gps_coordinates import format_coordinate_pair
+
+        # Act & Assert: Should raise ValueError
+        with pytest.raises(ValueError, match='latitude'):
+            format_coordinate_pair(91.0, 0.0)
+
+        print("✓ Invalid latitude rejected")
+
+    def test_invalid_longitude_raises(self):
+        """
+        Invalid longitude should raise ValueError.
+
+        Scenario: Longitude 181.0° (invalid)
+        Expected: ValueError with "longitude" in message
+        """
+        from utils.gps_coordinates import format_coordinate_pair
+
+        # Act & Assert: Should raise ValueError
+        with pytest.raises(ValueError, match='longitude'):
+            format_coordinate_pair(0.0, 181.0)
+
+        print("✓ Invalid longitude rejected")

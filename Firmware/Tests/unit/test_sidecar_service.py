@@ -7,6 +7,7 @@ TDD approach: tests written first, then implementation.
 Coverage Target: 85%+
 """
 
+import json
 import threading
 import time
 
@@ -135,7 +136,7 @@ class TestSidecarServiceInit:
         cache_dir = tmp_path / "nonexistent_cache"
         assert not cache_dir.exists()
 
-        SidecarService(cache_dir=cache_dir)
+        SidecarService(cache_dir=cache_dir)  # Creates directory as side effect
         assert cache_dir.exists()
         assert cache_dir.is_dir()
 
@@ -1101,3 +1102,162 @@ class TestResponseTimeMetrics:
         assert stats['p99_response_time_ms'] is not None
         assert stats['avg_response_time_ms'] >= 0
         assert stats['p99_response_time_ms'] >= 0
+
+
+# ============================================================================
+# Test Cache Version Invalidation (Issue #185)
+# ============================================================================
+
+class TestCacheVersionInvalidation:
+    """Tests for schema version-based cache invalidation."""
+
+    def test_version_mismatch_returns_none(self, cache_dir):
+        """Cache entry with old version is treated as miss."""
+        from webui.backend.services.sidecar_service import SidecarService
+
+        service = SidecarService(cache_dir=cache_dir, cache_version="2.0")
+
+        # Create cache file with old version
+        photo_path = "/photos/test.jpg"
+        cache_file = service._get_cache_file_path(photo_path)
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+        old_entry = {
+            "photo_path": photo_path,
+            "metadata": {"test": "data"},
+            "cached_at": 123456.0,
+            "cache_version": "1.0",  # Old version
+        }
+        cache_file.write_text(json.dumps(old_entry))
+
+        # Should return None due to version mismatch
+        result = service._get_l2(photo_path)
+        assert result is None
+
+    def test_version_mismatch_deletes_cache_file(self, cache_dir):
+        """Cache file with old version is deleted."""
+        from webui.backend.services.sidecar_service import SidecarService
+
+        service = SidecarService(cache_dir=cache_dir, cache_version="2.0")
+
+        photo_path = "/photos/test.jpg"
+        cache_file = service._get_cache_file_path(photo_path)
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+        old_entry = {
+            "photo_path": photo_path,
+            "metadata": {"test": "data"},
+            "cached_at": 123456.0,
+            "cache_version": "1.0",
+        }
+        cache_file.write_text(json.dumps(old_entry))
+
+        service._get_l2(photo_path)
+        assert not cache_file.exists()  # File should be deleted
+
+    def test_matching_version_returns_entry(self, cache_dir):
+        """Cache entry with matching version is returned."""
+        from webui.backend.services.sidecar_service import SidecarService
+
+        service = SidecarService(cache_dir=cache_dir, cache_version="2.0")
+
+        photo_path = "/photos/test.jpg"
+        cache_file = service._get_cache_file_path(photo_path)
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+        entry = {
+            "photo_path": photo_path,
+            "metadata": {"species": "Moth"},
+            "cached_at": 123456.0,
+            "cache_version": "2.0",  # Matches service version
+        }
+        cache_file.write_text(json.dumps(entry))
+
+        result = service._get_l2(photo_path)
+        assert result is not None
+        assert result.metadata["species"] == "Moth"
+
+    def test_startup_purge_on_version_change(self, tmp_path, monkeypatch):
+        """Startup purge removes all cache files when version changes."""
+        import webui.backend.services as services_module
+        from webui.backend.services.sidecar_service import CACHE_SCHEMA_VERSION
+
+        # Reset singleton
+        monkeypatch.setattr(services_module, '_sidecar_service', None)
+
+        cache_dir = tmp_path / "cache" / "sidecar"
+        cache_dir.mkdir(parents=True)
+
+        # Create old cache files
+        (cache_dir / "photo1.json").write_text('{"cache_version": "1.0"}')
+        (cache_dir / "photo2.json").write_text('{"cache_version": "1.0"}')
+        version_file = cache_dir / ".version"
+        version_file.write_text("1.0")
+
+        # Mock DATA_DIR to use tmp_path
+        monkeypatch.setattr('mothbox_paths.DATA_DIR', tmp_path)
+
+        # Initialize service (should trigger purge)
+        from webui.backend.services import get_sidecar_service
+        service = get_sidecar_service()
+
+        # Verify old files removed
+        assert not (cache_dir / "photo1.json").exists()
+        assert not (cache_dir / "photo2.json").exists()
+
+        # Verify version file updated
+        assert version_file.read_text().strip() == CACHE_SCHEMA_VERSION
+
+        # Verify service was created
+        assert service is not None
+
+    def test_startup_first_time_init(self, tmp_path, monkeypatch):
+        """First-time initialization creates version file without purge."""
+        import webui.backend.services as services_module
+        from webui.backend.services.sidecar_service import CACHE_SCHEMA_VERSION
+
+        # Reset singleton
+        monkeypatch.setattr(services_module, '_sidecar_service', None)
+
+        # Mock DATA_DIR to use tmp_path (cache dir doesn't exist yet)
+        monkeypatch.setattr('mothbox_paths.DATA_DIR', tmp_path)
+
+        # Initialize service (first time - no version file exists)
+        from webui.backend.services import get_sidecar_service
+        service = get_sidecar_service()
+
+        cache_dir = tmp_path / "cache" / "sidecar"
+        version_file = cache_dir / ".version"
+
+        # Verify version file was created
+        assert version_file.exists()
+        assert version_file.read_text().strip() == CACHE_SCHEMA_VERSION
+
+        # Verify service was created
+        assert service is not None
+
+    def test_startup_matching_version_no_purge(self, tmp_path, monkeypatch):
+        """Matching version does not purge cache files."""
+        import webui.backend.services as services_module
+        from webui.backend.services.sidecar_service import CACHE_SCHEMA_VERSION
+
+        # Reset singleton
+        monkeypatch.setattr(services_module, '_sidecar_service', None)
+
+        cache_dir = tmp_path / "cache" / "sidecar"
+        cache_dir.mkdir(parents=True)
+
+        # Create cache files with current version
+        (cache_dir / "photo1.json").write_text(f'{{"cache_version": "{CACHE_SCHEMA_VERSION}"}}')
+        version_file = cache_dir / ".version"
+        version_file.write_text(CACHE_SCHEMA_VERSION)
+
+        # Mock DATA_DIR to use tmp_path
+        monkeypatch.setattr('mothbox_paths.DATA_DIR', tmp_path)
+
+        # Initialize service (should NOT purge - version matches)
+        from webui.backend.services import get_sidecar_service
+        get_sidecar_service()
+
+        # Verify file was NOT deleted
+        assert (cache_dir / "photo1.json").exists()
