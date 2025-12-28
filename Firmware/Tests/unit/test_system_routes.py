@@ -233,17 +233,18 @@ class TestSystemPower:
 
     def test_power_returns_sensor_readings_when_available(self, system_client, mock_paths):
         """GET /power returns actual sensor readings when INA260 connected"""
-        # Mock sensor object with realistic values
-        mock_ina260 = MagicMock()
-        mock_ina260.voltage = 12.45  # 12.45V
-        mock_ina260.current = 350.5  # 350.5mA
-        mock_ina260.power = 4360.0   # 4360mW
+        # Mock sensor readings as dict (matching new return type)
+        mock_readings = {
+            "voltage": 12.45,  # 12.45V
+            "current": 350.5,  # 350.5mA
+            "power": 4360.0    # 4360mW
+        }
 
         with patch('routes.system.get_hardware_config', return_value={
             'ina260_enabled': True,
             'ina260_address': 0x40
         }), \
-             patch('routes.system._read_ina260_sensor', return_value=mock_ina260):
+             patch('routes.system._read_ina260_sensor', return_value=mock_readings):
 
             response = system_client.get('/api/system/power')
 
@@ -295,7 +296,7 @@ class TestSystemPower:
             assert 'error' in data
 
     def test_power_handles_config_error(self, system_client, mock_paths):
-        """GET /power handles errors gracefully"""
+        """GET /power returns 500 when hardware config fails"""
         with patch('routes.system.get_hardware_config', side_effect=Exception("Config error")):
             response = system_client.get('/api/system/power')
 
@@ -305,16 +306,17 @@ class TestSystemPower:
 
     def test_power_rounds_values_to_two_decimals(self, system_client, mock_paths):
         """GET /power rounds sensor readings to 2 decimal places"""
-        mock_ina260 = MagicMock()
-        mock_ina260.voltage = 12.456789
-        mock_ina260.current = 350.123456
-        mock_ina260.power = 4360.987654
+        mock_readings = {
+            "voltage": 12.456789,
+            "current": 350.123456,
+            "power": 4360.987654
+        }
 
         with patch('routes.system.get_hardware_config', return_value={
             'ina260_enabled': True,
             'ina260_address': 0x40
         }), \
-             patch('routes.system._read_ina260_sensor', return_value=mock_ina260):
+             patch('routes.system._read_ina260_sensor', return_value=mock_readings):
 
             response = system_client.get('/api/system/power')
 
@@ -324,6 +326,26 @@ class TestSystemPower:
             assert data['voltage'] == 12.46  # Rounded
             assert data['current'] == 350.12  # Rounded
             assert data['power'] == 4360.99  # Rounded
+
+    def test_power_uses_correct_address_from_config(self, system_client, mock_paths):
+        """GET /power passes correct I2C address from config to sensor"""
+        mock_readings = {
+            "voltage": 12.0,
+            "current": 100.0,
+            "power": 1200.0
+        }
+
+        with patch('routes.system.get_hardware_config', return_value={
+            'ina260_enabled': True,
+            'ina260_address': 0x41  # Non-default address
+        }), \
+             patch('routes.system._read_ina260_sensor', return_value=mock_readings) as mock_sensor:
+
+            response = system_client.get('/api/system/power')
+
+            assert response.status_code == 200
+            # Verify sensor was called with the correct address from config
+            mock_sensor.assert_called_once_with(0x41)
 
 
 # ============================================================================

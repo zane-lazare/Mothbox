@@ -141,15 +141,18 @@ def get_system_status():
         return jsonify({"error": "Failed to get storage info"}), 500
 
 
-def _read_ina260_sensor(address: int):
+def _read_ina260_sensor(address: int) -> dict | None:
     """
     Read INA260 power sensor from I2C bus.
+
+    Reads sensor values immediately and closes the I2C bus to avoid
+    resource leaks.
 
     Args:
         address: I2C address for the sensor (typically 0x40)
 
     Returns:
-        INA260 sensor object with voltage, current, power properties,
+        dict with keys 'voltage', 'current', 'power' containing float values,
         or None if sensor not available
 
     Raises:
@@ -160,7 +163,15 @@ def _read_ina260_sensor(address: int):
         import board
 
         i2c = board.I2C()
-        return adafruit_ina260.INA260(i2c, address=address)
+        try:
+            sensor = adafruit_ina260.INA260(i2c, address=address)
+            return {
+                "voltage": sensor.voltage,
+                "current": sensor.current,
+                "power": sensor.power,
+            }
+        finally:
+            i2c.deinit()
     except (ImportError, ValueError):
         # ImportError: adafruit libraries not installed
         # ValueError: Sensor not found at address
@@ -169,7 +180,25 @@ def _read_ina260_sensor(address: int):
 
 @system_bp.route("/power", methods=["GET"])
 def get_power_status():
-    """Get power metrics from INA260 if available"""
+    """
+    Get power metrics from INA260 sensor if available.
+
+    Reads voltage, current, and power from the INA260 power monitor
+    connected via I2C. The sensor must be enabled in hardware configuration.
+
+    Returns:
+        200: Power status (may include 'error' field if sensor unavailable)
+        500: Configuration error
+
+    Response schema:
+        {
+            "enabled": bool,
+            "voltage": float | null,  # Volts (V)
+            "current": float | null,  # Milliamps (mA)
+            "power": float | null,    # Milliwatts (mW)
+            "error": str | undefined  # Present when sensor unavailable
+        }
+    """
     try:
         hw_config = get_hardware_config()
         if not hw_config.get("ina260_enabled"):
@@ -178,8 +207,8 @@ def get_power_status():
         # Read from INA260 sensor
         address = hw_config.get("ina260_address", 0x40)
         try:
-            sensor = _read_ina260_sensor(address)
-            if sensor is None:
+            readings = _read_ina260_sensor(address)
+            if readings is None:
                 return jsonify({
                     "enabled": True,
                     "voltage": None,
@@ -190,9 +219,9 @@ def get_power_status():
 
             return jsonify({
                 "enabled": True,
-                "voltage": round(sensor.voltage, 2),
-                "current": round(sensor.current, 2),
-                "power": round(sensor.power, 2)
+                "voltage": round(readings["voltage"], 2),
+                "current": round(readings["current"], 2),
+                "power": round(readings["power"], 2)
             })
         except OSError as e:
             print(f"INA260 I2C error: {e}")
