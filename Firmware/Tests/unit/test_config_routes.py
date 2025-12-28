@@ -828,3 +828,39 @@ class TestConfigErrorRecovery:
         assert response.status_code == 200
         data = response.get_json()
         assert 'jpeg_quality' in data  # Has defaults
+
+
+class TestSafeConvert:
+    """Tests for safe_convert() helper function (Issue #81)."""
+
+    def test_successful_int_conversion(self):
+        """Test successful integer conversion."""
+        from routes.config import safe_convert
+        assert safe_convert("123", int, 0) == 123
+        assert safe_convert("0", int, -1) == 0
+        assert safe_convert("-42", int, 0) == -42
+
+    def test_successful_float_conversion(self):
+        """Test successful float conversion."""
+        from routes.config import safe_convert
+        assert safe_convert("1.5", float, 0.0) == 1.5
+        assert safe_convert("0.0", float, 1.0) == 0.0
+        assert safe_convert("-3.14", float, 0.0) == -3.14
+
+    def test_failed_conversion_returns_default(self):
+        """Test that invalid values return the default."""
+        from routes.config import safe_convert
+        assert safe_convert("invalid", int, 99) == 99
+        assert safe_convert("not_a_number", float, 1.5) == 1.5
+
+    def test_none_value_returns_default(self):
+        """Test that None returns the default."""
+        from routes.config import safe_convert
+        assert safe_convert(None, int, 42) == 42
+        assert safe_convert(None, float, 3.14) == 3.14
+
+    def test_empty_string_returns_default(self):
+        """Test that empty string returns the default."""
+        from routes.config import safe_convert
+        assert safe_convert("", int, 100) == 100
+        assert safe_convert("", float, 2.0) == 2.0
