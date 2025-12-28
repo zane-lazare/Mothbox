@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import SavePresetModal from '../components/SavePresetModal'
 import GPSSettings from '../components/GPSSettings'
 import CollapsibleCard from '../components/CollapsibleCard'
+import { validatePresetSettings, formatValidationErrors } from '../utils/presetValidation'
 
 export default function Settings() {
   const queryClient = useQueryClient()
@@ -497,6 +498,14 @@ export default function Settings() {
     }
 
     try {
+      // Validate settings before updating
+      const validationErrors = validatePresetSettings(webuiForm)
+      if (validationErrors.length > 0) {
+        const errorMessage = formatValidationErrors(validationErrors, 3)
+        toast.error(errorMessage)
+        return
+      }
+
       const presetData = {
         name: selectedLiveViewPreset,
         description: selectedLiveViewPresetData?.description || '',
@@ -519,6 +528,15 @@ export default function Settings() {
 
   // Handle Save As (new preset creation from modal)
   const handleSavePreset = async (presetData) => {
+    // Validation happens in SavePresetModal before calling this function
+    // But we validate again here as a safety check
+    const validationErrors = validatePresetSettings(webuiForm)
+    if (validationErrors.length > 0) {
+      const errorMessage = formatValidationErrors(validationErrors, 3)
+      toast.error(errorMessage)
+      throw new Error('Validation failed')
+    }
+
     await createPresetMutation.mutateAsync(presetData)
     toast.success(`Preset "${presetData.name}" saved successfully`)
   }
@@ -2430,6 +2448,7 @@ export default function Settings() {
         onSave={handleSavePreset}
         isSaving={createPresetMutation.isPending}
         defaultWorkflow={saveModalWorkflow}
+        currentSettings={webuiForm}
       />
     </div>
   )

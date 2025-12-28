@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Z_INDEX } from '../constants/config'
+import { validatePresetSettings } from '../utils/presetValidation'
 
-export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, defaultWorkflow = 'both' }) {
+export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, defaultWorkflow = 'both', currentSettings = {} }) {
   const [presetName, setPresetName] = useState('')
   const [description, setDescription] = useState('')
   const [workflow, setWorkflow] = useState(defaultWorkflow)
   const [nameError, setNameError] = useState('')
+  const [validationErrors, setValidationErrors] = useState([])
 
   if (!isOpen) return null
 
@@ -32,9 +34,17 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, def
   }
 
   const handleSave = async () => {
+    // Validate preset name
     const error = validateName(presetName)
     if (error) {
       setNameError(error)
+      return
+    }
+
+    // Validate settings values
+    const settingsErrors = validatePresetSettings(currentSettings)
+    if (settingsErrors.length > 0) {
+      setValidationErrors(settingsErrors)
       return
     }
 
@@ -52,6 +62,7 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, def
       setDescription('')
       setWorkflow(defaultWorkflow)
       setNameError('')
+      setValidationErrors([])
     } catch (error) {
       // Error is handled by the mutation in parent component
       console.error('Error saving preset:', error)
@@ -63,6 +74,7 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, def
     setDescription('')
     setWorkflow(defaultWorkflow)
     setNameError('')
+    setValidationErrors([])
     onClose()
   }
 
@@ -222,6 +234,30 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, def
               )}
             </button>
           </div>
+
+          {/* Validation Errors */}
+          {validationErrors.length > 0 && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-300 rounded-lg max-h-48 overflow-y-auto">
+              <p className="text-sm font-semibold text-red-800 mb-2">
+                ⚠️ Invalid Settings ({validationErrors.length} error{validationErrors.length > 1 ? 's' : ''})
+              </p>
+              <div className="space-y-1">
+                {validationErrors.slice(0, 5).map((error, index) => (
+                  <div key={index} className="text-xs text-red-700">
+                    <span className="font-mono bg-red-100 px-1 rounded">{error.key}</span>
+                    {' = '}
+                    <span className="font-mono bg-red-100 px-1 rounded">{error.value}</span>
+                    <div className="ml-2 text-red-600">{error.message}</div>
+                  </div>
+                ))}
+                {validationErrors.length > 5 && (
+                  <p className="text-xs text-red-600 italic mt-2">
+                    ... and {validationErrors.length - 5} more error{validationErrors.length - 5 > 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Info */}
           <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
