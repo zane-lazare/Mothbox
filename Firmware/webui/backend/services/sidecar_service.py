@@ -63,7 +63,12 @@ from webui.backend.lib.sidecar_metadata import (
 # Matches: name_YYYY_MM_DD__HH_MM_SS... or ManFocus_name_YYYY_MM_DD__...
 FILENAME_DATE_PATTERN = re.compile(r'(\d{4})_(\d{2})_(\d{2})__')
 
-# Cache schema version - bump when sidecar structure changes
+# Cache schema version - bump when cache entry structure changes.
+# Bumping this will invalidate all existing L2 cache entries on startup.
+# Examples of when to bump:
+#   - New metadata fields added to CacheEntry
+#   - Changed serialization format
+#   - Renamed keys in cached metadata dict
 CACHE_SCHEMA_VERSION = "1.1"
 
 logger = logging.getLogger(__name__)
@@ -135,7 +140,7 @@ class SidecarService:
         cache_dir: Path | str,
         l1_max_size: int = 1000,
         l2_max_size: int = 10000,
-        cache_version: str = "1.0",
+        cache_version: str = CACHE_SCHEMA_VERSION,
         search_service: Any | None = None,
     ):
         """
