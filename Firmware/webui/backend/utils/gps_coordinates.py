@@ -25,6 +25,7 @@ from webui.shared.gps_coordinates import (  # noqa: E402, F401
     decimal_to_dms,
     dms_to_decimal,
     format_coordinate_display,
+    format_coordinate_pair,
     validate_coordinate,
 )
 
@@ -32,5 +33,6 @@ __all__ = [
     "decimal_to_dms",
     "dms_to_decimal",
     "format_coordinate_display",
+    "format_coordinate_pair",
     "validate_coordinate",
 ]
