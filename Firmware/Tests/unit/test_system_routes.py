@@ -256,8 +256,8 @@ class TestSystemPower:
             assert data['current'] == 350.5
             assert data['power'] == 4360.0
 
-    def test_power_returns_null_when_sensor_not_connected(self, system_client, mock_paths):
-        """GET /power returns null values when sensor not connected"""
+    def test_power_returns_null_when_sensor_unavailable(self, system_client, mock_paths):
+        """GET /power returns null values when sensor returns None (not connected or error)"""
         with patch('routes.system.get_hardware_config', return_value={
             'ina260_enabled': True,
             'ina260_address': 0x40
@@ -273,27 +273,7 @@ class TestSystemPower:
             assert data['voltage'] is None
             assert data['current'] is None
             assert data['power'] is None
-            assert 'error' in data  # Should indicate sensor not available
-
-    def test_power_handles_sensor_oserror(self, system_client, mock_paths):
-        """GET /power handles OSError when I2C bus unavailable"""
-        with patch('routes.system.get_hardware_config', return_value={
-            'ina260_enabled': True,
-            'ina260_address': 0x40
-        }), \
-             patch('routes.system._read_ina260_sensor', side_effect=OSError("I2C bus error")):
-
-            response = system_client.get('/api/system/power')
-
-            assert response.status_code == 200
-            data = json.loads(response.data)
-
-            # Should return enabled but with null values and error message
-            assert data['enabled'] is True
-            assert data['voltage'] is None
-            assert data['current'] is None
-            assert data['power'] is None
-            assert 'error' in data
+            assert data['error'] == "Sensor not available"
 
     def test_power_handles_config_error(self, system_client, mock_paths):
         """GET /power returns 500 when hardware config fails"""

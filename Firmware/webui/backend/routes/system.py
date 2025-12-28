@@ -153,10 +153,7 @@ def _read_ina260_sensor(address: int) -> dict | None:
 
     Returns:
         dict with keys 'voltage', 'current', 'power' containing float values,
-        or None if sensor not available
-
-    Raises:
-        OSError: If I2C bus communication fails (caught by caller)
+        or None if sensor not available or any error occurs
     """
     try:
         import adafruit_ina260
@@ -209,32 +206,22 @@ def get_power_status():
 
         # Read from INA260 sensor
         address = hw_config.get("ina260_address", 0x40)
-        try:
-            readings = _read_ina260_sensor(address)
-            if readings is None:
-                return jsonify({
-                    "enabled": True,
-                    "voltage": None,
-                    "current": None,
-                    "power": None,
-                    "error": "Sensor not available"
-                })
-
-            return jsonify({
-                "enabled": True,
-                "voltage": round(readings["voltage"], 2),
-                "current": round(readings["current"], 2),
-                "power": round(readings["power"], 2)
-            })
-        except OSError as e:
-            print(f"INA260 I2C error: {e}")
+        readings = _read_ina260_sensor(address)
+        if readings is None:
             return jsonify({
                 "enabled": True,
                 "voltage": None,
                 "current": None,
                 "power": None,
-                "error": "I2C communication error"
+                "error": "Sensor not available"
             })
+
+        return jsonify({
+            "enabled": True,
+            "voltage": round(readings["voltage"], 2),
+            "current": round(readings["current"], 2),
+            "power": round(readings["power"], 2)
+        })
     except Exception as e:
         print(f"Error getting power status: {e}")
         return jsonify({"error": "Failed to get power status"}), 500
