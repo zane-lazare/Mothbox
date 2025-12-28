@@ -1270,3 +1270,190 @@ class TestScheduleWithCronTrigger:
         restored = Schedule.from_dict(data)
         assert restored.trigger_type == "cron"
         assert restored.cron_trigger.cron_expression == "0 */2 * * *"
+
+
+# =============================================================================
+# FRONTEND FORMAT CONVERSION TESTS (Issue #280)
+# =============================================================================
+
+
+class TestScheduleFromDictFrontendFormat:
+    """Test Schedule.from_dict() with frontend JSON format conversion."""
+
+    def test_is_frontend_format_with_trigger_object(self):
+        """Returns True when 'trigger' key exists."""
+        data = {
+            "name": "Test",
+            "trigger": {"trigger_type": "interval", "interval_minutes": 60},
+        }
+        assert Schedule._is_frontend_format(data) is True
+
+    def test_is_frontend_format_without_trigger_object(self):
+        """Returns False for backend format."""
+        data = {
+            "name": "Test",
+            "trigger_type": "interval",
+            "interval_trigger": {"interval_minutes": 60},
+        }
+        assert Schedule._is_frontend_format(data) is False
+
+    def test_parse_frontend_interval_trigger(self):
+        """Converts flat interval fields."""
+        trigger_data = {
+            "trigger_type": "interval",
+            "interval_minutes": 60,
+            "time_window_start": "21:00",
+            "time_window_end": "05:00",
+            "days_of_week": [0, 1, 2, 3, 4, 5, 6],
+        }
+        result = Schedule._parse_interval_trigger_frontend(trigger_data)
+        assert isinstance(result, IntervalTrigger)
+        assert result.interval_minutes == 60
+        assert result.time_window.start_time == "21:00"
+        assert result.time_window.end_time == "05:00"
+        assert result.days_of_week == [0, 1, 2, 3, 4, 5, 6]
+
+    def test_parse_frontend_solar_trigger(self):
+        """Converts solar trigger."""
+        trigger_data = {
+            "trigger_type": "solar",
+            "solar_event": "sunset",
+            "offset_minutes": 30,
+            "days_of_week": [0, 1, 2, 3, 4],
+        }
+        result = Schedule._parse_solar_trigger_frontend(trigger_data)
+        assert isinstance(result, SolarTrigger)
+        assert result.solar_event == "sunset"
+        assert result.offset_minutes == 30
+        assert result.days_of_week == [0, 1, 2, 3, 4]
+
+    def test_parse_frontend_moon_phase_trigger(self):
+        """Converts moon_phase (string to list)."""
+        trigger_data = {
+            "trigger_type": "moon_phase",
+            "moon_phase": "full",
+            "time_of_day": "21:00",
+            "offset_days": 2,
+        }
+        result = Schedule._parse_moon_phase_trigger_frontend(trigger_data)
+        assert isinstance(result, MoonPhaseTrigger)
+        assert result.phases == ["full"]
+        assert result.offset_days == 2
+        assert result.time_window.start_time == "21:00"
+
+    def test_parse_frontend_fixed_time_trigger(self):
+        """Converts time_of_day to time."""
+        trigger_data = {
+            "trigger_type": "fixed_time",
+            "time_of_day": "21:00",
+            "days_of_week": [0, 1, 2, 3, 4, 5, 6],
+        }
+        result = Schedule._parse_fixed_time_trigger_frontend(trigger_data)
+        assert isinstance(result, FixedTimeTrigger)
+        assert result.time == "21:00"
+        assert result.days_of_week == [0, 1, 2, 3, 4, 5, 6]
+
+    def test_parse_frontend_sensor_trigger(self):
+        """Converts sensor fields."""
+        trigger_data = {
+            "trigger_type": "sensor",
+            "sensor_type": "motion",
+            "threshold": 0.0,
+            "comparison": "gt",
+            "cooldown_minutes": 5,
+        }
+        result = Schedule._parse_sensor_trigger_frontend(trigger_data)
+        assert isinstance(result, SensorTrigger)
+        assert result.sensor_type == "motion"
+        assert result.threshold == 0.0
+        assert result.comparison == "gt"
+        assert result.cooldown_minutes == 5
+
+    def test_parse_frontend_cron_trigger(self):
+        """Converts cron_expression."""
+        trigger_data = {
+            "trigger_type": "cron",
+            "cron_expression": "0 21 * * *",
+        }
+        result = Schedule._parse_cron_trigger_frontend(trigger_data)
+        assert isinstance(result, CronTrigger)
+        assert result.cron_expression == "0 21 * * *"
+
+    def test_from_dict_frontend_interval_full(self, sample_event_pattern):
+        """Full Schedule creation with interval."""
+        data = {
+            "schedule_id": "test-uuid-1234",
+            "name": "My Schedule",
+            "trigger": {
+                "trigger_type": "interval",
+                "interval_minutes": 60,
+                "time_window_start": "21:00",
+                "time_window_end": "05:00",
+                "days_of_week": [0, 1, 2, 3, 4, 5, 6],
+            },
+            "event_patterns": [sample_event_pattern.to_dict()],
+            "date_range": {"start_date": "2024-06-01", "end_date": "2024-08-31"},
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.schedule_id == "test-uuid-1234"
+        assert schedule.name == "My Schedule"
+        assert schedule.trigger_type == "interval"
+        assert schedule.interval_trigger.interval_minutes == 60
+        assert schedule.interval_trigger.time_window.start_time == "21:00"
+        assert schedule.start_date == "2024-06-01"
+        assert schedule.end_date == "2024-08-31"
+
+    def test_from_dict_frontend_solar_full(self, sample_event_pattern):
+        """Full Schedule creation with solar."""
+        data = {
+            "schedule_id": "test-uuid-5678",
+            "name": "Solar Schedule",
+            "trigger": {
+                "trigger_type": "solar",
+                "solar_event": "sunset",
+                "offset_minutes": 30,
+                "days_of_week": [0, 1, 2, 3, 4],
+            },
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.trigger_type == "solar"
+        assert schedule.solar_trigger.solar_event == "sunset"
+        assert schedule.solar_trigger.offset_minutes == 30
+        assert schedule.solar_trigger.days_of_week == [0, 1, 2, 3, 4]
+
+    def test_from_dict_frontend_with_date_range(self, sample_event_pattern):
+        """Unwraps date_range object."""
+        data = {
+            "name": "Date Range Test",
+            "trigger": {"trigger_type": "interval", "interval_minutes": 60},
+            "event_patterns": [sample_event_pattern.to_dict()],
+            "date_range": {"start_date": "2024-01-01", "end_date": "2024-12-31"},
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.start_date == "2024-01-01"
+        assert schedule.end_date == "2024-12-31"
+
+    def test_from_dict_backend_format_still_works(
+        self, sample_event_pattern, sample_time_window
+    ):
+        """Backward compatibility."""
+        data = {
+            "schedule_id": "backend-uuid",
+            "name": "Backend Format Schedule",
+            "event_patterns": [sample_event_pattern.to_dict()],
+            "trigger_type": "interval",
+            "interval_trigger": {
+                "interval_minutes": 30,
+                "time_window": sample_time_window.to_dict(),
+                "days_of_week": [5, 6],
+            },
+            "start_date": "2024-01-01",
+            "end_date": "2024-12-31",
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.schedule_id == "backend-uuid"
+        assert schedule.name == "Backend Format Schedule"
+        assert schedule.trigger_type == "interval"
+        assert schedule.interval_trigger.interval_minutes == 30
+        assert schedule.start_date == "2024-01-01"

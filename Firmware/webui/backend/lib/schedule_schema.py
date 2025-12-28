@@ -710,9 +710,194 @@ class Schedule:
             "modified_by": self.modified_by,
         }
 
+    @staticmethod
+    def _is_frontend_format(data: dict) -> bool:
+        """Detect if data uses frontend JSON format.
+
+        Frontend format has a nested 'trigger' object containing trigger_type and all config.
+        Backend format has trigger_type at top level with separate trigger objects.
+        """
+        return 'trigger' in data and isinstance(data.get('trigger'), dict)
+
+    @staticmethod
+    def _parse_interval_trigger_frontend(data: dict) -> IntervalTrigger:
+        """Parse frontend interval trigger format.
+
+        Frontend sends:
+        - interval_minutes
+        - time_window_start, time_window_end (or nested time_window)
+        - days_of_week
+        """
+        # Handle both flat and nested time_window formats
+        if 'time_window' in data and isinstance(data['time_window'], dict):
+            time_window = TimeWindow.from_dict(data['time_window'])
+        else:
+            time_window = TimeWindow(
+                start_time=data.get('time_window_start', '00:00'),
+                end_time=data.get('time_window_end', '23:59'),
+                start_offset_minutes=data.get('start_offset_minutes', 0),
+                end_offset_minutes=data.get('end_offset_minutes', 0),
+            )
+
+        return IntervalTrigger(
+            interval_minutes=data['interval_minutes'],
+            time_window=time_window,
+            days_of_week=data.get('days_of_week'),
+        )
+
+    @staticmethod
+    def _parse_solar_trigger_frontend(data: dict) -> SolarTrigger:
+        """Parse frontend solar trigger format."""
+        return SolarTrigger(
+            solar_event=data['solar_event'],
+            offset_minutes=data.get('offset_minutes', 0),
+            days_of_week=data.get('days_of_week'),
+        )
+
+    @staticmethod
+    def _parse_moon_phase_trigger_frontend(data: dict) -> MoonPhaseTrigger:
+        """Parse frontend moon phase trigger format.
+
+        Frontend sends:
+        - moon_phase: single string (wrap in list for backend)
+        - time_of_day: single time string (convert to time_window)
+        - offset_days
+        """
+        # Wrap single phase in list
+        phase = data.get('moon_phase')
+        phases = [phase] if isinstance(phase, str) else data.get('phases', [])
+
+        # Convert time_of_day to time_window
+        time_window = None
+        if 'time_of_day' in data:
+            time_of_day = data['time_of_day']
+            time_window = TimeWindow(
+                start_time=time_of_day,
+                end_time=time_of_day,
+            )
+        elif 'time_window' in data and data['time_window']:
+            time_window = TimeWindow.from_dict(data['time_window'])
+
+        return MoonPhaseTrigger(
+            phases=phases,
+            offset_days=data.get('offset_days', 0),
+            time_window=time_window,
+        )
+
+    @staticmethod
+    def _parse_fixed_time_trigger_frontend(data: dict) -> FixedTimeTrigger:
+        """Parse frontend fixed time trigger format.
+
+        Frontend sends:
+        - time_of_day (maps to 'time')
+        - days_of_week
+        """
+        return FixedTimeTrigger(
+            time=data.get('time_of_day', data.get('time', '00:00')),
+            days_of_week=data.get('days_of_week'),
+        )
+
+    @staticmethod
+    def _parse_sensor_trigger_frontend(data: dict) -> SensorTrigger:
+        """Parse frontend sensor trigger format."""
+        time_window = None
+        if 'time_window' in data and data['time_window']:
+            time_window = TimeWindow.from_dict(data['time_window'])
+
+        return SensorTrigger(
+            sensor_type=data['sensor_type'],
+            threshold=data.get('threshold', 0.0),
+            comparison=data.get('comparison', 'gt'),
+            cooldown_minutes=data.get('cooldown_minutes', 5),
+            time_window=time_window,
+        )
+
+    @staticmethod
+    def _parse_cron_trigger_frontend(data: dict) -> CronTrigger:
+        """Parse frontend cron trigger format."""
+        return CronTrigger(
+            cron_expression=data['cron_expression'],
+        )
+
+    @staticmethod
+    def _parse_frontend_trigger(trigger_data: dict) -> dict:
+        """Convert frontend trigger format to backend trigger objects.
+
+        Args:
+            trigger_data: Frontend trigger object with trigger_type and config
+
+        Returns:
+            Dict with trigger_type and corresponding typed trigger object
+        """
+        trigger_type = trigger_data.get('trigger_type')
+
+        result = {'trigger_type': trigger_type}
+
+        # Parse based on trigger type
+        if trigger_type == 'interval':
+            result['interval_trigger'] = Schedule._parse_interval_trigger_frontend(trigger_data)
+        elif trigger_type == 'solar':
+            result['solar_trigger'] = Schedule._parse_solar_trigger_frontend(trigger_data)
+        elif trigger_type == 'moon_phase':
+            result['moon_phase_trigger'] = Schedule._parse_moon_phase_trigger_frontend(trigger_data)
+        elif trigger_type == 'fixed_time':
+            result['fixed_time_trigger'] = Schedule._parse_fixed_time_trigger_frontend(trigger_data)
+        elif trigger_type == 'sensor':
+            result['sensor_trigger'] = Schedule._parse_sensor_trigger_frontend(trigger_data)
+        elif trigger_type == 'cron':
+            result['cron_trigger'] = Schedule._parse_cron_trigger_frontend(trigger_data)
+
+        return result
+
+    @classmethod
+    def _convert_frontend_format(cls, data: dict) -> dict:
+        """Convert frontend JSON format to backend format.
+
+        Converts:
+        - trigger object → trigger_type + specific trigger objects
+        - date_range object → start_date/end_date at top level
+
+        Args:
+            data: Frontend format dict
+
+        Returns:
+            Backend format dict
+        """
+        # Create copy to avoid mutating input
+        converted = data.copy()
+
+        # Extract and convert trigger
+        if 'trigger' in converted:
+            trigger_data = converted.pop('trigger')
+            trigger_fields = cls._parse_frontend_trigger(trigger_data)
+            converted.update(trigger_fields)
+
+        # Unwrap date_range if present
+        if 'date_range' in converted:
+            date_range = converted.pop('date_range')
+            if isinstance(date_range, dict):
+                converted['start_date'] = date_range.get('start_date')
+                converted['end_date'] = date_range.get('end_date')
+
+        return converted
+
     @classmethod
     def from_dict(cls, data: dict) -> "Schedule":
-        """Create from dictionary."""
+        """Create from dictionary. Supports both frontend and backend formats."""
+        # Detect and convert frontend format
+        if cls._is_frontend_format(data):
+            data = cls._convert_frontend_format(data)
+
+        # Helper to handle both dict and object types for triggers
+        def _process_trigger(trigger_data, trigger_class):
+            if trigger_data is None:
+                return None
+            # If already an instance, return as-is (from frontend conversion)
+            if isinstance(trigger_data, trigger_class):
+                return trigger_data
+            # Otherwise parse from dict (backend format)
+            return trigger_class.from_dict(trigger_data)
+
         return cls(
             schedule_id=data.get("schedule_id", ""),
             name=data["name"],
@@ -721,36 +906,12 @@ class Schedule:
                 EventPattern.from_dict(p) for p in data.get("event_patterns", [])
             ],
             trigger_type=data.get("trigger_type", "interval"),
-            interval_trigger=(
-                IntervalTrigger.from_dict(data["interval_trigger"])
-                if data.get("interval_trigger")
-                else None
-            ),
-            solar_trigger=(
-                SolarTrigger.from_dict(data["solar_trigger"])
-                if data.get("solar_trigger")
-                else None
-            ),
-            moon_phase_trigger=(
-                MoonPhaseTrigger.from_dict(data["moon_phase_trigger"])
-                if data.get("moon_phase_trigger")
-                else None
-            ),
-            fixed_time_trigger=(
-                FixedTimeTrigger.from_dict(data["fixed_time_trigger"])
-                if data.get("fixed_time_trigger")
-                else None
-            ),
-            sensor_trigger=(
-                SensorTrigger.from_dict(data["sensor_trigger"])
-                if data.get("sensor_trigger")
-                else None
-            ),
-            cron_trigger=(
-                CronTrigger.from_dict(data["cron_trigger"])
-                if data.get("cron_trigger")
-                else None
-            ),
+            interval_trigger=_process_trigger(data.get("interval_trigger"), IntervalTrigger),
+            solar_trigger=_process_trigger(data.get("solar_trigger"), SolarTrigger),
+            moon_phase_trigger=_process_trigger(data.get("moon_phase_trigger"), MoonPhaseTrigger),
+            fixed_time_trigger=_process_trigger(data.get("fixed_time_trigger"), FixedTimeTrigger),
+            sensor_trigger=_process_trigger(data.get("sensor_trigger"), SensorTrigger),
+            cron_trigger=_process_trigger(data.get("cron_trigger"), CronTrigger),
             start_date=data.get("start_date"),
             end_date=data.get("end_date"),
             deployment_id=data.get("deployment_id"),
