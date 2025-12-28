@@ -141,17 +141,88 @@ def get_system_status():
         return jsonify({"error": "Failed to get storage info"}), 500
 
 
+def _read_ina260_sensor(address: int) -> dict | None:
+    """
+    Read INA260 power sensor from I2C bus.
+
+    Reads sensor values immediately and closes the I2C bus to avoid
+    resource leaks.
+
+    Args:
+        address: I2C address for the sensor (typically 0x40)
+
+    Returns:
+        dict with keys 'voltage', 'current', 'power' containing float values,
+        or None if sensor not available or any error occurs
+    """
+    i2c = None
+    try:
+        import adafruit_ina260
+        import board
+
+        i2c = board.I2C()
+        sensor = adafruit_ina260.INA260(i2c, address=address)
+        return {
+            "voltage": sensor.voltage,
+            "current": sensor.current,
+            "power": sensor.power,
+        }
+    except ImportError:
+        # adafruit libraries not installed
+        return None
+    except (ValueError, OSError):
+        # ValueError: Sensor not found at address
+        # OSError: I2C bus initialization or communication failed
+        return None
+    finally:
+        if i2c is not None:
+            i2c.deinit()
+
+
 @system_bp.route("/power", methods=["GET"])
 def get_power_status():
-    """Get power metrics from INA260 if available"""
+    """
+    Get power metrics from INA260 sensor if available.
+
+    Reads voltage, current, and power from the INA260 power monitor
+    connected via I2C. The sensor must be enabled in hardware configuration.
+
+    Returns:
+        200: Power status (may include 'error' field if sensor unavailable)
+        500: Configuration error
+
+    Response schema:
+        {
+            "enabled": bool,
+            "voltage": float | null,  # Volts (V)
+            "current": float | null,  # Milliamps (mA)
+            "power": float | null,    # Milliwatts (mW)
+            "error": str | undefined  # Present when sensor unavailable
+        }
+    """
     try:
         hw_config = get_hardware_config()
         if not hw_config.get("ina260_enabled"):
             return jsonify({"enabled": False})
 
-        # TODO: Implement power monitoring
-        # See: https://github.com/zane-lazare/Mothbox/issues/73
-        return jsonify({"enabled": True, "voltage": None, "current": None, "power": None})
+        # Read from INA260 sensor
+        address = hw_config.get("ina260_address", 0x40)
+        readings = _read_ina260_sensor(address)
+        if readings is None:
+            return jsonify({
+                "enabled": True,
+                "voltage": None,
+                "current": None,
+                "power": None,
+                "error": "Sensor not available"
+            })
+
+        return jsonify({
+            "enabled": True,
+            "voltage": round(readings["voltage"], 2),
+            "current": round(readings["current"], 2),
+            "power": round(readings["power"], 2)
+        })
     except Exception as e:
         print(f"Error getting power status: {e}")
         return jsonify({"error": "Failed to get power status"}), 500

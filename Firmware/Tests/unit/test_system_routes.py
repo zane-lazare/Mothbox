@@ -231,27 +231,158 @@ class TestSystemPower:
             data = json.loads(response.data)
             assert data['enabled'] is False
 
-    def test_power_ina260_enabled_but_not_implemented(self, system_client, mock_paths):
-        """GET /power returns TODO status when INA260 is enabled"""
-        with patch('routes.system.get_hardware_config', return_value={'ina260_enabled': True}):
+    def test_power_returns_sensor_readings_when_available(self, system_client, mock_paths):
+        """GET /power returns actual sensor readings when INA260 connected"""
+        # Mock sensor readings as dict (matching new return type)
+        mock_readings = {
+            "voltage": 12.45,  # 12.45V
+            "current": 350.5,  # 350.5mA
+            "power": 4360.0    # 4360mW
+        }
+
+        with patch('routes.system.get_hardware_config', return_value={
+            'ina260_enabled': True,
+            'ina260_address': 0x40
+        }), \
+             patch('routes.system._read_ina260_sensor', return_value=mock_readings):
+
             response = system_client.get('/api/system/power')
 
             assert response.status_code == 200
             data = json.loads(response.data)
+
             assert data['enabled'] is True
-            # Implementation is TODO (issue #73)
+            assert data['voltage'] == 12.45
+            assert data['current'] == 350.5
+            assert data['power'] == 4360.0
+
+    def test_power_returns_null_when_sensor_unavailable(self, system_client, mock_paths):
+        """GET /power returns null values when sensor returns None (not connected or error)"""
+        with patch('routes.system.get_hardware_config', return_value={
+            'ina260_enabled': True,
+            'ina260_address': 0x40
+        }), \
+             patch('routes.system._read_ina260_sensor', return_value=None):
+
+            response = system_client.get('/api/system/power')
+
+            assert response.status_code == 200
+            data = json.loads(response.data)
+
+            assert data['enabled'] is True
             assert data['voltage'] is None
             assert data['current'] is None
             assert data['power'] is None
+            assert data['error'] == "Sensor not available"
 
-    def test_power_handles_error(self, system_client, mock_paths):
-        """GET /power handles errors gracefully"""
+    def test_power_handles_config_error(self, system_client, mock_paths):
+        """GET /power returns 500 when hardware config fails"""
         with patch('routes.system.get_hardware_config', side_effect=Exception("Config error")):
             response = system_client.get('/api/system/power')
 
             assert response.status_code == 500
             data = json.loads(response.data)
             assert 'error' in data
+
+    def test_power_rounds_values_to_two_decimals(self, system_client, mock_paths):
+        """GET /power rounds sensor readings to 2 decimal places"""
+        mock_readings = {
+            "voltage": 12.456789,
+            "current": 350.123456,
+            "power": 4360.987654
+        }
+
+        with patch('routes.system.get_hardware_config', return_value={
+            'ina260_enabled': True,
+            'ina260_address': 0x40
+        }), \
+             patch('routes.system._read_ina260_sensor', return_value=mock_readings):
+
+            response = system_client.get('/api/system/power')
+
+            assert response.status_code == 200
+            data = json.loads(response.data)
+
+            assert data['voltage'] == 12.46  # Rounded
+            assert data['current'] == 350.12  # Rounded
+            assert data['power'] == 4360.99  # Rounded
+
+    def test_power_uses_correct_address_from_config(self, system_client, mock_paths):
+        """GET /power passes correct I2C address from config to sensor"""
+        mock_readings = {
+            "voltage": 12.0,
+            "current": 100.0,
+            "power": 1200.0
+        }
+
+        with patch('routes.system.get_hardware_config', return_value={
+            'ina260_enabled': True,
+            'ina260_address': 0x41  # Non-default address
+        }), \
+             patch('routes.system._read_ina260_sensor', return_value=mock_readings) as mock_sensor:
+
+            response = system_client.get('/api/system/power')
+
+            assert response.status_code == 200
+            # Verify sensor was called with the correct address from config
+            mock_sensor.assert_called_once_with(0x41)
+
+    def test_read_ina260_sensor_handles_i2c_init_failure(self, mock_paths):
+        """_read_ina260_sensor returns None when I2C bus initialization fails"""
+        mock_board = MagicMock()
+        mock_board.I2C.side_effect = OSError("I2C bus not available")
+
+        with patch.dict('sys.modules', {
+            'board': mock_board,
+            'adafruit_ina260': MagicMock()
+        }):
+            from routes.system import _read_ina260_sensor
+            result = _read_ina260_sensor(0x40)
+
+            assert result is None
+
+    def test_read_ina260_sensor_cleans_up_i2c_on_success(self, mock_paths):
+        """_read_ina260_sensor calls i2c.deinit() after successful read"""
+        mock_i2c = MagicMock()
+        mock_board = MagicMock()
+        mock_board.I2C.return_value = mock_i2c
+
+        mock_sensor = MagicMock()
+        mock_sensor.voltage = 12.0
+        mock_sensor.current = 100.0
+        mock_sensor.power = 1200.0
+
+        mock_ina260 = MagicMock()
+        mock_ina260.INA260.return_value = mock_sensor
+
+        with patch.dict('sys.modules', {
+            'board': mock_board,
+            'adafruit_ina260': mock_ina260
+        }):
+            from routes.system import _read_ina260_sensor
+            result = _read_ina260_sensor(0x40)
+
+            assert result is not None
+            mock_i2c.deinit.assert_called_once()
+
+    def test_read_ina260_sensor_cleans_up_i2c_on_sensor_failure(self, mock_paths):
+        """_read_ina260_sensor calls i2c.deinit() even when sensor init fails"""
+        mock_i2c = MagicMock()
+        mock_board = MagicMock()
+        mock_board.I2C.return_value = mock_i2c
+
+        mock_ina260 = MagicMock()
+        mock_ina260.INA260.side_effect = ValueError("No sensor at address")
+
+        with patch.dict('sys.modules', {
+            'board': mock_board,
+            'adafruit_ina260': mock_ina260
+        }):
+            from routes.system import _read_ina260_sensor
+            result = _read_ina260_sensor(0x40)
+
+            assert result is None
+            mock_i2c.deinit.assert_called_once()
 
 
 # ============================================================================
