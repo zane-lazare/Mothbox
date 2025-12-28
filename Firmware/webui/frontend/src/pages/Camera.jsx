@@ -1190,8 +1190,9 @@ export default function Camera() {
 
   const handleSavePreset = async (presetData) => {
     try {
-      // Validation happens in SavePresetModal before calling this function
-      // But we validate again here as a safety check
+      // Defense-in-depth: Modal validates before calling onSave, but we re-validate
+      // here in case the modal is bypassed or settings change between modal open and save.
+      // Both use validatePresetSettings() from presetValidation.js for consistency.
       const validationErrors = validatePresetSettings(liveControls)
       if (validationErrors.length > 0) {
         const errorMessage = formatValidationErrors(validationErrors, 3)

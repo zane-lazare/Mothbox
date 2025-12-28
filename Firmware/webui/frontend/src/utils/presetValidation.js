@@ -202,7 +202,7 @@ export const LIVEVIEW_VALIDATION_RULES = {
       try {
         const intValue = parseInt(value, 10)
         if (isNaN(intValue)) return false
-        return intValue > 0 && intValue < 1000000 // 0 to 1 second in microseconds
+        return intValue > 0 && intValue < 1000000 // 1µs to just under 1 second
       } catch {
         return false
       }
