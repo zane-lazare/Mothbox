@@ -249,11 +249,11 @@ def format_coordinate_pair(
     """
     # Validate latitude
     if not validate_coordinate(latitude, is_latitude=True):
-        raise ValueError(f"Invalid latitude: {latitude}")
+        raise ValueError(f"Invalid latitude: {latitude} (must be in range [-90, 90])")
 
     # Validate longitude
     if not validate_coordinate(longitude, is_latitude=False):
-        raise ValueError(f"Invalid longitude: {longitude}")
+        raise ValueError(f"Invalid longitude: {longitude} (must be in range [-180, 180])")
 
     # Format both coordinates
     lat_str = format_coordinate_display(latitude, is_latitude=True, format=format)

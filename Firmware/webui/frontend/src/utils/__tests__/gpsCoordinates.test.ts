@@ -26,6 +26,7 @@ import {
   dmsToDecimal,
   validateCoordinate,
   formatCoordinateDisplay,
+  formatCoordinatePair,
   type DMSCoordinate,
 } from '../gpsCoordinates';
 
@@ -552,5 +553,86 @@ describe('round-trip accuracy', () => {
         expect(error).toBeLessThan(precision);
       }
     );
+  });
+});
+
+// ============================================================================
+// TestFormatCoordinatePair: Test coordinate pair formatting
+// ============================================================================
+
+describe('formatCoordinatePair', () => {
+  describe('format options', () => {
+    test('formats San Francisco coordinates as DMS (default)', () => {
+      // Act: Format coordinate pair
+      const result = formatCoordinatePair(37.7749, -122.4194);
+
+      // Assert: Verify both coordinates are present
+      expect(result).toContain('37°');
+      expect(result).toContain('N');
+      expect(result).toContain('122°');
+      expect(result).toContain('W');
+    });
+
+    test('formats coordinate pair as decimal', () => {
+      // Act: Format coordinate pair
+      const result = formatCoordinatePair(37.7749, -122.4194, 'decimal');
+
+      // Assert: Verify decimal format
+      expect(result).toContain('°N');
+      expect(result).toContain('°W');
+    });
+
+    test('formats coordinate pair as short', () => {
+      // Act: Format coordinate pair
+      const result = formatCoordinatePair(37.7749, -122.4194, 'short');
+
+      // Assert: Verify short format
+      expect(result).toContain('N');
+      expect(result).toContain('W');
+    });
+  });
+
+  describe('all hemispheres', () => {
+    test('handles all 4 hemisphere combinations', () => {
+      // Act: Test all hemisphere combinations
+      const neResult = formatCoordinatePair(51.5, 0.1);       // London-ish (NE)
+      const seResult = formatCoordinatePair(-33.87, 151.21);  // Sydney (SE)
+      const swResult = formatCoordinatePair(-34.6, -58.4);    // Buenos Aires (SW)
+      const nwResult = formatCoordinatePair(37.77, -122.42);  // San Francisco (NW)
+
+      // Assert: Verify hemisphere references
+      expect(neResult).toContain('N');
+      expect(neResult).toContain('E');
+      expect(seResult).toContain('S');
+      expect(seResult).toContain('E');
+      expect(swResult).toContain('S');
+      expect(swResult).toContain('W');
+      expect(nwResult).toContain('N');
+      expect(nwResult).toContain('W');
+    });
+  });
+
+  describe('edge cases', () => {
+    test('handles Null Island, North Pole, and South Pole', () => {
+      // Act: Test edge cases
+      const nullIsland = formatCoordinatePair(0.0, 0.0);
+      const northPole = formatCoordinatePair(90.0, 0.0);
+      const southPole = formatCoordinatePair(-90.0, 0.0);
+
+      // Assert: Should not crash and should have valid format
+      expect(nullIsland).toBeTruthy();
+      expect(northPole).toContain('N');
+      expect(southPole).toContain('S');
+    });
+  });
+
+  describe('input validation', () => {
+    test('throws error for invalid latitude (> 90°)', () => {
+      expect(() => formatCoordinatePair(91.0, 0.0)).toThrow(/latitude/i);
+    });
+
+    test('throws error for invalid longitude (> 180°)', () => {
+      expect(() => formatCoordinatePair(0.0, 181.0)).toThrow(/longitude/i);
+    });
   });
 });
