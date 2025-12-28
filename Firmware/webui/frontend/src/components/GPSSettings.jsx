@@ -47,33 +47,26 @@ export default function GPSSettings() {
   })
 
   // Memoize formatted coordinates to avoid unnecessary re-renders
-  const formattedCurrentLat = useMemo(
-    () => gpsStatus?.latitude
-      ? formatCoordinateDisplay(parseFloat(gpsStatus.latitude), true, 'dms', gpsPrecision)
-      : null,
-    [gpsStatus?.latitude, gpsPrecision]
-  )
+  // Defensive: parseFloat("N/A") returns NaN, which would throw in formatCoordinateDisplay
+  const formattedCurrentLat = useMemo(() => {
+    const val = parseFloat(gpsStatus?.latitude)
+    return !Number.isNaN(val) ? formatCoordinateDisplay(val, true, 'dms', gpsPrecision) : null
+  }, [gpsStatus?.latitude, gpsPrecision])
 
-  const formattedCurrentLon = useMemo(
-    () => gpsStatus?.longitude
-      ? formatCoordinateDisplay(parseFloat(gpsStatus.longitude), false, 'dms', gpsPrecision)
-      : null,
-    [gpsStatus?.longitude, gpsPrecision]
-  )
+  const formattedCurrentLon = useMemo(() => {
+    const val = parseFloat(gpsStatus?.longitude)
+    return !Number.isNaN(val) ? formatCoordinateDisplay(val, false, 'dms', gpsPrecision) : null
+  }, [gpsStatus?.longitude, gpsPrecision])
 
-  const formattedLastLat = useMemo(
-    () => gpsStatus?.last_known_lat
-      ? formatCoordinateDisplay(parseFloat(gpsStatus.last_known_lat), true, 'dms', gpsPrecision)
-      : null,
-    [gpsStatus?.last_known_lat, gpsPrecision]
-  )
+  const formattedLastLat = useMemo(() => {
+    const val = parseFloat(gpsStatus?.last_known_lat)
+    return !Number.isNaN(val) ? formatCoordinateDisplay(val, true, 'dms', gpsPrecision) : null
+  }, [gpsStatus?.last_known_lat, gpsPrecision])
 
-  const formattedLastLon = useMemo(
-    () => gpsStatus?.last_known_lon
-      ? formatCoordinateDisplay(parseFloat(gpsStatus.last_known_lon), false, 'dms', gpsPrecision)
-      : null,
-    [gpsStatus?.last_known_lon, gpsPrecision]
-  )
+  const formattedLastLon = useMemo(() => {
+    const val = parseFloat(gpsStatus?.last_known_lon)
+    return !Number.isNaN(val) ? formatCoordinateDisplay(val, false, 'dms', gpsPrecision) : null
+  }, [gpsStatus?.last_known_lon, gpsPrecision])
 
   const updateConfigMutation = useMutation({
     mutationFn: updateGpsConfig,
