@@ -1457,3 +1457,99 @@ class TestScheduleFromDictFrontendFormat:
         assert schedule.trigger_type == "interval"
         assert schedule.interval_trigger.interval_minutes == 30
         assert schedule.start_date == "2024-01-01"
+
+
+class TestFrontendFormatValidation:
+    """Tests for validation of malformed frontend data."""
+
+    @pytest.fixture
+    def sample_event_pattern(self):
+        """Create a sample event pattern for testing."""
+        return EventPattern(
+            pattern_id="pattern-123",
+            name="Test Pattern",
+            actions=[PatternAction(action_type="gpio", action_name="attract_on")],
+        )
+
+    def test_missing_trigger_type(self, sample_event_pattern):
+        """Empty trigger object should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="trigger_type is required"):
+            Schedule.from_dict(data)
+
+    def test_invalid_trigger_type(self, sample_event_pattern):
+        """Unknown trigger type should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "unknown_type"},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="Unknown trigger_type"):
+            Schedule.from_dict(data)
+
+    def test_missing_interval_minutes(self, sample_event_pattern):
+        """Interval trigger without interval_minutes should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "interval"},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="interval_minutes is required"):
+            Schedule.from_dict(data)
+
+    def test_missing_solar_event(self, sample_event_pattern):
+        """Solar trigger without solar_event should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "solar"},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="solar_event is required"):
+            Schedule.from_dict(data)
+
+    def test_missing_moon_phase(self, sample_event_pattern):
+        """Moon phase trigger without phases should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "moon_phase"},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="moon_phase or phases is required"):
+            Schedule.from_dict(data)
+
+    def test_missing_sensor_type(self, sample_event_pattern):
+        """Sensor trigger without sensor_type should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "sensor"},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="sensor_type is required"):
+            Schedule.from_dict(data)
+
+    def test_missing_cron_expression(self, sample_event_pattern):
+        """Cron trigger without cron_expression should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "cron"},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="cron_expression is required"):
+            Schedule.from_dict(data)
+
+    def test_null_date_range(self, sample_event_pattern):
+        """Null date_range should not cause errors."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "interval", "interval_minutes": 60},
+            "event_patterns": [sample_event_pattern.to_dict()],
+            "date_range": None,
+        }
+        # Should not raise - None date_range is valid
+        schedule = Schedule.from_dict(data)
+        assert schedule.start_date is None
+        assert schedule.end_date is None
