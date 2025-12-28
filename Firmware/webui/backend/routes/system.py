@@ -155,20 +155,18 @@ def _read_ina260_sensor(address: int) -> dict | None:
         dict with keys 'voltage', 'current', 'power' containing float values,
         or None if sensor not available or any error occurs
     """
+    i2c = None
     try:
         import adafruit_ina260
         import board
 
         i2c = board.I2C()
-        try:
-            sensor = adafruit_ina260.INA260(i2c, address=address)
-            return {
-                "voltage": sensor.voltage,
-                "current": sensor.current,
-                "power": sensor.power,
-            }
-        finally:
-            i2c.deinit()
+        sensor = adafruit_ina260.INA260(i2c, address=address)
+        return {
+            "voltage": sensor.voltage,
+            "current": sensor.current,
+            "power": sensor.power,
+        }
     except ImportError:
         # adafruit libraries not installed
         return None
@@ -176,6 +174,9 @@ def _read_ina260_sensor(address: int) -> dict | None:
         # ValueError: Sensor not found at address
         # OSError: I2C bus initialization or communication failed
         return None
+    finally:
+        if i2c is not None:
+            i2c.deinit()
 
 
 @system_bp.route("/power", methods=["GET"])
