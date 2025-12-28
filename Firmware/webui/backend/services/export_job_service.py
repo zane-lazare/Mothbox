@@ -757,6 +757,9 @@ class ExportJobService:
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         job_id_short = job.job_id[:8]
 
+        # Extract GPS precision from job options (used by all formats)
+        gps_precision = job.options.get('gps_precision') if job.options else None
+
         if job.format == ExportJobFormat.DARWIN_CORE:
             filename = f"mothbox_darwin_core_{timestamp}_{job_id_short}.csv"
             output_path = self._get_output_path(filename)
@@ -782,7 +785,7 @@ class ExportJobService:
                     # Filter invalid (no GPS) for GBIF compliance
                     if not is_valid_for_export(metadata):
                         continue
-                    writer.writerow(transform_to_csv_row(metadata))
+                    writer.writerow(transform_to_csv_row(metadata, gps_precision=gps_precision))
                     # Update progress every 10 photos or at the end
                     if (idx + 1) % 10 == 0 or idx == total - 1:
                         self._update_progress(job, current=idx + 1)
@@ -791,9 +794,14 @@ class ExportJobService:
             filename = f"mothbox_inaturalist_{timestamp}_{job_id_short}.zip"
             output_path = self._get_output_path(filename)
 
+            # Create ZipExportOptions with GPS precision if specified
+            from webui.backend.lib.zip_export import ZipExportOptions
+            zip_options = ZipExportOptions(gps_precision=gps_precision)
+
             self._export_service.transform_batch_to_inaturalist_zip(
                 photo_paths=photo_paths,
                 output_path=output_path,
+                options=zip_options,
                 progress_callback=self._make_progress_callback(job),
             )
 
@@ -809,7 +817,9 @@ class ExportJobService:
                 metadata = self._export_service.get_export_metadata(photo_path)
                 if hasattr(metadata, 'to_dict'):
                     # ExportMetadata object
-                    transformed = self._export_service.transform_to_generic(metadata, flat=False)
+                    transformed = self._export_service.transform_to_generic(
+                        metadata, flat=False, gps_precision=gps_precision
+                    )
                     results.append(transformed)
                 # Update progress every 10 photos or at the end
                 if (idx + 1) % 10 == 0 or idx == total - 1:
@@ -852,7 +862,9 @@ class ExportJobService:
                     metadata = self._export_service.get_export_metadata(photo_path)
                     if not hasattr(metadata, 'to_dict'):
                         continue
-                    flat_data = self._export_service.transform_to_generic(metadata, flat=True)
+                    flat_data = self._export_service.transform_to_generic(
+                        metadata, flat=True, gps_precision=gps_precision
+                    )
                     row = [str(flat_data.get(h, '')) for h in headers]
                     writer.writerow(row)
                     # Update progress every 10 photos or at the end

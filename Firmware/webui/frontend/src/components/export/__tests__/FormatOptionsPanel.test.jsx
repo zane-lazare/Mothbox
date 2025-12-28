@@ -186,6 +186,150 @@ describe('FormatOptionsPanel', () => {
     expect(container.firstChild).toBeNull();
   });
 
+  // GPS Precision tests (Issue #288)
+  describe('GPS Precision Option', () => {
+    it('shows GPS precision dropdown for darwin_core format', () => {
+      render(
+        <FormatOptionsPanel
+          format="darwin_core"
+          options={{}}
+          onChange={vi.fn()}
+        />
+      );
+
+      expect(screen.getByLabelText(/gps precision/i)).toBeInTheDocument();
+    });
+
+    it('shows GPS precision dropdown for inaturalist format', () => {
+      render(
+        <FormatOptionsPanel
+          format="inaturalist"
+          options={{}}
+          onChange={vi.fn()}
+        />
+      );
+
+      expect(screen.getByLabelText(/gps precision/i)).toBeInTheDocument();
+    });
+
+    it('shows GPS precision dropdown for json format', () => {
+      render(
+        <FormatOptionsPanel
+          format="json"
+          options={{}}
+          onChange={vi.fn()}
+        />
+      );
+
+      expect(screen.getByLabelText(/gps precision/i)).toBeInTheDocument();
+    });
+
+    it('shows GPS precision dropdown for csv format', () => {
+      render(
+        <FormatOptionsPanel
+          format="csv"
+          options={{}}
+          onChange={vi.fn()}
+        />
+      );
+
+      expect(screen.getByLabelText(/gps precision/i)).toBeInTheDocument();
+    });
+
+    it('defaults to global precision setting (2) when not specified', () => {
+      render(
+        <FormatOptionsPanel
+          format="darwin_core"
+          options={{}}
+          onChange={vi.fn()}
+        />
+      );
+
+      const precisionSelect = screen.getByLabelText(/gps precision/i);
+      expect(precisionSelect).toHaveValue('2');
+    });
+
+    it('shows precision value when provided in options', () => {
+      render(
+        <FormatOptionsPanel
+          format="darwin_core"
+          options={{ gps_precision: 0 }}
+          onChange={vi.fn()}
+        />
+      );
+
+      const precisionSelect = screen.getByLabelText(/gps precision/i);
+      expect(precisionSelect).toHaveValue('0');
+    });
+
+    it('calls onChange with gps_precision when changed', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+
+      render(
+        <FormatOptionsPanel
+          format="darwin_core"
+          options={{ gps_precision: 2 }}
+          onChange={onChange}
+        />
+      );
+
+      const precisionSelect = screen.getByLabelText(/gps precision/i);
+      await user.selectOptions(precisionSelect, '0');
+
+      expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ gps_precision: 0 }));
+    });
+
+    it('shows all precision options (0-6)', () => {
+      render(
+        <FormatOptionsPanel
+          format="darwin_core"
+          options={{}}
+          onChange={vi.fn()}
+        />
+      );
+
+      const precisionSelect = screen.getByLabelText(/gps precision/i);
+      const options = Array.from(precisionSelect.options).map(opt => opt.value);
+
+      expect(options).toEqual(['0', '1', '2', '3', '4', '5', '6']);
+    });
+
+    it('preserves other options when changing gps_precision', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+
+      render(
+        <FormatOptionsPanel
+          format="darwin_core"
+          options={{ validate: true, gps_precision: 2 }}
+          onChange={onChange}
+        />
+      );
+
+      const precisionSelect = screen.getByLabelText(/gps precision/i);
+      await user.selectOptions(precisionSelect, '1');
+
+      expect(onChange).toHaveBeenCalledWith({
+        validate: true,
+        gps_precision: 1,
+      });
+    });
+
+    it('respects disabled prop for gps precision dropdown', () => {
+      render(
+        <FormatOptionsPanel
+          format="darwin_core"
+          options={{}}
+          onChange={vi.fn()}
+          disabled
+        />
+      );
+
+      expect(screen.getByLabelText(/gps precision/i)).toBeDisabled();
+    });
+  });
+
   it('updates only changed option while preserving others', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

@@ -81,6 +81,7 @@ class ZipExportOptions:
     include_csv_summary: bool = True  # User confirmed this feature
     compression_level: int = 0  # 0 = no compression (best for JPEGs)
     flatten_structure: bool = False  # If True, all files at root level
+    gps_precision: int | None = None  # GPS coordinate precision (0-6 decimals)
 
 
 @dataclass
@@ -101,13 +102,36 @@ class ZipExportResult:
 # ============================================================================
 
 
-def generate_csv_summary(metadata_list: list['ExportMetadata']) -> str:
+def _apply_gps_precision(
+    value: float | None,
+    precision: int | None
+) -> float | None:
+    """Apply GPS precision rounding to a coordinate value.
+
+    Args:
+        value: Coordinate value (latitude or longitude)
+        precision: Number of decimal places (0-6), None for no rounding
+
+    Returns:
+        Rounded coordinate or original if precision is None
+    """
+    if value is None or precision is None:
+        return value
+    return round(value, precision)
+
+
+def generate_csv_summary(
+    metadata_list: list['ExportMetadata'],
+    gps_precision: int | None = None,
+) -> str:
     """Generate summary.csv content.
 
     Columns: filename, timestamp, latitude, longitude, species, species_common_name, tags
 
     Args:
         metadata_list: List of ExportMetadata instances
+        gps_precision: Number of decimal places for GPS coordinates (0-6),
+                      None for full precision
 
     Returns:
         CSV content as string
@@ -133,11 +157,15 @@ def generate_csv_summary(metadata_list: list['ExportMetadata']) -> str:
         if metadata.tags:
             tags_str = "; ".join(metadata.tags)
 
+        # Apply GPS precision if specified
+        lat = _apply_gps_precision(metadata.latitude, gps_precision)
+        lon = _apply_gps_precision(metadata.longitude, gps_precision)
+
         writer.writerow({
             'filename': metadata.filename or "",
             'timestamp': metadata.timestamp or "",
-            'latitude': metadata.latitude if metadata.latitude is not None else "",
-            'longitude': metadata.longitude if metadata.longitude is not None else "",
+            'latitude': lat if lat is not None else "",
+            'longitude': lon if lon is not None else "",
             'species': metadata.species or "",
             'species_common_name': metadata.species_common_name or "",
             'tags': tags_str,
@@ -234,6 +262,7 @@ def _prepare_photo_data(
     photo_path: Path,
     metadata: 'ExportMetadata',
     include_xmp: bool = True,
+    gps_precision: int | None = None,
 ) -> dict:
     """Read photo data and generate XMP (for parallel execution).
 
@@ -245,6 +274,8 @@ def _prepare_photo_data(
         photo_path: Path to photo file
         metadata: ExportMetadata instance
         include_xmp: Whether to generate XMP sidecar
+        gps_precision: Number of decimal places for GPS coordinates (0-6),
+                      None for full precision
 
     Returns:
         Dict with:
@@ -281,7 +312,7 @@ def _prepare_photo_data(
 
         # Generate XMP if requested
         if include_xmp:
-            xmp_content = generate_xmp_xml(metadata)
+            xmp_content = generate_xmp_xml(metadata, gps_precision=gps_precision)
             result['xmp_data'] = xmp_content.encode('utf-8')
             result['xmp_filename'] = get_xmp_sidecar_filename(metadata.filename)
 
@@ -530,7 +561,8 @@ def create_zip_export(
                             _prepare_photo_data,
                             photo_path,
                             metadata,
-                            options.include_xmp_sidecars
+                            options.include_xmp_sidecars,
+                            options.gps_precision,
                         ): idx
                         for idx, (photo_path, metadata) in enumerate(
                             zip(batch_paths, batch_metadata, strict=True)
@@ -594,7 +626,7 @@ def create_zip_export(
 
             # Add summary.csv
             if options.include_csv_summary:
-                csv_content = generate_csv_summary(metadata_list)
+                csv_content = generate_csv_summary(metadata_list, options.gps_precision)
                 zf.writestr(SUMMARY_FILENAME, csv_content, compress_type=ZIP_STORED)
 
         # Get final ZIP size
@@ -787,7 +819,7 @@ def stream_zip_export(
 
             # Add summary.csv
             if options.include_csv_summary:
-                csv_content = generate_csv_summary(metadata_list)
+                csv_content = generate_csv_summary(metadata_list, options.gps_precision)
                 zf.writestr(SUMMARY_FILENAME, csv_content, compress_type=ZIP_STORED)
 
         # Stream from temp file in chunks

@@ -332,7 +332,28 @@ def get_xmp_field_mappings() -> dict[str, str]:
     }
 
 
-def transform_metadata_to_inaturalist(metadata: "ExportMetadata") -> dict[str, Any]:
+def _apply_gps_precision(
+    value: float | None,
+    precision: int | None
+) -> float | None:
+    """Apply GPS precision rounding to a coordinate value.
+
+    Args:
+        value: Coordinate value (latitude or longitude)
+        precision: Number of decimal places (0-6), None for no rounding
+
+    Returns:
+        Rounded coordinate or original if precision is None
+    """
+    if value is None or precision is None:
+        return value
+    return round(value, precision)
+
+
+def transform_metadata_to_inaturalist(
+    metadata: "ExportMetadata",
+    gps_precision: int | None = None,
+) -> dict[str, Any]:
     """Transform ExportMetadata to iNaturalist-compatible dict.
 
     Maps all available Mothbox metadata fields to iNaturalist equivalents,
@@ -341,6 +362,8 @@ def transform_metadata_to_inaturalist(metadata: "ExportMetadata") -> dict[str, A
 
     Args:
         metadata: ExportMetadata instance to transform
+        gps_precision: Number of decimal places for GPS coordinates (0-6),
+                      None for full precision
 
     Returns:
         Dictionary with iNaturalist field names as keys
@@ -354,9 +377,9 @@ def transform_metadata_to_inaturalist(metadata: "ExportMetadata") -> dict[str, A
     """
     result: dict[str, Any] = {}
 
-    # Required fields
-    result["latitude"] = metadata.latitude
-    result["longitude"] = metadata.longitude
+    # Required fields (apply GPS precision if specified)
+    result["latitude"] = _apply_gps_precision(metadata.latitude, gps_precision)
+    result["longitude"] = _apply_gps_precision(metadata.longitude, gps_precision)
     result["timestamp"] = metadata.timestamp
 
     # Species fields

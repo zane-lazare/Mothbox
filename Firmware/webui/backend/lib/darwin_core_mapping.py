@@ -341,7 +341,28 @@ def get_csv_headers() -> list[str]:
     return DARWIN_CORE_CSV_COLUMN_ORDER.copy()
 
 
-def transform_metadata_to_darwin_core(metadata: "ExportMetadata") -> dict[str, Any]:
+def _apply_gps_precision(
+    value: float | None,
+    precision: int | None
+) -> float | None:
+    """Apply GPS precision rounding to a coordinate value.
+
+    Args:
+        value: Coordinate value (latitude or longitude)
+        precision: Number of decimal places (0-6), None for no rounding
+
+    Returns:
+        Rounded coordinate or original if precision is None
+    """
+    if value is None or precision is None:
+        return value
+    return round(value, precision)
+
+
+def transform_metadata_to_darwin_core(
+    metadata: "ExportMetadata",
+    gps_precision: int | None = None,
+) -> dict[str, Any]:
     """Transform ExportMetadata to Darwin Core record.
 
     Maps all available Mothbox metadata fields to their Darwin Core
@@ -349,6 +370,8 @@ def transform_metadata_to_darwin_core(metadata: "ExportMetadata") -> dict[str, A
 
     Args:
         metadata: ExportMetadata instance to transform
+        gps_precision: Number of decimal places for GPS coordinates (0-6),
+                      None for full precision
 
     Returns:
         Dictionary with Darwin Core term names as keys
@@ -384,6 +407,8 @@ def transform_metadata_to_darwin_core(metadata: "ExportMetadata") -> dict[str, A
             # Apply transformations
             if dwc_term == "identificationQualifier":
                 value = map_species_confidence_to_qualifier(value)
+            elif dwc_term == "decimalLatitude" or dwc_term == "decimalLongitude":
+                value = _apply_gps_precision(value, gps_precision)
 
             # Use default if None
             if value is None:
@@ -394,7 +419,10 @@ def transform_metadata_to_darwin_core(metadata: "ExportMetadata") -> dict[str, A
     return result
 
 
-def transform_to_csv_row(metadata: "ExportMetadata") -> list[str]:
+def transform_to_csv_row(
+    metadata: "ExportMetadata",
+    gps_precision: int | None = None,
+) -> list[str]:
     """Transform ExportMetadata to a CSV row.
 
     Returns values in the order defined by get_csv_headers().
@@ -402,6 +430,8 @@ def transform_to_csv_row(metadata: "ExportMetadata") -> list[str]:
 
     Args:
         metadata: ExportMetadata instance to transform
+        gps_precision: Number of decimal places for GPS coordinates (0-6),
+                      None for full precision
 
     Returns:
         List of string values in CSV column order
@@ -411,7 +441,7 @@ def transform_to_csv_row(metadata: "ExportMetadata") -> list[str]:
         >>> len(row) == len(get_csv_headers())
         True
     """
-    dwc_record = transform_metadata_to_darwin_core(metadata)
+    dwc_record = transform_metadata_to_darwin_core(metadata, gps_precision=gps_precision)
     headers = get_csv_headers()
 
     row = []

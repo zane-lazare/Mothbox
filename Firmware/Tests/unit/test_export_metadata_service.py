@@ -722,6 +722,51 @@ class TestGenericTransformer:
         assert 'series' in transformed
         assert transformed['series']['type'] == 'hdr'
 
+    def test_transform_applies_gps_precision_flat(self, service, sample_photo_path):
+        """transform_to_generic applies GPS precision to flat output."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        # Set known coordinates
+        metadata.latitude = 37.774900123456
+        metadata.longitude = -122.419400123456
+
+        transformed = service.transform_to_generic(metadata, flat=True, gps_precision=0)
+
+        assert transformed['latitude'] == 38.0  # round(37.77..., 0) = 38.0
+        assert transformed['longitude'] == -122.0
+
+    def test_transform_applies_gps_precision_nested(self, service, sample_photo_path):
+        """transform_to_generic applies GPS precision to nested output."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        metadata.latitude = 37.774900123456
+        metadata.longitude = -122.419400123456
+
+        transformed = service.transform_to_generic(metadata, flat=False, gps_precision=2)
+
+        assert transformed['location']['latitude'] == 37.77
+        assert transformed['location']['longitude'] == -122.42
+
+    def test_transform_gps_precision_none_preserves_full(self, service, sample_photo_path):
+        """transform_to_generic with gps_precision=None keeps full precision."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        metadata.latitude = 37.774900123456
+        metadata.longitude = -122.419400123456
+
+        transformed = service.transform_to_generic(metadata, flat=True, gps_precision=None)
+
+        assert transformed['latitude'] == 37.774900123456
+        assert transformed['longitude'] == -122.419400123456
+
+    def test_transform_handles_none_coordinates_with_precision(self, service, sample_photo_path):
+        """transform_to_generic handles None coordinates gracefully with precision."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        metadata.latitude = None
+        metadata.longitude = None
+
+        transformed = service.transform_to_generic(metadata, flat=True, gps_precision=2)
+
+        assert transformed['latitude'] is None
+        assert transformed['longitude'] is None
+
 
 # ============================================================================
 # Test Format Stubs

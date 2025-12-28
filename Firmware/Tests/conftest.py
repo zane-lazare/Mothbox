@@ -1585,6 +1585,7 @@ def pytest_collection_modifyitems(config, items):
             'test_builtin_patterns_api',  # Uses Flask test client, no camera/GPIO (Issue #219)
             'test_sensor_workflow',  # Uses mocks/I2C mocking, no camera/GPIO (Issue #232)
             'test_expert_mode_workflow',  # Uses mocks/tmp_path/Flask test client, no camera/GPIO (Issue #233)
+            'test_export_job_gps_precision',  # Uses tmp_path/PIL/Flask test client/threading, no camera/GPIO (Issue #288)
         )
 
         is_non_hardware_test = any(test in fspath_str for test in non_hardware_tests)

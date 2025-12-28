@@ -27,9 +27,7 @@ from webui.backend.services.export_metadata_service import (
     ExportFormat,
     ExportMetadata,
     ExportMetadataService,
-    ValidationResult,
 )
-
 
 # ============================================================================
 # Fixtures
@@ -439,6 +437,34 @@ class TestMetadataTransformation:
         # Deployment name should be in collectionCode
         assert dwc["collectionCode"] == "oak-ridge-2024"
 
+    def test_transform_applies_gps_precision(self, sample_metadata):
+        """transform_metadata_to_darwin_core applies GPS precision."""
+        sample_metadata.latitude = 37.774900123456
+        sample_metadata.longitude = -122.419400123456
+
+        # Precision 2 = 2 decimal places
+        dwc = transform_metadata_to_darwin_core(sample_metadata, gps_precision=2)
+        assert dwc["decimalLatitude"] == 37.77
+        assert dwc["decimalLongitude"] == -122.42
+
+    def test_transform_gps_precision_zero(self, sample_metadata):
+        """GPS precision 0 rounds to whole numbers."""
+        sample_metadata.latitude = 37.774900123456
+        sample_metadata.longitude = -122.419400123456
+
+        dwc = transform_metadata_to_darwin_core(sample_metadata, gps_precision=0)
+        assert dwc["decimalLatitude"] == 38.0  # round(37.77..., 0) = 38.0
+        assert dwc["decimalLongitude"] == -122.0
+
+    def test_transform_gps_precision_none_preserves_full(self, sample_metadata):
+        """GPS precision None preserves full precision."""
+        sample_metadata.latitude = 37.774900123456
+        sample_metadata.longitude = -122.419400123456
+
+        dwc = transform_metadata_to_darwin_core(sample_metadata, gps_precision=None)
+        assert dwc["decimalLatitude"] == 37.774900123456
+        assert dwc["decimalLongitude"] == -122.419400123456
+
 
 # ============================================================================
 # Tests for CSV Row Transformation
@@ -470,6 +496,22 @@ class TestCsvRowTransformation:
         row = transform_to_csv_row(minimal_metadata)
         # Check that there are no "None" strings
         assert "None" not in row
+
+    def test_csv_row_applies_gps_precision(self, sample_metadata):
+        """transform_to_csv_row applies GPS precision to coordinates."""
+        sample_metadata.latitude = 37.774900123456
+        sample_metadata.longitude = -122.419400123456
+
+        row = transform_to_csv_row(sample_metadata, gps_precision=2)
+        headers = get_csv_headers()
+
+        # Find latitude and longitude indices
+        lat_idx = headers.index("decimalLatitude")
+        lon_idx = headers.index("decimalLongitude")
+
+        # Values are strings in CSV rows
+        assert row[lat_idx] == "37.77"
+        assert row[lon_idx] == "-122.42"
 
 
 # ============================================================================
