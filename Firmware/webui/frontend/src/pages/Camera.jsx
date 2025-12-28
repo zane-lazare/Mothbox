@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import SavePresetModal from '../components/SavePresetModal'
 import InstantCaptureButton from '../components/InstantCaptureButton'
 import { convertFromBackend, toPicameraControl } from '../utils/cameraControlMapping'
+import { validatePresetSettings, formatValidationErrors } from '../utils/presetValidation'
 
 /**
  * Field list constants for API response validation
@@ -1133,6 +1134,14 @@ export default function Camera() {
     }
 
     try {
+      // Validate current settings before updating
+      const validationErrors = validatePresetSettings(liveControls)
+      if (validationErrors.length > 0) {
+        const errorMessage = formatValidationErrors(validationErrors, 3)
+        toast.error(errorMessage)
+        return
+      }
+
       // Fetch complete current settings from backend (includes all 24+ fields)
       const API_URL = import.meta.env.VITE_API_URL || '/api'
       const response = await fetch(`${API_URL}/config/webui`)
@@ -1181,6 +1190,16 @@ export default function Camera() {
 
   const handleSavePreset = async (presetData) => {
     try {
+      // Defense-in-depth: Modal validates before calling onSave, but we re-validate
+      // here in case the modal is bypassed or settings change between modal open and save.
+      // Both use validatePresetSettings() from presetValidation.js for consistency.
+      const validationErrors = validatePresetSettings(liveControls)
+      if (validationErrors.length > 0) {
+        const errorMessage = formatValidationErrors(validationErrors, 3)
+        toast.error(errorMessage)
+        throw new Error('Validation failed')
+      }
+
       await createPresetMutation.mutateAsync(presetData)
       toast.success(`Preset "${presetData.name}" saved successfully`)
       setShowSaveModal(false)
@@ -2294,6 +2313,7 @@ export default function Camera() {
         onSave={handleSavePreset}
         isSaving={createPresetMutation.isPending}
         defaultWorkflow={saveModalWorkflow}
+        currentSettings={liveControls}
       />
     </div>
   )
