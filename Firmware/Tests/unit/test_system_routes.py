@@ -341,6 +341,49 @@ class TestSystemPower:
 
             assert result is None
 
+    def test_read_ina260_sensor_cleans_up_i2c_on_success(self, mock_paths):
+        """_read_ina260_sensor calls i2c.deinit() after successful read"""
+        mock_i2c = MagicMock()
+        mock_board = MagicMock()
+        mock_board.I2C.return_value = mock_i2c
+
+        mock_sensor = MagicMock()
+        mock_sensor.voltage = 12.0
+        mock_sensor.current = 100.0
+        mock_sensor.power = 1200.0
+
+        mock_ina260 = MagicMock()
+        mock_ina260.INA260.return_value = mock_sensor
+
+        with patch.dict('sys.modules', {
+            'board': mock_board,
+            'adafruit_ina260': mock_ina260
+        }):
+            from routes.system import _read_ina260_sensor
+            result = _read_ina260_sensor(0x40)
+
+            assert result is not None
+            mock_i2c.deinit.assert_called_once()
+
+    def test_read_ina260_sensor_cleans_up_i2c_on_sensor_failure(self, mock_paths):
+        """_read_ina260_sensor calls i2c.deinit() even when sensor init fails"""
+        mock_i2c = MagicMock()
+        mock_board = MagicMock()
+        mock_board.I2C.return_value = mock_i2c
+
+        mock_ina260 = MagicMock()
+        mock_ina260.INA260.side_effect = ValueError("No sensor at address")
+
+        with patch.dict('sys.modules', {
+            'board': mock_board,
+            'adafruit_ina260': mock_ina260
+        }):
+            from routes.system import _read_ina260_sensor
+            result = _read_ina260_sensor(0x40)
+
+            assert result is None
+            mock_i2c.deinit.assert_called_once()
+
 
 # ============================================================================
 # Test System Info Endpoint
