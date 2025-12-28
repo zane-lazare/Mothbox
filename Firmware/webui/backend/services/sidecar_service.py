@@ -63,6 +63,14 @@ from webui.backend.lib.sidecar_metadata import (
 # Matches: name_YYYY_MM_DD__HH_MM_SS... or ManFocus_name_YYYY_MM_DD__...
 FILENAME_DATE_PATTERN = re.compile(r'(\d{4})_(\d{2})_(\d{2})__')
 
+# Cache schema version - bump when cache entry structure changes.
+# Bumping this will invalidate all existing L2 cache entries on startup.
+# Examples of when to bump:
+#   - New metadata fields added to CacheEntry
+#   - Changed serialization format
+#   - Renamed keys in cached metadata dict
+CACHE_SCHEMA_VERSION = "1.1"
+
 logger = logging.getLogger(__name__)
 
 
@@ -132,7 +140,7 @@ class SidecarService:
         cache_dir: Path | str,
         l1_max_size: int = 1000,
         l2_max_size: int = 10000,
-        cache_version: str = "1.0",
+        cache_version: str = CACHE_SCHEMA_VERSION,
         search_service: Any | None = None,
     ):
         """
@@ -702,6 +710,15 @@ class SidecarService:
                 with open(cache_file) as f:
                     data = json.load(f)
                     entry = CacheEntry.from_dict(data)
+
+                # Invalidate if schema version mismatch
+                if entry.cache_version != self.cache_version:
+                    logger.debug(
+                        f"Cache version mismatch for {photo_path}: "
+                        f"{entry.cache_version} != {self.cache_version}"
+                    )
+                    cache_file.unlink()
+                    return None
 
                 # Update file mtime for LRU tracking (non-critical)
                 with contextlib.suppress(Exception):
