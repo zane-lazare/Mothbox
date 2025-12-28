@@ -61,12 +61,50 @@ def get_sidecar_service():
     """
     global _sidecar_service
     if _sidecar_service is None:
+        import contextlib
+        import fcntl
+        import logging
+
         from mothbox_paths import DATA_DIR
 
-        from .sidecar_service import SidecarService
+        from .sidecar_service import CACHE_SCHEMA_VERSION, SidecarService
+
+        logger = logging.getLogger(__name__)
 
         cache_dir = DATA_DIR / "cache" / "sidecar"
-        _sidecar_service = SidecarService(cache_dir=cache_dir)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # Use file-based locking to prevent race conditions when multiple
+        # processes/threads initialize simultaneously
+        lock_file = cache_dir / ".purge.lock"
+        try:
+            with open(lock_file, 'w') as lock:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+
+                # Check version file and purge if schema changed
+                version_file = cache_dir / ".version"
+                if version_file.exists():
+                    if version_file.read_text().strip() != CACHE_SCHEMA_VERSION:
+                        logger.info("Cache schema version changed, purging L2 cache")
+                        for f in cache_dir.glob("*.json"):
+                            try:
+                                f.unlink()
+                            except Exception as e:
+                                logger.debug(f"Failed to delete cache file {f}: {e}")
+                else:
+                    logger.info(
+                        f"Initializing L2 cache with schema version {CACHE_SCHEMA_VERSION}"
+                    )
+                version_file.write_text(CACHE_SCHEMA_VERSION)
+        finally:
+            # Clean up lock file (non-critical if this fails)
+            with contextlib.suppress(Exception):
+                lock_file.unlink()
+
+        _sidecar_service = SidecarService(
+            cache_dir=cache_dir,
+            cache_version=CACHE_SCHEMA_VERSION,
+        )
     return _sidecar_service
 
 
