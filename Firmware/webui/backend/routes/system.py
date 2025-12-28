@@ -156,7 +156,7 @@ def _read_ina260_sensor(address: int) -> dict | None:
         or None if sensor not available
 
     Raises:
-        OSError: If I2C bus communication fails
+        OSError: If I2C bus communication fails (caught by caller)
     """
     try:
         import adafruit_ina260
@@ -172,9 +172,12 @@ def _read_ina260_sensor(address: int) -> dict | None:
             }
         finally:
             i2c.deinit()
-    except (ImportError, ValueError):
-        # ImportError: adafruit libraries not installed
+    except ImportError:
+        # adafruit libraries not installed
+        return None
+    except (ValueError, OSError):
         # ValueError: Sensor not found at address
+        # OSError: I2C bus initialization or communication failed
         return None
 
 
