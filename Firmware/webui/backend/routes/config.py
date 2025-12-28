@@ -2,7 +2,9 @@
 
 import csv
 import shutil
+from collections.abc import Callable
 from contextlib import suppress
+from typing import Any
 
 # Setup path to import mothbox_paths
 # Import camera control mapping
@@ -14,7 +16,12 @@ from camera_control_mapping import (
 from flask import Blueprint, jsonify, request
 
 # Import shared utilities
-from utils import ALLOWED_CAMERA_SETTINGS, create_backup, sanitize_csv_value
+from utils import (
+    ALLOWED_CAMERA_SETTINGS,
+    ALLOWED_LIVEVIEW_SETTINGS,
+    create_backup,
+    sanitize_csv_value,
+)
 
 from mothbox_paths import (
     CAMERA_SETTINGS_FILE,
@@ -23,6 +30,39 @@ from mothbox_paths import (
     SCHEDULE_SETTINGS_FILE,
     get_control_values,
 )
+
+# ============================================================================
+# Converter Factory Functions
+# ============================================================================
+
+
+def make_to_file_converter(key: str) -> Callable[[Any], str]:
+    """Create a converter that formats values for settings files.
+
+    Args:
+        key: The setting key (used to determine conversion rules)
+
+    Returns:
+        A function that converts Python values to file-format strings
+    """
+    def converter(value: Any) -> str:
+        return convert_to_settings_file(key, value)
+    return converter
+
+
+def make_from_file_converter(key: str) -> Callable[[str], Any]:
+    """Create a converter that parses values from settings files.
+
+    Args:
+        key: The setting key (used to determine conversion rules)
+
+    Returns:
+        A function that converts file-format strings to Python values
+    """
+    def converter(value: str) -> Any:
+        return convert_from_settings_file(key, value)
+    return converter
+
 
 # Valid BCM GPIO pins (BCM mode: GPIO 2-27)
 VALID_BCM_GPIO_PINS = [
@@ -692,8 +732,8 @@ def copy_settings():
             (
                 snake,
                 SNAKE_TO_PASCAL[snake],
-                lambda v, k=snake: convert_to_settings_file(k, v),
-                lambda v, k=snake: convert_from_settings_file(k, v),
+                make_to_file_converter(snake),
+                make_from_file_converter(snake),
             )
             for snake in compatible_keys
         ]
@@ -804,25 +844,14 @@ def copy_settings():
                         # Convert to live view type using centralized converter
                         preview_value = from_file_converter(capture_value)
 
-                        # Validate ranges (basic validation)
-                        valid = True
-                        if (
-                            preview_key == "sharpness"
-                            and not (0.0 <= preview_value <= 16.0)
-                            or preview_key == "brightness"
-                            and not (-1.0 <= preview_value <= 1.0)
-                            or preview_key in ["contrast", "saturation"]
-                            and not (0.0 <= preview_value <= 32.0)
-                            or preview_key == "af_mode"
-                            and preview_value not in [0, 1, 2]
-                            or preview_key == "af_speed"
-                            and preview_value not in [0, 1]
-                            or preview_key == "af_range"
-                            and preview_value not in [0, 1, 2]
-                            or preview_key == "awb_mode"
-                            and not (0 <= preview_value <= 7)
-                        ):
-                            valid = False
+                        # Validate using centralized live view validator
+                        if preview_key in ALLOWED_LIVEVIEW_SETTINGS:
+                            try:
+                                valid = ALLOWED_LIVEVIEW_SETTINGS[preview_key](preview_value)
+                            except (ValueError, TypeError):
+                                valid = False
+                        else:
+                            valid = True  # No validator = allow
 
                         if valid:
                             preview_settings[preview_key] = preview_value
