@@ -327,6 +327,20 @@ class TestSystemPower:
             # Verify sensor was called with the correct address from config
             mock_sensor.assert_called_once_with(0x41)
 
+    def test_read_ina260_sensor_handles_i2c_init_failure(self, mock_paths):
+        """_read_ina260_sensor returns None when I2C bus initialization fails"""
+        mock_board = MagicMock()
+        mock_board.I2C.side_effect = OSError("I2C bus not available")
+
+        with patch.dict('sys.modules', {
+            'board': mock_board,
+            'adafruit_ina260': MagicMock()
+        }):
+            from routes.system import _read_ina260_sensor
+            result = _read_ina260_sensor(0x40)
+
+            assert result is None
+
 
 # ============================================================================
 # Test System Info Endpoint
