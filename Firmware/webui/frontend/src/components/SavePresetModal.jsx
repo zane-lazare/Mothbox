@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Z_INDEX } from '../constants/config'
 import { validatePresetSettings } from '../utils/presetValidation'
 
@@ -8,6 +8,13 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, def
   const [workflow, setWorkflow] = useState(defaultWorkflow)
   const [nameError, setNameError] = useState('')
   const [validationErrors, setValidationErrors] = useState([])
+
+  // Clear stale validation errors when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setValidationErrors([])
+    }
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -237,7 +244,11 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, def
 
           {/* Validation Errors */}
           {validationErrors.length > 0 && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-300 rounded-lg max-h-48 overflow-y-auto">
+            <div
+              role="alert"
+              aria-live="polite"
+              className="mt-4 p-3 bg-red-50 border border-red-300 rounded-lg max-h-48 overflow-y-auto"
+            >
               <p className="text-sm font-semibold text-red-800 mb-2">
                 ⚠️ Invalid Settings ({validationErrors.length} error{validationErrors.length > 1 ? 's' : ''})
               </p>
