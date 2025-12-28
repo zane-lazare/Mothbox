@@ -427,6 +427,33 @@ class TestMetadataTransformation:
 
         assert "creator" in inat or "observer" in inat
 
+    def test_transform_applies_gps_precision(self, sample_metadata):
+        """transform_metadata_to_inaturalist applies GPS precision."""
+        sample_metadata.latitude = 37.774900123456
+        sample_metadata.longitude = -122.419400123456
+
+        inat = transform_metadata_to_inaturalist(sample_metadata, gps_precision=2)
+        assert inat["latitude"] == 37.77
+        assert inat["longitude"] == -122.42
+
+    def test_transform_gps_precision_zero(self, sample_metadata):
+        """GPS precision 0 rounds to whole numbers."""
+        sample_metadata.latitude = 37.774900123456
+        sample_metadata.longitude = -122.419400123456
+
+        inat = transform_metadata_to_inaturalist(sample_metadata, gps_precision=0)
+        assert inat["latitude"] == 38.0  # round(37.77..., 0) = 38.0
+        assert inat["longitude"] == -122.0
+
+    def test_transform_gps_precision_none_preserves_full(self, sample_metadata):
+        """GPS precision None preserves full precision."""
+        sample_metadata.latitude = 37.774900123456
+        sample_metadata.longitude = -122.419400123456
+
+        inat = transform_metadata_to_inaturalist(sample_metadata, gps_precision=None)
+        assert inat["latitude"] == 37.774900123456
+        assert inat["longitude"] == -122.419400123456
+
 
 # ============================================================================
 # Tests for XMP Field Mappings

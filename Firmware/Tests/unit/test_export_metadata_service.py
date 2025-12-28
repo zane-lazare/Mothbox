@@ -731,7 +731,7 @@ class TestGenericTransformer:
 
         transformed = service.transform_to_generic(metadata, flat=True, gps_precision=0)
 
-        assert transformed['latitude'] == 38.0  # Rounds to whole number
+        assert transformed['latitude'] == 38.0  # round(37.77..., 0) = 38.0
         assert transformed['longitude'] == -122.0
 
     def test_transform_applies_gps_precision_nested(self, service, sample_photo_path):

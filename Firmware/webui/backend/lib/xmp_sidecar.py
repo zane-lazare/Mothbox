@@ -361,12 +361,35 @@ def build_location_shown(
 # XMP Document Builders
 # ============================================================================
 
-def build_xmp_document(metadata: ExportMetadata) -> ET.ElementTree:
+def _apply_gps_precision(
+    value: float | None,
+    precision: int | None
+) -> float | None:
+    """Apply GPS precision rounding to a coordinate value.
+
+    Args:
+        value: Coordinate value (latitude or longitude)
+        precision: Number of decimal places (0-6), None for no rounding
+
+    Returns:
+        Rounded coordinate or original if precision is None
+    """
+    if value is None or precision is None:
+        return value
+    return round(value, precision)
+
+
+def build_xmp_document(
+    metadata: ExportMetadata,
+    gps_precision: int | None = None,
+) -> ET.ElementTree:
     """
     Build complete XMP document from export metadata.
 
     Args:
         metadata: Export metadata containing photo information
+        gps_precision: Number of decimal places for GPS coordinates (0-6),
+                      None for full precision
 
     Returns:
         ElementTree containing complete XMP structure
@@ -460,9 +483,12 @@ def build_xmp_document(metadata: ExportMetadata) -> ET.ElementTree:
 
     # Add IPTC location if GPS coordinates available
     if metadata.latitude is not None and metadata.longitude is not None:
+        # Apply GPS precision if specified
+        lat = _apply_gps_precision(metadata.latitude, gps_precision)
+        lon = _apply_gps_precision(metadata.longitude, gps_precision)
         location = build_location_shown(
-            lat=metadata.latitude,
-            lon=metadata.longitude,
+            lat=lat,
+            lon=lon,
             alt=metadata.altitude,
             name=metadata.deployment_location_name
         )
@@ -471,7 +497,10 @@ def build_xmp_document(metadata: ExportMetadata) -> ET.ElementTree:
     return ET.ElementTree(xmpmeta)
 
 
-def generate_xmp_xml(metadata: ExportMetadata) -> str:
+def generate_xmp_xml(
+    metadata: ExportMetadata,
+    gps_precision: int | None = None,
+) -> str:
     """
     Generate complete XMP XML string with packet wrapper.
 
@@ -480,6 +509,8 @@ def generate_xmp_xml(metadata: ExportMetadata) -> str:
 
     Args:
         metadata: Export metadata containing photo information
+        gps_precision: Number of decimal places for GPS coordinates (0-6),
+                      None for full precision
 
     Returns:
         Complete XMP XML string with packet wrapper
@@ -492,7 +523,7 @@ def generate_xmp_xml(metadata: ExportMetadata) -> str:
         ...     f.write(xmp_xml)
     """
     # Build XMP document
-    tree = build_xmp_document(metadata)
+    tree = build_xmp_document(metadata, gps_precision=gps_precision)
 
     # Convert to string with XML declaration
     xml_str = ET.tostring(

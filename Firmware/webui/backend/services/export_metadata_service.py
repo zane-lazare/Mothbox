@@ -555,7 +555,10 @@ class ExportMetadataService:
 
         Args:
             value: Coordinate value (latitude or longitude)
-            precision: Number of decimal places (0-6), None for no rounding
+            precision: Number of decimal places (0-6), None for no rounding.
+                      The UI enforces 0-6 range. Values outside this range
+                      are technically valid (uses Python's round()) but
+                      0=111km, 6=0.11m covers practical use cases.
 
         Returns:
             Rounded coordinate or original if precision is None
