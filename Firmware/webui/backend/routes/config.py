@@ -684,7 +684,10 @@ def copy_settings():
             "awb_mode",
         ]
 
-        # Generate mappings from centralized source (4-tuple: snake, pascal, to_file, from_file)
+        # Generate mappings with bidirectional converters
+        # Format: (snake_case_key, PascalCase_key, to_file_func, from_file_func)
+        # - to_file_func: converts Python value → string for settings file
+        # - from_file_func: converts string from settings file → Python type
         compatible_mappings = [
             (
                 snake,
@@ -728,21 +731,12 @@ def copy_settings():
                     capture_settings_dict[setting_name] = setting_value
 
             # Copy compatible settings
-            for preview_key, capture_key, to_file_converter, _from_file in compatible_mappings:
+            for preview_key, capture_key, to_file_converter, from_file_converter in compatible_mappings:
                 if preview_key in preview_settings:
                     try:
-                        # Convert live view value to capture format
-                        preview_value = preview_settings[preview_key]
-
-                        # Type conversion for live view settings
-                        if preview_key in ["sharpness", "brightness", "contrast", "saturation"]:
-                            preview_value = float(preview_value)
-                        elif preview_key in ["af_mode", "af_speed", "af_range", "awb_mode"]:
-                            preview_value = int(preview_value)
-                        elif preview_key == "awb_enable":
-                            preview_value = preview_value.lower() == "true"
-
-                        # Convert to capture format using centralized converter
+                        # Convert file string → Python type → file string
+                        preview_value_str = preview_settings[preview_key]
+                        preview_value = from_file_converter(preview_value_str)
                         capture_value = to_file_converter(preview_value)
 
                         # Validate using capture validator
