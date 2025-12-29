@@ -52,7 +52,7 @@ import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Final
+from typing import Final, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -718,7 +718,7 @@ class Schedule:
         Frontend format has a nested 'trigger' object containing trigger_type and all config.
         Backend format has trigger_type at top level with separate trigger objects.
         """
-        return 'trigger' in data and isinstance(data.get('trigger'), dict)
+        return "trigger" in data and isinstance(data.get("trigger"), dict)
 
     @staticmethod
     def _parse_interval_trigger_frontend(data: dict) -> IntervalTrigger:
@@ -728,37 +728,41 @@ class Schedule:
         - interval_minutes
         - time_window_start, time_window_end (or nested time_window)
         - days_of_week
+
+        Note: Value validation (type, range) is handled by IntervalTrigger's
+        __post_init__ and validate_interval_trigger(). This method only checks
+        for required field presence.
         """
         # Handle both flat and nested time_window formats
-        if 'time_window' in data and isinstance(data['time_window'], dict):
-            time_window = TimeWindow.from_dict(data['time_window'])
+        if "time_window" in data and isinstance(data["time_window"], dict):
+            time_window = TimeWindow.from_dict(data["time_window"])
         else:
             time_window = TimeWindow(
-                start_time=data.get('time_window_start', '00:00'),
-                end_time=data.get('time_window_end', '23:59'),
-                start_offset_minutes=data.get('start_offset_minutes', 0),
-                end_offset_minutes=data.get('end_offset_minutes', 0),
+                start_time=data.get("time_window_start", "00:00"),
+                end_time=data.get("time_window_end", "23:59"),
+                start_offset_minutes=data.get("start_offset_minutes", 0),
+                end_offset_minutes=data.get("end_offset_minutes", 0),
             )
 
-        if 'interval_minutes' not in data:
+        if "interval_minutes" not in data:
             raise ValueError("interval_minutes is required for interval trigger")
 
         return IntervalTrigger(
-            interval_minutes=data['interval_minutes'],
+            interval_minutes=data["interval_minutes"],
             time_window=time_window,
-            days_of_week=data.get('days_of_week'),
+            days_of_week=data.get("days_of_week"),
         )
 
     @staticmethod
     def _parse_solar_trigger_frontend(data: dict) -> SolarTrigger:
         """Parse frontend solar trigger format."""
-        if 'solar_event' not in data:
+        if "solar_event" not in data:
             raise ValueError("solar_event is required for solar trigger")
 
         return SolarTrigger(
-            solar_event=data['solar_event'],
-            offset_minutes=data.get('offset_minutes', 0),
-            days_of_week=data.get('days_of_week'),
+            solar_event=data["solar_event"],
+            offset_minutes=data.get("offset_minutes", 0),
+            days_of_week=data.get("days_of_week"),
         )
 
     @staticmethod
@@ -770,27 +774,29 @@ class Schedule:
         - time_of_day: single time string (convert to time_window)
         - offset_days
         """
-        # Wrap single phase in list (only if non-empty string)
-        phase = data.get('moon_phase')
-        phases = [phase] if isinstance(phase, str) and phase else data.get('phases', [])
+        # Wrap single phase in list (only if non-empty string).
+        # Empty string "" is falsy, so falls back to phases key - this is intentional
+        # to handle cases where frontend sends moon_phase="" with phases=[...].
+        phase = data.get("moon_phase")
+        phases = [phase] if isinstance(phase, str) and phase else data.get("phases", [])
 
         if not phases:
             raise ValueError("moon_phase or phases is required for moon phase trigger")
 
         # Convert time_of_day to time_window
         time_window = None
-        if 'time_of_day' in data:
-            time_of_day = data['time_of_day']
+        if "time_of_day" in data:
+            time_of_day = data["time_of_day"]
             time_window = TimeWindow(
                 start_time=time_of_day,
                 end_time=time_of_day,
             )
-        elif 'time_window' in data and data['time_window']:
-            time_window = TimeWindow.from_dict(data['time_window'])
+        elif "time_window" in data and data["time_window"]:
+            time_window = TimeWindow.from_dict(data["time_window"])
 
         return MoonPhaseTrigger(
             phases=phases,
-            offset_days=data.get('offset_days', 0),
+            offset_days=data.get("offset_days", 0),
             time_window=time_window,
         )
 
@@ -803,36 +809,36 @@ class Schedule:
         - days_of_week
         """
         return FixedTimeTrigger(
-            time=data.get('time_of_day', data.get('time', '00:00')),
-            days_of_week=data.get('days_of_week'),
+            time=data.get("time_of_day", data.get("time", "00:00")),
+            days_of_week=data.get("days_of_week"),
         )
 
     @staticmethod
     def _parse_sensor_trigger_frontend(data: dict) -> SensorTrigger:
         """Parse frontend sensor trigger format."""
-        if 'sensor_type' not in data:
+        if "sensor_type" not in data:
             raise ValueError("sensor_type is required for sensor trigger")
 
         time_window = None
-        if 'time_window' in data and data['time_window']:
-            time_window = TimeWindow.from_dict(data['time_window'])
+        if "time_window" in data and data["time_window"]:
+            time_window = TimeWindow.from_dict(data["time_window"])
 
         return SensorTrigger(
-            sensor_type=data['sensor_type'],
-            threshold=data.get('threshold', 0.0),
-            comparison=data.get('comparison', 'gt'),
-            cooldown_minutes=data.get('cooldown_minutes', 5),
+            sensor_type=data["sensor_type"],
+            threshold=data.get("threshold", 0.0),
+            comparison=data.get("comparison", "gt"),
+            cooldown_minutes=data.get("cooldown_minutes", 5),
             time_window=time_window,
         )
 
     @staticmethod
     def _parse_cron_trigger_frontend(data: dict) -> CronTrigger:
         """Parse frontend cron trigger format."""
-        if 'cron_expression' not in data:
+        if "cron_expression" not in data:
             raise ValueError("cron_expression is required for cron trigger")
 
         return CronTrigger(
-            cron_expression=data['cron_expression'],
+            cron_expression=data["cron_expression"],
         )
 
     @staticmethod
@@ -845,30 +851,30 @@ class Schedule:
         Returns:
             Dict with trigger_type and corresponding typed trigger object
         """
-        trigger_type = trigger_data.get('trigger_type')
+        trigger_type = trigger_data.get("trigger_type")
 
         if not trigger_type:
             raise ValueError("trigger_type is required")
 
-        valid_types = {'interval', 'solar', 'moon_phase', 'fixed_time', 'sensor', 'cron'}
+        valid_types = {"interval", "solar", "moon_phase", "fixed_time", "sensor", "cron"}
         if trigger_type not in valid_types:
             raise ValueError(f"Unknown trigger_type: {trigger_type}")
 
-        result = {'trigger_type': trigger_type}
+        result = {"trigger_type": trigger_type}
 
         # Parse based on trigger type
-        if trigger_type == 'interval':
-            result['interval_trigger'] = Schedule._parse_interval_trigger_frontend(trigger_data)
-        elif trigger_type == 'solar':
-            result['solar_trigger'] = Schedule._parse_solar_trigger_frontend(trigger_data)
-        elif trigger_type == 'moon_phase':
-            result['moon_phase_trigger'] = Schedule._parse_moon_phase_trigger_frontend(trigger_data)
-        elif trigger_type == 'fixed_time':
-            result['fixed_time_trigger'] = Schedule._parse_fixed_time_trigger_frontend(trigger_data)
-        elif trigger_type == 'sensor':
-            result['sensor_trigger'] = Schedule._parse_sensor_trigger_frontend(trigger_data)
-        elif trigger_type == 'cron':
-            result['cron_trigger'] = Schedule._parse_cron_trigger_frontend(trigger_data)
+        if trigger_type == "interval":
+            result["interval_trigger"] = Schedule._parse_interval_trigger_frontend(trigger_data)
+        elif trigger_type == "solar":
+            result["solar_trigger"] = Schedule._parse_solar_trigger_frontend(trigger_data)
+        elif trigger_type == "moon_phase":
+            result["moon_phase_trigger"] = Schedule._parse_moon_phase_trigger_frontend(trigger_data)
+        elif trigger_type == "fixed_time":
+            result["fixed_time_trigger"] = Schedule._parse_fixed_time_trigger_frontend(trigger_data)
+        elif trigger_type == "sensor":
+            result["sensor_trigger"] = Schedule._parse_sensor_trigger_frontend(trigger_data)
+        elif trigger_type == "cron":
+            result["cron_trigger"] = Schedule._parse_cron_trigger_frontend(trigger_data)
 
         return result
 
@@ -890,17 +896,17 @@ class Schedule:
         converted = copy.deepcopy(data)
 
         # Extract and convert trigger
-        if 'trigger' in converted:
-            trigger_data = converted.pop('trigger')
+        if "trigger" in converted:
+            trigger_data = converted.pop("trigger")
             trigger_fields = cls._parse_frontend_trigger(trigger_data)
             converted.update(trigger_fields)
 
         # Unwrap date_range if present
-        if 'date_range' in converted:
-            date_range = converted.pop('date_range')
+        if "date_range" in converted:
+            date_range = converted.pop("date_range")
             if date_range and isinstance(date_range, dict):
-                converted['start_date'] = date_range.get('start_date')
-                converted['end_date'] = date_range.get('end_date')
+                converted["start_date"] = date_range.get("start_date")
+                converted["end_date"] = date_range.get("end_date")
 
         return converted
 
@@ -912,7 +918,11 @@ class Schedule:
             data = cls._convert_frontend_format(data)
 
         # Helper to handle both dict and object types for triggers
-        def _process_trigger(trigger_data, trigger_class):
+        T = TypeVar("T")
+
+        def _process_trigger(
+            trigger_data: dict | T | None, trigger_class: type[T]
+        ) -> T | None:
             if trigger_data is None:
                 return None
             # If already an instance, return as-is (from frontend conversion)

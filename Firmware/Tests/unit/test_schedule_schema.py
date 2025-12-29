@@ -1612,6 +1612,30 @@ class TestFrontendFormatValidation:
         assert schedule.interval_trigger.time_window.start_time == "21:00"
         assert schedule.interval_trigger.time_window.end_time == "05:00"
 
+    def test_interval_trigger_nested_time_window_takes_priority(self, sample_event_pattern):
+        """Nested time_window object takes priority over flat time_window_start/end fields.
+
+        When both formats are present, the nested object wins. This documents
+        the expected behavior for conflicting inputs.
+        """
+        data = {
+            "name": "Test Schedule",
+            "trigger": {
+                "trigger_type": "interval",
+                "interval_minutes": 60,
+                # Nested object - should take priority
+                "time_window": {"start_time": "20:00", "end_time": "06:00"},
+                # Flat fields - should be ignored
+                "time_window_start": "21:00",
+                "time_window_end": "05:00",
+            },
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        schedule = Schedule.from_dict(data)
+        # Nested object wins
+        assert schedule.interval_trigger.time_window.start_time == "20:00"
+        assert schedule.interval_trigger.time_window.end_time == "06:00"
+
 
 class TestDeepCopyDefensiveProgramming:
     """Tests that verify deepcopy is used to prevent input mutation."""
