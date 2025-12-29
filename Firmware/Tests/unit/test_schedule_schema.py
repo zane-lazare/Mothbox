@@ -1553,3 +1553,104 @@ class TestFrontendFormatValidation:
         schedule = Schedule.from_dict(data)
         assert schedule.start_date is None
         assert schedule.end_date is None
+
+    def test_fixed_time_trigger_defaults_to_midnight(self, sample_event_pattern):
+        """Fixed time trigger defaults to 00:00 when time_of_day is missing."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {
+                "trigger_type": "fixed_time",
+                "days_of_week": [0, 1, 2, 3, 4, 5, 6],
+            },
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.fixed_time_trigger.time == "00:00"
+
+    def test_moon_phase_empty_string(self, sample_event_pattern):
+        """Empty string moon_phase should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "moon_phase", "moon_phase": ""},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="moon_phase or phases is required"):
+            Schedule.from_dict(data)
+
+    def test_moon_phase_empty_list(self, sample_event_pattern):
+        """Empty list phases should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "moon_phase", "phases": []},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="moon_phase or phases is required"):
+            Schedule.from_dict(data)
+
+    def test_moon_phase_none_value(self, sample_event_pattern):
+        """None moon_phase should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "moon_phase", "moon_phase": None},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="moon_phase or phases is required"):
+            Schedule.from_dict(data)
+
+    def test_interval_trigger_nested_time_window(self, sample_event_pattern):
+        """Interval trigger with nested time_window format."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {
+                "trigger_type": "interval",
+                "interval_minutes": 60,
+                "time_window": {"start_time": "21:00", "end_time": "05:00"},
+            },
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.interval_trigger.time_window.start_time == "21:00"
+        assert schedule.interval_trigger.time_window.end_time == "05:00"
+
+
+class TestDeepCopyDefensiveProgramming:
+    """Tests that verify deepcopy is used to prevent input mutation."""
+
+    @pytest.fixture
+    def sample_event_pattern(self):
+        """A sample event pattern for testing."""
+        return EventPattern(
+            pattern_id=str(uuid.uuid4()),
+            name="Test Pattern",
+            actions=[
+                PatternAction(
+                    action_type="gpio",
+                    action_name="attract_on",
+                )
+            ],
+        )
+
+    def test_from_dict_does_not_mutate_input(self, sample_event_pattern):
+        """Schedule.from_dict should not mutate the input data."""
+        original_trigger = {
+            "trigger_type": "interval",
+            "interval_minutes": 60,
+            "time_window": {"start_time": "20:00", "end_time": "06:00"},
+        }
+        data = {
+            "name": "Test Schedule",
+            "trigger": original_trigger.copy(),
+            "event_patterns": [sample_event_pattern.to_dict()],
+            "date_range": {"start_date": "2025-01-01", "end_date": "2025-12-31"},
+        }
+
+        # Make a deep copy to compare after
+        import copy
+
+        original_data = copy.deepcopy(data)
+
+        # Parse the schedule
+        Schedule.from_dict(data)
+
+        # Input should not be mutated
+        assert data == original_data

@@ -46,6 +46,7 @@ Usage:
 Issue #208 - Scheduler Phase 1: Schedule Schema
 """
 
+import copy
 import logging
 import re
 import uuid
@@ -769,9 +770,9 @@ class Schedule:
         - time_of_day: single time string (convert to time_window)
         - offset_days
         """
-        # Wrap single phase in list
+        # Wrap single phase in list (only if non-empty string)
         phase = data.get('moon_phase')
-        phases = [phase] if isinstance(phase, str) else data.get('phases', [])
+        phases = [phase] if isinstance(phase, str) and phase else data.get('phases', [])
 
         if not phases:
             raise ValueError("moon_phase or phases is required for moon phase trigger")
@@ -885,8 +886,8 @@ class Schedule:
         Returns:
             Backend format dict
         """
-        # Create copy to avoid mutating input
-        converted = data.copy()
+        # Deep copy to avoid mutating nested input structures
+        converted = copy.deepcopy(data)
 
         # Extract and convert trigger
         if 'trigger' in converted:
