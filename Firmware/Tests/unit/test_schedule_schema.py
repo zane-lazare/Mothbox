@@ -1462,14 +1462,7 @@ class TestScheduleFromDictFrontendFormat:
 class TestFrontendFormatValidation:
     """Tests for validation of malformed frontend data."""
 
-    @pytest.fixture
-    def sample_event_pattern(self):
-        """Create a sample event pattern for testing."""
-        return EventPattern(
-            pattern_id="pattern-123",
-            name="Test Pattern",
-            actions=[PatternAction(action_type="gpio", action_name="attract_on")],
-        )
+    # Uses module-level sample_event_pattern fixture
 
     def test_missing_trigger_type(self, sample_event_pattern):
         """Empty trigger object should raise ValueError."""
@@ -1640,19 +1633,7 @@ class TestFrontendFormatValidation:
 class TestDeepCopyDefensiveProgramming:
     """Tests that verify deepcopy is used to prevent input mutation."""
 
-    @pytest.fixture
-    def sample_event_pattern(self):
-        """A sample event pattern for testing."""
-        return EventPattern(
-            pattern_id=str(uuid.uuid4()),
-            name="Test Pattern",
-            actions=[
-                PatternAction(
-                    action_type="gpio",
-                    action_name="attract_on",
-                )
-            ],
-        )
+    # Uses module-level sample_event_pattern fixture
 
     def test_from_dict_does_not_mutate_input(self, sample_event_pattern):
         """Schedule.from_dict should not mutate the input data."""

@@ -733,7 +733,9 @@ class Schedule:
         __post_init__ and validate_interval_trigger(). This method only checks
         for required field presence.
         """
-        # Handle both flat and nested time_window formats
+        # Handle both flat and nested time_window formats.
+        # Priority: nested time_window object takes precedence over flat fields
+        # (time_window_start/end). If both are present, nested object wins.
         if "time_window" in data and isinstance(data["time_window"], dict):
             time_window = TimeWindow.from_dict(data["time_window"])
         else:
@@ -807,9 +809,19 @@ class Schedule:
         Frontend sends:
         - time_of_day (maps to 'time')
         - days_of_week
+
+        Note: time_of_day defaults to "00:00" if not provided. This maintains
+        backward compatibility but may indicate a frontend bug if unintentional.
         """
+        time_value = data.get("time_of_day") or data.get("time")
+        if not time_value:
+            logger.warning(
+                "fixed_time trigger missing time_of_day, defaulting to 00:00"
+            )
+            time_value = "00:00"
+
         return FixedTimeTrigger(
-            time=data.get("time_of_day", data.get("time", "00:00")),
+            time=time_value,
             days_of_week=data.get("days_of_week"),
         )
 
