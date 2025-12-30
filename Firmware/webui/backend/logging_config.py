@@ -29,6 +29,7 @@ Usage:
 """
 
 import logging
+import os
 import re
 import sys
 from logging.handlers import RotatingFileHandler
@@ -310,9 +311,9 @@ def setup_mothbox_logging(
     if log_file is None:
         log_file = get_default_log_file()
 
-    # Ensure log directory exists
+    # Ensure log directory exists with secure permissions
     log_file = Path(log_file)
-    log_file.parent.mkdir(parents=True, exist_ok=True)
+    log_file.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
 
     file_handler = RotatingFileHandler(
         log_file,
@@ -324,6 +325,11 @@ def setup_mothbox_logging(
     file_handler.setFormatter(formatter)
     file_handler.addFilter(LogSanitizingFilter())
     logger.addHandler(file_handler)
+
+    # Set secure file permissions (owner read/write, others read-only)
+    # nosec B103 - 0o644 is intentional: logs need to be readable for debugging
+    if log_file.exists():
+        os.chmod(log_file, 0o644)
 
     # Add console handler
     if console_output:
