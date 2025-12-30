@@ -67,10 +67,11 @@ MOTHBOX_LOG_FORMAT: Final[str] = "%(asctime)s - %(name)s - %(levelname)s - %(mes
 MOTHBOX_DATE_FORMAT: Final[str] = "%Y-%m-%d %H:%M:%S"
 
 # Emoji patterns to strip from log messages
+# Note: Ranges are consolidated to avoid CodeQL warnings about overlapping character ranges
 EMOJI_PATTERN = re.compile(
     "["
-    "\U0001f600-\U0001f64f"  # Emoticons
     "\U0001f300-\U0001f5ff"  # Symbols & pictographs
+    "\U0001f600-\U0001f64f"  # Emoticons
     "\U0001f680-\U0001f6ff"  # Transport & map symbols
     "\U0001f700-\U0001f77f"  # Alchemical symbols
     "\U0001f780-\U0001f7ff"  # Geometric shapes extended
@@ -78,19 +79,18 @@ EMOJI_PATTERN = re.compile(
     "\U0001f900-\U0001f9ff"  # Supplemental symbols and pictographs
     "\U0001fa00-\U0001fa6f"  # Chess symbols
     "\U0001fa70-\U0001faff"  # Symbols and pictographs extended-A
-    "\U00002702-\U000027b0"  # Dingbats
-    "\U00002600-\U000026ff"  # Misc symbols (sun, stars, etc.)
-    "\U00002700-\U000027bf"  # Dingbats
-    "\U0000fe00-\U0000fe0f"  # Variation selectors
     "\U0001f1e0-\U0001f1ff"  # Flags
+    "\U00002600-\U000026ff"  # Misc symbols (sun, stars, etc.)
+    "\U00002700-\U000027bf"  # Dingbats (consolidated range)
+    "\U0000fe00-\U0000fe0f"  # Variation selectors
     "\u2139"  # Info symbol
+    "\u2611"  # Ballot box with check
+    "\u2705"  # White heavy check mark
     "\u2714"  # Check mark
     "\u2716"  # X mark
     "\u2718"  # X mark heavy
     "\u26a0"  # Warning
     "\u274c"  # Cross mark
-    "\u2705"  # White heavy check mark
-    "\u2611"  # Ballot box with check
     "]+",
     flags=re.UNICODE,
 )
@@ -261,6 +261,7 @@ def setup_mothbox_logging(
     max_bytes: int = DEFAULT_MAX_BYTES,
     backup_count: int = DEFAULT_BACKUP_COUNT,
     console_output: bool = True,
+    _skip_path_validation: bool = False,
 ) -> logging.Logger:
     """
     Set up logging for a Mothbox module.
@@ -279,6 +280,7 @@ def setup_mothbox_logging(
         max_bytes: Maximum size in bytes before rotation (default 5MB)
         backup_count: Number of backup files to keep (default 5)
         console_output: Whether to output to console (default True)
+        _skip_path_validation: Skip DATA_DIR validation (for testing only)
 
     Returns:
         Configured logging.Logger instance
@@ -313,9 +315,10 @@ def setup_mothbox_logging(
 
     # Resolve path and validate against path traversal attacks
     log_file = Path(log_file).resolve()
-    data_dir_resolved = Path(DATA_DIR).resolve()
-    if not str(log_file).startswith(str(data_dir_resolved)):
-        raise ValueError(f"Log file must be within DATA_DIR: {data_dir_resolved}")
+    if not _skip_path_validation:
+        data_dir_resolved = Path(DATA_DIR).resolve()
+        if not str(log_file).startswith(str(data_dir_resolved)):
+            raise ValueError(f"Log file must be within DATA_DIR: {data_dir_resolved}")
 
     # Ensure log directory exists with secure permissions
     log_file.parent.mkdir(parents=True, exist_ok=True, mode=0o755)

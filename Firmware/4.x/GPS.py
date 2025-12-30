@@ -158,8 +158,9 @@ def update_gps_values(
             for key, value in updates.items():
                 if key not in updated_keys:
                     updated_lines.append(f"{key}={value}\n")
-                    # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
-                    logger.debug(f"Added {key}={value}")
+                    # GPS coordinates are equipment deployment locations (camera trap position),
+                    # not personal/user data. This logging is intentional for debugging.
+                    logger.debug(f"Added {key}={value}")  # lgtm[py/clear-text-logging-sensitive-data]
 
             # Write back to file
             f.seek(0)
@@ -198,8 +199,9 @@ try:
                 longitude = getattr(report, "lon", None)
                 UTCtime = getattr(report, "time", "")
                 fix_mode = getattr(report, "mode", 0)
-                # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
-                logger.debug(
+                # GPS coordinates are equipment deployment locations (camera trap position),
+                # not personal/user data. This logging is intentional for debugging.
+                logger.debug(  # lgtm[py/clear-text-logging-sensitive-data]
                     f"TPV: {latitude}\t{longitude}\t{UTCtime}\t"
                     f"alt={getattr(report, 'alt', 'nan')}\t"
                     f"mode={fix_mode}\t"
@@ -265,7 +267,9 @@ try:
                 )
             else:
                 logger.warning("Could not determine timezone from coordinates.")
-                logger.info(f"Writing coordinates anyway: lat={latitude}, lon={longitude}")
+                # GPS coordinates are equipment deployment locations (camera trap position),
+                # not personal/user data. This logging is intentional for debugging.
+                logger.info(f"Writing coordinates anyway: lat={latitude}, lon={longitude}")  # lgtm[py/clear-text-logging-sensitive-data]
                 # Still write coordinates even if timezone lookup fails
                 # Use default UTC offset of 0 since we couldn't determine it
                 update_gps_values(

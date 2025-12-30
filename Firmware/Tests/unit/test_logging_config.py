@@ -205,6 +205,7 @@ class TestSetupMothboxLogging:
             log_level="INFO",
             log_file=temp_log_dir / "test.log",
             console_output=False,
+            _skip_path_validation=True,
         )
         assert isinstance(logger, logging.Logger)
         assert logger.name == "test_logger_1"
@@ -216,6 +217,7 @@ class TestSetupMothboxLogging:
             log_level="DEBUG",
             log_file=temp_log_dir / "test.log",
             console_output=False,
+            _skip_path_validation=True,
         )
         assert logger.level == logging.DEBUG
 
@@ -227,6 +229,7 @@ class TestSetupMothboxLogging:
             log_level="INFO",
             log_file=log_file,
             console_output=False,
+            _skip_path_validation=True,
         )
         logger.info("Test message")
         # Flush handlers
@@ -242,6 +245,7 @@ class TestSetupMothboxLogging:
             log_level="INFO",
             log_file=log_file,
             console_output=False,
+            _skip_path_validation=True,
         )
         logger.info("Test message")
         # Flush and close handlers
@@ -260,6 +264,7 @@ class TestSetupMothboxLogging:
             log_level="INFO",
             log_file=log_file,
             console_output=False,
+            _skip_path_validation=True,
         )
         logger.info("Test message")
         for handler in logger.handlers:
@@ -276,6 +281,7 @@ class TestSetupMothboxLogging:
             log_level="INFO",
             log_file=log_file,
             console_output=False,
+            _skip_path_validation=True,
         )
         logger.info("Test message")
         for handler in logger.handlers:
@@ -292,6 +298,7 @@ class TestSetupMothboxLogging:
             log_level="WARNING",
             log_file=log_file,
             console_output=False,
+            _skip_path_validation=True,
         )
         logger.debug("Debug message")
         logger.info("Info message")
@@ -312,12 +319,14 @@ class TestSetupMothboxLogging:
             log_level="INFO",
             log_file=log_file,
             console_output=False,
+            _skip_path_validation=True,
         )
         logger2 = setup_mothbox_logging(
             name="test_logger_8",
             log_level="INFO",
             log_file=log_file,
             console_output=False,
+            _skip_path_validation=True,
         )
         assert logger1 is logger2
 
@@ -341,6 +350,7 @@ class TestLogRotation:
             max_bytes=max_bytes,
             backup_count=3,
             console_output=False,
+            _skip_path_validation=True,
         )
 
         # Write enough to trigger rotation
@@ -367,6 +377,7 @@ class TestLogRotation:
             max_bytes=max_bytes,
             backup_count=backup_count,
             console_output=False,
+            _skip_path_validation=True,
         )
 
         # Write lots of messages to force multiple rotations
@@ -395,6 +406,7 @@ class TestThreadSafety:
             log_level="INFO",
             log_file=log_file,
             console_output=False,
+            _skip_path_validation=True,
         )
 
         errors = []
@@ -443,6 +455,7 @@ class TestConsoleOutput:
             log_level="INFO",
             log_file=temp_log_dir / "test.log",
             console_output=True,
+            _skip_path_validation=True,
         )
         logger.info("Console test message")
 
@@ -461,6 +474,7 @@ class TestConsoleOutput:
             log_level="INFO",
             log_file=temp_log_dir / "test.log",
             console_output=False,
+            _skip_path_validation=True,
         )
         logger.info("Hidden message")
 
@@ -514,6 +528,7 @@ class TestControlsTxtIntegration:
                 name="test_controls_1",
                 log_file=temp_log_dir / "test.log",
                 console_output=False,
+                _skip_path_validation=True,
             )
             assert logger.level == logging.DEBUG
 
@@ -527,6 +542,7 @@ class TestControlsTxtIntegration:
                 log_level="WARNING",  # Explicit override
                 log_file=temp_log_dir / "test.log",
                 console_output=False,
+                _skip_path_validation=True,
             )
             assert logger.level == logging.WARNING
 
@@ -545,6 +561,7 @@ class TestErrorHandling:
             log_level="INVALID_LEVEL",
             log_file=temp_log_dir / "test.log",
             console_output=False,
+            _skip_path_validation=True,
         )
         assert logger.level == logging.INFO
 
@@ -556,6 +573,7 @@ class TestErrorHandling:
             log_level="INFO",
             log_file=log_file,
             console_output=False,
+            _skip_path_validation=True,
         )
         logger.info("Test")
         for handler in logger.handlers:

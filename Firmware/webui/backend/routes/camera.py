@@ -262,8 +262,9 @@ def _build_exif_metadata(
         if gps_data.get("has_fix"):
             gps_ifd = build_gps_ifd(gps_data)
             if gps_ifd:
-                # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
-                logger.info(
+                # GPS coordinates are equipment deployment locations (camera trap position),
+                # not personal/user data. This logging is intentional for debugging.
+                logger.info(  # lgtm[py/clear-text-logging-sensitive-data]
                     f"GPS EXIF embedded: lat={gps_data['latitude']}, lon={gps_data['longitude']}"
                 )
     except Exception as gps_error:
