@@ -422,12 +422,94 @@ jobs:
           retention-days: 7
 
   # ==========================================================================
+  # Python Linting - Ruff check and format
+  # ==========================================================================
+  python-linting:
+    name: Python Linting (Ruff)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Firmware
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Run Ruff linting
+        run: ruff check .
+
+      - name: Check Ruff formatting
+        run: ruff format --check .
+
+  # ==========================================================================
+  # Frontend Linting - ESLint check
+  # ==========================================================================
+  frontend-linting:
+    name: Frontend Linting (ESLint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Firmware/webui/frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: Firmware/webui/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+  # ==========================================================================
+  # Frontend Security - npm audit for dependency vulnerabilities
+  # ==========================================================================
+  frontend-security:
+    name: Frontend Security (npm audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Firmware/webui/frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: Firmware/webui/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit (high/critical only)
+        run: npm audit --audit-level=high
+
+  # ==========================================================================
   # Test Summary - Aggregate all results
   # ==========================================================================
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [backend-unit-tests, backend-integration-tests, coverage-report, frontend-tests, security-scan]
+    needs: [backend-unit-tests, backend-integration-tests, coverage-report, frontend-tests, security-scan, python-linting, frontend-linting, frontend-security]
     if: always()
 
     steps:
@@ -439,7 +521,10 @@ jobs:
           echo "Backend Integration Tests: ${{ needs.backend-integration-tests.result }}"
           echo "Coverage Report: ${{ needs.coverage-report.result }}"
           echo "Frontend Tests: ${{ needs.frontend-tests.result }}"
-          echo "Security Scan: ${{ needs.security-scan.result }}"
+          echo "Security Scan (Bandit): ${{ needs.security-scan.result }}"
+          echo "Python Linting (Ruff): ${{ needs.python-linting.result }}"
+          echo "Frontend Linting (ESLint): ${{ needs.frontend-linting.result }}"
+          echo "Frontend Security (npm audit): ${{ needs.frontend-security.result }}"
           echo ""
 
           # Check for failures
@@ -461,7 +546,22 @@ jobs:
           fi
 
           if [ "${{ needs.security-scan.result }}" != "success" ]; then
-            echo "❌ Security scan failed"
+            echo "❌ Security scan (Bandit) failed"
+            FAILED=1
+          fi
+
+          if [ "${{ needs.python-linting.result }}" != "success" ]; then
+            echo "❌ Python linting (Ruff) failed"
+            FAILED=1
+          fi
+
+          if [ "${{ needs.frontend-linting.result }}" != "success" ]; then
+            echo "❌ Frontend linting (ESLint) failed"
+            FAILED=1
+          fi
+
+          if [ "${{ needs.frontend-security.result }}" != "success" ]; then
+            echo "❌ Frontend security (npm audit) failed"
             FAILED=1
           fi
 
@@ -473,9 +573,9 @@ jobs:
 
           if [ "$FAILED" -eq 1 ]; then
             echo ""
-            echo "❌ Some tests failed - see above for details"
+            echo "❌ Some checks failed - see above for details"
             exit 1
           fi
 
           echo ""
-          echo "✅ All tests and security scans passed successfully!"
+          echo "✅ All tests, linting, and security scans passed successfully!"

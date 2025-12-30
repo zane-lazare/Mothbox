@@ -40,6 +40,15 @@ COVERAGE_IMPROVEMENT_GUIDE.md
 # Security scanning
 bandit-baseline.json
 
+# Cache directories (test artifacts)
+cache/
+Firmware/cache/
+
+# Environment files (may contain API keys and secrets)
+.env
+.env.*
+*.env
+
 # IDE
 .vscode/
 .idea/
