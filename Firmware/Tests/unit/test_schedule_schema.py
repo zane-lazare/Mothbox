@@ -1547,8 +1547,8 @@ class TestFrontendFormatValidation:
         assert schedule.start_date is None
         assert schedule.end_date is None
 
-    def test_fixed_time_trigger_defaults_to_midnight(self, sample_event_pattern):
-        """Fixed time trigger defaults to 00:00 when time_of_day is missing."""
+    def test_missing_time_of_day(self, sample_event_pattern):
+        """Fixed time trigger without time_of_day should raise ValueError."""
         data = {
             "name": "Test Schedule",
             "trigger": {
@@ -1557,8 +1557,8 @@ class TestFrontendFormatValidation:
             },
             "event_patterns": [sample_event_pattern.to_dict()],
         }
-        schedule = Schedule.from_dict(data)
-        assert schedule.fixed_time_trigger.time == "00:00"
+        with pytest.raises(ValueError, match="time_of_day is required"):
+            Schedule.from_dict(data)
 
     def test_moon_phase_empty_string(self, sample_event_pattern):
         """Empty string moon_phase should raise ValueError."""

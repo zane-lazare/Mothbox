@@ -807,18 +807,12 @@ class Schedule:
         """Parse frontend fixed time trigger format.
 
         Frontend sends:
-        - time_of_day (maps to 'time')
+        - time_of_day (maps to 'time') - required
         - days_of_week
-
-        Note: time_of_day defaults to "00:00" if not provided. This maintains
-        backward compatibility but may indicate a frontend bug if unintentional.
         """
         time_value = data.get("time_of_day") or data.get("time")
         if not time_value:
-            logger.warning(
-                "fixed_time trigger missing time_of_day, defaulting to 00:00"
-            )
-            time_value = "00:00"
+            raise ValueError("time_of_day is required for fixed_time trigger")
 
         return FixedTimeTrigger(
             time=time_value,
