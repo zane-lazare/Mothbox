@@ -54,6 +54,7 @@ except ImportError:
     limiter = LimiterStub()
 
 from mothbox_paths import PHOTOS_DIR
+from webui.backend.lib.api_key_auth import require_api_key_or_csrf
 from webui.backend.lib.deployment_schema import (
     MAX_CUSTOM_DEPTH,
     MAX_CUSTOM_KEYS,
@@ -422,6 +423,7 @@ def create_deployment_metadata(directory: str):
 # ============================================================================
 
 @deployment_bp.route("/metadata/<path:directory>", methods=["PATCH"])
+@require_api_key_or_csrf
 def update_deployment_metadata(directory: str):
     """
     Partial update of deployment metadata for a directory.
@@ -525,6 +527,7 @@ def update_deployment_metadata(directory: str):
 # ============================================================================
 
 @deployment_bp.route("/metadata/<path:directory>", methods=["DELETE"])
+@require_api_key_or_csrf
 def delete_deployment_metadata(directory: str):
     """
     Delete deployment metadata for a directory.
@@ -736,6 +739,7 @@ def discover_deployment_for_photo(photo_path: str):
 
 @deployment_bp.route("/batch", methods=["POST"])
 @limiter.limit("10 per minute")
+@require_api_key_or_csrf
 def batch_update_deployments():
     """
     Update multiple deployments' metadata.
@@ -928,6 +932,7 @@ def batch_update_deployments():
 
 @deployment_bp.route("/generate", methods=["POST"])
 @limiter.limit("10 per minute")
+@require_api_key_or_csrf
 def generate_deployment_sidecars():
     """
     Generate deployment sidecars for subdirectories using a template.
@@ -1106,6 +1111,7 @@ def get_deployment_stats():
 # ============================================================================
 
 @deployment_bp.route("/cache/invalidate", methods=["POST"])
+@require_api_key_or_csrf
 def invalidate_deployment_cache():
     """
     Invalidate deployment service cache.

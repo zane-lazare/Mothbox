@@ -57,6 +57,7 @@ except ImportError:
 
 from mothbox_paths import PHOTOS_DIR
 from webui.backend.constants import SIDECAR_PATTERNS
+from webui.backend.lib.api_key_auth import require_api_key_or_csrf
 from webui.backend.lib.sidecar_metadata import (
     MAX_BULK_FILES,
     MAX_CUSTOM_DEPTH,
@@ -202,20 +203,6 @@ def invalidate_tag_autocomplete_cache():
 # ============================================================================
 # Helper Functions
 # ============================================================================
-
-def check_api_key() -> bool:
-    """
-    Check if request has valid API key in X-API-Key header.
-
-    Note: This function is defined for future use. API key authentication
-    is not yet implemented - see issue #175 for tracking.
-
-    Returns:
-        True if valid API key provided, False otherwise
-    """
-    api_key = request.headers.get('X-API-Key')
-    expected_key = current_app.config.get('API_KEY')
-    return bool(api_key and expected_key and api_key == expected_key)
 
 
 def _validate_custom_value(value, depth: int = 0) -> tuple[bool, str | None]:
@@ -418,6 +405,7 @@ def get_photo_metadata(filename: str):
 # ============================================================================
 
 @sidecar_bp.route("/photos/<path:filename>", methods=["PATCH"])
+@require_api_key_or_csrf
 def update_photo_metadata(filename: str):
     """
     Update sidecar metadata for a photo.
@@ -469,8 +457,7 @@ def update_photo_metadata(filename: str):
         }
     """
     try:
-        # Authentication: CSRF protection is enforced by Flask-WTF automatically.
-        # API key auth not yet implemented - see issue #175 for tracking.
+        # Authentication: CSRF token OR API key (X-API-Key header) required.
 
         # Get sidecar service
         service = current_app.config.get('SIDECAR_SERVICE')
@@ -545,6 +532,7 @@ def update_photo_metadata(filename: str):
 # ============================================================================
 
 @sidecar_bp.route("/photos/<path:filename>", methods=["DELETE"])
+@require_api_key_or_csrf
 def delete_photo_metadata(filename: str):
     """
     Delete sidecar metadata for a photo.
@@ -572,8 +560,7 @@ def delete_photo_metadata(filename: str):
         {"success": true}
     """
     try:
-        # Authentication: CSRF protection is enforced by Flask-WTF automatically.
-        # API key auth not yet implemented - see issue #175 for tracking.
+        # Authentication: CSRF token OR API key (X-API-Key header) required.
 
         # Get sidecar service
         service = current_app.config.get('SIDECAR_SERVICE')
@@ -745,6 +732,7 @@ def list_all_metadata():
 
 @sidecar_bp.route("/bulk", methods=["POST"])
 @limiter.limit("10 per minute")
+@require_api_key_or_csrf
 def bulk_update_metadata():
     """
     Bulk update metadata for multiple photos.
@@ -815,8 +803,7 @@ def bulk_update_metadata():
         }
     """
     try:
-        # Authentication: CSRF protection is enforced by Flask-WTF automatically.
-        # API key auth not yet implemented - see issue #175 for tracking.
+        # Authentication: CSRF token OR API key (X-API-Key header) required.
 
         # Get sidecar service
         service = current_app.config.get('SIDECAR_SERVICE')
