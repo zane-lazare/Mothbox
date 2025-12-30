@@ -92,13 +92,13 @@ def register_handlers(socketio, camera_streamer):
                 pass
             elif origin not in allowed_origins:
                 # Not in allowed list: reject connection
-                print(f"⚠ WebSocket connection rejected from unauthorized origin: {origin}")
+                print(f"WebSocket connection rejected from unauthorized origin: {origin}")
                 print(f"  Allowed origins: {allowed_origins}")
                 return False  # Reject connection
 
         # Origin validated (or no origin header - local connections like curl)
         client_ip = request.remote_addr
-        print(f"✓ Client connected from {client_ip}")
+        print(f"Client connected from {client_ip}")
         emit("connected", {"status": "connected", "message": "Successfully connected to Mothbox"})
 
     @socketio.on("disconnect")
@@ -142,13 +142,13 @@ def register_handlers(socketio, camera_streamer):
     @socketio.on("start_preview")
     def handle_start_preview_deprecated():
         """[DEPRECATED] Use start_liveview instead"""
-        print("⚠️  DEPRECATED: start_preview event - use start_liveview instead")
+        print("DEPRECATED: start_preview event - use start_liveview instead")
         handle_start_liveview()
 
     @socketio.on("stop_preview")
     def handle_stop_preview_deprecated():
         """[DEPRECATED] Use stop_liveview instead"""
-        print("⚠️  DEPRECATED: stop_preview event - use stop_liveview instead")
+        print("DEPRECATED: stop_preview event - use stop_liveview instead")
         handle_stop_liveview()
 
     @socketio.on("reload_stream_settings")
@@ -447,7 +447,7 @@ def register_handlers(socketio, camera_streamer):
     @socketio.on("update_preview_control")
     def handle_update_preview_control_deprecated(data):
         """[DEPRECATED] Use update_liveview_control instead"""
-        print("⚠️  DEPRECATED: update_preview_control event - use update_liveview_control instead")
+        print("DEPRECATED: update_preview_control event - use update_liveview_control instead")
         handle_update_liveview_control(data)
 
     @socketio.on("set_zoom")

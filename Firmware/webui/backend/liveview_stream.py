@@ -76,10 +76,10 @@ try:
     import simplejpeg
 
     SIMPLEJPEG_AVAILABLE = True
-    print("✓ simplejpeg available for fast JPEG encoding")
+    print("simplejpeg available for fast JPEG encoding")
 except ImportError:
     SIMPLEJPEG_AVAILABLE = False
-    print("⚠ simplejpeg not available - using PIL (slower)")
+    print("simplejpeg not available - using PIL (slower)")
 
 # Try to import OpenCV for focus peaking overlay
 try:
@@ -87,10 +87,10 @@ try:
     import numpy as np
 
     CV2_AVAILABLE = True
-    print("✓ OpenCV available for focus peaking")
+    print("OpenCV available for focus peaking")
 except ImportError:
     CV2_AVAILABLE = False
-    print("⚠ OpenCV not available - focus peaking disabled")
+    print("OpenCV not available - focus peaking disabled")
 
 # Default camera stream configuration constants
 DEFAULT_STREAM_WIDTH = 1024
@@ -508,7 +508,7 @@ class LiveViewStreamer:
                         encode="main",
                     )
                 else:
-                    print("⚠ Full sensor mode requested but no sensor modes found, using auto")
+                    print("Full sensor mode requested but no sensor modes found, using auto")
                     video_config = self.camera.create_video_configuration(
                         main={
                             "size": (self.stream_width, self.stream_height),
@@ -537,7 +537,7 @@ class LiveViewStreamer:
                 pixels = self.sensor_resolution[0] * self.sensor_resolution[1]
                 aspect = self.sensor_resolution[0] / self.sensor_resolution[1]
                 print(
-                    f"✓ Selected sensor mode: {self.sensor_resolution[0]}×{self.sensor_resolution[1]} ({pixels / 1e6:.1f}MP, {aspect:.2f}:1 aspect)"
+                    f"Selected sensor mode: {self.sensor_resolution[0]}×{self.sensor_resolution[1]} ({pixels / 1e6:.1f}MP, {aspect:.2f}:1 aspect)"
                 )
                 print(f"  Output resolution: {self.stream_width}×{self.stream_height}")
                 print(
@@ -546,7 +546,7 @@ class LiveViewStreamer:
             else:
                 # Fallback: use PixelArraySize (may cause issues with AF windows)
                 self.sensor_resolution = self.camera.camera_properties["PixelArraySize"]
-                print(f"⚠ Sensor resolution (fallback to PixelArraySize): {self.sensor_resolution}")
+                print(f"Sensor resolution (fallback to PixelArraySize): {self.sensor_resolution}")
 
             # Start camera to apply controls
             self.camera.start()
@@ -562,12 +562,12 @@ class LiveViewStreamer:
 
                 # Check specifically for AfWindows and AfMetering
                 if "AfWindows" in controls:
-                    print(f"  ✓ AfWindows supported: {controls['AfWindows']}")
+                    print(f"AfWindows supported: {controls['AfWindows']}")
                 else:
                     print("  ✗ AfWindows NOT available")
 
                 if "AfMetering" in controls:
-                    print(f"  ✓ AfMetering supported: {controls['AfMetering']}")
+                    print(f"AfMetering supported: {controls['AfMetering']}")
                 else:
                     print("  ✗ AfMetering NOT available")
 
@@ -600,7 +600,7 @@ class LiveViewStreamer:
 
             # Log applied controls for debugging
             print(
-                f"✓ Camera controls applied: AF Mode {applied_controls['AfMode']}, "
+                f"Camera controls applied: AF Mode {applied_controls['AfMode']}, "
                 f"Speed {applied_controls['AfSpeed']}, Range {applied_controls['AfRange']}, "
                 f"Sharpness {applied_controls['Sharpness']}, "
                 f"AWB {'Enabled' if applied_controls['AwbEnable'] else 'Disabled'}"
@@ -710,7 +710,7 @@ class LiveViewStreamer:
                 )
                 return True
             except Exception as e:
-                print(f"⚠ Error re-applying AF window: {e}")
+                print(f"Error re-applying AF window: {e}")
                 return False
         return False
 
@@ -759,7 +759,7 @@ class LiveViewStreamer:
         if self.camera:
             try:
                 self.camera.close()
-                print("✓ Camera hardware released")
+                print("Camera hardware released")
             except Exception as e:
                 print(f"Warning: Error closing camera: {e}")
             finally:
@@ -785,7 +785,7 @@ class LiveViewStreamer:
         print("🔒 Acquiring camera operation lock...")
         CAMERA_OPERATION_LOCK.acquire()
         try:
-            print("✓ Camera operation lock acquired")
+            print("Camera operation lock acquired")
             yield
         finally:
             CAMERA_OPERATION_LOCK.release()
@@ -808,7 +808,7 @@ class LiveViewStreamer:
         Automatically falls back to software encoding if hardware encoder is unavailable.
         """
         if not HARDWARE_MJPEG_AVAILABLE:
-            print("⚠ Hardware MJPEG not available, falling back to software encoding")
+            print("Hardware MJPEG not available, falling back to software encoding")
             self.socketio.emit(
                 "stream_warning", {"message": "Hardware MJPEG unavailable, using software fallback"}
             )
@@ -816,7 +816,7 @@ class LiveViewStreamer:
 
         # If focus peaking is enabled, use software encoding with overlay
         if self.focus_peaking_enabled and CV2_AVAILABLE:
-            print("⚡ Focus peaking enabled - using software encoding")
+            print("Focus peaking enabled - using software encoding")
             return self._stream_software_encoding()
 
         try:
@@ -831,7 +831,7 @@ class LiveViewStreamer:
                         self.sensor_resolution = self.camera.camera_properties["PixelArraySize"]
                         print(f"📷 Captured sensor resolution (fallback): {self.sensor_resolution}")
                 except Exception as e:
-                    print(f"⚠ Could not capture sensor resolution: {e}")
+                    print(f"Could not capture sensor resolution: {e}")
 
             # Create hardware MJPEG encoder with quality settings
             # Convert JPEG quality (0-100, higher=better) to qp (1-25, lower=better)
@@ -883,7 +883,7 @@ class LiveViewStreamer:
 
             # Start encoder and camera (already configured with video_config in initialize_camera)
             self.camera.start_recording(encoder, output)
-            print(f"✓ Hardware MJPEG streaming started at {self.stream_width}x{self.stream_height}")
+            print(f"Hardware MJPEG streaming started at {self.stream_width}x{self.stream_height}")
 
             # Self-test: Verify autofocus is functioning (if configured for continuous AF)
             if self.af_mode == 2 and self._af_mode_override is None:
@@ -907,7 +907,7 @@ class LiveViewStreamer:
 
                     # If stuck at Idle, controls may not have been applied
                     if af_state == 0:
-                        print("⚠ Warning: Autofocus appears idle. Controls may not be active.")
+                        print("Warning: Autofocus appears idle. Controls may not be active.")
                         self.socketio.emit(
                             "stream_warning",
                             {
@@ -922,7 +922,7 @@ class LiveViewStreamer:
                 time.sleep(0.1)
 
         except Exception as e:
-            print(f"⚠ Hardware MJPEG encoder failed: {e}")
+            print(f"Hardware MJPEG encoder failed: {e}")
             print("Falling back to software encoding...")
             self.socketio.emit(
                 "stream_warning",
@@ -944,7 +944,7 @@ class LiveViewStreamer:
             try:
                 if self.camera:
                     self.camera.stop_recording()
-                    print("✓ Hardware MJPEG encoder stopped")
+                    print("Hardware MJPEG encoder stopped")
             except Exception as e:
                 print(f"Note: Error stopping encoder: {e}")
 
@@ -973,11 +973,11 @@ class LiveViewStreamer:
                         self.sensor_resolution = self.camera.camera_properties["PixelArraySize"]
                         print(f"📷 Captured sensor resolution (fallback): {self.sensor_resolution}")
                 except Exception as e:
-                    print(f"⚠ Could not capture sensor resolution: {e}")
+                    print(f"Could not capture sensor resolution: {e}")
 
             self.camera.start()
             print(
-                f"✓ Software encoding streaming started (mode: {'simplejpeg' if SIMPLEJPEG_AVAILABLE else 'PIL'})"
+                f"Software encoding streaming started (mode: {'simplejpeg' if SIMPLEJPEG_AVAILABLE else 'PIL'})"
             )
 
             while self.streaming and not self.stop_event.is_set():
@@ -1435,7 +1435,7 @@ class LiveViewStreamer:
         # ScalerCrop coordinates MUST be in this coordinate space
         scaler_crop_max = self.camera.camera_properties.get("ScalerCropMaximum")
         if not scaler_crop_max:
-            print("⚠ Cannot calculate ScalerCrop - ScalerCropMaximum not available")
+            print("Cannot calculate ScalerCrop - ScalerCropMaximum not available")
             return None
 
         # Extract active area dimensions AND offset from ScalerCropMaximum
@@ -1625,7 +1625,7 @@ class LiveViewStreamer:
         # Calculate ScalerCrop coordinates
         scaler_crop = self.calculate_scaler_crop()
         if not scaler_crop:
-            print("⚠ Cannot calculate ScalerCrop - sensor resolution not available")
+            print("Cannot calculate ScalerCrop - sensor resolution not available")
             return False
 
         # Apply ScalerCrop control
@@ -1638,12 +1638,12 @@ class LiveViewStreamer:
             self._reapply_af_window_if_active()
 
             print(
-                f"✓ Zoom applied: {self.zoom_level:.2f}x at ({self.zoom_center_x:.2f}, {self.zoom_center_y:.2f})"
+                f"Zoom applied: {self.zoom_level:.2f}x at ({self.zoom_center_x:.2f}, {self.zoom_center_y:.2f})"
             )
             print(f"  ScalerCrop: {scaler_crop}")
             return True
         except Exception as e:
-            print(f"⚠ Error setting zoom: {e}")
+            print(f"Error setting zoom: {e}")
             return False
 
     def set_af_window(self, x, y, window_size=0.2):
@@ -1673,7 +1673,7 @@ class LiveViewStreamer:
             set_af_window(None, None)
         """
         if not self.camera or not self.streaming:
-            print("⚠ Cannot set AF window - camera not streaming")
+            print("Cannot set AF window - camera not streaming")
             return False
 
         try:
@@ -1690,7 +1690,7 @@ class LiveViewStreamer:
                 # Clear stored state
                 self._af_window_active = False
                 self._af_window_coords = None
-                print("✓ AF window cleared - using auto metering")
+                print("AF window cleared - using auto metering")
                 return True
 
             # Get full sensor coordinate system from ScalerCropMaximum
@@ -1700,7 +1700,7 @@ class LiveViewStreamer:
             # For sensor modes: (offset_x, offset_y, active_width, active_height)
             scaler_crop_max = self.camera.camera_properties.get("ScalerCropMaximum")
             if not scaler_crop_max:
-                print("⚠ Cannot set AF window - ScalerCropMaximum not available")
+                print("Cannot set AF window - ScalerCropMaximum not available")
                 return False
 
             # Extract sensor dimensions AND offset from ScalerCropMaximum
@@ -1756,7 +1756,7 @@ class LiveViewStreamer:
             )
             self._af_window_active = True
 
-            print(f"✓ AF window calculated: center=({x:.2f}, {y:.2f}) normalized")
+            print(f"AF window calculated: center=({x:.2f}, {y:.2f}) normalized")
             print(
                 f"  ScalerCropMaximum: {scaler_crop_max} (offset={x_offset},{y_offset}, size={sensor_width}x{sensor_height})"
             )
@@ -1773,9 +1773,9 @@ class LiveViewStreamer:
                 print("  → Setting AfMetering to Windows mode (1)...")
                 self.camera.set_controls({"AfMetering": 1})
                 time.sleep(0.05)  # Let control settle
-                print("  ✓ AfMetering set successfully")
+                print("AfMetering set successfully")
             except Exception as e:
-                print(f"  ❌ ERROR setting AfMetering: {e}")
+                print(f"ERROR setting AfMetering: {e}")
                 import traceback
 
                 traceback.print_exc()
@@ -1785,15 +1785,15 @@ class LiveViewStreamer:
             try:
                 print(f"  → Setting AfWindows: {self._af_window_coords}...")
                 self.camera.set_controls({"AfWindows": [self._af_window_coords]})
-                print("  ✓ AfWindows set successfully")
+                print("AfWindows set successfully")
             except Exception as e:
-                print(f"  ❌ ERROR setting AfWindows: {e}")
+                print(f"ERROR setting AfWindows: {e}")
                 import traceback
 
                 traceback.print_exc()
                 return False
 
-            print("✓ AF window controls applied successfully")
+            print("AF window controls applied successfully")
 
             # DIAGNOSTIC: Verify controls were actually applied
             try:
@@ -1823,28 +1823,28 @@ class LiveViewStreamer:
                 af_metering_name = {0: "Auto/FullFrame", 1: "Windows"}.get(af_metering, af_metering)
 
                 print(
-                    f"🔍 DIAGNOSTIC: AfState={af_state_name} ({af_state}), AfPauseState={af_pause_name} ({af_pause_state})"
+                    f"DIAGNOSTIC: AfState={af_state_name} ({af_state}), AfPauseState={af_pause_name} ({af_pause_state})"
                 )
                 print(
-                    f"🔍 DIAGNOSTIC: AfMetering={af_metering_name} ({af_metering}) ← Should be 'Windows (1)'!"
+                    f"DIAGNOSTIC: AfMetering={af_metering_name} ({af_metering}) ← Should be 'Windows (1)'!"
                 )
-                print(f"🔍 DIAGNOSTIC: LensPosition={lens_pos}, FocusFoM={focus_fom}")
+                print(f"DIAGNOSTIC: LensPosition={lens_pos}, FocusFoM={focus_fom}")
 
                 if af_metering == "N/A":
-                    print("⚠️  AfMetering not in metadata - may be write-only control")
-                    print("ℹ️  To check for driver errors: dmesg | grep -i 'libcamera\\|pisp\\|af'")
+                    print("AfMetering not in metadata - may be write-only control")
+                    print("To check for driver errors: dmesg | grep -i 'libcamera\\|pisp\\|af'")
                 elif af_metering != 1:
-                    print(f"❌ WARNING: AfMetering is {af_metering}, not 1 (Windows mode)!")
+                    print(f"WARNING: AfMetering is {af_metering}, not 1 (Windows mode)!")
                     print("   This means windowed AF is NOT active - camera is using full-frame AF")
-                    print("ℹ️  Possible causes:")
+                    print("Possible causes:")
                     print("   - Driver/hardware limitation in this sensor mode")
                     print("   - Window coordinates rejected (check dmesg)")
                     print("   - AfMetering being overridden by another control")
                 else:
-                    print("✓ AfMetering = Windows mode - windowed AF should be active!")
+                    print("AfMetering = Windows mode - windowed AF should be active!")
 
             except Exception as diag_error:
-                print(f"⚠️  Diagnostic read failed: {diag_error}")
+                print(f"Diagnostic read failed: {diag_error}")
                 import traceback
 
                 traceback.print_exc()
@@ -1852,7 +1852,7 @@ class LiveViewStreamer:
             return True
 
         except Exception as e:
-            print(f"⚠ Error setting AF window: {e}")
+            print(f"Error setting AF window: {e}")
             import traceback
 
             traceback.print_exc()
@@ -1900,10 +1900,10 @@ class LiveViewStreamer:
         """
         if enabled:
             self._af_mode_override = 0  # Manual focus (AfMode 0)
-            print("✓ Manual focus mode override enabled (AfMode 0)")
+            print("Manual focus mode override enabled (AfMode 0)")
         else:
             self._af_mode_override = None  # Use configured mode from settings
-            print("✓ AF mode override cleared - using configured mode")
+            print("AF mode override cleared - using configured mode")
 
         # If camera is active, apply the change immediately
         if self.camera and self.streaming:
@@ -1918,10 +1918,10 @@ class LiveViewStreamer:
                 # but we preserve it so it's ready when switching back to continuous AF
                 self._reapply_af_window_if_active()
 
-                print(f"✓ Applied AF mode change immediately: AfMode {af_mode_to_use}")
+                print(f"Applied AF mode change immediately: AfMode {af_mode_to_use}")
                 return True
             except Exception as e:
-                print(f"⚠ Error applying AF mode change: {e}")
+                print(f"Error applying AF mode change: {e}")
                 return False
 
         return True
@@ -1948,11 +1948,11 @@ class LiveViewStreamer:
 
         # Wait for stream thread to actually finish
         if self.stream_thread and self.stream_thread.is_alive():
-            print("⏳ Waiting for stream thread to stop...")
+            print("Waiting for stream thread to stop...")
             self.stream_thread.join(timeout=5.0)
 
             if self.stream_thread.is_alive():
-                print("⚠️  Warning: Stream thread did not stop gracefully")
+                print("Warning: Stream thread did not stop gracefully")
 
         # Close camera with timeout protection
         if self.camera:
@@ -1964,22 +1964,22 @@ class LiveViewStreamer:
                     if hasattr(self.camera, "started") and self.camera.started:
                         self.camera.stop()
                 except Exception as e:
-                    print(f"⚠️  Note: Camera stop failed (may already be stopped): {e}")
+                    print(f"Note: Camera stop failed (may already be stopped): {e}")
 
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(self.camera.close)
                     try:
                         future.result(timeout=3.0)  # Increased from 2.0s
-                        print("✓ Camera closed successfully")
+                        print("Camera closed successfully")
                     except TimeoutError:
-                        print("⚠️  Camera close timed out - forcing cleanup")
+                        print("Camera close timed out - forcing cleanup")
                     except Exception as e:
-                        print(f"⚠️  Error closing camera: {e}")
+                        print(f"Error closing camera: {e}")
 
             except Exception as e:
                 # Catch any errors in the cleanup mechanism itself
-                print(f"⚠️  Error during camera cleanup: {e}")
+                print(f"Error during camera cleanup: {e}")
             finally:
                 # ALWAYS set to None, even on error
                 self.camera = None
-                print("✓ Camera cleanup complete")
+                print("Camera cleanup complete")

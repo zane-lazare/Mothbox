@@ -327,9 +327,9 @@ def takePhoto_FocusBracket(  # noqa: N802 - legacy Mothbox naming convention
         request.release()
 
         print(
-            f"FOCUS_BRACKET_PROGRESS: {progress_pct}% - ✓ Completed step {step_num}/{num_steps} at {focus_pos:.2f} diopters"
+            f"FOCUS_BRACKET_PROGRESS: {progress_pct}% - Completed step {step_num}/{num_steps} at {focus_pos:.2f} diopters"
         )
-        print(f"✓ Captured focus bracket {step_num}/{num_steps} at {focus_pos:.2f} diopters\n")
+        print(f"Captured focus bracket {step_num}/{num_steps} at {focus_pos:.2f} diopters\n")
 
 
 class GPIOHandler:
