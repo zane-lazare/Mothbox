@@ -1479,7 +1479,8 @@ def export_single_json(photo_path: str):
         try:
             fields, exclude = _parse_field_filter_params(request)
         except ValueError as e:
-            return jsonify({"error": str(e)}), 400
+            logger.warning(f"Invalid field filter params: {e}")
+            return jsonify({"error": "Invalid field filter parameters"}), 400
 
         # Get export metadata
         result = service.get_export_metadata(validated_path)
@@ -1605,7 +1606,8 @@ def export_batch_json():
         try:
             fields, exclude = _parse_field_filter_params(request)
         except ValueError as e:
-            return jsonify({"error": str(e)}), 400
+            logger.warning(f"Invalid field filter params: {e}")
+            return jsonify({"error": "Invalid field filter parameters"}), 400
 
         # Collect metadata for all photos
         results = []
@@ -1706,7 +1708,8 @@ def export_deployment_json(deployment_path: str):
         try:
             fields, exclude = _parse_field_filter_params(request)
         except ValueError as e:
-            return jsonify({"error": str(e)}), 400
+            logger.warning(f"Invalid field filter params: {e}")
+            return jsonify({"error": "Invalid field filter parameters"}), 400
 
         # Find all photos in deployment directory
         photo_files = find_photos_in_directory(deployment_dir)
@@ -1936,7 +1939,8 @@ def export_batch_csv():
         try:
             fields, exclude = _parse_field_filter_params(request)
         except ValueError as e:
-            return jsonify({"error": str(e)}), 400
+            logger.warning(f"Invalid field filter params: {e}")
+            return jsonify({"error": "Invalid field filter parameters"}), 400
 
         include_bom = data.get("include_bom", False)
 
@@ -2064,7 +2068,8 @@ def export_deployment_csv(deployment_path: str):
         try:
             fields, exclude = _parse_field_filter_params(request)
         except ValueError as e:
-            return jsonify({"error": str(e)}), 400
+            logger.warning(f"Invalid field filter params: {e}")
+            return jsonify({"error": "Invalid field filter parameters"}), 400
 
         include_bom = request.args.get("include_bom", "false").lower() == "true"
 
@@ -2256,7 +2261,8 @@ def aggregate_photos():
                         return jsonify({"error": f"Invalid photo path: {path_str}"}), 400
                     photo_paths.append(resolved_path)
                 except (ValueError, PermissionError) as e:
-                    return jsonify({"error": f"Invalid photo path: {str(e)}"}), 400
+                    logger.warning(f"Invalid photo path: {e}")
+                    return jsonify({"error": "Invalid photo path"}), 400
 
         elif "filter" in data:
             # Filter provided - collect photos
@@ -2268,7 +2274,8 @@ def aggregate_photos():
             try:
                 job_filter = ExportJobFilter.from_dict(filter_data)
             except Exception as e:
-                return jsonify({"error": f"Invalid filter: {str(e)}"}), 400
+                logger.warning(f"Invalid export filter: {e}")
+                return jsonify({"error": "Invalid filter"}), 400
 
             # Use export job service to collect photos
             # This reuses existing filter logic (date, deployment, tags, series, species)
@@ -2543,7 +2550,8 @@ def create_export_job():
         ), 202
 
     except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning(f"Invalid export job parameters: {e}")
+        return jsonify({"error": "Invalid export job parameters"}), 400
     except Exception as e:
         logger.error("Error creating export job: %s", e, exc_info=True)
         return jsonify({"error": "Failed to create export job"}), 500
@@ -2790,7 +2798,8 @@ def delete_export_job(job_id: str):
         ), 200
 
     except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning(f"Invalid job ID for deletion: {e}")
+        return jsonify({"error": "Invalid job ID"}), 400
     except Exception as e:
         logger.error("Error deleting export job %s: %s", job_id, e, exc_info=True)
         return jsonify({"error": "Failed to delete export job"}), 500
@@ -2839,7 +2848,8 @@ def cancel_export_job(job_id: str):
         ), 200
 
     except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning(f"Invalid job ID for cancellation: {e}")
+        return jsonify({"error": "Invalid job ID"}), 400
     except Exception as e:
         logger.error("Error cancelling export job %s: %s", job_id, e, exc_info=True)
         return jsonify({"error": "Failed to cancel export job"}), 500

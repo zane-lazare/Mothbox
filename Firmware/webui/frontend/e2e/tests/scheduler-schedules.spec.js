@@ -257,7 +257,7 @@ test.describe('Scheduler Schedules', () => {
   // Full CRUD Integration Tests
   // ============================================================
 
-  test('create schedule with valid data and verify in list', async ({ page }) => {
+  test('create schedule with valid data and verify in list', async () => {
     const initialCount = await scheduler.getScheduleCount()
     const testName = scheduler.generateTestScheduleName()
 
@@ -304,7 +304,7 @@ test.describe('Scheduler Schedules', () => {
     }
   })
 
-  test('full CRUD workflow: create, edit, delete', async ({ page }) => {
+  test('full CRUD workflow: create, edit, delete', async () => {
     const testName = scheduler.generateTestScheduleName()
     const updatedName = `${testName}-updated`
 

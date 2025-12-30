@@ -147,7 +147,7 @@ def list_photos():
 
         return jsonify({"photos": photos})
     except Exception as e:
-        print(f"Error in list_photos: {e}")
+        logger.error(f"Error in list_photos: {e}")
         return jsonify({"error": "Failed to list photos"}), 500
 
 
@@ -221,7 +221,7 @@ def get_thumbnail(photo_path):
         # RuntimeError: resolve() failed (e.g., symlink loop)
         return jsonify({"error": "Invalid path"}), 400
     except Exception as e:
-        print(f"Error listing photos: {e}")  # Log server-side only
+        logger.error(f"Error listing photos: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -654,7 +654,7 @@ def cache_warm():
         return jsonify(result)
 
     except Exception as e:
-        print(f"Error starting cache warming: {e}")
+        logger.error(f"Error starting cache warming: {e}")
         return jsonify({"error": "Failed to start cache warming"}), 400
 
 
@@ -683,7 +683,7 @@ def cache_warm_status(task_id=None):
         return jsonify(status)
 
     except Exception as e:
-        print(f"Error getting warming status: {e}")
+        logger.error(f"Error getting warming status: {e}")
         return jsonify({"error": "Failed to get warming status"}), 400
 
 
@@ -700,7 +700,7 @@ def cache_warm_cancel(task_id):
         return jsonify(result)
 
     except Exception as e:
-        print(f"Error cancelling cache warming: {e}")  # Log server-side only
+        logger.error(f"Error cancelling cache warming: {e}")
         return jsonify({"error": "Failed to cancel warming task"}), 400
 
 

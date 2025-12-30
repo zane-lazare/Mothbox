@@ -474,10 +474,10 @@ def create_schedule(json_data: dict) -> tuple[Response, int]:
         try:
             schedule = Schedule.from_dict(json_data)
         except KeyError as e:
-            logger.debug(f"Missing required field in schedule: {e}")
+            logger.warning(f"Missing required field in schedule: {e}")
             return jsonify(
                 {
-                    "error": f"Missing required field: {e}",
+                    "error": "Missing required field in schedule",
                 }
             ), 400
         except Exception as e:
@@ -1204,10 +1204,11 @@ def validate_pattern_endpoint() -> tuple[Response, int]:
         try:
             pattern = EventPattern.from_dict(data)
         except KeyError as e:
+            logger.warning(f"Missing required field in pattern: {e}")
             return jsonify(
                 {
                     "valid": False,
-                    "error": f"Missing required field: {e}",
+                    "error": "Missing required field in pattern",
                 }
             ), 400
         except Exception as e:

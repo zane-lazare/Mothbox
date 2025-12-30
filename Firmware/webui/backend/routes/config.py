@@ -1,6 +1,7 @@
 """Configuration management endpoints"""
 
 import csv
+import logging
 import shutil
 from collections.abc import Callable
 from typing import Any
@@ -29,6 +30,8 @@ from mothbox_paths import (
     SCHEDULE_SETTINGS_FILE,
     get_control_values,
 )
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # Converter Factory Functions
@@ -122,6 +125,8 @@ ALLOWED_CONTROLS = {
     "flash_duration_ms": lambda v: str(v).isdigit()
     and 50 <= int(v) <= 5000,  # 50ms to 5s flash duration
     "jpeg_quality": lambda v: str(v).isdigit() and 50 <= int(v) <= 100,  # JPEG quality 50-100
+    "log_level": lambda v: str(v).upper() in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+    "log_retention_days": lambda v: str(v).isdigit() and 1 <= int(v) <= 90,
 }
 
 
@@ -131,8 +136,9 @@ def get_controls():
     try:
         controls = get_control_values(CONTROLS_FILE)
         return jsonify(controls)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to get controls")
+        return jsonify({"error": "Failed to get controls"}), 500
 
 
 @config_bp.route("/controls", methods=["POST"])
@@ -170,15 +176,15 @@ def update_controls():
                 f.write(f"{key}={value}\n")
 
         return jsonify({"success": True})
-    except Exception as e:
+    except Exception:
         # Restore backup if write failed
         if backup_path and backup_path.exists():
             try:
                 shutil.copy2(backup_path, CONTROLS_FILE)
-                print(f"Restored backup from {backup_path} after error")
+                logger.info(f"Restored backup from {backup_path} after error")
             except Exception as restore_error:
-                print(f"Failed to restore backup: {restore_error}")
-        return jsonify({"error": str(e)}), 500
+                logger.error(f"Failed to restore backup: {restore_error}")
+        return jsonify({"error": "Failed to update controls"}), 500
 
 
 @config_bp.route("/schedule", methods=["GET"])
@@ -193,8 +199,9 @@ def get_schedule_settings():
                 break
 
         return jsonify(settings)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to get schedule settings")
+        return jsonify({"error": "Failed to get schedule settings"}), 500
 
 
 @config_bp.route("/schedule", methods=["POST"])
@@ -230,15 +237,15 @@ def update_schedule_settings():
             writer.writerow(sanitized_settings)
 
         return jsonify({"success": True})
-    except Exception as e:
+    except Exception:
         # Restore backup if write failed
         if backup_path and backup_path.exists():
             try:
                 shutil.copy2(backup_path, SCHEDULE_SETTINGS_FILE)
-                print(f"Restored backup from {backup_path} after error")
+                logger.info(f"Restored backup from {backup_path} after error")
             except Exception as restore_error:
-                print(f"Failed to restore backup: {restore_error}")
-        return jsonify({"error": str(e)}), 500
+                logger.error(f"Failed to restore backup: {restore_error}")
+        return jsonify({"error": "Failed to update schedule settings"}), 500
 
 
 def safe_convert(value: Any, converter: Callable, default: Any) -> Any:
@@ -342,8 +349,9 @@ def get_webui_settings():
                         defaults[key] = safe_convert(settings[key], int, defaults[key])
 
         return jsonify(defaults)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to get webui settings")
+        return jsonify({"error": "Failed to get webui settings"}), 500
 
 
 @config_bp.route("/webui", methods=["POST"])
@@ -688,15 +696,15 @@ def update_webui_settings():
             f.write(f"focus_peaking_algorithm={focus_peaking_algorithm}\n")
 
         return jsonify({"success": True})
-    except Exception as e:
+    except Exception:
         # Restore backup if write failed
         if backup_path and backup_path.exists():
             try:
                 shutil.copy2(backup_path, LIVEVIEW_SETTINGS_FILE)
-                print(f"Restored backup from {backup_path} after error")
+                logger.info(f"Restored backup from {backup_path} after error")
             except Exception as restore_error:
-                print(f"Failed to restore backup: {restore_error}")
-        return jsonify({"error": str(e)}), 500
+                logger.error(f"Failed to restore backup: {restore_error}")
+        return jsonify({"error": "Failed to update webui settings"}), 500
 
 
 @config_bp.route("/copy-settings", methods=["POST"])
@@ -722,7 +730,7 @@ def copy_settings():
                 {"error": 'direction must be "preview_to_capture" or "capture_to_preview"'}
             ), 400
 
-        print(f"Copy settings requested: {direction}")
+        logger.info(f"Copy settings requested: {direction}")
 
         # Use centralized mapping from camera_control_mapping.py
         # This eliminates local duplicate mapping table
@@ -830,7 +838,7 @@ def copy_settings():
                 writer.writeheader()
                 writer.writerows(csv_rows)
 
-            print(f"Copied {len(copied)} settings to capture: {copied}")
+            logger.info(f"Copied {len(copied)} settings to capture: {copied}")
 
         elif direction == "capture_to_preview":
             # Read capture settings (row-based CSV format)
@@ -894,7 +902,7 @@ def copy_settings():
                     else:
                         f.write(f"{key}={value}\n")
 
-            print(f"Copied settings to live view: {copied}")
+            logger.info(f"Copied settings to live view: {copied}")
 
         return jsonify(
             {
@@ -907,9 +915,6 @@ def copy_settings():
             }
         )
 
-    except Exception as e:
-        import traceback
-
-        print(f"Copy settings error: {e}")
-        print(traceback.format_exc())
-        return jsonify({"success": False, "error": str(e)}), 500
+    except Exception:
+        logger.exception("Copy settings error")
+        return jsonify({"success": False, "error": "Failed to copy settings"}), 500

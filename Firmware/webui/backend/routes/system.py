@@ -1,5 +1,6 @@
 """System status and monitoring endpoints"""
 
+import logging
 import shutil
 import threading
 import time
@@ -25,6 +26,8 @@ from mothbox_paths import (
     get_gpio_pins,
     get_hardware_config,
 )
+
+logger = logging.getLogger(__name__)
 
 system_bp = Blueprint("system", __name__)
 
@@ -73,7 +76,7 @@ def _get_cached_photo_count():
 
             return count
         except Exception as e:
-            print(f"Warning: Failed to count photos: {e}")
+            logger.warning(f"Failed to count photos: {e}")
             # Return cached value if available, otherwise 0
             return _photo_count_cache["count"] if _photo_count_cache["count"] is not None else 0
 
@@ -137,7 +140,7 @@ def get_system_status():
             }
         )
     except Exception as e:
-        print(f"Error getting storage info: {e}")
+        logger.error(f"Error getting storage info: {e}")
         return jsonify({"error": "Failed to get storage info"}), 500
 
 
@@ -228,7 +231,7 @@ def get_power_status():
             }
         )
     except Exception as e:
-        print(f"Error getting power status: {e}")
+        logger.error(f"Error getting power status: {e}")
         return jsonify({"error": "Failed to get power status"}), 500
 
 
@@ -263,8 +266,8 @@ def get_system_info():
 
         # Log full traceback server-side for debugging
         # Server logs are only accessible to administrators
-        print("Error in /api/system/info:")
-        print(traceback.format_exc())
+        logger.error("Error in /api/system/info:")
+        logger.error(traceback.format_exc())
 
         # Build error response - never include traceback in API response
         # Tracebacks reveal internal paths, versions, and code structure
@@ -362,8 +365,8 @@ def get_diagnostic_info():
         import traceback
 
         # Log full traceback server-side for debugging
-        print("Error in /api/system/diagnostic:")
-        print(traceback.format_exc())
+        logger.error("Error in /api/system/diagnostic:")
+        logger.error(traceback.format_exc())
 
         # Return generic error - traceback already logged server-side
         return jsonify({"error": "Failed to get diagnostic info"}), 500

@@ -1,6 +1,7 @@
 """GPS module control endpoints"""
 
 import fcntl
+import logging
 import subprocess
 import threading
 import time
@@ -9,6 +10,8 @@ import time
 from flask import Blueprint, jsonify, request
 
 from mothbox_paths import CONTROLS_FILE, get_control_values, get_hardware_config, get_script_path
+
+logger = logging.getLogger(__name__)
 
 gps_bp = Blueprint("gps", __name__)
 
@@ -180,8 +183,9 @@ def get_gps_status():
         # Use cached status to reduce file I/O
         status = _get_cached_gps_status()
         return jsonify(status)
-    except Exception as e:
-        return jsonify({"error": "Failed to get GPS status", "message": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to get GPS status")
+        return jsonify({"error": "Failed to get GPS status"}), 500
 
 
 @gps_bp.route("/config", methods=["GET"])
@@ -215,8 +219,9 @@ def get_gps_config():
                 "timeout_almanac": hw_config["gps_timeout_almanac"],
             }
         )
-    except Exception as e:
-        return jsonify({"error": "Failed to get GPS configuration", "message": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to get GPS configuration")
+        return jsonify({"error": "Failed to get GPS configuration"}), 500
 
 
 @gps_bp.route("/config", methods=["PUT"])
@@ -323,8 +328,9 @@ def update_gps_config():
                         "message": f"Sudo command failed: {str(e)}. Check WebUI has sudo permissions.",
                     }
                 ), 500
-            except Exception as e:
-                return jsonify({"error": "Failed to restart GPS service", "message": str(e)}), 500
+            except Exception:
+                logger.exception("Failed to restart GPS service")
+                return jsonify({"error": "Failed to restart GPS service"}), 500
 
         return jsonify(
             {
@@ -333,8 +339,9 @@ def update_gps_config():
                 "gpsd_restarted": gpsd_restarted,
             }
         )
-    except Exception as e:
-        return jsonify({"error": "Failed to update GPS configuration", "message": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to update GPS configuration")
+        return jsonify({"error": "Failed to update GPS configuration"}), 500
 
 
 @gps_bp.route("/sync", methods=["POST"])
@@ -389,7 +396,7 @@ def sync_gps():
         # Add 20 seconds overhead for subprocess execution
         timeout = gps_timeout + 20
 
-        print(f"📡 Running GPS sync: {gps_script} (timeout: {timeout}s, state: {gps_state})")
+        logger.info(f"Running GPS sync: {gps_script} (timeout: {timeout}s, state: {gps_state})")
 
         # Note: subprocess.run() blocks the Flask worker thread during GPS sync.
         # This is acceptable because:
@@ -436,13 +443,9 @@ def sync_gps():
                 "message": f"GPS sync did not complete within {timeout} seconds",
             }
         ), 408
-    except Exception as e:
-        # Log full traceback for debugging
-        import traceback
-
-        print("❌ GPS sync failed with exception:")
-        print(traceback.format_exc())
-        return jsonify({"error": "GPS sync failed", "message": str(e)}), 500
+    except Exception:
+        logger.exception("GPS sync failed")
+        return jsonify({"error": "GPS sync failed"}), 500
 
 
 def _update_gpsd_config(device, baudrate):
@@ -485,7 +488,7 @@ GPSD_SOCKET="/var/run/gpsd.sock"
 
     try:
         # Write config file (requires sudo)
-        print(f"Updating gpsd configuration: {device} @ {baudrate} baud")
+        logger.info(f"Updating gpsd configuration: {device} @ {baudrate} baud")
         subprocess.run(
             ["sudo", "tee", "/etc/default/gpsd"],
             input=gpsd_config_content,
@@ -495,15 +498,15 @@ GPSD_SOCKET="/var/run/gpsd.sock"
         )
 
         # Restart gpsd service to apply changes
-        print("Restarting gpsd service...")
+        logger.info("Restarting gpsd service...")
         subprocess.run(["sudo", "systemctl", "restart", "gpsd"], check=True)
-        print("✓ gpsd configuration updated and service restarted")
+        logger.info("gpsd configuration updated and service restarted")
 
     except subprocess.CalledProcessError as e:
-        print(f"✗ Failed to update gpsd configuration: {e}")
+        logger.error(f"Failed to update gpsd configuration: {e}")
         raise
     except Exception as e:
-        print(f"✗ Unexpected error updating gpsd: {e}")
+        logger.error(f"Unexpected error updating gpsd: {e}")
         raise
 
 
