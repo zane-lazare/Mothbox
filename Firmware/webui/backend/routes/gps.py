@@ -183,8 +183,9 @@ def get_gps_status():
         # Use cached status to reduce file I/O
         status = _get_cached_gps_status()
         return jsonify(status)
-    except Exception as e:
-        return jsonify({"error": "Failed to get GPS status", "message": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to get GPS status")
+        return jsonify({"error": "Failed to get GPS status"}), 500
 
 
 @gps_bp.route("/config", methods=["GET"])
@@ -218,8 +219,9 @@ def get_gps_config():
                 "timeout_almanac": hw_config["gps_timeout_almanac"],
             }
         )
-    except Exception as e:
-        return jsonify({"error": "Failed to get GPS configuration", "message": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to get GPS configuration")
+        return jsonify({"error": "Failed to get GPS configuration"}), 500
 
 
 @gps_bp.route("/config", methods=["PUT"])
@@ -326,8 +328,9 @@ def update_gps_config():
                         "message": f"Sudo command failed: {str(e)}. Check WebUI has sudo permissions.",
                     }
                 ), 500
-            except Exception as e:
-                return jsonify({"error": "Failed to restart GPS service", "message": str(e)}), 500
+            except Exception:
+                logger.exception("Failed to restart GPS service")
+                return jsonify({"error": "Failed to restart GPS service"}), 500
 
         return jsonify(
             {
@@ -336,8 +339,9 @@ def update_gps_config():
                 "gpsd_restarted": gpsd_restarted,
             }
         )
-    except Exception as e:
-        return jsonify({"error": "Failed to update GPS configuration", "message": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to update GPS configuration")
+        return jsonify({"error": "Failed to update GPS configuration"}), 500
 
 
 @gps_bp.route("/sync", methods=["POST"])
@@ -439,13 +443,9 @@ def sync_gps():
                 "message": f"GPS sync did not complete within {timeout} seconds",
             }
         ), 408
-    except Exception as e:
-        # Log full traceback for debugging
-        import traceback
-
-        logger.error("GPS sync failed with exception:")
-        logger.error(traceback.format_exc())
-        return jsonify({"error": "GPS sync failed", "message": str(e)}), 500
+    except Exception:
+        logger.exception("GPS sync failed")
+        return jsonify({"error": "GPS sync failed"}), 500
 
 
 def _update_gpsd_config(device, baudrate):

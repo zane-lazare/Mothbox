@@ -33,8 +33,9 @@ def get_preferences():
     try:
         prefs = preferences_manager.get_preferences()
         return jsonify(prefs)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to get preferences")
+        return jsonify({"error": "Failed to get preferences"}), 500
 
 
 @preferences_bp.route("", methods=["POST"], strict_slashes=False)
@@ -82,12 +83,9 @@ def set_preference():
         else:
             return jsonify({"error": f'Failed to set preference "{key}"'}), 400
 
-    except Exception as e:
-        import traceback
-
-        logger.error(f"Error setting preference: {e}")
-        logger.error(traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Error setting preference")
+        return jsonify({"error": "Failed to set preference"}), 500
 
 
 @preferences_bp.route("/reset", methods=["POST"])
@@ -106,8 +104,9 @@ def reset_preferences():
         else:
             return jsonify({"error": "Failed to reset preferences"}), 500
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Error resetting preferences")
+        return jsonify({"error": "Failed to reset preferences"}), 500
 
 
 @preferences_bp.route("/validate", methods=["POST"])
@@ -145,9 +144,6 @@ def validate_preferences():
                 }
             )
 
-    except Exception as e:
-        import traceback
-
-        logger.error(f"Error validating preferences: {e}")
-        logger.error(traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Error validating preferences")
+        return jsonify({"error": "Failed to validate preferences"}), 500
