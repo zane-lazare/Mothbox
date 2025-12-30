@@ -320,10 +320,10 @@ class TestSearchEndpoint(TestSearchAPIEndpoints):
 
         response = client.get('/api/photos/search?q=moth')
 
+        # Verify: 500 status with generic error (no info disclosure)
         assert response.status_code == 500
         data = json.loads(response.data)
         assert data['error'] == 'Search failed'
-        assert 'Database error' in data['message']
 
 
 class TestSearchStatsEndpoint(TestSearchAPIEndpoints):
@@ -386,10 +386,10 @@ class TestSearchStatsEndpoint(TestSearchAPIEndpoints):
 
         response = client.get('/api/photos/search/stats')
 
+        # Verify: 500 status with generic error (no info disclosure)
         assert response.status_code == 500
         data = json.loads(response.data)
         assert data['error'] == 'Failed to get statistics'
-        assert 'Stats error' in data['message']
 
 
 class TestRebuildEndpoint(TestSearchAPIEndpoints):
@@ -456,10 +456,10 @@ class TestRebuildEndpoint(TestSearchAPIEndpoints):
 
         response = client.post('/api/photos/search/rebuild')
 
+        # Verify: 500 status with generic error (no info disclosure)
         assert response.status_code == 500
         data = json.loads(response.data)
         assert data['error'] == 'Index rebuild failed'
-        assert 'Rebuild failed' in data['message']
 
 
 class TestSyncEndpoint(TestSearchAPIEndpoints):
@@ -561,10 +561,10 @@ class TestSyncEndpoint(TestSearchAPIEndpoints):
 
         response = client.post('/api/photos/search/sync')
 
+        # Verify: 500 status with generic error (no info disclosure)
         assert response.status_code == 500
         data = json.loads(response.data)
         assert data['error'] == 'Index sync failed'
-        assert 'Sync failed' in data['message']
 
 
 class TestSearchFieldQueries(TestSearchAPIEndpoints):
