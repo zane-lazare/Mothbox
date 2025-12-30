@@ -1270,3 +1270,392 @@ class TestScheduleWithCronTrigger:
         restored = Schedule.from_dict(data)
         assert restored.trigger_type == "cron"
         assert restored.cron_trigger.cron_expression == "0 */2 * * *"
+
+
+# =============================================================================
+# FRONTEND FORMAT CONVERSION TESTS (Issue #280)
+# =============================================================================
+
+
+class TestScheduleFromDictFrontendFormat:
+    """Test Schedule.from_dict() with frontend JSON format conversion."""
+
+    def test_is_frontend_format_with_trigger_object(self):
+        """Returns True when 'trigger' key exists."""
+        data = {
+            "name": "Test",
+            "trigger": {"trigger_type": "interval", "interval_minutes": 60},
+        }
+        assert Schedule._is_frontend_format(data) is True
+
+    def test_is_frontend_format_without_trigger_object(self):
+        """Returns False for backend format."""
+        data = {
+            "name": "Test",
+            "trigger_type": "interval",
+            "interval_trigger": {"interval_minutes": 60},
+        }
+        assert Schedule._is_frontend_format(data) is False
+
+    def test_parse_frontend_interval_trigger(self):
+        """Converts flat interval fields."""
+        trigger_data = {
+            "trigger_type": "interval",
+            "interval_minutes": 60,
+            "time_window_start": "21:00",
+            "time_window_end": "05:00",
+            "days_of_week": [0, 1, 2, 3, 4, 5, 6],
+        }
+        result = Schedule._parse_interval_trigger_frontend(trigger_data)
+        assert isinstance(result, IntervalTrigger)
+        assert result.interval_minutes == 60
+        assert result.time_window.start_time == "21:00"
+        assert result.time_window.end_time == "05:00"
+        assert result.days_of_week == [0, 1, 2, 3, 4, 5, 6]
+
+    def test_parse_frontend_solar_trigger(self):
+        """Converts solar trigger."""
+        trigger_data = {
+            "trigger_type": "solar",
+            "solar_event": "sunset",
+            "offset_minutes": 30,
+            "days_of_week": [0, 1, 2, 3, 4],
+        }
+        result = Schedule._parse_solar_trigger_frontend(trigger_data)
+        assert isinstance(result, SolarTrigger)
+        assert result.solar_event == "sunset"
+        assert result.offset_minutes == 30
+        assert result.days_of_week == [0, 1, 2, 3, 4]
+
+    def test_parse_frontend_moon_phase_trigger(self):
+        """Converts moon_phase (string to list)."""
+        trigger_data = {
+            "trigger_type": "moon_phase",
+            "moon_phase": "full",
+            "time_of_day": "21:00",
+            "offset_days": 2,
+        }
+        result = Schedule._parse_moon_phase_trigger_frontend(trigger_data)
+        assert isinstance(result, MoonPhaseTrigger)
+        assert result.phases == ["full"]
+        assert result.offset_days == 2
+        assert result.time_window.start_time == "21:00"
+
+    def test_parse_frontend_fixed_time_trigger(self):
+        """Converts time_of_day to time."""
+        trigger_data = {
+            "trigger_type": "fixed_time",
+            "time_of_day": "21:00",
+            "days_of_week": [0, 1, 2, 3, 4, 5, 6],
+        }
+        result = Schedule._parse_fixed_time_trigger_frontend(trigger_data)
+        assert isinstance(result, FixedTimeTrigger)
+        assert result.time == "21:00"
+        assert result.days_of_week == [0, 1, 2, 3, 4, 5, 6]
+
+    def test_parse_frontend_sensor_trigger(self):
+        """Converts sensor fields."""
+        trigger_data = {
+            "trigger_type": "sensor",
+            "sensor_type": "motion",
+            "threshold": 0.0,
+            "comparison": "gt",
+            "cooldown_minutes": 5,
+        }
+        result = Schedule._parse_sensor_trigger_frontend(trigger_data)
+        assert isinstance(result, SensorTrigger)
+        assert result.sensor_type == "motion"
+        assert result.threshold == 0.0
+        assert result.comparison == "gt"
+        assert result.cooldown_minutes == 5
+
+    def test_parse_frontend_cron_trigger(self):
+        """Converts cron_expression."""
+        trigger_data = {
+            "trigger_type": "cron",
+            "cron_expression": "0 21 * * *",
+        }
+        result = Schedule._parse_cron_trigger_frontend(trigger_data)
+        assert isinstance(result, CronTrigger)
+        assert result.cron_expression == "0 21 * * *"
+
+    def test_from_dict_frontend_interval_full(self, sample_event_pattern):
+        """Full Schedule creation with interval."""
+        data = {
+            "schedule_id": "test-uuid-1234",
+            "name": "My Schedule",
+            "trigger": {
+                "trigger_type": "interval",
+                "interval_minutes": 60,
+                "time_window_start": "21:00",
+                "time_window_end": "05:00",
+                "days_of_week": [0, 1, 2, 3, 4, 5, 6],
+            },
+            "event_patterns": [sample_event_pattern.to_dict()],
+            "date_range": {"start_date": "2024-06-01", "end_date": "2024-08-31"},
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.schedule_id == "test-uuid-1234"
+        assert schedule.name == "My Schedule"
+        assert schedule.trigger_type == "interval"
+        assert schedule.interval_trigger.interval_minutes == 60
+        assert schedule.interval_trigger.time_window.start_time == "21:00"
+        assert schedule.start_date == "2024-06-01"
+        assert schedule.end_date == "2024-08-31"
+
+    def test_from_dict_frontend_solar_full(self, sample_event_pattern):
+        """Full Schedule creation with solar."""
+        data = {
+            "schedule_id": "test-uuid-5678",
+            "name": "Solar Schedule",
+            "trigger": {
+                "trigger_type": "solar",
+                "solar_event": "sunset",
+                "offset_minutes": 30,
+                "days_of_week": [0, 1, 2, 3, 4],
+            },
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.trigger_type == "solar"
+        assert schedule.solar_trigger.solar_event == "sunset"
+        assert schedule.solar_trigger.offset_minutes == 30
+        assert schedule.solar_trigger.days_of_week == [0, 1, 2, 3, 4]
+
+    def test_from_dict_frontend_with_date_range(self, sample_event_pattern):
+        """Unwraps date_range object."""
+        data = {
+            "name": "Date Range Test",
+            "trigger": {"trigger_type": "interval", "interval_minutes": 60},
+            "event_patterns": [sample_event_pattern.to_dict()],
+            "date_range": {"start_date": "2024-01-01", "end_date": "2024-12-31"},
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.start_date == "2024-01-01"
+        assert schedule.end_date == "2024-12-31"
+
+    def test_from_dict_backend_format_still_works(
+        self, sample_event_pattern, sample_time_window
+    ):
+        """Backward compatibility."""
+        data = {
+            "schedule_id": "backend-uuid",
+            "name": "Backend Format Schedule",
+            "event_patterns": [sample_event_pattern.to_dict()],
+            "trigger_type": "interval",
+            "interval_trigger": {
+                "interval_minutes": 30,
+                "time_window": sample_time_window.to_dict(),
+                "days_of_week": [5, 6],
+            },
+            "start_date": "2024-01-01",
+            "end_date": "2024-12-31",
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.schedule_id == "backend-uuid"
+        assert schedule.name == "Backend Format Schedule"
+        assert schedule.trigger_type == "interval"
+        assert schedule.interval_trigger.interval_minutes == 30
+        assert schedule.start_date == "2024-01-01"
+
+
+class TestFrontendFormatValidation:
+    """Tests for validation of malformed frontend data."""
+
+    # Uses module-level sample_event_pattern fixture
+
+    def test_missing_trigger_type(self, sample_event_pattern):
+        """Empty trigger object should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="trigger_type is required"):
+            Schedule.from_dict(data)
+
+    def test_invalid_trigger_type(self, sample_event_pattern):
+        """Unknown trigger type should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "unknown_type"},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="Unknown trigger_type"):
+            Schedule.from_dict(data)
+
+    def test_missing_interval_minutes(self, sample_event_pattern):
+        """Interval trigger without interval_minutes should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "interval"},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="interval_minutes is required"):
+            Schedule.from_dict(data)
+
+    def test_missing_solar_event(self, sample_event_pattern):
+        """Solar trigger without solar_event should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "solar"},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="solar_event is required"):
+            Schedule.from_dict(data)
+
+    def test_missing_moon_phase(self, sample_event_pattern):
+        """Moon phase trigger without phases should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "moon_phase"},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="moon_phase or phases is required"):
+            Schedule.from_dict(data)
+
+    def test_missing_sensor_type(self, sample_event_pattern):
+        """Sensor trigger without sensor_type should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "sensor"},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="sensor_type is required"):
+            Schedule.from_dict(data)
+
+    def test_missing_cron_expression(self, sample_event_pattern):
+        """Cron trigger without cron_expression should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "cron"},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="cron_expression is required"):
+            Schedule.from_dict(data)
+
+    def test_null_date_range(self, sample_event_pattern):
+        """Null date_range should not cause errors."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "interval", "interval_minutes": 60},
+            "event_patterns": [sample_event_pattern.to_dict()],
+            "date_range": None,
+        }
+        # Should not raise - None date_range is valid
+        schedule = Schedule.from_dict(data)
+        assert schedule.start_date is None
+        assert schedule.end_date is None
+
+    def test_missing_time_of_day(self, sample_event_pattern):
+        """Fixed time trigger without time_of_day should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {
+                "trigger_type": "fixed_time",
+                "days_of_week": [0, 1, 2, 3, 4, 5, 6],
+            },
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="time_of_day is required"):
+            Schedule.from_dict(data)
+
+    def test_moon_phase_empty_string(self, sample_event_pattern):
+        """Empty string moon_phase should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "moon_phase", "moon_phase": ""},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="moon_phase or phases is required"):
+            Schedule.from_dict(data)
+
+    def test_moon_phase_empty_list(self, sample_event_pattern):
+        """Empty list phases should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "moon_phase", "phases": []},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="moon_phase or phases is required"):
+            Schedule.from_dict(data)
+
+    def test_moon_phase_none_value(self, sample_event_pattern):
+        """None moon_phase should raise ValueError."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {"trigger_type": "moon_phase", "moon_phase": None},
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        with pytest.raises(ValueError, match="moon_phase or phases is required"):
+            Schedule.from_dict(data)
+
+    def test_interval_trigger_nested_time_window(self, sample_event_pattern):
+        """Interval trigger with nested time_window format."""
+        data = {
+            "name": "Test Schedule",
+            "trigger": {
+                "trigger_type": "interval",
+                "interval_minutes": 60,
+                "time_window": {"start_time": "21:00", "end_time": "05:00"},
+            },
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.interval_trigger.time_window.start_time == "21:00"
+        assert schedule.interval_trigger.time_window.end_time == "05:00"
+
+    def test_interval_trigger_nested_time_window_takes_priority(self, sample_event_pattern):
+        """Nested time_window object takes priority over flat time_window_start/end fields.
+
+        When both formats are present, the nested object wins. This documents
+        the expected behavior for conflicting inputs.
+        """
+        data = {
+            "name": "Test Schedule",
+            "trigger": {
+                "trigger_type": "interval",
+                "interval_minutes": 60,
+                # Nested object - should take priority
+                "time_window": {"start_time": "20:00", "end_time": "06:00"},
+                # Flat fields - should be ignored
+                "time_window_start": "21:00",
+                "time_window_end": "05:00",
+            },
+            "event_patterns": [sample_event_pattern.to_dict()],
+        }
+        schedule = Schedule.from_dict(data)
+        # Nested object wins
+        assert schedule.interval_trigger.time_window.start_time == "20:00"
+        assert schedule.interval_trigger.time_window.end_time == "06:00"
+
+
+class TestDeepCopyDefensiveProgramming:
+    """Tests that verify deepcopy is used to prevent input mutation."""
+
+    # Uses module-level sample_event_pattern fixture
+
+    def test_from_dict_does_not_mutate_input(self, sample_event_pattern):
+        """Schedule.from_dict should not mutate the input data."""
+        original_trigger = {
+            "trigger_type": "interval",
+            "interval_minutes": 60,
+            "time_window": {"start_time": "20:00", "end_time": "06:00"},
+        }
+        data = {
+            "name": "Test Schedule",
+            "trigger": original_trigger.copy(),
+            "event_patterns": [sample_event_pattern.to_dict()],
+            "date_range": {"start_date": "2025-01-01", "end_date": "2025-12-31"},
+        }
+
+        # Make a deep copy to compare after
+        import copy
+
+        original_data = copy.deepcopy(data)
+
+        # Parse the schedule
+        Schedule.from_dict(data)
+
+        # Input should not be mutated
+        assert data == original_data
