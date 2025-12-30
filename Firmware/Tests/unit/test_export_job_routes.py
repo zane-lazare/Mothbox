@@ -957,10 +957,11 @@ class TestDeleteJob:
 
         response = client.delete("/api/export/jobs/running-job")
 
+        # Verify: 400 status with generic error (no info disclosure)
         assert response.status_code == 400
         data = response.get_json()
         assert "error" in data
-        assert "running" in data["error"].lower()
+        assert data["error"] == "Invalid job ID"
 
 
 # ============================================================================

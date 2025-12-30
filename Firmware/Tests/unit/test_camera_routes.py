@@ -155,11 +155,11 @@ class TestGetCameraSettings:
         # Execute: GET request
         response = client.get('/api/camera/settings')
 
-        # Verify: Error response
+        # Verify: Error response (generic message for security - no path disclosure)
         assert response.status_code == 500
         data = response.get_json()
         assert 'error' in data
-        assert 'No such file' in data['error'] or 'does not exist' in data['error']
+        assert data['error'] == 'Failed to get camera settings'
 
     def test_get_settings_invalid_json(self, client, temp_camera_settings):
         """Handle corrupted settings CSV (not JSON - endpoint reads CSV)"""
@@ -514,11 +514,11 @@ class TestFreezeSettings:
         # Execute: POST request
         response = client.post('/api/camera/freeze-settings')
 
-        # Verify: Error response
+        # Verify: Error response (generic message for security - no path disclosure)
         assert response.status_code == 500
         data = response.get_json()
         assert 'error' in data
-        assert 'No such file' in data['error'] or 'does not exist' in data['error']
+        assert data['error'] == 'Failed to freeze settings'
 
         # Verify: Camera was still cleaned up
         mock_instance = mock_picamera2._mock_instance
