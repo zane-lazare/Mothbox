@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from gps import *
+from gps import *  # noqa: F403 - gpsd library requires these exports
 from timezonefinder import TimezoneFinder
 
 from mothbox_paths import CONTROLS_FILE, get_control_values, get_hardware_config
@@ -29,9 +29,9 @@ hw_config = get_hardware_config()
 
 if not hw_config["gps_enabled"]:
     logger.info("GPS disabled in configuration")
-    quit()
+    sys.exit(0)
 
-gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
+gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)  # noqa: F405
 UTCtime = None
 latitude = None
 longitude = None
