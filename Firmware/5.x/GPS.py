@@ -5,6 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import fcntl
+import logging
 import os
 import select
 import time
@@ -16,11 +17,18 @@ from timezonefinder import TimezoneFinder
 
 from mothbox_paths import CONTROLS_FILE, get_control_values, get_hardware_config
 
+# Configure logging for standalone script execution
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 # Load hardware configuration
 hw_config = get_hardware_config()
 
 if not hw_config["gps_enabled"]:
-    print("GPS disabled in configuration")
+    logger.info("GPS disabled in configuration")
     quit()
 
 gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
@@ -140,7 +148,7 @@ def update_gps_values(
                     if key in updates:
                         updated_lines.append(f"{key}={updates[key]}\n")
                         updated_keys.add(key)
-                        print(f"Updated {key}={updates[key]}")
+                        logger.debug(f"Updated {key}={updates[key]}")
                     else:
                         updated_lines.append(line)
                 else:
@@ -151,7 +159,7 @@ def update_gps_values(
                 if key not in updated_keys:
                     updated_lines.append(f"{key}={value}\n")
                     # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
-                    print(f"Added {key}={value}")
+                    logger.debug(f"Added {key}={value}")
 
             # Write back to file
             f.seek(0)
@@ -164,7 +172,7 @@ def update_gps_values(
             fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
-print("startingGPS")
+logger.info("startingGPS")
 got_gps_fix = False
 UTCtime = None
 latitude = None
@@ -191,7 +199,7 @@ try:
                 UTCtime = getattr(report, "time", "")
                 fix_mode = getattr(report, "mode", 0)
                 # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
-                print(
+                logger.debug(
                     f"TPV: {latitude}\t{longitude}\t{UTCtime}\t"
                     f"alt={getattr(report, 'alt', 'nan')}\t"
                     f"mode={fix_mode}\t"
@@ -205,34 +213,34 @@ try:
                 satellites_used = getattr(report, "uSat", 0)
                 hdop = getattr(report, "hdop", 99.99)
                 pdop = getattr(report, "pdop", 99.99)
-                print(
+                logger.debug(
                     f"SKY: nSat={satellites_visible}, uSat={satellites_used}, "
                     f"HDOP={hdop:.2f}, PDOP={pdop:.2f}"
                 )
         else:
-            print("Waiting for GPS data...")
+            logger.debug("Waiting for GPS data...")
         time.sleep(1)
-    print("Finished Looking for GPS. GPS device found = " + str(got_gps_fix))
+    logger.info("Finished Looking for GPS. GPS device found = " + str(got_gps_fix))
     if UTCtime:
         try:
             dt = datetime.strptime(UTCtime, "%Y-%m-%dT%H:%M:%S.%fZ")
         except ValueError:
             dt = datetime.strptime(UTCtime, "%Y-%m-%dT%H:%M:%SZ")
         epoch_time = int(dt.timestamp())
-        print("Epoch time:", epoch_time)
+        logger.info("Epoch time:", epoch_time)
 
         # Set system UTC time
         formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S")
         os.system(f'sudo date -u -s "{formatted_time}"')  # nosec B605 - GPS time from hardware, validated by strptime
-        print("sync HW clock with system clock")
+        logger.info("sync HW clock with system clock")
         os.system("sudo hwclock -w")  # nosec B605 - Hardcoded system command
-        print("System UTC time set.")
+        logger.info("System UTC time set.")
 
         # Use offline timezone lookup
         if latitude is not None and longitude is not None:
             timezone = tf.timezone_at(lat=latitude, lng=longitude)
             if timezone:
-                print("Setting system timezone to:", timezone)
+                logger.info("Setting system timezone to:", timezone)
                 os.system(f"sudo timedatectl set-timezone {timezone}")  # nosec B605 - Timezone from timezonefinder library lookup
 
                 # Now calculate the UTC offset
@@ -240,7 +248,7 @@ try:
 
                 local_time = datetime.now(ZoneInfo(timezone))
                 utc_offset_hours = int(local_time.utcoffset().total_seconds() // 3600)
-                print("UTC Offset (hours):", utc_offset_hours)
+                logger.info("UTC Offset (hours):", utc_offset_hours)
 
                 # Atomically update all GPS values in one locked operation
                 update_gps_values(
@@ -256,8 +264,8 @@ try:
                     pdop=pdop,
                 )
             else:
-                print("Could not determine timezone from coordinates.")
-                print(f"Writing coordinates anyway: lat={latitude}, lon={longitude}")
+                logger.warning("Could not determine timezone from coordinates.")
+                logger.info(f"Writing coordinates anyway: lat={latitude}, lon={longitude}")
                 # Still write coordinates even if timezone lookup fails
                 # Use default UTC offset of 0 since we couldn't determine it
                 update_gps_values(
@@ -274,7 +282,7 @@ try:
                 )
         else:
             # GPS has time fix but no position fix
-            print("No position fix - time only")
+            logger.info("No position fix - time only")
             update_gps_values(
                 str(CONTROLS_FILE),
                 lat="n/a",
@@ -288,7 +296,7 @@ try:
             )
 
     else:
-        print("No UTC time received before timeout")
+        logger.info("No UTC time received before timeout")
         update_gps_values(
             str(CONTROLS_FILE),
             lat="n/a",
@@ -302,4 +310,4 @@ try:
 
 
 except (KeyboardInterrupt, SystemExit):
-    print("Done.\nExiting.")
+    logger.info("Done.\nExiting.")

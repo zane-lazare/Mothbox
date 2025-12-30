@@ -20,3 +20,6 @@ pytz  # Required by solar_time for timezone handling
 
 # Cron expression iteration for RTC wakealarm (Issue #215)
 croniter>=1.3.0
+
+# Colored console logging output (Issue #37)
+coloredlogs>=15.0

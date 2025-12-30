@@ -37,6 +37,13 @@ from crontab import CronTab
 
 from mothbox_paths import CONTROLS_FILE, SCHEDULE_SETTINGS_FILE, WORDLIST_FILE, get_script_path
 
+# Configure logging for standalone script execution
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 # -----Scheduler Functions-------------------
 
 
@@ -47,24 +54,24 @@ def determinePiModel():
     themodel = None
 
     for line in cpuinfo:
-        # print(line)
+        # logger.debug(line)
         if line.startswith("Model"):
             model = line.split(":")[1].strip()
             break
     cpuinfo.close()
 
     # Execute function based on model
-    print(model)
+    logger.info(model)
     if model:  # Check if model was found
         if "Pi 4" in model:  # Model identifier for Raspberry Pi 4
             themodel = 4
         elif "Pi 5" in model:  # Model identifier for Raspberry Pi 5
             themodel = 5
         else:
-            print("Unknown Raspberry Pi model detected. Going to treat as model 5")
+            logger.warning("Unknown Raspberry Pi model detected. Going to treat as model 5")
             themodel = 5
     else:
-        print("Error: Could not read Raspberry Pi model information.")
+        logger.error("Error: Could not read Raspberry Pi model information.")
         themodel = 5
     return themodel
 
@@ -177,10 +184,10 @@ def set_computerName(filepath, compname):
 
     with open(filepath, "w") as file:
         for line in lines:
-            print(line)
+            logger.debug(line)
             if line.startswith("name"):
                 file.write("name=" + str(compname) + "\n")  # Replace with False
-                print("set name " + compname)
+                logger.info("set name " + compname)
             else:
                 file.write(line)  # Keep other lines unchanged
 
@@ -191,10 +198,10 @@ def set_UTCinControls(filepath, utcoff):
 
     with open(filepath, "w") as file:
         for line in lines:
-            print(line)
+            logger.debug(line)
             if line.startswith("UTCoff="):
                 file.write("UTCoff=" + str(utcoff) + "\n")  # Replace with False
-                print("set next UTC offset in controls " + str(utcoff))
+                logger.info("set next UTC offset in controls " + str(utcoff))
             else:
                 file.write(line)  # Keep other lines unchanged
 
@@ -205,10 +212,10 @@ def set_nextWakeinControls(filepath, etime):
 
     with open(filepath, "w") as file:
         for line in lines:
-            print(line)
+            logger.debug(line)
             if line.startswith("nextWake"):
                 file.write("nextWake=" + str(etime) + "\n")  # Replace with False
-                print("set next wake in controls " + str(etime))
+                logger.info("set next wake in controls " + str(etime))
             else:
                 file.write(line)  # Keep other lines unchanged
 
@@ -219,19 +226,19 @@ def set_timings(filepath, mins, hours, weekdays, runtimes):
 
     with open(filepath, "w") as file:
         for line in lines:
-            print(line)
+            logger.debug(line)
             if line.startswith("hours"):
                 file.write("hours=" + str(hours) + "\n")  # Replace with False
-                print("set hours " + hours)
+                logger.info("set hours " + hours)
             elif line.startswith("weekdays"):
                 file.write("weekdays=" + str(weekdays) + "\n")  # Replace with False
-                print("set weekdays " + weekdays)
+                logger.info("set weekdays " + weekdays)
             elif line.startswith("runtime"):
                 file.write("runtime=" + str(runtimes) + "\n")  # Replace with False
-                print("set runtime " + runtimes)
+                logger.info("set runtime " + runtimes)
             elif line.startswith("minutes"):
                 file.write("minutes=" + str(mins) + "\n")  # Replace with False
-                print("set mins " + mins)
+                logger.info("set mins " + mins)
             else:
                 file.write(line)  # Keep other lines unchanged
 
@@ -328,10 +335,10 @@ def load_settings(filename):
     for path in external_media_paths:
         file_path = find_file(path, "schedule_settings.csv", depth=search_depth)
         if file_path:
-            print(f"Found settings on external media: {file_path}")
+            logger.info(f"Found settings on external media: {file_path}")
             break
         else:
-            print("No external settings, using internal csv")
+            logger.info("No external settings, using internal csv")
             file_path = default_path
 
     global runtime, utc_off, ssid, wifipass, newwifidetected, onlyflash
@@ -358,13 +365,13 @@ def load_settings(filename):
                 ):
                     # value=int(value)
                     value = value
-                    print(setting + value)
+                    logger.debug(setting + value)
                     # value = getattr(controls.AwbModeEnum, value)  # Access enum value
                     # Assuming AwbMode is a string representing an enum value
                     # pass  # No conversion needed for string
                 elif setting == "runtime":
                     runtime = int(value)
-                    print(runtime)
+                    logger.debug(runtime)
                 elif setting == "utc_off":
                     utc_off = int(value)
                 elif setting == "ssid":
@@ -376,14 +383,14 @@ def load_settings(filename):
                 elif setting == "onlyflash":
                     onlyflash = int(value)
                 else:
-                    print(f"Warning: Unknown setting: {setting}. Ignoring.")
+                    logger.warning(f"Warning: Unknown setting: {setting}. Ignoring.")
 
                 settings[setting] = value
 
         return settings
 
     except FileNotFoundError:
-        print(f"Error: CSV file not found: {filename}")
+        logger.error(f"Error: CSV file not found: {filename}")
         return None
 
 
@@ -412,18 +419,18 @@ def schedule_shutdown(minutes):
             control_values = get_control_values(str(CONTROLS_FILE))
             shutdown_enabled = control_values.get("shutdown_enabled", "True").lower() == "true"
             if not shutdown_enabled:
-                print("Shutdown scheduling stopped.")
+                logger.info("Shutdown scheduling stopped.")
                 break
 
             schedule.run_pending()
             time.sleep(1)
     except KeyboardInterrupt:
-        print("Shutdown scheduling stopped.")
+        logger.info("Shutdown scheduling stopped.")
 
 
 def run_shutdown_pi4():
-    """Executes the 'TurnEverythingOff.py' script."""
-    print("about to launch the shutdown")
+    """Executes the TurnEverythingOff.py script."""
+    logger.info("about to launch the shutdown")
     subprocess.run(["python", str(get_script_path("TurnEverythingOff.py"))])
 
 
@@ -431,8 +438,8 @@ def run_shutdown_pi5():
     """
     Shut down the raspberry pi
     """
-    print("about to launch the shutdown")
-    print("but we are running ONE LAST WAKEUP SCHEDULER")
+    logger.info("about to launch the shutdown")
+    logger.info("but we are running ONE LAST WAKEUP SCHEDULER")
 
     # SCHEDULE WAKEUP AGAIN FOR SECURITY
     settings = load_settings(str(SCHEDULE_SETTINGS_FILE))
@@ -441,7 +448,7 @@ def run_shutdown_pi5():
     if "utc_off" in settings:
         del settings["utc_off"]
 
-    print(settings)
+    logger.debug(settings)
 
     # don't need to modify the hours to UTC like we do for pijuice
     # Build Cron expression
@@ -465,34 +472,34 @@ def run_shutdown_pi5():
         + " "
         + str(settings["weekday"])
     )
-    print(cron_expression)
+    logger.info(cron_expression)
     next_epoch_time = calculate_next_event(cron_expression)
 
     # Clear existing wakeup alarm (assuming sudo access)
     clear_wakeup_alarm()
 
-    print(
+    logger.info(
         f"Next wakeup event scheduled for: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(next_epoch_time))}"
     )
     set_wakeup_alarm(next_epoch_time)
-    print("Wakeup Alarms have been set!")
+    logger.info("Wakeup Alarms have been set!")
 
     # GPS check / 10 second delay
-    print("Checking GPS (if available) for 10 seconds")
+    logger.info("Checking GPS (if available) for 10 seconds")
     process = subprocess.Popen(
         ["python", str(get_script_path("GPS.py"))], stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
     stdout, stderr = process.communicate()
     if stderr:
-        print(f"Error running script: {stderr.decode()}")
+        logger.error(f"Error running script: {stderr.decode()}")
     else:
-        print(stdout.decode())
+        logger.info(stdout.decode())
 
     # Epaper
     # Update the Epaper screen if it is available
     GPIO.cleanup()
 
-    print("Updating Epaper display before shutdown (if available)")
+    logger.info("Updating Epaper display before shutdown (if available)")
     process = subprocess.Popen(
         ["python", str(get_script_path("UpdateDisplay.py"))],
         stdout=subprocess.PIPE,
@@ -500,12 +507,12 @@ def run_shutdown_pi5():
     )
     stdout, stderr = process.communicate()
     if stderr:
-        print(f"Error running script: {stderr.decode()}")
+        logger.error(f"Error running script: {stderr.decode()}")
     else:
-        print(stdout.decode())
+        logger.info(stdout.decode())
 
     # Give it an extra second in case details need to sink in
-    print("shutting down in 3 seconds")
+    logger.info("shutting down in 3 seconds")
     time.sleep(3)
 
     # subprocess.run(["python", "/home/pi/Desktop/Mothbox/TurnEverythingOff.py"])
@@ -516,8 +523,8 @@ def run_shutdown_pi5_FAST():
     """
     Shut down the raspberry pi
     """
-    print("Fast shutdown!")
-    print("but we are running ONE LAST WAKEUP SCHEDULER")
+    logger.info("Fast shutdown!")
+    logger.info("but we are running ONE LAST WAKEUP SCHEDULER")
     # Stop big lights from turning on!
     debug_script_path = str(get_script_path("DebugMode.py"))
     # Call the script using subprocess.run
@@ -530,7 +537,7 @@ def run_shutdown_pi5_FAST():
     if "utc_off" in settings:
         del settings["utc_off"]
 
-    # print(settings)
+    # logger.debug(settings)
 
     # don't need to modify the hours to UTC like we do for pijuice
     # Build Cron expression
@@ -554,23 +561,23 @@ def run_shutdown_pi5_FAST():
         + " "
         + str(settings["weekday"])
     )
-    # print(cron_expression)
+    # logger.debug(cron_expression)
     next_epoch_time = calculate_next_event(cron_expression)
 
     # Clear existing wakeup alarm (assuming sudo access)
     clear_wakeup_alarm()
 
-    print(
+    logger.info(
         f"Next wakeup event scheduled for: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(next_epoch_time))}"
     )
     set_wakeup_alarm(next_epoch_time)
-    print("Wakeup Alarms have been set!")
+    logger.info("Wakeup Alarms have been set!")
 
     # Epaper
     # Update the Epaper screen if it is available
     GPIO.cleanup()
 
-    print("Updating Epaper display before shutdown (if available)")
+    logger.info("Updating Epaper display before shutdown (if available)")
     process = subprocess.Popen(
         ["python", str(get_script_path("UpdateDisplay.py"))],
         stdout=subprocess.PIPE,
@@ -578,9 +585,9 @@ def run_shutdown_pi5_FAST():
     )
     stdout, stderr = process.communicate()
     if stderr:
-        print(f"Error running script: {stderr.decode()}")
+        logger.error(f"Error running script: {stderr.decode()}")
     else:
-        print(stdout.decode())
+        logger.info(stdout.decode())
 
     # subprocess.run(["python", "/home/pi/Desktop/Mothbox/TurnEverythingOff.py"])
     os.system("sudo shutdown -h now")
@@ -593,10 +600,10 @@ def enable_shutdown():
 
     with open(str(CONTROLS_FILE), "w") as file:
         for line in lines:
-            # print(line)
+            # logger.debug(line)
             if line.startswith("shutdown_enabled="):
                 file.write("shutdown_enabled=True\n")  # Replace with False
-                print("enabling shutown in controls.txt")
+                logger.info("enabling shutown in controls.txt")
             else:
                 file.write(line)  # Keep other lines unchanged
 
@@ -608,11 +615,11 @@ def enable_onlyflash():
 
     with open(str(CONTROLS_FILE), "w") as file:
         for line in lines:
-            # print(line)
+            # logger.debug(line)
             if line.startswith("OnlyFlash="):
                 if onlyflash == 1:
                     file.write("OnlyFlash=True\n")  # Replace with False
-                    print("enabling onlyflash attraction controls.txt")
+                    logger.info("enabling onlyflash attraction controls.txt")
                 else:
                     file.write("OnlyFlash=False\n")  # Replace with False
 
@@ -622,7 +629,7 @@ def enable_onlyflash():
 
 def stopcron():
     """Executes the StopCron.py script."""
-    print("stopping cron, you need to enable it yourself if needed, or reboot")
+    logger.info("stopping cron, you need to enable it yourself if needed, or reboot")
     subprocess.run(["python", str(get_script_path("StopCron.py"))])
 
 
@@ -637,9 +644,9 @@ def add_wifi_credentials(ssid, password):
     command = ["nmcli", "dev", "wifi", "connect", ssid, "password", password]
     try:
         subprocess.run(command, check=True)
-        print(f"Successfully added WiFi network: {ssid}")
+        logger.info(f"Successfully added WiFi network: {ssid}")
     except subprocess.CalledProcessError as error:
-        print(f"Failed to connect to WiFi network: {ssid}. Error: {error}")
+        logger.error(f"Failed to connect to WiFi network: {ssid}. Error: {error}")
 
 
 def modify_hours(data, offsett_value, key="hour"):
@@ -715,7 +722,7 @@ def set_wakeup_alarm(epoch_time):
     set_nextWakeinControls(str(CONTROLS_FILE), epoch_time)
 
 
-print("----------------- STARTING Scheduler!-------------------")
+logger.info("----------------- STARTING Scheduler!-------------------")
 
 
 # First figure out if this is a Pi4 or a Pi5
@@ -727,7 +734,7 @@ rpiModel = determinePiModel()
 now = datetime.now()
 formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")  # Adjust the format as needed
 
-print(f"Current time: {formatted_time} on a RPi model " + str(rpiModel))
+logger.info(f"Current time: {formatted_time} on a RPi model " + str(rpiModel))
 
 if rpiModel == 4:
     from pijuice import PiJuice
@@ -744,20 +751,20 @@ if rpiModel == 4:
 
 
 if rpiModel == 5:
-    print("Sync hwclock to main clock for security")
+    logger.info("Sync hwclock to main clock for security")
     os.system("sudo hwclock -w")
 
     desired_settings = {"POWER_OFF_ON_HALT": "1", "WAKE_ON_GPIO": "0"}
     current_settings = check_eeprom_settings()
 
     if all(current_settings.get(key) == value for key, value in desired_settings.items()):
-        print("EEPROM settings are already correct.")
+        logger.info("EEPROM settings are already correct.")
     else:
         for key, value in desired_settings.items():
             if key not in current_settings or current_settings[key] != value:
                 current_settings[key] = value
         set_eeprom_settings(current_settings)
-        print("EEPROM settings updated.")
+        logger.info("EEPROM settings updated.")
 
 # -----CHECK THE PHYSICAL SWITCH on the GPIO PINS--------------------
 
@@ -775,19 +782,19 @@ GPIO.setup(debug_pin, GPIO.IN)
 
 # Check for connection
 if debug_connected_to_ground():
-    print("GPIO pin", debug_pin, "DEBUG connected to ground.")
+    logger.info("GPIO pin", debug_pin, "DEBUG connected to ground.")
     mode = "DEBUG"
 else:
-    print("GPIO pin", debug_pin, "DEBUG NOT connected to ground.")
+    logger.info("GPIO pin", debug_pin, "DEBUG NOT connected to ground.")
 
 # Check for connection
 if off_connected_to_ground():
-    print("GPIO pin", off_pin, "OFF PIN connected to ground.")
+    logger.info("GPIO pin", off_pin, "OFF PIN connected to ground.")
     mode = "OFF"  # this check comes second as the OFF state should override the DEBUG state in case both are attached
 else:
-    print("GPIO pin", off_pin, "OFF PIN NOT connected to ground.")
+    logger.info("GPIO pin", off_pin, "OFF PIN NOT connected to ground.")
 
-print("Current Mothbox MODE: ", mode)
+logger.info("Current Mothbox MODE: ", mode)
 
 if mode == "OFF":
     run_shutdown_pi5_FAST()
@@ -821,7 +828,7 @@ sustantivos = data["Sustantivos"]
 serial_number = get_serial_number()
 # 0 is english 1 is spanish 2 is either spanish or enlgish 3 is spanglish
 unique_name = generate_unique_name(serial_number, 3)
-print(f"Unique name for device: {unique_name}")
+logger.info(f"Unique name for device: {unique_name}")
 
 # Change it in controls
 set_computerName(str(CONTROLS_FILE), unique_name)
@@ -839,20 +846,20 @@ onlyflash = 0
 # Instead of the sleep delay, we will use the GPS 10 second lookup and make use of this time
 
 # GPS check / 10 second delay
-print("Checking GPS (if available) for 10 seconds")
+logger.info("Checking GPS (if available) for 10 seconds")
 process = subprocess.Popen(
     ["python", str(get_script_path("GPS.py"))], stdout=subprocess.PIPE, stderr=subprocess.PIPE
 )
 stdout, stderr = process.communicate()
 if stderr:
-    print(f"Error running script: {stderr.decode()}")
+    logger.error(f"Error running script: {stderr.decode()}")
 else:
-    print(stdout.decode())
+    logger.info(stdout.decode())
 
 
 # ~~~~~~~ Do the Scheduling ~~~~~~~~~~~~~~~~~~~~
 settings = load_settings(str(SCHEDULE_SETTINGS_FILE))
-print(settings)
+logger.debug(settings)
 set_timings(
     str(CONTROLS_FILE),
     settings["minute"],
@@ -869,13 +876,13 @@ if "utc_off" in settings:
     set_UTCinControls(str(CONTROLS_FILE), utc_off)
     del settings["utc_off"]
 
-print("printing settings")
+logger.debug("printing settings")
 
 if rpiModel == 4:
     modified_dict = modify_hours(
         settings.copy(), utc_off
     )  # Modify a copy to avoid unintended modification
-    print(modified_dict)
+    logger.debug(modified_dict)
     settings = modified_dict
     if settings:
         pj.rtcAlarm.SetAlarm(settings)
@@ -907,17 +914,17 @@ if rpiModel == 5:
         + " "
         + str(settings["weekday"])
     )
-    print(cron_expression)
+    logger.info(cron_expression)
     next_epoch_time = calculate_next_event(cron_expression)
 
     # Clear existing wakeup alarm (assuming sudo access)
     clear_wakeup_alarm()
 
-print(
+logger.info(
     f"Next wakeup event scheduled for: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(next_epoch_time))}"
 )
 set_wakeup_alarm(next_epoch_time)
-print("Wakeup Alarms have been set!")
+logger.info("Wakeup Alarms have been set!")
 
 # Scheduling complete, now set all the other settings
 # Toggle a mode where the flash lights are always on
@@ -926,7 +933,7 @@ enable_onlyflash()
 
 # Update the Epaper screen if it is available
 GPIO.cleanup()
-print("Updating Epaper display (if available)")
+logger.info("Updating Epaper display (if available)")
 process = subprocess.Popen(
     ["python", str(get_script_path("UpdateDisplay.py"))],
     stdout=subprocess.PIPE,
@@ -934,36 +941,36 @@ process = subprocess.Popen(
 )
 stdout, stderr = process.communicate()
 if stderr:
-    print(f"Error running script: {stderr.decode()}")
+    logger.error(f"Error running script: {stderr.decode()}")
 else:
-    print(stdout.decode())
+    logger.info(stdout.decode())
 
 
 # Final Step (No other code past this, this is where it sits and waits until shutdown)
 # - prepare shutdown and wait
 # Toggle System MODE, shut down if in OFF/INACTIVE mode
 if mode == "OFF":
-    print("System is in OFF MODE")
+    logger.info("System is in OFF MODE")
     if rpiModel == 4:
         run_shutdown_pi4()
     if rpiModel == 5:
         run_shutdown_pi5()
     # quit()
 elif mode == "DEBUG":
-    print("System is in DEBUG mode - keeping power and wifi on and turning cron off")
+    logger.info("System is in DEBUG mode - keeping power and wifi on and turning cron off")
     # Define the path to your script (replace 'path/to/script' with the actual path)
     debug_script_path = str(get_script_path("DebugMode.py"))
     # Call the script using subprocess.run
     subprocess.run([debug_script_path])
     # stopcron()
 elif mode == "ACTIVE":
-    print("System is ACTIVE")
+    logger.info("System is ACTIVE")
 else:
-    print("Invalid mode")
+    logger.error("Invalid mode")
 
 if runtime > 0 and mode != "DEBUG":
     enable_shutdown()
-    print("Stuff will run for " + str(runtime) + " minutes before shutdown")
+    logger.info("Stuff will run for " + str(runtime) + " minutes before shutdown")
     schedule_shutdown(runtime)
 else:
-    print("no shutdown scheduled, will run indefinitely")
+    logger.info("no shutdown scheduled, will run indefinitely")

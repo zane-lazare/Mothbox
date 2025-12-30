@@ -1,6 +1,7 @@
 """Preset management endpoints"""
 
 import csv
+import logging
 
 # Setup path to import mothbox_paths
 from flask import Blueprint, jsonify, request
@@ -16,6 +17,8 @@ from mothbox_paths import (
     USER_PRESET_DIR,
     get_control_values,
 )
+
+logger = logging.getLogger(__name__)
 
 presets_bp = Blueprint("presets", __name__)
 
@@ -61,7 +64,7 @@ def list_presets():
 
         return jsonify({"presets": presets, "counts": counts})
     except Exception as e:
-        print(f"Error listing presets: {e}")
+        logger.error(f"Error listing presets: {e}")
         return jsonify({"error": "Failed to list presets"}), 500
 
 
@@ -84,7 +87,7 @@ def get_preset(name):
 
         return jsonify(preset_data)
     except Exception as e:
-        print(f"Error getting preset '{name}': {e}")
+        logger.error(f"Error getting preset '{name}': {e}")
         return jsonify({"error": "Failed to get preset"}), 500
 
 
@@ -161,8 +164,8 @@ def create_preset():
     except Exception as e:
         import traceback
 
-        print(f"Error creating preset: {e}")
-        print(traceback.format_exc())
+        logger.error(f"Error creating preset: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({"error": "Failed to create preset"}), 500
 
 
@@ -253,7 +256,7 @@ def apply_preset(name):
                             {"error": f"Invalid value for camera setting {key}: {value}"}
                         ), 400
                 except (ValueError, TypeError) as e:
-                    print(f"Invalid type for camera setting {key}: {value} - {e}")
+                    logger.warning(f"Invalid type for camera setting {key}: {value} - {e}")
                     return jsonify(
                         {"error": f"Invalid type for camera setting {key}: {value}"}
                     ), 400
@@ -328,8 +331,8 @@ def apply_preset(name):
     except Exception as e:
         import traceback
 
-        print(f"Error applying preset: {e}")
-        print(traceback.format_exc())
+        logger.error(f"Error applying preset: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({"error": "Failed to apply preset"}), 500
 
 
@@ -353,5 +356,5 @@ def delete_preset(name):
             return jsonify({"error": message}), 400
 
     except Exception as e:
-        print(f"Error deleting preset '{name}': {e}")
+        logger.error(f"Error deleting preset '{name}': {e}")
         return jsonify({"error": "Failed to delete preset"}), 500

@@ -33,6 +33,11 @@ from flask_limiter.util import get_remote_address
 from flask_socketio import SocketIO
 from flask_wtf.csrf import CSRFError, CSRFProtect
 
+# Initialize logging early (before other imports that may use logging)
+from webui.backend.logging_config import setup_mothbox_logging
+
+logger = setup_mothbox_logging("mothbox.app")
+
 config = get_config()
 
 # Reduce Werkzeug request logging verbosity
@@ -47,11 +52,11 @@ app.config.from_object(config)
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
 
-# Debug: Log CSRF configuration
-print("✓ CSRF Protection initialized")
-print(f"  WTF_CSRF_ENABLED: {app.config.get('WTF_CSRF_ENABLED')}")
-print(f"  WTF_CSRF_HEADERS: {app.config.get('WTF_CSRF_HEADERS')}")
-print(f"  SECRET_KEY set: {bool(app.config.get('SECRET_KEY'))}")
+# Log CSRF configuration
+logger.info("CSRF Protection initialized")
+logger.debug(f"WTF_CSRF_ENABLED: {app.config.get('WTF_CSRF_ENABLED')}")
+logger.debug(f"WTF_CSRF_HEADERS: {app.config.get('WTF_CSRF_HEADERS')}")
+logger.debug(f"SECRET_KEY set: {bool(app.config.get('SECRET_KEY'))}")
 
 # Initialize rate limiter to prevent hardware abuse
 # Uses remote address for rate limiting (single user device typically has same IP)
@@ -59,10 +64,10 @@ print(f"  SECRET_KEY set: {bool(app.config.get('SECRET_KEY'))}")
 _env = os.environ.get("MOTHBOX_ENV", "production").lower()
 if _env in ("development", "test"):
     _default_limits = ["10000 per day", "1000 per hour"]
-    print(f"✓ Rate limiting: {_env} mode (1000/hour)")
+    logger.info(f"Rate limiting: {_env} mode (1000/hour)")
 else:
     _default_limits = ["200 per day", "50 per hour"]
-    print("✓ Rate limiting: production mode (50/hour)")
+    logger.info("Rate limiting: production mode (50/hour)")
 
 limiter = Limiter(
     app=app,
@@ -75,10 +80,10 @@ limiter = Limiter(
 # Use restrictive origins from config (empty list = same-origin only in production)
 if config.CORS_ORIGINS:
     CORS(app, resources={r"/api/*": {"origins": config.CORS_ORIGINS}})
-    print(f"✓ CORS enabled for origins: {config.CORS_ORIGINS}")
+    logger.info(f"CORS enabled for origins: {config.CORS_ORIGINS}")
 else:
     # No CORS configured - same-origin only (most secure for production)
-    print("✓ CORS: Same-origin only (no cross-origin requests allowed)")
+    logger.info("CORS: Same-origin only (no cross-origin requests allowed)")
 
 # Configure SocketIO with proper CORS and transport settings
 # WebSocket connections are exempt from CSRF by Flask-WTF
@@ -103,22 +108,22 @@ camera_streamer = LiveViewStreamer(socketio)
 # Register cleanup handlers to ensure camera resources are released
 # Uses both atexit and signal handlers for defense in depth
 atexit.register(camera_streamer.cleanup)
-print("✓ Registered atexit cleanup handler for camera")
+logger.info("Registered atexit cleanup handler for camera")
 
 
 def _signal_handler(signum, frame):
     """Handle SIGTERM and SIGINT gracefully"""
     signame = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
-    print(f"\n{signame} received - cleaning up camera resources...")
+    logger.info(f"{signame} received - cleaning up camera resources...")
     camera_streamer.cleanup()
-    print("Cleanup complete, exiting")
+    logger.info("Cleanup complete, exiting")
     sys.exit(0)
 
 
 # Register signal handlers for graceful shutdown
 signal.signal(signal.SIGTERM, _signal_handler)
 signal.signal(signal.SIGINT, _signal_handler)
-print("✓ Registered signal handlers for graceful shutdown")
+logger.info("Registered signal handlers for graceful shutdown")
 
 # Initialize thumbnail cache
 from services.thumbnail_cache import ThumbnailCache
@@ -135,10 +140,10 @@ try:
 
     # Register cleanup handler to flush statistics on shutdown
     atexit.register(thumbnail_cache.close)
-    print(f"✓ Thumbnail cache initialized: {THUMBNAIL_CACHE_DIR}")
-    print("✓ Registered thumbnail cache cleanup handler")
+    logger.info(f"Thumbnail cache initialized: {THUMBNAIL_CACHE_DIR}")
+    logger.info("Registered thumbnail cache cleanup handler")
 except Exception as e:
-    print(f"⚠️  Failed to initialize thumbnail cache: {e}")
+    logger.warning(f"Failed to initialize thumbnail cache: {e}")
     app.config["THUMBNAIL_CACHE"] = None
     thumbnail_cache = None
 
@@ -158,15 +163,15 @@ if thumbnail_cache:
 
         # Register cleanup handler for cache warmer
         atexit.register(cache_warmer.stop_background_warming)
-        print("✓ Cache warmer initialized and startup warming triggered")
-        print("✓ Registered cache warmer cleanup handler")
+        logger.info("Cache warmer initialized and startup warming triggered")
+        logger.info("Registered cache warmer cleanup handler")
 
     except Exception as e:
-        print(f"⚠️  Failed to initialize cache warmer: {e}")
+        logger.warning(f"Failed to initialize cache warmer: {e}")
         app.config["CACHE_WARMER"] = None
 else:
     app.config["CACHE_WARMER"] = None
-    print("⚠️  Cache warmer not initialized (thumbnail cache unavailable)")
+    logger.warning("Cache warmer not initialized (thumbnail cache unavailable)")
 
 # Initialize services using lazy getters (avoids circular imports)
 # Services are lazily initialized on first access via get_*_service() functions
@@ -181,39 +186,39 @@ from services.search_service import SearchService
 try:
     # Pre-initialize services and store in app.config for routes that need direct access
     app.config["SERIES_SERVICE"] = get_series_service()
-    print("✓ Series service initialized")
+    logger.info("Series service initialized")
 except Exception as e:
-    print(f"⚠️  Failed to initialize series service: {e}")
+    logger.warning(f"Failed to initialize series service: {e}")
     app.config["SERIES_SERVICE"] = None
 
 try:
     app.config["CLUSTERING_SERVICE"] = get_clustering_service()
-    print("✓ Clustering service initialized")
+    logger.info("Clustering service initialized")
 except Exception as e:
-    print(f"⚠️  Failed to initialize clustering service: {e}")
+    logger.warning(f"Failed to initialize clustering service: {e}")
     app.config["CLUSTERING_SERVICE"] = None
 
 try:
     app.config["LOCATIONS_SERVICE"] = get_locations_service()
-    print("✓ Locations service initialized")
+    logger.info("Locations service initialized")
 except Exception as e:
-    print(f"⚠️  Failed to initialize locations service: {e}")
+    logger.warning(f"Failed to initialize locations service: {e}")
     app.config["LOCATIONS_SERVICE"] = None
 
 try:
     app.config["SIDECAR_SERVICE"] = get_sidecar_service()
-    print("✓ Sidecar service initialized")
+    logger.info("Sidecar service initialized")
 except Exception as e:
-    print(f"⚠️  Failed to initialize sidecar service: {e}")
+    logger.warning(f"Failed to initialize sidecar service: {e}")
     app.config["SIDECAR_SERVICE"] = None
 
 # Initialize search service
 try:
     sidecar_svc = app.config.get("SIDECAR_SERVICE")
     app.config["SEARCH_SERVICE"] = SearchService(sidecar_service=sidecar_svc)
-    print("✓ Search service initialized")
+    logger.info("Search service initialized")
 except Exception as e:
-    print(f"⚠️  Failed to initialize search service: {e}")
+    logger.warning(f"Failed to initialize search service: {e}")
     app.config["SEARCH_SERVICE"] = None
 
 # Initialize tag autocomplete engine
@@ -226,12 +231,12 @@ try:
             sidecar_service=sidecar_service,
             cache_ttl=300,  # 5 minutes
         )
-        print("✓ Tag autocomplete engine initialized")
+        logger.info("Tag autocomplete engine initialized")
     else:
         app.config["TAG_AUTOCOMPLETE_ENGINE"] = None
-        print("⚠️  Tag autocomplete engine not initialized (sidecar service unavailable)")
+        logger.warning("Tag autocomplete engine not initialized (sidecar service unavailable)")
 except Exception as e:
-    print(f"⚠️  Failed to initialize tag autocomplete engine: {e}")
+    logger.warning(f"Failed to initialize tag autocomplete engine: {e}")
     app.config["TAG_AUTOCOMPLETE_ENGINE"] = None
 
 # Initialize export metadata service
@@ -240,12 +245,12 @@ from webui.backend.services.export_metadata_service import ExportMetadataService
 try:
     cache_ttl = app.config.get("EXPORT_CACHE_TTL", 300)
     if not isinstance(cache_ttl, int) or cache_ttl < 0:
-        print("⚠️  Invalid EXPORT_CACHE_TTL, using default: 300")
+        logger.warning("Invalid EXPORT_CACHE_TTL, using default: 300")
         cache_ttl = 300
     app.config["EXPORT_METADATA_SERVICE"] = ExportMetadataService(cache_ttl=cache_ttl)
-    print("✓ Export metadata service initialized")
+    logger.info("Export metadata service initialized")
 except Exception as e:
-    print(f"⚠️  Failed to initialize export metadata service: {e}")
+    logger.warning(f"Failed to initialize export metadata service: {e}")
     app.config["EXPORT_METADATA_SERVICE"] = None
 
 # Initialize export job service (async job queue for exports)
@@ -278,14 +283,14 @@ try:
         export_job_service.start()  # Start worker thread
         app.config["EXPORT_JOB_SERVICE"] = export_job_service
         atexit.register(export_job_service.stop)  # Cleanup on shutdown
-        print("✓ Export job service initialized")
-        print(f"  Database: {db_path}")
-        print(f"  Temp dir: {temp_dir}")
+        logger.info("Export job service initialized")
+        logger.debug(f"Database: {db_path}")
+        logger.debug(f"Temp dir: {temp_dir}")
     else:
         app.config["EXPORT_JOB_SERVICE"] = None
-        print("⚠️  Export job service not initialized (export metadata service unavailable)")
+        logger.warning("Export job service not initialized (export metadata service unavailable)")
 except Exception as e:
-    print(f"⚠️  Failed to initialize export job service: {e}")
+    logger.warning(f"Failed to initialize export job service: {e}")
     app.config["EXPORT_JOB_SERVICE"] = None
 
 # Initialize deployment service
@@ -294,12 +299,12 @@ from webui.backend.services.deployment_service import DeploymentService
 try:
     cache_ttl = app.config.get("DEPLOYMENT_CACHE_TTL", 300)
     if not isinstance(cache_ttl, int) or cache_ttl < 0:
-        print("⚠️  Invalid DEPLOYMENT_CACHE_TTL, using default: 300")
+        logger.warning("Invalid DEPLOYMENT_CACHE_TTL, using default: 300")
         cache_ttl = 300
     app.config["DEPLOYMENT_SERVICE"] = DeploymentService(cache_ttl=cache_ttl)
-    print("✓ Deployment service initialized")
+    logger.info("Deployment service initialized")
 except Exception as e:
-    print(f"⚠️  Failed to initialize deployment service: {e}")
+    logger.warning(f"Failed to initialize deployment service: {e}")
     app.config["DEPLOYMENT_SERVICE"] = None
 
 # Initialize export preset manager
@@ -324,11 +329,11 @@ try:
     )
     app.config["EXPORT_PRESET_MANAGER"] = export_preset_manager
     counts = export_preset_manager.get_preset_count()
-    print(
-        f"✓ Export preset manager initialized ({counts['built_in']} built-in, {counts['user']} user)"
+    logger.info(
+        f"Export preset manager initialized ({counts['built_in']} built-in, {counts['user']} user)"
     )
 except Exception as e:
-    print(f"⚠️  Failed to initialize export preset manager: {e}")
+    logger.warning(f"Failed to initialize export preset manager: {e}")
     app.config["EXPORT_PRESET_MANAGER"] = None
 
 # Import route blueprints
@@ -374,7 +379,7 @@ app.register_blueprint(search_bp)  # Note: search_bp already includes /api/photo
 from websocket_handlers import register_handlers
 
 register_handlers(socketio, camera_streamer)
-print("✓ Registered WebSocket event handlers")
+logger.info("Registered WebSocket event handlers")
 
 # Apply rate limiting to hardware endpoints to prevent abuse
 # Camera: 10 requests per minute for capture operations (prevents rapid captures)
@@ -393,7 +398,7 @@ limiter.exempt(app.view_functions["gallery.get_thumbnail"])
 limiter.exempt(app.view_functions["gallery.get_photo"])
 limiter.exempt(app.view_functions["sidecar.get_photo_metadata"])
 
-print("✓ Rate limiting applied to camera, GPIO, and GPS endpoints")
+logger.info("Rate limiting applied to camera, GPIO, and GPS endpoints")
 
 # Sidecar API rate limiting
 # Bulk: 10 per minute (prevents abuse of batch operations)
@@ -406,7 +411,7 @@ limiter.limit("30 per minute")(app.view_functions["sidecar.delete_photo_metadata
 # 60 per minute (1 per second) - autocomplete endpoints are chatty with typing
 limiter.limit("60 per minute")(app.view_functions["metadata.get_tag_autocomplete"])
 
-print("✓ Rate limiting applied to sidecar and metadata endpoints")
+logger.info("Rate limiting applied to sidecar and metadata endpoints")
 
 
 # CSRF token endpoint
@@ -422,11 +427,11 @@ def get_csrf_token():
 @app.errorhandler(CSRFError)
 def handle_csrf_error(e):
     """Handle CSRF validation errors"""
-    print(f"⚠️  CSRF validation failed: {e.description}")
-    print(f"   Request path: {request.path}")
-    print(f"   Request method: {request.method}")
-    print(f"   Request headers: {dict(request.headers)}")
-    print(f"   Request cookies: {list(request.cookies.keys())}")
+    logger.warning(f"CSRF validation failed: {e.description}")
+    logger.debug(f"Request path: {request.path}")
+    logger.debug(f"Request method: {request.method}")
+    logger.debug(f"Request headers: {dict(request.headers)}")
+    logger.debug(f"Request cookies: {list(request.cookies.keys())}")
     return jsonify({"error": "CSRF validation failed", "message": str(e.description)}), 400
 
 
@@ -441,18 +446,19 @@ def serve_react(path):
 
 if __name__ == "__main__":
     # Print startup banner with environment information
-    print("\n" + "=" * 60)
-    print("Mothbox Web UI Starting")
-    print(f"Environment: {config.ENV_NAME}")
-    print(f"Debug Mode: {config.DEBUG}")
-    print(f"Host: {config.HOST}:{config.PORT}")
-    print("=" * 60)
+    logger.info("\n" + "=" * 60)
+    logger.info("Mothbox Web UI Starting")
+    logger.info(f"Environment: {config.ENV_NAME}")
+    logger.info(f"Debug Mode: {config.DEBUG}")
+    logger.info(f"Host: {config.HOST}:{config.PORT}")
+    logger.info("=" * 60)
 
     if config.ENV_NAME == "production":
-        print("\n⚠️  WARNING: Running with Werkzeug development server")
-        print("   For production deployment, use gunicorn with eventlet worker")
-        print("   See issue #19: https://github.com/zane-lazare/Mothbox/issues/19")
-        print("=" * 60 + "\n")
+        logger.warning("\n" + "=" * 60)
+        logger.warning("WARNING: Running with Werkzeug development server")
+        logger.warning("For production deployment, use gunicorn with eventlet worker")
+        logger.warning("See issue #19: https://github.com/zane-lazare/Mothbox/issues/19")
+        logger.warning("=" * 60 + "\n")
 
     # Block production mode until gunicorn is implemented (issue #19)
     # Production installations should run in development mode for now

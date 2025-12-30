@@ -1,5 +1,7 @@
 """User preferences API endpoints"""
 
+import logging
+
 from flask import Blueprint, jsonify, request
 
 # Setup path to import mothbox modules
@@ -7,6 +9,8 @@ from preset_manager import PresetManager
 from user_preferences import preferences_manager
 
 from mothbox_paths import BUILTIN_PRESET_DIR, USER_PRESET_DIR
+
+logger = logging.getLogger(__name__)
 
 preferences_bp = Blueprint("preferences", __name__)
 
@@ -81,8 +85,8 @@ def set_preference():
     except Exception as e:
         import traceback
 
-        print(f"Error setting preference: {e}")
-        print(traceback.format_exc())
+        logger.error(f"Error setting preference: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
 
@@ -144,6 +148,6 @@ def validate_preferences():
     except Exception as e:
         import traceback
 
-        print(f"Error validating preferences: {e}")
-        print(traceback.format_exc())
+        logger.error(f"Error validating preferences: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500

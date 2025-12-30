@@ -1,6 +1,7 @@
 """Configuration management endpoints"""
 
 import csv
+import logging
 import shutil
 from collections.abc import Callable
 from typing import Any
@@ -29,6 +30,8 @@ from mothbox_paths import (
     SCHEDULE_SETTINGS_FILE,
     get_control_values,
 )
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # Converter Factory Functions
@@ -122,6 +125,8 @@ ALLOWED_CONTROLS = {
     "flash_duration_ms": lambda v: str(v).isdigit()
     and 50 <= int(v) <= 5000,  # 50ms to 5s flash duration
     "jpeg_quality": lambda v: str(v).isdigit() and 50 <= int(v) <= 100,  # JPEG quality 50-100
+    "log_level": lambda v: str(v).upper() in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+    "log_retention_days": lambda v: str(v).isdigit() and 1 <= int(v) <= 90,
 }
 
 
@@ -175,9 +180,9 @@ def update_controls():
         if backup_path and backup_path.exists():
             try:
                 shutil.copy2(backup_path, CONTROLS_FILE)
-                print(f"Restored backup from {backup_path} after error")
+                logger.info(f"Restored backup from {backup_path} after error")
             except Exception as restore_error:
-                print(f"Failed to restore backup: {restore_error}")
+                logger.error(f"Failed to restore backup: {restore_error}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -235,9 +240,9 @@ def update_schedule_settings():
         if backup_path and backup_path.exists():
             try:
                 shutil.copy2(backup_path, SCHEDULE_SETTINGS_FILE)
-                print(f"Restored backup from {backup_path} after error")
+                logger.info(f"Restored backup from {backup_path} after error")
             except Exception as restore_error:
-                print(f"Failed to restore backup: {restore_error}")
+                logger.error(f"Failed to restore backup: {restore_error}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -693,9 +698,9 @@ def update_webui_settings():
         if backup_path and backup_path.exists():
             try:
                 shutil.copy2(backup_path, LIVEVIEW_SETTINGS_FILE)
-                print(f"Restored backup from {backup_path} after error")
+                logger.info(f"Restored backup from {backup_path} after error")
             except Exception as restore_error:
-                print(f"Failed to restore backup: {restore_error}")
+                logger.error(f"Failed to restore backup: {restore_error}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -722,7 +727,7 @@ def copy_settings():
                 {"error": 'direction must be "preview_to_capture" or "capture_to_preview"'}
             ), 400
 
-        print(f"Copy settings requested: {direction}")
+        logger.info(f"Copy settings requested: {direction}")
 
         # Use centralized mapping from camera_control_mapping.py
         # This eliminates local duplicate mapping table
@@ -830,7 +835,7 @@ def copy_settings():
                 writer.writeheader()
                 writer.writerows(csv_rows)
 
-            print(f"Copied {len(copied)} settings to capture: {copied}")
+            logger.info(f"Copied {len(copied)} settings to capture: {copied}")
 
         elif direction == "capture_to_preview":
             # Read capture settings (row-based CSV format)
@@ -894,7 +899,7 @@ def copy_settings():
                     else:
                         f.write(f"{key}={value}\n")
 
-            print(f"Copied settings to live view: {copied}")
+            logger.info(f"Copied settings to live view: {copied}")
 
         return jsonify(
             {
@@ -910,6 +915,6 @@ def copy_settings():
     except Exception as e:
         import traceback
 
-        print(f"Copy settings error: {e}")
-        print(traceback.format_exc())
+        logger.error(f"Copy settings error: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({"success": False, "error": str(e)}), 500

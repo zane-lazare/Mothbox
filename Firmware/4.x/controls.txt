@@ -65,3 +65,23 @@ cache_warm_on_startup=false
 # Larger values improve cache hit rate but increase startup time.
 # Guideline: 100 photos ≈ 60 seconds warmup time on Pi 4
 cache_warm_count=100
+
+# ============================================================================
+# Logging Configuration (Issue #37)
+# ============================================================================
+# These settings control the application logging system for diagnostics,
+# troubleshooting, and monitoring. Logs are stored in DATA_DIR/logs/.
+
+# Log level for application logging (default: INFO)
+# Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+# - DEBUG: Verbose output for troubleshooting (includes all details)
+# - INFO: Normal operation messages (recommended for production)
+# - WARNING: Only warnings and errors
+# - ERROR: Only errors
+# - CRITICAL: Only critical failures
+log_level=INFO
+
+# Number of days to retain log files (default: 7)
+# Older log files are automatically deleted during rotation.
+# Range: 1-90 days. Larger values consume more disk space.
+log_retention_days=7

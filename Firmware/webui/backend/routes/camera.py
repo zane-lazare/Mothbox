@@ -96,14 +96,14 @@ def acquire_camera_with_retry(
 
     for attempt in range(max_retries):
         try:
-            print(
-                f"🎥 Attempting to acquire camera {camera_id} (attempt {attempt + 1}/{max_retries})"
+            logger.debug(
+                f"Attempting to acquire camera {camera_id} (attempt {attempt + 1}/{max_retries})"
             )
             return Picamera2(camera_id)
         except RuntimeError as e:
             error_msg = str(e).lower()
             if ("busy" in error_msg or "resource" in error_msg) and attempt < max_retries - 1:
-                print(f"⚠️  Camera busy, waiting {wait_time}s before retry...")
+                logger.warning(f"Camera busy, waiting {wait_time}s before retry...")
                 time.sleep(wait_time)
             else:
                 # Last attempt or non-busy error
@@ -134,10 +134,10 @@ def _emit_calibration_progress(step, total_steps, message, progress):
                     "progress": progress,
                 },
             )
-            print(f"📊 Calibration progress: Step {step}/{total_steps} ({progress}%) - {message}")
+            logger.debug(f"Calibration progress: Step {step}/{total_steps} ({progress}%) - {message}")
     except Exception as e:
         # Don't fail calibration if progress emission fails
-        print(f"Warning: Failed to emit calibration progress: {e}")
+        logger.warning(f"Failed to emit calibration progress: {e}")
 
 
 def _build_exif_metadata(
@@ -177,7 +177,7 @@ def _build_exif_metadata(
                         mothbox_name = line.split("=", 1)[1].strip()
                         break
     except Exception as e:
-        print(f"Warning: Could not read mothbox name from controls.txt: {e}")
+        logger.warning(f"Could not read mothbox name from controls.txt: {e}")
 
     # Detect sensor from Picamera2 metadata
     sensor_name = "Unknown"
@@ -187,7 +187,7 @@ def _build_exif_metadata(
             model_str = str(picam2.camera_properties.get("Model", ""))
             sensor_name = "ov64a40" if "ov64a40" in model_str.lower() else model_str or "Unknown"
     except Exception as e:
-        print(f"Warning: Could not detect sensor: {e}")
+        logger.warning(f"Could not detect sensor: {e}")
 
     # Get firmware version
     firmware_version = get_firmware_version()
@@ -261,9 +261,9 @@ def _build_exif_metadata(
             gps_ifd = build_gps_ifd(gps_data)
             if gps_ifd:
                 # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
-                print(f"GPS EXIF embedded: lat={gps_data['latitude']}, lon={gps_data['longitude']}")
+                logger.info(f"GPS EXIF embedded: lat={gps_data['latitude']}, lon={gps_data['longitude']}")
     except Exception as gps_error:
-        print(f"Warning: Could not embed GPS EXIF: {gps_error}")
+        logger.warning(f"Could not embed GPS EXIF: {gps_error}")
 
     # Build complete EXIF dictionary
     exif_dict = {"0th": zeroth_ifd, "Exif": exif_ifd, "1st": {}}
@@ -295,7 +295,7 @@ def _should_use_hdr_mode() -> tuple[bool, int, int]:
         hdr_width = HDR_DEFAULT_WIDTH_US
 
         if not CAMERA_SETTINGS_FILE.exists():
-            print("ℹ️  camera_settings.csv not found, defaulting to single exposure")
+            logger.info("camera_settings.csv not found, defaulting to single exposure")
             return False, 1, HDR_DEFAULT_WIDTH_US
 
         with open(CAMERA_SETTINGS_FILE) as f:
@@ -306,25 +306,25 @@ def _should_use_hdr_mode() -> tuple[bool, int, int]:
                         hdr_count = int(row["VALUE"])
                         # Validate HDR count is one of the allowed values
                         if hdr_count not in HDR_VALID_COUNTS:
-                            print(
-                                f"⚠️  Invalid HDR count {hdr_count}, must be 1, 3, 5, or 7. Defaulting to 1."
+                            logger.warning(
+                                f"Invalid HDR count {hdr_count}, must be 1, 3, 5, or 7. Defaulting to 1."
                             )
                             hdr_count = 1
                     except (ValueError, KeyError) as e:
-                        print(f"⚠️  Could not parse HDR setting value: {e}. Defaulting to 1.")
+                        logger.warning(f"Could not parse HDR setting value: {e}. Defaulting to 1.")
                         hdr_count = 1
                 elif row["SETTING"] == "HDR_width":
                     try:
                         hdr_width = int(row["VALUE"])
                         # Validate bracket width is in reasonable range (1ms - 50ms)
                         if not (HDR_MIN_WIDTH_US <= hdr_width <= HDR_MAX_WIDTH_US):
-                            print(
-                                f"⚠️  Invalid HDR_width {hdr_width}µs, must be {HDR_MIN_WIDTH_US}-{HDR_MAX_WIDTH_US}. Defaulting to {HDR_DEFAULT_WIDTH_US}."
+                            logger.warning(
+                                f"Invalid HDR_width {hdr_width}µs, must be {HDR_MIN_WIDTH_US}-{HDR_MAX_WIDTH_US}. Defaulting to {HDR_DEFAULT_WIDTH_US}."
                             )
                             hdr_width = HDR_DEFAULT_WIDTH_US
                     except (ValueError, KeyError) as e:
-                        print(
-                            f"⚠️  Could not parse HDR_width setting value: {e}. Defaulting to {HDR_DEFAULT_WIDTH_US}."
+                        logger.warning(
+                            f"Could not parse HDR_width setting value: {e}. Defaulting to {HDR_DEFAULT_WIDTH_US}."
                         )
                         hdr_width = HDR_DEFAULT_WIDTH_US
 
@@ -332,14 +332,14 @@ def _should_use_hdr_mode() -> tuple[bool, int, int]:
 
         # Log the decision
         if use_hdr:
-            print(f"✓ HDR mode enabled: {hdr_count} exposures with {hdr_width}µs bracket width")
+            logger.info(f"HDR mode enabled: {hdr_count} exposures with {hdr_width}µs bracket width")
         else:
-            print(f"✓ Single exposure mode (HDR={hdr_count})")
+            logger.info(f"Single exposure mode (HDR={hdr_count})")
 
         return use_hdr, hdr_count, hdr_width
 
     except Exception as e:
-        print(f"❌ Error reading HDR settings: {e}. Defaulting to single exposure.")
+        logger.error(f"Error reading HDR settings: {e}. Defaulting to single exposure.")
         return False, 1, HDR_DEFAULT_WIDTH_US
 
 
@@ -364,7 +364,7 @@ def _should_use_focus_bracket_mode() -> tuple[bool, int, float, float]:
         end = FB_DEFAULT_END_DIOPTERS
 
         if not CAMERA_SETTINGS_FILE.exists():
-            print("ℹ️  camera_settings.csv not found, defaulting to single focus")
+            logger.info("camera_settings.csv not found, defaulting to single focus")
             return False, 1, FB_DEFAULT_START_DIOPTERS, FB_DEFAULT_END_DIOPTERS
 
         with open(CAMERA_SETTINGS_FILE) as f:
@@ -375,13 +375,13 @@ def _should_use_focus_bracket_mode() -> tuple[bool, int, float, float]:
                         steps = int(row["VALUE"])
                         # Validate steps is in allowed range
                         if not (FB_MIN_STEPS <= steps <= FB_MAX_STEPS):
-                            print(
-                                f"⚠️  Invalid FocusBracket count {steps}, must be {FB_MIN_STEPS}-{FB_MAX_STEPS}. Defaulting to 1."
+                            logger.warning(
+                                f"Invalid FocusBracket count {steps}, must be {FB_MIN_STEPS}-{FB_MAX_STEPS}. Defaulting to 1."
                             )
                             steps = 1
                     except (ValueError, KeyError) as e:
-                        print(
-                            f"⚠️  Could not parse FocusBracket setting value: {e}. Defaulting to 1."
+                        logger.warning(
+                            f"Could not parse FocusBracket setting value: {e}. Defaulting to 1."
                         )
                         steps = 1
                 elif row["SETTING"] == "FocusBracket_Start":
@@ -389,13 +389,13 @@ def _should_use_focus_bracket_mode() -> tuple[bool, int, float, float]:
                         start = float(row["VALUE"])
                         # Validate start is in reasonable range
                         if not (FB_MIN_DIOPTERS <= start <= FB_MAX_DIOPTERS):
-                            print(
-                                f"⚠️  Invalid FocusBracket_Start {start}, must be {FB_MIN_DIOPTERS}-{FB_MAX_DIOPTERS}. Defaulting to {FB_DEFAULT_START_DIOPTERS}."
+                            logger.warning(
+                                f"Invalid FocusBracket_Start {start}, must be {FB_MIN_DIOPTERS}-{FB_MAX_DIOPTERS}. Defaulting to {FB_DEFAULT_START_DIOPTERS}."
                             )
                             start = FB_DEFAULT_START_DIOPTERS
                     except (ValueError, KeyError) as e:
-                        print(
-                            f"⚠️  Could not parse FocusBracket_Start setting value: {e}. Defaulting to {FB_DEFAULT_START_DIOPTERS}."
+                        logger.warning(
+                            f"Could not parse FocusBracket_Start setting value: {e}. Defaulting to {FB_DEFAULT_START_DIOPTERS}."
                         )
                         start = FB_DEFAULT_START_DIOPTERS
                 elif row["SETTING"] == "FocusBracket_End":
@@ -403,13 +403,13 @@ def _should_use_focus_bracket_mode() -> tuple[bool, int, float, float]:
                         end = float(row["VALUE"])
                         # Validate end is in reasonable range
                         if not (FB_MIN_DIOPTERS <= end <= FB_MAX_DIOPTERS):
-                            print(
-                                f"⚠️  Invalid FocusBracket_End {end}, must be {FB_MIN_DIOPTERS}-{FB_MAX_DIOPTERS}. Defaulting to {FB_DEFAULT_END_DIOPTERS}."
+                            logger.warning(
+                                f"Invalid FocusBracket_End {end}, must be {FB_MIN_DIOPTERS}-{FB_MAX_DIOPTERS}. Defaulting to {FB_DEFAULT_END_DIOPTERS}."
                             )
                             end = FB_DEFAULT_END_DIOPTERS
                     except (ValueError, KeyError) as e:
-                        print(
-                            f"⚠️  Could not parse FocusBracket_End setting value: {e}. Defaulting to {FB_DEFAULT_END_DIOPTERS}."
+                        logger.warning(
+                            f"Could not parse FocusBracket_End setting value: {e}. Defaulting to {FB_DEFAULT_END_DIOPTERS}."
                         )
                         end = FB_DEFAULT_END_DIOPTERS
 
@@ -417,14 +417,14 @@ def _should_use_focus_bracket_mode() -> tuple[bool, int, float, float]:
 
         # Log the decision
         if use_focus_bracket:
-            print(f"✓ Focus Bracket mode enabled: {steps} steps from {start} to {end} diopters")
+            logger.info(f"Focus Bracket mode enabled: {steps} steps from {start} to {end} diopters")
         else:
-            print(f"✓ Single focus mode (FocusBracket={steps})")
+            logger.info(f"Single focus mode (FocusBracket={steps})")
 
         return use_focus_bracket, steps, start, end
 
     except Exception as e:
-        print(f"❌ Error reading Focus Bracket settings: {e}. Defaulting to single focus.")
+        logger.error(f"Error reading Focus Bracket settings: {e}. Defaulting to single focus.")
         return False, 1, FB_DEFAULT_START_DIOPTERS, FB_DEFAULT_END_DIOPTERS
 
 
@@ -439,7 +439,7 @@ def capture_photo():
 
         from mothbox_paths import MOTHBOX_HOME, get_takephoto_script
 
-        print(f"Photo capture requested. MOTHBOX_HOME: {MOTHBOX_HOME}")
+        logger.info(f"Photo capture requested. MOTHBOX_HOME: {MOTHBOX_HOME}")
 
         # Check if Focus Bracket mode is enabled (takes priority over HDR)
         use_focus_bracket, fb_steps, fb_start, fb_end = _should_use_focus_bracket_mode()
@@ -461,37 +461,37 @@ def capture_photo():
                             pi_version = "5"
                         break
         except Exception as cpu_error:
-            print(f"Error reading /proc/cpuinfo: {cpu_error}")
+            logger.error(f"Error reading /proc/cpuinfo: {cpu_error}")
 
         # Default to 4.x if can't determine
         if not pi_version:
             pi_version = "4"
-            print(f"Could not detect Pi version, defaulting to {pi_version}")
+            logger.warning(f"Could not detect Pi version, defaulting to {pi_version}")
         else:
-            print(f"Detected Pi version: {pi_version}")
+            logger.info(f"Detected Pi version: {pi_version}")
 
         # Determine which script to use based on Focus Bracket and HDR settings
         if use_focus_bracket:
             script_name = "capture_focus_bracket.py"
             script_path = MOTHBOX_HOME / "webui" / "backend" / "scripts" / script_name
-            print(
-                f"🎯 Focus Bracket mode enabled: {fb_steps} steps from {fb_start} to {fb_end} diopters"
+            logger.info(
+                f"Focus Bracket mode enabled: {fb_steps} steps from {fb_start} to {fb_end} diopters"
             )
         elif use_hdr:
             script_name = "TakePhoto_HDR.py"
             script_path = MOTHBOX_HOME / f"{pi_version}.x" / "scripts" / script_name
-            print(f"📸 HDR mode enabled: {hdr_count} exposures, {hdr_width}µs bracket width")
+            logger.info(f"HDR mode enabled: {hdr_count} exposures, {hdr_width}µs bracket width")
         else:
             # Use get_takephoto_script() for standard captures to get correct path
             script_path = get_takephoto_script()
             script_name = "TakePhoto.py"
-            print("📸 Standard single-exposure mode")
+            logger.info("Standard single-exposure mode")
 
-        print(f"Looking for {script_name} at: {script_path}")
+        logger.debug(f"Looking for {script_name} at: {script_path}")
 
         if not script_path.exists():
             error_msg = f"{script_name} not found at {script_path}"
-            print(error_msg)
+            logger.error(error_msg)
 
             # Provide helpful context based on script type
             if script_name == "TakePhoto.py":
@@ -515,20 +515,20 @@ def capture_photo():
             # Release streaming camera if active
             was_streaming = False
             if camera_streamer and camera_streamer.camera:
-                print("Releasing camera hardware before TakePhoto.py subprocess...")
+                logger.debug("Releasing camera hardware before TakePhoto.py subprocess...")
                 was_streaming = camera_streamer.streaming
                 camera_streamer.release_camera()
                 time.sleep(0.5)  # Let camera fully release
 
             try:
-                print(f"Running: python3 {script_path}")
+                logger.info(f"Running: python3 {script_path}")
                 result = subprocess.run(
                     ["python3", str(script_path)], capture_output=True, text=True, timeout=30
                 )
 
-                print(f"TakePhoto.py exit code: {result.returncode}")
-                print(f"stdout: {result.stdout}")
-                print(f"stderr: {result.stderr}")
+                logger.info(f"TakePhoto.py exit code: {result.returncode}")
+                logger.debug(f"stdout: {result.stdout}")
+                logger.debug(f"stderr: {result.stderr}")
 
                 if result.returncode == 0:
                     # Find the most recent photo(s)
@@ -595,11 +595,11 @@ def capture_photo():
             finally:
                 # Always restart stream if it was active
                 if was_streaming and camera_streamer:
-                    print("Restarting camera stream after TakePhoto.py subprocess...")
+                    logger.debug("Restarting camera stream after TakePhoto.py subprocess...")
                     try:
                         camera_streamer.start_streaming()
                     except Exception as restart_error:
-                        print(f"Warning: Failed to restart stream: {restart_error}")
+                        logger.warning(f"Failed to restart stream: {restart_error}")
 
         # Acquire operation lock to prevent concurrent camera access (if available)
         camera_streamer = current_app.config.get("CAMERA_STREAMER")
@@ -614,14 +614,13 @@ def capture_photo():
 
     except subprocess.TimeoutExpired:
         error_msg = "Photo capture timed out"
-        print(error_msg)
+        logger.error(error_msg)
         return jsonify({"success": False, "error": error_msg}), 500
     except Exception as e:
-        import traceback
 
         error_msg = str(e)
-        print(f"Photo capture error: {error_msg}")
-        print(traceback.format_exc())
+        logger.error(f"Photo capture error: {error_msg}")
+        logger.exception("Photo capture exception")
         return jsonify({"success": False, "error": error_msg}), 500
 
 
@@ -724,7 +723,7 @@ def trigger_autofocus():
 
         from flask import current_app
 
-        print("Autofocus requested via API")
+        logger.info("Autofocus requested via API")
 
         # Acquire operation lock to prevent concurrent camera access
         camera_streamer = current_app.config.get("CAMERA_STREAMER")
@@ -735,7 +734,7 @@ def trigger_autofocus():
             # Release camera hardware if initialized (prevents resource conflict)
             was_streaming = False
             if camera_streamer.camera:
-                print("Releasing camera hardware before autofocus...")
+                logger.debug("Releasing camera hardware before autofocus...")
                 was_streaming = camera_streamer.streaming
                 camera_streamer.release_camera()
                 time.sleep(1.5)  # Let camera fully release (increased from 0.5s)
@@ -771,11 +770,11 @@ def trigger_autofocus():
                 time.sleep(0.3)
 
                 # Trigger autofocus cycle
-                print("Running autofocus cycle...")
+                logger.info("Running autofocus cycle...")
                 af_start = time.time()
                 success = picam2.autofocus_cycle()
                 af_duration = time.time() - af_start
-                print(
+                logger.info(
                     f"Autofocus completed in {af_duration:.2f}s: {'Success' if success else 'Failed'}"
                 )
 
@@ -797,9 +796,9 @@ def trigger_autofocus():
                 # Lock to manual focus mode to preserve AF position
                 # This prevents continuous AF from overriding the locked focus when stream restarts
                 if success:
-                    print("Locking to manual focus mode to preserve autofocus position...")
+                    logger.info("Locking to manual focus mode to preserve autofocus position...")
                     camera_streamer.set_manual_focus_mode(True)
-                    print(f"✓ Manual focus locked at {lens_position:.2f} diopters")
+                    logger.info(f"Manual focus locked at {lens_position:.2f} diopters")
 
                 return jsonify(
                     {
@@ -831,18 +830,17 @@ def trigger_autofocus():
             finally:
                 # Always restart stream if it was active (handles both success and error cases)
                 if was_streaming and camera_streamer:
-                    print("Restarting camera stream after autofocus...")
+                    logger.debug("Restarting camera stream after autofocus...")
                     try:
                         camera_streamer.start_streaming()
                     except Exception as restart_error:
-                        print(f"Warning: Failed to restart stream: {restart_error}")
+                        logger.warning(f"Failed to restart stream: {restart_error}")
 
     except Exception as e:
-        import traceback
 
         error_msg = str(e)
-        print(f"Autofocus error: {error_msg}")
-        print(traceback.format_exc())
+        logger.error(f"Autofocus error: {error_msg}")
+        logger.exception("Autofocus exception")
         return jsonify({"success": False, "error": error_msg}), 500
 
 
@@ -869,13 +867,12 @@ def calibrate_photo():
     import csv
     import subprocess
     import time
-    import traceback
 
     from flask import current_app
 
     from mothbox_paths import get_firmware_version
 
-    print("📸 Photo calibration requested via API")
+    logger.info("Photo calibration requested via API")
 
     # Emit progress: Starting calibration
     _emit_calibration_progress(1, 4, "Starting photo calibration...", 0)
@@ -888,7 +885,7 @@ def calibrate_photo():
             for row in reader:
                 before_settings[row["SETTING"]] = row["VALUE"]
     except Exception as e:
-        print(f"⚠️  Warning: Could not read current settings: {e}")
+        logger.warning(f"Could not read current settings: {e}")
 
     before_snapshot = {
         "ExposureTime": before_settings.get("ExposureTime", "unknown"),
@@ -914,7 +911,7 @@ def calibrate_photo():
 
             # Release camera hardware completely
             if camera_streamer.camera:
-                print("🔓 Releasing camera for photo calibration subprocess...")
+                logger.debug("Releasing camera for photo calibration subprocess...")
                 was_streaming = camera_streamer.streaming
                 camera_streamer.release_camera()
                 time.sleep(CAMERA_RELEASE_WAIT_SECONDS)  # Ensure hardware fully released
@@ -927,7 +924,7 @@ def calibrate_photo():
                 Path(__file__).parent.parent / "scripts" / "run_photo_calibration.py"
             )
 
-            print(f"🚀 Running photo calibration subprocess: {calibration_script}")
+            logger.info(f"Running photo calibration subprocess: {calibration_script}")
 
             try:
                 subprocess_result = subprocess.run(
@@ -940,13 +937,13 @@ def calibrate_photo():
                 # Always restart stream if it was active, even if subprocess fails/times out
                 duration = time.time() - start_time
                 if was_streaming and camera_streamer:
-                    print("🔄 Restarting camera stream after photo calibration...")
+                    logger.debug("Restarting camera stream after photo calibration...")
                     try:
                         camera_streamer.start_streaming()
-                        print("✅ Stream restarted successfully")
+                        logger.info("Stream restarted successfully")
                     except Exception as restart_error:
-                        print(f"❌ Warning: Failed to restart stream: {restart_error}")
-                        traceback.print_exc()
+                        logger.warning(f"Failed to restart stream: {restart_error}")
+                        logger.exception("Stream restart failed")
 
         # Check subprocess result
         if subprocess_result is None:
@@ -957,9 +954,9 @@ def calibrate_photo():
 
         if subprocess_result.returncode != 0:
             # Log detailed error server-side
-            print(f"❌ Calibration subprocess failed with code {subprocess_result.returncode}")
-            print(f"stderr: {subprocess_result.stderr}")
-            print(f"stdout: {subprocess_result.stdout}")
+            logger.error(f"Calibration subprocess failed with code {subprocess_result.returncode}")
+            logger.debug(f"stderr: {subprocess_result.stderr}")
+            logger.debug(f"stdout: {subprocess_result.stdout}")
 
             # Determine error type from stderr
             error_msg = "Calibration subprocess failed"
@@ -998,7 +995,7 @@ def calibrate_photo():
                 for row in reader:
                     after_settings[row["SETTING"]] = row["VALUE"]
         except Exception as e:
-            print(f"⚠️  Warning: Could not read updated settings: {e}")
+            logger.warning(f"Could not read updated settings: {e}")
 
         after_snapshot = {
             "ExposureTime": after_settings.get("ExposureTime", "unknown"),
@@ -1006,12 +1003,12 @@ def calibrate_photo():
             "LensPosition": after_settings.get("LensPosition", "unknown"),
         }
 
-        print(f"✅ Photo calibration completed in {duration:.2f}s")
-        print(
-            f"   Before: Exp={before_snapshot['ExposureTime']}, Gain={before_snapshot['AnalogueGain']}, Lens={before_snapshot['LensPosition']}"
+        logger.info(f"Photo calibration completed in {duration:.2f}s")
+        logger.info(
+            f"Before: Exp={before_snapshot['ExposureTime']}, Gain={before_snapshot['AnalogueGain']}, Lens={before_snapshot['LensPosition']}"
         )
-        print(
-            f"   After:  Exp={after_snapshot['ExposureTime']}, Gain={after_snapshot['AnalogueGain']}, Lens={after_snapshot['LensPosition']}"
+        logger.info(
+            f"After:  Exp={after_snapshot['ExposureTime']}, Gain={after_snapshot['AnalogueGain']}, Lens={after_snapshot['LensPosition']}"
         )
 
         # Emit progress: Complete
@@ -1030,22 +1027,22 @@ def calibrate_photo():
         )
 
     except subprocess.TimeoutExpired:
-        print("⏱️  Calibration subprocess timeout (>30s)")
+        logger.error("Calibration subprocess timeout (>30s)")
         # Stream should already be restarted by finally block above
         return jsonify({"success": False, "error": "Calibration timeout (>30s)"}), 500
 
     except Exception as e:
         # Log full error for debugging
-        print(f"❌ Calibration error: {e}")
-        traceback.print_exc()
+        logger.error(f"Calibration error: {e}")
+        logger.exception("Calibration exception")
 
         # Ensure stream is restarted even on unexpected errors
         if was_streaming and camera_streamer and not operation_lock_acquired:
             try:
-                print("🔄 Emergency stream restart after error...")
+                logger.debug("Emergency stream restart after error...")
                 camera_streamer.start_streaming()
             except Exception as restart_error:
-                print(f"❌ Failed emergency restart: {restart_error}")
+                logger.error(f"Failed emergency restart: {restart_error}")
 
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1166,9 +1163,8 @@ def freeze_settings():
             )
 
     except Exception as e:
-        import traceback
 
-        print(traceback.format_exc())
+        logger.exception("Freeze settings exception")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1201,7 +1197,7 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
         # Release camera hardware if initialized (prevents resource conflict)
         was_streaming = False
         if camera_streamer.camera:
-            print("Releasing camera hardware before test capture...")
+            logger.debug("Releasing camera hardware before test capture...")
             was_streaming = camera_streamer.streaming
             camera_streamer.release_camera()
             time.sleep(0.5)  # Let camera fully release
@@ -1240,21 +1236,21 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             controls = build_picamera_controls(settings_dict)
 
             picam2.set_controls(controls)
-            print(f"Applied {settings_source} settings to test capture: {controls}")
+            logger.debug(f"Applied {settings_source} settings to test capture: {controls}")
 
             # Wait for settings to stabilize
             time.sleep(0.5)
 
             # Trigger autofocus if in Auto mode (1) or Continuous mode (3)
             if af_mode in AF_MODES_REQUIRING_TRIGGER:
-                print(f"Triggering autofocus (mode={af_mode})...")
+                logger.debug(f"Triggering autofocus (mode={af_mode})...")
                 try:
                     picam2.autofocus_cycle()
                     # Wait for autofocus to complete
                     time.sleep(1.0)
-                    print("Autofocus cycle completed")
+                    logger.debug("Autofocus cycle completed")
                 except Exception as af_error:
-                    print(f"Warning: Autofocus cycle failed: {af_error}")
+                    logger.warning(f"Autofocus cycle failed: {af_error}")
                     # Continue with capture even if AF fails
             else:
                 # Manual focus mode - no autofocus trigger needed
@@ -1270,7 +1266,7 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             filepath = test_dir / filename
 
             # Capture photo with rich EXIF metadata
-            print(f"Capturing test photo to: {filepath}")
+            logger.info(f"Capturing test photo to: {filepath}")
 
             # Capture array and metadata (instead of capture_file to allow custom EXIF)
             array = picam2.capture_array("main")
@@ -1284,7 +1280,7 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
             # Save with EXIF (Picamera2 BGR888 outputs RGB bytes - no conversion needed)
             pil_image = Image.fromarray(array, mode="RGB")
             pil_image.save(str(filepath), exif=exif_bytes, quality=95)
-            print(f"Saved test capture with rich EXIF metadata to {filepath}")
+            logger.info(f"Saved test capture with rich EXIF metadata to {filepath}")
 
             # Stop camera
             picam2.stop()
@@ -1330,11 +1326,11 @@ def _execute_test_capture(settings_dict, af_mode, settings_source):
         finally:
             # Always restart stream if it was active (handles both success and error cases)
             if was_streaming and camera_streamer:
-                print("Restarting camera stream after test capture...")
+                logger.debug("Restarting camera stream after test capture...")
                 try:
                     camera_streamer.start_streaming()
                 except Exception as restart_error:
-                    print(f"Warning: Failed to restart stream: {restart_error}")
+                    logger.warning(f"Failed to restart stream: {restart_error}")
 
 
 @camera_bp.route("/test-capture-liveview", methods=["POST"])
@@ -1359,16 +1355,16 @@ def test_capture_liveview():
 
         from mothbox_paths import LIVEVIEW_SETTINGS_FILE, get_control_values
 
-        print("Test capture (live view settings) requested via API")
+        logger.info("Test capture (live view settings) requested via API")
 
         # PRIMARY: Get settings from camera_streamer instance (live values)
         camera_streamer = current_app.config.get("CAMERA_STREAMER")
         if camera_streamer:
-            print("Using live camera settings from camera_streamer instance")
+            logger.debug("Using live camera settings from camera_streamer instance")
             liveview_settings = camera_streamer.get_current_settings()
         else:
             # FALLBACK: Read from file when camera_streamer unavailable
-            print("Falling back to liveview_settings.txt file")
+            logger.debug("Falling back to liveview_settings.txt file")
             liveview_settings = {}
             if LIVEVIEW_SETTINGS_FILE.exists():
                 liveview_settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
@@ -1464,11 +1460,10 @@ def test_capture_liveview():
         return _execute_test_capture(controls, settings.get("af_mode", 2), "live view")
 
     except Exception as e:
-        import traceback
 
         error_msg = str(e)
-        print(f"Test capture (live view) error: {error_msg}")
-        print(traceback.format_exc())
+        logger.error(f"Test capture (live view) error: {error_msg}")
+        logger.exception("Test capture (live view) exception")
         return jsonify({"success": False, "error": error_msg}), 500
 
 
@@ -1495,7 +1490,7 @@ def instant_capture():
 
         from flask import current_app
 
-        print("Instant capture requested via API")
+        logger.info("Instant capture requested via API")
 
         # Get serial number for filename
         def get_serial_number():
@@ -1520,7 +1515,7 @@ def instant_capture():
             ), 500
 
         # Get current live view settings
-        print("Using live camera settings from camera_streamer instance")
+        logger.debug("Using live camera settings from camera_streamer instance")
         liveview_settings = camera_streamer.get_current_settings()
 
         # Extract and build settings (same logic as test_capture_liveview)
@@ -1604,7 +1599,7 @@ def instant_capture():
             controls["LensPosition"] = float(lens_position)
             controls["AfMode"] = 0  # Force Manual AF to preserve lens position
             af_mode_for_capture = 0
-            print(f"Preserving lens position {lens_position:.2f} - forcing Manual AF mode")
+            logger.debug(f"Preserving lens position {lens_position:.2f} - forcing Manual AF mode")
 
         # Generate instant capture filename: instant_YYYY_MM_DD__HH_MM_SS_[serial].jpg
         timestamp = datetime.now().strftime("%Y_%m_%d__%H_%M_%S")
@@ -1614,11 +1609,10 @@ def instant_capture():
         return _execute_instant_capture(controls, af_mode_for_capture, "instant capture", filename)
 
     except Exception as e:
-        import traceback
 
         error_msg = str(e)
-        print(f"Instant capture error: {error_msg}")
-        print(traceback.format_exc())
+        logger.error(f"Instant capture error: {error_msg}")
+        logger.exception("Instant capture exception")
         return jsonify({"success": False, "error": error_msg}), 500
 
 
@@ -1656,7 +1650,7 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
         # Release camera hardware if initialized (prevents resource conflict)
         was_streaming = False
         if camera_streamer.camera:
-            print("Releasing camera hardware before instant capture...")
+            logger.debug("Releasing camera hardware before instant capture...")
             was_streaming = camera_streamer.streaming
             camera_streamer.release_camera()
             time.sleep(0.5)  # Let camera fully release
@@ -1690,21 +1684,21 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             controls = build_picamera_controls(settings_dict)
 
             picam2.set_controls(controls)
-            print(f"Applied {settings_source} settings to instant capture: {controls}")
+            logger.debug(f"Applied {settings_source} settings to instant capture: {controls}")
 
             # Wait for settings to stabilize
             time.sleep(0.5)
 
             # Trigger autofocus if in Auto mode (1) or Continuous mode (3)
             if af_mode in AF_MODES_REQUIRING_TRIGGER:
-                print(f"Triggering autofocus (mode={af_mode})...")
+                logger.debug(f"Triggering autofocus (mode={af_mode})...")
                 try:
                     picam2.autofocus_cycle()
                     # Wait for autofocus to complete
                     time.sleep(1.0)
-                    print("Autofocus cycle completed")
+                    logger.debug("Autofocus cycle completed")
                 except Exception as af_error:
-                    print(f"Warning: Autofocus cycle failed: {af_error}")
+                    logger.warning(f"Autofocus cycle failed: {af_error}")
                     # Continue with capture even if AF fails
             else:
                 # Manual focus mode - no autofocus trigger needed
@@ -1718,7 +1712,7 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             filepath = test_dir / filename
 
             # Capture photo with rich EXIF metadata
-            print(f"Capturing instant photo to: {filepath}")
+            logger.info(f"Capturing instant photo to: {filepath}")
 
             # Capture array and metadata
             array = picam2.capture_array("main")
@@ -1732,7 +1726,7 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             # Save with EXIF metadata (Picamera2 BGR888 outputs RGB bytes - no conversion needed)
             img = Image.fromarray(array)
             img.save(str(filepath), quality=95, exif=exif_bytes)
-            print(f"Instant photo saved successfully: {filepath}")
+            logger.info(f"Instant photo saved successfully: {filepath}")
 
             # Get relative path from PHOTOS_DIR
             relative_path = filepath.relative_to(PHOTOS_DIR)
@@ -1755,11 +1749,10 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             ), 200
 
         except Exception as e:
-            import traceback
 
             error_msg = str(e)
-            print(f"Instant capture error: {error_msg}")
-            print(traceback.format_exc())
+            logger.error(f"Instant capture error: {error_msg}")
+            logger.exception("Instant capture internal exception")
             raise  # Re-raise to be caught by outer try/except
 
         finally:
@@ -1768,9 +1761,9 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
                 try:
                     picam2.stop()
                     picam2.close()
-                    print("Camera closed")
+                    logger.debug("Camera closed")
                 except Exception as close_error:
-                    print(f"Warning: Error closing camera: {close_error}")
+                    logger.warning(f"Error closing camera: {close_error}")
 
                 # Force garbage collection
                 del picam2
@@ -1778,11 +1771,11 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
 
             # Restart streaming if it was active
             if was_streaming and camera_streamer:
-                print("Restarting camera stream after instant capture...")
+                logger.debug("Restarting camera stream after instant capture...")
                 try:
                     camera_streamer.start_streaming()
                 except Exception as restart_error:
-                    print(f"Warning: Failed to restart stream: {restart_error}")
+                    logger.warning(f"Failed to restart stream: {restart_error}")
 
 
 @camera_bp.route("/test-capture-photo", methods=["POST"])
@@ -1807,7 +1800,7 @@ def test_capture_photo():
 
         from mothbox_paths import CAMERA_SETTINGS_FILE
 
-        print("Test capture (photo settings) requested via API")
+        logger.info("Test capture (photo settings) requested via API")
 
         # Load photo capture settings from CSV
         photo_settings = {}
@@ -1855,9 +1848,8 @@ def test_capture_photo():
         return _execute_test_capture(controls, af_mode, "photo capture")
 
     except Exception as e:
-        import traceback
 
         error_msg = str(e)
-        print(f"Test capture (photo) error: {error_msg}")
-        print(traceback.format_exc())
+        logger.error(f"Test capture (photo) error: {error_msg}")
+        logger.exception("Test capture (photo) exception")
         return jsonify({"success": False, "error": error_msg}), 500
