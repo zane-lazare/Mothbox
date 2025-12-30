@@ -274,7 +274,9 @@ def print_gps_info(photo_path: Path) -> None:
     if gps_info["latitude"] is not None and gps_info["longitude"] is not None:
         lat = gps_info["latitude"]
         lon = gps_info["longitude"]
-        print(f"GPS Coordinates: {lat:.6f}, {lon:.6f}")  # lgtm[py/clear-text-logging-sensitive-data]
+        print(
+            f"GPS Coordinates: {lat:.6f}, {lon:.6f}"
+        )  # lgtm[py/clear-text-logging-sensitive-data]
 
         # Format as degrees for readability
         lat_dir = "N" if lat >= 0 else "S"
