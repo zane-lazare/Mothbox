@@ -47,6 +47,7 @@ except ImportError:
 # Try to import coloredlogs for colored console output
 try:
     import coloredlogs
+
     COLOREDLOGS_AVAILABLE = True
 except ImportError:
     COLOREDLOGS_AVAILABLE = False
@@ -67,30 +68,30 @@ MOTHBOX_DATE_FORMAT: Final[str] = "%Y-%m-%d %H:%M:%S"
 # Emoji patterns to strip from log messages
 EMOJI_PATTERN = re.compile(
     "["
-    "\U0001F600-\U0001F64F"  # Emoticons
-    "\U0001F300-\U0001F5FF"  # Symbols & pictographs
-    "\U0001F680-\U0001F6FF"  # Transport & map symbols
-    "\U0001F700-\U0001F77F"  # Alchemical symbols
-    "\U0001F780-\U0001F7FF"  # Geometric shapes extended
-    "\U0001F800-\U0001F8FF"  # Supplemental arrows-C
-    "\U0001F900-\U0001F9FF"  # Supplemental symbols and pictographs
-    "\U0001FA00-\U0001FA6F"  # Chess symbols
-    "\U0001FA70-\U0001FAFF"  # Symbols and pictographs extended-A
-    "\U00002702-\U000027B0"  # Dingbats
-    "\U00002600-\U000026FF"  # Misc symbols (sun, stars, etc.)
-    "\U00002700-\U000027BF"  # Dingbats
-    "\U0000FE00-\U0000FE0F"  # Variation selectors
-    "\U0001F1E0-\U0001F1FF"  # Flags
-    "\u2139"                  # Info symbol
-    "\u2714"                  # Check mark
-    "\u2716"                  # X mark
-    "\u2718"                  # X mark heavy
-    "\u26A0"                  # Warning
-    "\u274C"                  # Cross mark
-    "\u2705"                  # White heavy check mark
-    "\u2611"                  # Ballot box with check
+    "\U0001f600-\U0001f64f"  # Emoticons
+    "\U0001f300-\U0001f5ff"  # Symbols & pictographs
+    "\U0001f680-\U0001f6ff"  # Transport & map symbols
+    "\U0001f700-\U0001f77f"  # Alchemical symbols
+    "\U0001f780-\U0001f7ff"  # Geometric shapes extended
+    "\U0001f800-\U0001f8ff"  # Supplemental arrows-C
+    "\U0001f900-\U0001f9ff"  # Supplemental symbols and pictographs
+    "\U0001fa00-\U0001fa6f"  # Chess symbols
+    "\U0001fa70-\U0001faff"  # Symbols and pictographs extended-A
+    "\U00002702-\U000027b0"  # Dingbats
+    "\U00002600-\U000026ff"  # Misc symbols (sun, stars, etc.)
+    "\U00002700-\U000027bf"  # Dingbats
+    "\U0000fe00-\U0000fe0f"  # Variation selectors
+    "\U0001f1e0-\U0001f1ff"  # Flags
+    "\u2139"  # Info symbol
+    "\u2714"  # Check mark
+    "\u2716"  # X mark
+    "\u2718"  # X mark heavy
+    "\u26a0"  # Warning
+    "\u274c"  # Cross mark
+    "\u2705"  # White heavy check mark
+    "\u2611"  # Ballot box with check
     "]+",
-    flags=re.UNICODE
+    flags=re.UNICODE,
 )
 
 # Valid log levels
@@ -100,6 +101,7 @@ VALID_LOG_LEVELS: Final[set[str]] = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITI
 # ============================================================================
 # Utility Functions
 # ============================================================================
+
 
 def strip_emojis(text: str) -> str:
     """
@@ -187,6 +189,7 @@ def get_default_log_file() -> Path:
 # Emoji-Stripping Filter
 # ============================================================================
 
+
 class EmojiStrippingFilter(logging.Filter):
     """
     Logging filter that strips emojis from log messages.
@@ -213,6 +216,7 @@ class EmojiStrippingFilter(logging.Filter):
 # ============================================================================
 # Main Setup Function
 # ============================================================================
+
 
 def setup_mothbox_logging(
     name: str = "mothbox",

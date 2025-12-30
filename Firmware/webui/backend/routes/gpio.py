@@ -191,7 +191,6 @@ def get_gpio_status():
 
         return jsonify(status), 200
     except Exception as e:
-
         logger.error(f"GPIO status error: {e}")
         logger.exception("GPIO status exception")
         return jsonify({"error": str(e)}), 500
@@ -238,7 +237,6 @@ def control_gpio():
 
         return jsonify({"success": True, "relay": relay, "state": state})
     except Exception as e:
-
         logger.error(f"GPIO control error: {e}")
         logger.exception("GPIO control exception")
         return jsonify({"error": str(e)}), 500
@@ -281,7 +279,6 @@ def trigger_flash():
         logger.info("Flash completed")
         return jsonify({"success": True})
     except Exception as e:
-
         logger.error(f"Flash trigger error: {e}")
         logger.exception("Flash trigger exception")
         return jsonify({"error": str(e)}), 500

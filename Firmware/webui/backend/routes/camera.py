@@ -134,7 +134,9 @@ def _emit_calibration_progress(step, total_steps, message, progress):
                     "progress": progress,
                 },
             )
-            logger.debug(f"Calibration progress: Step {step}/{total_steps} ({progress}%) - {message}")
+            logger.debug(
+                f"Calibration progress: Step {step}/{total_steps} ({progress}%) - {message}"
+            )
     except Exception as e:
         # Don't fail calibration if progress emission fails
         logger.warning(f"Failed to emit calibration progress: {e}")
@@ -261,7 +263,9 @@ def _build_exif_metadata(
             gps_ifd = build_gps_ifd(gps_data)
             if gps_ifd:
                 # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
-                logger.info(f"GPS EXIF embedded: lat={gps_data['latitude']}, lon={gps_data['longitude']}")
+                logger.info(
+                    f"GPS EXIF embedded: lat={gps_data['latitude']}, lon={gps_data['longitude']}"
+                )
     except Exception as gps_error:
         logger.warning(f"Could not embed GPS EXIF: {gps_error}")
 
@@ -617,7 +621,6 @@ def capture_photo():
         logger.error(error_msg)
         return jsonify({"success": False, "error": error_msg}), 500
     except Exception as e:
-
         error_msg = str(e)
         logger.error(f"Photo capture error: {error_msg}")
         logger.exception("Photo capture exception")
@@ -839,7 +842,6 @@ def trigger_autofocus():
                         logger.warning(f"Failed to restart stream: {restart_error}")
 
     except Exception as e:
-
         error_msg = str(e)
         logger.error(f"Autofocus error: {error_msg}")
         logger.exception("Autofocus exception")
@@ -1461,7 +1463,6 @@ def test_capture_liveview():
         return _execute_test_capture(controls, settings.get("af_mode", 2), "live view")
 
     except Exception as e:
-
         error_msg = str(e)
         logger.error(f"Test capture (live view) error: {error_msg}")
         logger.exception("Test capture (live view) exception")
@@ -1610,7 +1611,6 @@ def instant_capture():
         return _execute_instant_capture(controls, af_mode_for_capture, "instant capture", filename)
 
     except Exception as e:
-
         error_msg = str(e)
         logger.error(f"Instant capture error: {error_msg}")
         logger.exception("Instant capture exception")
@@ -1750,7 +1750,6 @@ def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
             ), 200
 
         except Exception as e:
-
             error_msg = str(e)
             logger.error(f"Instant capture error: {error_msg}")
             logger.exception("Instant capture internal exception")
@@ -1849,7 +1848,6 @@ def test_capture_photo():
         return _execute_test_capture(controls, af_mode, "photo capture")
 
     except Exception as e:
-
         error_msg = str(e)
         logger.error(f"Test capture (photo) error: {error_msg}")
         logger.exception("Test capture (photo) exception")
