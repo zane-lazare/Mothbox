@@ -269,10 +269,13 @@ def print_gps_info(photo_path: Path) -> None:
         return
 
     # Print GPS coordinates
+    # CodeQL suppression: py/clear-text-logging-sensitive-data
+    # GPS coordinates here are camera trap deployment locations for wildlife monitoring,
+    # not personal/user data. This CLI tool's purpose is to verify GPS EXIF embedding.
     if gps_info["latitude"] is not None and gps_info["longitude"] is not None:
         lat = gps_info["latitude"]
         lon = gps_info["longitude"]
-        print(f"📍 GPS Coordinates: {lat:.6f}, {lon:.6f}")
+        print(f"📍 GPS Coordinates: {lat:.6f}, {lon:.6f}")  # nosec
 
         # Format as degrees for readability
         lat_dir = "N" if lat >= 0 else "S"

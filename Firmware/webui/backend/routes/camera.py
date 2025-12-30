@@ -642,8 +642,9 @@ def get_camera_settings():
                 settings[setting_name] = setting_value
 
         return jsonify(settings)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to get camera settings")
+        return jsonify({"error": "Failed to get camera settings"}), 500
 
 
 @camera_bp.route("/settings", methods=["POST"])
@@ -700,8 +701,9 @@ def update_camera_settings():
             writer.writerows(csv_rows)
 
         return jsonify({"success": True})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to update camera settings")
+        return jsonify({"error": "Failed to update camera settings"}), 500
 
 
 @camera_bp.route("/autofocus", methods=["POST"])
@@ -1044,7 +1046,7 @@ def calibrate_photo():
             except Exception as restart_error:
                 logger.error(f"Failed emergency restart: {restart_error}")
 
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "Calibration failed"}), 500
 
 
 # ============================================================================
@@ -1162,10 +1164,9 @@ def freeze_settings():
                 }
             )
 
-    except Exception as e:
-
+    except Exception:
         logger.exception("Freeze settings exception")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to freeze settings"}), 500
 
 
 def _execute_test_capture(settings_dict, af_mode, settings_source):

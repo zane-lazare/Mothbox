@@ -136,8 +136,9 @@ def get_controls():
     try:
         controls = get_control_values(CONTROLS_FILE)
         return jsonify(controls)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to get controls")
+        return jsonify({"error": "Failed to get controls"}), 500
 
 
 @config_bp.route("/controls", methods=["POST"])
@@ -175,7 +176,7 @@ def update_controls():
                 f.write(f"{key}={value}\n")
 
         return jsonify({"success": True})
-    except Exception as e:
+    except Exception:
         # Restore backup if write failed
         if backup_path and backup_path.exists():
             try:
@@ -183,7 +184,7 @@ def update_controls():
                 logger.info(f"Restored backup from {backup_path} after error")
             except Exception as restore_error:
                 logger.error(f"Failed to restore backup: {restore_error}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to update controls"}), 500
 
 
 @config_bp.route("/schedule", methods=["GET"])
@@ -198,8 +199,9 @@ def get_schedule_settings():
                 break
 
         return jsonify(settings)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to get schedule settings")
+        return jsonify({"error": "Failed to get schedule settings"}), 500
 
 
 @config_bp.route("/schedule", methods=["POST"])
@@ -235,7 +237,7 @@ def update_schedule_settings():
             writer.writerow(sanitized_settings)
 
         return jsonify({"success": True})
-    except Exception as e:
+    except Exception:
         # Restore backup if write failed
         if backup_path and backup_path.exists():
             try:
@@ -243,7 +245,7 @@ def update_schedule_settings():
                 logger.info(f"Restored backup from {backup_path} after error")
             except Exception as restore_error:
                 logger.error(f"Failed to restore backup: {restore_error}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to update schedule settings"}), 500
 
 
 def safe_convert(value: Any, converter: Callable, default: Any) -> Any:
@@ -347,8 +349,9 @@ def get_webui_settings():
                         defaults[key] = safe_convert(settings[key], int, defaults[key])
 
         return jsonify(defaults)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to get webui settings")
+        return jsonify({"error": "Failed to get webui settings"}), 500
 
 
 @config_bp.route("/webui", methods=["POST"])
@@ -693,7 +696,7 @@ def update_webui_settings():
             f.write(f"focus_peaking_algorithm={focus_peaking_algorithm}\n")
 
         return jsonify({"success": True})
-    except Exception as e:
+    except Exception:
         # Restore backup if write failed
         if backup_path and backup_path.exists():
             try:
@@ -701,7 +704,7 @@ def update_webui_settings():
                 logger.info(f"Restored backup from {backup_path} after error")
             except Exception as restore_error:
                 logger.error(f"Failed to restore backup: {restore_error}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to update webui settings"}), 500
 
 
 @config_bp.route("/copy-settings", methods=["POST"])
@@ -912,9 +915,6 @@ def copy_settings():
             }
         )
 
-    except Exception as e:
-        import traceback
-
-        logger.error(f"Copy settings error: {e}")
-        logger.error(traceback.format_exc())
-        return jsonify({"success": False, "error": str(e)}), 500
+    except Exception:
+        logger.exception("Copy settings error")
+        return jsonify({"success": False, "error": "Failed to copy settings"}), 500

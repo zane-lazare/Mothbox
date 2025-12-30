@@ -10,7 +10,10 @@ Endpoints:
 - POST /api/photos/search/sync - Incremental sync of search index
 """
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from flask import Blueprint, current_app, jsonify, request
 
@@ -118,8 +121,9 @@ def search_photos():
     # Execute search
     try:
         result = search_service.search(query, limit=limit, offset=offset)
-    except Exception as e:
-        return jsonify({"error": "Search failed", "message": str(e)}), 500
+    except Exception:
+        logger.exception("Search failed")
+        return jsonify({"error": "Search failed"}), 500
 
     # Check if query was valid
     if not result.get("is_valid", True):
@@ -180,8 +184,9 @@ def search_stats():
     try:
         stats = search_service.get_statistics()
         return jsonify(stats), 200
-    except Exception as e:
-        return jsonify({"error": "Failed to get statistics", "message": str(e)}), 500
+    except Exception:
+        logger.exception("Failed to get search statistics")
+        return jsonify({"error": "Failed to get statistics"}), 500
 
 
 @search_bp.route("/rebuild", methods=["POST"])
@@ -224,8 +229,9 @@ def rebuild_index():
         }
 
         return jsonify(response), 200
-    except Exception as e:
-        return jsonify({"error": "Index rebuild failed", "message": str(e)}), 500
+    except Exception:
+        logger.exception("Index rebuild failed")
+        return jsonify({"error": "Index rebuild failed"}), 500
 
 
 @search_bp.route("/sync", methods=["POST"])
@@ -275,8 +281,9 @@ def sync_index():
         }
 
         return jsonify(response), 200
-    except Exception as e:
-        return jsonify({"error": "Index sync failed", "message": str(e)}), 500
+    except Exception:
+        logger.exception("Index sync failed")
+        return jsonify({"error": "Index sync failed"}), 500
 
 
 def _format_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
