@@ -97,10 +97,33 @@ EMOJI_PATTERN = re.compile(
 # Valid log levels
 VALID_LOG_LEVELS: Final[set[str]] = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
+# Control character pattern for log injection protection
+# Removes control chars except newline (\n, \x0a) and tab (\t, \x09)
+CONTROL_CHAR_PATTERN = re.compile(r"[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f-\x9f]")
+
 
 # ============================================================================
 # Utility Functions
 # ============================================================================
+
+
+def sanitize_log_message(msg: str) -> str:
+    """
+    Remove control characters from a string to prevent log injection.
+
+    Control characters can be used to forge log entries, corrupt log files,
+    or exploit log viewers. This function removes all control characters
+    except newline and tab which are legitimate in log messages.
+
+    Args:
+        msg: Input string potentially containing control characters
+
+    Returns:
+        String with control characters removed
+    """
+    if not msg:
+        return msg
+    return CONTROL_CHAR_PATTERN.sub("", msg)
 
 
 def strip_emojis(text: str) -> str:
@@ -190,17 +213,20 @@ def get_default_log_file() -> Path:
 # ============================================================================
 
 
-class EmojiStrippingFilter(logging.Filter):
+class LogSanitizingFilter(logging.Filter):
     """
-    Logging filter that strips emojis from log messages.
+    Logging filter that sanitizes log messages for security and cleanliness.
 
-    Used for file handlers to keep log files clean and easily parseable
-    while allowing emojis in console output for better readability.
+    Applies two sanitization steps:
+    1. Removes control characters to prevent log injection attacks
+    2. Strips emojis for clean, parseable log files
+
+    Used for file handlers while allowing raw output in console for development.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
         """
-        Filter the log record by stripping emojis from the message.
+        Filter the log record by sanitizing and stripping emojis from the message.
 
         Args:
             record: The log record to filter
@@ -209,8 +235,17 @@ class EmojiStrippingFilter(logging.Filter):
             Always True (record is not filtered out, just modified)
         """
         if record.msg:
-            record.msg = strip_emojis(str(record.msg))
+            msg = str(record.msg)
+            # First sanitize control characters (security)
+            msg = sanitize_log_message(msg)
+            # Then strip emojis (cleanliness)
+            msg = strip_emojis(msg)
+            record.msg = msg
         return True
+
+
+# Backwards compatibility alias
+EmojiStrippingFilter = LogSanitizingFilter
 
 
 # ============================================================================
@@ -287,7 +322,7 @@ def setup_mothbox_logging(
     )
     file_handler.setLevel(level)
     file_handler.setFormatter(formatter)
-    file_handler.addFilter(EmojiStrippingFilter())
+    file_handler.addFilter(LogSanitizingFilter())
     logger.addHandler(file_handler)
 
     # Add console handler
