@@ -114,14 +114,10 @@ def _validate_coordinates(latitude: float, longitude: float) -> None:
     if not -90 <= latitude <= 90:
         raise ValueError(f"Invalid latitude {latitude}. Must be between -90 and 90.")
     if not -180 <= longitude <= 180:
-        raise ValueError(
-            f"Invalid longitude {longitude}. Must be between -180 and 180."
-        )
+        raise ValueError(f"Invalid longitude {longitude}. Must be between -180 and 180.")
 
 
-def _create_location(
-    latitude: float, longitude: float, timezone_name: str
-) -> LocationInfo:
+def _create_location(latitude: float, longitude: float, timezone_name: str) -> LocationInfo:
     """
     Create LocationInfo object for astral calculations.
 
@@ -194,11 +190,7 @@ def _get_sun_event_time(
         twilight_times = get_twilight_times(
             target_date, latitude, longitude, twilight_type, timezone_name
         )
-        return (
-            datetime.fromisoformat(twilight_times[period])
-            if twilight_times[period]
-            else None
-        )
+        return datetime.fromisoformat(twilight_times[period]) if twilight_times[period] else None
 
     # Handle golden hour events
     # Note: golden_hour_start/end refer to EVENING golden hour only.
@@ -343,9 +335,9 @@ def get_sun_times(
     Example:
         >>> from datetime import date
         >>> result = get_sun_times(date(2024, 6, 15), 35.96, -83.92, "America/New_York")
-        >>> result['sunrise']
+        >>> result["sunrise"]
         '2024-06-15T06:23:00-04:00'
-        >>> result['status']
+        >>> result["status"]
         'normal'
     """
     _validate_coordinates(latitude, longitude)
@@ -442,18 +434,16 @@ def get_twilight_times(
         >>> result = get_twilight_times(
         ...     date(2024, 6, 15), 35.96, -83.92, "civil", "America/New_York"
         ... )
-        >>> result['morning']
+        >>> result["morning"]
         '2024-06-15T05:50:00-04:00'
-        >>> result['status']
+        >>> result["status"]
         'normal'
     """
     _validate_coordinates(latitude, longitude)
 
     if twilight_type not in TWILIGHT_TYPES:
         valid_types = ", ".join(TWILIGHT_TYPES)
-        raise ValueError(
-            f"Invalid twilight type '{twilight_type}'. Must be one of: {valid_types}"
-        )
+        raise ValueError(f"Invalid twilight type '{twilight_type}'. Must be one of: {valid_types}")
 
     location = _create_location(latitude, longitude, timezone_name)
     depression = TWILIGHT_DEPRESSION[twilight_type]
@@ -541,9 +531,9 @@ def get_golden_hour(
     Example:
         >>> from datetime import date
         >>> result = get_golden_hour(date(2024, 6, 15), 35.96, -83.92, "America/New_York")
-        >>> result['evening_start']
+        >>> result["evening_start"]
         '2024-06-15T19:45:00-04:00'
-        >>> result['status']
+        >>> result["status"]
         'normal'
     """
     _validate_coordinates(latitude, longitude)
@@ -588,8 +578,12 @@ def get_golden_hour(
 
     # Determine polar status
     status = "normal"
-    all_none = (morning_start is None and morning_end is None and
-                evening_start is None and evening_end is None)
+    all_none = (
+        morning_start is None
+        and morning_end is None
+        and evening_start is None
+        and evening_end is None
+    )
     if all_none:
         # Check if we're in polar day or polar night
         month = target_date.month
@@ -649,9 +643,9 @@ def get_blue_hour(
     Example:
         >>> from datetime import date
         >>> result = get_blue_hour(date(2024, 6, 15), 35.96, -83.92, "America/New_York")
-        >>> result['evening_start']
+        >>> result["evening_start"]
         '2024-06-15T20:45:00-04:00'
-        >>> result['status']
+        >>> result["status"]
         'normal'
     """
     _validate_coordinates(latitude, longitude)
@@ -696,8 +690,12 @@ def get_blue_hour(
 
     # Determine polar status
     status = "normal"
-    all_none = (morning_start is None and morning_end is None and
-                evening_start is None and evening_end is None)
+    all_none = (
+        morning_start is None
+        and morning_end is None
+        and evening_start is None
+        and evening_end is None
+    )
     if all_none:
         # Check if we're in polar day or polar night
         month = target_date.month

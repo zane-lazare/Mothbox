@@ -51,6 +51,7 @@ class XMPGenerationError(ZipExportError):
 class ZipWriteError(ZipExportError):
     """Error during ZIP file writing (disk full, corruption)."""
 
+
 if TYPE_CHECKING:
     from webui.backend.services.export_metadata_service import ExportMetadata
 
@@ -62,9 +63,9 @@ if TYPE_CHECKING:
 ZIP_COMPRESSION_LEVEL: Final[int] = 0  # No compression for JPEGs (already compressed)
 ZIP_BUFFER_SIZE: Final[int] = 8192  # 8KB streaming buffer
 DEFAULT_BATCH_SIZE: Final[int] = 50  # Process 50 photos at a time
-MANIFEST_FILENAME: Final[str] = 'manifest.json'
-SUMMARY_FILENAME: Final[str] = 'summary.csv'
-GENERATOR_VERSION: Final[str] = '5.0.0'  # Mothbox version
+MANIFEST_FILENAME: Final[str] = "manifest.json"
+SUMMARY_FILENAME: Final[str] = "summary.csv"
+GENERATOR_VERSION: Final[str] = "5.0.0"  # Mothbox version
 
 
 # ============================================================================
@@ -102,10 +103,7 @@ class ZipExportResult:
 # ============================================================================
 
 
-def _apply_gps_precision(
-    value: float | None,
-    precision: int | None
-) -> float | None:
+def _apply_gps_precision(value: float | None, precision: int | None) -> float | None:
     """Apply GPS precision rounding to a coordinate value.
 
     Args:
@@ -121,7 +119,7 @@ def _apply_gps_precision(
 
 
 def generate_csv_summary(
-    metadata_list: list['ExportMetadata'],
+    metadata_list: list["ExportMetadata"],
     gps_precision: int | None = None,
 ) -> str:
     """Generate summary.csv content.
@@ -140,13 +138,13 @@ def generate_csv_summary(
     writer = csv.DictWriter(
         output,
         fieldnames=[
-            'filename',
-            'timestamp',
-            'latitude',
-            'longitude',
-            'species',
-            'species_common_name',
-            'tags',
+            "filename",
+            "timestamp",
+            "latitude",
+            "longitude",
+            "species",
+            "species_common_name",
+            "tags",
         ],
     )
     writer.writeheader()
@@ -161,15 +159,17 @@ def generate_csv_summary(
         lat = _apply_gps_precision(metadata.latitude, gps_precision)
         lon = _apply_gps_precision(metadata.longitude, gps_precision)
 
-        writer.writerow({
-            'filename': metadata.filename or "",
-            'timestamp': metadata.timestamp or "",
-            'latitude': lat if lat is not None else "",
-            'longitude': lon if lon is not None else "",
-            'species': metadata.species or "",
-            'species_common_name': metadata.species_common_name or "",
-            'tags': tags_str,
-        })
+        writer.writerow(
+            {
+                "filename": metadata.filename or "",
+                "timestamp": metadata.timestamp or "",
+                "latitude": lat if lat is not None else "",
+                "longitude": lon if lon is not None else "",
+                "species": metadata.species or "",
+                "species_common_name": metadata.species_common_name or "",
+                "tags": tags_str,
+            }
+        )
 
     return output.getvalue()
 
@@ -181,7 +181,7 @@ def generate_csv_summary(
 
 def generate_manifest(
     photo_paths: list[Path],
-    metadata_list: list['ExportMetadata'],
+    metadata_list: list["ExportMetadata"],
     options: ZipExportOptions,
 ) -> dict:
     """Generate manifest.json content.
@@ -226,28 +226,28 @@ def generate_manifest(
     photos = []
     for metadata in metadata_list:
         photo_entry = {
-            'filename': metadata.filename,
-            'latitude': metadata.latitude,
-            'longitude': metadata.longitude,
-            'timestamp': metadata.timestamp,
-            'species': metadata.species,
+            "filename": metadata.filename,
+            "latitude": metadata.latitude,
+            "longitude": metadata.longitude,
+            "timestamp": metadata.timestamp,
+            "species": metadata.species,
         }
 
         # Add XMP sidecar filename if enabled
         if options.include_xmp_sidecars and metadata.filename:
             xmp_filename = get_xmp_sidecar_filename(metadata.filename)
-            photo_entry['xmp_sidecar'] = xmp_filename
+            photo_entry["xmp_sidecar"] = xmp_filename
 
         photos.append(photo_entry)
 
     manifest = {
-        'version': '1.0',
-        'generator': 'Mothbox',
-        'generator_version': GENERATOR_VERSION,
-        'created_at': datetime.now(UTC).isoformat(),
-        'photo_count': len(metadata_list),
-        'total_size_bytes': total_size_bytes,
-        'photos': photos,
+        "version": "1.0",
+        "generator": "Mothbox",
+        "generator_version": GENERATOR_VERSION,
+        "created_at": datetime.now(UTC).isoformat(),
+        "photo_count": len(metadata_list),
+        "total_size_bytes": total_size_bytes,
+        "photos": photos,
     }
 
     return manifest
@@ -260,7 +260,7 @@ def generate_manifest(
 
 def _prepare_photo_data(
     photo_path: Path,
-    metadata: 'ExportMetadata',
+    metadata: "ExportMetadata",
     include_xmp: bool = True,
     gps_precision: int | None = None,
 ) -> dict:
@@ -290,57 +290,61 @@ def _prepare_photo_data(
         - error_type: Error type classification (only present on failure)
     """
     result = {
-        'photo_path': photo_path,
-        'metadata': metadata,
-        'photo_data': None,
-        'xmp_data': None,
-        'xmp_filename': None,
-        'size': 0,
-        'success': False,
+        "photo_path": photo_path,
+        "metadata": metadata,
+        "photo_data": None,
+        "xmp_data": None,
+        "xmp_filename": None,
+        "size": 0,
+        "success": False,
     }
 
     try:
         # Check file exists
         if not photo_path.exists():
-            result['error'] = f"Photo file not found: {photo_path}"
-            result['error_type'] = 'not_found'
+            result["error"] = f"Photo file not found: {photo_path}"
+            result["error_type"] = "not_found"
             return result
 
         # Read photo data
-        result['photo_data'] = photo_path.read_bytes()
-        result['size'] = len(result['photo_data'])
+        result["photo_data"] = photo_path.read_bytes()
+        result["size"] = len(result["photo_data"])
 
         # Generate XMP if requested
         if include_xmp:
             xmp_content = generate_xmp_xml(metadata, gps_precision=gps_precision)
-            result['xmp_data'] = xmp_content.encode('utf-8')
-            result['xmp_filename'] = get_xmp_sidecar_filename(metadata.filename)
+            result["xmp_data"] = xmp_content.encode("utf-8")
+            result["xmp_filename"] = get_xmp_sidecar_filename(metadata.filename)
 
-        result['success'] = True
+        result["success"] = True
 
     except PermissionError:
         logger.warning("Permission denied reading photo %s", photo_path)
-        result['error'] = "Permission denied reading photo file"
-        result['error_type'] = 'permission'
+        result["error"] = "Permission denied reading photo file"
+        result["error_type"] = "permission"
 
     except OSError as e:
         # Covers I/O errors, disk errors, etc.
         logger.error("OS error processing photo %s: %s", photo_path, e, exc_info=True)
-        error_msg = f"File system error: {e.strerror}" if hasattr(e, 'strerror') and e.strerror else "File system error"
-        result['error'] = error_msg
-        result['error_type'] = 'io'
+        error_msg = (
+            f"File system error: {e.strerror}"
+            if hasattr(e, "strerror") and e.strerror
+            else "File system error"
+        )
+        result["error"] = error_msg
+        result["error_type"] = "io"
 
     except (ValueError, TypeError, AttributeError) as e:
         # XMP generation errors
         logger.warning("XMP generation failed for %s: %s", photo_path, e)
-        result['error'] = "Failed to generate XMP metadata"
-        result['error_type'] = 'xmp'
+        result["error"] = "Failed to generate XMP metadata"
+        result["error_type"] = "xmp"
 
     except Exception:
         # Catch-all for unexpected errors (still log for debugging)
         logger.exception("Unexpected error processing photo %s", photo_path)
-        result['error'] = "Unexpected error processing photo"
-        result['error_type'] = 'unknown'
+        result["error"] = "Unexpected error processing photo"
+        result["error_type"] = "unknown"
 
     return result
 
@@ -353,7 +357,7 @@ def _prepare_photo_data(
 def add_photo_to_zip(
     zip_file: ZipFile,
     photo_path: Path,
-    metadata: 'ExportMetadata',
+    metadata: "ExportMetadata",
     include_xmp: bool = True,
 ) -> dict:
     """Add photo and optional XMP sidecar to ZIP.
@@ -368,55 +372,59 @@ def add_photo_to_zip(
         Dict with: filename, xmp_filename (if generated), size, success, error, error_type
     """
     result = {
-        'filename': metadata.filename,
-        'xmp_filename': None,
-        'size': 0,
-        'success': False,
+        "filename": metadata.filename,
+        "xmp_filename": None,
+        "size": 0,
+        "success": False,
     }
 
     try:
         # Add photo to ZIP
         if not photo_path.exists():
-            result['error'] = f"Photo file not found: {photo_path}"
-            result['error_type'] = 'not_found'
+            result["error"] = f"Photo file not found: {photo_path}"
+            result["error_type"] = "not_found"
             return result
 
         # Write photo with no compression (already JPEG)
         zip_file.write(photo_path, arcname=metadata.filename, compress_type=ZIP_STORED)
-        result['size'] = photo_path.stat().st_size
+        result["size"] = photo_path.stat().st_size
 
         # Generate and add XMP sidecar if requested
         if include_xmp:
             xmp_content = generate_xmp_xml(metadata)
             xmp_filename = get_xmp_sidecar_filename(metadata.filename)
             zip_file.writestr(xmp_filename, xmp_content, compress_type=ZIP_STORED)
-            result['xmp_filename'] = xmp_filename
+            result["xmp_filename"] = xmp_filename
 
-        result['success'] = True
+        result["success"] = True
 
     except PermissionError as e:
         logger.warning("Permission denied reading photo %s: %s", photo_path, e)
-        result['error'] = "Permission denied reading photo file"
-        result['error_type'] = 'permission'
+        result["error"] = "Permission denied reading photo file"
+        result["error_type"] = "permission"
 
     except OSError as e:
         # Covers disk full, I/O errors, etc.
         logger.error("OS error processing photo %s: %s", photo_path, e, exc_info=True)
-        error_msg = f"File system error: {e.strerror}" if hasattr(e, 'strerror') and e.strerror else "File system error"
-        result['error'] = error_msg
-        result['error_type'] = 'io'
+        error_msg = (
+            f"File system error: {e.strerror}"
+            if hasattr(e, "strerror") and e.strerror
+            else "File system error"
+        )
+        result["error"] = error_msg
+        result["error_type"] = "io"
 
     except (ValueError, TypeError, AttributeError) as e:
         # XMP generation errors
         logger.warning("XMP generation failed for %s: %s", photo_path, e)
-        result['error'] = "Failed to generate XMP metadata"
-        result['error_type'] = 'xmp'
+        result["error"] = "Failed to generate XMP metadata"
+        result["error_type"] = "xmp"
 
     except Exception as e:
         # Catch-all for unexpected errors (still log for debugging)
         logger.exception("Unexpected error processing photo %s: %s", photo_path, e)
-        result['error'] = "Unexpected error processing photo"
-        result['error_type'] = 'unknown'
+        result["error"] = "Unexpected error processing photo"
+        result["error_type"] = "unknown"
 
     return result
 
@@ -439,7 +447,7 @@ def validate_zip_integrity(zip_path: Path) -> bool:
         if not zip_path.exists():
             return False
 
-        with ZipFile(zip_path, 'r') as zf:
+        with ZipFile(zip_path, "r") as zf:
             # Test ZIP integrity
             zf.testzip()  # Returns None if OK, filename if error
             return True
@@ -502,7 +510,7 @@ def estimate_zip_size(
 
 def create_zip_export(
     photo_paths: list[Path],
-    metadata_list: list['ExportMetadata'],
+    metadata_list: list["ExportMetadata"],
     output_path: Path,
     options: ZipExportOptions | None = None,
     progress_callback: Callable[[int, int], None] | None = None,
@@ -543,7 +551,7 @@ def create_zip_export(
     total = len(photo_paths)
 
     try:
-        with ZipFile(output_path, 'w', compression=ZIP_STORED) as zf:
+        with ZipFile(output_path, "w", compression=ZIP_STORED) as zf:
             # Track completed count for progress callback
             completed_count = 0
 
@@ -577,42 +585,44 @@ def create_zip_export(
 
                 # Write batch to ZIP sequentially and update progress
                 for result in batch_results:
-                    if result['success']:
+                    if result["success"]:
                         # Write photo
                         zf.writestr(
-                            result['metadata'].filename,
-                            result['photo_data'],
-                            compress_type=ZIP_STORED
+                            result["metadata"].filename,
+                            result["photo_data"],
+                            compress_type=ZIP_STORED,
                         )
                         photo_count += 1
 
                         # Write XMP sidecar if generated
-                        if result['xmp_data'] is not None:
+                        if result["xmp_data"] is not None:
                             zf.writestr(
-                                result['xmp_filename'],
-                                result['xmp_data'],
-                                compress_type=ZIP_STORED
+                                result["xmp_filename"], result["xmp_data"], compress_type=ZIP_STORED
                             )
                             xmp_count += 1
 
                         # Clear photo/XMP data from memory immediately
-                        result['photo_data'] = None
-                        result['xmp_data'] = None
+                        result["photo_data"] = None
+                        result["xmp_data"] = None
                     else:
                         # Record error
-                        errors.append(ExportError(
-                            error=result.get('error', 'Unknown error'),
-                            photo_path=str(result['photo_path']),
-                            error_type=result.get('error_type'),
-                            timestamp=time.time(),
-                        ))
+                        errors.append(
+                            ExportError(
+                                error=result.get("error", "Unknown error"),
+                                photo_path=str(result["photo_path"]),
+                                error_type=result.get("error_type"),
+                                timestamp=time.time(),
+                            )
+                        )
 
                     # Update completed count and call progress callback
                     # Update every 5% progress or at completion for consistent UX
                     completed_count += 1
                     progress_pct = int((completed_count / total) * 100) if total > 0 else 100
                     prev_pct = int(((completed_count - 1) / total) * 100) if total > 0 else 0
-                    if progress_callback and (progress_pct // 5 != prev_pct // 5 or completed_count == total):
+                    if progress_callback and (
+                        progress_pct // 5 != prev_pct // 5 or completed_count == total
+                    ):
                         progress_callback(completed_count, total)
 
                 # Clear batch from memory
@@ -648,11 +658,13 @@ def create_zip_export(
     except PermissionError as e:
         took_ms = (time.time() - start_time) * 1000
         logger.error("Permission denied creating ZIP at %s: %s", output_path, e)
-        errors.append(ExportError(
-            error='Permission denied creating ZIP file',
-            error_type='permission',
-            timestamp=time.time(),
-        ))
+        errors.append(
+            ExportError(
+                error="Permission denied creating ZIP file",
+                error_type="permission",
+                timestamp=time.time(),
+            )
+        )
 
         return ZipExportResult(
             success=False,
@@ -667,12 +679,18 @@ def create_zip_export(
     except OSError as e:
         took_ms = (time.time() - start_time) * 1000
         logger.error("OS error creating ZIP at %s: %s", output_path, e, exc_info=True)
-        error_msg = f"File system error: {e.strerror}" if hasattr(e, 'strerror') and e.strerror else "File system error"
-        errors.append(ExportError(
-            error=error_msg,
-            error_type='io',
-            timestamp=time.time(),
-        ))
+        error_msg = (
+            f"File system error: {e.strerror}"
+            if hasattr(e, "strerror") and e.strerror
+            else "File system error"
+        )
+        errors.append(
+            ExportError(
+                error=error_msg,
+                error_type="io",
+                timestamp=time.time(),
+            )
+        )
 
         return ZipExportResult(
             success=False,
@@ -687,11 +705,13 @@ def create_zip_export(
     except Exception as e:
         took_ms = (time.time() - start_time) * 1000
         logger.exception("Unexpected error creating ZIP: %s", e)
-        errors.append(ExportError(
-            error='Unexpected error creating ZIP',
-            error_type='unknown',
-            timestamp=time.time(),
-        ))
+        errors.append(
+            ExportError(
+                error="Unexpected error creating ZIP",
+                error_type="unknown",
+                timestamp=time.time(),
+            )
+        )
 
         return ZipExportResult(
             success=False,
@@ -711,7 +731,7 @@ def create_zip_export(
 
 def stream_zip_export(
     photo_paths: list[Path],
-    metadata_list: list['ExportMetadata'],
+    metadata_list: list["ExportMetadata"],
     options: ZipExportOptions | None = None,
     max_workers: int = 4,
     batch_size: int = DEFAULT_BATCH_SIZE,
@@ -743,7 +763,7 @@ def stream_zip_export(
     total_bytes = 0
 
     # Create temporary file for ZIP
-    fd, temp_path = tempfile.mkstemp(suffix='.zip')
+    fd, temp_path = tempfile.mkstemp(suffix=".zip")
     temp_file_path = Path(temp_path)
 
     try:
@@ -751,7 +771,7 @@ def stream_zip_export(
         os.close(fd)
 
         # Write ZIP to temporary file
-        with ZipFile(temp_file_path, 'w', compression=ZIP_STORED) as zf:
+        with ZipFile(temp_file_path, "w", compression=ZIP_STORED) as zf:
             total = len(photo_paths)
 
             # Process photos in batches with parallel I/O
@@ -764,10 +784,7 @@ def stream_zip_export(
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
                     future_to_idx = {
                         executor.submit(
-                            _prepare_photo_data,
-                            photo_path,
-                            metadata,
-                            options.include_xmp_sidecars
+                            _prepare_photo_data, photo_path, metadata, options.include_xmp_sidecars
                         ): idx
                         for idx, (photo_path, metadata) in enumerate(
                             zip(batch_paths, batch_metadata, strict=True)
@@ -781,32 +798,32 @@ def stream_zip_export(
 
                 # Write batch to ZIP sequentially
                 for result in batch_results:
-                    if result['success']:
+                    if result["success"]:
                         zf.writestr(
-                            result['metadata'].filename,
-                            result['photo_data'],
-                            compress_type=ZIP_STORED
+                            result["metadata"].filename,
+                            result["photo_data"],
+                            compress_type=ZIP_STORED,
                         )
                         photo_count += 1
 
-                        if result['xmp_data'] is not None:
+                        if result["xmp_data"] is not None:
                             zf.writestr(
-                                result['xmp_filename'],
-                                result['xmp_data'],
-                                compress_type=ZIP_STORED
+                                result["xmp_filename"], result["xmp_data"], compress_type=ZIP_STORED
                             )
                             xmp_count += 1
 
                         # Clear photo/XMP data from memory immediately
-                        result['photo_data'] = None
-                        result['xmp_data'] = None
+                        result["photo_data"] = None
+                        result["xmp_data"] = None
                     else:
-                        errors.append(ExportError(
-                            error=result.get('error', 'Unknown error'),
-                            photo_path=str(result['photo_path']),
-                            error_type=result.get('error_type'),
-                            timestamp=time.time(),
-                        ))
+                        errors.append(
+                            ExportError(
+                                error=result.get("error", "Unknown error"),
+                                photo_path=str(result["photo_path"]),
+                                error_type=result.get("error_type"),
+                                timestamp=time.time(),
+                            )
+                        )
 
                 # Clear batch from memory
                 del batch_results
@@ -824,7 +841,7 @@ def stream_zip_export(
 
         # Stream from temp file in chunks
         total_bytes = temp_file_path.stat().st_size
-        with open(temp_file_path, 'rb') as f:
+        with open(temp_file_path, "rb") as f:
             while True:
                 chunk = f.read(ZIP_BUFFER_SIZE)
                 if not chunk:
@@ -848,11 +865,13 @@ def stream_zip_export(
     except PermissionError as e:
         took_ms = (time.time() - start_time) * 1000
         logger.error("Permission denied during streaming ZIP: %s", e)
-        errors.append(ExportError(
-            error='Permission denied reading photo file',
-            error_type='permission',
-            timestamp=time.time(),
-        ))
+        errors.append(
+            ExportError(
+                error="Permission denied reading photo file",
+                error_type="permission",
+                timestamp=time.time(),
+            )
+        )
 
         yield ZipExportResult(
             success=False,
@@ -867,12 +886,18 @@ def stream_zip_export(
     except OSError as e:
         took_ms = (time.time() - start_time) * 1000
         logger.error("OS error during streaming ZIP: %s", e, exc_info=True)
-        error_msg = f"File system error: {e.strerror}" if hasattr(e, 'strerror') and e.strerror else "File system error"
-        errors.append(ExportError(
-            error=error_msg,
-            error_type='io',
-            timestamp=time.time(),
-        ))
+        error_msg = (
+            f"File system error: {e.strerror}"
+            if hasattr(e, "strerror") and e.strerror
+            else "File system error"
+        )
+        errors.append(
+            ExportError(
+                error=error_msg,
+                error_type="io",
+                timestamp=time.time(),
+            )
+        )
 
         yield ZipExportResult(
             success=False,
@@ -887,11 +912,13 @@ def stream_zip_export(
     except Exception as e:
         took_ms = (time.time() - start_time) * 1000
         logger.exception("Unexpected error during streaming ZIP: %s", e)
-        errors.append(ExportError(
-            error='Unexpected error creating ZIP',
-            error_type='unknown',
-            timestamp=time.time(),
-        ))
+        errors.append(
+            ExportError(
+                error="Unexpected error creating ZIP",
+                error_type="unknown",
+                timestamp=time.time(),
+            )
+        )
 
         yield ZipExportResult(
             success=False,

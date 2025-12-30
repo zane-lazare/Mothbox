@@ -56,24 +56,24 @@ from webui.backend.lib.gps_exif_lib import (
 
 # Module exports
 __all__ = [
-    'setup_logging',
-    'wait_for_file_stability',
-    'process_single_photo',
-    'batch_process_directory',
-    'watch_directory',
-    'main',
+    "setup_logging",
+    "wait_for_file_stability",
+    "process_single_photo",
+    "batch_process_directory",
+    "watch_directory",
+    "main",
 ]
 
 
 # Default configuration constants
-POLL_INTERVAL_DEFAULT = 10      # Default polling interval in seconds for watch mode
-POLL_INTERVAL_MIN = 1            # Minimum polling interval (prevents CPU spinning)
-PATTERN_DEFAULT = '*.jpg'        # Default file pattern for photo matching
-JPEG_QUALITY_DEFAULT = 95        # JPEG quality for re-encoding (in lib, referenced here for docs)
-LOG_FORMAT = '[%(asctime)s] [%(levelname)s] %(message)s'  # Log message format
-LOG_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'  # Log timestamp format
-FILE_STABILITY_CHECKS = 2        # Number of mtime checks to verify file write completion
-FILE_STABILITY_INTERVAL = 0.5    # Seconds between stability checks
+POLL_INTERVAL_DEFAULT = 10  # Default polling interval in seconds for watch mode
+POLL_INTERVAL_MIN = 1  # Minimum polling interval (prevents CPU spinning)
+PATTERN_DEFAULT = "*.jpg"  # Default file pattern for photo matching
+JPEG_QUALITY_DEFAULT = 95  # JPEG quality for re-encoding (in lib, referenced here for docs)
+LOG_FORMAT = "[%(asctime)s] [%(levelname)s] %(message)s"  # Log message format
+LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"  # Log timestamp format
+FILE_STABILITY_CHECKS = 2  # Number of mtime checks to verify file write completion
+FILE_STABILITY_INTERVAL = 0.5  # Seconds between stability checks
 
 
 def setup_logging(verbose: bool = False) -> logging.Logger:
@@ -86,7 +86,7 @@ def setup_logging(verbose: bool = False) -> logging.Logger:
         logging.Logger: Configured logger instance
     """
     # Create logger
-    logger = logging.getLogger('gps_exif_tagger')
+    logger = logging.getLogger("gps_exif_tagger")
     logger.setLevel(logging.DEBUG if verbose else logging.INFO)
 
     # Create console handler (for systemd journal)
@@ -94,10 +94,7 @@ def setup_logging(verbose: bool = False) -> logging.Logger:
     handler.setLevel(logging.DEBUG if verbose else logging.INFO)
 
     # Create formatter
-    formatter = logging.Formatter(
-        LOG_FORMAT,
-        datefmt=LOG_DATE_FORMAT
-    )
+    formatter = logging.Formatter(LOG_FORMAT, datefmt=LOG_DATE_FORMAT)
     handler.setFormatter(formatter)
 
     # Add handler to logger
@@ -148,9 +145,7 @@ def wait_for_file_stability(photo_path: Path, logger: logging.Logger) -> bool:
 
             # If mtime changed, file is still being written
             if current_mtime != last_mtime:
-                logger.debug(
-                    f"File still being written (mtime changed): {photo_path.name}"
-                )
+                logger.debug(f"File still being written (mtime changed): {photo_path.name}")
                 last_mtime = current_mtime
                 # Continue checking (don't reset counter - prevent infinite loop)
 
@@ -168,7 +163,7 @@ def process_single_photo(
     logger: logging.Logger,
     force: bool = False,
     backup: bool = False,
-    dry_run: bool = False
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     """Process a single photo for GPS EXIF tagging.
 
@@ -186,12 +181,12 @@ def process_single_photo(
     if not force and is_already_tagged(photo_path):
         logger.debug(f"Skipping {photo_path.name} (already tagged)")
         return {
-            'success': False,
-            'skipped': True,
-            'error': None,
-            'gps_embedded': False,
-            'original_had_gps': True,
-            'backup_path': None
+            "success": False,
+            "skipped": True,
+            "error": None,
+            "gps_embedded": False,
+            "original_had_gps": True,
+            "backup_path": None,
         }
 
     # Embed GPS EXIF
@@ -199,12 +194,12 @@ def process_single_photo(
     result = embed_gps_exif(photo_path, backup=backup, dry_run=dry_run)
 
     # Log result
-    if result['success']:
+    if result["success"]:
         action = "Would tag" if dry_run else "Tagged"
         logger.info(f"{action} {photo_path.name}")
-    elif result['skipped']:
+    elif result["skipped"]:
         logger.warning(f"Skipped {photo_path.name} (no GPS fix)")
-    elif result['error']:
+    elif result["error"]:
         logger.error(f"Failed to process {photo_path.name}: {result['error']}")
 
     return result
@@ -216,7 +211,7 @@ def batch_process_directory(
     pattern: str = "*.jpg",
     force: bool = False,
     backup: bool = False,
-    dry_run: bool = False
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     """Process all photos in directory (batch mode).
 
@@ -237,13 +232,7 @@ def batch_process_directory(
             - error_list (list): List of (path, error_message) tuples
     """
     # Initialize statistics
-    stats = {
-        'total': 0,
-        'tagged': 0,
-        'skipped': 0,
-        'errors': 0,
-        'error_list': []
-    }
+    stats = {"total": 0, "tagged": 0, "skipped": 0, "errors": 0, "error_list": []}
 
     # Find all photos matching pattern
     logger.info(f"Scanning {directory} for {pattern} files...")
@@ -251,8 +240,8 @@ def batch_process_directory(
     # Handle case-insensitive extensions
     photo_files = []
     # Extract extension from pattern (e.g., '*.jpg' -> '.jpg')
-    if '.' in pattern:
-        base_pattern, ext = pattern.rsplit('.', 1)
+    if "." in pattern:
+        base_pattern, ext = pattern.rsplit(".", 1)
         # Add uppercase variant of the SAME extension only
         for variant in [pattern, f"{base_pattern}.{ext.upper()}"]:
             photo_files.extend(directory.glob(variant))
@@ -271,20 +260,20 @@ def batch_process_directory(
     # Sort after deduplication to maintain consistent chronological order
     photo_files = sorted(photo_files)
 
-    stats['total'] = len(photo_files)
+    stats["total"] = len(photo_files)
     logger.info(f"Found {stats['total']} photo(s)")
 
     # Process each photo
     for photo_path in photo_files:
         result = process_single_photo(photo_path, logger, force, backup, dry_run)
 
-        if result['success']:
-            stats['tagged'] += 1
-        elif result['skipped']:
-            stats['skipped'] += 1
-        elif result['error']:
-            stats['errors'] += 1
-            stats['error_list'].append((photo_path, result['error']))
+        if result["success"]:
+            stats["tagged"] += 1
+        elif result["skipped"]:
+            stats["skipped"] += 1
+        elif result["error"]:
+            stats["errors"] += 1
+            stats["error_list"].append((photo_path, result["error"]))
 
     # Log summary
     logger.info("Batch processing complete:")
@@ -301,7 +290,7 @@ def watch_directory(
     logger: logging.Logger,
     pattern: str = "*.jpg",
     interval: int = 10,
-    backup: bool = False
+    backup: bool = False,
 ) -> None:
     """Monitor directory and tag new photos (immediate mode).
 
@@ -326,8 +315,10 @@ def watch_directory(
     """
     # Validate interval to prevent CPU spinning
     if interval < POLL_INTERVAL_MIN:
-        raise ValueError(f"Interval must be >= {POLL_INTERVAL_MIN} second (got {interval}). "
-                        "Use a positive integer to avoid CPU spinning.")
+        raise ValueError(
+            f"Interval must be >= {POLL_INTERVAL_MIN} second (got {interval}). "
+            "Use a positive integer to avoid CPU spinning."
+        )
 
     logger.info(f"Starting watch mode on {directory}")
     logger.info(f"Polling interval: {interval}s")
@@ -340,7 +331,12 @@ def watch_directory(
         while True:
             # Find all photos matching pattern (case-insensitive)
             photo_files = []
-            for ext in [pattern, pattern.replace('.jpg', '.JPG'), pattern.replace('.jpg', '.jpeg'), pattern.replace('.jpg', '.JPEG')]:
+            for ext in [
+                pattern,
+                pattern.replace(".jpg", ".JPG"),
+                pattern.replace(".jpg", ".jpeg"),
+                pattern.replace(".jpg", ".JPEG"),
+            ]:
                 photo_files.extend(directory.glob(ext))
 
             # Filter out symlinks (security: prevent directory traversal attacks)
@@ -376,19 +372,21 @@ def watch_directory(
                                 logger,
                                 force=False,  # Never force in watch mode
                                 backup=backup,
-                                dry_run=False
+                                dry_run=False,
                             )
 
                             # Log result
-                            if result['success']:
+                            if result["success"]:
                                 logger.info(f"✓ Tagged {photo_path.name}")
-                            elif result['skipped']:
+                            elif result["skipped"]:
                                 logger.debug(f"Skipped {photo_path.name}")
 
                         except (FileNotFoundError, OSError) as e:
                             # File was deleted/moved between detection and processing (TOCTOU race)
                             # This is expected behavior in watch mode - file system is concurrent
-                            logger.debug(f"Skipping {photo_path.name} (file no longer accessible: {e})")
+                            logger.debug(
+                                f"Skipping {photo_path.name} (file no longer accessible: {e})"
+                            )
                             # Remove from tracking since file is gone
                             if photo_path in seen_files:
                                 del seen_files[photo_path]
@@ -411,57 +409,45 @@ def main():
     parser = argparse.ArgumentParser(
         description="GPS EXIF post-processor for Mothbox photos",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
 
     parser.add_argument(
-        '--mode',
-        choices=['immediate', 'batch'],
-        default='batch',
-        help='Deployment mode: immediate (watch) or batch (one-time)'
+        "--mode",
+        choices=["immediate", "batch"],
+        default="batch",
+        help="Deployment mode: immediate (watch) or batch (one-time)",
     )
     parser.add_argument(
-        '--watch',
-        action='store_true',
-        help='Monitor directory for new files (immediate mode)'
+        "--watch", action="store_true", help="Monitor directory for new files (immediate mode)"
     )
     parser.add_argument(
-        '--directory',
+        "--directory",
         type=Path,
         default=PHOTOS_DIR,
-        help=f'Photo directory to process (default: {PHOTOS_DIR})'
+        help=f"Photo directory to process (default: {PHOTOS_DIR})",
     )
     parser.add_argument(
-        '--pattern',
+        "--pattern",
         default=PATTERN_DEFAULT,
-        help=f'File pattern to match (default: {PATTERN_DEFAULT})'
+        help=f"File pattern to match (default: {PATTERN_DEFAULT})",
     )
     parser.add_argument(
-        '--interval',
+        "--interval",
         type=int,
         default=POLL_INTERVAL_DEFAULT,
-        help=f'Polling interval in seconds for watch mode (default: {POLL_INTERVAL_DEFAULT})'
+        help=f"Polling interval in seconds for watch mode (default: {POLL_INTERVAL_DEFAULT})",
     )
     parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help='Test mode: validate without modifying files'
+        "--dry-run", action="store_true", help="Test mode: validate without modifying files"
     )
     parser.add_argument(
-        '--backup',
-        action='store_true',
-        help='Create .bak files before modifying photos'
+        "--backup", action="store_true", help="Create .bak files before modifying photos"
     )
     parser.add_argument(
-        '--force',
-        action='store_true',
-        help='Re-tag photos even if already have GPS EXIF'
+        "--force", action="store_true", help="Re-tag photos even if already have GPS EXIF"
     )
-    parser.add_argument(
-        '--verbose', '-v',
-        action='store_true',
-        help='Enable verbose logging'
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
 
     args = parser.parse_args()
 
@@ -481,7 +467,7 @@ def main():
     # Check if GPS is enabled in hardware config
     try:
         hw_config = get_hardware_config()
-        if not hw_config.get('gps_enabled', False):
+        if not hw_config.get("gps_enabled", False):
             logger.warning("GPS is disabled in hardware config (controls.txt)")
             logger.warning("GPS EXIF tagging will skip photos without GPS data")
     except Exception as e:
@@ -490,25 +476,27 @@ def main():
     # Check GPS data availability
     try:
         gps_data = get_gps_data_from_controls()
-        if gps_data['has_fix']:
-            logger.info(f"GPS fix available: {gps_data['latitude']:.6f}, {gps_data['longitude']:.6f}")
+        if gps_data["has_fix"]:
+            logger.info(
+                f"GPS fix available: {gps_data['latitude']:.6f}, {gps_data['longitude']:.6f}"
+            )
         else:
             logger.warning("No GPS fix available - photos will be skipped")
-            if args.mode == 'batch' and not args.force:
+            if args.mode == "batch" and not args.force:
                 logger.info("Run with --force to process anyway, or wait for GPS fix")
     except Exception as e:
         logger.warning(f"Could not read GPS data: {e}")
 
     # Run appropriate mode
     try:
-        if args.mode == 'immediate' or args.watch:
+        if args.mode == "immediate" or args.watch:
             # Watch mode
             watch_directory(
                 args.directory,
                 logger,
                 pattern=args.pattern,
                 interval=args.interval,
-                backup=args.backup
+                backup=args.backup,
             )
         else:
             # Batch mode
@@ -518,20 +506,21 @@ def main():
                 pattern=args.pattern,
                 force=args.force,
                 backup=args.backup,
-                dry_run=args.dry_run
+                dry_run=args.dry_run,
             )
 
             # Exit with error code if errors occurred
-            if stats['errors'] > 0:
+            if stats["errors"] > 0:
                 sys.exit(1)
 
     except Exception as e:
         logger.error(f"Fatal error: {e}")
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

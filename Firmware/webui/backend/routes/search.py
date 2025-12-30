@@ -26,12 +26,13 @@ except ImportError:
         def limit(self, *args, **kwargs):
             def decorator(f):
                 return f
+
             return decorator
 
     limiter = LimiterStub()
 
 # Create blueprint
-search_bp = Blueprint('search', __name__, url_prefix='/api/photos/search')
+search_bp = Blueprint("search", __name__, url_prefix="/api/photos/search")
 
 # Constants
 MAX_LIMIT = 100
@@ -40,7 +41,7 @@ DEFAULT_OFFSET = 0
 MAX_QUERY_LENGTH = 500  # Prevent abuse with excessively long queries
 
 
-@search_bp.route('', methods=['GET'])
+@search_bp.route("", methods=["GET"])
 @limiter.limit("60 per minute")  # Rate limit search queries
 def search_photos():
     """
@@ -76,92 +77,83 @@ def search_photos():
         }
     """
     # Get and validate query parameter
-    query = request.args.get('q', '').strip()
+    query = request.args.get("q", "").strip()
     if not query:
-        return jsonify({
-            'error': 'Missing query',
-            'message': "Query parameter 'q' is required"
-        }), 400
+        return jsonify(
+            {"error": "Missing query", "message": "Query parameter 'q' is required"}
+        ), 400
 
     # Validate query length to prevent abuse
     if len(query) > MAX_QUERY_LENGTH:
-        return jsonify({
-            'error': 'Query too long',
-            'message': f'Query must be {MAX_QUERY_LENGTH} characters or less'
-        }), 400
+        return jsonify(
+            {
+                "error": "Query too long",
+                "message": f"Query must be {MAX_QUERY_LENGTH} characters or less",
+            }
+        ), 400
 
     # Parse and validate limit parameter
     try:
-        limit = int(request.args.get('limit', DEFAULT_LIMIT))
+        limit = int(request.args.get("limit", DEFAULT_LIMIT))
         # Cap at maximum
         limit = min(limit, MAX_LIMIT)
     except (ValueError, TypeError):
-        return jsonify({
-            'error': 'Invalid limit',
-            'message': 'Limit must be an integer'
-        }), 400
+        return jsonify({"error": "Invalid limit", "message": "Limit must be an integer"}), 400
 
     # Parse and validate offset parameter
     try:
-        offset = int(request.args.get('offset', DEFAULT_OFFSET))
+        offset = int(request.args.get("offset", DEFAULT_OFFSET))
         if offset < 0:
-            return jsonify({
-                'error': 'Invalid offset',
-                'message': 'Offset must be non-negative'
-            }), 400
+            return jsonify(
+                {"error": "Invalid offset", "message": "Offset must be non-negative"}
+            ), 400
     except (ValueError, TypeError):
-        return jsonify({
-            'error': 'Invalid offset',
-            'message': 'Offset must be an integer'
-        }), 400
+        return jsonify({"error": "Invalid offset", "message": "Offset must be an integer"}), 400
 
     # Get search service from app context
-    search_service = current_app.config.get('SEARCH_SERVICE')
+    search_service = current_app.config.get("SEARCH_SERVICE")
     if not search_service:
-        return jsonify({
-            'error': 'Search service not available'
-        }), 503
+        return jsonify({"error": "Search service not available"}), 503
 
     # Execute search
     try:
         result = search_service.search(query, limit=limit, offset=offset)
     except Exception as e:
-        return jsonify({
-            'error': 'Search failed',
-            'message': str(e)
-        }), 500
+        return jsonify({"error": "Search failed", "message": str(e)}), 500
 
     # Check if query was valid
-    if not result.get('is_valid', True):
-        return jsonify({
-            'error': 'Invalid query',
-            'message': result.get('error_message', 'Query parsing failed'),
-            'query': query
-        }), 400
+    if not result.get("is_valid", True):
+        return jsonify(
+            {
+                "error": "Invalid query",
+                "message": result.get("error_message", "Query parsing failed"),
+                "query": query,
+            }
+        ), 400
 
     # Format results for API response
-    formatted_results = _format_results(result.get('results', []))
+    formatted_results = _format_results(result.get("results", []))
 
     # Build response
-    total = result.get('total', 0)
+    total = result.get("total", 0)
     response = {
-        'results': formatted_results,
-        'total': total,
-        'query': query,
-        'parsed_query': result.get('parsed_query', query),
-        'took_ms': result.get('took_ms', 0),
-        'pagination': {
-            'limit': limit,
-            'offset': offset,
-            'has_next': offset + limit < total,
-            'has_prev': offset > 0
-        }
+        "results": formatted_results,
+        "total": total,
+        "query": query,
+        "parsed_query": result.get("parsed_query", query),
+        "took_ms": result.get("took_ms", 0),
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "has_next": offset + limit < total,
+            "has_prev": offset > 0,
+        },
     }
 
     return jsonify(response), 200
 
 
-@search_bp.route('/stats', methods=['GET'])
+@search_bp.route("/stats", methods=["GET"])
 def search_stats():
     """
     Get search index statistics.
@@ -181,23 +173,18 @@ def search_stats():
         }
     """
     # Get search service from app context
-    search_service = current_app.config.get('SEARCH_SERVICE')
+    search_service = current_app.config.get("SEARCH_SERVICE")
     if not search_service:
-        return jsonify({
-            'error': 'Search service not available'
-        }), 503
+        return jsonify({"error": "Search service not available"}), 503
 
     try:
         stats = search_service.get_statistics()
         return jsonify(stats), 200
     except Exception as e:
-        return jsonify({
-            'error': 'Failed to get statistics',
-            'message': str(e)
-        }), 500
+        return jsonify({"error": "Failed to get statistics", "message": str(e)}), 500
 
 
-@search_bp.route('/rebuild', methods=['POST'])
+@search_bp.route("/rebuild", methods=["POST"])
 @limiter.limit("5 per minute")  # Rate limit expensive rebuild operation
 def rebuild_index():
     """
@@ -222,31 +209,26 @@ def rebuild_index():
         }
     """
     # Get search service from app context
-    search_service = current_app.config.get('SEARCH_SERVICE')
+    search_service = current_app.config.get("SEARCH_SERVICE")
     if not search_service:
-        return jsonify({
-            'error': 'Search service not available'
-        }), 503
+        return jsonify({"error": "Search service not available"}), 503
 
     try:
         stats = search_service.build_index()
 
         response = {
-            'indexed': stats.get('indexed', 0),
-            'errors': stats.get('errors', 0),
-            'took_ms': stats.get('took_ms', 0),
-            'message': 'Index rebuilt successfully'
+            "indexed": stats.get("indexed", 0),
+            "errors": stats.get("errors", 0),
+            "took_ms": stats.get("took_ms", 0),
+            "message": "Index rebuilt successfully",
         }
 
         return jsonify(response), 200
     except Exception as e:
-        return jsonify({
-            'error': 'Index rebuild failed',
-            'message': str(e)
-        }), 500
+        return jsonify({"error": "Index rebuild failed", "message": str(e)}), 500
 
 
-@search_bp.route('/sync', methods=['POST'])
+@search_bp.route("/sync", methods=["POST"])
 @limiter.limit("10 per minute")  # Rate limit sync operation
 def sync_index():
     """
@@ -275,31 +257,26 @@ def sync_index():
         }
     """
     # Get search service from app context
-    search_service = current_app.config.get('SEARCH_SERVICE')
+    search_service = current_app.config.get("SEARCH_SERVICE")
     if not search_service:
-        return jsonify({
-            'error': 'Search service not available'
-        }), 503
+        return jsonify({"error": "Search service not available"}), 503
 
     try:
         stats = search_service.sync_index()
 
         response = {
-            'indexed': stats.get('indexed', 0),
-            'updated': stats.get('updated', 0),
-            'deleted': stats.get('deleted', 0),
-            'unchanged': stats.get('unchanged', 0),
-            'errors': stats.get('errors', 0),
-            'took_ms': stats.get('took_ms', 0),
-            'message': 'Index synced successfully'
+            "indexed": stats.get("indexed", 0),
+            "updated": stats.get("updated", 0),
+            "deleted": stats.get("deleted", 0),
+            "unchanged": stats.get("unchanged", 0),
+            "errors": stats.get("errors", 0),
+            "took_ms": stats.get("took_ms", 0),
+            "message": "Index synced successfully",
         }
 
         return jsonify(response), 200
     except Exception as e:
-        return jsonify({
-            'error': 'Index sync failed',
-            'message': str(e)
-        }), 500
+        return jsonify({"error": "Index sync failed", "message": str(e)}), 500
 
 
 def _format_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -324,16 +301,18 @@ def _format_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     formatted = []
 
     for result in results:
-        filepath = result.get('filepath', '')
+        filepath = result.get("filepath", "")
 
-        formatted.append({
-            'filename': result.get('filename', ''),
-            'path': filepath,
-            'thumbnail_url': f'/api/gallery/thumbnail/{filepath}',
-            'metadata': result.get('metadata', {}),
-            'score': result.get('score', 0),
-            'matched_fields': result.get('matched_fields', []),
-            'highlights': result.get('highlights', {})
-        })
+        formatted.append(
+            {
+                "filename": result.get("filename", ""),
+                "path": filepath,
+                "thumbnail_url": f"/api/gallery/thumbnail/{filepath}",
+                "metadata": result.get("metadata", {}),
+                "score": result.get("score", 0),
+                "matched_fields": result.get("matched_fields", []),
+                "highlights": result.get("highlights", {}),
+            }
+        )
 
     return formatted

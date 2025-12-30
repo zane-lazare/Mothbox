@@ -156,13 +156,13 @@ class CacheWarmer:
         # Initialize task tracking
         with self._task_lock:
             self._tasks[task_id] = {
-                'task_id': task_id,
-                'status': 'running',
-                'progress': {'current': 0, 'total': len(sorted_photos), 'percent': 0},
-                'started_at': time.time(),
-                'completed_at': None,
-                'photos_warmed': 0,
-                'errors': [],
+                "task_id": task_id,
+                "status": "running",
+                "progress": {"current": 0, "total": len(sorted_photos), "percent": 0},
+                "started_at": time.time(),
+                "completed_at": None,
+                "photos_warmed": 0,
+                "errors": [],
             }
 
         if background:
@@ -175,9 +175,9 @@ class CacheWarmer:
             thread.start()
 
             return {
-                'task_id': task_id,
-                'status': 'started',
-                'message': f'Warming {len(sorted_photos)} photos in background',
+                "task_id": task_id,
+                "status": "started",
+                "message": f"Warming {len(sorted_photos)} photos in background",
             }
         else:
             # Run in foreground
@@ -186,15 +186,13 @@ class CacheWarmer:
             with self._task_lock:
                 task = self._tasks[task_id]
                 return {
-                    'task_id': task_id,
-                    'status': task['status'],
-                    'photos_warmed': task['photos_warmed'],
-                    'errors': task['errors'],
+                    "task_id": task_id,
+                    "status": task["status"],
+                    "photos_warmed": task["photos_warmed"],
+                    "errors": task["errors"],
                 }
 
-    def _warm_photos_worker(
-        self, task_id: str, photo_paths: list[Path], sizes: list[int]
-    ):
+    def _warm_photos_worker(self, task_id: str, photo_paths: list[Path], sizes: list[int]):
         """
         Worker function to warm photos (runs in thread if background=True)
 
@@ -210,7 +208,7 @@ class CacheWarmer:
             # Check if task was cancelled
             with self._task_lock:
                 task = self._tasks.get(task_id)
-                if task and task['status'] == 'cancelled':
+                if task and task["status"] == "cancelled":
                     logger.info(f"Task {task_id} cancelled")
                     return
 
@@ -222,7 +220,7 @@ class CacheWarmer:
                     try:
                         self.thumbnail_cache.get_thumbnail(photo_path, size)
                     except ThumbnailError as e:
-                        errors.append({'photo': str(photo_path), 'size': size, 'error': str(e)})
+                        errors.append({"photo": str(photo_path), "size": size, "error": str(e)})
                         photo_had_error = True
 
                 # Only count as warmed if no errors occurred
@@ -230,7 +228,7 @@ class CacheWarmer:
                     photos_warmed += 1
 
             except Exception as e:
-                errors.append({'photo': str(photo_path), 'error': str(e)})
+                errors.append({"photo": str(photo_path), "error": str(e)})
                 logger.warning(f"Error warming {photo_path}: {e}")
                 photo_had_error = True
 
@@ -238,21 +236,19 @@ class CacheWarmer:
             with self._task_lock:
                 task = self._tasks.get(task_id)
                 if task:
-                    task['progress']['current'] = idx + 1
-                    task['progress']['percent'] = int(
-                        (idx + 1) / len(photo_paths) * 100
-                    )
-                    task['photos_warmed'] = photos_warmed
-                    task['errors'] = errors
+                    task["progress"]["current"] = idx + 1
+                    task["progress"]["percent"] = int((idx + 1) / len(photo_paths) * 100)
+                    task["photos_warmed"] = photos_warmed
+                    task["errors"] = errors
 
         # Mark as completed
         with self._task_lock:
             task = self._tasks.get(task_id)
             if task:
-                task['status'] = 'completed'
-                task['completed_at'] = time.time()
-                task['progress']['percent'] = 100
-                task['photos_warmed'] = photos_warmed
+                task["status"] = "completed"
+                task["completed_at"] = time.time()
+                task["progress"]["percent"] = 100
+                task["photos_warmed"] = photos_warmed
 
         # Update last warming time
         self._last_warming_time = time.time()
@@ -288,9 +284,7 @@ class CacheWarmer:
             background=background,
         )
 
-    def warm_all(
-        self, sizes: list[int] | None = None, background: bool = True
-    ) -> dict[str, Any]:
+    def warm_all(self, sizes: list[int] | None = None, background: bool = True) -> dict[str, Any]:
         """
         Warm entire cache (all photos in PHOTOS_DIR)
 
@@ -326,19 +320,19 @@ class CacheWarmer:
                     return dict(task)  # Return copy
                 else:
                     return {
-                        'error': 'Task not found',
-                        'task_id': task_id,
+                        "error": "Task not found",
+                        "task_id": task_id,
                     }
             else:
                 # Return summary of all tasks
                 active_tasks = [
-                    tid for tid, task in self._tasks.items() if task['status'] == 'running'
+                    tid for tid, task in self._tasks.items() if task["status"] == "running"
                 ]
 
                 return {
-                    'active_tasks': len(active_tasks),
-                    'total_tasks': len(self._tasks),
-                    'task_ids': list(self._tasks.keys()),
+                    "active_tasks": len(active_tasks),
+                    "total_tasks": len(self._tasks),
+                    "task_ids": list(self._tasks.keys()),
                 }
 
     def cancel_warming(self, task_id: str) -> dict[str, Any]:
@@ -354,19 +348,19 @@ class CacheWarmer:
         with self._task_lock:
             task = self._tasks.get(task_id)
             if not task:
-                return {'success': False, 'error': 'Task not found'}
+                return {"success": False, "error": "Task not found"}
 
-            if task['status'] != 'running':
+            if task["status"] != "running":
                 return {
-                    'success': False,
-                    'error': f"Task is {task['status']}, cannot cancel",
+                    "success": False,
+                    "error": f"Task is {task['status']}, cannot cancel",
                 }
 
             # Mark as cancelled
-            task['status'] = 'cancelled'
-            task['completed_at'] = time.time()
+            task["status"] = "cancelled"
+            task["completed_at"] = time.time()
 
-            return {'success': True, 'message': f'Task {task_id} cancelled'}
+            return {"success": True, "message": f"Task {task_id} cancelled"}
 
     def should_trigger_warming(self) -> bool:
         """
@@ -383,9 +377,7 @@ class CacheWarmer:
         """
         # Check if already warming
         with self._task_lock:
-            active_tasks = [
-                task for task in self._tasks.values() if task['status'] == 'running'
-            ]
+            active_tasks = [task for task in self._tasks.values() if task["status"] == "running"]
             if active_tasks:
                 return False
 
@@ -399,11 +391,11 @@ class CacheWarmer:
         stats = self.thumbnail_cache.get_statistics()
 
         # Need minimum requests before evaluating hit ratio
-        if stats['total_requests'] < 100:
+        if stats["total_requests"] < 100:
             return False
 
         # Check hit ratio
-        if stats['hit_ratio'] >= self.hit_ratio_threshold:
+        if stats["hit_ratio"] >= self.hit_ratio_threshold:
             return False
 
         # Check CPU usage (if psutil available)
@@ -411,9 +403,7 @@ class CacheWarmer:
             try:
                 cpu_percent = psutil.cpu_percent(interval=1)
                 if cpu_percent > (self.cpu_threshold * 100):
-                    logger.debug(
-                        f"CPU usage too high ({cpu_percent}%), skipping warming"
-                    )
+                    logger.debug(f"CPU usage too high ({cpu_percent}%), skipping warming")
                     return False
             except Exception as e:
                 logger.warning(f"Error checking CPU usage: {e}")
@@ -457,9 +447,7 @@ class CacheWarmer:
             return
 
         self._running = True
-        self._monitoring_thread = threading.Thread(
-            target=self._monitoring_loop, daemon=True
-        )
+        self._monitoring_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
         self._monitoring_thread.start()
 
         logger.info("Background cache warming monitoring started")
@@ -505,10 +493,9 @@ class CacheWarmer:
                     else:
                         # No new photos, warm recent photos
                         stats = self.thumbnail_cache.get_statistics()
-                        if stats['hit_ratio'] < self.hit_ratio_threshold:
+                        if stats["hit_ratio"] < self.hit_ratio_threshold:
                             logger.info(
-                                f"Low hit ratio ({stats['hit_ratio']:.2%}), "
-                                "warming recent photos"
+                                f"Low hit ratio ({stats['hit_ratio']:.2%}), warming recent photos"
                             )
                             self.warm_recent(count=100, background=True)
 
@@ -570,7 +557,7 @@ class CacheWarmer:
 
             # Keep only most recent tasks
             sorted_tasks = sorted(
-                self._tasks.items(), key=lambda x: x[1]['started_at'], reverse=True
+                self._tasks.items(), key=lambda x: x[1]["started_at"], reverse=True
             )
 
             # Keep max_task_history most recent

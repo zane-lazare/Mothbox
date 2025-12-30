@@ -51,6 +51,7 @@ except ImportError:
         def limit(self, *args, **kwargs):
             def decorator(f):
                 return f
+
             return decorator
 
     limiter = LimiterStub()
@@ -104,7 +105,7 @@ MAX_CUSTOM_FIELD_VALUE_LENGTH = 10000  # Same as MAX_NOTES_LENGTH
 
 def _get_cache_ttl() -> int:
     """Get aggregation cache TTL from app config or use default."""
-    return current_app.config.get('SIDECAR_AGGREGATION_CACHE_TTL', _DEFAULT_AGGREGATION_CACHE_TTL)
+    return current_app.config.get("SIDECAR_AGGREGATION_CACHE_TTL", _DEFAULT_AGGREGATION_CACHE_TTL)
 
 
 def _iter_sidecar_files():
@@ -118,9 +119,7 @@ def _iter_sidecar_files():
     Yields:
         Path: Valid sidecar file path
     """
-    all_sidecars = chain.from_iterable(
-        PHOTOS_DIR.rglob(pattern) for pattern in SIDECAR_PATTERNS
-    )
+    all_sidecars = chain.from_iterable(PHOTOS_DIR.rglob(pattern) for pattern in SIDECAR_PATTERNS)
     for sidecar_path in all_sidecars:
         try:
             if sidecar_path.stat().st_size > _MAX_SIDECAR_FILE_SIZE:
@@ -194,7 +193,7 @@ def invalidate_tag_autocomplete_cache():
     Called after metadata updates (PATCH, DELETE, bulk) to ensure
     autocomplete suggestions reflect the latest tags.
     """
-    engine = current_app.config.get('TAG_AUTOCOMPLETE_ENGINE')
+    engine = current_app.config.get("TAG_AUTOCOMPLETE_ENGINE")
     if engine:
         engine.invalidate_cache()
         logger.debug("Tag autocomplete cache invalidated")
@@ -227,7 +226,10 @@ def _validate_custom_value(value, depth: int = 0) -> tuple[bool, str | None]:
         return True, None
     if isinstance(value, str):
         if len(value) > MAX_CUSTOM_FIELD_VALUE_LENGTH:
-            return False, f"Custom field string value too long (max {MAX_CUSTOM_FIELD_VALUE_LENGTH})"
+            return (
+                False,
+                f"Custom field string value too long (max {MAX_CUSTOM_FIELD_VALUE_LENGTH})",
+            )
         return True, None
     if isinstance(value, list):
         for item in value:
@@ -262,30 +264,30 @@ def validate_metadata_input(data: dict) -> tuple[bool, str | None]:
         - (False, error_message) if invalid
     """
     # Validate tags
-    if 'tags' in data:
-        if not isinstance(data['tags'], list):
+    if "tags" in data:
+        if not isinstance(data["tags"], list):
             return False, "Tags must be an array"
 
-        for tag in data['tags']:
+        for tag in data["tags"]:
             if not isinstance(tag, str):
                 return False, "Each tag must be a string"
             if len(tag) > MAX_TAG_LENGTH:
                 return False, f"Tag exceeds maximum length ({MAX_TAG_LENGTH} characters): {tag}"
 
     # Validate notes
-    if 'notes' in data and data['notes'] is not None:
-        if not isinstance(data['notes'], str):
+    if "notes" in data and data["notes"] is not None:
+        if not isinstance(data["notes"], str):
             return False, "Notes must be a string"
-        if len(data['notes']) > MAX_NOTES_LENGTH:
+        if len(data["notes"]) > MAX_NOTES_LENGTH:
             return False, f"Notes exceeds maximum length ({MAX_NOTES_LENGTH} characters)"
 
     # Validate custom fields
-    if 'custom' in data:
-        if not isinstance(data['custom'], dict):
+    if "custom" in data:
+        if not isinstance(data["custom"], dict):
             return False, "Custom fields must be an object"
-        if len(data['custom']) > MAX_CUSTOM_KEYS:
+        if len(data["custom"]) > MAX_CUSTOM_KEYS:
             return False, f"Too many custom fields (max {MAX_CUSTOM_KEYS})"
-        for key, value in data['custom'].items():
+        for key, value in data["custom"].items():
             if not isinstance(key, str):
                 return False, "Custom field names must be strings"
             if len(key) > MAX_CUSTOM_FIELD_NAME_LENGTH:
@@ -300,6 +302,7 @@ def validate_metadata_input(data: dict) -> tuple[bool, str | None]:
 # ============================================================================
 # GET /photos/<filename> - Get sidecar metadata
 # ============================================================================
+
 
 @sidecar_bp.route("/photos/<path:filename>", methods=["GET"])
 def get_photo_metadata(filename: str):
@@ -362,7 +365,7 @@ def get_photo_metadata(filename: str):
     """
     try:
         # Get sidecar service
-        service = current_app.config.get('SIDECAR_SERVICE')
+        service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
@@ -380,17 +383,19 @@ def get_photo_metadata(filename: str):
 
         # If no sidecar, return empty structure
         if metadata is None:
-            return jsonify({
-                "version": "1.0",
-                "photo_filename": full_path.name,
-                "created_at": None,
-                "modified_at": None,
-                "tags": [],
-                "species": None,
-                "notes": None,
-                "custom": {},
-                "modified_by": None
-            }), 200
+            return jsonify(
+                {
+                    "version": "1.0",
+                    "photo_filename": full_path.name,
+                    "created_at": None,
+                    "modified_at": None,
+                    "tags": [],
+                    "species": None,
+                    "notes": None,
+                    "custom": {},
+                    "modified_by": None,
+                }
+            ), 200
 
         # Return existing metadata
         return jsonify(metadata.to_dict()), 200
@@ -403,6 +408,7 @@ def get_photo_metadata(filename: str):
 # ============================================================================
 # PATCH /photos/<filename> - Update sidecar metadata
 # ============================================================================
+
 
 @sidecar_bp.route("/photos/<path:filename>", methods=["PATCH"])
 @require_api_key_or_csrf
@@ -460,7 +466,7 @@ def update_photo_metadata(filename: str):
         # Authentication: CSRF token OR API key (X-API-Key header) required.
 
         # Get sidecar service
-        service = current_app.config.get('SIDECAR_SERVICE')
+        service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
@@ -491,24 +497,28 @@ def update_photo_metadata(filename: str):
             return jsonify({"error": error_msg}), 400
 
         # Handle tag_mode (append vs replace)
-        tag_mode = data.pop('tag_mode', 'append')  # Default to append
+        tag_mode = data.pop("tag_mode", "append")  # Default to append
 
-        if tag_mode not in ['append', 'replace']:
+        if tag_mode not in ["append", "replace"]:
             return jsonify({"error": "tag_mode must be 'append' or 'replace'"}), 400
 
         # If append mode and tags provided, merge with existing tags
-        if tag_mode == 'append' and 'tags' in data:
+        if tag_mode == "append" and "tags" in data:
             existing_metadata = service.get_metadata(str(full_path))
             if existing_metadata:
                 # Combine existing and new tags (preserve order, remove duplicates)
-                new_tags = data['tags']
+                new_tags = data["tags"]
                 # Start with existing tags
-                combined_tags = existing_metadata.tags.copy() if hasattr(existing_metadata, 'tags') and existing_metadata.tags else []
+                combined_tags = (
+                    existing_metadata.tags.copy()
+                    if hasattr(existing_metadata, "tags") and existing_metadata.tags
+                    else []
+                )
                 # Add new tags that aren't already present
                 for tag in new_tags:
                     if tag not in combined_tags:
                         combined_tags.append(tag)
-                data['tags'] = combined_tags
+                data["tags"] = combined_tags
 
         # Update metadata via service
         updated_metadata = service.update_metadata(str(full_path), data)
@@ -530,6 +540,7 @@ def update_photo_metadata(filename: str):
 # ============================================================================
 # DELETE /photos/<filename> - Delete sidecar
 # ============================================================================
+
 
 @sidecar_bp.route("/photos/<path:filename>", methods=["DELETE"])
 @require_api_key_or_csrf
@@ -563,7 +574,7 @@ def delete_photo_metadata(filename: str):
         # Authentication: CSRF token OR API key (X-API-Key header) required.
 
         # Get sidecar service
-        service = current_app.config.get('SIDECAR_SERVICE')
+        service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
@@ -596,6 +607,7 @@ def delete_photo_metadata(filename: str):
 # ============================================================================
 # GET /photos - List all metadata (paginated)
 # ============================================================================
+
 
 @sidecar_bp.route("/photos", methods=["GET"])
 def list_all_metadata():
@@ -650,14 +662,14 @@ def list_all_metadata():
     """
     try:
         # Get sidecar service
-        service = current_app.config.get('SIDECAR_SERVICE')
+        service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
         # Parse pagination parameters
         try:
-            page = request.args.get('page', 1, type=int)
-            per_page = request.args.get('per_page', 50, type=int)
+            page = request.args.get("page", 1, type=int)
+            per_page = request.args.get("per_page", 50, type=int)
         except (ValueError, TypeError):
             return jsonify({"error": "Invalid pagination parameter"}), 400
 
@@ -676,20 +688,20 @@ def list_all_metadata():
         offset = (page - 1) * per_page
 
         # Parse filter parameters
-        date_start = request.args.get('date_start')
-        date_end = request.args.get('date_end')
-        tags_param = request.args.get('tags')
-        tags = [t.strip() for t in tags_param.split(',') if t.strip()] if tags_param else None
-        series_type = request.args.get('series_type')
-        has_species_param = request.args.get('has_species')
-        has_species = has_species_param.lower() == 'true' if has_species_param else None
-        has_sidecar_param = request.args.get('has_sidecar')
+        date_start = request.args.get("date_start")
+        date_end = request.args.get("date_end")
+        tags_param = request.args.get("tags")
+        tags = [t.strip() for t in tags_param.split(",") if t.strip()] if tags_param else None
+        series_type = request.args.get("series_type")
+        has_species_param = request.args.get("has_species")
+        has_species = has_species_param.lower() == "true" if has_species_param else None
+        has_sidecar_param = request.args.get("has_sidecar")
         has_sidecar = None
         if has_sidecar_param:
-            has_sidecar = has_sidecar_param.lower() == 'true'
+            has_sidecar = has_sidecar_param.lower() == "true"
 
         # Validate series_type if provided
-        if series_type and series_type not in ('hdr', 'focus_bracket'):
+        if series_type and series_type not in ("hdr", "focus_bracket"):
             return jsonify({"error": "series_type must be 'hdr' or 'focus_bracket'"}), 400
 
         # Get metadata from service with filters
@@ -702,24 +714,26 @@ def list_all_metadata():
             tags=tags,
             series_type=series_type,
             has_species=has_species,
-            has_sidecar=has_sidecar
+            has_sidecar=has_sidecar,
         )
 
         # Build pagination metadata
-        total = result['total']
-        has_next = result['has_next']
+        total = result["total"]
+        has_next = result["has_next"]
         has_previous = page > 1
 
-        return jsonify({
-            "items": result['items'],
-            "total": total,
-            "pagination": {
-                "page": page,
-                "per_page": per_page,
-                "has_next": has_next,
-                "has_previous": has_previous
+        return jsonify(
+            {
+                "items": result["items"],
+                "total": total,
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "has_next": has_next,
+                    "has_previous": has_previous,
+                },
             }
-        }), 200
+        ), 200
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to list metadata")
@@ -729,6 +743,7 @@ def list_all_metadata():
 # ============================================================================
 # POST /bulk - Bulk update metadata
 # ============================================================================
+
 
 @sidecar_bp.route("/bulk", methods=["POST"])
 @limiter.limit("10 per minute")
@@ -806,7 +821,7 @@ def bulk_update_metadata():
         # Authentication: CSRF token OR API key (X-API-Key header) required.
 
         # Get sidecar service
-        service = current_app.config.get('SIDECAR_SERVICE')
+        service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
@@ -823,15 +838,15 @@ def bulk_update_metadata():
             return jsonify({"error": "Request body is required"}), 400
 
         # Validate required fields
-        if 'filenames' not in data:
+        if "filenames" not in data:
             return jsonify({"error": "Field 'filenames' is required"}), 400
 
-        if 'updates' not in data:
+        if "updates" not in data:
             return jsonify({"error": "Field 'updates' is required"}), 400
 
-        filenames = data['filenames']
-        updates = data['updates']
-        mode = data.get('mode', 'append')  # Default to append
+        filenames = data["filenames"]
+        updates = data["updates"]
+        mode = data.get("mode", "append")  # Default to append
 
         # Validate filenames
         if not isinstance(filenames, list):
@@ -851,7 +866,7 @@ def bulk_update_metadata():
             return jsonify({"error": "Field 'updates' cannot be empty"}), 400
 
         # Validate mode
-        if mode not in ['append', 'replace']:
+        if mode not in ["append", "replace"]:
             return jsonify({"error": "Field 'mode' must be 'append' or 'replace'"}), 400
 
         # Validate updates content
@@ -883,18 +898,22 @@ def bulk_update_metadata():
                 file_updates = updates.copy()
 
                 # Handle tag mode (append vs replace)
-                if mode == 'append' and 'tags' in file_updates:
+                if mode == "append" and "tags" in file_updates:
                     existing_metadata = service.get_metadata(str(full_path))
                     if existing_metadata:
                         # Merge tags
-                        existing_tags = existing_metadata.tags if hasattr(existing_metadata, 'tags') and existing_metadata.tags else []
-                        new_tags = file_updates['tags']
+                        existing_tags = (
+                            existing_metadata.tags
+                            if hasattr(existing_metadata, "tags") and existing_metadata.tags
+                            else []
+                        )
+                        new_tags = file_updates["tags"]
                         # Combine existing and new tags (preserve order, remove duplicates)
                         combined_tags = existing_tags.copy()
                         for tag in new_tags:
                             if tag not in combined_tags:
                                 combined_tags.append(tag)
-                        file_updates['tags'] = combined_tags
+                        file_updates["tags"] = combined_tags
 
                 # Update metadata via service
                 updated_metadata = service.update_metadata(str(full_path), file_updates)
@@ -919,14 +938,16 @@ def bulk_update_metadata():
             invalidate_tag_autocomplete_cache()
 
         # Build response
-        return jsonify({
-            "success": success_list,
-            "failed": failed_list,
-            "errors": error_dict,
-            "total": len(filenames),
-            "successful": len(success_list),
-            "failed_count": len(failed_list)
-        }), 200
+        return jsonify(
+            {
+                "success": success_list,
+                "failed": failed_list,
+                "errors": error_dict,
+                "total": len(filenames),
+                "successful": len(success_list),
+                "failed_count": len(failed_list),
+            }
+        ), 200
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to bulk update metadata")
@@ -936,6 +957,7 @@ def bulk_update_metadata():
 # ============================================================================
 # GET /bulk - Bulk fetch metadata (Performance optimization)
 # ============================================================================
+
 
 @sidecar_bp.route("/bulk", methods=["GET"])
 @limiter.limit("60 per minute")
@@ -982,17 +1004,17 @@ def bulk_get_metadata():
     """
     try:
         # Get sidecar service
-        service = current_app.config.get('SIDECAR_SERVICE')
+        service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
         # Parse filenames from query string
-        filenames_param = request.args.get('filenames', '')
+        filenames_param = request.args.get("filenames", "")
         if not filenames_param:
             return jsonify({"error": "Missing 'filenames' query parameter"}), 400
 
         # Split and clean filenames
-        filenames = [f.strip() for f in filenames_param.split(',') if f.strip()]
+        filenames = [f.strip() for f in filenames_param.split(",") if f.strip()]
 
         if len(filenames) == 0:
             return jsonify({"error": "No valid filenames provided"}), 400
@@ -1025,11 +1047,7 @@ def bulk_get_metadata():
 
                 if metadata is None:
                     # No sidecar file - return empty metadata
-                    success_dict[filename] = {
-                        "tags": [],
-                        "species": None,
-                        "notes": None
-                    }
+                    success_dict[filename] = {"tags": [], "species": None, "notes": None}
                 else:
                     # Convert to dict for JSON response
                     success_dict[filename] = metadata.to_dict()
@@ -1040,14 +1058,16 @@ def bulk_get_metadata():
                 error_dict[filename] = "Fetch failed"
 
         # Build response
-        return jsonify({
-            "success": success_dict,
-            "failed": failed_list,
-            "errors": error_dict,
-            "total": len(filenames),
-            "success_count": len(success_dict),
-            "failed_count": len(failed_list)
-        }), 200
+        return jsonify(
+            {
+                "success": success_dict,
+                "failed": failed_list,
+                "errors": error_dict,
+                "total": len(filenames),
+                "success_count": len(success_dict),
+                "failed_count": len(failed_list),
+            }
+        ), 200
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to bulk fetch metadata")
@@ -1057,6 +1077,7 @@ def bulk_get_metadata():
 # ============================================================================
 # GET /tags - List all unique tags with counts
 # ============================================================================
+
 
 @sidecar_bp.route("/tags", methods=["GET"])
 def get_all_tags():
@@ -1104,16 +1125,16 @@ def get_all_tags():
     """
     try:
         # Get sidecar service
-        service = current_app.config.get('SIDECAR_SERVICE')
+        service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
         # Parse query parameters
         try:
-            page = request.args.get('page', 1, type=int)
-            per_page = request.args.get('per_page', 50, type=int)
-            sort_by = request.args.get('sort', 'count', type=str)
-            order = request.args.get('order', 'desc', type=str)
+            page = request.args.get("page", 1, type=int)
+            per_page = request.args.get("per_page", 50, type=int)
+            sort_by = request.args.get("sort", "count", type=str)
+            order = request.args.get("order", "desc", type=str)
         except (ValueError, TypeError):
             return jsonify({"error": "Invalid query parameter"}), 400
 
@@ -1129,10 +1150,10 @@ def get_all_tags():
             per_page = MAX_PAGINATION_LIMIT
 
         # Validate sort parameters
-        if sort_by not in ['count', 'name']:
+        if sort_by not in ["count", "name"]:
             return jsonify({"error": "sort must be 'count' or 'name'"}), 400
 
-        if order not in ['asc', 'desc']:
+        if order not in ["asc", "desc"]:
             return jsonify({"error": "order must be 'asc' or 'desc'"}), 400
 
         # Use cached aggregation data if available and fresh
@@ -1173,7 +1194,7 @@ def get_all_tags():
                     sidecar_data = _read_sidecar_json(sidecar_path)
                     if sidecar_data is None:
                         continue
-                    for tag in sidecar_data.get('tags', []):
+                    for tag in sidecar_data.get("tags", []):
                         tag_counter[tag] += 1
 
                 # Convert to list of {name, count} dicts
@@ -1195,29 +1216,31 @@ def get_all_tags():
                 raise
 
         # Sort
-        if sort_by == 'count':
-            all_tags.sort(key=lambda x: x['count'], reverse=(order == 'desc'))
+        if sort_by == "count":
+            all_tags.sort(key=lambda x: x["count"], reverse=(order == "desc"))
         else:  # sort by name
-            all_tags.sort(key=lambda x: x['name'], reverse=(order == 'desc'))
+            all_tags.sort(key=lambda x: x["name"], reverse=(order == "desc"))
 
         # Paginate
         total = len(all_tags)
         offset = (page - 1) * per_page
-        tags_page = all_tags[offset:offset + per_page]
+        tags_page = all_tags[offset : offset + per_page]
 
         has_next = (offset + per_page) < total
         has_previous = page > 1
 
-        return jsonify({
-            "tags": tags_page,
-            "total": total,
-            "pagination": {
-                "page": page,
-                "per_page": per_page,
-                "has_next": has_next,
-                "has_previous": has_previous
+        return jsonify(
+            {
+                "tags": tags_page,
+                "total": total,
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "has_next": has_next,
+                    "has_previous": has_previous,
+                },
             }
-        }), 200
+        ), 200
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to get tags")
@@ -1227,6 +1250,7 @@ def get_all_tags():
 # ============================================================================
 # GET /species - List all unique species with counts
 # ============================================================================
+
 
 @sidecar_bp.route("/species", methods=["GET"])
 def get_all_species():
@@ -1274,16 +1298,16 @@ def get_all_species():
     """
     try:
         # Get sidecar service
-        service = current_app.config.get('SIDECAR_SERVICE')
+        service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
         # Parse query parameters
         try:
-            page = request.args.get('page', 1, type=int)
-            per_page = request.args.get('per_page', 50, type=int)
-            sort_by = request.args.get('sort', 'count', type=str)
-            order = request.args.get('order', 'desc', type=str)
+            page = request.args.get("page", 1, type=int)
+            per_page = request.args.get("per_page", 50, type=int)
+            sort_by = request.args.get("sort", "count", type=str)
+            order = request.args.get("order", "desc", type=str)
         except (ValueError, TypeError):
             return jsonify({"error": "Invalid query parameter"}), 400
 
@@ -1299,10 +1323,10 @@ def get_all_species():
             per_page = MAX_PAGINATION_LIMIT
 
         # Validate sort parameters
-        if sort_by not in ['count', 'name']:
+        if sort_by not in ["count", "name"]:
             return jsonify({"error": "sort must be 'count' or 'name'"}), 400
 
-        if order not in ['asc', 'desc']:
+        if order not in ["asc", "desc"]:
             return jsonify({"error": "order must be 'asc' or 'desc'"}), 400
 
         # Use cached aggregation data if available and fresh
@@ -1343,14 +1367,16 @@ def get_all_species():
                     sidecar_data = _read_sidecar_json(sidecar_path)
                     if sidecar_data is None:
                         continue
-                    species_name = sidecar_data.get('species')
+                    species_name = sidecar_data.get("species")
 
                     # Only count non-null species
                     if species_name is not None:
                         species_counter[species_name] += 1
 
                 # Convert to list of {name, count} dicts
-                all_species = [{"name": species, "count": count} for species, count in species_counter.items()]
+                all_species = [
+                    {"name": species, "count": count} for species, count in species_counter.items()
+                ]
 
                 # Cache the result and notify waiters
                 # No need to copy here - readers always copy before sorting
@@ -1368,29 +1394,31 @@ def get_all_species():
                 raise
 
         # Sort
-        if sort_by == 'count':
-            all_species.sort(key=lambda x: x['count'], reverse=(order == 'desc'))
+        if sort_by == "count":
+            all_species.sort(key=lambda x: x["count"], reverse=(order == "desc"))
         else:  # sort by name
-            all_species.sort(key=lambda x: x['name'], reverse=(order == 'desc'))
+            all_species.sort(key=lambda x: x["name"], reverse=(order == "desc"))
 
         # Paginate
         total = len(all_species)
         offset = (page - 1) * per_page
-        species_page = all_species[offset:offset + per_page]
+        species_page = all_species[offset : offset + per_page]
 
         has_next = (offset + per_page) < total
         has_previous = page > 1
 
-        return jsonify({
-            "species": species_page,
-            "total": total,
-            "pagination": {
-                "page": page,
-                "per_page": per_page,
-                "has_next": has_next,
-                "has_previous": has_previous
+        return jsonify(
+            {
+                "species": species_page,
+                "total": total,
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "has_next": has_next,
+                    "has_previous": has_previous,
+                },
             }
-        }), 200
+        ), 200
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to get species")
@@ -1400,6 +1428,7 @@ def get_all_species():
 # ============================================================================
 # GET /custom-fields - Discover custom metadata fields
 # ============================================================================
+
 
 @sidecar_bp.route("/custom-fields", methods=["GET"])
 def get_custom_fields():
@@ -1469,20 +1498,31 @@ def get_custom_fields():
     """
     try:
         # Get sidecar service (not used directly but validates service availability)
-        service = current_app.config.get('SIDECAR_SERVICE')
+        service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
         # Standard fields to exclude (schema fields + common metadata fields)
         standard_fields = {
             # Schema fields
-            'version', 'photo_filename', 'created_at', 'modified_at', 'modified_by',
+            "version",
+            "photo_filename",
+            "created_at",
+            "modified_at",
+            "modified_by",
             # Common metadata fields
-            'tags', 'species', 'notes', 'date', 'timestamp',
+            "tags",
+            "species",
+            "notes",
+            "date",
+            "timestamp",
             # Schema v1.1 species fields
-            'species_confidence', 'species_common_name', 'species_reference_url',
+            "species_confidence",
+            "species_common_name",
+            "species_reference_url",
             # Common name variations
-            'common_name', 'name',
+            "common_name",
+            "name",
         }
 
         # Use cached custom fields data if available and fresh
@@ -1531,7 +1571,7 @@ def get_custom_fields():
                     sidecar_data = _read_sidecar_json(sidecar_path)
                     if sidecar_data is None:
                         continue
-                    custom_data = sidecar_data.get('custom', {})
+                    custom_data = sidecar_data.get("custom", {})
 
                     # Skip if not a dict
                     if not isinstance(custom_data, dict):
@@ -1540,13 +1580,13 @@ def get_custom_fields():
                     # Extract custom fields
                     for field_name, field_value in custom_data.items():
                         # Skip standard fields and private fields (starting with _)
-                        if field_name in standard_fields or field_name.startswith('_'):
+                        if field_name in standard_fields or field_name.startswith("_"):
                             continue
 
                         # Validate field name - must be string, max 100 chars, alphanumeric with _ and -
                         if not isinstance(field_name, str) or len(field_name) > 100:
                             continue
-                        if not field_name.replace('_', '').replace('-', '').isalnum():
+                        if not field_name.replace("_", "").replace("-", "").isalnum():
                             logger.warning(f"Skipping field with invalid name: {field_name[:50]}")
                             continue
 
@@ -1564,11 +1604,7 @@ def get_custom_fields():
 
                     if not non_null_values:
                         # All values are None - treat as text
-                        all_fields.append({
-                            "name": field_name,
-                            "type": "text",
-                            "values": []
-                        })
+                        all_fields.append({"name": field_name, "type": "text", "values": []})
                         continue
 
                     # Check if all values are numbers
@@ -1580,36 +1616,38 @@ def get_custom_fields():
                         max_val = max(non_null_values)
                         sample_values = non_null_values[:20]  # Limit to 20 samples
 
-                        all_fields.append({
-                            "name": field_name,
-                            "type": "number",
-                            "min": min_val,
-                            "max": max_val,
-                            "values": sample_values
-                        })
+                        all_fields.append(
+                            {
+                                "name": field_name,
+                                "type": "number",
+                                "min": min_val,
+                                "max": max_val,
+                                "values": sample_values,
+                            }
+                        )
                     else:
                         # Check if values are repeated (good for select dropdown)
                         unique_values = list({str(v) for v in non_null_values})
 
                         # If <= 20 unique values, treat as select
                         if len(unique_values) <= 20:
-                            all_fields.append({
-                                "name": field_name,
-                                "type": "select",
-                                "options": sorted(unique_values),
-                                "values": [str(v) for v in non_null_values[:20]]
-                            })
+                            all_fields.append(
+                                {
+                                    "name": field_name,
+                                    "type": "select",
+                                    "options": sorted(unique_values),
+                                    "values": [str(v) for v in non_null_values[:20]],
+                                }
+                            )
                         else:
                             # Too many unique values - treat as text
                             sample_values = [str(v) for v in non_null_values[:20]]
-                            all_fields.append({
-                                "name": field_name,
-                                "type": "text",
-                                "values": sample_values
-                            })
+                            all_fields.append(
+                                {"name": field_name, "type": "text", "values": sample_values}
+                            )
 
                 # Sort by field name
-                all_fields.sort(key=lambda x: x['name'])
+                all_fields.sort(key=lambda x: x["name"])
 
                 # Cache the result and notify waiters
                 with _cache_condition:
@@ -1625,10 +1663,7 @@ def get_custom_fields():
                     _cache_condition.notify_all()
                 raise
 
-        return jsonify({
-            "fields": all_fields,
-            "total": len(all_fields)
-        }), 200
+        return jsonify({"fields": all_fields, "total": len(all_fields)}), 200
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to get custom fields")
@@ -1639,4 +1674,4 @@ def get_custom_fields():
 # Module exports
 # ============================================================================
 
-__all__ = ['sidecar_bp']
+__all__ = ["sidecar_bp"]

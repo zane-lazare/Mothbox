@@ -41,41 +41,42 @@ from dataclasses import dataclass
 # ============================================================================
 
 # Query validation limits (defense in depth)
-MAX_QUERY_LENGTH = 500    # Max total query length (also in routes/search.py)
-MAX_QUERY_TERMS = 20      # Max number of search terms
-MAX_TERM_LENGTH = 100     # Max length of individual term
-MAX_PHRASE_LENGTH = 200   # Max length of phrase in quotes
-MAX_PARENTHESIS_DEPTH = 3 # Max nesting of parentheses
+MAX_QUERY_LENGTH = 500  # Max total query length (also in routes/search.py)
+MAX_QUERY_TERMS = 20  # Max number of search terms
+MAX_TERM_LENGTH = 100  # Max length of individual term
+MAX_PHRASE_LENGTH = 200  # Max length of phrase in quotes
+MAX_PARENTHESIS_DEPTH = 3  # Max nesting of parentheses
 
 # Field name mappings (user-friendly → FTS5 column)
 FIELD_MAPPINGS = {
-    'tag': 'tags',
-    'tags': 'tags',
-    'species': 'species',
-    'common_name': 'species_common_name',
-    'name': 'species_common_name',
-    'notes': 'notes',
-    'note': 'notes',
-    'filename': 'filename',
-    'file': 'filename',
-    'date': 'date',
-    'ext': 'file_ext',
-    'extension': 'file_ext',
-    'filetype': 'file_ext',
-    'type': 'file_ext',
-    'iso': 'exif_iso',
-    'aperture': 'exif_aperture',
-    'fstop': 'exif_aperture',
-    'f': 'exif_aperture',
-    'shutter': 'exif_shutter',
-    'exposure': 'exif_shutter',
-    'shutterspeed': 'exif_shutter',
+    "tag": "tags",
+    "tags": "tags",
+    "species": "species",
+    "common_name": "species_common_name",
+    "name": "species_common_name",
+    "notes": "notes",
+    "note": "notes",
+    "filename": "filename",
+    "file": "filename",
+    "date": "date",
+    "ext": "file_ext",
+    "extension": "file_ext",
+    "filetype": "file_ext",
+    "type": "file_ext",
+    "iso": "exif_iso",
+    "aperture": "exif_aperture",
+    "fstop": "exif_aperture",
+    "f": "exif_aperture",
+    "shutter": "exif_shutter",
+    "exposure": "exif_shutter",
+    "shutterspeed": "exif_shutter",
 }
 
 
 # ============================================================================
 # Data Classes
 # ============================================================================
+
 
 @dataclass
 class DateFilter:
@@ -86,9 +87,10 @@ class DateFilter:
         end_date: End date in ISO format YYYY-MM-DD (or None)
         operator: Filter operator ('range', 'gt', 'lt', 'eq', 'gte', 'lte')
     """
+
     start_date: str | None = None
     end_date: str | None = None
-    operator: str = 'eq'
+    operator: str = "eq"
 
 
 @dataclass
@@ -102,6 +104,7 @@ class ParsedQuery:
         is_valid: Whether parsing succeeded
         error_message: Error description if parsing failed
     """
+
     fts_query: str
     date_filter: DateFilter | None
     original_query: str
@@ -112,6 +115,7 @@ class ParsedQuery:
 # ============================================================================
 # Query Validation
 # ============================================================================
+
 
 def validate_query(query: str) -> tuple[bool, str | None]:
     """Validate FTS5 query structure to prevent injection and DoS.
@@ -148,16 +152,16 @@ def validate_query(query: str) -> tuple[bool, str | None]:
             return False, f"Phrase too long (max {MAX_PHRASE_LENGTH} chars)"
 
     # Remove quoted phrases for term counting (they count as 1 term each)
-    query_for_terms = re.sub(r'"[^"]*"', '__PHRASE__', query)
+    query_for_terms = re.sub(r'"[^"]*"', "__PHRASE__", query)
 
     # Count terms (split by whitespace, excluding operators)
-    operators = {'AND', 'OR', 'NOT', 'and', 'or', 'not'}
-    terms = [t for t in query_for_terms.split() if t not in operators and not t.startswith('-')]
+    operators = {"AND", "OR", "NOT", "and", "or", "not"}
+    terms = [t for t in query_for_terms.split() if t not in operators and not t.startswith("-")]
     if len(terms) > MAX_QUERY_TERMS:
         return False, f"Too many search terms (max {MAX_QUERY_TERMS})"
 
     # Check individual term lengths (use original query terms, not placeholders)
-    original_terms = [t for t in query.split() if t not in operators and not t.startswith('-')]
+    original_terms = [t for t in query.split() if t not in operators and not t.startswith("-")]
     for term in original_terms:
         # Skip if this term is part of a quoted phrase (starts or ends with quote)
         if term.startswith('"') and not term.endswith('"'):
@@ -174,8 +178,8 @@ def validate_query(query: str) -> tuple[bool, str | None]:
                     continue  # Inside a quoted phrase
         clean_term = term
         # Remove field prefix if present
-        if ':' in clean_term:
-            clean_term = clean_term.split(':', 1)[1]
+        if ":" in clean_term:
+            clean_term = clean_term.split(":", 1)[1]
         # Remove quotes and parentheses
         clean_term = clean_term.strip('"()')
         if len(clean_term) > MAX_TERM_LENGTH:
@@ -185,10 +189,10 @@ def validate_query(query: str) -> tuple[bool, str | None]:
     depth = 0
     max_depth = 0
     for char in query:
-        if char == '(':
+        if char == "(":
             depth += 1
             max_depth = max(max_depth, depth)
-        elif char == ')':
+        elif char == ")":
             depth -= 1
 
     if depth != 0:
@@ -203,6 +207,7 @@ def validate_query(query: str) -> tuple[bool, str | None]:
 # ============================================================================
 # Query Parser
 # ============================================================================
+
 
 def parse_query(query: str) -> ParsedQuery:
     """Parse user query into FTS5 format.
@@ -237,15 +242,15 @@ def parse_query(query: str) -> ParsedQuery:
     is_valid, error_message = validate_query(query)
     if not is_valid:
         return ParsedQuery(
-            fts_query='',
+            fts_query="",
             date_filter=None,
             original_query=original_query,
             is_valid=False,
-            error_message=error_message
+            error_message=error_message,
         )
 
     # Normalize whitespace
-    query = ' '.join(query.split())
+    query = " ".join(query.split())
 
     # Extract date filters first (they need special handling)
     date_filter = None
@@ -264,20 +269,21 @@ def parse_query(query: str) -> ParsedQuery:
     query = _add_implicit_and(query)
 
     # Final cleanup
-    query = ' '.join(query.split())
+    query = " ".join(query.split())
 
     return ParsedQuery(
         fts_query=query,
         date_filter=date_filter,
         original_query=original_query,
         is_valid=True,
-        error_message=None
+        error_message=None,
     )
 
 
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
 
 def _extract_date_filter(query: str) -> tuple[str, DateFilter | None]:
     """Extract date filter from query and return cleaned query.
@@ -289,61 +295,45 @@ def _extract_date_filter(query: str) -> tuple[str, DateFilter | None]:
         Tuple of (cleaned_query, date_filter or None)
     """
     # Pattern: date:YYYY-MM-DD..YYYY-MM-DD (range)
-    range_pattern = r'date:(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})'
+    range_pattern = r"date:(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})"
     match = re.search(range_pattern, query, re.IGNORECASE)
     if match:
         start_date = match.group(1)
         end_date = match.group(2)
-        cleaned_query = re.sub(range_pattern, '', query, flags=re.IGNORECASE)
-        return cleaned_query, DateFilter(
-            start_date=start_date,
-            end_date=end_date,
-            operator='range'
-        )
+        cleaned_query = re.sub(range_pattern, "", query, flags=re.IGNORECASE)
+        return cleaned_query, DateFilter(start_date=start_date, end_date=end_date, operator="range")
 
     # Pattern: date:>=YYYY-MM-DD
-    gte_pattern = r'date:>=(\d{4}-\d{2}-\d{2})'
+    gte_pattern = r"date:>=(\d{4}-\d{2}-\d{2})"
     match = re.search(gte_pattern, query, re.IGNORECASE)
     if match:
         start_date = match.group(1)
-        cleaned_query = re.sub(gte_pattern, '', query, flags=re.IGNORECASE)
-        return cleaned_query, DateFilter(
-            start_date=start_date,
-            operator='gte'
-        )
+        cleaned_query = re.sub(gte_pattern, "", query, flags=re.IGNORECASE)
+        return cleaned_query, DateFilter(start_date=start_date, operator="gte")
 
     # Pattern: date:<=YYYY-MM-DD
-    lte_pattern = r'date:<=(\d{4}-\d{2}-\d{2})'
+    lte_pattern = r"date:<=(\d{4}-\d{2}-\d{2})"
     match = re.search(lte_pattern, query, re.IGNORECASE)
     if match:
         end_date = match.group(1)
-        cleaned_query = re.sub(lte_pattern, '', query, flags=re.IGNORECASE)
-        return cleaned_query, DateFilter(
-            end_date=end_date,
-            operator='lte'
-        )
+        cleaned_query = re.sub(lte_pattern, "", query, flags=re.IGNORECASE)
+        return cleaned_query, DateFilter(end_date=end_date, operator="lte")
 
     # Pattern: date:>YYYY-MM-DD
-    gt_pattern = r'date:>(\d{4}-\d{2}-\d{2})'
+    gt_pattern = r"date:>(\d{4}-\d{2}-\d{2})"
     match = re.search(gt_pattern, query, re.IGNORECASE)
     if match:
         start_date = match.group(1)
-        cleaned_query = re.sub(gt_pattern, '', query, flags=re.IGNORECASE)
-        return cleaned_query, DateFilter(
-            start_date=start_date,
-            operator='gt'
-        )
+        cleaned_query = re.sub(gt_pattern, "", query, flags=re.IGNORECASE)
+        return cleaned_query, DateFilter(start_date=start_date, operator="gt")
 
     # Pattern: date:<YYYY-MM-DD
-    lt_pattern = r'date:<(\d{4}-\d{2}-\d{2})'
+    lt_pattern = r"date:<(\d{4}-\d{2}-\d{2})"
     match = re.search(lt_pattern, query, re.IGNORECASE)
     if match:
         end_date = match.group(1)
-        cleaned_query = re.sub(lt_pattern, '', query, flags=re.IGNORECASE)
-        return cleaned_query, DateFilter(
-            end_date=end_date,
-            operator='lt'
-        )
+        cleaned_query = re.sub(lt_pattern, "", query, flags=re.IGNORECASE)
+        return cleaned_query, DateFilter(end_date=end_date, operator="lt")
 
     # Pattern: date:YYYY-MM-DD (exact match - keep in FTS query)
     # Don't extract exact dates, let them go through FTS
@@ -362,9 +352,9 @@ def _normalize_boolean_operators(query: str) -> str:
     """
     # Use word boundaries to avoid replacing within words
     # Replace case-insensitive AND, OR, NOT with uppercase versions
-    query = re.sub(r'\band\b', 'AND', query, flags=re.IGNORECASE)
-    query = re.sub(r'\bor\b', 'OR', query, flags=re.IGNORECASE)
-    query = re.sub(r'\bnot\b', 'NOT', query, flags=re.IGNORECASE)
+    query = re.sub(r"\band\b", "AND", query, flags=re.IGNORECASE)
+    query = re.sub(r"\bor\b", "OR", query, flags=re.IGNORECASE)
+    query = re.sub(r"\bnot\b", "NOT", query, flags=re.IGNORECASE)
     return query
 
 
@@ -379,7 +369,7 @@ def _convert_minus_to_not(query: str) -> str:
     """
     # Pattern: space followed by minus and word
     # Convert " -word" to " NOT word"
-    query = re.sub(r'\s+-(\S+)', r' NOT \1', query)
+    query = re.sub(r"\s+-(\S+)", r" NOT \1", query)
     return query
 
 
@@ -402,7 +392,7 @@ def _map_field_names(query: str) -> str:
         # Map field name to FTS5 column (if known)
         if field in FIELD_MAPPINGS:
             fts_field = FIELD_MAPPINGS[field]
-            return f'{fts_field}:{value}'
+            return f"{fts_field}:{value}"
         else:
             # Unknown field - treat as literal text
             # Keep the original field:value as text search
@@ -429,9 +419,10 @@ def _add_implicit_and(query: str) -> str:
 
     # First, protect quoted strings by replacing them with placeholders
     quotes = []
+
     def save_quote(match):
         quotes.append(match.group(0))
-        return f'__QUOTE_{len(quotes) - 1}__'
+        return f"__QUOTE_{len(quotes) - 1}__"
 
     query = re.sub(r'"[^"]*"', save_quote, query)
 
@@ -440,7 +431,7 @@ def _add_implicit_and(query: str) -> str:
 
     # Process tokens to add implicit AND
     result = []
-    operators = {'AND', 'OR', 'NOT'}
+    operators = {"AND", "OR", "NOT"}
 
     for i, token in enumerate(tokens):
         result.append(token)
@@ -454,30 +445,30 @@ def _add_implicit_and(query: str) -> str:
                 continue
 
             # Don't add AND if next token is an operator (except NOT)
-            if next_token in {'AND', 'OR'}:
+            if next_token in {"AND", "OR"}:
                 continue
 
             # Don't add AND if next token is NOT (it's already a binary operator position)
             # Actually, NOT can be unary, so we might need AND before it
             # Example: "moth NOT luna" is valid, but "moth luna" should be "moth AND luna"
             # Let's check if the previous token was an operator
-            if i > 0 and result[-2] in {'AND', 'OR'}:
+            if i > 0 and result[-2] in {"AND", "OR"}:
                 # We already have an operator before this
-                if next_token == 'NOT':
+                if next_token == "NOT":
                     # This is a new clause: "moth AND NOT luna" - don't add another AND
                     continue
                 else:
                     # Add AND before next term
-                    result.append('AND')
+                    result.append("AND")
             else:
                 # No operator before, add AND (unless next is NOT in binary position)
-                if next_token != 'NOT':
-                    result.append('AND')
+                if next_token != "NOT":
+                    result.append("AND")
 
     # Restore quoted strings
-    result_str = ' '.join(result)
+    result_str = " ".join(result)
     for i, quote in enumerate(quotes):
-        result_str = result_str.replace(f'__QUOTE_{i}__', quote)
+        result_str = result_str.replace(f"__QUOTE_{i}__", quote)
 
     return result_str
 
@@ -487,14 +478,14 @@ def _add_implicit_and(query: str) -> str:
 # ============================================================================
 
 __all__ = [
-    'parse_query',
-    'validate_query',
-    'ParsedQuery',
-    'DateFilter',
-    'FIELD_MAPPINGS',
-    'MAX_QUERY_LENGTH',
-    'MAX_QUERY_TERMS',
-    'MAX_TERM_LENGTH',
-    'MAX_PHRASE_LENGTH',
-    'MAX_PARENTHESIS_DEPTH',
+    "parse_query",
+    "validate_query",
+    "ParsedQuery",
+    "DateFilter",
+    "FIELD_MAPPINGS",
+    "MAX_QUERY_LENGTH",
+    "MAX_QUERY_TERMS",
+    "MAX_TERM_LENGTH",
+    "MAX_PHRASE_LENGTH",
+    "MAX_PARENTHESIS_DEPTH",
 ]

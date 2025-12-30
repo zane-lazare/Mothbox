@@ -52,6 +52,7 @@ RECENCY_HALF_LIFE_DAYS = 30  # Half-life for exponential decay (days)
 # Data Classes
 # ============================================================================
 
+
 @dataclass
 class TagMetadata:
     """Metadata for a single tag.
@@ -62,6 +63,7 @@ class TagMetadata:
         last_used: Most recent modified_at timestamp
         photos: Set of photo filenames with this tag
     """
+
     name: str
     count: int
     last_used: datetime
@@ -78,6 +80,7 @@ class AutocompleteSuggestion:
         last_used: Most recent usage timestamp (or None)
         match_score: Combined ranking score (0-1, higher is better)
     """
+
     tag: str
     count: int
     last_used: datetime | None
@@ -87,6 +90,7 @@ class AutocompleteSuggestion:
 # ============================================================================
 # Tag Autocomplete Engine
 # ============================================================================
+
 
 class TagAutocompleteEngine:
     """Tag autocomplete engine with fuzzy matching and intelligent ranking.
@@ -146,11 +150,9 @@ class TagAutocompleteEngine:
             logger.debug("Building tag autocomplete index...")
 
             # Reset index
-            tag_data: dict[str, dict] = defaultdict(lambda: {
-                'count': 0,
-                'photos': set(),
-                'last_used': None
-            })
+            tag_data: dict[str, dict] = defaultdict(
+                lambda: {"count": 0, "photos": set(), "last_used": None}
+            )
 
             # Get all sidecars from service
             try:
@@ -163,19 +165,21 @@ class TagAutocompleteEngine:
             for metadata in all_sidecars:
                 try:
                     photo_filename = metadata.photo_filename
-                    tags = getattr(metadata, 'tags', [])
-                    modified_at_str = getattr(metadata, 'modified_at', None)
+                    tags = getattr(metadata, "tags", [])
+                    modified_at_str = getattr(metadata, "modified_at", None)
 
                     # Parse timestamp
                     modified_at = None
                     if modified_at_str:
                         try:
                             # Handle ISO 8601 format with 'Z' suffix
-                            if modified_at_str.endswith('Z'):
-                                modified_at_str = modified_at_str[:-1] + '+00:00'
+                            if modified_at_str.endswith("Z"):
+                                modified_at_str = modified_at_str[:-1] + "+00:00"
                             modified_at = datetime.fromisoformat(modified_at_str)
                         except (ValueError, AttributeError) as e:
-                            logger.debug(f"Failed to parse timestamp '{modified_at_str}' for {photo_filename}: {e}")
+                            logger.debug(
+                                f"Failed to parse timestamp '{modified_at_str}' for {photo_filename}: {e}"
+                            )
 
                     # Process each tag
                     for tag in tags:
@@ -184,15 +188,19 @@ class TagAutocompleteEngine:
                             continue
 
                         tag_entry = tag_data[tag_normalized]
-                        tag_entry['count'] += 1
-                        tag_entry['photos'].add(photo_filename)
+                        tag_entry["count"] += 1
+                        tag_entry["photos"].add(photo_filename)
 
                         # Track most recent usage
-                        if modified_at and (tag_entry['last_used'] is None or modified_at > tag_entry['last_used']):
-                            tag_entry['last_used'] = modified_at
+                        if modified_at and (
+                            tag_entry["last_used"] is None or modified_at > tag_entry["last_used"]
+                        ):
+                            tag_entry["last_used"] = modified_at
 
                 except Exception as e:
-                    logger.debug(f"Error processing metadata for {getattr(metadata, 'photo_filename', 'unknown')}: {e}")
+                    logger.debug(
+                        f"Error processing metadata for {getattr(metadata, 'photo_filename', 'unknown')}: {e}"
+                    )
                     continue
 
             # Build TagMetadata objects
@@ -200,26 +208,22 @@ class TagAutocompleteEngine:
             for tag_name, data in tag_data.items():
                 self._index[tag_name] = TagMetadata(
                     name=tag_name,
-                    count=data['count'],
-                    last_used=data['last_used'] or datetime.min.replace(tzinfo=UTC),
-                    photos=data['photos']
+                    count=data["count"],
+                    last_used=data["last_used"] or datetime.min.replace(tzinfo=UTC),
+                    photos=data["photos"],
                 )
 
             self._last_updated = datetime.now(UTC)
 
             # Pre-compute top 50 tags by frequency for empty query optimization
-            sorted_tags = sorted(
-                self._index.values(),
-                key=lambda t: t.count,
-                reverse=True
-            )[:50]
+            sorted_tags = sorted(self._index.values(), key=lambda t: t.count, reverse=True)[:50]
 
             self._top_tags_cache = [
                 AutocompleteSuggestion(
                     tag=tag.name,
                     count=tag.count,
                     last_used=tag.last_used,
-                    match_score=float(tag.count)
+                    match_score=float(tag.count),
                 )
                 for tag in sorted_tags
             ]
@@ -309,7 +313,7 @@ class TagAutocompleteEngine:
                     tag=tag_name,
                     count=tag_metadata.count,
                     last_used=tag_metadata.last_used,
-                    match_score=score
+                    match_score=score,
                 )
                 suggestions.append(suggestion)
 
@@ -367,8 +371,8 @@ class TagAutocompleteEngine:
         """
         with self._lock:
             return {
-                'total_tags': len(self._index),
-                'last_updated': self._last_updated.isoformat() if self._last_updated else None
+                "total_tags": len(self._index),
+                "last_updated": self._last_updated.isoformat() if self._last_updated else None,
             }
 
     def invalidate_cache(self):
@@ -388,7 +392,7 @@ class TagAutocompleteEngine:
 # ============================================================================
 
 __all__ = [
-    'TagMetadata',
-    'AutocompleteSuggestion',
-    'TagAutocompleteEngine',
+    "TagMetadata",
+    "AutocompleteSuggestion",
+    "TagAutocompleteEngine",
 ]

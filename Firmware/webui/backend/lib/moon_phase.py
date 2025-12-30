@@ -191,9 +191,9 @@ def get_moon_phase(target_date: date) -> dict:
     Example:
         >>> from datetime import date
         >>> result = get_moon_phase(date(2024, 1, 25))
-        >>> result['phase']
+        >>> result["phase"]
         'full'
-        >>> result['illumination']
+        >>> result["illumination"]
         0.998
     """
     # Get astral phase value (0-27.99)
@@ -244,16 +244,14 @@ def get_moon_times(
     Example:
         >>> from datetime import date
         >>> result = get_moon_times(date(2024, 6, 15), 35.96, -83.92, "America/New_York")
-        >>> result['moonrise']
+        >>> result["moonrise"]
         '2024-06-15T21:34:00-04:00'
     """
     # Validate coordinates
     if not -90 <= latitude <= 90:
         raise ValueError(f"Invalid latitude {latitude}. Must be between -90 and 90.")
     if not -180 <= longitude <= 180:
-        raise ValueError(
-            f"Invalid longitude {longitude}. Must be between -180 and 180."
-        )
+        raise ValueError(f"Invalid longitude {longitude}. Must be between -180 and 180.")
 
     # Create location
     location = LocationInfo(
@@ -336,7 +334,7 @@ def get_significant_phases_for_range(start_date: date, end_date: date) -> list[d
     Example:
         >>> from datetime import date
         >>> phases = get_significant_phases_for_range(date(2024, 6, 1), date(2024, 6, 30))
-        >>> [p['phase'] for p in phases]
+        >>> [p["phase"] for p in phases]
         ['first_quarter', 'full', 'last_quarter', 'new']
     """
     significant = {"new", "first_quarter", "full", "last_quarter"}
@@ -433,9 +431,7 @@ def is_within_moon_phase(
         raise ValueError(error)
 
     if offset_days < 0 or offset_days > MAX_OFFSET_DAYS:
-        raise ValueError(
-            f"offset_days must be between 0 and {MAX_OFFSET_DAYS}, got {offset_days}"
-        )
+        raise ValueError(f"offset_days must be between 0 and {MAX_OFFSET_DAYS}, got {offset_days}")
 
     # Simple case: no offset
     if offset_days == 0:

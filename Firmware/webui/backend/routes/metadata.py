@@ -78,7 +78,7 @@ def get_photo_metadata(photo_path: str):
         metadata = metadata_service.get_photo_metadata(full_path)
 
         # Check if metadata extraction failed
-        if 'error' in metadata:
+        if "error" in metadata:
             return jsonify({"error": "Failed to extract metadata"}), 500
 
         return jsonify(metadata), 200
@@ -142,10 +142,10 @@ def get_batch_metadata():
         except Exception:
             return jsonify({"error": "Invalid JSON in request body"}), 400
 
-        if not data or 'photo_paths' not in data:
+        if not data or "photo_paths" not in data:
             return jsonify({"error": "Missing 'photo_paths' in request body"}), 400
 
-        photo_paths = data['photo_paths']
+        photo_paths = data["photo_paths"]
 
         if not isinstance(photo_paths, list):
             return jsonify({"error": "'photo_paths' must be an array"}), 400
@@ -166,24 +166,18 @@ def get_batch_metadata():
         for i, resolved_path in enumerate(resolved_paths):
             if resolved_path is None:
                 # Path validation failed
-                results.append({
-                    "error": "Invalid path",
-                    "file": {"path": photo_paths[i]}
-                })
+                results.append({"error": "Invalid path", "file": {"path": photo_paths[i]}})
             else:
                 metadata = metadata_service.get_photo_metadata(resolved_path)
                 results.append(metadata)
 
         # Calculate statistics
-        successful = sum(1 for r in results if 'error' not in r)
+        successful = sum(1 for r in results if "error" not in r)
         failed = len(results) - successful
 
-        return jsonify({
-            "results": results,
-            "total": len(results),
-            "successful": successful,
-            "failed": failed
-        }), 200
+        return jsonify(
+            {"results": results, "total": len(results), "successful": successful, "failed": failed}
+        ), 200
 
     except Exception as e:
         # Log full error, return sanitized message
@@ -194,6 +188,7 @@ def get_batch_metadata():
 # ============================================================================
 # GET /tags/autocomplete - Tag autocomplete
 # ============================================================================
+
 
 @metadata_bp.route("/tags/autocomplete", methods=["GET"])
 def get_tag_autocomplete():
@@ -242,18 +237,18 @@ def get_tag_autocomplete():
     """
     try:
         # Get autocomplete engine
-        engine = current_app.config.get('TAG_AUTOCOMPLETE_ENGINE')
+        engine = current_app.config.get("TAG_AUTOCOMPLETE_ENGINE")
         if engine is None:
             return jsonify({"error": "Service unavailable"}), 503
 
         # Get query parameter (required)
-        query = request.args.get('q')
+        query = request.args.get("q")
         if query is None:
             return jsonify({"error": "Missing required parameter: q"}), 400
 
         # Get limit parameter (optional, default: 10, max: 50)
         try:
-            limit = request.args.get('limit', DEFAULT_AUTOCOMPLETE_LIMIT, type=int)
+            limit = request.args.get("limit", DEFAULT_AUTOCOMPLETE_LIMIT, type=int)
         except (ValueError, TypeError):
             # If conversion fails, use default
             limit = DEFAULT_AUTOCOMPLETE_LIMIT
@@ -265,10 +260,12 @@ def get_tag_autocomplete():
             limit = MAX_AUTOCOMPLETE_LIMIT
 
         # Get exclude_tags parameter (optional)
-        exclude_tags_param = request.args.get('exclude_tags', '')
-        excluded_tags = {
-            tag.strip().lower() for tag in exclude_tags_param.split(',') if tag.strip()
-        } if exclude_tags_param else set()
+        exclude_tags_param = request.args.get("exclude_tags", "")
+        excluded_tags = (
+            {tag.strip().lower() for tag in exclude_tags_param.split(",") if tag.strip()}
+            if exclude_tags_param
+            else set()
+        )
 
         # Search for suggestions
         suggestions = engine.search(query, limit=limit)
@@ -280,18 +277,22 @@ def get_tag_autocomplete():
         # Format response
         formatted_suggestions = []
         for suggestion in suggestions:
-            formatted_suggestions.append({
-                "tag": suggestion.tag,
-                "count": suggestion.count,
-                "last_used": suggestion.last_used.isoformat() if suggestion.last_used else None,
-                "match_score": suggestion.match_score
-            })
+            formatted_suggestions.append(
+                {
+                    "tag": suggestion.tag,
+                    "count": suggestion.count,
+                    "last_used": suggestion.last_used.isoformat() if suggestion.last_used else None,
+                    "match_score": suggestion.match_score,
+                }
+            )
 
-        return jsonify({
-            "suggestions": formatted_suggestions,
-            "query": query,
-            "total": len(formatted_suggestions)
-        }), 200
+        return jsonify(
+            {
+                "suggestions": formatted_suggestions,
+                "query": query,
+                "total": len(formatted_suggestions),
+            }
+        ), 200
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to get tag suggestions")

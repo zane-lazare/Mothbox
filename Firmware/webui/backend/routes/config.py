@@ -44,8 +44,10 @@ def make_to_file_converter(key: str) -> Callable[[Any], str]:
     Returns:
         A function that converts Python values to file-format strings
     """
+
     def converter(value: Any) -> str:
         return convert_to_settings_file(key, value)
+
     return converter
 
 
@@ -58,8 +60,10 @@ def make_from_file_converter(key: str) -> Callable[[str], Any]:
     Returns:
         A function that converts file-format strings to Python values
     """
+
     def converter(value: str) -> Any:
         return convert_from_settings_file(key, value)
+
     return converter
 
 
@@ -784,7 +788,12 @@ def copy_settings():
                     capture_settings_dict[setting_name] = setting_value
 
             # Copy compatible settings
-            for preview_key, capture_key, to_file_converter, from_file_converter in compatible_mappings:
+            for (
+                preview_key,
+                capture_key,
+                to_file_converter,
+                from_file_converter,
+            ) in compatible_mappings:
                 if preview_key in preview_settings:
                     try:
                         # Convert file string → Python type → file string
@@ -903,6 +912,4 @@ def copy_settings():
 
         print(f"Copy settings error: {e}")
         print(traceback.format_exc())
-        return jsonify(
-            {"success": False, "error": str(e)}
-        ), 500
+        return jsonify({"success": False, "error": str(e)}), 500

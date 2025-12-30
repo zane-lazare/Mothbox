@@ -92,6 +92,7 @@ MAX_LONGITUDE = 180.0
 # Exceptions
 # ============================================================================
 
+
 class ValidationError(Exception):
     """Raised when deployment metadata validation fails."""
 
@@ -99,6 +100,7 @@ class ValidationError(Exception):
 # ============================================================================
 # Data Classes
 # ============================================================================
+
 
 @dataclass
 class DeploymentMetadata:
@@ -133,6 +135,7 @@ class DeploymentMetadata:
         ...     start_date="2024-06-01",
         ... )
     """
+
     version: str
     deployment_name: str
     created_at: str

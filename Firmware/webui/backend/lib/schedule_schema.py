@@ -190,7 +190,7 @@ class PatternAction:
         ...     action_type="gpio",
         ...     action_name="attract_on",
         ...     offset_minutes=0,
-        ...     description="Turn on UV attract lights"
+        ...     description="Turn on UV attract lights",
         ... )
     """
 
@@ -257,7 +257,7 @@ class EventPattern:
         ...         PatternAction(action_type="gpio", action_name="attract_on"),
         ...         PatternAction(action_type="camera", action_name="takephoto", offset_minutes=5),
         ...         PatternAction(action_type="gpio", action_name="attract_off", offset_minutes=15),
-        ...     ]
+        ...     ],
         ... )
         >>> pattern.duration_minutes
         15
@@ -334,7 +334,7 @@ class TimeWindow:
         ...     start_time="sunset",
         ...     end_time="sunrise",
         ...     start_offset_minutes=30,  # 30 min after sunset
-        ...     end_offset_minutes=-30,   # 30 min before sunrise
+        ...     end_offset_minutes=-30,  # 30 min before sunrise
         ... )
     """
 
@@ -470,9 +470,7 @@ class MoonPhaseTrigger:
             phases=data["phases"],
             offset_days=data.get("offset_days", 0),
             time_window=(
-                TimeWindow.from_dict(data["time_window"])
-                if data.get("time_window")
-                else None
+                TimeWindow.from_dict(data["time_window"]) if data.get("time_window") else None
             ),
         )
 
@@ -551,9 +549,7 @@ class SensorTrigger:
             comparison=data.get("comparison", "gt"),
             cooldown_minutes=data.get("cooldown_minutes", 5),
             time_window=(
-                TimeWindow.from_dict(data["time_window"])
-                if data.get("time_window")
-                else None
+                TimeWindow.from_dict(data["time_window"]) if data.get("time_window") else None
             ),
         )
 
@@ -565,6 +561,7 @@ class CronTrigger:
     Attributes:
         cron_expression: Standard 5-field cron expression (minute hour day month weekday)
     """
+
     cron_expression: str
 
     def to_dict(self) -> dict:
@@ -685,21 +682,15 @@ class Schedule:
             "interval_trigger": (
                 self.interval_trigger.to_dict() if self.interval_trigger else None
             ),
-            "solar_trigger": (
-                self.solar_trigger.to_dict() if self.solar_trigger else None
-            ),
+            "solar_trigger": (self.solar_trigger.to_dict() if self.solar_trigger else None),
             "moon_phase_trigger": (
                 self.moon_phase_trigger.to_dict() if self.moon_phase_trigger else None
             ),
             "fixed_time_trigger": (
                 self.fixed_time_trigger.to_dict() if self.fixed_time_trigger else None
             ),
-            "sensor_trigger": (
-                self.sensor_trigger.to_dict() if self.sensor_trigger else None
-            ),
-            "cron_trigger": (
-                self.cron_trigger.to_dict() if self.cron_trigger else None
-            ),
+            "sensor_trigger": (self.sensor_trigger.to_dict() if self.sensor_trigger else None),
+            "cron_trigger": (self.cron_trigger.to_dict() if self.cron_trigger else None),
             "start_date": self.start_date,
             "end_date": self.end_date,
             "deployment_id": self.deployment_id,
@@ -926,9 +917,7 @@ class Schedule:
         # Helper to handle both dict and object types for triggers
         T = TypeVar("T")
 
-        def _process_trigger(
-            trigger_data: dict | T | None, trigger_class: type[T]
-        ) -> T | None:
+        def _process_trigger(trigger_data: dict | T | None, trigger_class: type[T]) -> T | None:
             if trigger_data is None:
                 return None
             # If already an instance, return as-is (from frontend conversion)
@@ -941,9 +930,7 @@ class Schedule:
             schedule_id=data.get("schedule_id", ""),
             name=data["name"],
             description=data.get("description", ""),
-            event_patterns=[
-                EventPattern.from_dict(p) for p in data.get("event_patterns", [])
-            ],
+            event_patterns=[EventPattern.from_dict(p) for p in data.get("event_patterns", [])],
             trigger_type=data.get("trigger_type", "interval"),
             interval_trigger=_process_trigger(data.get("interval_trigger"), IntervalTrigger),
             solar_trigger=_process_trigger(data.get("solar_trigger"), SolarTrigger),
@@ -1156,15 +1143,13 @@ def validate_time_window(window: TimeWindow) -> tuple[bool, str | None]:
     if abs(window.start_offset_minutes) > max_offset:
         return (
             False,
-            f"start_offset_minutes {window.start_offset_minutes} exceeds "
-            f"+/- {max_offset} minutes",
+            f"start_offset_minutes {window.start_offset_minutes} exceeds +/- {max_offset} minutes",
         )
 
     if abs(window.end_offset_minutes) > max_offset:
         return (
             False,
-            f"end_offset_minutes {window.end_offset_minutes} exceeds "
-            f"+/- {max_offset} minutes",
+            f"end_offset_minutes {window.end_offset_minutes} exceeds +/- {max_offset} minutes",
         )
 
     return True, None
@@ -1229,8 +1214,7 @@ def validate_solar_trigger(trigger: SolarTrigger) -> tuple[bool, str | None]:
     if abs(trigger.offset_minutes) > max_offset:
         return (
             False,
-            f"Solar trigger offset {trigger.offset_minutes} exceeds "
-            f"+/- {max_offset} minutes",
+            f"Solar trigger offset {trigger.offset_minutes} exceeds +/- {max_offset} minutes",
         )
 
     # Validate days_of_week
@@ -1261,16 +1245,14 @@ def validate_moon_phase_trigger(
         if phase not in MOON_PHASES:
             return (
                 False,
-                f"Invalid moon phase: '{phase}'. "
-                f"Must be one of: {', '.join(MOON_PHASES)}",
+                f"Invalid moon phase: '{phase}'. Must be one of: {', '.join(MOON_PHASES)}",
             )
 
     # Validate offset_days
     if abs(trigger.offset_days) > MAX_OFFSET_DAYS:
         return (
             False,
-            f"Moon phase offset {trigger.offset_days} exceeds "
-            f"+/- {MAX_OFFSET_DAYS} days",
+            f"Moon phase offset {trigger.offset_days} exceeds +/- {MAX_OFFSET_DAYS} days",
         )
 
     # Validate time_window if provided
@@ -1374,7 +1356,10 @@ def validate_cron_trigger(trigger: CronTrigger) -> tuple[bool, str | None]:
         # Basic 5-field check
         fields = trigger.cron_expression.strip().split()
         if len(fields) != 5:
-            return False, "Cron expression must have exactly 5 fields (minute hour day month weekday)"
+            return (
+                False,
+                "Cron expression must have exactly 5 fields (minute hour day month weekday)",
+            )
         return True, None
 
     # Use CronEntry.is_valid_expression for thorough validation
@@ -1449,9 +1434,7 @@ def validate_schedule(schedule: Schedule) -> tuple[bool, str | None]:
         "cron": (schedule.cron_trigger, validate_cron_trigger),
     }
 
-    trigger_config, validator = trigger_validators.get(
-        schedule.trigger_type, (None, None)
-    )
+    trigger_config, validator = trigger_validators.get(schedule.trigger_type, (None, None))
 
     if trigger_config is None:
         return (

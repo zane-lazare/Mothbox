@@ -7,7 +7,7 @@ This package contains command-line tools for GPS EXIF processing:
 """
 
 __all__ = [
-    'gps_exif_tagger',
-    'verify_gps_exif',
-    'batch_tag_photos',
+    "gps_exif_tagger",
+    "verify_gps_exif",
+    "batch_tag_photos",
 ]

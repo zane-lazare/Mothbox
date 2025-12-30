@@ -100,7 +100,9 @@ class ExportJobFilter:
             "date_end": self.date_end,
             "deployment": self.deployment,
             "tags": self.tags,
-            "series_type": self.series_type.value if isinstance(self.series_type, SeriesType) else self.series_type,
+            "series_type": self.series_type.value
+            if isinstance(self.series_type, SeriesType)
+            else self.series_type,
             "has_species": self.has_species,
             "photo_paths": self.photo_paths,
         }

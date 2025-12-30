@@ -137,35 +137,60 @@ class MetadataService:
         Example:
             >>> service = MetadataService()
             >>> # Path should be validated first by routes layer
-            >>> metadata = service.get_photo_metadata(Path('/photos/photo.jpg'))
+            >>> metadata = service.get_photo_metadata(Path("/photos/photo.jpg"))
             >>> print(f"Camera: {metadata['camera']['make']} {metadata['camera']['model']}")
         """
         # Initialize result structure with all categories
         metadata = {
-            'camera': {'make': None, 'model': None, 'lens': None, 'sensor': None},
-            'location': {'latitude': None, 'longitude': None, 'altitude': None,
-                        'gps_timestamp': None, 'satellites': None, 'hdop': None},
-            'capture': {'timestamp': None, 'exposure_time': None, 'f_number': None,
-                       'iso': None, 'focal_length': None, 'white_balance': None, 'flash': None},
-            'deployment': {'mothbox_id': None, 'capture_type': None, 'firmware_version': None,
-                          'series_type': None, 'series_count': None, 'series_index': None},
-            'file': {'path': None, 'filename': None, 'size': None,
-                    'width': None, 'height': None, 'format': None}
+            "camera": {"make": None, "model": None, "lens": None, "sensor": None},
+            "location": {
+                "latitude": None,
+                "longitude": None,
+                "altitude": None,
+                "gps_timestamp": None,
+                "satellites": None,
+                "hdop": None,
+            },
+            "capture": {
+                "timestamp": None,
+                "exposure_time": None,
+                "f_number": None,
+                "iso": None,
+                "focal_length": None,
+                "white_balance": None,
+                "flash": None,
+            },
+            "deployment": {
+                "mothbox_id": None,
+                "capture_type": None,
+                "firmware_version": None,
+                "series_type": None,
+                "series_count": None,
+                "series_index": None,
+            },
+            "file": {
+                "path": None,
+                "filename": None,
+                "size": None,
+                "width": None,
+                "height": None,
+                "format": None,
+            },
         }
 
         try:
             # Defensive check: photo_path should be validated by caller
             # Check if photo exists (safe operation after path validation)
             if not photo_path.exists():
-                metadata['error'] = "Photo not found"
+                metadata["error"] = "Photo not found"
                 return metadata
 
             # Populate basic file info even if image can't be opened
             # These operations are safe because path was validated by caller
-            metadata['file']['path'] = str(photo_path)
-            metadata['file']['filename'] = photo_path.name
+            metadata["file"]["path"] = str(photo_path)
+            metadata["file"]["filename"] = photo_path.name
             # Redundant exists() check can be removed (already checked above)
-            metadata['file']['size'] = photo_path.stat().st_size
+            metadata["file"]["size"] = photo_path.stat().st_size
 
             # Open image and extract EXIF data
             # Use context manager to ensure image is always closed, even on error paths
@@ -176,17 +201,21 @@ class MetadataService:
                     except Exception as e:
                         # Handle corrupted EXIF gracefully (image still valid)
                         # Log full error details server-side (CodeQL security requirement)
-                        logger.warning(f"Failed to load EXIF data from {photo_path.name}: {e}", exc_info=True)
+                        logger.warning(
+                            f"Failed to load EXIF data from {photo_path.name}: {e}", exc_info=True
+                        )
                         exif_dict = {}
                         # Add generic warning flag to metadata (don't expose exception details)
-                        metadata['exif_warning'] = "EXIF parsing failed"
+                        metadata["exif_warning"] = "EXIF parsing failed"
 
                     # Extract metadata from each category
-                    metadata['camera'] = self._extract_camera_metadata(exif_dict)
-                    metadata['capture'] = self._extract_capture_metadata(exif_dict)
-                    metadata['location'] = self._extract_location_metadata(photo_path)
-                    metadata['deployment'] = self._extract_deployment_metadata(photo_path, exif_dict)
-                    metadata['file'] = self._extract_file_metadata(photo_path, image)
+                    metadata["camera"] = self._extract_camera_metadata(exif_dict)
+                    metadata["capture"] = self._extract_capture_metadata(exif_dict)
+                    metadata["location"] = self._extract_location_metadata(photo_path)
+                    metadata["deployment"] = self._extract_deployment_metadata(
+                        photo_path, exif_dict
+                    )
+                    metadata["file"] = self._extract_file_metadata(photo_path, image)
                     # Image automatically closed when exiting 'with' block
 
             except Exception as img_error:
@@ -194,19 +223,19 @@ class MetadataService:
                 # Log full error details server-side (CodeQL security requirement)
                 logger.error(f"Failed to open image {photo_path}: {img_error}", exc_info=True)
                 # Return generic message to user (don't expose internal details)
-                metadata['error'] = "Failed to open image"
+                metadata["error"] = "Failed to open image"
                 return metadata
 
         except PermissionError:
             # Log full error details server-side
             logger.error(f"Permission denied accessing {photo_path}", exc_info=True)
             # Return generic message to user
-            metadata['error'] = "Permission denied"
+            metadata["error"] = "Permission denied"
         except Exception as e:
             # Log full error details server-side
             logger.error(f"Unexpected error processing {photo_path}: {e}", exc_info=True)
             # Return generic message to user
-            metadata['error'] = "Failed to read metadata"
+            metadata["error"] = "Failed to read metadata"
 
         return metadata
 
@@ -226,7 +255,7 @@ class MetadataService:
 
         Example:
             >>> service = MetadataService()
-            >>> photos = [Path('/photos/photo1.jpg'), Path('/photos/photo2.jpg')]
+            >>> photos = [Path("/photos/photo1.jpg"), Path("/photos/photo2.jpg")]
             >>> results = service.batch_get_metadata(photos)
             >>> print(f"Processed {len(results)} photos")
         """
@@ -241,8 +270,11 @@ class MetadataService:
                 logger.error(f"Failed to process photo {photo_path}: {e}", exc_info=True)
                 # Add error entry for failed photo with generic message (don't expose internal details)
                 error_entry = {
-                    'error': "Failed to process photo",
-                    'file': {'path': str(photo_path), 'filename': photo_path.name if photo_path else None}
+                    "error": "Failed to process photo",
+                    "file": {
+                        "path": str(photo_path),
+                        "filename": photo_path.name if photo_path else None,
+                    },
                 }
                 results.append(error_entry)
 
@@ -262,42 +294,46 @@ class MetadataService:
         Returns:
             dict: Camera metadata with keys: make, model, lens, sensor
         """
-        camera = {
-            'make': None,
-            'model': None,
-            'lens': None,
-            'sensor': None
-        }
+        camera = {"make": None, "model": None, "lens": None, "sensor": None}
 
         try:
             # Extract from 0th IFD (Image File Directory)
-            if '0th' in exif_data:
-                ifd = exif_data['0th']
+            if "0th" in exif_data:
+                ifd = exif_data["0th"]
 
                 # Camera make
                 if piexif.ImageIFD.Make in ifd:
-                    camera['make'] = ifd[piexif.ImageIFD.Make].decode('utf-8', errors='ignore').strip()
+                    camera["make"] = (
+                        ifd[piexif.ImageIFD.Make].decode("utf-8", errors="ignore").strip()
+                    )
 
                 # Camera model
                 if piexif.ImageIFD.Model in ifd:
-                    camera['model'] = ifd[piexif.ImageIFD.Model].decode('utf-8', errors='ignore').strip()
+                    camera["model"] = (
+                        ifd[piexif.ImageIFD.Model].decode("utf-8", errors="ignore").strip()
+                    )
 
             # Extract from Exif IFD
-            if 'Exif' in exif_data:
-                exif_ifd = exif_data['Exif']
+            if "Exif" in exif_data:
+                exif_ifd = exif_data["Exif"]
 
                 # Lens model
                 if piexif.ExifIFD.LensModel in exif_ifd:
-                    camera['lens'] = exif_ifd[piexif.ExifIFD.LensModel].decode('utf-8', errors='ignore').strip()
+                    camera["lens"] = (
+                        exif_ifd[piexif.ExifIFD.LensModel].decode("utf-8", errors="ignore").strip()
+                    )
 
                 # Sensor from MakerNote (Mothbox-specific)
                 if piexif.ExifIFD.MakerNote in exif_ifd:
                     try:
                         import json
-                        maker_note_json = exif_ifd[piexif.ExifIFD.MakerNote].decode('utf-8', errors='ignore')
+
+                        maker_note_json = exif_ifd[piexif.ExifIFD.MakerNote].decode(
+                            "utf-8", errors="ignore"
+                        )
                         maker_note = json.loads(maker_note_json)
-                        if 'sensor' in maker_note:
-                            camera['sensor'] = maker_note['sensor']
+                        if "sensor" in maker_note:
+                            camera["sensor"] = maker_note["sensor"]
                     except (json.JSONDecodeError, KeyError):
                         pass
 
@@ -318,49 +354,51 @@ class MetadataService:
             dict: Capture metadata with timestamp, exposure, ISO, etc.
         """
         capture = {
-            'timestamp': None,
-            'exposure_time': None,
-            'f_number': None,
-            'iso': None,
-            'focal_length': None,
-            'white_balance': None,
-            'flash': None,
-            'exposure_mode': None,
-            'metering_mode': None,
-            'sharpness': None,
-            'contrast': None,
-            'saturation': None,
-            'brightness': None,
-            'focus_mode': None,
-            'af_range': None,
-            'af_speed': None,
-            'noise_reduction': None,
-            'lens_position': None,
-            'colour_gain_red': None,
-            'colour_gain_blue': None,
+            "timestamp": None,
+            "exposure_time": None,
+            "f_number": None,
+            "iso": None,
+            "focal_length": None,
+            "white_balance": None,
+            "flash": None,
+            "exposure_mode": None,
+            "metering_mode": None,
+            "sharpness": None,
+            "contrast": None,
+            "saturation": None,
+            "brightness": None,
+            "focus_mode": None,
+            "af_range": None,
+            "af_speed": None,
+            "noise_reduction": None,
+            "lens_position": None,
+            "colour_gain_red": None,
+            "colour_gain_blue": None,
         }
 
         try:
             # Extract from Exif IFD
-            if 'Exif' in exif_data:
-                exif_ifd = exif_data['Exif']
+            if "Exif" in exif_data:
+                exif_ifd = exif_data["Exif"]
 
                 # Timestamp (DateTimeOriginal)
                 if piexif.ExifIFD.DateTimeOriginal in exif_ifd:
-                    dt_str = exif_ifd[piexif.ExifIFD.DateTimeOriginal].decode('utf-8', errors='ignore')
+                    dt_str = exif_ifd[piexif.ExifIFD.DateTimeOriginal].decode(
+                        "utf-8", errors="ignore"
+                    )
                     # Convert EXIF format (YYYY:MM:DD HH:MM:SS) to ISO 8601
                     try:
-                        dt = datetime.strptime(dt_str, '%Y:%m:%d %H:%M:%S')
-                        capture['timestamp'] = dt.isoformat()
+                        dt = datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S")
+                        capture["timestamp"] = dt.isoformat()
                     except ValueError:
-                        capture['timestamp'] = dt_str
+                        capture["timestamp"] = dt_str
 
                 # Exposure time
                 if piexif.ExifIFD.ExposureTime in exif_ifd:
                     rational = _parse_exif_rational(exif_ifd[piexif.ExifIFD.ExposureTime])
                     if rational:
                         numerator, denominator = rational
-                        capture['exposure_time'] = f"{numerator}/{denominator}"
+                        capture["exposure_time"] = f"{numerator}/{denominator}"
 
                 # F-number (aperture)
                 if piexif.ExifIFD.FNumber in exif_ifd:
@@ -368,11 +406,11 @@ class MetadataService:
                     if rational:
                         numerator, denominator = rational
                         f_value = numerator / denominator
-                        capture['f_number'] = f"f/{f_value:.1f}"
+                        capture["f_number"] = f"f/{f_value:.1f}"
 
                 # ISO
                 if piexif.ExifIFD.ISOSpeedRatings in exif_ifd:
-                    capture['iso'] = exif_ifd[piexif.ExifIFD.ISOSpeedRatings]
+                    capture["iso"] = exif_ifd[piexif.ExifIFD.ISOSpeedRatings]
 
                 # Focal length
                 if piexif.ExifIFD.FocalLength in exif_ifd:
@@ -380,85 +418,99 @@ class MetadataService:
                     if rational:
                         numerator, denominator = rational
                         focal_mm = numerator / denominator
-                        capture['focal_length'] = f"{int(focal_mm)}mm"
+                        capture["focal_length"] = f"{int(focal_mm)}mm"
 
                 # White balance
                 if piexif.ExifIFD.WhiteBalance in exif_ifd:
                     wb_code = exif_ifd[piexif.ExifIFD.WhiteBalance]
-                    capture['white_balance'] = 'Auto' if wb_code == 0 else 'Manual'
+                    capture["white_balance"] = "Auto" if wb_code == 0 else "Manual"
 
                 # Flash
                 if piexif.ExifIFD.Flash in exif_ifd:
                     flash_code = exif_ifd[piexif.ExifIFD.Flash]
                     # Flash fired if bit 0 is set
-                    capture['flash'] = bool(flash_code & 0x01)
+                    capture["flash"] = bool(flash_code & 0x01)
 
                 # Exposure mode (0 = Manual, 1 = Auto)
                 if piexif.ExifIFD.ExposureMode in exif_ifd:
                     exp_mode = exif_ifd[piexif.ExifIFD.ExposureMode]
-                    capture['exposure_mode'] = 'Manual' if exp_mode == 0 else 'Auto'
+                    capture["exposure_mode"] = "Manual" if exp_mode == 0 else "Auto"
 
                 # Metering mode (0 = Centre-Weighted, 1 = Spot, 2 = Matrix/Average)
                 if piexif.ExifIFD.MeteringMode in exif_ifd:
                     meter_code = exif_ifd[piexif.ExifIFD.MeteringMode]
-                    metering_modes = {0: 'Centre-Weighted', 1: 'Spot', 2: 'Matrix'}
-                    capture['metering_mode'] = metering_modes.get(meter_code, f'Unknown ({meter_code})')
+                    metering_modes = {0: "Centre-Weighted", 1: "Spot", 2: "Matrix"}
+                    capture["metering_mode"] = metering_modes.get(
+                        meter_code, f"Unknown ({meter_code})"
+                    )
 
                 # Sharpness (integer value)
                 if piexif.ExifIFD.Sharpness in exif_ifd:
-                    capture['sharpness'] = exif_ifd[piexif.ExifIFD.Sharpness]
+                    capture["sharpness"] = exif_ifd[piexif.ExifIFD.Sharpness]
 
                 # Contrast (integer value)
                 if piexif.ExifIFD.Contrast in exif_ifd:
-                    capture['contrast'] = exif_ifd[piexif.ExifIFD.Contrast]
+                    capture["contrast"] = exif_ifd[piexif.ExifIFD.Contrast]
 
                 # Saturation (integer value)
                 if piexif.ExifIFD.Saturation in exif_ifd:
-                    capture['saturation'] = exif_ifd[piexif.ExifIFD.Saturation]
+                    capture["saturation"] = exif_ifd[piexif.ExifIFD.Saturation]
 
                 # Brightness (rational tuple)
                 if piexif.ExifIFD.BrightnessValue in exif_ifd:
                     rational = _parse_exif_rational(exif_ifd[piexif.ExifIFD.BrightnessValue])
                     if rational:
                         numerator, denominator = rational
-                        capture['brightness'] = numerator / denominator
+                        capture["brightness"] = numerator / denominator
 
                 # MakerNote contains custom Mothbox metadata (focus, noise reduction, colour gains)
                 if piexif.ExifIFD.MakerNote in exif_ifd:
                     try:
                         import json
-                        maker_note_json = exif_ifd[piexif.ExifIFD.MakerNote].decode('utf-8', errors='ignore')
+
+                        maker_note_json = exif_ifd[piexif.ExifIFD.MakerNote].decode(
+                            "utf-8", errors="ignore"
+                        )
                         maker_note = json.loads(maker_note_json)
 
                         # Focus mode (0=Manual, 1=Auto, 2=Continuous)
-                        if 'focus_mode' in maker_note:
-                            focus_modes = {0: 'Manual', 1: 'Auto Single', 2: 'Continuous AF'}
-                            capture['focus_mode'] = focus_modes.get(maker_note['focus_mode'], f"Unknown ({maker_note['focus_mode']})")
+                        if "focus_mode" in maker_note:
+                            focus_modes = {0: "Manual", 1: "Auto Single", 2: "Continuous AF"}
+                            capture["focus_mode"] = focus_modes.get(
+                                maker_note["focus_mode"], f"Unknown ({maker_note['focus_mode']})"
+                            )
 
                         # AF Range (0=Normal, 1=Macro, 2=Full)
-                        if 'af_range' in maker_note:
-                            af_ranges = {0: 'Normal', 1: 'Macro', 2: 'Full'}
-                            capture['af_range'] = af_ranges.get(maker_note['af_range'], f"Unknown ({maker_note['af_range']})")
+                        if "af_range" in maker_note:
+                            af_ranges = {0: "Normal", 1: "Macro", 2: "Full"}
+                            capture["af_range"] = af_ranges.get(
+                                maker_note["af_range"], f"Unknown ({maker_note['af_range']})"
+                            )
 
                         # AF Speed (0=Normal, 1=Fast)
-                        if 'af_speed' in maker_note:
-                            af_speeds = {0: 'Normal', 1: 'Fast'}
-                            capture['af_speed'] = af_speeds.get(maker_note['af_speed'], f"Unknown ({maker_note['af_speed']})")
+                        if "af_speed" in maker_note:
+                            af_speeds = {0: "Normal", 1: "Fast"}
+                            capture["af_speed"] = af_speeds.get(
+                                maker_note["af_speed"], f"Unknown ({maker_note['af_speed']})"
+                            )
 
                         # Noise Reduction (0=Off, 1=Fast, 2=High Quality)
-                        if 'noise_reduction' in maker_note:
-                            nr_modes = {0: 'Off', 1: 'Fast', 2: 'High Quality'}
-                            capture['noise_reduction'] = nr_modes.get(maker_note['noise_reduction'], f"Unknown ({maker_note['noise_reduction']})")
+                        if "noise_reduction" in maker_note:
+                            nr_modes = {0: "Off", 1: "Fast", 2: "High Quality"}
+                            capture["noise_reduction"] = nr_modes.get(
+                                maker_note["noise_reduction"],
+                                f"Unknown ({maker_note['noise_reduction']})",
+                            )
 
                         # Lens position (diopters)
-                        if 'lens_position' in maker_note:
-                            capture['lens_position'] = maker_note['lens_position']
+                        if "lens_position" in maker_note:
+                            capture["lens_position"] = maker_note["lens_position"]
 
                         # Colour gains
-                        if 'colour_gain_red' in maker_note:
-                            capture['colour_gain_red'] = maker_note['colour_gain_red']
-                        if 'colour_gain_blue' in maker_note:
-                            capture['colour_gain_blue'] = maker_note['colour_gain_blue']
+                        if "colour_gain_red" in maker_note:
+                            capture["colour_gain_red"] = maker_note["colour_gain_red"]
+                        if "colour_gain_blue" in maker_note:
+                            capture["colour_gain_blue"] = maker_note["colour_gain_blue"]
 
                     except (json.JSONDecodeError, KeyError):
                         # MakerNote is not JSON or malformed, skip gracefully
@@ -483,12 +535,12 @@ class MetadataService:
             dict: Location metadata with coordinates, altitude, quality metrics
         """
         location = {
-            'latitude': None,
-            'longitude': None,
-            'altitude': None,
-            'gps_timestamp': None,
-            'satellites': None,
-            'hdop': None
+            "latitude": None,
+            "longitude": None,
+            "altitude": None,
+            "gps_timestamp": None,
+            "satellites": None,
+            "hdop": None,
         }
 
         try:
@@ -498,19 +550,19 @@ class MetadataService:
             # Use existing GPS EXIF library
             gps_info = verify_gps_exif(photo_path)
 
-            if gps_info.get('has_gps'):
-                location['latitude'] = gps_info.get('latitude')
-                location['longitude'] = gps_info.get('longitude')
-                location['altitude'] = gps_info.get('altitude')
-                location['gps_timestamp'] = gps_info.get('timestamp')
+            if gps_info.get("has_gps"):
+                location["latitude"] = gps_info.get("latitude")
+                location["longitude"] = gps_info.get("longitude")
+                location["altitude"] = gps_info.get("altitude")
+                location["gps_timestamp"] = gps_info.get("timestamp")
 
                 # Convert satellites from string to int if present
-                satellites_str = gps_info.get('satellites')
+                satellites_str = gps_info.get("satellites")
                 if satellites_str:
                     with contextlib.suppress(ValueError, TypeError):
-                        location['satellites'] = int(satellites_str)
+                        location["satellites"] = int(satellites_str)
 
-                location['hdop'] = gps_info.get('hdop')
+                location["hdop"] = gps_info.get("hdop")
 
         except (ImportError, AttributeError, KeyError, TypeError) as e:
             # Gracefully handle GPS extraction errors (import failure, missing data)
@@ -533,48 +585,53 @@ class MetadataService:
             dict: Deployment metadata with Mothbox ID, firmware, series info
         """
         deployment = {
-            'mothbox_id': None,
-            'capture_type': None,
-            'firmware_version': None,
-            'series_type': None,
-            'series_count': None,
-            'series_index': None
+            "mothbox_id": None,
+            "capture_type": None,
+            "firmware_version": None,
+            "series_type": None,
+            "series_count": None,
+            "series_index": None,
         }
 
         try:
             # Try to get Mothbox ID and capture type from MakerNote first (preferred)
-            if 'Exif' in exif_data:
-                exif_ifd = exif_data['Exif']
+            if "Exif" in exif_data:
+                exif_ifd = exif_data["Exif"]
                 if piexif.ExifIFD.MakerNote in exif_ifd:
                     try:
                         import json
-                        maker_note_json = exif_ifd[piexif.ExifIFD.MakerNote].decode('utf-8', errors='ignore')
+
+                        maker_note_json = exif_ifd[piexif.ExifIFD.MakerNote].decode(
+                            "utf-8", errors="ignore"
+                        )
                         maker_note = json.loads(maker_note_json)
-                        if 'mothbox_name' in maker_note:
-                            deployment['mothbox_id'] = maker_note['mothbox_name']
-                        if 'capture_type' in maker_note:
-                            deployment['capture_type'] = maker_note['capture_type']
+                        if "mothbox_name" in maker_note:
+                            deployment["mothbox_id"] = maker_note["mothbox_name"]
+                        if "capture_type" in maker_note:
+                            deployment["capture_type"] = maker_note["capture_type"]
                     except (json.JSONDecodeError, KeyError):
                         pass
 
             # Fall back to filename parsing if MakerNote didn't have mothbox_name
-            if deployment['mothbox_id'] is None:
+            if deployment["mothbox_id"] is None:
                 filename = photo_path.stem
-                match = re.match(r'^([a-zA-Z0-9_-]+)_\d{4}_\d{2}_\d{2}', filename)
+                match = re.match(r"^([a-zA-Z0-9_-]+)_\d{4}_\d{2}_\d{2}", filename)
                 if match:
-                    deployment['mothbox_id'] = match.group(1)
+                    deployment["mothbox_id"] = match.group(1)
 
             # Extract firmware version from EXIF Software tag
-            if '0th' in exif_data:
-                ifd = exif_data['0th']
+            if "0th" in exif_data:
+                ifd = exif_data["0th"]
                 if piexif.ImageIFD.Software in ifd:
-                    deployment['firmware_version'] = ifd[piexif.ImageIFD.Software].decode('utf-8', errors='ignore').strip()
+                    deployment["firmware_version"] = (
+                        ifd[piexif.ImageIFD.Software].decode("utf-8", errors="ignore").strip()
+                    )
 
             # Detect series information
             series_type, series_count, series_index = self._detect_series_info(photo_path)
-            deployment['series_type'] = series_type
-            deployment['series_count'] = series_count
-            deployment['series_index'] = series_index
+            deployment["series_type"] = series_type
+            deployment["series_count"] = series_count
+            deployment["series_index"] = series_index
 
         except (AttributeError, KeyError, TypeError, UnicodeDecodeError) as e:
             # Gracefully handle parsing errors (missing keys, decode failures)
@@ -596,12 +653,12 @@ class MetadataService:
             dict: File metadata with path, size, dimensions, format
         """
         file_info = {
-            'path': str(photo_path),
-            'filename': photo_path.name,
-            'size': None,
-            'width': None,
-            'height': None,
-            'format': None
+            "path": str(photo_path),
+            "filename": photo_path.name,
+            "size": None,
+            "width": None,
+            "height": None,
+            "format": None,
         }
 
         try:
@@ -609,15 +666,15 @@ class MetadataService:
             # photo_path.exists() would be redundant here since we already
             # opened the image successfully in get_photo_metadata()
             try:
-                file_info['size'] = photo_path.stat().st_size
+                file_info["size"] = photo_path.stat().st_size
             except OSError as e:
                 logger.warning(f"Failed to get file size: {e}")
 
             # Image dimensions and format
             if image:
-                file_info['width'] = image.width
-                file_info['height'] = image.height
-                file_info['format'] = image.format
+                file_info["width"] = image.width
+                file_info["height"] = image.height
+                file_info["format"] = image.format
 
         except (OSError, AttributeError, TypeError) as e:
             # Gracefully handle file system errors (I/O errors, None image object)

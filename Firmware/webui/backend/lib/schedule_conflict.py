@@ -50,6 +50,7 @@ logger = logging.getLogger(__name__)
 # Data Structures
 # ============================================================================
 
+
 @dataclass
 class ResourceUsage:
     """
@@ -132,9 +133,7 @@ class PatternExecution:
             pattern_name=data["pattern_name"],
             start_time=datetime.fromisoformat(data["start_time"]),
             end_time=datetime.fromisoformat(data["end_time"]),
-            resource_usages=[
-                ResourceUsage.from_dict(r) for r in data.get("resource_usages", [])
-            ],
+            resource_usages=[ResourceUsage.from_dict(r) for r in data.get("resource_usages", [])],
         )
 
 
@@ -246,6 +245,7 @@ class ConflictReport:
 # Time Overlap Detection
 # ============================================================================
 
+
 def check_time_overlap(
     exec1: PatternExecution,
     exec2: PatternExecution,
@@ -293,6 +293,7 @@ def check_time_overlap(
 # Resource Type Detection
 # ============================================================================
 
+
 def get_resource_type(action: PatternAction) -> str:
     """
     Determine resource type from action.
@@ -323,6 +324,7 @@ def get_resource_type(action: PatternAction) -> str:
 # ============================================================================
 # Resource Contention Detection
 # ============================================================================
+
 
 def check_resource_contention(
     usage1: ResourceUsage,
@@ -391,6 +393,7 @@ def check_resource_contention(
 # Pattern Execution Generation
 # ============================================================================
 
+
 def _parse_time_string(time_str: str) -> time:
     """Parse HH:MM time string to time object."""
     parts = time_str.split(":")
@@ -457,6 +460,7 @@ def _get_trigger_times_for_day(
             # If it's a solar event, use solar_time module
             try:
                 from webui.backend.lib.solar_time import parse_time_spec
+
                 window_start = parse_time_spec(
                     trigger.time_window.start_time,
                     target_date,
@@ -476,6 +480,7 @@ def _get_trigger_times_for_day(
         except (ValueError, AttributeError):
             try:
                 from webui.backend.lib.solar_time import parse_time_spec
+
                 window_end = parse_time_spec(
                     trigger.time_window.end_time,
                     target_date,
@@ -503,6 +508,7 @@ def _get_trigger_times_for_day(
         trigger = schedule.solar_trigger
         try:
             from webui.backend.lib.solar_time import parse_time_spec
+
             trigger_time = parse_time_spec(
                 trigger.solar_event,
                 target_date,
@@ -513,39 +519,28 @@ def _get_trigger_times_for_day(
             trigger_time += timedelta(minutes=trigger.offset_minutes)
             trigger_times.append(trigger_time)
         except (ImportError, ValueError) as e:
-            logger.warning(
-                f"Solar trigger calculation failed for {schedule.schedule_id}: {e}"
-            )
+            logger.warning(f"Solar trigger calculation failed for {schedule.schedule_id}: {e}")
 
     elif schedule.trigger_type == "moon_phase" and schedule.moon_phase_trigger:
         trigger = schedule.moon_phase_trigger
         try:
             from webui.backend.lib.moon_phase import is_within_moon_phase
+
             # Check if any target phase is active on this date
             for phase in trigger.phases:
                 if is_within_moon_phase(target_date, phase, trigger.offset_days):
                     # If time_window provided, use it; otherwise trigger at noon
                     if trigger.time_window:
                         try:
-                            window_start_time = _parse_time_string(
-                                trigger.time_window.start_time
-                            )
-                            trigger_times.append(
-                                datetime.combine(target_date, window_start_time)
-                            )
+                            window_start_time = _parse_time_string(trigger.time_window.start_time)
+                            trigger_times.append(datetime.combine(target_date, window_start_time))
                         except ValueError:
-                            trigger_times.append(
-                                datetime.combine(target_date, time(12, 0))
-                            )
+                            trigger_times.append(datetime.combine(target_date, time(12, 0)))
                     else:
-                        trigger_times.append(
-                            datetime.combine(target_date, time(12, 0))
-                        )
+                        trigger_times.append(datetime.combine(target_date, time(12, 0)))
                     break  # Only need one trigger per day
         except ImportError as e:
-            logger.warning(
-                f"Moon phase module unavailable for {schedule.schedule_id}: {e}"
-            )
+            logger.warning(f"Moon phase module unavailable for {schedule.schedule_id}: {e}")
 
     elif schedule.trigger_type == "fixed_time" and schedule.fixed_time_trigger:
         trigger = schedule.fixed_time_trigger
@@ -553,9 +548,7 @@ def _get_trigger_times_for_day(
             trigger_time = _parse_time_string(trigger.time)
             trigger_times.append(datetime.combine(target_date, trigger_time))
         except ValueError as e:
-            logger.debug(
-                f"Fixed time parse failed for {schedule.schedule_id}: {e}"
-            )
+            logger.debug(f"Fixed time parse failed for {schedule.schedule_id}: {e}")
 
     elif schedule.trigger_type == "sensor" and schedule.sensor_trigger:
         trigger = schedule.sensor_trigger
@@ -565,9 +558,7 @@ def _get_trigger_times_for_day(
                 window_start_time = _parse_time_string(trigger.time_window.start_time)
                 trigger_times.append(datetime.combine(target_date, window_start_time))
             except ValueError as e:
-                logger.debug(
-                    f"Sensor trigger parse failed for {schedule.schedule_id}: {e}"
-                )
+                logger.debug(f"Sensor trigger parse failed for {schedule.schedule_id}: {e}")
 
     return trigger_times
 
@@ -684,6 +675,7 @@ def generate_pattern_executions(
 # Main Conflict Detection
 # ============================================================================
 
+
 def _generate_conflict_message(
     conflict_type: str,
     usage1: ResourceUsage,
@@ -759,7 +751,7 @@ def detect_conflicts(
 
     # Check all pairs of executions
     for i, exec1 in enumerate(executions):
-        for exec2 in executions[i + 1:]:
+        for exec2 in executions[i + 1 :]:
             # Check time overlap
             overlaps, overlap_start, overlap_end = check_time_overlap(exec1, exec2)
 
@@ -788,9 +780,7 @@ def detect_conflicts(
                 # Check resource contention within overlapping patterns
                 for usage1 in exec1.resource_usages:
                     for usage2 in exec2.resource_usages:
-                        contends, conflict_type = check_resource_contention(
-                            usage1, usage2
-                        )
+                        contends, conflict_type = check_resource_contention(usage1, usage2)
                         if contends:
                             resource_conflict = Conflict(
                                 conflict_type=conflict_type,
@@ -801,9 +791,7 @@ def detect_conflicts(
                                 start_time=max(usage1.start_time, usage2.start_time),
                                 end_time=min(usage1.end_time, usage2.end_time),
                                 resource=usage1.resource_type,
-                                message=_generate_conflict_message(
-                                    conflict_type, usage1, usage2
-                                ),
+                                message=_generate_conflict_message(conflict_type, usage1, usage2),
                                 suggested_resolution=_generate_resolution(
                                     conflict_type, usage1, usage2
                                 ),
@@ -834,6 +822,7 @@ def detect_conflicts(
 # Validation Function
 # ============================================================================
 
+
 def validate_schedule_conflicts(
     schedule: Schedule,
     preview_days: int = 7,
@@ -857,18 +846,13 @@ def validate_schedule_conflicts(
         (True, None) if no blocking conflicts
         (False, error_message) if blocking conflicts exist
     """
-    report = detect_conflicts(
-        schedule, preview_days, latitude, longitude, timezone_name
-    )
+    report = detect_conflicts(schedule, preview_days, latitude, longitude, timezone_name)
 
     if report.has_blocking_conflicts:
         blocking = [c for c in report.conflicts if c.severity == SEVERITY_ERROR]
         # Limit to first 3 conflicts in message
         messages = [c.message for c in blocking[:3]]
-        error = (
-            f"Schedule has {len(blocking)} blocking conflict(s): "
-            + "; ".join(messages)
-        )
+        error = f"Schedule has {len(blocking)} blocking conflict(s): " + "; ".join(messages)
         logger.debug(f"Schedule {schedule.schedule_id} failed validation: {error}")
         return False, error
 

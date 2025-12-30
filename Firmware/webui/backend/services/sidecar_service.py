@@ -61,7 +61,7 @@ from webui.backend.lib.sidecar_metadata import (
 
 # Pattern to extract date from Mothbox photo filenames
 # Matches: name_YYYY_MM_DD__HH_MM_SS... or ManFocus_name_YYYY_MM_DD__...
-FILENAME_DATE_PATTERN = re.compile(r'(\d{4})_(\d{2})_(\d{2})__')
+FILENAME_DATE_PATTERN = re.compile(r"(\d{4})_(\d{2})_(\d{2})__")
 
 # Cache schema version - bump when cache entry structure changes.
 # Bumping this will invalidate all existing L2 cache entries on startup.
@@ -77,6 +77,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # Data Classes
 # ============================================================================
+
 
 @dataclass
 class CacheEntry:
@@ -105,6 +106,7 @@ class CacheEntry:
 # ============================================================================
 # Sidecar Service
 # ============================================================================
+
 
 class SidecarService:
     """
@@ -425,14 +427,14 @@ class SidecarService:
                 p99_response_time_ms = sorted_times[p99_index]
 
             return {
-                'l1_hits': self._l1_hits,
-                'l1_misses': self._l1_misses,
-                'l2_hits': self._l2_hits,
-                'l2_misses': self._l2_misses,
-                'hit_ratio': hit_ratio,
-                'avg_response_time_ms': avg_response_time_ms,
-                'p99_response_time_ms': p99_response_time_ms,
-                'response_time_samples': len(self._total_response_times),
+                "l1_hits": self._l1_hits,
+                "l1_misses": self._l1_misses,
+                "l2_hits": self._l2_hits,
+                "l2_misses": self._l2_misses,
+                "hit_ratio": hit_ratio,
+                "avg_response_time_ms": avg_response_time_ms,
+                "p99_response_time_ms": p99_response_time_ms,
+                "response_time_samples": len(self._total_response_times),
             }
 
     # ========================================================================
@@ -465,7 +467,7 @@ class SidecarService:
         tags: list[str] | None = None,
         series_type: str | None = None,
         has_species: bool | None = None,
-        has_sidecar: bool | None = None
+        has_sidecar: bool | None = None,
     ) -> dict:
         """
         List metadata for all photos in directory (including those without sidecars).
@@ -497,11 +499,11 @@ class SidecarService:
 
         if not directory.exists():
             return {
-                'items': [],
-                'total': 0,
-                'limit': limit,
-                'offset': offset,
-                'has_next': False,
+                "items": [],
+                "total": 0,
+                "limit": limit,
+                "offset": offset,
+                "has_next": False,
             }
 
         # Get ALL photos recursively with sidecar status
@@ -562,7 +564,7 @@ class SidecarService:
         total = len(filtered_photos)
 
         # Apply pagination
-        photos_page = filtered_photos[offset:offset + limit]
+        photos_page = filtered_photos[offset : offset + limit]
 
         # Get metadata for page
         items = []
@@ -573,10 +575,10 @@ class SidecarService:
                     item = metadata.to_dict()
                     # Add path and has_sidecar fields
                     try:
-                        item['path'] = str(photo_path.relative_to(directory))
+                        item["path"] = str(photo_path.relative_to(directory))
                     except ValueError:
-                        item['path'] = photo_path.name
-                    item['has_sidecar'] = True
+                        item["path"] = photo_path.name
+                    item["has_sidecar"] = True
                 else:
                     # Sidecar exists but couldn't be read - use placeholder
                     item = self._build_placeholder_metadata(photo_path, directory)
@@ -590,11 +592,11 @@ class SidecarService:
         has_next_page = (offset + limit) < total
 
         return {
-            'items': items,
-            'total': total,
-            'limit': limit,
-            'offset': offset,
-            'has_next': has_next_page,
+            "items": items,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "has_next": has_next_page,
         }
 
     def batch_update_metadata(self, updates: list[tuple[str, dict]]) -> list[bool]:
@@ -627,6 +629,7 @@ class SidecarService:
         """
         if photos_dir is None:
             from mothbox_paths import PHOTOS_DIR
+
             photos_dir = PHOTOS_DIR
 
         photos_dir = Path(photos_dir)
@@ -662,7 +665,9 @@ class SidecarService:
         """
         try:
             stat = photo_path.stat()
-            file_timestamp = datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat().replace('+00:00', 'Z')
+            file_timestamp = (
+                datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat().replace("+00:00", "Z")
+            )
         except OSError:
             file_timestamp = None
 
@@ -673,21 +678,21 @@ class SidecarService:
             relative_path = photo_path.name
 
         return {
-            'version': '1.1',
-            'photo_filename': photo_path.name,
-            'path': relative_path,
-            'has_sidecar': False,
-            'created_at': None,
-            'modified_at': None,
-            'tags': [],
-            'species': None,
-            'species_confidence': None,
-            'species_common_name': None,
-            'species_reference_url': None,
-            'notes': None,
-            'custom': {},
-            'modified_by': None,
-            'file_timestamp': file_timestamp,
+            "version": "1.1",
+            "photo_filename": photo_path.name,
+            "path": relative_path,
+            "has_sidecar": False,
+            "created_at": None,
+            "modified_at": None,
+            "tags": [],
+            "species": None,
+            "species_confidence": None,
+            "species_common_name": None,
+            "species_reference_url": None,
+            "notes": None,
+            "custom": {},
+            "modified_by": None,
+            "file_timestamp": file_timestamp,
         }
 
     def _get_l1(self, photo_path: str) -> CacheEntry | None:
@@ -749,7 +754,9 @@ class SidecarService:
                 try:
                     cache_file.unlink()
                 except (OSError, PermissionError) as unlink_err:
-                    logger.debug(f"Failed to remove corrupted cache file {cache_file}: {unlink_err}")
+                    logger.debug(
+                        f"Failed to remove corrupted cache file {cache_file}: {unlink_err}"
+                    )
                 return None
 
     def _set_l2(self, photo_path: str, entry: CacheEntry) -> None:
@@ -844,5 +851,5 @@ class SidecarService:
 # ============================================================================
 
 __all__ = [
-    'SidecarService',
+    "SidecarService",
 ]

@@ -53,6 +53,7 @@ class PhotoLocation:
         filepath: Optional full path to photo file
         tags: Optional list of tags/labels for the photo
     """
+
     path: str
     lat: float
     lon: float
@@ -72,6 +73,7 @@ class PhotoCluster:
         photos: List of PhotoLocation objects in this cluster
         date_range: Tuple of (earliest_timestamp, latest_timestamp)
     """
+
     cluster_id: str
     center_lat: float
     center_lon: float
@@ -91,10 +93,7 @@ class PhotoCluster:
 
         max_dist = 0.0
         for photo in self.photos:
-            dist = haversine_distance(
-                self.center_lat, self.center_lon,
-                photo.lat, photo.lon
-            )
+            dist = haversine_distance(self.center_lat, self.center_lon, photo.lat, photo.lon)
             max_dist = max(max_dist, dist)
 
         return max_dist
@@ -114,6 +113,7 @@ class ClusteringResult:
         partial_result: True if timeout occurred before completion
         warning: Optional warning message (e.g., timeout notice)
     """
+
     clusters: list[PhotoCluster]
     unclustered: list[PhotoLocation]
     total_photos: int
@@ -290,10 +290,7 @@ def _calculate_date_range(photos: list[PhotoLocation]) -> tuple[str | None, str 
 
 
 def cluster_locations(
-    locations: list[dict],
-    radius_m: float = 100,
-    min_cluster_size: int = 2,
-    timeout_ms: float = 500
+    locations: list[dict], radius_m: float = 100, min_cluster_size: int = 2, timeout_ms: float = 500
 ) -> ClusteringResult:
     """
     Cluster photo locations using Haversine distance.
@@ -346,7 +343,7 @@ def cluster_locations(
             total_photos=0,
             total_clusters=0,
             radius_m=radius_m,
-            processing_time_ms=0.0
+            processing_time_ms=0.0,
         )
 
     # Step 1: Validate and convert to PhotoLocation objects
@@ -369,14 +366,16 @@ def cluster_locations(
         if not is_valid:
             continue
 
-        photo_locations.append(PhotoLocation(
-            path=path,
-            lat=float(lat),
-            lon=float(lon),
-            timestamp=timestamp,
-            filepath=Path(filepath) if filepath else None,
-            tags=tags
-        ))
+        photo_locations.append(
+            PhotoLocation(
+                path=path,
+                lat=float(lat),
+                lon=float(lon),
+                timestamp=timestamp,
+                filepath=Path(filepath) if filepath else None,
+                tags=tags,
+            )
+        )
 
     n = len(photo_locations)
 
@@ -387,7 +386,7 @@ def cluster_locations(
             total_photos=0,
             total_clusters=0,
             radius_m=radius_m,
-            processing_time_ms=(time.time() - start_time) * 1000
+            processing_time_ms=(time.time() - start_time) * 1000,
         )
 
     # Step 2: Calculate grid cell size
@@ -472,7 +471,7 @@ def cluster_locations(
                 center_lat=center_lat,
                 center_lon=center_lon,
                 photos=cluster_photos,
-                date_range=date_range
+                date_range=date_range,
             )
 
             clusters.append(cluster)
@@ -494,7 +493,7 @@ def cluster_locations(
         radius_m=radius_m,
         processing_time_ms=processing_time_ms,
         partial_result=partial_result,
-        warning="Clustering timed out - returning partial results" if partial_result else None
+        warning="Clustering timed out - returning partial results" if partial_result else None,
     )
 
     return result
@@ -505,10 +504,10 @@ def cluster_locations(
 # ============================================================================
 
 __all__ = [
-    'PhotoLocation',
-    'PhotoCluster',
-    'ClusteringResult',
-    'cluster_locations',
-    'calculate_centroid',
-    'generate_cluster_id',
+    "PhotoLocation",
+    "PhotoCluster",
+    "ClusteringResult",
+    "cluster_locations",
+    "calculate_centroid",
+    "generate_cluster_id",
 ]

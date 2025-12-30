@@ -17,8 +17,8 @@ from pathlib import Path
 #          moth_2024_01_15__10_30_00_HDR0.jpg
 #          ManFocus_moth_2024_01_15__10_30_00_FB0.jpg
 MOTHBOX_FILENAME_PATTERN = re.compile(
-    r'(?P<name>.+?)_(?P<year>\d{4})_(?P<month>\d{2})_(?P<day>\d{2})__'
-    r'(?P<hour>\d{2})_(?P<minute>\d{2})_(?P<second>\d{2})'
+    r"(?P<name>.+?)_(?P<year>\d{4})_(?P<month>\d{2})_(?P<day>\d{2})__"
+    r"(?P<hour>\d{2})_(?P<minute>\d{2})_(?P<second>\d{2})"
 )
 
 
@@ -53,9 +53,9 @@ def extract_date_from_filename(photo_path: Path | str) -> date | None:
         return None
 
     try:
-        year = int(match.group('year'))
-        month = int(match.group('month'))
-        day = int(match.group('day'))
+        year = int(match.group("year"))
+        month = int(match.group("month"))
+        day = int(match.group("day"))
         return date(year, month, day)
     except (ValueError, TypeError):
         return None
@@ -114,7 +114,7 @@ def validate_date_string(date_str: str) -> tuple[bool, str | None]:
         return True, None
     except ValueError as e:
         # Provide helpful error message
-        if len(date_str) != 10 or date_str.count('-') != 2:
+        if len(date_str) != 10 or date_str.count("-") != 2:
             return False, "Invalid date format. Use ISO 8601: YYYY-MM-DD"
         return False, f"Invalid date: {e!s}"
 

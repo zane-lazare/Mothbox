@@ -75,6 +75,7 @@ logger = logging.getLogger(__name__)
 # Data Classes
 # ============================================================================
 
+
 @dataclass
 class ExportMetadata:
     """Aggregated photo metadata for export.
@@ -85,6 +86,7 @@ class ExportMetadata:
     - Series info from SeriesService (HDR/FB detection)
     - Deployment context from DeploymentService (location, time period, environment)
     """
+
     photo_path: str
     filename: str
     timestamp: str | None = None
@@ -139,6 +141,7 @@ class ExportMetadata:
 @dataclass
 class ValidationResult:
     """Result of metadata validation for export format."""
+
     is_valid: bool
     missing_fields: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -146,6 +149,7 @@ class ValidationResult:
 
 class ExportFormat(Enum):
     """Supported export formats."""
+
     DARWIN_CORE = "darwin_core"
     INATURALIST = "inaturalist"
     GENERIC_JSON = "json"
@@ -157,8 +161,8 @@ class ExportFormat(Enum):
 # ============================================================================
 
 # Required fields per format
-DARWIN_CORE_REQUIRED = ['latitude', 'longitude', 'timestamp']
-INATURALIST_REQUIRED = ['latitude', 'longitude', 'timestamp']
+DARWIN_CORE_REQUIRED = ["latitude", "longitude", "timestamp"]
+INATURALIST_REQUIRED = ["latitude", "longitude", "timestamp"]
 GENERIC_REQUIRED = []  # No required fields for generic
 
 
@@ -193,11 +197,11 @@ class ExportMetadataService:
         self._cache: dict[str, tuple[ExportMetadata, float]] = {}
         self._lock = threading.RLock()
         self._stats = {
-            'cache_hits': 0,
-            'cache_misses': 0,
-            'cache_entries': 0,
-            'total_exports': 0,
-            'errors': 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "cache_entries": 0,
+            "total_exports": 0,
+            "errors": 0,
         }
 
         # Lazy-loaded services
@@ -220,6 +224,7 @@ class ExportMetadataService:
         """Get SidecarService instance (lazy load if needed)."""
         if self._sidecar_service is None:
             from webui.backend.services import get_sidecar_service
+
             self._sidecar_service = get_sidecar_service()
         return self._sidecar_service
 
@@ -227,6 +232,7 @@ class ExportMetadataService:
         """Get SeriesService instance (lazy load if needed)."""
         if self._series_service is None:
             from webui.backend.services import get_series_service
+
             self._series_service = get_series_service()
         return self._series_service
 
@@ -234,6 +240,7 @@ class ExportMetadataService:
         """Get DeploymentService instance (lazy load if needed)."""
         if self._deployment_service is None:
             from webui.backend.services.deployment_service import DeploymentService
+
             self._deployment_service = DeploymentService(cache_ttl=300)
         return self._deployment_service
 
@@ -254,12 +261,12 @@ class ExportMetadataService:
             if key in self._cache:
                 metadata, timestamp = self._cache[key]
                 if time.time() - timestamp < self._cache_ttl:
-                    self._stats['cache_hits'] += 1
+                    self._stats["cache_hits"] += 1
                     return metadata
                 # Expired - remove
                 del self._cache[key]
-                self._stats['cache_entries'] = len(self._cache)
-            self._stats['cache_misses'] += 1
+                self._stats["cache_entries"] = len(self._cache)
+            self._stats["cache_misses"] += 1
             return None
 
     def _add_to_cache(self, key: str, metadata: ExportMetadata) -> None:
@@ -278,7 +285,7 @@ class ExportMetadataService:
                 del self._cache[oldest_key]
 
             self._cache[key] = (metadata, time.time())
-            self._stats['cache_entries'] = len(self._cache)
+            self._stats["cache_entries"] = len(self._cache)
 
     def invalidate_cache(self, key: str | None = None) -> None:
         """Invalidate cache entries.
@@ -294,7 +301,7 @@ class ExportMetadataService:
                 if key in self._cache:
                     del self._cache[key]
                     logger.debug("Invalidated cache for %s", key)
-            self._stats['cache_entries'] = len(self._cache)
+            self._stats["cache_entries"] = len(self._cache)
 
     # ========================================================================
     # Metadata Aggregation
@@ -325,16 +332,13 @@ class ExportMetadataService:
 
         # Track export attempt
         with self._lock:
-            self._stats['total_exports'] += 1
+            self._stats["total_exports"] += 1
 
         # Fail fast: Check if file exists before processing
         if not photo_path.exists():
-            error_result = {
-                'error': 'Photo not found',
-                'photo_path': str(photo_path)
-            }
+            error_result = {"error": "Photo not found", "photo_path": str(photo_path)}
             with self._lock:
-                self._stats['errors'] += 1
+                self._stats["errors"] += 1
             return error_result
 
         try:
@@ -347,16 +351,13 @@ class ExportMetadataService:
             # Get EXIF metadata
             try:
                 exif_data = self._get_metadata_service().get_photo_metadata(photo_path)
-                if exif_data and 'error' not in exif_data:
+                if exif_data and "error" not in exif_data:
                     self._merge_exif_data(export_metadata, exif_data)
             except PermissionError as e:
                 logger.warning("Failed to get EXIF metadata for %s: %s", photo_path.name, e)
                 with self._lock:
-                    self._stats['errors'] += 1
-                return {
-                    'error': 'Permission denied',
-                    'photo_path': str(photo_path)
-                }
+                    self._stats["errors"] += 1
+                return {"error": "Permission denied", "photo_path": str(photo_path)}
             except Exception as e:
                 logger.warning("Failed to get EXIF metadata for %s: %s", photo_path.name, e)
 
@@ -383,8 +384,7 @@ class ExportMetadataService:
                     if series_id:
                         series_service = self._get_series_service()
                         series_data = series_service.get_series_by_id(
-                            series_id,
-                            directory=photo_path.parent
+                            series_id, directory=photo_path.parent
                         )
                         if series_data:
                             export_metadata.series_count = series_data.count
@@ -407,9 +407,9 @@ class ExportMetadataService:
             # Detect country code from GPS coordinates
             try:
                 from webui.backend.lib.country_code import detect_country_code
+
                 export_metadata.country_code = detect_country_code(
-                    export_metadata.latitude,
-                    export_metadata.longitude
+                    export_metadata.latitude, export_metadata.longitude
                 )
             except Exception as e:
                 logger.warning("Failed to detect country code for %s: %s", photo_path.name, e)
@@ -421,22 +421,16 @@ class ExportMetadataService:
 
         except FileNotFoundError:
             logger.error("Photo not found: %s", photo_path, exc_info=True)
-            error_result = {
-                'error': 'Photo not found',
-                'photo_path': str(photo_path)
-            }
+            error_result = {"error": "Photo not found", "photo_path": str(photo_path)}
             with self._lock:
-                self._stats['errors'] += 1
+                self._stats["errors"] += 1
             return error_result
 
         except Exception as e:
             logger.error("Unexpected error processing %s: %s", photo_path, e, exc_info=True)
-            error_result = {
-                'error': 'Failed to process metadata',
-                'photo_path': str(photo_path)
-            }
+            error_result = {"error": "Failed to process metadata", "photo_path": str(photo_path)}
             with self._lock:
-                self._stats['errors'] += 1
+                self._stats["errors"] += 1
             return error_result
 
     def _merge_exif_data(self, export_metadata: ExportMetadata, exif_data: dict) -> None:
@@ -447,42 +441,42 @@ class ExportMetadataService:
             exif_data: EXIF data from MetadataService
         """
         # Camera info
-        camera = exif_data.get('camera', {})
-        export_metadata.camera_make = camera.get('make')
-        export_metadata.camera_model = camera.get('model')
+        camera = exif_data.get("camera", {})
+        export_metadata.camera_make = camera.get("make")
+        export_metadata.camera_model = camera.get("model")
 
         # Capture info (includes dimensions)
-        capture = exif_data.get('capture', {})
-        export_metadata.timestamp = capture.get('timestamp')
-        export_metadata.exposure_time = capture.get('exposure_time')
-        export_metadata.iso = capture.get('iso')
-        export_metadata.focal_length = capture.get('focal_length')
-        export_metadata.width = capture.get('width')
-        export_metadata.height = capture.get('height')
+        capture = exif_data.get("capture", {})
+        export_metadata.timestamp = capture.get("timestamp")
+        export_metadata.exposure_time = capture.get("exposure_time")
+        export_metadata.iso = capture.get("iso")
+        export_metadata.focal_length = capture.get("focal_length")
+        export_metadata.width = capture.get("width")
+        export_metadata.height = capture.get("height")
 
         # Location info
-        location = exif_data.get('location', {})
-        export_metadata.latitude = location.get('latitude')
-        export_metadata.longitude = location.get('longitude')
-        export_metadata.altitude = location.get('altitude')
+        location = exif_data.get("location", {})
+        export_metadata.latitude = location.get("latitude")
+        export_metadata.longitude = location.get("longitude")
+        export_metadata.altitude = location.get("altitude")
         # Try both 'gps_accuracy' and 'hdop' (different services use different keys)
         # Use explicit None check to handle gps_accuracy=0 (valid value) correctly
-        gps_accuracy = location.get('gps_accuracy')
-        export_metadata.gps_accuracy = gps_accuracy if gps_accuracy is not None else location.get('hdop')
+        gps_accuracy = location.get("gps_accuracy")
+        export_metadata.gps_accuracy = (
+            gps_accuracy if gps_accuracy is not None else location.get("hdop")
+        )
 
         # Deployment info
-        deployment = exif_data.get('deployment', {})
-        export_metadata.mothbox_id = deployment.get('mothbox_id')
-        export_metadata.firmware_version = deployment.get('firmware_version')
+        deployment = exif_data.get("deployment", {})
+        export_metadata.mothbox_id = deployment.get("mothbox_id")
+        export_metadata.firmware_version = deployment.get("firmware_version")
 
         # File info
-        file_info = exif_data.get('file', {})
-        export_metadata.file_size = file_info.get('size', 0)
+        file_info = exif_data.get("file", {})
+        export_metadata.file_size = file_info.get("size", 0)
 
     def _merge_sidecar_data(
-        self,
-        export_metadata: ExportMetadata,
-        sidecar_data: SidecarMetadata
+        self, export_metadata: ExportMetadata, sidecar_data: SidecarMetadata
     ) -> None:
         """Merge sidecar data into ExportMetadata.
 
@@ -491,18 +485,18 @@ class ExportMetadataService:
             sidecar_data: SidecarMetadata from SidecarService
         """
         # Handle both dataclass and dict-like objects
-        if hasattr(sidecar_data, 'species'):
+        if hasattr(sidecar_data, "species"):
             export_metadata.species = sidecar_data.species
             export_metadata.species_common_name = sidecar_data.common_name
             export_metadata.species_confidence = sidecar_data.confidence
             export_metadata.tags = sidecar_data.tags if sidecar_data.tags else []
             export_metadata.notes = sidecar_data.notes
         elif isinstance(sidecar_data, dict):
-            export_metadata.species = sidecar_data.get('species')
-            export_metadata.species_common_name = sidecar_data.get('common_name')
-            export_metadata.species_confidence = sidecar_data.get('confidence')
-            export_metadata.tags = sidecar_data.get('tags', [])
-            export_metadata.notes = sidecar_data.get('notes')
+            export_metadata.species = sidecar_data.get("species")
+            export_metadata.species_common_name = sidecar_data.get("common_name")
+            export_metadata.species_confidence = sidecar_data.get("confidence")
+            export_metadata.tags = sidecar_data.get("tags", [])
+            export_metadata.notes = sidecar_data.get("notes")
 
     # ========================================================================
     # Batch Processing
@@ -527,10 +521,7 @@ class ExportMetadataService:
         else:
             return list(self._batch_generator(photo_paths))
 
-    def _batch_generator(
-        self,
-        photo_paths: list[Path | str]
-    ) -> Generator[ExportMetadata | dict]:
+    def _batch_generator(self, photo_paths: list[Path | str]) -> Generator[ExportMetadata | dict]:
         """Generator for batch processing.
 
         Args:
@@ -546,11 +537,7 @@ class ExportMetadataService:
     # Format Transformers
     # ========================================================================
 
-    def _apply_gps_precision(
-        self,
-        value: float | None,
-        precision: int | None
-    ) -> float | None:
+    def _apply_gps_precision(self, value: float | None, precision: int | None) -> float | None:
         """Apply GPS precision rounding to a coordinate value.
 
         Args:
@@ -590,84 +577,86 @@ class ExportMetadataService:
         if flat:
             # Flatten for CSV - prefix nested fields
             return {
-                'photo_path': metadata.photo_path,
-                'filename': metadata.filename,
-                'timestamp': metadata.timestamp,
-                'latitude': latitude,
-                'longitude': longitude,
-                'altitude': metadata.altitude,
-                'gps_accuracy': metadata.gps_accuracy,
-                'camera_make': metadata.camera_make,
-                'camera_model': metadata.camera_model,
-                'exposure_time': metadata.exposure_time,
-                'iso': metadata.iso,
-                'focal_length': metadata.focal_length,
-                'species': metadata.species,
-                'species_common_name': metadata.species_common_name,
-                'species_confidence': metadata.species_confidence,
-                'tags': ','.join(metadata.tags) if metadata.tags else '',
-                'notes': metadata.notes,
-                'mothbox_id': metadata.mothbox_id,
-                'firmware_version': metadata.firmware_version,
-                'deployment_name': metadata.deployment_name,
-                'deployment_location_name': metadata.deployment_location_name,
-                'deployment_start_date': metadata.deployment_start_date,
-                'deployment_end_date': metadata.deployment_end_date,
-                'environmental_conditions': str(metadata.environmental_conditions) if metadata.environmental_conditions else '',
-                'series_type': metadata.series_type,
-                'series_index': metadata.series_index,
-                'series_count': metadata.series_count,
-                'file_size': metadata.file_size,
-                'width': metadata.width,
-                'height': metadata.height,
+                "photo_path": metadata.photo_path,
+                "filename": metadata.filename,
+                "timestamp": metadata.timestamp,
+                "latitude": latitude,
+                "longitude": longitude,
+                "altitude": metadata.altitude,
+                "gps_accuracy": metadata.gps_accuracy,
+                "camera_make": metadata.camera_make,
+                "camera_model": metadata.camera_model,
+                "exposure_time": metadata.exposure_time,
+                "iso": metadata.iso,
+                "focal_length": metadata.focal_length,
+                "species": metadata.species,
+                "species_common_name": metadata.species_common_name,
+                "species_confidence": metadata.species_confidence,
+                "tags": ",".join(metadata.tags) if metadata.tags else "",
+                "notes": metadata.notes,
+                "mothbox_id": metadata.mothbox_id,
+                "firmware_version": metadata.firmware_version,
+                "deployment_name": metadata.deployment_name,
+                "deployment_location_name": metadata.deployment_location_name,
+                "deployment_start_date": metadata.deployment_start_date,
+                "deployment_end_date": metadata.deployment_end_date,
+                "environmental_conditions": str(metadata.environmental_conditions)
+                if metadata.environmental_conditions
+                else "",
+                "series_type": metadata.series_type,
+                "series_index": metadata.series_index,
+                "series_count": metadata.series_count,
+                "file_size": metadata.file_size,
+                "width": metadata.width,
+                "height": metadata.height,
             }
         else:
             # Nested structure for JSON
             return {
-                'file': {
-                    'path': metadata.photo_path,
-                    'filename': metadata.filename,
-                    'file_size': metadata.file_size,
-                    'width': metadata.width,
-                    'height': metadata.height,
+                "file": {
+                    "path": metadata.photo_path,
+                    "filename": metadata.filename,
+                    "file_size": metadata.file_size,
+                    "width": metadata.width,
+                    "height": metadata.height,
                 },
-                'location': {
-                    'latitude': latitude,
-                    'longitude': longitude,
-                    'altitude': metadata.altitude,
-                    'accuracy': metadata.gps_accuracy,
+                "location": {
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "altitude": metadata.altitude,
+                    "accuracy": metadata.gps_accuracy,
                 },
-                'camera': {
-                    'make': metadata.camera_make,
-                    'model': metadata.camera_model,
-                    'exposure': metadata.exposure_time,
-                    'iso': metadata.iso,
-                    'focal_length': metadata.focal_length,
+                "camera": {
+                    "make": metadata.camera_make,
+                    "model": metadata.camera_model,
+                    "exposure": metadata.exposure_time,
+                    "iso": metadata.iso,
+                    "focal_length": metadata.focal_length,
                 },
-                'species': {
-                    'scientific_name': metadata.species,
-                    'common_name': metadata.species_common_name,
-                    'confidence': metadata.species_confidence,
+                "species": {
+                    "scientific_name": metadata.species,
+                    "common_name": metadata.species_common_name,
+                    "confidence": metadata.species_confidence,
                 },
-                'user_data': {
-                    'tags': metadata.tags,
-                    'notes': metadata.notes,
+                "user_data": {
+                    "tags": metadata.tags,
+                    "notes": metadata.notes,
                 },
-                'deployment': {
-                    'mothbox_id': metadata.mothbox_id,
-                    'firmware_version': metadata.firmware_version,
-                    'name': metadata.deployment_name,
-                    'location_name': metadata.deployment_location_name,
-                    'start_date': metadata.deployment_start_date,
-                    'end_date': metadata.deployment_end_date,
-                    'environmental': metadata.environmental_conditions,
+                "deployment": {
+                    "mothbox_id": metadata.mothbox_id,
+                    "firmware_version": metadata.firmware_version,
+                    "name": metadata.deployment_name,
+                    "location_name": metadata.deployment_location_name,
+                    "start_date": metadata.deployment_start_date,
+                    "end_date": metadata.deployment_end_date,
+                    "environmental": metadata.environmental_conditions,
                 },
-                'series': {
-                    'type': metadata.series_type,
-                    'index': metadata.series_index,
-                    'count': metadata.series_count,
+                "series": {
+                    "type": metadata.series_type,
+                    "index": metadata.series_index,
+                    "count": metadata.series_count,
                 },
-                'timestamp': metadata.timestamp,
+                "timestamp": metadata.timestamp,
             }
 
     def transform_to_generic_filtered(
@@ -695,12 +684,12 @@ class ExportMetadataService:
         Example:
             >>> # Include only specific fields
             >>> data = service.transform_to_generic_filtered(
-            ...     metadata, flat=False, fields=['filename', 'latitude', 'longitude']
+            ...     metadata, flat=False, fields=["filename", "latitude", "longitude"]
             ... )
 
             >>> # Exclude specific fields
             >>> data = service.transform_to_generic_filtered(
-            ...     metadata, flat=True, exclude=['notes', 'tags']
+            ...     metadata, flat=True, exclude=["notes", "tags"]
             ... )
         """
         if fields is not None and exclude is not None:
@@ -822,6 +811,7 @@ class ExportMetadataService:
             'MachineObservation'
         """
         from webui.backend.lib.darwin_core_mapping import transform_metadata_to_darwin_core
+
         return transform_metadata_to_darwin_core(metadata)
 
     def transform_batch_to_darwin_core_csv(
@@ -906,8 +896,9 @@ class ExportMetadataService:
         # Use temp file if output_path not provided
         if output_path is None:
             import tempfile
+
             # Create temp file securely, then use its path for ZIP creation
-            with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_fd:
+            with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as temp_fd:
                 output_path = Path(temp_fd.name)
 
         # Create ZIP with default options if not provided
@@ -939,6 +930,7 @@ class ExportMetadataService:
             - creator: Default "Mothbox"
         """
         from webui.backend.lib.inaturalist_mapping import transform_metadata_to_inaturalist
+
         return transform_metadata_to_inaturalist(metadata)
 
     # ========================================================================
@@ -1052,7 +1044,10 @@ class ExportMetadataService:
         return ValidationResult(
             is_valid=lib_result.is_valid,
             missing_fields=lib_result.missing_required,
-            warnings=lib_result.warnings + [f"Missing recommended: {', '.join(lib_result.missing_recommended)}"] if lib_result.missing_recommended else lib_result.warnings,
+            warnings=lib_result.warnings
+            + [f"Missing recommended: {', '.join(lib_result.missing_recommended)}"]
+            if lib_result.missing_recommended
+            else lib_result.warnings,
         )
 
     # ========================================================================
@@ -1067,11 +1062,11 @@ class ExportMetadataService:
         """
         with self._lock:
             return {
-                'cache_entries': self._stats['cache_entries'],
-                'cache_hits': self._stats['cache_hits'],
-                'cache_misses': self._stats['cache_misses'],
-                'total_exports': self._stats['total_exports'],
-                'errors': self._stats['errors'],
+                "cache_entries": self._stats["cache_entries"],
+                "cache_hits": self._stats["cache_hits"],
+                "cache_misses": self._stats["cache_misses"],
+                "total_exports": self._stats["total_exports"],
+                "errors": self._stats["errors"],
             }
 
     def reset_statistics(self) -> None:
@@ -1081,10 +1076,10 @@ class ExportMetadataService:
         Cache entries count is preserved as it reflects actual cache state.
         """
         with self._lock:
-            self._stats['cache_hits'] = 0
-            self._stats['cache_misses'] = 0
-            self._stats['total_exports'] = 0
-            self._stats['errors'] = 0
+            self._stats["cache_hits"] = 0
+            self._stats["cache_misses"] = 0
+            self._stats["total_exports"] = 0
+            self._stats["errors"] = 0
             # Note: cache_entries is not reset - it reflects actual cache size
             logger.debug("Reset export metadata service statistics")
 
@@ -1094,8 +1089,8 @@ class ExportMetadataService:
 # ============================================================================
 
 __all__ = [
-    'ExportMetadataService',
-    'ExportMetadata',
-    'ValidationResult',
-    'ExportFormat',
+    "ExportMetadataService",
+    "ExportMetadata",
+    "ValidationResult",
+    "ExportFormat",
 ]

@@ -34,6 +34,7 @@ from pathlib import Path
 
 class SeriesType(str, Enum):
     """Enumeration of supported series types."""
+
     HDR = "hdr"
     FOCUS_BRACKET = "focus_bracket"
 
@@ -47,6 +48,7 @@ class SeriesInfo:
         base_name: Common prefix for grouping (timestamp-based, excludes index suffix)
         index: Zero-based position in series (0, 1, 2...)
     """
+
     series_type: str
     base_name: str
     index: int
@@ -60,8 +62,8 @@ class SeriesInfo:
 # Matches: moth_2024_01_15__10_00_00_HDR0.jpg, mb12345_2024_01_15__10_00_00_HDR1.png
 # Groups: (1) base_name, (2) index, (3) extension
 HDR_PATTERN = re.compile(
-    r'^(.+_\d{4}_\d{2}_\d{2}__\d{2}_\d{2}_\d{2})_[Hh][Dd][Rr](\d+)\.(jpg|jpeg|png|bmp)$',
-    re.IGNORECASE
+    r"^(.+_\d{4}_\d{2}_\d{2}__\d{2}_\d{2}_\d{2})_[Hh][Dd][Rr](\d+)\.(jpg|jpeg|png|bmp)$",
+    re.IGNORECASE,
 )
 
 # Focus Bracket Pattern: ManFocus_{name}_{YYYY_MM_DD__HH_MM_SS}[_{microseconds}]_FB{index}.{ext}
@@ -69,15 +71,15 @@ HDR_PATTERN = re.compile(
 # Also matches: ManFocus_moth_2024_01_15__11_00_00_FB0.jpg (without microseconds)
 # Groups: (1) base_name (including ManFocus prefix), (2) index, (3) extension
 FB_PATTERN = re.compile(
-    r'^(ManFocus_.+_\d{4}_\d{2}_\d{2}__\d{2}_\d{2}_\d{2}(?:_\d+)?)_[Ff][Bb](\d+)\.(jpg|jpeg|png|bmp)$',
-    re.IGNORECASE
+    r"^(ManFocus_.+_\d{4}_\d{2}_\d{2}__\d{2}_\d{2}_\d{2}(?:_\d+)?)_[Ff][Bb](\d+)\.(jpg|jpeg|png|bmp)$",
+    re.IGNORECASE,
 )
 
 # 16MP ManFocus with HDR suffix (from TakePhoto16mp.py)
 # Pattern: 16MPManFocus_{name}_{timestamp}_HDR{index}.jpg
 MP16_HDR_PATTERN = re.compile(
-    r'^(16MPManFocus_.+_\d{4}_\d{2}_\d{2}__\d{2}_\d{2}_\d{2})_[Hh][Dd][Rr](\d+)\.(jpg|jpeg|png|bmp)$',
-    re.IGNORECASE
+    r"^(16MPManFocus_.+_\d{4}_\d{2}_\d{2}__\d{2}_\d{2}_\d{2})_[Hh][Dd][Rr](\d+)\.(jpg|jpeg|png|bmp)$",
+    re.IGNORECASE,
 )
 
 
@@ -98,7 +100,7 @@ def _extract_filename(path: str | Path | None) -> str | None:
 
     if isinstance(path, str):
         # Handle both full paths and bare filenames
-        if '/' in path or '\\' in path:
+        if "/" in path or "\\" in path:
             return Path(path).name
         return path
 
@@ -131,18 +133,14 @@ def detect_series_type(filename: str | Path | None) -> SeriesInfo | None:
     match = MP16_HDR_PATTERN.match(name)
     if match:
         return SeriesInfo(
-            series_type=SeriesType.HDR.value,
-            base_name=match.group(1),
-            index=int(match.group(2))
+            series_type=SeriesType.HDR.value, base_name=match.group(1), index=int(match.group(2))
         )
 
     # Try standard HDR pattern
     match = HDR_PATTERN.match(name)
     if match:
         return SeriesInfo(
-            series_type=SeriesType.HDR.value,
-            base_name=match.group(1),
-            index=int(match.group(2))
+            series_type=SeriesType.HDR.value, base_name=match.group(1), index=int(match.group(2))
         )
 
     # Try Focus Bracket pattern
@@ -151,7 +149,7 @@ def detect_series_type(filename: str | Path | None) -> SeriesInfo | None:
         return SeriesInfo(
             series_type=SeriesType.FOCUS_BRACKET.value,
             base_name=match.group(1),
-            index=int(match.group(2))
+            index=int(match.group(2)),
         )
 
     return None
@@ -186,9 +184,7 @@ def get_series_id(filename: str | Path | None) -> str | None:
     return f"{info.series_type}_{info.base_name}"
 
 
-def group_photos_into_series(
-    photo_paths: list[str | Path]
-) -> dict[str, list[Path]]:
+def group_photos_into_series(photo_paths: list[str | Path]) -> dict[str, list[Path]]:
     """Group photos by their series membership.
 
     Analyzes filenames and groups photos that belong to the same HDR or
@@ -251,11 +247,11 @@ def group_photos_into_series(
 # ============================================================================
 
 __all__ = [
-    'SeriesType',
-    'SeriesInfo',
-    'detect_series_type',
-    'get_series_id',
-    'group_photos_into_series',
-    'HDR_PATTERN',
-    'FB_PATTERN',
+    "SeriesType",
+    "SeriesInfo",
+    "detect_series_type",
+    "get_series_id",
+    "group_photos_into_series",
+    "HDR_PATTERN",
+    "FB_PATTERN",
 ]

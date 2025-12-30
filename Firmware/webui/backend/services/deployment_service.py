@@ -74,6 +74,7 @@ logger = logging.getLogger(__name__)
 # Deployment Service
 # ============================================================================
 
+
 class DeploymentService:
     """
     LRU cache for deployment metadata.
@@ -162,8 +163,7 @@ class DeploymentService:
                         self._total_reads += 1
 
                     logger.debug(
-                        f"Cache HIT for {directory} "
-                        f"({(time.time() - start_time) * 1000:.2f}ms)"
+                        f"Cache HIT for {directory} ({(time.time() - start_time) * 1000:.2f}ms)"
                     )
                     return metadata
 
@@ -183,18 +183,12 @@ class DeploymentService:
             with self._cache_lock:
                 self._set_cache(directory, metadata)
 
-        logger.debug(
-            f"Cache MISS for {directory} "
-            f"({(time.time() - start_time) * 1000:.2f}ms)"
-        )
+        logger.debug(f"Cache MISS for {directory} ({(time.time() - start_time) * 1000:.2f}ms)")
 
         return metadata
 
     def set_deployment_metadata(
-        self,
-        directory: Path | str,
-        metadata: DeploymentMetadata,
-        format: str = "json"
+        self, directory: Path | str, metadata: DeploymentMetadata, format: str = "json"
     ) -> bool:
         """
         Store deployment metadata in cache and on disk.
@@ -224,9 +218,7 @@ class DeploymentService:
         return success
 
     def update_deployment_metadata(
-        self,
-        directory: Path | str,
-        updates: dict
+        self, directory: Path | str, updates: dict
     ) -> DeploymentMetadata | None:
         """
         Update deployment metadata and cache.
@@ -388,18 +380,16 @@ class DeploymentService:
                 if metadata:
                     success.append(directory_str)
                 else:
-                    failed.append({
-                        "index": index,
-                        "directory": directory_str,
-                        "error": "Update returned None"
-                    })
+                    failed.append(
+                        {
+                            "index": index,
+                            "directory": directory_str,
+                            "error": "Update returned None",
+                        }
+                    )
                     errors[directory_str] = "Update returned None"
             except Exception as e:
-                failed.append({
-                    "index": index,
-                    "directory": directory_str,
-                    "error": str(e)
-                })
+                failed.append({"index": index, "directory": directory_str, "error": str(e)})
                 errors[directory_str] = str(e)
 
         return {
@@ -411,11 +401,7 @@ class DeploymentService:
             "failed_count": len(failed),
         }
 
-    def generate_sidecars_for_directory(
-        self,
-        directory: Path | str,
-        template: dict
-    ) -> int:
+    def generate_sidecars_for_directory(self, directory: Path | str, template: dict) -> int:
         """
         Generate deployment sidecars for subdirectories using a template.
 
@@ -582,5 +568,5 @@ class DeploymentService:
 # ============================================================================
 
 __all__ = [
-    'DeploymentService',
+    "DeploymentService",
 ]

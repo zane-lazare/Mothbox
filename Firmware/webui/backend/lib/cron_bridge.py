@@ -42,11 +42,17 @@ LUNAR_CYCLE_DAYS: Final[int] = 30  # Minimum days to look ahead for moon phase s
 
 # Pre-compiled regex patterns for cron field validation (performance optimization)
 _CRON_FIELD_PATTERNS: Final[tuple[re.Pattern, ...]] = (
-    re.compile(r'^(\*|([0-5]?\d)(,([0-5]?\d))*|([0-5]?\d)-([0-5]?\d)|\*/([1-5]?\d))$'),  # minute
-    re.compile(r'^(\*|([01]?\d|2[0-3])(,([01]?\d|2[0-3]))*|([01]?\d|2[0-3])-([01]?\d|2[0-3])|\*/([01]?\d|2[0-3]))$'),  # hour
-    re.compile(r'^(\*|([1-9]|[12]\d|3[01])(,([1-9]|[12]\d|3[01]))*|([1-9]|[12]\d|3[01])-([1-9]|[12]\d|3[01])|\*/([1-9]|[12]\d|3[01]))$'),  # day
-    re.compile(r'^(\*|([1-9]|1[0-2])(,([1-9]|1[0-2]))*|([1-9]|1[0-2])-([1-9]|1[0-2])|\*/([1-9]|1[0-2]))$'),  # month
-    re.compile(r'^(\*|[0-7](,[0-7])*|[0-7]-[0-7]|\*/[0-7])$'),  # weekday
+    re.compile(r"^(\*|([0-5]?\d)(,([0-5]?\d))*|([0-5]?\d)-([0-5]?\d)|\*/([1-5]?\d))$"),  # minute
+    re.compile(
+        r"^(\*|([01]?\d|2[0-3])(,([01]?\d|2[0-3]))*|([01]?\d|2[0-3])-([01]?\d|2[0-3])|\*/([01]?\d|2[0-3]))$"
+    ),  # hour
+    re.compile(
+        r"^(\*|([1-9]|[12]\d|3[01])(,([1-9]|[12]\d|3[01]))*|([1-9]|[12]\d|3[01])-([1-9]|[12]\d|3[01])|\*/([1-9]|[12]\d|3[01]))$"
+    ),  # day
+    re.compile(
+        r"^(\*|([1-9]|1[0-2])(,([1-9]|1[0-2]))*|([1-9]|1[0-2])-([1-9]|1[0-2])|\*/([1-9]|1[0-2]))$"
+    ),  # month
+    re.compile(r"^(\*|[0-7](,[0-7])*|[0-7]-[0-7]|\*/[0-7])$"),  # weekday
 )
 
 # Cron field range validation constants
@@ -69,8 +75,9 @@ class CronEntry:
         comment: Optional comment for the job
         enabled: Whether the entry is enabled
     """
+
     expression: str  # e.g., "0 21 * * *"
-    command: str     # e.g., "/usr/bin/python3 /opt/mothbox/TakePhoto.py"
+    command: str  # e.g., "/usr/bin/python3 /opt/mothbox/TakePhoto.py"
     comment: str = ""
     enabled: bool = True
 
@@ -86,7 +93,7 @@ class CronEntry:
         # Add comment if present (sanitize to prevent injection)
         if self.comment:
             # Remove newlines and additional # to prevent comment injection
-            clean_comment = self.comment.replace('\n', ' ').replace('#', '')
+            clean_comment = self.comment.replace("\n", " ").replace("#", "")
             lines.append(f"# {clean_comment}")
 
         # Add cron expression and command
@@ -121,8 +128,8 @@ class CronEntry:
         # Validate each field using pre-compiled patterns
         for field_value, pattern in zip(fields, _CRON_FIELD_PATTERNS, strict=True):
             # Handle range expressions (e.g., 9-17)
-            if '-' in field_value and not field_value.startswith('*/'):
-                parts = field_value.split('-')
+            if "-" in field_value and not field_value.startswith("*/"):
+                parts = field_value.split("-")
                 if len(parts) == 2:
                     try:
                         start, end = int(parts[0]), int(parts[1])
@@ -132,7 +139,7 @@ class CronEntry:
                         return False
 
             # Handle step expressions (e.g., */5)
-            if field_value.startswith('*/'):
+            if field_value.startswith("*/"):
                 try:
                     step = int(field_value[2:])
                     if step <= 0:
@@ -142,8 +149,8 @@ class CronEntry:
                 continue
 
             # Handle comma-separated lists (e.g., 0,30)
-            if ',' in field_value:
-                values = field_value.split(',')
+            if "," in field_value:
+                values = field_value.split(",")
                 for val in values:
                     if not val.strip():
                         return False
@@ -158,7 +165,12 @@ class CronEntry:
             field_names = ("minute", "hour", "day", "month", "weekday")
             for field_value, field_name in zip(fields, field_names, strict=True):
                 # Skip wildcards, steps, lists, and ranges
-                if field_value == '*' or field_value.startswith('*/') or ',' in field_value or '-' in field_value:
+                if (
+                    field_value == "*"
+                    or field_value.startswith("*/")
+                    or "," in field_value
+                    or "-" in field_value
+                ):
                     continue
 
                 min_val, max_val = _CRON_FIELD_RANGES[field_name]
@@ -182,6 +194,7 @@ class CronBridgeResult:
         schedule_id: ID of the schedule converted
         errors: List of warnings/errors encountered
     """
+
     entries: list[CronEntry]
     rtc_waketime: int | None
     schedule_id: str
@@ -307,9 +320,7 @@ def interval_trigger_to_cron(
 
     # Generate execution times
     exec_times = _generate_execution_times(
-        start_hour, start_minute,
-        end_hour, end_minute,
-        trigger.interval_minutes
+        start_hour, start_minute, end_hour, end_minute, trigger.interval_minutes
     )
 
     # Convert days of week
@@ -319,7 +330,9 @@ def interval_trigger_to_cron(
     entries = []
     for hour, minute in exec_times:
         expression = f"{minute} {hour} * * {dow_str}"
-        comment = f"{comment_prefix} Interval {trigger.interval_minutes}min at {hour:02d}:{minute:02d}"
+        comment = (
+            f"{comment_prefix} Interval {trigger.interval_minutes}min at {hour:02d}:{minute:02d}"
+        )
         entries.append(CronEntry(expression=expression, command=command, comment=comment))
 
     return entries
@@ -463,13 +476,7 @@ def get_solar_execution_time(
         time_spec = f"{trigger.solar_event}{trigger.offset_minutes}"
 
     try:
-        return parse_time_spec(
-            time_spec,
-            target_date,
-            latitude,
-            longitude,
-            timezone_name
-        )
+        return parse_time_spec(time_spec, target_date, latitude, longitude, timezone_name)
     except ValueError:
         # Solar event doesn't occur on this date (e.g., polar regions)
         return None
@@ -549,8 +556,6 @@ def solar_trigger_to_cron(
     return entries
 
 
-
-
 def is_moon_phase_active(
     trigger: MoonPhaseTrigger,
     target_date: date,
@@ -625,8 +630,7 @@ def moon_phase_trigger_to_cron(
         # Get current moon phase for comment
         phase_info = get_moon_phase(target_date)
         comment = (
-            f"{comment_prefix} Moon phase ({phase_info['phase']}) "
-            f"on {target_date.isoformat()}"
+            f"{comment_prefix} Moon phase ({phase_info['phase']}) on {target_date.isoformat()}"
         )
 
         entries.append(CronEntry(expression=expression, command=command, comment=comment))
@@ -684,7 +688,13 @@ def cron_to_human_readable(expression: str) -> str:
             pass
 
     # Every hour at specific minute: M * * * *
-    if hour == "*" and day == "*" and month == "*" and weekday == "*" and not minute.startswith("*"):
+    if (
+        hour == "*"
+        and day == "*"
+        and month == "*"
+        and weekday == "*"
+        and not minute.startswith("*")
+    ):
         try:
             min_val = int(minute)
             return f"Every hour at minute {min_val}"
@@ -696,7 +706,13 @@ def cron_to_human_readable(expression: str) -> str:
         return "Daily at midnight"
 
     # Daily at specific time: M H * * *
-    if day == "*" and month == "*" and weekday == "*" and not hour.startswith("*") and not minute.startswith("*"):
+    if (
+        day == "*"
+        and month == "*"
+        and weekday == "*"
+        and not hour.startswith("*")
+        and not minute.startswith("*")
+    ):
         try:
             hour_val = int(hour)
             min_val = int(minute)
@@ -716,7 +732,15 @@ def cron_to_human_readable(expression: str) -> str:
     # Weekly on specific day: M H * * W
     if day == "*" and month == "*" and weekday.isdigit():
         try:
-            weekday_names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+            weekday_names = [
+                "Sunday",
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+            ]
             day_num = int(weekday) % 7
             hour_val = int(hour)
             min_val = int(minute)
@@ -933,7 +957,11 @@ def _convert_solar_schedule(
         # For each action in pattern, generate solar-timed entries
         for action in pattern.actions:
             script_key = get_script_key_for_action(action.action_type, action.action_name)
-            command = get_validated_command(script_key) if script_key else f"# Unknown: {action.action_type}/{action.action_name}"
+            command = (
+                get_validated_command(script_key)
+                if script_key
+                else f"# Unknown: {action.action_type}/{action.action_name}"
+            )
 
             # Create modified trigger with action offset
             modified_trigger = SolarTrigger(
@@ -991,7 +1019,11 @@ def _convert_moon_phase_schedule(schedule: Schedule, days_ahead: int) -> CronBri
 
                 # Get validated command
                 script_key = get_script_key_for_action(action.action_type, action.action_name)
-                command = get_validated_command(script_key) if script_key else f"# Unknown: {action.action_type}/{action.action_name}"
+                command = (
+                    get_validated_command(script_key)
+                    if script_key
+                    else f"# Unknown: {action.action_type}/{action.action_name}"
+                )
 
                 # Build cron expression with specific day and month
                 expression = f"{exec_minute} {exec_hour} {target_date.day} {target_date.month} *"
@@ -1060,7 +1092,9 @@ def schedule_to_cron(
         if latitude is None or longitude is None:
             result.errors.append("Solar triggers require latitude and longitude")
         else:
-            result = _convert_solar_schedule(schedule, latitude, longitude, timezone_name, days_ahead)
+            result = _convert_solar_schedule(
+                schedule, latitude, longitude, timezone_name, days_ahead
+            )
 
     elif schedule.trigger_type == "moon_phase" and schedule.moon_phase_trigger:
         # Ensure we look far enough ahead to capture at least one full moon cycle
@@ -1078,7 +1112,11 @@ def schedule_to_cron(
             for action in pattern.actions:
                 # Get validated command for this action
                 script_key = get_script_key_for_action(action.action_type, action.action_name)
-                command = get_validated_command(script_key) if script_key else f"# Unknown: {action.action_type}/{action.action_name}"
+                command = (
+                    get_validated_command(script_key)
+                    if script_key
+                    else f"# Unknown: {action.action_type}/{action.action_name}"
+                )
 
                 # Use the raw cron expression (action offsets not supported in expert mode)
                 cron_entries = cron_trigger_to_cron(
@@ -1151,22 +1189,15 @@ def get_next_events(
 
     # Calculate trigger times based on type
     if schedule.trigger_type == "fixed_time" and schedule.fixed_time_trigger:
-        events = _get_events_fixed_time(
-            schedule, count * 2, from_time, start_date, end_date
-        )
+        events = _get_events_fixed_time(schedule, count * 2, from_time, start_date, end_date)
     elif schedule.trigger_type == "interval" and schedule.interval_trigger:
-        events = _get_events_interval(
-            schedule, count * 2, from_time, start_date, end_date
-        )
+        events = _get_events_interval(schedule, count * 2, from_time, start_date, end_date)
     elif schedule.trigger_type == "solar" and schedule.solar_trigger:
         events = _get_events_solar(
-            schedule, count * 2, from_time, start_date, end_date,
-            latitude, longitude, timezone_name
+            schedule, count * 2, from_time, start_date, end_date, latitude, longitude, timezone_name
         )
     elif schedule.trigger_type == "moon_phase" and schedule.moon_phase_trigger:
-        events = _get_events_moon_phase(
-            schedule, count * 2, from_time, start_date, end_date
-        )
+        events = _get_events_moon_phase(schedule, count * 2, from_time, start_date, end_date)
 
     # Sort chronologically and trim to count
     events.sort(key=lambda e: e["datetime"])
@@ -1205,19 +1236,23 @@ def _get_events_fixed_time(
             continue
 
         # Generate events for this day
-        trigger_time = datetime.combine(current_date, datetime.min.time().replace(hour=hour, minute=minute))
+        trigger_time = datetime.combine(
+            current_date, datetime.min.time().replace(hour=hour, minute=minute)
+        )
 
         if trigger_time > from_time:
             for pattern in schedule.event_patterns:
                 for action in pattern.actions:
                     event_time = trigger_time + timedelta(minutes=action.offset_minutes)
-                    events.append({
-                        "datetime": event_time.isoformat(),
-                        "action_type": action.action_type,
-                        "action_name": action.action_name,
-                        "pattern_name": pattern.name,
-                        "pattern_id": pattern.pattern_id,
-                    })
+                    events.append(
+                        {
+                            "datetime": event_time.isoformat(),
+                            "action_type": action.action_type,
+                            "action_name": action.action_name,
+                            "pattern_name": pattern.name,
+                            "pattern_id": pattern.pattern_id,
+                        }
+                    )
 
         current_date += timedelta(days=1)
         days_checked += 1
@@ -1260,22 +1295,28 @@ def _get_events_interval(
             continue
 
         # Generate execution times for this day
-        exec_times = _generate_execution_times(start_hour, start_min, end_hour, end_min, trigger.interval_minutes)
+        exec_times = _generate_execution_times(
+            start_hour, start_min, end_hour, end_min, trigger.interval_minutes
+        )
 
         for exec_hour, exec_min in exec_times:
-            trigger_time = datetime.combine(current_date, datetime.min.time().replace(hour=exec_hour, minute=exec_min))
+            trigger_time = datetime.combine(
+                current_date, datetime.min.time().replace(hour=exec_hour, minute=exec_min)
+            )
 
             if trigger_time > from_time:
                 for pattern in schedule.event_patterns:
                     for action in pattern.actions:
                         event_time = trigger_time + timedelta(minutes=action.offset_minutes)
-                        events.append({
-                            "datetime": event_time.isoformat(),
-                            "action_type": action.action_type,
-                            "action_name": action.action_name,
-                            "pattern_name": pattern.name,
-                            "pattern_id": pattern.pattern_id,
-                        })
+                        events.append(
+                            {
+                                "datetime": event_time.isoformat(),
+                                "action_type": action.action_type,
+                                "action_name": action.action_name,
+                                "pattern_name": pattern.name,
+                                "pattern_id": pattern.pattern_id,
+                            }
+                        )
 
         current_date += timedelta(days=1)
         days_checked += 1
@@ -1320,19 +1361,23 @@ def _get_events_solar(
             continue
 
         # Calculate solar time
-        exec_time = get_solar_execution_time(trigger, current_date, latitude, longitude, timezone_name)
+        exec_time = get_solar_execution_time(
+            trigger, current_date, latitude, longitude, timezone_name
+        )
 
         if exec_time and exec_time > from_time:
             for pattern in schedule.event_patterns:
                 for action in pattern.actions:
                     event_time = exec_time + timedelta(minutes=action.offset_minutes)
-                    events.append({
-                        "datetime": event_time.isoformat(),
-                        "action_type": action.action_type,
-                        "action_name": action.action_name,
-                        "pattern_name": pattern.name,
-                        "pattern_id": pattern.pattern_id,
-                    })
+                    events.append(
+                        {
+                            "datetime": event_time.isoformat(),
+                            "action_type": action.action_type,
+                            "action_name": action.action_name,
+                            "pattern_name": pattern.name,
+                            "pattern_id": pattern.pattern_id,
+                        }
+                    )
 
         current_date += timedelta(days=1)
         days_checked += 1
@@ -1372,19 +1417,23 @@ def _get_events_moon_phase(
 
         # Check moon phase
         if is_moon_phase_active(trigger, current_date):
-            trigger_time = datetime.combine(current_date, datetime.min.time().replace(hour=hour, minute=minute))
+            trigger_time = datetime.combine(
+                current_date, datetime.min.time().replace(hour=hour, minute=minute)
+            )
 
             if trigger_time > from_time:
                 for pattern in schedule.event_patterns:
                     for action in pattern.actions:
                         event_time = trigger_time + timedelta(minutes=action.offset_minutes)
-                        events.append({
-                            "datetime": event_time.isoformat(),
-                            "action_type": action.action_type,
-                            "action_name": action.action_name,
-                            "pattern_name": pattern.name,
-                            "pattern_id": pattern.pattern_id,
-                        })
+                        events.append(
+                            {
+                                "datetime": event_time.isoformat(),
+                                "action_type": action.action_type,
+                                "action_name": action.action_name,
+                                "pattern_name": pattern.name,
+                                "pattern_id": pattern.pattern_id,
+                            }
+                        )
 
         current_date += timedelta(days=1)
         days_checked += 1

@@ -112,7 +112,7 @@ def sanitize_error_message(error: Exception, generic_message: str) -> str:
 
     Examples:
         >>> try:
-        ...     open('/etc/passwd')
+        ...     open("/etc/passwd")
         ... except Exception as e:
         ...     msg = sanitize_error_message(e, "File access error")
         >>> # Logs full error, returns "File access error"

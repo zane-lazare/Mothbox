@@ -15,7 +15,6 @@ class PaginationError(Exception):
     """Raised when pagination parameters are invalid"""
 
 
-
 class PhotoService:
     """
     Service for managing photo listing and pagination
@@ -28,7 +27,7 @@ class PhotoService:
     """
 
     # Valid sort options
-    VALID_SORT_OPTIONS = ['date_desc', 'date_asc', 'filename_asc', 'filename_desc']
+    VALID_SORT_OPTIONS = ["date_desc", "date_asc", "filename_asc", "filename_desc"]
 
     # Pagination limits
     MIN_LIMIT = 1
@@ -49,7 +48,7 @@ class PhotoService:
         self,
         limit: int = DEFAULT_LIMIT,
         offset: int = DEFAULT_OFFSET,
-        sort: str = 'date_desc',
+        sort: str = "date_desc",
         start_date: datetime | None = None,
         end_date: datetime | None = None,
     ) -> dict:
@@ -200,13 +199,13 @@ class PhotoService:
         Returns:
             Sorted list of photos
         """
-        if sort == 'date_desc':
+        if sort == "date_desc":
             return sorted(photos, key=lambda x: x[1], reverse=True)
-        elif sort == 'date_asc':
+        elif sort == "date_asc":
             return sorted(photos, key=lambda x: x[1])
-        elif sort == 'filename_asc':
+        elif sort == "filename_asc":
             return sorted(photos, key=lambda x: x[0].name.lower())
-        elif sort == 'filename_desc':
+        elif sort == "filename_desc":
             return sorted(photos, key=lambda x: x[0].name.lower(), reverse=True)
         else:
             # Should never reach here due to validation, but default to date_desc
@@ -246,14 +245,10 @@ class PhotoService:
             raise PaginationError(f"Limit must be an integer, got {type(limit).__name__}")
 
         if limit < self.MIN_LIMIT:
-            raise PaginationError(
-                f"Limit must be at least {self.MIN_LIMIT}, got {limit}"
-            )
+            raise PaginationError(f"Limit must be at least {self.MIN_LIMIT}, got {limit}")
 
         if limit > self.MAX_LIMIT:
-            raise PaginationError(
-                f"Limit cannot exceed {self.MAX_LIMIT}, got {limit}"
-            )
+            raise PaginationError(f"Limit cannot exceed {self.MAX_LIMIT}, got {limit}")
 
     def _validate_offset(self, offset: int) -> None:
         """
@@ -283,6 +278,5 @@ class PhotoService:
         """
         if sort not in self.VALID_SORT_OPTIONS:
             raise PaginationError(
-                f"Invalid sort option '{sort}'. "
-                f"Valid options: {', '.join(self.VALID_SORT_OPTIONS)}"
+                f"Invalid sort option '{sort}'. Valid options: {', '.join(self.VALID_SORT_OPTIONS)}"
             )

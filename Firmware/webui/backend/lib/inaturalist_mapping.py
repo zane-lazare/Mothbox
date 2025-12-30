@@ -57,10 +57,10 @@ INATURALIST_RECOMMENDED_FIELDS = [
 # Species confidence to iNaturalist quality grade mapping
 # Reference: https://www.inaturalist.org/pages/help#quality
 CONFIDENCE_TO_QUALITY_GRADE = {
-    "certain": "research",      # High confidence, research grade quality
-    "probable": "needs_id",     # Likely correct, community ID needed
-    "possible": "needs_id",     # Possible match, needs verification
-    "unknown": "casual",        # Low quality/casual observation
+    "certain": "research",  # High confidence, research grade quality
+    "probable": "needs_id",  # Likely correct, community ID needed
+    "possible": "needs_id",  # Possible match, needs verification
+    "unknown": "casual",  # Low quality/casual observation
 }
 
 # Taxonomy keyword prefix following Naturtag pattern
@@ -69,13 +69,14 @@ TAXONOMY_KEYWORD_PREFIX = "taxonomy:"
 
 # Default values for iNaturalist fields
 DEFAULT_LICENSE = "CC BY-NC 4.0"  # Creative Commons Attribution-NonCommercial
-DEFAULT_CREATOR = "Mothbox"       # Default observer/creator
+DEFAULT_CREATOR = "Mothbox"  # Default observer/creator
 DEFAULT_QUALITY_GRADE = "needs_id"  # Default when confidence unknown
 
 
 # ============================================================================
 # Data Classes
 # ============================================================================
+
 
 @dataclass
 class INaturalistFieldMapping:
@@ -89,6 +90,7 @@ class INaturalistFieldMapping:
         xmp_field: XMP namespace field (e.g., "exif:GPSLatitude") for sidecar
         description: Human-readable description of the field
     """
+
     inat_field: str
     source_field: str | None
     default_value: Any
@@ -107,6 +109,7 @@ class ValidationResult:
         missing_recommended: List of recommended fields that are missing
         warnings: List of validation warnings (non-fatal issues)
     """
+
     is_valid: bool
     missing_required: list[str] = field(default_factory=list)
     missing_recommended: list[str] = field(default_factory=list)
@@ -116,6 +119,7 @@ class ValidationResult:
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
 
 def map_species_confidence_to_quality_grade(confidence: str | None) -> str:
     """Map Mothbox species confidence to iNaturalist quality grade.
@@ -171,7 +175,7 @@ def build_taxonomy_keywords(species: str | None) -> list[str]:
         return []
 
     # Clean species name (remove author citations like "(Linnaeus, 1758)")
-    species_clean = re.sub(r'\s*\([^)]*\)\s*$', '', species).strip()
+    species_clean = re.sub(r"\s*\([^)]*\)\s*$", "", species).strip()
 
     if not species_clean:
         return []
@@ -184,12 +188,14 @@ def build_taxonomy_keywords(species: str | None) -> list[str]:
     # higher taxonomy. Future enhancement: integrate with GBIF Backbone
     # Taxonomy API for dynamic hierarchical lookup based on species name.
     # See: https://www.gbif.org/developer/species
-    keywords.extend([
-        f"{TAXONOMY_KEYWORD_PREFIX}kingdom=Animalia",
-        f"{TAXONOMY_KEYWORD_PREFIX}phylum=Arthropoda",
-        f"{TAXONOMY_KEYWORD_PREFIX}class=Insecta",
-        f"{TAXONOMY_KEYWORD_PREFIX}order=Lepidoptera",
-    ])
+    keywords.extend(
+        [
+            f"{TAXONOMY_KEYWORD_PREFIX}kingdom=Animalia",
+            f"{TAXONOMY_KEYWORD_PREFIX}phylum=Arthropoda",
+            f"{TAXONOMY_KEYWORD_PREFIX}class=Insecta",
+            f"{TAXONOMY_KEYWORD_PREFIX}order=Lepidoptera",
+        ]
+    )
 
     # Parse genus and species from binomial/trinomial name
     parts = species_clean.split()
@@ -310,32 +316,23 @@ def get_xmp_field_mappings() -> dict[str, str]:
         "latitude": "exif:GPSLatitude",
         "longitude": "exif:GPSLongitude",
         "altitude": "exif:GPSAltitude",
-
         # Title and description (Dublin Core)
         "title": "dc:title",
         "notes": "dc:description",
-
         # Creator/observer (Dublin Core)
         "creator": "dc:creator",
-
         # Keywords/tags (Dublin Core)
         "keywords": "dc:subject",
-
         # License (XMP Rights)
         "license": "xmpRights:UsageTerms",
-
         # Timestamp (XMP)
         "timestamp": "xmp:CreateDate",
-
         # Species (IPTC Extension)
         "species": "Iptc4xmpExt:TaxonomicName",
     }
 
 
-def _apply_gps_precision(
-    value: float | None,
-    precision: int | None
-) -> float | None:
+def _apply_gps_precision(value: float | None, precision: int | None) -> float | None:
     """Apply GPS precision rounding to a coordinate value.
 
     Args:
@@ -387,9 +384,7 @@ def transform_metadata_to_inaturalist(
     result["common_name"] = metadata.species_common_name or ""
 
     # Quality grade (mapped from confidence)
-    result["quality_grade"] = map_species_confidence_to_quality_grade(
-        metadata.species_confidence
-    )
+    result["quality_grade"] = map_species_confidence_to_quality_grade(metadata.species_confidence)
 
     # Formatted fields
     result["title"] = format_observation_title(metadata)

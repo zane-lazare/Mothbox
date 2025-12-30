@@ -49,32 +49,32 @@ from webui.backend.lib.gps_exif_lib import verify_gps_exif
 
 # Module exports
 __all__ = [
-    'extract_timestamp_from_filename',
-    'print_gps_info',
-    'generate_csv_report',
-    'sanitize_csv_value',
-    'main',
+    "extract_timestamp_from_filename",
+    "print_gps_info",
+    "generate_csv_report",
+    "sanitize_csv_value",
+    "main",
 ]
 
 
 # Mothbox filename parsing constants
-MOTHBOX_PREFIX = 'mothbox'                    # Required filename prefix (lowercase)
-FILENAME_YEAR_DIGITS = 4                       # Year component length
-FILENAME_DATE_DIGITS = 2                       # Month/day component length
-FILENAME_TIME_DIGITS = 2                       # Hour/minute/second component length
+MOTHBOX_PREFIX = "mothbox"  # Required filename prefix (lowercase)
+FILENAME_YEAR_DIGITS = 4  # Year component length
+FILENAME_DATE_DIGITS = 2  # Month/day component length
+FILENAME_TIME_DIGITS = 2  # Hour/minute/second component length
 
 # Regex pattern for Mothbox filename format
 # Format: mothbox_YYYY_MM_DD__HH_MM_SS[_bracket_N].{jpg|jpeg}
 MOTHBOX_FILENAME_PATTERN = (
-    r'^mothbox_'                               # Prefix (lowercase only)
-    r'(\d{4})_'                                # Year (4 digits)
-    r'(\d{2})_'                                # Month (2 digits)
-    r'(\d{2})__'                               # Day (2 digits) + double underscore
-    r'(\d{2})_'                                # Hour (2 digits)
-    r'(\d{2})_'                                # Minute (2 digits)
-    r'(\d{2})'                                 # Second (2 digits)
-    r'(?:_bracket_\d+)?'                       # Optional: _bracket_N suffix
-    r'\.[jJ][pP][eE]?[gG]$'                    # Extension: .jpg/.JPG/.jpeg/.JPEG
+    r"^mothbox_"  # Prefix (lowercase only)
+    r"(\d{4})_"  # Year (4 digits)
+    r"(\d{2})_"  # Month (2 digits)
+    r"(\d{2})__"  # Day (2 digits) + double underscore
+    r"(\d{2})_"  # Hour (2 digits)
+    r"(\d{2})_"  # Minute (2 digits)
+    r"(\d{2})"  # Second (2 digits)
+    r"(?:_bracket_\d+)?"  # Optional: _bracket_N suffix
+    r"\.[jJ][pP][eE]?[gG]$"  # Extension: .jpg/.JPG/.jpeg/.JPEG
 )
 
 
@@ -123,13 +123,13 @@ def sanitize_csv_value(value: str) -> str:
     # Check if value starts with potentially dangerous characters
     # =, +, -, @ are interpreted as formula prefixes by spreadsheet apps
     # \t (tab) can also be used for injection in some contexts
-    dangerous_prefixes = ('=', '+', '-', '@', '\t')
+    dangerous_prefixes = ("=", "+", "-", "@", "\t")
 
     if value_str.startswith(dangerous_prefixes):
         # Exception: Don't escape if it's a valid number
         # Negative numbers like "-122.4194" are safe
         # Plus-prefixed numbers like "+1.5" are safe
-        if value_str.startswith(('+', '-')):
+        if value_str.startswith(("+", "-")):
             try:
                 # Try to parse as float - if successful, it's a number (safe)
                 float(value_str)
@@ -264,35 +264,35 @@ def print_gps_info(photo_path: Path) -> None:
     print("=" * 60)
 
     # Check if photo has GPS data
-    if not gps_info['has_gps']:
+    if not gps_info["has_gps"]:
         print("❌ No GPS EXIF data found in photo")
         return
 
     # Print GPS coordinates
-    if gps_info['latitude'] is not None and gps_info['longitude'] is not None:
-        lat = gps_info['latitude']
-        lon = gps_info['longitude']
+    if gps_info["latitude"] is not None and gps_info["longitude"] is not None:
+        lat = gps_info["latitude"]
+        lon = gps_info["longitude"]
         print(f"📍 GPS Coordinates: {lat:.6f}, {lon:.6f}")
 
         # Format as degrees for readability
-        lat_dir = 'N' if lat >= 0 else 'S'
-        lon_dir = 'E' if lon >= 0 else 'W'
+        lat_dir = "N" if lat >= 0 else "S"
+        lon_dir = "E" if lon >= 0 else "W"
         print(f"   {abs(lat):.6f}° {lat_dir}, {abs(lon):.6f}° {lon_dir}")
 
     # Print altitude
-    if gps_info['altitude'] is not None:
+    if gps_info["altitude"] is not None:
         print(f"⛰️  Altitude: {gps_info['altitude']:.2f} m")
 
     # Print GPS timestamp
-    if gps_info['timestamp'] is not None:
+    if gps_info["timestamp"] is not None:
         print(f"🕐 GPS Timestamp: {gps_info['timestamp']}")
 
     # Print satellite count
-    if gps_info['satellites'] is not None:
+    if gps_info["satellites"] is not None:
         print(f"🛰️  Satellites: {gps_info['satellites']}")
 
     # Print HDOP
-    if gps_info['hdop'] is not None:
+    if gps_info["hdop"] is not None:
         print(f"📊 HDOP: {gps_info['hdop']:.2f}")
 
     # Extract and print photo timestamp from filename
@@ -335,20 +335,20 @@ def generate_csv_report(photos: list[Path], output_csv: Path) -> None:
     """
     # Define CSV columns
     fieldnames = [
-        'filename',
-        'photo_timestamp',
-        'has_gps',
-        'latitude',
-        'longitude',
-        'altitude',
-        'gps_timestamp',
-        'satellites',
-        'hdop',
-        'status'
+        "filename",
+        "photo_timestamp",
+        "has_gps",
+        "latitude",
+        "longitude",
+        "altitude",
+        "gps_timestamp",
+        "satellites",
+        "hdop",
+        "status",
     ]
 
     # Open CSV file for writing
-    with open(output_csv, 'w', newline='', encoding='utf-8') as csvfile:
+    with open(output_csv, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
@@ -356,26 +356,26 @@ def generate_csv_report(photos: list[Path], output_csv: Path) -> None:
         for photo_path in photos:
             # Initialize row with defaults
             row = {
-                'filename': sanitize_csv_value(photo_path.name),
-                'photo_timestamp': '',
-                'has_gps': False,
-                'latitude': '',
-                'longitude': '',
-                'altitude': '',
-                'gps_timestamp': '',
-                'satellites': '',
-                'hdop': '',
-                'status': 'OK'
+                "filename": sanitize_csv_value(photo_path.name),
+                "photo_timestamp": "",
+                "has_gps": False,
+                "latitude": "",
+                "longitude": "",
+                "altitude": "",
+                "gps_timestamp": "",
+                "satellites": "",
+                "hdop": "",
+                "status": "OK",
             }
 
             # Extract photo timestamp from filename
             photo_timestamp = extract_timestamp_from_filename(photo_path)
             if photo_timestamp:
-                row['photo_timestamp'] = photo_timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                row["photo_timestamp"] = photo_timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
             # Check if file exists
             if not photo_path.exists():
-                row['status'] = 'Missing File'
+                row["status"] = "Missing File"
                 writer.writerow(row)
                 continue
 
@@ -383,33 +383,33 @@ def generate_csv_report(photos: list[Path], output_csv: Path) -> None:
             try:
                 gps_info = verify_gps_exif(photo_path)
 
-                row['has_gps'] = gps_info['has_gps']
+                row["has_gps"] = gps_info["has_gps"]
 
-                if gps_info['has_gps']:
+                if gps_info["has_gps"]:
                     # Populate GPS fields (numeric values are safe, but sanitize string fields)
-                    if gps_info['latitude'] is not None:
-                        row['latitude'] = f"{gps_info['latitude']:.6f}"
-                    if gps_info['longitude'] is not None:
-                        row['longitude'] = f"{gps_info['longitude']:.6f}"
-                    if gps_info['altitude'] is not None:
-                        row['altitude'] = f"{gps_info['altitude']:.2f}"
-                    if gps_info['timestamp'] is not None:
+                    if gps_info["latitude"] is not None:
+                        row["latitude"] = f"{gps_info['latitude']:.6f}"
+                    if gps_info["longitude"] is not None:
+                        row["longitude"] = f"{gps_info['longitude']:.6f}"
+                    if gps_info["altitude"] is not None:
+                        row["altitude"] = f"{gps_info['altitude']:.2f}"
+                    if gps_info["timestamp"] is not None:
                         # GPS timestamp from EXIF could be user-controlled, sanitize it
-                        row['gps_timestamp'] = sanitize_csv_value(gps_info['timestamp'])
-                    if gps_info['satellites'] is not None:
+                        row["gps_timestamp"] = sanitize_csv_value(gps_info["timestamp"])
+                    if gps_info["satellites"] is not None:
                         # Satellite count is typically numeric but could be string, sanitize
-                        row['satellites'] = sanitize_csv_value(gps_info['satellites'])
-                    if gps_info['hdop'] is not None:
-                        row['hdop'] = f"{gps_info['hdop']:.2f}"
+                        row["satellites"] = sanitize_csv_value(gps_info["satellites"])
+                    if gps_info["hdop"] is not None:
+                        row["hdop"] = f"{gps_info['hdop']:.2f}"
 
-                    row['status'] = 'OK'
+                    row["status"] = "OK"
                 else:
-                    row['status'] = 'No GPS'
+                    row["status"] = "No GPS"
 
             except Exception as e:
                 # Exception messages could contain user-controlled data, sanitize
                 error_msg = str(e)
-                row['status'] = sanitize_csv_value(f'Error: {error_msg}')
+                row["status"] = sanitize_csv_value(f"Error: {error_msg}")
 
             writer.writerow(row)
 
@@ -436,8 +436,8 @@ def main() -> int:
     """
     # Create argument parser
     parser = argparse.ArgumentParser(
-        description='Verify GPS EXIF data in Mothbox photos',
-        epilog='''
+        description="Verify GPS EXIF data in Mothbox photos",
+        epilog="""
 Examples:
   # Verify single photo
   %(prog)s mothbox_2025_01_15__12_30_00.jpg
@@ -450,22 +450,17 @@ Examples:
 
   # Verify multiple photos
   %(prog)s photo1.jpg photo2.jpg photo3.jpg --csv batch_report.csv
-        ''',
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    parser.add_argument(
-        'photos',
-        nargs='+',
-        type=str,
-        help='Photo file(s) or directory to scan'
-    )
+    parser.add_argument("photos", nargs="+", type=str, help="Photo file(s) or directory to scan")
 
     parser.add_argument(
-        '--csv',
+        "--csv",
         type=str,
-        metavar='OUTPUT.csv',
-        help='Generate CSV report instead of printing to console'
+        metavar="OUTPUT.csv",
+        help="Generate CSV report instead of printing to console",
     )
 
     # Parse arguments
@@ -479,7 +474,7 @@ Examples:
 
         if photo_path.is_dir():
             # Scan directory for JPEG files
-            jpeg_files = sorted(photo_path.glob('*.jpg')) + sorted(photo_path.glob('*.jpeg'))
+            jpeg_files = sorted(photo_path.glob("*.jpg")) + sorted(photo_path.glob("*.jpeg"))
 
             # Filter out symlinks (security: prevent directory traversal attacks)
             # Only process regular files within the intended directory
@@ -517,5 +512,5 @@ Examples:
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

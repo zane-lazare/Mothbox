@@ -29,14 +29,14 @@ from webui.backend.services.export_metadata_service import ExportMetadata
 # ============================================================================
 
 XMP_NAMESPACES = {
-    'x': 'adobe:ns:meta/',
-    'rdf': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
-    'dc': 'http://purl.org/dc/elements/1.1/',
-    'xmp': 'http://ns.adobe.com/xap/1.0/',
-    'photoshop': 'http://ns.adobe.com/photoshop/1.0/',
-    'Iptc4xmpCore': 'http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/',
-    'Iptc4xmpExt': 'http://iptc.org/std/Iptc4xmpExt/2008-02-29/',
-    'exif': 'http://ns.adobe.com/exif/1.0/',
+    "x": "adobe:ns:meta/",
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "dc": "http://purl.org/dc/elements/1.1/",
+    "xmp": "http://ns.adobe.com/xap/1.0/",
+    "photoshop": "http://ns.adobe.com/photoshop/1.0/",
+    "Iptc4xmpCore": "http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/",
+    "Iptc4xmpExt": "http://iptc.org/std/Iptc4xmpExt/2008-02-29/",
+    "exif": "http://ns.adobe.com/exif/1.0/",
 }
 
 # Register namespaces for ElementTree
@@ -47,6 +47,7 @@ for prefix, uri in XMP_NAMESPACES.items():
 # ============================================================================
 # XML Utility Functions
 # ============================================================================
+
 
 def validate_xmp_xml(xml_string: str) -> bool:
     """
@@ -64,9 +65,8 @@ def validate_xmp_xml(xml_string: str) -> bool:
     try:
         # Remove xpacket processing instructions for validation
         xml_content = xml_string
-        for pi in ['<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
-                   '<?xpacket end="w"?>']:
-            xml_content = xml_content.replace(pi, '')
+        for pi in ['<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>', '<?xpacket end="w"?>']:
+            xml_content = xml_content.replace(pi, "")
 
         # nosec B314: XMP content is generated internally by generate_xmp_xml(),
         # not from untrusted external sources
@@ -79,6 +79,7 @@ def validate_xmp_xml(xml_string: str) -> bool:
 # ============================================================================
 # Filename Utilities
 # ============================================================================
+
 
 def get_xmp_sidecar_filename(photo_filename: str | Path) -> str:
     """
@@ -95,12 +96,13 @@ def get_xmp_sidecar_filename(photo_filename: str | Path) -> str:
         'moth_2024_01_15__10_30_00.xmp'
     """
     path = Path(photo_filename)
-    return path.stem + '.xmp'
+    return path.stem + ".xmp"
 
 
 # ============================================================================
 # Taxonomy Keyword Builders
 # ============================================================================
+
 
 def build_taxonomy_keywords(species_name: str | None) -> list[str]:
     """
@@ -163,6 +165,7 @@ def build_taxonomy_keywords(species_name: str | None) -> list[str]:
 # Dublin Core Element Builders
 # ============================================================================
 
+
 def build_dc_title(title: str) -> ET.Element:
     """
     Build dc:title element with rdf:Alt structure.
@@ -183,7 +186,7 @@ def build_dc_title(title: str) -> ET.Element:
     title_elem = ET.Element(f"{{{XMP_NAMESPACES['dc']}}}title")
     alt = ET.SubElement(title_elem, f"{{{XMP_NAMESPACES['rdf']}}}Alt")
     li = ET.SubElement(alt, f"{{{XMP_NAMESPACES['rdf']}}}li")
-    li.set('{http://www.w3.org/XML/1998/namespace}lang', 'x-default')
+    li.set("{http://www.w3.org/XML/1998/namespace}lang", "x-default")
     li.text = title
     return title_elem
 
@@ -208,7 +211,7 @@ def build_dc_description(description: str) -> ET.Element:
     desc_elem = ET.Element(f"{{{XMP_NAMESPACES['dc']}}}description")
     alt = ET.SubElement(desc_elem, f"{{{XMP_NAMESPACES['rdf']}}}Alt")
     li = ET.SubElement(alt, f"{{{XMP_NAMESPACES['rdf']}}}li")
-    li.set('{http://www.w3.org/XML/1998/namespace}lang', 'x-default')
+    li.set("{http://www.w3.org/XML/1998/namespace}lang", "x-default")
     li.text = description
     return desc_elem
 
@@ -292,7 +295,7 @@ def build_dc_rights(license: str) -> ET.Element:
     rights_elem = ET.Element(f"{{{XMP_NAMESPACES['dc']}}}rights")
     alt = ET.SubElement(rights_elem, f"{{{XMP_NAMESPACES['rdf']}}}Alt")
     li = ET.SubElement(alt, f"{{{XMP_NAMESPACES['rdf']}}}li")
-    li.set('{http://www.w3.org/XML/1998/namespace}lang', 'x-default')
+    li.set("{http://www.w3.org/XML/1998/namespace}lang", "x-default")
     li.text = license
     return rights_elem
 
@@ -301,11 +304,9 @@ def build_dc_rights(license: str) -> ET.Element:
 # IPTC Extension Element Builders
 # ============================================================================
 
+
 def build_location_shown(
-    lat: float,
-    lon: float,
-    alt: float | None = None,
-    name: str | None = None
+    lat: float, lon: float, alt: float | None = None, name: str | None = None
 ) -> ET.Element:
     """
     Build Iptc4xmpExt:LocationShown element with geographic data.
@@ -334,7 +335,7 @@ def build_location_shown(
     location_elem = ET.Element(f"{{{XMP_NAMESPACES['Iptc4xmpExt']}}}LocationShown")
     bag = ET.SubElement(location_elem, f"{{{XMP_NAMESPACES['rdf']}}}Bag")
     li = ET.SubElement(bag, f"{{{XMP_NAMESPACES['rdf']}}}li")
-    li.set(f"{{{XMP_NAMESPACES['rdf']}}}parseType", 'Resource')
+    li.set(f"{{{XMP_NAMESPACES['rdf']}}}parseType", "Resource")
 
     # Latitude (required) - 8 decimal places provides ~1.1mm precision
     lat_elem = ET.SubElement(li, f"{{{XMP_NAMESPACES['Iptc4xmpExt']}}}Latitude")
@@ -361,10 +362,8 @@ def build_location_shown(
 # XMP Document Builders
 # ============================================================================
 
-def _apply_gps_precision(
-    value: float | None,
-    precision: int | None
-) -> float | None:
+
+def _apply_gps_precision(value: float | None, precision: int | None) -> float | None:
     """Apply GPS precision rounding to a coordinate value.
 
     Args:
@@ -421,7 +420,7 @@ def build_xmp_document(
     # Create root xmpmeta element
     xmpmeta = ET.Element(
         f"{{{XMP_NAMESPACES['x']}}}xmpmeta",
-        attrib={f"{{{XMP_NAMESPACES['x']}}}xmptk": "Mothbox XMP Core 1.0"}
+        attrib={f"{{{XMP_NAMESPACES['x']}}}xmptk": "Mothbox XMP Core 1.0"},
     )
 
     # Create RDF root
@@ -432,12 +431,12 @@ def build_xmp_document(
         rdf,
         f"{{{XMP_NAMESPACES['rdf']}}}Description",
         attrib={
-            f"{{{XMP_NAMESPACES['rdf']}}}about": '',
-            "xmlns:dc": XMP_NAMESPACES['dc'],
-            "xmlns:xmp": XMP_NAMESPACES['xmp'],
-            "xmlns:photoshop": XMP_NAMESPACES['photoshop'],
-            "xmlns:Iptc4xmpExt": XMP_NAMESPACES['Iptc4xmpExt'],
-        }
+            f"{{{XMP_NAMESPACES['rdf']}}}about": "",
+            "xmlns:dc": XMP_NAMESPACES["dc"],
+            "xmlns:xmp": XMP_NAMESPACES["xmp"],
+            "xmlns:photoshop": XMP_NAMESPACES["photoshop"],
+            "xmlns:Iptc4xmpExt": XMP_NAMESPACES["Iptc4xmpExt"],
+        },
     )
 
     # Build title from common name and species name
@@ -447,7 +446,7 @@ def build_xmp_document(
     if metadata.species:
         title_parts.append(f"({metadata.species})")
     if title_parts:
-        title = ' '.join(title_parts)
+        title = " ".join(title_parts)
         desc.append(build_dc_title(title))
 
     # Add description from notes
@@ -462,11 +461,11 @@ def build_xmp_document(
     desc.append(subject_elem)
 
     # Add creator (default to "Mothbox" if not specified)
-    creator = getattr(metadata, 'creator', 'Mothbox')
+    creator = getattr(metadata, "creator", "Mothbox")
     desc.append(build_dc_creator(creator))
 
     # Add rights/license (default to CC BY-NC 4.0 if not specified)
-    license_text = getattr(metadata, 'license', 'CC BY-NC 4.0')
+    license_text = getattr(metadata, "license", "CC BY-NC 4.0")
     desc.append(build_dc_rights(license_text))
 
     # Add create date
@@ -487,10 +486,7 @@ def build_xmp_document(
         lat = _apply_gps_precision(metadata.latitude, gps_precision)
         lon = _apply_gps_precision(metadata.longitude, gps_precision)
         location = build_location_shown(
-            lat=lat,
-            lon=lon,
-            alt=metadata.altitude,
-            name=metadata.deployment_location_name
+            lat=lat, lon=lon, alt=metadata.altitude, name=metadata.deployment_location_name
         )
         desc.append(location)
 
@@ -526,17 +522,13 @@ def generate_xmp_xml(
     tree = build_xmp_document(metadata, gps_precision=gps_precision)
 
     # Convert to string with XML declaration
-    xml_str = ET.tostring(
-        tree.getroot(),
-        encoding='unicode',
-        method='xml'
-    )
+    xml_str = ET.tostring(tree.getroot(), encoding="unicode", method="xml")
 
     # Add XMP packet wrapper
-    xmp_packet = f'''<?xml version="1.0" encoding="UTF-8"?>
+    xmp_packet = f"""<?xml version="1.0" encoding="UTF-8"?>
 <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 {xml_str}
-<?xpacket end="w"?>'''
+<?xpacket end="w"?>"""
 
     return xmp_packet
 
@@ -544,6 +536,7 @@ def generate_xmp_xml(
 # ============================================================================
 # Convenience Functions
 # ============================================================================
+
 
 def write_xmp_sidecar(metadata: ExportMetadata, output_path: Path) -> None:
     """
@@ -560,5 +553,5 @@ def write_xmp_sidecar(metadata: ExportMetadata, output_path: Path) -> None:
     """
     xmp_xml = generate_xmp_xml(metadata)
 
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(xmp_xml)

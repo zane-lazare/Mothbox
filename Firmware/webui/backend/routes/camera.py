@@ -210,11 +210,11 @@ def _build_exif_metadata(
         exif_exposure = (1, 1000)
 
     # Get current timestamp for DateTimeOriginal
-    capture_timestamp = datetime.now().strftime('%Y:%m:%d %H:%M:%S')
+    capture_timestamp = datetime.now().strftime("%Y:%m:%d %H:%M:%S")
 
     # Build Exif IFD
     exif_ifd = {
-        piexif.ExifIFD.DateTimeOriginal: capture_timestamp.encode('utf-8'),
+        piexif.ExifIFD.DateTimeOriginal: capture_timestamp.encode("utf-8"),
         piexif.ExifIFD.ExposureTime: exif_exposure,
         piexif.ExifIFD.FocalLength: (
             int(md.get("LensPosition", 0.0) * 100),
@@ -242,10 +242,14 @@ def _build_exif_metadata(
         "af_speed": int(settings_dict.get("AfSpeed", 0)),
         "noise_reduction": int(settings_dict.get("NoiseReductionMode", 2)),
         "lens_position": float(md.get("LensPosition", 0.0)),
-        "colour_gain_red": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[0]) if "ColourGains" in settings_dict else DEFAULT_COLOUR_GAINS[0],
-        "colour_gain_blue": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[1]) if "ColourGains" in settings_dict else DEFAULT_COLOUR_GAINS[1],
+        "colour_gain_red": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[0])
+        if "ColourGains" in settings_dict
+        else DEFAULT_COLOUR_GAINS[0],
+        "colour_gain_blue": float(settings_dict.get("ColourGains", DEFAULT_COLOUR_GAINS)[1])
+        if "ColourGains" in settings_dict
+        else DEFAULT_COLOUR_GAINS[1],
     }
-    exif_ifd[piexif.ExifIFD.MakerNote] = json.dumps(maker_note_data).encode('utf-8')
+    exif_ifd[piexif.ExifIFD.MakerNote] = json.dumps(maker_note_data).encode("utf-8")
 
     # GPS IFD - embed GPS coordinates from controls.txt if available
     gps_ifd = {}
@@ -253,7 +257,7 @@ def _build_exif_metadata(
         from webui.backend.lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
 
         gps_data = get_gps_data_from_controls()
-        if gps_data.get('has_fix'):
+        if gps_data.get("has_fix"):
             gps_ifd = build_gps_ifd(gps_data)
             if gps_ifd:
                 # CodeQL: py/clear-text-logging-sensitive-data - GPS coordinates are equipment deployment location for wildlife monitoring, not personal/user data
@@ -531,9 +535,7 @@ def capture_photo():
                     all_photos = chain.from_iterable(
                         PHOTOS_DIR.glob(f"**/{pattern}") for pattern in PHOTO_PATTERNS
                     )
-                    photos = sorted(
-                        all_photos, key=lambda p: p.stat().st_mtime, reverse=True
-                    )
+                    photos = sorted(all_photos, key=lambda p: p.stat().st_mtime, reverse=True)
                     latest_photo = str(photos[0].relative_to(PHOTOS_DIR)) if photos else None
 
                     # Invalidate photo count cache so dashboard shows updated count immediately
@@ -553,7 +555,9 @@ def capture_photo():
                         get_series_service().invalidate_cache(PHOTOS_DIR)
                         get_locations_service().invalidate_cache(PHOTOS_DIR)
 
-                        logger.debug("Invalidated location/clustering/series caches after photo capture")
+                        logger.debug(
+                            "Invalidated location/clustering/series caches after photo capture"
+                        )
                     except Exception as cache_error:
                         # Log but don't fail capture on cache invalidation errors
                         logger.warning(f"Failed to invalidate caches: {cache_error}")
@@ -839,9 +843,7 @@ def trigger_autofocus():
         error_msg = str(e)
         print(f"Autofocus error: {error_msg}")
         print(traceback.format_exc())
-        return jsonify(
-            {"success": False, "error": error_msg}
-        ), 500
+        return jsonify({"success": False, "error": error_msg}), 500
 
 
 @camera_bp.route("/calibrate-photo", methods=["POST"])
@@ -1045,9 +1047,7 @@ def calibrate_photo():
             except Exception as restart_error:
                 print(f"❌ Failed emergency restart: {restart_error}")
 
-        return jsonify(
-            {"success": False, "error": str(e)}
-        ), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
@@ -1362,7 +1362,7 @@ def test_capture_liveview():
         print("Test capture (live view settings) requested via API")
 
         # PRIMARY: Get settings from camera_streamer instance (live values)
-        camera_streamer = current_app.config.get('CAMERA_STREAMER')
+        camera_streamer = current_app.config.get("CAMERA_STREAMER")
         if camera_streamer:
             print("Using live camera settings from camera_streamer instance")
             liveview_settings = camera_streamer.get_current_settings()
@@ -1441,9 +1441,13 @@ def test_capture_liveview():
         # Handle colour gains tuple (only when AWB is disabled)
         # When AWB is enabled, manual ColourGains are ignored by the camera
         # ColourGains must be set as a tuple, not individual red/blue controls
-        if not settings.get("awb_enable", True) and (colour_gains_red is not None or colour_gains_blue is not None):
+        if not settings.get("awb_enable", True) and (
+            colour_gains_red is not None or colour_gains_blue is not None
+        ):
             red_gain = colour_gains_red if colour_gains_red is not None else DEFAULT_COLOUR_GAINS[0]
-            blue_gain = colour_gains_blue if colour_gains_blue is not None else DEFAULT_COLOUR_GAINS[1]
+            blue_gain = (
+                colour_gains_blue if colour_gains_blue is not None else DEFAULT_COLOUR_GAINS[1]
+            )
             controls["ColourGains"] = (float(red_gain), float(blue_gain))
 
         # Only set manual exposure if AE disabled
@@ -1465,9 +1469,7 @@ def test_capture_liveview():
         error_msg = str(e)
         print(f"Test capture (live view) error: {error_msg}")
         print(traceback.format_exc())
-        return jsonify(
-            {"success": False, "error": error_msg}
-        ), 500
+        return jsonify({"success": False, "error": error_msg}), 500
 
 
 @camera_bp.route("/instant-capture", methods=["POST"])
@@ -1508,12 +1510,14 @@ def instant_capture():
             return "UNKNOWN"
 
         # PRIMARY: Get settings from camera_streamer instance (live values)
-        camera_streamer = current_app.config.get('CAMERA_STREAMER')
+        camera_streamer = current_app.config.get("CAMERA_STREAMER")
         if not camera_streamer:
-            return jsonify({
-                "success": False,
-                "error": "Camera streamer not initialized. Cannot capture instant photo."
-            }), 500
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "Camera streamer not initialized. Cannot capture instant photo.",
+                }
+            ), 500
 
         # Get current live view settings
         print("Using live camera settings from camera_streamer instance")
@@ -1577,9 +1581,13 @@ def instant_capture():
         # Handle colour gains tuple (only when AWB is disabled)
         # When AWB is enabled, manual ColourGains are ignored by the camera
         # ColourGains must be set as a tuple, not individual red/blue controls
-        if not settings.get("awb_enable", True) and (colour_gains_red is not None or colour_gains_blue is not None):
+        if not settings.get("awb_enable", True) and (
+            colour_gains_red is not None or colour_gains_blue is not None
+        ):
             red_gain = colour_gains_red if colour_gains_red is not None else DEFAULT_COLOUR_GAINS[0]
-            blue_gain = colour_gains_blue if colour_gains_blue is not None else DEFAULT_COLOUR_GAINS[1]
+            blue_gain = (
+                colour_gains_blue if colour_gains_blue is not None else DEFAULT_COLOUR_GAINS[1]
+            )
             controls["ColourGains"] = (float(red_gain), float(blue_gain))
 
         # Only set manual exposure if AE disabled
@@ -1611,9 +1619,7 @@ def instant_capture():
         error_msg = str(e)
         print(f"Instant capture error: {error_msg}")
         print(traceback.format_exc())
-        return jsonify(
-            {"success": False, "error": error_msg}
-        ), 500
+        return jsonify({"success": False, "error": error_msg}), 500
 
 
 def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
@@ -1854,6 +1860,4 @@ def test_capture_photo():
         error_msg = str(e)
         print(f"Test capture (photo) error: {error_msg}")
         print(traceback.format_exc())
-        return jsonify(
-            {"success": False, "error": error_msg}
-        ), 500
+        return jsonify({"success": False, "error": error_msg}), 500

@@ -98,6 +98,7 @@ MAX_PAGINATION_LIMIT = 200  # Maximum items per page for list endpoints
 # Exceptions
 # ============================================================================
 
+
 class ValidationError(Exception):
     """Raised when metadata validation fails."""
 
@@ -109,6 +110,7 @@ class LockTimeoutError(Exception):
 # ============================================================================
 # Data Classes
 # ============================================================================
+
 
 @dataclass
 class SidecarMetadata:
@@ -128,6 +130,7 @@ class SidecarMetadata:
         species_common_name: Common name for species (optional, v1.1+)
         species_reference_url: Reference URL for species (optional, v1.1+)
     """
+
     version: str
     photo_filename: str
     created_at: str
@@ -171,13 +174,14 @@ class SidecarMetadata:
             modified_by=data.get("modified_by"),
             species_confidence=data.get("species_confidence"),
             species_common_name=data.get("species_common_name"),
-            species_reference_url=data.get("species_reference_url")
+            species_reference_url=data.get("species_reference_url"),
         )
 
 
 # ============================================================================
 # Path Utilities
 # ============================================================================
+
 
 def get_sidecar_path(photo_path: Path | str) -> Path:
     """Get sidecar JSON path for a photo.
@@ -254,10 +258,7 @@ def list_photos_with_sidecars(directory: Path) -> list[Path]:
     return sorted(photos_with_sidecars)
 
 
-def list_all_photos(
-    directory: Path | str,
-    recursive: bool = True
-) -> list[tuple[Path, bool]]:
+def list_all_photos(directory: Path | str, recursive: bool = True) -> list[tuple[Path, bool]]:
     """List all photos in directory with sidecar existence flag.
 
     Searches for all JPEG photos (not just those with sidecars) and returns
@@ -299,6 +300,7 @@ def list_all_photos(
 # Tag Normalization
 # ============================================================================
 
+
 def normalize_tag(tag: str) -> str:
     """Normalize tag to lowercase and strip whitespace.
 
@@ -320,6 +322,7 @@ def normalize_tag(tag: str) -> str:
 # ============================================================================
 # Schema Validation
 # ============================================================================
+
 
 def _is_valid_custom_value(value, depth: int = 0) -> bool:
     """Validate custom value is a safe JSON-serializable type.
@@ -345,8 +348,7 @@ def _is_valid_custom_value(value, depth: int = 0) -> bool:
 
     if isinstance(value, dict):
         return all(
-            isinstance(k, str) and _is_valid_custom_value(v, depth + 1)
-            for k, v in value.items()
+            isinstance(k, str) and _is_valid_custom_value(v, depth + 1) for k, v in value.items()
         )
 
     return False
@@ -378,7 +380,9 @@ def validate_schema(data: dict) -> bool:
 
     # Check version support (allow both 1.0 and 1.1 for backward compatibility)
     if data["version"] not in SUPPORTED_VERSIONS:
-        raise ValidationError(f"Unsupported schema version: {data['version']} (supported: {', '.join(SUPPORTED_VERSIONS)})")
+        raise ValidationError(
+            f"Unsupported schema version: {data['version']} (supported: {', '.join(SUPPORTED_VERSIONS)})"
+        )
 
     # Validate tags
     if not isinstance(data["tags"], list):
@@ -412,28 +416,42 @@ def validate_schema(data: dict) -> bool:
             raise ValidationError(f"custom value type not allowed for key '{key}'")
 
     # Validate schema v1.1 fields
-    if data.get("species_confidence") is not None and data["species_confidence"] not in SPECIES_CONFIDENCE_VALUES:
+    if (
+        data.get("species_confidence") is not None
+        and data["species_confidence"] not in SPECIES_CONFIDENCE_VALUES
+    ):
         raise ValidationError(
             f"species_confidence must be one of {SPECIES_CONFIDENCE_VALUES}, got '{data['species_confidence']}'"
         )
 
-    if data.get("species_common_name") is not None and len(data["species_common_name"]) > MAX_COMMON_NAME_LENGTH:
-        raise ValidationError(f"species_common_name exceeds maximum length ({MAX_COMMON_NAME_LENGTH} chars)")
+    if (
+        data.get("species_common_name") is not None
+        and len(data["species_common_name"]) > MAX_COMMON_NAME_LENGTH
+    ):
+        raise ValidationError(
+            f"species_common_name exceeds maximum length ({MAX_COMMON_NAME_LENGTH} chars)"
+        )
 
     if data.get("species_reference_url") is not None:
         url = data["species_reference_url"]
         if len(url) > MAX_REFERENCE_URL_LENGTH:
-            raise ValidationError(f"species_reference_url exceeds maximum length ({MAX_REFERENCE_URL_LENGTH} chars)")
+            raise ValidationError(
+                f"species_reference_url exceeds maximum length ({MAX_REFERENCE_URL_LENGTH} chars)"
+            )
         # Validate URL format using urlparse (not just prefix check)
         # Also check for spaces in URL (urlparse accepts them but they're invalid)
-        if ' ' in url:
+        if " " in url:
             raise ValidationError("species_reference_url must be a valid http:// or https:// URL")
         try:
             parsed = urlparse(url)
-            if not (parsed.scheme in ('http', 'https') and parsed.netloc):
-                raise ValidationError("species_reference_url must be a valid http:// or https:// URL")
+            if not (parsed.scheme in ("http", "https") and parsed.netloc):
+                raise ValidationError(
+                    "species_reference_url must be a valid http:// or https:// URL"
+                )
         except ValueError as err:
-            raise ValidationError("species_reference_url must be a valid http:// or https:// URL") from err
+            raise ValidationError(
+                "species_reference_url must be a valid http:// or https:// URL"
+            ) from err
 
     return True
 
@@ -441,6 +459,7 @@ def validate_schema(data: dict) -> bool:
 # ============================================================================
 # File Locking
 # ============================================================================
+
 
 class FileLock:
     """File lock context manager using fcntl with separate lock file.
@@ -489,7 +508,9 @@ class FileLock:
                 elapsed = time.time() - start_time
                 if elapsed >= self.timeout:
                     self.lock_file.close()
-                    raise LockTimeoutError(f"Could not acquire lock on {self.path} within {self.timeout}s") from None
+                    raise LockTimeoutError(
+                        f"Could not acquire lock on {self.path} within {self.timeout}s"
+                    ) from None
 
                 # Exponential backoff
                 time.sleep(wait_time)
@@ -521,6 +542,7 @@ class FileLock:
 # Utility Functions
 # ============================================================================
 
+
 def _get_current_timestamp() -> str:
     """Get current UTC timestamp in ISO 8601 format.
 
@@ -531,12 +553,13 @@ def _get_current_timestamp() -> str:
         >>> _get_current_timestamp()
         '2024-11-06T10:30:00Z'
     """
-    return datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 # ============================================================================
 # CRUD Operations
 # ============================================================================
+
 
 def read_metadata(photo_path: Path | str) -> SidecarMetadata | None:
     """Read metadata from photo's sidecar file.
@@ -580,11 +603,7 @@ def read_metadata(photo_path: Path | str) -> SidecarMetadata | None:
         return None
 
 
-def write_metadata(
-    photo_path: Path | str,
-    metadata: SidecarMetadata,
-    backup: bool = True
-) -> bool:
+def write_metadata(photo_path: Path | str, metadata: SidecarMetadata, backup: bool = True) -> bool:
     """Write metadata to photo's sidecar file atomically.
 
     Uses file locking for the entire backup + write operation to prevent
@@ -643,7 +662,7 @@ def create_metadata(
     modified_by: str | None = None,
     species_confidence: str | None = None,
     species_common_name: str | None = None,
-    species_reference_url: str | None = None
+    species_reference_url: str | None = None,
 ) -> SidecarMetadata:
     """Create new metadata for photo.
 
@@ -688,14 +707,11 @@ def create_metadata(
         modified_by=modified_by,
         species_confidence=species_confidence,
         species_common_name=species_common_name,
-        species_reference_url=species_reference_url
+        species_reference_url=species_reference_url,
     )
 
 
-def update_metadata(
-    photo_path: Path | str,
-    updates: dict
-) -> SidecarMetadata:
+def update_metadata(photo_path: Path | str, updates: dict) -> SidecarMetadata:
     """Update existing metadata or create new if doesn't exist.
 
     Performs atomic partial update - only specified fields are modified.
@@ -752,10 +768,7 @@ def update_metadata(
     return metadata
 
 
-def delete_metadata(
-    photo_path: Path | str,
-    backup: bool = True
-) -> bool:
+def delete_metadata(photo_path: Path | str, backup: bool = True) -> bool:
     """Delete photo's sidecar metadata.
 
     Args:
@@ -791,6 +804,7 @@ def delete_metadata(
 # ============================================================================
 # Tag Operations
 # ============================================================================
+
 
 def add_tag(photo_path: Path | str, tag: str) -> SidecarMetadata:
     """Add tag to photo metadata with atomic read-modify-write.
@@ -898,6 +912,7 @@ def remove_tag(photo_path: Path | str, tag: str) -> SidecarMetadata:
 # ============================================================================
 # Cleanup Utilities
 # ============================================================================
+
 
 def cleanup_temp_files(directory: Path | str, max_age_seconds: int = 3600) -> int:
     """Remove stale .tmp and .lock files older than max_age_seconds.

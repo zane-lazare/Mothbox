@@ -121,6 +121,7 @@ VALID_CATEGORIES = {"camera", "location", "capture", "deployment", "file", "all"
 # Photo Listing and Serving Endpoints
 # ============================================================================
 
+
 @gallery_bp.route("/photos", methods=["GET"])
 def list_photos():
     """List all photos with metadata"""
@@ -132,9 +133,7 @@ def list_photos():
         all_photos = chain.from_iterable(
             PHOTOS_DIR.glob(f"**/{pattern}") for pattern in PHOTO_PATTERNS
         )
-        for photo_path in sorted(
-            all_photos, key=lambda p: p.stat().st_mtime, reverse=True
-        ):
+        for photo_path in sorted(all_photos, key=lambda p: p.stat().st_mtime, reverse=True):
             stat = photo_path.stat()
             photos.append(
                 {
@@ -182,10 +181,10 @@ def get_thumbnail(photo_path):
             return jsonify({"error": "Invalid path"}), 400
 
         # Get size from query params (default: 256)
-        size = request.args.get('size', 256, type=int)
+        size = request.args.get("size", 256, type=int)
 
         # Get cache instance from app config
-        thumbnail_cache = current_app.config.get('THUMBNAIL_CACHE')
+        thumbnail_cache = current_app.config.get("THUMBNAIL_CACHE")
 
         if thumbnail_cache:
             # Use cache service
@@ -259,8 +258,8 @@ def list_photos_paginated():
     try:
         # Extract query parameters with defaults
         # Note: type=int returns default if conversion fails, but we validate explicitly
-        limit_str = request.args.get('limit')
-        offset_str = request.args.get('offset')
+        limit_str = request.args.get("limit")
+        offset_str = request.args.get("offset")
 
         # Parse and validate limit
         if limit_str is not None:
@@ -280,9 +279,9 @@ def list_photos_paginated():
         else:
             offset = 0
 
-        sort = request.args.get('sort', 'date_desc')
-        start_date_str = request.args.get('start_date')
-        end_date_str = request.args.get('end_date')
+        sort = request.args.get("sort", "date_desc")
+        start_date_str = request.args.get("start_date")
+        end_date_str = request.args.get("end_date")
 
         # Parse date strings if provided
         start_date = None
@@ -294,7 +293,9 @@ def list_photos_paginated():
             except (ValueError, TypeError):
                 return (
                     jsonify(
-                        {"error": f"Invalid start_date format: '{start_date_str}'. Use ISO format (YYYY-MM-DD)"}
+                        {
+                            "error": f"Invalid start_date format: '{start_date_str}'. Use ISO format (YYYY-MM-DD)"
+                        }
                     ),
                     400,
                 )
@@ -305,7 +306,9 @@ def list_photos_paginated():
             except (ValueError, TypeError):
                 return (
                     jsonify(
-                        {"error": f"Invalid end_date format: '{end_date_str}'. Use ISO format (YYYY-MM-DD)"}
+                        {
+                            "error": f"Invalid end_date format: '{end_date_str}'. Use ISO format (YYYY-MM-DD)"
+                        }
                     ),
                     400,
                 )
@@ -337,6 +340,7 @@ def list_photos_paginated():
 # ============================================================================
 # Metadata Endpoints
 # ============================================================================
+
 
 @gallery_bp.route("/photos/<path:photo_id>/metadata", methods=["GET"])
 @limiter.limit("60 per minute")
@@ -381,9 +385,7 @@ def get_photo_metadata(photo_id):
     # 2. Resolve photo path with security checks
     photo_path = _resolve_photo_path(photo_id)
     if not photo_path:
-        return jsonify(
-            {"success": False, "error": "Photo not found", "photo_id": photo_id}
-        ), 404
+        return jsonify({"success": False, "error": "Photo not found", "photo_id": photo_id}), 404
 
     # 3. Try cache first
     cache = get_metadata_cache()
@@ -413,9 +415,7 @@ def get_photo_metadata(photo_id):
         cache_info = {
             "cached": True,
             "cache_level": cache_level,
-            "age_seconds": int(
-                time.time() - metadata.get("_cache_timestamp", time.time())
-            ),
+            "age_seconds": int(time.time() - metadata.get("_cache_timestamp", time.time())),
             "lookup_time_ms": round(cache_lookup_time, 2),
             "cache_hit_ratio": round(stats.hit_ratio, 3),
         }
@@ -434,20 +434,14 @@ def get_photo_metadata(photo_id):
 
         except Exception as e:
             # Log full error details server-side (CodeQL security requirement)
-            logger.error(
-                f"Metadata extraction failed for {photo_path}: {e}", exc_info=True
-            )
+            logger.error(f"Metadata extraction failed for {photo_path}: {e}", exc_info=True)
             # Return generic message to user (don't expose internal details)
-            return jsonify(
-                {"success": False, "error": "Failed to read metadata"}
-            ), 500
+            return jsonify({"success": False, "error": "Failed to read metadata"}), 500
 
     # 5. Apply category filtering
     if "all" not in requested_categories:
         metadata = {
-            k: v
-            for k, v in metadata.items()
-            if k in requested_categories or k.startswith("_")
+            k: v for k, v in metadata.items() if k in requested_categories or k.startswith("_")
         }
 
     # 6. Remove internal fields before returning
@@ -491,9 +485,7 @@ def clear_photo_metadata_cache(photo_id):
     # Resolve photo path
     photo_path = _resolve_photo_path(photo_id)
     if not photo_path:
-        return jsonify(
-            {"success": False, "error": "Photo not found", "photo_id": photo_id}
-        ), 404
+        return jsonify({"success": False, "error": "Photo not found", "photo_id": photo_id}), 404
 
     # Invalidate cache
     cache = get_metadata_cache()
@@ -578,10 +570,11 @@ def _resolve_photo_path(photo_id: str) -> Path | None:
 # Thumbnail Cache Endpoints
 # ============================================================================
 
+
 @gallery_bp.route("/cache/stats", methods=["GET"])
 def cache_stats():
     """Get thumbnail cache statistics"""
-    thumbnail_cache = current_app.config.get('THUMBNAIL_CACHE')
+    thumbnail_cache = current_app.config.get("THUMBNAIL_CACHE")
 
     if not thumbnail_cache:
         return jsonify({"error": "Cache not available"}), 503
@@ -593,15 +586,15 @@ def cache_stats():
 @gallery_bp.route("/cache/invalidate", methods=["POST"])
 def cache_invalidate():
     """Manually invalidate thumbnail cache entries (requires CSRF token)"""
-    thumbnail_cache = current_app.config.get('THUMBNAIL_CACHE')
+    thumbnail_cache = current_app.config.get("THUMBNAIL_CACHE")
 
     if not thumbnail_cache:
         return jsonify({"error": "Cache not available"}), 503
 
     # Get optional photo_path from request JSON
     data = request.get_json() or {}
-    photo_path_str = data.get('photo_path')
-    size = data.get('size')
+    photo_path_str = data.get("photo_path")
+    size = data.get("size")
 
     try:
         if photo_path_str:
@@ -644,23 +637,19 @@ def cache_warm():
         "message": "Warming 100 recent photos"
     }
     """
-    cache_warmer = current_app.config.get('CACHE_WARMER')
+    cache_warmer = current_app.config.get("CACHE_WARMER")
 
     if not cache_warmer:
         return jsonify({"error": "Cache warmer not available"}), 503
 
     # Get optional parameters from request JSON
     data = request.get_json() or {}
-    count = data.get('count', 100)
-    sizes = data.get('sizes')  # None = all sizes
-    background = data.get('background', True)
+    count = data.get("count", 100)
+    sizes = data.get("sizes")  # None = all sizes
+    background = data.get("background", True)
 
     try:
-        result = cache_warmer.warm_recent(
-            count=count,
-            sizes=sizes,
-            background=background
-        )
+        result = cache_warmer.warm_recent(count=count, sizes=sizes, background=background)
 
         return jsonify(result)
 
@@ -684,7 +673,7 @@ def cache_warm_status(task_id=None):
         "photos_warmed": 50
     }
     """
-    cache_warmer = current_app.config.get('CACHE_WARMER')
+    cache_warmer = current_app.config.get("CACHE_WARMER")
 
     if not cache_warmer:
         return jsonify({"error": "Cache warmer not available"}), 503
@@ -701,7 +690,7 @@ def cache_warm_status(task_id=None):
 @gallery_bp.route("/cache/warm/cancel/<task_id>", methods=["POST"])
 def cache_warm_cancel(task_id):
     """Cancel a running warming task (requires CSRF token)"""
-    cache_warmer = current_app.config.get('CACHE_WARMER')
+    cache_warmer = current_app.config.get("CACHE_WARMER")
 
     if not cache_warmer:
         return jsonify({"error": "Cache warmer not available"}), 503
@@ -760,15 +749,15 @@ def list_series():
         503: Series service unavailable
     """
     # Get series service from app config
-    series_service = current_app.config.get('SERIES_SERVICE')
+    series_service = current_app.config.get("SERIES_SERVICE")
 
     if not series_service:
         return jsonify({"error": "Series service not available"}), 503
 
     # Parse pagination parameters
     try:
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 50, type=int)
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 50, type=int)
 
         if page < 1:
             return jsonify({"error": "Page must be >= 1"}), 400
@@ -779,11 +768,13 @@ def list_series():
         return jsonify({"error": f"Invalid pagination parameter: {e}"}), 400
 
     # Parse type filter
-    series_type_filter = request.args.get('type')
+    series_type_filter = request.args.get("type")
     if series_type_filter and series_type_filter not in VALID_SERIES_TYPES:
-        return jsonify({
-            "error": f"Invalid type: {series_type_filter}. Valid: {', '.join(sorted(VALID_SERIES_TYPES))}"
-        }), 400
+        return jsonify(
+            {
+                "error": f"Invalid type: {series_type_filter}. Valid: {', '.join(sorted(VALID_SERIES_TYPES))}"
+            }
+        ), 400
 
     try:
         # Get all series from directory
@@ -813,25 +804,29 @@ def list_series():
                 else series.cover_photo.name
             )
 
-            series_data.append({
-                "series_id": series.series_id,
-                "series_type": series.series_type,
-                "base_name": series.base_name,
-                "count": series.count,
-                "cover_photo": cover_relative,
-                "photos": photos_relative,
-            })
+            series_data.append(
+                {
+                    "series_id": series.series_id,
+                    "series_type": series.series_type,
+                    "base_name": series.base_name,
+                    "count": series.count,
+                    "cover_photo": cover_relative,
+                    "photos": photos_relative,
+                }
+            )
 
-        return jsonify({
-            "series": series_data,
-            "pagination": {
-                "page": page,
-                "per_page": per_page,
-                "total": total,
-                "has_next": end_idx < total,
-                "has_previous": page > 1,
+        return jsonify(
+            {
+                "series": series_data,
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "total": total,
+                    "has_next": end_idx < total,
+                    "has_previous": page > 1,
+                },
             }
-        })
+        )
 
     except Exception as e:
         logger.error(f"Error listing series: {e}", exc_info=True)
@@ -857,7 +852,7 @@ def get_series(series_id):
         404: Series not found
         503: Series service unavailable
     """
-    series_service = current_app.config.get('SERIES_SERVICE')
+    series_service = current_app.config.get("SERIES_SERVICE")
 
     if not series_service:
         return jsonify({"error": "Series service not available"}), 503
@@ -883,14 +878,16 @@ def get_series(series_id):
             else series.cover_photo.name
         )
 
-        return jsonify({
-            "series_id": series.series_id,
-            "series_type": series.series_type,
-            "base_name": series.base_name,
-            "count": series.count,
-            "cover_photo": cover_relative,
-            "photos": photos_relative,
-        })
+        return jsonify(
+            {
+                "series_id": series.series_id,
+                "series_type": series.series_type,
+                "base_name": series.base_name,
+                "count": series.count,
+                "cover_photo": cover_relative,
+                "photos": photos_relative,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error getting series {series_id}: {e}", exc_info=True)
@@ -909,7 +906,7 @@ def get_series_stats():
         200: Success
         503: Series service unavailable
     """
-    series_service = current_app.config.get('SERIES_SERVICE')
+    series_service = current_app.config.get("SERIES_SERVICE")
 
     if not series_service:
         return jsonify({"error": "Series service not available"}), 503
@@ -938,14 +935,14 @@ def invalidate_series_cache():
         200: Success
         503: Series service unavailable
     """
-    series_service = current_app.config.get('SERIES_SERVICE')
+    series_service = current_app.config.get("SERIES_SERVICE")
 
     if not series_service:
         return jsonify({"error": "Series service not available"}), 503
 
     try:
         data = request.get_json() or {}
-        directory = data.get('directory')
+        directory = data.get("directory")
 
         if directory:
             # Validate path security
@@ -968,6 +965,7 @@ def invalidate_series_cache():
 # ============================================================================
 # Photo Locations Endpoint
 # ============================================================================
+
 
 @gallery_bp.route("/locations", methods=["GET"])
 @limiter.limit("60 per minute")
@@ -994,7 +992,7 @@ def get_photo_locations():
     """
     try:
         # Parse and validate limit parameter
-        limit_str = request.args.get('limit')
+        limit_str = request.args.get("limit")
         if limit_str is not None:
             try:
                 limit = int(limit_str)
@@ -1033,7 +1031,7 @@ def invalidate_locations_cache():
     """
     try:
         data = request.get_json() or {}
-        directory = data.get('directory')
+        directory = data.get("directory")
 
         if directory:
             # Validate path security
@@ -1081,6 +1079,7 @@ def get_locations_stats():
 # Clustering Endpoints
 # ============================================================================
 
+
 @gallery_bp.route("/locations/clustered", methods=["GET"])
 @limiter.limit("60 per minute")
 def get_clustered_locations():
@@ -1108,16 +1107,16 @@ def get_clustered_locations():
         500: Internal server error
     """
     # Get clustering service from app config
-    clustering_service = current_app.config.get('CLUSTERING_SERVICE')
+    clustering_service = current_app.config.get("CLUSTERING_SERVICE")
 
     if not clustering_service:
         return jsonify({"error": "Clustering service not available"}), 503
 
     try:
         # Parse query parameters
-        radius_str = request.args.get('radius')
-        min_size_str = request.args.get('min_size')
-        enabled_str = request.args.get('enabled', 'true').lower()
+        radius_str = request.args.get("radius")
+        min_size_str = request.args.get("min_size")
+        enabled_str = request.args.get("enabled", "true").lower()
 
         # Parse and validate radius
         if radius_str is not None:
@@ -1144,43 +1143,45 @@ def get_clustered_locations():
             min_size = None  # Use service default
 
         # Parse enabled flag
-        clustering_enabled = enabled_str in ('true', '1', 'yes')
+        clustering_enabled = enabled_str in ("true", "1", "yes")
 
         # If clustering disabled, return all photos as unclustered
         if not clustering_enabled:
             # Get locations without clustering
             locations_result = _locations_service.get_locations(PHOTOS_DIR, limit=10000)
-            locations = locations_result.get('locations', [])
+            locations = locations_result.get("locations", [])
 
             # Convert to PhotoLocation-like format
             unclustered = []
             for loc in locations:
-                unclustered.append({
-                    'path': loc['path'],
-                    'lat': loc['latitude'],
-                    'lon': loc['longitude'],
-                    'timestamp': loc.get('timestamp')
-                })
+                unclustered.append(
+                    {
+                        "path": loc["path"],
+                        "lat": loc["latitude"],
+                        "lon": loc["longitude"],
+                        "timestamp": loc.get("timestamp"),
+                    }
+                )
 
-            return jsonify({
-                'clusters': [],
-                'unclustered': unclustered,
-                'metadata': {
-                    'total_photos': len(unclustered),
-                    'total_clusters': 0,
-                    'clustering_enabled': False,
-                    'radius_m': radius or 100,
-                    'processing_time_ms': 0.0,
-                    'partial_result': False,
-                    'warning': None
+            return jsonify(
+                {
+                    "clusters": [],
+                    "unclustered": unclustered,
+                    "metadata": {
+                        "total_photos": len(unclustered),
+                        "total_clusters": 0,
+                        "clustering_enabled": False,
+                        "radius_m": radius or 100,
+                        "processing_time_ms": 0.0,
+                        "partial_result": False,
+                        "warning": None,
+                    },
                 }
-            })
+            )
 
         # Perform clustering
         result = clustering_service.get_clustered_locations(
-            directory=PHOTOS_DIR,
-            radius_m=radius,
-            min_cluster_size=min_size
+            directory=PHOTOS_DIR, radius_m=radius, min_cluster_size=min_size
         )
 
         # Convert ClusteringResult to JSON-serializable format
@@ -1189,55 +1190,53 @@ def get_clustered_locations():
             # Convert photos to dict format
             photos_data = []
             for photo in cluster.photos:
-                photos_data.append({
-                    'path': photo.path,
-                    'lat': photo.lat,
-                    'lon': photo.lon,
-                    'timestamp': photo.timestamp,
-                    'tags': photo.tags
-                })
+                photos_data.append(
+                    {
+                        "path": photo.path,
+                        "lat": photo.lat,
+                        "lon": photo.lon,
+                        "timestamp": photo.timestamp,
+                        "tags": photo.tags,
+                    }
+                )
 
             # Build cluster object
             cluster_data = {
-                'cluster_id': cluster.cluster_id,
-                'center': {
-                    'lat': cluster.center_lat,
-                    'lon': cluster.center_lon
-                },
-                'count': cluster.count,
-                'photos': photos_data,
-                'date_range': {
-                    'earliest': cluster.date_range[0],
-                    'latest': cluster.date_range[1]
-                },
-                'radius_m': cluster.radius_m
+                "cluster_id": cluster.cluster_id,
+                "center": {"lat": cluster.center_lat, "lon": cluster.center_lon},
+                "count": cluster.count,
+                "photos": photos_data,
+                "date_range": {"earliest": cluster.date_range[0], "latest": cluster.date_range[1]},
+                "radius_m": cluster.radius_m,
             }
             clusters_data.append(cluster_data)
 
         # Convert unclustered photos to dict format
         unclustered_data = []
         for photo in result.unclustered:
-            unclustered_data.append({
-                'path': photo.path,
-                'lat': photo.lat,
-                'lon': photo.lon,
-                'timestamp': photo.timestamp,
-                'tags': photo.tags
-            })
+            unclustered_data.append(
+                {
+                    "path": photo.path,
+                    "lat": photo.lat,
+                    "lon": photo.lon,
+                    "timestamp": photo.timestamp,
+                    "tags": photo.tags,
+                }
+            )
 
         # Build response
         response_data = {
-            'clusters': clusters_data,
-            'unclustered': unclustered_data,
-            'metadata': {
-                'total_photos': result.total_photos,
-                'total_clusters': result.total_clusters,
-                'clustering_enabled': True,
-                'radius_m': result.radius_m,
-                'processing_time_ms': result.processing_time_ms,
-                'partial_result': result.partial_result,
-                'warning': result.warning
-            }
+            "clusters": clusters_data,
+            "unclustered": unclustered_data,
+            "metadata": {
+                "total_photos": result.total_photos,
+                "total_clusters": result.total_clusters,
+                "clustering_enabled": True,
+                "radius_m": result.radius_m,
+                "processing_time_ms": result.processing_time_ms,
+                "partial_result": result.partial_result,
+                "warning": result.warning,
+            },
         }
 
         return jsonify(response_data)
@@ -1263,7 +1262,7 @@ def get_clustered_locations_stats():
         200: Success
         503: Clustering service unavailable
     """
-    clustering_service = current_app.config.get('CLUSTERING_SERVICE')
+    clustering_service = current_app.config.get("CLUSTERING_SERVICE")
 
     if not clustering_service:
         return jsonify({"error": "Clustering service not available"}), 503
@@ -1293,7 +1292,7 @@ def invalidate_clustered_locations_cache():
         400: CSRF token missing or invalid
         503: Clustering service unavailable
     """
-    clustering_service = current_app.config.get('CLUSTERING_SERVICE')
+    clustering_service = current_app.config.get("CLUSTERING_SERVICE")
 
     if not clustering_service:
         return jsonify({"error": "Clustering service not available"}), 503
@@ -1303,7 +1302,7 @@ def invalidate_clustered_locations_cache():
         data = {}
         if request.is_json:
             data = request.get_json(silent=True) or {}
-        directory = data.get('directory')
+        directory = data.get("directory")
 
         if directory:
             # Validate path security
@@ -1327,7 +1326,8 @@ def invalidate_clustered_locations_cache():
 # DELETE /photos/bulk - Bulk delete photos and sidecar files
 # ============================================================================
 
-@gallery_bp.route('/photos/bulk', methods=['DELETE'])
+
+@gallery_bp.route("/photos/bulk", methods=["DELETE"])
 @limiter.limit("10 per minute")
 def bulk_delete_photos():
     """
@@ -1359,21 +1359,19 @@ def bulk_delete_photos():
     """
     data = request.get_json()
 
-    if not data or 'filenames' not in data:
-        return jsonify({'error': 'filenames array required'}), 400
+    if not data or "filenames" not in data:
+        return jsonify({"error": "filenames array required"}), 400
 
-    filenames = data['filenames']
+    filenames = data["filenames"]
 
     if not filenames or not isinstance(filenames, list):
-        return jsonify({'error': 'filenames must be non-empty array'}), 400
+        return jsonify({"error": "filenames must be non-empty array"}), 400
 
     # Deduplicate filenames (preserves first occurrence order)
     filenames = list(dict.fromkeys(filenames))
 
     if len(filenames) > MAX_BULK_DELETE:
-        return jsonify({
-            'error': f'Maximum {MAX_BULK_DELETE} files per request'
-        }), 400
+        return jsonify({"error": f"Maximum {MAX_BULK_DELETE} files per request"}), 400
 
     success = []
     failed = []
@@ -1383,14 +1381,14 @@ def bulk_delete_photos():
         # Validate filename length
         if len(filename) > 255:
             failed.append(filename)
-            errors[filename] = 'Filename too long'
+            errors[filename] = "Filename too long"
             continue
 
         # Validate path (prevent traversal)
         photo_path = validate_photo_path(filename, PHOTOS_DIR)
         if photo_path is None:
             failed.append(filename)
-            errors[filename] = 'Invalid path'
+            errors[filename] = "Invalid path"
             continue
 
         try:
@@ -1399,11 +1397,11 @@ def bulk_delete_photos():
                 photo_path.unlink()
             else:
                 failed.append(filename)
-                errors[filename] = 'File not found'
+                errors[filename] = "File not found"
                 continue
 
             # Delete sidecar file if exists
-            sidecar_path = photo_path.with_suffix(photo_path.suffix + '.json')
+            sidecar_path = photo_path.with_suffix(photo_path.suffix + ".json")
             if sidecar_path.exists():
                 sidecar_path.unlink()
 
@@ -1419,15 +1417,18 @@ def bulk_delete_photos():
         # Invalidate sidecar aggregation cache
         try:
             from routes.sidecar import invalidate_aggregation_cache
+
             invalidate_aggregation_cache()
         except Exception as e:
             logger.warning(f"Failed to invalidate sidecar cache: {e}")
 
-    return jsonify({
-        'success': success,
-        'failed': failed,
-        'errors': errors,
-        'total': len(filenames),
-        'success_count': len(success),
-        'failed_count': len(failed)
-    })
+    return jsonify(
+        {
+            "success": success,
+            "failed": failed,
+            "errors": errors,
+            "total": len(filenames),
+            "success_count": len(success),
+            "failed_count": len(failed),
+        }
+    )

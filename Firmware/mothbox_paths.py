@@ -121,8 +121,12 @@ CACHE_DIR = DATA_DIR / "cache"
 THUMBNAIL_CACHE_DIR = CACHE_DIR / "thumbnails"
 
 # Configuration files
-CAMERA_SETTINGS_FILE = CONFIG_DIR / "camera_settings.csv"  # Photo capture settings (firmware controls only)
-WEBUI_WORKFLOW_SETTINGS_FILE = CONFIG_DIR / "webui_settings.csv"  # WebUI workflow settings (HDR, FocusBracket, etc.)
+CAMERA_SETTINGS_FILE = (
+    CONFIG_DIR / "camera_settings.csv"
+)  # Photo capture settings (firmware controls only)
+WEBUI_WORKFLOW_SETTINGS_FILE = (
+    CONFIG_DIR / "webui_settings.csv"
+)  # WebUI workflow settings (HDR, FocusBracket, etc.)
 SCHEDULE_SETTINGS_FILE = CONFIG_DIR / "schedule_settings.csv"
 CONTROLS_FILE = CONFIG_DIR / "controls.txt"
 WORDLIST_FILE = CONFIG_DIR / "wordlist.csv"
@@ -175,7 +179,7 @@ def get_schedule_path(schedule_id: str, is_builtin: bool = False) -> Path | None
         return None
 
     # Validate format: alphanumeric, hyphens, underscores, must start with alphanumeric
-    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*$', safe_id):
+    if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$", safe_id):
         return None
 
     base_dir = BUILTIN_SCHEDULES_DIR if is_builtin else SCHEDULES_DIR
@@ -499,21 +503,16 @@ def get_hardware_config() -> dict[str, Any]:
                 config.get("gps_timeout_almanac", "1200")
             ),  # Almanac expired (>28d)
             # Light sensor (optional)
-            "light_sensor_enabled": config.get("light_sensor_enabled", "false").lower()
-            == "true",
+            "light_sensor_enabled": config.get("light_sensor_enabled", "false").lower() == "true",
             "light_sensor_type": config.get("light_sensor_type", "BH1750"),  # BH1750 or LTR303
             "light_sensor_address": int(config.get("light_sensor_address", "0x23"), 16),
             # Temperature sensor (optional)
-            "temperature_sensor_enabled": config.get(
-                "temperature_sensor_enabled", "false"
-            ).lower()
+            "temperature_sensor_enabled": config.get("temperature_sensor_enabled", "false").lower()
             == "true",
             "temperature_sensor_type": config.get(
                 "temperature_sensor_type", "TMP102"
             ),  # TMP102 or MCP9808
-            "temperature_sensor_address": int(
-                config.get("temperature_sensor_address", "0x48"), 16
-            ),
+            "temperature_sensor_address": int(config.get("temperature_sensor_address", "0x48"), 16),
             # PCA9536 GPIO expander (optional)
             "pca9536_enabled": config.get("pca9536_enabled", "false").lower() == "true",
             "pca9536_address": int(config.get("pca9536_address", "0x21"), 16),

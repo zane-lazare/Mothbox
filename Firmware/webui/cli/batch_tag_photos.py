@@ -58,9 +58,7 @@ from webui.cli.verify_gps_exif import extract_timestamp_from_filename
 
 
 def filter_photos_by_date(
-    photos: list[Path],
-    after: datetime | None = None,
-    before: datetime | None = None
+    photos: list[Path], after: datetime | None = None, before: datetime | None = None
 ) -> list[Path]:
     """
     Filter photos by date range based on filename timestamps.
@@ -77,8 +75,10 @@ def filter_photos_by_date(
         list: Filtered list of photo paths
 
     Examples:
-        >>> photos = [Path("mothbox_2025_01_15__12_00_00.jpg"),
-        ...           Path("mothbox_2025_01_16__12_00_00.jpg")]
+        >>> photos = [
+        ...     Path("mothbox_2025_01_15__12_00_00.jpg"),
+        ...     Path("mothbox_2025_01_16__12_00_00.jpg"),
+        ... ]
         >>> filter_photos_by_date(photos, after=datetime(2025, 1, 16))
         [Path("mothbox_2025_01_16__12_00_00.jpg")]
 
@@ -110,10 +110,7 @@ def filter_photos_by_date(
     return filtered
 
 
-def validate_gps_override(
-    latitude: float | None,
-    longitude: float | None
-) -> bool:
+def validate_gps_override(latitude: float | None, longitude: float | None) -> bool:
     """
     Validate GPS coordinate override values.
 
@@ -161,7 +158,7 @@ def batch_tag_with_override(
     override_lat: float | None = None,
     override_lon: float | None = None,
     dry_run: bool = False,
-    backup: bool = False
+    backup: bool = False,
 ) -> dict[str, int]:
     """
     Batch tag photos with GPS EXIF data.
@@ -197,27 +194,18 @@ def batch_tag_with_override(
         - Reports statistics for user feedback
     """
     # Initialize statistics
-    stats = {
-        'total': len(photos),
-        'tagged': 0,
-        'skipped': 0,
-        'errors': 0
-    }
+    stats = {"total": len(photos), "tagged": 0, "skipped": 0, "errors": 0}
 
     # Determine GPS data source
     if override_lat is not None and override_lon is not None:
         # Manual override
-        gps_data = {
-            'latitude': override_lat,
-            'longitude': override_lon,
-            'has_fix': True
-        }
+        gps_data = {"latitude": override_lat, "longitude": override_lon, "has_fix": True}
     else:
         # Read from controls.txt
         gps_data = get_gps_data_from_controls(controls_file)
 
         # Check if GPS has valid fix
-        if not gps_data.get('has_fix', False):
+        if not gps_data.get("has_fix", False):
             print("❌ No GPS fix available in controls.txt")
             return stats
 
@@ -226,27 +214,22 @@ def batch_tag_with_override(
         try:
             # Skip if already tagged (idempotent)
             if is_already_tagged(photo):
-                stats['skipped'] += 1
+                stats["skipped"] += 1
                 continue
 
             # Embed GPS EXIF
-            result = embed_gps_exif(
-                photo,
-                gps_data=gps_data,
-                backup=backup,
-                dry_run=dry_run
-            )
+            result = embed_gps_exif(photo, gps_data=gps_data, backup=backup, dry_run=dry_run)
 
-            if result['success']:
-                stats['tagged'] += 1
-            elif result['skipped']:
-                stats['skipped'] += 1
+            if result["success"]:
+                stats["tagged"] += 1
+            elif result["skipped"]:
+                stats["skipped"] += 1
             else:
-                stats['errors'] += 1
+                stats["errors"] += 1
                 print(f"⚠️  Error tagging {photo.name}: {result.get('error', 'Unknown error')}")
 
         except Exception as e:
-            stats['errors'] += 1
+            stats["errors"] += 1
             print(f"⚠️  Error processing {photo.name}: {str(e)}")
 
     return stats
@@ -261,7 +244,7 @@ def batch_tag_directory(
     before: datetime | None = None,
     recursive: bool = False,
     dry_run: bool = False,
-    backup: bool = False
+    backup: bool = False,
 ) -> dict[str, int]:
     """
     Batch tag all photos in a directory.
@@ -289,7 +272,7 @@ def batch_tag_directory(
         ...     override_lat=37.7749,
         ...     override_lon=-122.4194,
         ...     after=datetime(2025, 1, 15),
-        ...     recursive=True
+        ...     recursive=True,
         ... )
 
     Implementation:
@@ -301,10 +284,10 @@ def batch_tag_directory(
     # Collect photo paths
     if recursive:
         # Recursive glob
-        photos = sorted(directory.rglob('*.jpg')) + sorted(directory.rglob('*.jpeg'))
+        photos = sorted(directory.rglob("*.jpg")) + sorted(directory.rglob("*.jpeg"))
     else:
         # Non-recursive glob
-        photos = sorted(directory.glob('*.jpg')) + sorted(directory.glob('*.jpeg'))
+        photos = sorted(directory.glob("*.jpg")) + sorted(directory.glob("*.jpeg"))
 
     # Filter out symlinks (security: prevent directory traversal attacks)
     # Only process regular files within the intended directory
@@ -321,7 +304,7 @@ def batch_tag_directory(
         override_lat=override_lat,
         override_lon=override_lon,
         dry_run=dry_run,
-        backup=backup
+        backup=backup,
     )
 
 
@@ -349,8 +332,8 @@ def main() -> int:
     """
     # Create argument parser
     parser = argparse.ArgumentParser(
-        description='Batch tag Mothbox photos with GPS EXIF data',
-        epilog='''
+        description="Batch tag Mothbox photos with GPS EXIF data",
+        epilog="""
 Examples:
   # Tag all photos with GPS from controls.txt
   %(prog)s /var/lib/mothbox/photos/
@@ -366,60 +349,42 @@ Examples:
 
   # Create backups and scan recursively
   %(prog)s /photos/ --backup --recursive
-        ''',
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    parser.add_argument(
-        'directory',
-        type=str,
-        help='Directory containing photos to tag'
-    )
+    parser.add_argument("directory", type=str, help="Directory containing photos to tag")
 
     parser.add_argument(
-        '--lat',
+        "--lat",
         type=float,
-        metavar='LATITUDE',
-        help='Manual latitude override (decimal degrees, -90 to 90)'
+        metavar="LATITUDE",
+        help="Manual latitude override (decimal degrees, -90 to 90)",
     )
 
     parser.add_argument(
-        '--lon',
+        "--lon",
         type=float,
-        metavar='LONGITUDE',
-        help='Manual longitude override (decimal degrees, -180 to 180)'
+        metavar="LONGITUDE",
+        help="Manual longitude override (decimal degrees, -180 to 180)",
     )
 
     parser.add_argument(
-        '--after',
-        type=str,
-        metavar='YYYY-MM-DD',
-        help='Only tag photos on or after this date'
+        "--after", type=str, metavar="YYYY-MM-DD", help="Only tag photos on or after this date"
     )
 
     parser.add_argument(
-        '--before',
-        type=str,
-        metavar='YYYY-MM-DD',
-        help='Only tag photos before this date'
+        "--before", type=str, metavar="YYYY-MM-DD", help="Only tag photos before this date"
+    )
+
+    parser.add_argument("--recursive", action="store_true", help="Scan subdirectories recursively")
+
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Don't modify photos, just show what would be done"
     )
 
     parser.add_argument(
-        '--recursive',
-        action='store_true',
-        help='Scan subdirectories recursively'
-    )
-
-    parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help='Don\'t modify photos, just show what would be done'
-    )
-
-    parser.add_argument(
-        '--backup',
-        action='store_true',
-        help='Create .bak files before modifying photos'
+        "--backup", action="store_true", help="Create .bak files before modifying photos"
     )
 
     # Parse arguments
@@ -449,7 +414,10 @@ Examples:
 
         # Validate coordinate ranges
         if not validate_gps_override(args.lat, args.lon):
-            print(f"❌ Error: Invalid GPS coordinates (lat: {args.lat}, lon: {args.lon})", file=sys.stderr)
+            print(
+                f"❌ Error: Invalid GPS coordinates (lat: {args.lat}, lon: {args.lon})",
+                file=sys.stderr,
+            )
             print("   Latitude must be -90 to 90, Longitude must be -180 to 180", file=sys.stderr)
             return 1
 
@@ -457,9 +425,12 @@ Examples:
     if args.lat is None or args.lon is None:
         # Check if controls.txt has GPS
         gps_data = get_gps_data_from_controls()
-        if not gps_data.get('has_fix', False):
+        if not gps_data.get("has_fix", False):
             print("❌ Error: No GPS data available", file=sys.stderr)
-            print("   Either provide --lat/--lon or ensure controls.txt has valid GPS fix", file=sys.stderr)
+            print(
+                "   Either provide --lat/--lon or ensure controls.txt has valid GPS fix",
+                file=sys.stderr,
+            )
             return 1
 
     # Parse date filters
@@ -468,7 +439,7 @@ Examples:
 
     if args.after:
         try:
-            after_date = datetime.strptime(args.after, '%Y-%m-%d')
+            after_date = datetime.strptime(args.after, "%Y-%m-%d")
         except ValueError:
             print(f"❌ Error: Invalid --after date format: {args.after}", file=sys.stderr)
             print("   Use YYYY-MM-DD format (e.g., 2025-01-15)", file=sys.stderr)
@@ -476,7 +447,7 @@ Examples:
 
     if args.before:
         try:
-            before_date = datetime.strptime(args.before, '%Y-%m-%d')
+            before_date = datetime.strptime(args.before, "%Y-%m-%d")
         except ValueError:
             print(f"❌ Error: Invalid --before date format: {args.before}", file=sys.stderr)
             print("   Use YYYY-MM-DD format (e.g., 2025-01-20)", file=sys.stderr)
@@ -515,7 +486,7 @@ Examples:
         before=before_date,
         recursive=args.recursive,
         dry_run=args.dry_run,
-        backup=args.backup
+        backup=args.backup,
     )
 
     # Print results
@@ -528,11 +499,11 @@ Examples:
     print("=" * 60)
 
     # Return exit code
-    if results['errors'] > 0:
+    if results["errors"] > 0:
         return 1
     else:
         return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

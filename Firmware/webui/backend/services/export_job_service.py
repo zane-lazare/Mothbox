@@ -158,7 +158,7 @@ class ExportJobService:
         # Merge user options with internal TTL setting
         job_options = dict(options) if options else {}
         if ttl_seconds is not None:
-            job_options['_ttl_seconds'] = ttl_seconds
+            job_options["_ttl_seconds"] = ttl_seconds
 
         job = ExportJob(
             job_id=str(uuid.uuid4()),
@@ -254,7 +254,7 @@ class ExportJobService:
         job.status = ExportJobStatus.CANCELLED
         job.completed_at = time.time()
         # Cancelled jobs also expire (for cleanup)
-        job_ttl = job.options.get('_ttl_seconds', self._job_ttl_seconds)
+        job_ttl = job.options.get("_ttl_seconds", self._job_ttl_seconds)
         job.expires_at = job.completed_at + job_ttl
         self._db.update_job(job)
 
@@ -335,15 +335,13 @@ class ExportJobService:
         # Security: Validate path is within allowed temp directory
         # Prevents path traversal if database is compromised
         import tempfile
+
         allowed_dir = (self._temp_dir or Path(tempfile.gettempdir())).resolve()
         try:
             output_path.relative_to(allowed_dir)
         except ValueError:
             # Path is outside allowed directory - security violation
-            logger.warning(
-                "Path traversal attempt blocked: %s not in %s",
-                output_path, allowed_dir
-            )
+            logger.warning("Path traversal attempt blocked: %s not in %s", output_path, allowed_dir)
             return None
 
         return output_path
@@ -414,23 +412,23 @@ class ExportJobService:
         """
         # Get counts by status
         stats = {
-            'total_jobs': 0,
-            'pending_jobs': 0,
-            'running_jobs': 0,
-            'completed_jobs': 0,
-            'failed_jobs': 0,
-            'cancelled_jobs': 0,
-            'worker_running': self._running,
+            "total_jobs": 0,
+            "pending_jobs": 0,
+            "running_jobs": 0,
+            "completed_jobs": 0,
+            "failed_jobs": 0,
+            "cancelled_jobs": 0,
+            "worker_running": self._running,
         }
 
         # Query database for counts using efficient aggregate query
         counts = self._db.count_jobs_by_status()
-        stats['total_jobs'] = counts['total']
-        stats['pending_jobs'] = counts['pending']
-        stats['running_jobs'] = counts['running']
-        stats['completed_jobs'] = counts['completed']
-        stats['failed_jobs'] = counts['failed']
-        stats['cancelled_jobs'] = counts['cancelled']
+        stats["total_jobs"] = counts["total"]
+        stats["pending_jobs"] = counts["pending"]
+        stats["running_jobs"] = counts["running"]
+        stats["completed_jobs"] = counts["completed"]
+        stats["failed_jobs"] = counts["failed"]
+        stats["cancelled_jobs"] = counts["cancelled"]
 
         return stats
 
@@ -488,9 +486,7 @@ class ExportJobService:
         job.progress.percent = job.progress.calculate_percent()
         self._db.update_job(job)
 
-    def _make_progress_callback(
-        self, job: ExportJob
-    ) -> Callable[[int, int], None]:
+    def _make_progress_callback(self, job: ExportJob) -> Callable[[int, int], None]:
         """
         Create a progress callback for batch operations.
 
@@ -500,8 +496,10 @@ class ExportJobService:
         Returns:
             Callable that accepts (current, total) and updates job progress
         """
+
         def callback(current: int, total: int) -> None:
             self._update_progress(job, current=current, total=total)
+
         return callback
 
     def _get_next_pending_job(self) -> ExportJob | None:
@@ -572,8 +570,7 @@ class ExportJobService:
                             output_path.unlink()
                     except OSError as e:
                         logger.warning(
-                            "Failed to delete output file for cancelled job %s: %s",
-                            job.job_id, e
+                            "Failed to delete output file for cancelled job %s: %s", job.job_id, e
                         )
                     return
 
@@ -587,7 +584,7 @@ class ExportJobService:
             job.status = ExportJobStatus.COMPLETED
             job.completed_at = time.time()
             # Set expiration based on per-job TTL or service default
-            job_ttl = job.options.get('_ttl_seconds', self._job_ttl_seconds)
+            job_ttl = job.options.get("_ttl_seconds", self._job_ttl_seconds)
             job.expires_at = job.completed_at + job_ttl
             # Final progress update: completed
             job.progress.phase = "completed"
@@ -608,7 +605,7 @@ class ExportJobService:
             job.status = ExportJobStatus.FAILED
             job.completed_at = time.time()
             # Failed jobs also expire (for cleanup)
-            job_ttl = job.options.get('_ttl_seconds', self._job_ttl_seconds)
+            job_ttl = job.options.get("_ttl_seconds", self._job_ttl_seconds)
             job.expires_at = job.completed_at + job_ttl
             job.error_message = str(e)
             self._db.update_job(job)
@@ -618,7 +615,7 @@ class ExportJobService:
             job.status = ExportJobStatus.FAILED
             job.completed_at = time.time()
             # Failed jobs also expire (for cleanup)
-            job_ttl = job.options.get('_ttl_seconds', self._job_ttl_seconds)
+            job_ttl = job.options.get("_ttl_seconds", self._job_ttl_seconds)
             job.expires_at = job.completed_at + job_ttl
             job.error_message = str(e)
             self._db.update_job(job)
@@ -651,7 +648,7 @@ class ExportJobService:
 
         for photo_path in self._photos_dir.rglob("*"):
             # Skip non-JPEG files
-            if photo_path.suffix.lower() not in ('.jpg', '.jpeg'):
+            if photo_path.suffix.lower() not in (".jpg", ".jpeg"):
                 continue
             # Apply filters
             if not self._matches_filter(photo_path, filter):
@@ -716,7 +713,11 @@ class ExportJobService:
         if filter.series_type:
             series_info = detect_series_type(photo_path.name)
             # Handle both SeriesType enum and string for backward compat
-            filter_value = filter.series_type.value if isinstance(filter.series_type, SeriesType) else filter.series_type
+            filter_value = (
+                filter.series_type.value
+                if isinstance(filter.series_type, SeriesType)
+                else filter.series_type
+            )
             if not series_info or series_info.series_type != filter_value:
                 return False
 
@@ -758,7 +759,7 @@ class ExportJobService:
         job_id_short = job.job_id[:8]
 
         # Extract GPS precision from job options (used by all formats)
-        gps_precision = job.options.get('gps_precision') if job.options else None
+        gps_precision = job.options.get("gps_precision") if job.options else None
 
         if job.format == ExportJobFormat.DARWIN_CORE:
             filename = f"mothbox_darwin_core_{timestamp}_{job_id_short}.csv"
@@ -773,14 +774,14 @@ class ExportJobService:
                 transform_to_csv_row,
             )
 
-            with open(output_path, 'w', encoding='utf-8', newline='') as f:
+            with open(output_path, "w", encoding="utf-8", newline="") as f:
                 writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
                 writer.writerow(get_csv_headers())
 
                 total = len(photo_paths)
                 for idx, photo_path in enumerate(photo_paths):
                     metadata = self._export_service.get_export_metadata(photo_path)
-                    if not hasattr(metadata, 'to_dict'):
+                    if not hasattr(metadata, "to_dict"):
                         continue
                     # Filter invalid (no GPS) for GBIF compliance
                     if not is_valid_for_export(metadata):
@@ -796,6 +797,7 @@ class ExportJobService:
 
             # Create ZipExportOptions with GPS precision if specified
             from webui.backend.lib.zip_export import ZipExportOptions
+
             zip_options = ZipExportOptions(gps_precision=gps_precision)
 
             self._export_service.transform_batch_to_inaturalist_zip(
@@ -811,11 +813,12 @@ class ExportJobService:
 
             # Build JSON export by collecting metadata for each photo
             import json
+
             results = []
             total = len(photo_paths)
             for idx, photo_path in enumerate(photo_paths):
                 metadata = self._export_service.get_export_metadata(photo_path)
-                if hasattr(metadata, 'to_dict'):
+                if hasattr(metadata, "to_dict"):
                     # ExportMetadata object
                     transformed = self._export_service.transform_to_generic(
                         metadata, flat=False, gps_precision=gps_precision
@@ -826,12 +829,17 @@ class ExportJobService:
                     self._update_progress(job, current=idx + 1)
 
             # Write JSON file
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump({
-                    'results': results,
-                    'total': len(results),
-                    'exported_at': timestamp,
-                }, f, indent=2, default=str)
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "results": results,
+                        "total": len(results),
+                        "exported_at": timestamp,
+                    },
+                    f,
+                    indent=2,
+                    default=str,
+                )
 
         elif job.format == ExportJobFormat.CSV:
             filename = f"mothbox_export_{timestamp}_{job_id_short}.csv"
@@ -839,33 +847,53 @@ class ExportJobService:
 
             # Stream generic CSV row-by-row to minimize memory usage
             import csv
+
             headers = [
-                'photo_path', 'filename', 'timestamp',
-                'latitude', 'longitude', 'altitude', 'gps_accuracy',
-                'camera_make', 'camera_model', 'exposure_time', 'iso', 'focal_length',
-                'species', 'species_common_name', 'species_confidence',
-                'tags', 'notes',
-                'mothbox_id', 'firmware_version',
-                'deployment_name', 'deployment_location_name',
-                'deployment_start_date', 'deployment_end_date',
-                'environmental_conditions',
-                'series_type', 'series_index', 'series_count',
-                'file_size', 'width', 'height'
+                "photo_path",
+                "filename",
+                "timestamp",
+                "latitude",
+                "longitude",
+                "altitude",
+                "gps_accuracy",
+                "camera_make",
+                "camera_model",
+                "exposure_time",
+                "iso",
+                "focal_length",
+                "species",
+                "species_common_name",
+                "species_confidence",
+                "tags",
+                "notes",
+                "mothbox_id",
+                "firmware_version",
+                "deployment_name",
+                "deployment_location_name",
+                "deployment_start_date",
+                "deployment_end_date",
+                "environmental_conditions",
+                "series_type",
+                "series_index",
+                "series_count",
+                "file_size",
+                "width",
+                "height",
             ]
 
-            with open(output_path, 'w', encoding='utf-8', newline='') as f:
+            with open(output_path, "w", encoding="utf-8", newline="") as f:
                 writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
                 writer.writerow(headers)
 
                 total = len(photo_paths)
                 for idx, photo_path in enumerate(photo_paths):
                     metadata = self._export_service.get_export_metadata(photo_path)
-                    if not hasattr(metadata, 'to_dict'):
+                    if not hasattr(metadata, "to_dict"):
                         continue
                     flat_data = self._export_service.transform_to_generic(
                         metadata, flat=True, gps_precision=gps_precision
                     )
-                    row = [str(flat_data.get(h, '')) for h in headers]
+                    row = [str(flat_data.get(h, "")) for h in headers]
                     writer.writerow(row)
                     # Update progress every 10 photos or at the end
                     if (idx + 1) % 10 == 0 or idx == total - 1:

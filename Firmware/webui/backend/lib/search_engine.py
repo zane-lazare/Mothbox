@@ -47,36 +47,37 @@ logger = logging.getLogger(__name__)
 
 # Mothbox filename pattern: name_YYYY_MM_DD__HH_MM_SS.jpg
 MOTHBOX_FILENAME_PATTERN = re.compile(
-    r'(?P<name>.+?)_(?P<year>\d{4})_(?P<month>\d{2})_(?P<day>\d{2})__'
-    r'(?P<hour>\d{2})_(?P<minute>\d{2})_(?P<second>\d{2})'
+    r"(?P<name>.+?)_(?P<year>\d{4})_(?P<month>\d{2})_(?P<day>\d{2})__"
+    r"(?P<hour>\d{2})_(?P<minute>\d{2})_(?P<second>\d{2})"
 )
 
 # Default field weights for ranking (higher = more important)
 DEFAULT_FIELD_WEIGHTS = {
-    'tags': 2.0,           # User-assigned tags are most relevant
-    'species': 1.8,        # Species identification important
-    'species_common_name': 1.5,  # Common names slightly less
-    'filename': 1.2,       # Filename matches useful
-    'notes': 1.0,          # Notes are general context
-    'custom_fields': 0.8,  # Custom fields lower priority
-    'date': 0.5,           # Date rarely searched directly
-    'file_ext': 0.5,       # Low priority - file type rarely primary search criteria
-    'exif_iso': 0.3,       # EXIF ISO value
-    'exif_aperture': 0.3,  # EXIF aperture (f-stop)
-    'exif_shutter': 0.3,   # EXIF shutter speed
+    "tags": 2.0,  # User-assigned tags are most relevant
+    "species": 1.8,  # Species identification important
+    "species_common_name": 1.5,  # Common names slightly less
+    "filename": 1.2,  # Filename matches useful
+    "notes": 1.0,  # Notes are general context
+    "custom_fields": 0.8,  # Custom fields lower priority
+    "date": 0.5,  # Date rarely searched directly
+    "file_ext": 0.5,  # Low priority - file type rarely primary search criteria
+    "exif_iso": 0.3,  # EXIF ISO value
+    "exif_aperture": 0.3,  # EXIF aperture (f-stop)
+    "exif_shutter": 0.3,  # EXIF shutter speed
 }
 
 # Match type multipliers for ranking
 DEFAULT_MATCH_MULTIPLIERS = {
-    'exact': 1.0,      # Exact term match
-    'prefix': 0.9,     # Prefix match (luna*)
-    'phrase': 1.1,     # Phrase match ("luna moth") - boost for precision
+    "exact": 1.0,  # Exact term match
+    "prefix": 0.9,  # Prefix match (luna*)
+    "phrase": 1.1,  # Phrase match ("luna moth") - boost for precision
 }
 
 
 # ============================================================================
 # Data Classes
 # ============================================================================
+
 
 @dataclass
 class SearchMatch:
@@ -92,13 +93,14 @@ class SearchMatch:
         match_type: Type of match ('exact', 'prefix', or 'phrase')
         highlights: Dict mapping field names to highlighted text with <mark> tags
     """
+
     filepath: str
     filename: str
     score: float
     matched_fields: list[str]
     metadata: dict[str, Any] = field(default_factory=dict)
     bm25_score: float = 0.0
-    match_type: str = 'exact'
+    match_type: str = "exact"
     highlights: dict[str, str] = field(default_factory=dict)
 
 
@@ -111,6 +113,7 @@ class SearchResult:
         total: Total number of matching documents (before pagination)
         took_ms: Query execution time in milliseconds
     """
+
     results: list[SearchMatch]
     total: int
     took_ms: float
@@ -119,6 +122,7 @@ class SearchResult:
 # ============================================================================
 # Search Engine
 # ============================================================================
+
 
 class SearchEngine:
     """SQLite FTS5 search engine for photo metadata.
@@ -148,12 +152,7 @@ class SearchEngine:
         >>> engine.close()
     """
 
-    def __init__(
-        self,
-        db_path: Path,
-        field_weights: dict = None,
-        match_multipliers: dict = None
-    ):
+    def __init__(self, db_path: Path, field_weights: dict = None, match_multipliers: dict = None):
         """Initialize search engine and create database if needed.
 
         Args:
@@ -168,8 +167,12 @@ class SearchEngine:
         self._lock = threading.RLock()
 
         # Initialize field weights and match multipliers
-        self.field_weights = field_weights if field_weights is not None else DEFAULT_FIELD_WEIGHTS.copy()
-        self.match_multipliers = match_multipliers if match_multipliers is not None else DEFAULT_MATCH_MULTIPLIERS.copy()
+        self.field_weights = (
+            field_weights if field_weights is not None else DEFAULT_FIELD_WEIGHTS.copy()
+        )
+        self.match_multipliers = (
+            match_multipliers if match_multipliers is not None else DEFAULT_MATCH_MULTIPLIERS.copy()
+        )
 
         # Create parent directories if they don't exist
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -247,7 +250,6 @@ class SearchEngine:
             self._conn.commit()
             logger.debug("FTS5 table and metadata tracking table created/verified")
 
-
     def _extract_exif_from_photo(self, photo_path: Path) -> dict[str, str]:
         """Extract EXIF camera settings from photo file.
 
@@ -272,44 +274,45 @@ class SearchEngine:
             with Image.open(photo_path) as img:
                 exif_data = img._getexif()
                 if not exif_data:
-                    return {'iso': '', 'aperture': '', 'shutter': ''}
+                    return {"iso": "", "aperture": "", "shutter": ""}
 
-                result = {'iso': '', 'aperture': '', 'shutter': ''}
+                result = {"iso": "", "aperture": "", "shutter": ""}
 
                 for tag_id, value in exif_data.items():
                     tag = TAGS.get(tag_id, tag_id)
 
-                    if tag == 'ISOSpeedRatings':
+                    if tag == "ISOSpeedRatings":
                         # ISO can be int or tuple
                         iso = value[0] if isinstance(value, (tuple, list)) else value
-                        result['iso'] = str(iso)
-                    elif tag == 'FNumber':
+                        result["iso"] = str(iso)
+                    elif tag == "FNumber":
                         # FNumber is a ratio (e.g., (28, 10) for f/2.8)
                         if isinstance(value, tuple) and len(value) == 2:
-                            result['aperture'] = str(float(value[0]) / float(value[1]))
-                        elif hasattr(value, 'numerator') and hasattr(value, 'denominator'):
-                            result['aperture'] = str(float(value.numerator) / float(value.denominator))
+                            result["aperture"] = str(float(value[0]) / float(value[1]))
+                        elif hasattr(value, "numerator") and hasattr(value, "denominator"):
+                            result["aperture"] = str(
+                                float(value.numerator) / float(value.denominator)
+                            )
                         else:
-                            result['aperture'] = str(value)
-                    elif tag == 'ExposureTime':
+                            result["aperture"] = str(value)
+                    elif tag == "ExposureTime":
                         # ExposureTime is a ratio (e.g., (1, 1000) for 1/1000s)
                         if isinstance(value, tuple) and len(value) == 2:
-                            result['shutter'] = str(float(value[0]) / float(value[1]))
-                        elif hasattr(value, 'numerator') and hasattr(value, 'denominator'):
-                            result['shutter'] = str(float(value.numerator) / float(value.denominator))
+                            result["shutter"] = str(float(value[0]) / float(value[1]))
+                        elif hasattr(value, "numerator") and hasattr(value, "denominator"):
+                            result["shutter"] = str(
+                                float(value.numerator) / float(value.denominator)
+                            )
                         else:
-                            result['shutter'] = str(value)
+                            result["shutter"] = str(value)
 
                 return result
         except Exception as e:
             logger.debug(f"Failed to extract EXIF from {photo_path}: {e}")
-            return {'iso': '', 'aperture': '', 'shutter': ''}
+            return {"iso": "", "aperture": "", "shutter": ""}
 
     def index_photo(
-        self,
-        filepath: str,
-        metadata: dict[str, Any],
-        sidecar_mtime: float | None = None
+        self, filepath: str, metadata: dict[str, Any], sidecar_mtime: float | None = None
     ):
         """Add or update photo in search index.
 
@@ -329,78 +332,85 @@ class SearchEngine:
             sidecar_mtime: Optional mtime of the sidecar file (for incremental sync)
 
         Example:
-            >>> engine.index_photo("photos/moth.jpg", {
-            ...     "filename": "moth.jpg",
-            ...     "tags": ["luna_moth", "nocturnal"],
-            ...     "species": "Actias luna",
-            ...     "notes": "Beautiful green moth"
-            ... })
+            >>> engine.index_photo(
+            ...     "photos/moth.jpg",
+            ...     {
+            ...         "filename": "moth.jpg",
+            ...         "tags": ["luna_moth", "nocturnal"],
+            ...         "species": "Actias luna",
+            ...         "notes": "Beautiful green moth",
+            ...     },
+            ... )
         """
         with self._lock:
             cursor = self._conn.cursor()
 
             # Extract fields from metadata
-            filename = metadata.get('filename', Path(filepath).name)
-            tags = metadata.get('tags', [])
-            species = metadata.get('species')
-            species_common_name = metadata.get('species_common_name')
-            notes = metadata.get('notes')
-            custom_fields = metadata.get('custom_fields', {})
+            filename = metadata.get("filename", Path(filepath).name)
+            tags = metadata.get("tags", [])
+            species = metadata.get("species")
+            species_common_name = metadata.get("species_common_name")
+            notes = metadata.get("notes")
+            custom_fields = metadata.get("custom_fields", {})
 
             # Convert tags list to space-separated string for FTS5
-            tags_str = ' '.join(tags) if tags else ''
+            tags_str = " ".join(tags) if tags else ""
 
             # Serialize custom fields to JSON string
-            custom_fields_str = json.dumps(custom_fields) if custom_fields else ''
+            custom_fields_str = json.dumps(custom_fields) if custom_fields else ""
 
             # Extract date - prefer EXIF DateTimeOriginal, fall back to filename pattern
-            date_str = metadata.get('exif_date')
+            date_str = metadata.get("exif_date")
             if not date_str:
                 date_str = self._extract_date_from_filename(filename)
 
             # Extract file extension (lowercase, without dot)
-            file_ext = Path(filename).suffix.lower().lstrip('.') if '.' in filename else ''
+            file_ext = Path(filename).suffix.lower().lstrip(".") if "." in filename else ""
 
             # Delete existing entry for this filepath (if any)
-            cursor.execute(
-                "DELETE FROM photo_search WHERE filepath = ?",
-                (filepath,)
-            )
+            cursor.execute("DELETE FROM photo_search WHERE filepath = ?", (filepath,))
 
             # Extract EXIF camera settings from photo file
             from mothbox_paths import PHOTOS_DIR
+
             photo_path = PHOTOS_DIR / filepath
             exif_data = self._extract_exif_from_photo(photo_path)
 
             # Insert new entry
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO photo_search (
                     filename, filepath, tags, species, species_common_name,
                     notes, custom_fields, date, file_ext,
                     exif_iso, exif_aperture, exif_shutter
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                filename,
-                filepath,
-                tags_str,
-                species or '',
-                species_common_name or '',
-                notes or '',
-                custom_fields_str,
-                date_str,
-                file_ext,
-                exif_data['iso'],
-                exif_data['aperture'],
-                exif_data['shutter']
-            ))
+            """,
+                (
+                    filename,
+                    filepath,
+                    tags_str,
+                    species or "",
+                    species_common_name or "",
+                    notes or "",
+                    custom_fields_str,
+                    date_str,
+                    file_ext,
+                    exif_data["iso"],
+                    exif_data["aperture"],
+                    exif_data["shutter"],
+                ),
+            )
 
             # Update metadata tracking table (for incremental sync)
             indexed_at = time.time()
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO photo_index_metadata (filepath, sidecar_mtime, indexed_at)
                 VALUES (?, ?, ?)
-            """, (filepath, sidecar_mtime, indexed_at))
+            """,
+                (filepath, sidecar_mtime, indexed_at),
+            )
 
             self._conn.commit()
             logger.debug(f"Indexed photo: {filepath}")
@@ -420,26 +430,15 @@ class SearchEngine:
         with self._lock:
             cursor = self._conn.cursor()
 
-            cursor.execute(
-                "DELETE FROM photo_search WHERE filepath = ?",
-                (filepath,)
-            )
+            cursor.execute("DELETE FROM photo_search WHERE filepath = ?", (filepath,))
 
             # Also remove from metadata tracking table
-            cursor.execute(
-                "DELETE FROM photo_index_metadata WHERE filepath = ?",
-                (filepath,)
-            )
+            cursor.execute("DELETE FROM photo_index_metadata WHERE filepath = ?", (filepath,))
 
             self._conn.commit()
             logger.debug(f"Removed photo from index: {filepath}")
 
-    def search(
-        self,
-        query: str,
-        limit: int = 20,
-        offset: int = 0
-    ) -> SearchResult:
+    def search(self, query: str, limit: int = 20, offset: int = 0) -> SearchResult:
         """Search for photos matching query.
 
         Supports FTS5 query syntax:
@@ -475,13 +474,16 @@ class SearchEngine:
                 match_type = self._detect_match_type(query)
 
                 # Get total count (without pagination)
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT COUNT(*) as count
                     FROM photo_search
                     WHERE photo_search MATCH ?
-                """, (query,))
+                """,
+                    (query,),
+                )
 
-                total = cursor.fetchone()['count']
+                total = cursor.fetchone()["count"]
 
                 # Get all results with BM25 score and highlights
                 # Note: FTS5 bm25() returns negative scores where lower = better match
@@ -489,7 +491,8 @@ class SearchEngine:
                 # Column indices for highlight(): 0=filename, 2=tags, 3=species,
                 # 4=species_common_name, 5=notes, 8=file_ext, 9=exif_iso,
                 # 10=exif_aperture, 11=exif_shutter (1=filepath is UNINDEXED)
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT
                         filename,
                         filepath,
@@ -515,7 +518,9 @@ class SearchEngine:
                         highlight(photo_search, 11, '<mark>', '</mark>') as exif_shutter_hl
                     FROM photo_search
                     WHERE photo_search MATCH ?
-                """, (query,))
+                """,
+                    (query,),
+                )
 
                 results = []
                 for row in cursor.fetchall():
@@ -524,30 +529,32 @@ class SearchEngine:
 
                     # Parse custom fields JSON
                     custom_fields = {}
-                    if row['custom_fields']:
+                    if row["custom_fields"]:
                         try:
-                            custom_fields = json.loads(row['custom_fields'])
+                            custom_fields = json.loads(row["custom_fields"])
                         except json.JSONDecodeError:
-                            logger.debug(f"Failed to parse custom_fields JSON for {row['filepath']}")
+                            logger.debug(
+                                f"Failed to parse custom_fields JSON for {row['filepath']}"
+                            )
 
                     # Parse tags back to list
-                    tags = row['tags'].split() if row['tags'] else []
+                    tags = row["tags"].split() if row["tags"] else []
 
                     # Build metadata dictionary
                     metadata = {
-                        'filename': row['filename'],
-                        'filepath': row['filepath'],
-                        'tags': tags,
-                        'species': row['species'] or None,
-                        'species_common_name': row['species_common_name'] or None,
-                        'notes': row['notes'] or None,
-                        'custom_fields': custom_fields,
-                        'date': row['date'] or None,
-                        'file_ext': row['file_ext'] or None
+                        "filename": row["filename"],
+                        "filepath": row["filepath"],
+                        "tags": tags,
+                        "species": row["species"] or None,
+                        "species_common_name": row["species_common_name"] or None,
+                        "notes": row["notes"] or None,
+                        "custom_fields": custom_fields,
+                        "date": row["date"] or None,
+                        "file_ext": row["file_ext"] or None,
                     }
 
                     # Get raw BM25 score (negate since FTS5 uses negative scores)
-                    bm25_score = abs(float(row['bm25_score']))
+                    bm25_score = abs(float(row["bm25_score"]))
 
                     # Calculate final weighted score
                     final_score = self._calculate_score(bm25_score, matched_fields, match_type)
@@ -556,14 +563,14 @@ class SearchEngine:
                     highlights = self._build_highlights(row)
 
                     match = SearchMatch(
-                        filepath=row['filepath'],
-                        filename=row['filename'],
+                        filepath=row["filepath"],
+                        filename=row["filename"],
                         score=final_score,
                         matched_fields=matched_fields,
                         metadata=metadata,
                         bm25_score=bm25_score,
                         match_type=match_type,
-                        highlights=highlights
+                        highlights=highlights,
                     )
                     results.append(match)
 
@@ -571,15 +578,11 @@ class SearchEngine:
                 results.sort(key=lambda x: x.score, reverse=True)
 
                 # Apply pagination after sorting
-                paginated_results = results[offset:offset + limit]
+                paginated_results = results[offset : offset + limit]
 
                 took_ms = (time.time() - start_time) * 1000
 
-                return SearchResult(
-                    results=paginated_results,
-                    total=total,
-                    took_ms=took_ms
-                )
+                return SearchResult(results=paginated_results, total=total, took_ms=took_ms)
 
             except sqlite3.OperationalError as e:
                 # Handle FTS5 query syntax errors gracefully
@@ -612,10 +615,11 @@ class SearchEngine:
 
             # Get total count
             cursor.execute("SELECT COUNT(*) as count FROM photo_search")
-            total = cursor.fetchone()['count']
+            total = cursor.fetchone()["count"]
 
             # Get all documents with pagination
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     filename,
                     filepath,
@@ -629,59 +633,53 @@ class SearchEngine:
                 FROM photo_search
                 ORDER BY date DESC, filename ASC
                 LIMIT ? OFFSET ?
-            """, (limit, offset))
+            """,
+                (limit, offset),
+            )
 
             results = []
             for row in cursor.fetchall():
                 # Parse custom fields JSON
                 custom_fields = {}
-                if row['custom_fields']:
+                if row["custom_fields"]:
                     try:
-                        custom_fields = json.loads(row['custom_fields'])
+                        custom_fields = json.loads(row["custom_fields"])
                     except json.JSONDecodeError:
                         logger.debug(f"Failed to parse custom_fields JSON for {row['filepath']}")
 
                 # Parse tags back to list
-                tags = row['tags'].split() if row['tags'] else []
+                tags = row["tags"].split() if row["tags"] else []
 
                 # Build metadata dictionary
                 metadata = {
-                    'filename': row['filename'],
-                    'filepath': row['filepath'],
-                    'tags': tags,
-                    'species': row['species'] or None,
-                    'species_common_name': row['species_common_name'] or None,
-                    'notes': row['notes'] or None,
-                    'custom_fields': custom_fields,
-                    'date': row['date'] or None,
-                    'file_ext': row['file_ext'] or None
+                    "filename": row["filename"],
+                    "filepath": row["filepath"],
+                    "tags": tags,
+                    "species": row["species"] or None,
+                    "species_common_name": row["species_common_name"] or None,
+                    "notes": row["notes"] or None,
+                    "custom_fields": custom_fields,
+                    "date": row["date"] or None,
+                    "file_ext": row["file_ext"] or None,
                 }
 
                 match = SearchMatch(
-                    filepath=row['filepath'],
-                    filename=row['filename'],
+                    filepath=row["filepath"],
+                    filename=row["filename"],
                     score=1.0,  # No FTS scoring for date-only queries
-                    matched_fields=['date'],
+                    matched_fields=["date"],
                     metadata=metadata,
                     bm25_score=0.0,
-                    match_type='exact'
+                    match_type="exact",
                 )
                 results.append(match)
 
             took_ms = (time.time() - start_time) * 1000
 
-            return SearchResult(
-                results=results,
-                total=total,
-                took_ms=took_ms
-            )
+            return SearchResult(results=results, total=total, took_ms=took_ms)
 
     def search_with_date_filter(
-        self,
-        query: str | None,
-        date_filter: dict | None,
-        limit: int = 20,
-        offset: int = 0
+        self, query: str | None, date_filter: dict | None, limit: int = 20, offset: int = 0
     ) -> SearchResult:
         """Search with optional FTS query and SQL date filter.
 
@@ -705,15 +703,19 @@ class SearchEngine:
             >>> # Date-only query (no FTS)
             >>> results = engine.search_with_date_filter(
             ...     query=None,
-            ...     date_filter={'operator': 'range', 'start_date': '2024-01-01', 'end_date': '2024-01-31'},
-            ...     limit=50
+            ...     date_filter={
+            ...         "operator": "range",
+            ...         "start_date": "2024-01-01",
+            ...         "end_date": "2024-01-31",
+            ...     },
+            ...     limit=50,
             ... )
 
             >>> # Combined FTS + date filter
             >>> results = engine.search_with_date_filter(
-            ...     query='luna moth',
-            ...     date_filter={'operator': 'gte', 'start_date': '2024-01-01'},
-            ...     limit=20
+            ...     query="luna moth",
+            ...     date_filter={"operator": "gte", "start_date": "2024-01-01"},
+            ...     limit=20,
             ... )
         """
         start_time = time.time()
@@ -728,23 +730,23 @@ class SearchEngine:
 
                 # Build date WHERE clause
                 if date_filter:
-                    operator = date_filter.get('operator')
-                    start_date = date_filter.get('start_date')
-                    end_date = date_filter.get('end_date')
+                    operator = date_filter.get("operator")
+                    start_date = date_filter.get("start_date")
+                    end_date = date_filter.get("end_date")
 
-                    if operator == 'range' and start_date and end_date:
+                    if operator == "range" and start_date and end_date:
                         where_clauses.append("date BETWEEN ? AND ?")
                         params.extend([start_date, end_date])
-                    elif operator == 'gt' and start_date:
+                    elif operator == "gt" and start_date:
                         where_clauses.append("date > ?")
                         params.append(start_date)
-                    elif operator == 'gte' and start_date:
+                    elif operator == "gte" and start_date:
                         where_clauses.append("date >= ?")
                         params.append(start_date)
-                    elif operator == 'lt' and start_date:
+                    elif operator == "lt" and start_date:
                         where_clauses.append("date < ?")
                         params.append(start_date)
-                    elif operator == 'lte' and start_date:
+                    elif operator == "lte" and start_date:
                         where_clauses.append("date <= ?")
                         params.append(start_date)
 
@@ -761,7 +763,7 @@ class SearchEngine:
                 # Get total count (where_sql contains only static SQL from controlled operators; user values are parameterized)
                 count_sql = f"SELECT COUNT(*) as count FROM photo_search {where_sql}"  # nosec B608
                 cursor.execute(count_sql, params)
-                total = cursor.fetchone()['count']
+                total = cursor.fetchone()["count"]
 
                 # Build SELECT query
                 if has_fts_query:
@@ -793,55 +795,57 @@ class SearchEngine:
                 cursor.execute(select_sql, params + [limit, offset])
 
                 results = []
-                match_type = self._detect_match_type(query) if has_fts_query else 'exact'
+                match_type = self._detect_match_type(query) if has_fts_query else "exact"
 
                 for row in cursor.fetchall():
                     # Parse custom fields JSON
                     custom_fields = {}
-                    if row['custom_fields']:
+                    if row["custom_fields"]:
                         try:
-                            custom_fields = json.loads(row['custom_fields'])
+                            custom_fields = json.loads(row["custom_fields"])
                         except json.JSONDecodeError:
-                            logger.debug(f"Failed to parse custom_fields JSON for {row['filepath']}")
+                            logger.debug(
+                                f"Failed to parse custom_fields JSON for {row['filepath']}"
+                            )
 
                     # Parse tags back to list
-                    tags = row['tags'].split() if row['tags'] else []
+                    tags = row["tags"].split() if row["tags"] else []
 
                     # Build metadata dictionary
                     metadata = {
-                        'filename': row['filename'],
-                        'filepath': row['filepath'],
-                        'tags': tags,
-                        'species': row['species'] or None,
-                        'species_common_name': row['species_common_name'] or None,
-                        'notes': row['notes'] or None,
-                        'custom_fields': custom_fields,
-                        'date': row['date'] or None,
-                        'file_ext': row['file_ext'] or None
+                        "filename": row["filename"],
+                        "filepath": row["filepath"],
+                        "tags": tags,
+                        "species": row["species"] or None,
+                        "species_common_name": row["species_common_name"] or None,
+                        "notes": row["notes"] or None,
+                        "custom_fields": custom_fields,
+                        "date": row["date"] or None,
+                        "file_ext": row["file_ext"] or None,
                     }
 
                     if has_fts_query:
                         # FTS query - use BM25 scoring
-                        bm25_score = abs(float(row['bm25_score']))
+                        bm25_score = abs(float(row["bm25_score"]))
                         matched_fields = self._get_matched_fields(row, query)
                         final_score = self._calculate_score(bm25_score, matched_fields, match_type)
                         highlights = self._build_highlights(row)
                     else:
                         # Date-only query - no scoring
                         bm25_score = 0.0
-                        matched_fields = ['date']
+                        matched_fields = ["date"]
                         final_score = 1.0
                         highlights = {}
 
                     match = SearchMatch(
-                        filepath=row['filepath'],
-                        filename=row['filename'],
+                        filepath=row["filepath"],
+                        filename=row["filename"],
                         score=final_score,
                         matched_fields=matched_fields,
                         metadata=metadata,
                         bm25_score=bm25_score,
                         match_type=match_type,
-                        highlights=highlights
+                        highlights=highlights,
                     )
                     results.append(match)
 
@@ -852,11 +856,7 @@ class SearchEngine:
 
                 took_ms = (time.time() - start_time) * 1000
 
-                return SearchResult(
-                    results=results,
-                    total=total,
-                    took_ms=took_ms
-                )
+                return SearchResult(results=results, total=total, took_ms=took_ms)
 
             except sqlite3.OperationalError as e:
                 # Handle FTS5 query syntax errors gracefully
@@ -880,12 +880,9 @@ class SearchEngine:
             cursor = self._conn.cursor()
 
             cursor.execute("SELECT COUNT(*) as count FROM photo_search")
-            total_documents = cursor.fetchone()['count']
+            total_documents = cursor.fetchone()["count"]
 
-            return {
-                'total_documents': total_documents,
-                'db_path': str(self.db_path)
-            }
+            return {"total_documents": total_documents, "db_path": str(self.db_path)}
 
     def get_indexed_metadata(self) -> dict[str, float]:
         """Get all indexed filepaths and their sidecar mtimes.
@@ -897,7 +894,7 @@ class SearchEngine:
 
         Example:
             >>> indexed = engine.get_indexed_metadata()
-            >>> print(indexed['photos/moth.jpg'])
+            >>> print(indexed["photos/moth.jpg"])
             1704067200.123  # sidecar mtime
         """
         with self._lock:
@@ -905,16 +902,9 @@ class SearchEngine:
 
             cursor.execute("SELECT filepath, sidecar_mtime FROM photo_index_metadata")
 
-            return {
-                row['filepath']: row['sidecar_mtime']
-                for row in cursor.fetchall()
-            }
+            return {row["filepath"]: row["sidecar_mtime"] for row in cursor.fetchall()}
 
-    def incremental_sync(
-        self,
-        photos: list[dict],
-        index_photo_callback: callable = None
-    ) -> dict:
+    def incremental_sync(self, photos: list[dict], index_photo_callback: callable = None) -> dict:
         """Sync index with filesystem changes.
 
         Performs an incremental update of the search index:
@@ -946,20 +936,17 @@ class SearchEngine:
 
         Example:
             >>> photos = [
-            ...     {'filepath': 'moth.jpg', 'sidecar_mtime': 1704067200.0,
-            ...      'metadata': {'tags': ['luna']}},
+            ...     {
+            ...         "filepath": "moth.jpg",
+            ...         "sidecar_mtime": 1704067200.0,
+            ...         "metadata": {"tags": ["luna"]},
+            ...     },
             ... ]
             >>> stats = engine.incremental_sync(photos)
             >>> print(f"Synced: {stats['indexed']} new, {stats['updated']} updated")
         """
         start_time = time.time()
-        stats = {
-            'indexed': 0,
-            'updated': 0,
-            'deleted': 0,
-            'unchanged': 0,
-            'errors': 0
-        }
+        stats = {"indexed": 0, "updated": 0, "deleted": 0, "unchanged": 0, "errors": 0}
 
         with self._lock:
             try:
@@ -967,47 +954,51 @@ class SearchEngine:
                 indexed = self.get_indexed_metadata()
 
                 # Build set of current filesystem filepaths
-                current_filepaths = {p['filepath'] for p in photos}
+                current_filepaths = {p["filepath"] for p in photos}
 
                 # 1. Find and remove stale entries (in index but not in filesystem)
                 stale_filepaths = set(indexed.keys()) - current_filepaths
                 for filepath in stale_filepaths:
                     try:
                         self.remove_photo(filepath)
-                        stats['deleted'] += 1
+                        stats["deleted"] += 1
                     except Exception as e:
                         logger.warning(f"Error removing stale photo {filepath}: {e}")
-                        stats['errors'] += 1
+                        stats["errors"] += 1
 
                 # 2. Process each photo from filesystem
                 for photo in photos:
-                    filepath = photo['filepath']
-                    sidecar_mtime = photo.get('sidecar_mtime')
-                    metadata = photo.get('metadata', {})
+                    filepath = photo["filepath"]
+                    sidecar_mtime = photo.get("sidecar_mtime")
+                    metadata = photo.get("metadata", {})
 
                     try:
                         if filepath not in indexed:
                             # NEW photo - not in index
                             self.index_photo(filepath, metadata, sidecar_mtime)
-                            stats['indexed'] += 1
-                        elif sidecar_mtime and indexed[filepath] and sidecar_mtime > indexed[filepath]:
+                            stats["indexed"] += 1
+                        elif (
+                            sidecar_mtime
+                            and indexed[filepath]
+                            and sidecar_mtime > indexed[filepath]
+                        ):
                             # MODIFIED photo - sidecar mtime is newer
                             self.index_photo(filepath, metadata, sidecar_mtime)
-                            stats['updated'] += 1
+                            stats["updated"] += 1
                         else:
                             # UNCHANGED photo - skip
-                            stats['unchanged'] += 1
+                            stats["unchanged"] += 1
                     except Exception as e:
                         logger.warning(f"Error syncing photo {filepath}: {e}")
-                        stats['errors'] += 1
+                        stats["errors"] += 1
 
                 self._conn.commit()
 
             except Exception as e:
                 logger.error(f"Incremental sync failed: {e}")
-                stats['errors'] += 1
+                stats["errors"] += 1
 
-        stats['took_ms'] = (time.time() - start_time) * 1000
+        stats["took_ms"] = (time.time() - start_time) * 1000
         logger.info(
             f"Incremental sync complete: {stats['indexed']} new, "
             f"{stats['updated']} updated, {stats['deleted']} deleted, "
@@ -1026,7 +1017,7 @@ class SearchEngine:
             >>> engine.close()
         """
         with self._lock:
-            if hasattr(self, '_conn'):
+            if hasattr(self, "_conn"):
                 self._conn.close()
                 logger.debug("SearchEngine closed")
 
@@ -1054,27 +1045,24 @@ class SearchEngine:
         Example:
             >>> engine._detect_match_type('"luna moth"')
             'phrase'
-            >>> engine._detect_match_type('luna*')
+            >>> engine._detect_match_type("luna*")
             'prefix'
-            >>> engine._detect_match_type('luna')
+            >>> engine._detect_match_type("luna")
             'exact'
         """
         # Check for phrase match (contains quotes)
         if '"' in query:
-            return 'phrase'
+            return "phrase"
 
         # Check for prefix match (contains asterisk)
-        if '*' in query:
-            return 'prefix'
+        if "*" in query:
+            return "prefix"
 
         # Default to exact match
-        return 'exact'
+        return "exact"
 
     def _calculate_score(
-        self,
-        bm25_score: float,
-        matched_fields: list[str],
-        match_type: str = 'exact'
+        self, bm25_score: float, matched_fields: list[str], match_type: str = "exact"
     ) -> float:
         """Calculate final relevance score with field weighting.
 
@@ -1091,7 +1079,7 @@ class SearchEngine:
             Final weighted score (higher = more relevant)
 
         Example:
-            >>> engine._calculate_score(1.5, ['tags', 'species'], 'exact')
+            >>> engine._calculate_score(1.5, ["tags", "species"], "exact")
             2.85  # 1.5 * ((2.0 + 1.8) / 2) * 1.0
         """
         # Get match type multiplier
@@ -1099,9 +1087,7 @@ class SearchEngine:
 
         # Calculate average field weight for matched fields
         if matched_fields:
-            field_weights_sum = sum(
-                self.field_weights.get(field, 1.0) for field in matched_fields
-            )
+            field_weights_sum = sum(self.field_weights.get(field, 1.0) for field in matched_fields)
             avg_field_weight = field_weights_sum / len(matched_fields)
         else:
             # No matched fields detected, use default weight
@@ -1133,18 +1119,18 @@ class SearchEngine:
 
         # Map of highlight column names to field names
         highlight_fields = [
-            ('filename_hl', 'filename'),
-            ('tags_hl', 'tags'),
-            ('species_hl', 'species'),
-            ('species_common_name_hl', 'species_common_name'),
-            ('notes_hl', 'notes'),
-            ('file_ext_hl', 'file_ext'),
+            ("filename_hl", "filename"),
+            ("tags_hl", "tags"),
+            ("species_hl", "species"),
+            ("species_common_name_hl", "species_common_name"),
+            ("notes_hl", "notes"),
+            ("file_ext_hl", "file_ext"),
         ]
 
         for hl_column, field_name in highlight_fields:
             hl_value = row[hl_column]
             # Only include if the field has highlighted content
-            if hl_value and '<mark>' in hl_value:
+            if hl_value and "<mark>" in hl_value:
                 highlights[field_name] = hl_value
 
         return highlights
@@ -1164,11 +1150,11 @@ class SearchEngine:
         """
         match = MOTHBOX_FILENAME_PATTERN.search(filename)
         if match:
-            year = match.group('year')
-            month = match.group('month')
-            day = match.group('day')
+            year = match.group("year")
+            month = match.group("month")
+            day = match.group("day")
             return f"{year}-{month}-{day}"
-        return ''
+        return ""
 
     def _get_matched_fields(self, row: sqlite3.Row, query: str) -> list[str]:
         """Determine which fields matched the search query.
@@ -1202,18 +1188,18 @@ class SearchEngine:
 
         # Extract search terms (remove FTS5 operators)
         # Simple approach: split on whitespace and remove special chars
-        terms = query.lower().replace('"', '').replace('*', '').split()
+        terms = query.lower().replace('"', "").replace("*", "").split()
 
         # Check each field
         fields_to_check = [
-            ('filename', row['filename']),
-            ('tags', row['tags']),
-            ('species', row['species']),
-            ('species_common_name', row['species_common_name']),
-            ('notes', row['notes']),
-            ('custom_fields', row['custom_fields']),
-            ('date', row['date']),
-            ('file_ext', row['file_ext'])
+            ("filename", row["filename"]),
+            ("tags", row["tags"]),
+            ("species", row["species"]),
+            ("species_common_name", row["species_common_name"]),
+            ("notes", row["notes"]),
+            ("custom_fields", row["custom_fields"]),
+            ("date", row["date"]),
+            ("file_ext", row["file_ext"]),
         ]
 
         for field_name, field_value in fields_to_check:
@@ -1236,9 +1222,9 @@ class SearchEngine:
 # ============================================================================
 
 __all__ = [
-    'SearchEngine',
-    'SearchResult',
-    'SearchMatch',
-    'DEFAULT_FIELD_WEIGHTS',
-    'DEFAULT_MATCH_MULTIPLIERS',
+    "SearchEngine",
+    "SearchResult",
+    "SearchMatch",
+    "DEFAULT_FIELD_WEIGHTS",
+    "DEFAULT_MATCH_MULTIPLIERS",
 ]

@@ -5,6 +5,7 @@ This module consolidates magic numbers and configuration values
 scattered throughout the codebase into named constants for
 better maintainability and self-documentation.
 """
+
 from typing import Final
 
 # =============================================================================

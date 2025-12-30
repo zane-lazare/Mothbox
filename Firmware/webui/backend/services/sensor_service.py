@@ -82,7 +82,7 @@ class SensorPrecondition:
         ...     sensor_type="light",
         ...     threshold=100,
         ...     comparison="lt",
-        ...     description="Only capture when ambient light < 100 lux"
+        ...     description="Only capture when ambient light < 100 lux",
         ... )
     """
 
@@ -193,9 +193,7 @@ class SensorService:
         self._failed_count = 0
         self._unavailable_count = 0
 
-    def evaluate_preconditions(
-        self, preconditions: list[SensorPrecondition]
-    ) -> bool:
+    def evaluate_preconditions(self, preconditions: list[SensorPrecondition]) -> bool:
         """
         Evaluate multiple pre-conditions (ALL must pass).
 
@@ -246,8 +244,7 @@ class SensorService:
         # Validate sensor type
         if precondition.sensor_type not in SENSOR_TYPES:
             logger.warning(
-                f"Invalid sensor type: {precondition.sensor_type}. "
-                f"Valid: {SENSOR_TYPES}"
+                f"Invalid sensor type: {precondition.sensor_type}. Valid: {SENSOR_TYPES}"
             )
             result = PreconditionResult(
                 precondition=precondition,
@@ -265,8 +262,7 @@ class SensorService:
         # Validate comparison operator
         if precondition.comparison not in SENSOR_COMPARISONS:
             logger.warning(
-                f"Invalid comparison: {precondition.comparison}. "
-                f"Valid: {SENSOR_COMPARISONS}"
+                f"Invalid comparison: {precondition.comparison}. Valid: {SENSOR_COMPARISONS}"
             )
             result = PreconditionResult(
                 precondition=precondition,

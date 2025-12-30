@@ -76,7 +76,10 @@ def validate_coordinates(lat: float, lon: float) -> tuple[bool, str | None]:
         lat_float = float(lat)
         lon_float = float(lon)
     except (TypeError, ValueError):
-        return False, f"Latitude and longitude must be numeric, got lat={type(lat).__name__}, lon={type(lon).__name__}"
+        return (
+            False,
+            f"Latitude and longitude must be numeric, got lat={type(lat).__name__}, lon={type(lon).__name__}",
+        )
 
     # Check for NaN or infinity
     if math.isnan(lat_float) or math.isinf(lat_float):
@@ -189,9 +192,10 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     delta_lon = lon2_rad - lon1_rad
 
     # a = sin²(Δφ/2) + cos φ1 ⋅ cos φ2 ⋅ sin²(Δλ/2)
-    a = (math.sin(delta_lat / 2) ** 2 +
-         math.cos(lat1_rad) * math.cos(lat2_rad) *
-         math.sin(delta_lon / 2) ** 2)
+    a = (
+        math.sin(delta_lat / 2) ** 2
+        + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon / 2) ** 2
+    )
 
     # c = 2 ⋅ atan2(√a, √(1−a))
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
@@ -203,11 +207,7 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
 
 
 def is_within_distance(
-    lat1: float,
-    lon1: float,
-    lat2: float,
-    lon2: float,
-    distance_m: float
+    lat1: float, lon1: float, lat2: float, lon2: float, distance_m: float
 ) -> bool:
     """
     Check if two GPS coordinates are within a specified distance.

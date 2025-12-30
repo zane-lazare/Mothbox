@@ -165,7 +165,9 @@ class ExportJobDB:
             output_size_bytes=row["output_size_bytes"] or 0,
             photo_count=row["photo_count"] or 0,
             error_message=row["error_message"],
-            errors=[ExportError.from_dict(e) for e in json.loads(row["errors_json"])] if row["errors_json"] else [],
+            errors=[ExportError.from_dict(e) for e in json.loads(row["errors_json"])]
+            if row["errors_json"]
+            else [],
             options=json.loads(row["options_json"]) if row["options_json"] else {},
         )
 
@@ -330,7 +332,7 @@ class ExportJobDB:
                 params.append(status.value)
 
             # Add ordering (validate column to prevent SQL injection)
-            allowed_order_columns = {'created_at', 'started_at', 'completed_at', 'job_id'}
+            allowed_order_columns = {"created_at", "started_at", "completed_at", "job_id"}
             if order_by not in allowed_order_columns:
                 raise ValueError(f"Invalid order_by column: {order_by}")
             order_direction = "DESC" if order_desc else "ASC"
@@ -395,26 +397,24 @@ class ExportJobDB:
             cursor = conn.cursor()
 
             # Single query with GROUP BY - uses idx_jobs_status index
-            cursor.execute(
-                "SELECT status, COUNT(*) FROM export_jobs GROUP BY status"
-            )
+            cursor.execute("SELECT status, COUNT(*) FROM export_jobs GROUP BY status")
             rows = cursor.fetchall()
 
             # Initialize with zeros for all statuses
             counts: dict[str, int] = {
-                'total': 0,
-                'pending': 0,
-                'running': 0,
-                'completed': 0,
-                'failed': 0,
-                'cancelled': 0,
-                'expired': 0,
+                "total": 0,
+                "pending": 0,
+                "running": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "expired": 0,
             }
 
             for row in rows:
                 status_value = row[0]
                 count = row[1]
-                counts['total'] += count
+                counts["total"] += count
                 counts[status_value] = count
 
             return counts

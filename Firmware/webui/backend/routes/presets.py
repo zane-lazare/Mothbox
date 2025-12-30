@@ -215,7 +215,7 @@ def apply_preset(name):
                     return jsonify(
                         {
                             "error": f'Preset "{name}" has no camera settings. '
-                            f'This may indicate a corrupted preset file. '
+                            f"This may indicate a corrupted preset file. "
                             f'Try re-saving the preset using "Save As" to recreate it.'
                         }
                     ), 400
@@ -231,14 +231,12 @@ def apply_preset(name):
                     return jsonify(
                         {
                             "error": f'Preset "{name}" has no liveview settings. '
-                            f'This may indicate a corrupted preset file. '
+                            f"This may indicate a corrupted preset file. "
                             f'Try re-saving the preset using "Save As" to recreate it.'
                         }
                     ), 400
         elif apply_to == "both" and not camera_settings and not liveview_settings:
-            return jsonify(
-                {"error": f'Preset "{name}" has no settings for either workflow'}
-            ), 400
+            return jsonify({"error": f'Preset "{name}" has no settings for either workflow'}), 400
 
         applied = []
 

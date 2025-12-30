@@ -45,6 +45,7 @@ class PhotoSeries:
         count: Number of photos in series
         cover_photo: First photo in series (index 0), used for thumbnails
     """
+
     series_id: str
     series_type: str
     base_name: str
@@ -56,6 +57,7 @@ class PhotoSeries:
 @dataclass
 class _CacheEntry:
     """Internal cache entry with timestamp for TTL expiration."""
+
     series_list: list[PhotoSeries]
     timestamp: float
     directory: Path
@@ -81,14 +83,11 @@ class SeriesService:
         self._cache: dict[str, _CacheEntry] = {}
         self._lock = threading.Lock()
         self._stats = {
-            'cache_hits': 0,
-            'cache_misses': 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
         }
 
-    def get_series_for_directory(
-        self,
-        directory: str | Path
-    ) -> list[PhotoSeries]:
+    def get_series_for_directory(self, directory: str | Path) -> list[PhotoSeries]:
         """Get all photo series in a directory.
 
         Scans directory recursively for photos and groups them by series.
@@ -107,11 +106,11 @@ class SeriesService:
             # Check cache
             entry = self._cache.get(cache_key)
             if entry and (time.time() - entry.timestamp) < self._cache_ttl:
-                self._stats['cache_hits'] += 1
+                self._stats["cache_hits"] += 1
                 logger.debug(f"Cache hit for {directory}")
                 return entry.series_list
 
-            self._stats['cache_misses'] += 1
+            self._stats["cache_misses"] += 1
 
         # Cache miss - scan directory
         logger.debug(f"Cache miss for {directory}, scanning...")
@@ -119,9 +118,7 @@ class SeriesService:
 
         with self._lock:
             self._cache[cache_key] = _CacheEntry(
-                series_list=series_list,
-                timestamp=time.time(),
-                directory=directory
+                series_list=series_list, timestamp=time.time(), directory=directory
             )
 
         return series_list
@@ -167,7 +164,7 @@ class SeriesService:
                     base_name=info.base_name,
                     photos=photo_paths,
                     count=len(photo_paths),
-                    cover_photo=photo_paths[0]  # First photo (index 0)
+                    cover_photo=photo_paths[0],  # First photo (index 0)
                 )
                 series_list.append(series)
 
@@ -182,9 +179,7 @@ class SeriesService:
             return []
 
     def get_series_by_id(
-        self,
-        series_id: str,
-        directory: str | Path | None = None
+        self, series_id: str, directory: str | Path | None = None
     ) -> PhotoSeries | None:
         """Get a specific series by ID.
 
@@ -248,11 +243,11 @@ class SeriesService:
                     series_by_type[t] = series_by_type.get(t, 0) + 1
 
             return {
-                'cache_entries': len(self._cache),
-                'cache_hits': self._stats['cache_hits'],
-                'cache_misses': self._stats['cache_misses'],
-                'total_series': total_series,
-                'series_by_type': series_by_type,
+                "cache_entries": len(self._cache),
+                "cache_hits": self._stats["cache_hits"],
+                "cache_misses": self._stats["cache_misses"],
+                "total_series": total_series,
+                "series_by_type": series_by_type,
             }
 
 
@@ -261,6 +256,6 @@ class SeriesService:
 # ============================================================================
 
 __all__ = [
-    'SeriesService',
-    'PhotoSeries',
+    "SeriesService",
+    "PhotoSeries",
 ]

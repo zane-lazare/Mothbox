@@ -209,20 +209,24 @@ def get_power_status():
         address = hw_config.get("ina260_address", 0x40)
         readings = _read_ina260_sensor(address)
         if readings is None:
-            return jsonify({
-                "enabled": True,
-                "voltage": None,
-                "current": None,
-                "power": None,
-                "error": "Sensor not available"
-            })
+            return jsonify(
+                {
+                    "enabled": True,
+                    "voltage": None,
+                    "current": None,
+                    "power": None,
+                    "error": "Sensor not available",
+                }
+            )
 
-        return jsonify({
-            "enabled": True,
-            "voltage": round(readings["voltage"], 2),
-            "current": round(readings["current"], 2),
-            "power": round(readings["power"], 2)
-        })
+        return jsonify(
+            {
+                "enabled": True,
+                "voltage": round(readings["voltage"], 2),
+                "current": round(readings["current"], 2),
+                "power": round(readings["power"], 2),
+            }
+        )
     except Exception as e:
         print(f"Error getting power status: {e}")
         return jsonify({"error": "Failed to get power status"}), 500
@@ -290,10 +294,7 @@ def get_api_limits():
             "max_bulk_delete": 100
         }
     """
-    return jsonify({
-        "max_bulk_files": MAX_BULK_FILES,
-        "max_bulk_delete": MAX_BULK_DELETE
-    }), 200
+    return jsonify({"max_bulk_files": MAX_BULK_FILES, "max_bulk_delete": MAX_BULK_DELETE}), 200
 
 
 @system_bp.route("/diagnostic", methods=["GET"])

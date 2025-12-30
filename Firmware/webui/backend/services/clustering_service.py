@@ -36,9 +36,11 @@ logger = logging.getLogger(__name__)
 # Internal Cache Entry
 # ============================================================================
 
+
 @dataclass
 class _CacheEntry:
     """Internal cache entry with timestamp for TTL expiration."""
+
     result: ClusteringResult
     timestamp: float
     directory: Path
@@ -49,6 +51,7 @@ class _CacheEntry:
 # ============================================================================
 # Clustering Service
 # ============================================================================
+
 
 class ClusteringService:
     """
@@ -69,7 +72,7 @@ class ClusteringService:
         cache_ttl: int = 300,
         default_radius_m: float = 100,
         default_min_cluster_size: int = 2,
-        timeout_ms: float = 500
+        timeout_ms: float = 500,
     ):
         """
         Initialize ClusteringService.
@@ -90,11 +93,7 @@ class ClusteringService:
         self._lock = threading.Lock()
 
         # Statistics
-        self._stats = {
-            'cache_hits': 0,
-            'cache_misses': 0,
-            'total_clustering_time_ms': 0.0
-        }
+        self._stats = {"cache_hits": 0, "cache_misses": 0, "total_clustering_time_ms": 0.0}
 
         # LocationsService for fetching photo locations
         self._locations_service = LocationsService(cache_ttl=cache_ttl)
@@ -104,7 +103,7 @@ class ClusteringService:
         directory: str | Path | None = None,
         radius_m: float | None = None,
         min_cluster_size: int | None = None,
-        force_refresh: bool = False
+        force_refresh: bool = False,
     ) -> ClusteringResult:
         """
         Get clustered photo locations.
@@ -127,7 +126,9 @@ class ClusteringService:
         directory = Path(directory) if directory else PHOTOS_DIR
         directory = directory if isinstance(directory, Path) else Path(directory)
         radius_m = radius_m if radius_m is not None else self._default_radius_m
-        min_cluster_size = min_cluster_size if min_cluster_size is not None else self._default_min_cluster_size
+        min_cluster_size = (
+            min_cluster_size if min_cluster_size is not None else self._default_min_cluster_size
+        )
 
         # Generate cache key
         cache_key = f"{directory.resolve()}:{radius_m}:{min_cluster_size}"
@@ -137,7 +138,7 @@ class ClusteringService:
             with self._lock:
                 entry = self._cache.get(cache_key)
                 if entry and (time.time() - entry.timestamp) < self._cache_ttl:
-                    self._stats['cache_hits'] += 1
+                    self._stats["cache_hits"] += 1
                     logger.debug(
                         f"Cache hit for {directory} "
                         f"(radius={radius_m}, min_size={min_cluster_size})"
@@ -146,7 +147,7 @@ class ClusteringService:
 
         # Cache miss - perform clustering
         with self._lock:
-            self._stats['cache_misses'] += 1
+            self._stats["cache_misses"] += 1
 
         logger.debug(
             f"Cache miss for {directory}, clustering with "
@@ -162,17 +163,14 @@ class ClusteringService:
                 timestamp=time.time(),
                 directory=directory,
                 radius_m=radius_m,
-                min_cluster_size=min_cluster_size
+                min_cluster_size=min_cluster_size,
             )
-            self._stats['total_clustering_time_ms'] += result.processing_time_ms
+            self._stats["total_clustering_time_ms"] += result.processing_time_ms
 
         return result
 
     def _cluster_directory(
-        self,
-        directory: Path,
-        radius_m: float,
-        min_cluster_size: int
+        self, directory: Path, radius_m: float, min_cluster_size: int
     ) -> ClusteringResult:
         """
         Perform clustering on photos in directory.
@@ -188,10 +186,10 @@ class ClusteringService:
         # Get locations from LocationsService (cached)
         locations_result = self._locations_service.get_locations(
             directory,
-            limit=10000  # Large limit for clustering
+            limit=10000,  # Large limit for clustering
         )
 
-        locations = locations_result.get('locations', [])
+        locations = locations_result.get("locations", [])
 
         if not locations:
             # Return empty result
@@ -201,7 +199,7 @@ class ClusteringService:
                 total_photos=0,
                 total_clusters=0,
                 radius_m=radius_m,
-                processing_time_ms=0.0
+                processing_time_ms=0.0,
             )
 
         # Convert to format expected by cluster_locations
@@ -209,20 +207,22 @@ class ClusteringService:
         # cluster_locations expects: {path, lat, lon, timestamp}
         clustering_input = []
         for loc in locations:
-            clustering_input.append({
-                'path': loc['path'],
-                'lat': loc['latitude'],
-                'lon': loc['longitude'],
-                'timestamp': loc.get('timestamp'),
-                'filepath': loc.get('path')
-            })
+            clustering_input.append(
+                {
+                    "path": loc["path"],
+                    "lat": loc["latitude"],
+                    "lon": loc["longitude"],
+                    "timestamp": loc.get("timestamp"),
+                    "filepath": loc.get("path"),
+                }
+            )
 
         # Perform clustering
         result = cluster_locations(
             locations=clustering_input,
             radius_m=radius_m,
             min_cluster_size=min_cluster_size,
-            timeout_ms=self._timeout_ms
+            timeout_ms=self._timeout_ms,
         )
 
         return result
@@ -245,17 +245,13 @@ class ClusteringService:
                 directory_path = Path(directory).resolve()
                 cache_key_prefix = str(directory_path)
 
-                keys_to_remove = [
-                    key for key in self._cache
-                    if key.startswith(cache_key_prefix)
-                ]
+                keys_to_remove = [key for key in self._cache if key.startswith(cache_key_prefix)]
 
                 for key in keys_to_remove:
                     del self._cache[key]
 
                 logger.debug(
-                    f"Invalidated clustering cache for {directory} "
-                    f"({len(keys_to_remove)} entries)"
+                    f"Invalidated clustering cache for {directory} ({len(keys_to_remove)} entries)"
                 )
 
     def get_statistics(self) -> dict:
@@ -271,10 +267,10 @@ class ClusteringService:
         """
         with self._lock:
             return {
-                'cache_entries': len(self._cache),
-                'cache_hits': self._stats['cache_hits'],
-                'cache_misses': self._stats['cache_misses'],
-                'total_clustering_time_ms': self._stats['total_clustering_time_ms']
+                "cache_entries": len(self._cache),
+                "cache_hits": self._stats["cache_hits"],
+                "cache_misses": self._stats["cache_misses"],
+                "total_clustering_time_ms": self._stats["total_clustering_time_ms"],
             }
 
 
@@ -283,5 +279,5 @@ class ClusteringService:
 # ============================================================================
 
 __all__ = [
-    'ClusteringService',
+    "ClusteringService",
 ]

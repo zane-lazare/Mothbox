@@ -417,9 +417,7 @@ def main(gpio_handler_factory=None, camera_factory=None, settings_loader=None, q
         pins = get_gpio_pins()
 
         def gpio_handler_factory():
-            return GPIOHandler(
-                GPIO_module, pins["Relay_Ch1"], pins["Relay_Ch2"], pins["Relay_Ch3"]
-            )
+            return GPIOHandler(GPIO_module, pins["Relay_Ch1"], pins["Relay_Ch2"], pins["Relay_Ch3"])
 
     if camera_factory is None:
         # Use real Picamera2

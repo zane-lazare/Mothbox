@@ -50,10 +50,7 @@ class ThumbnailCache:
     """
 
     def __init__(
-        self,
-        cache_dir: str | Path,
-        max_size_mb: int = 500,
-        sizes: list[int] | None = None
+        self, cache_dir: str | Path, max_size_mb: int = 500, sizes: list[int] | None = None
     ):
         """
         Initialize thumbnail cache
@@ -105,9 +102,7 @@ class ThumbnailCache:
 
         # Validate size
         if size not in self.sizes:
-            raise ThumbnailError(
-                f"Invalid size {size}. Allowed sizes: {self.sizes}"
-            )
+            raise ThumbnailError(f"Invalid size {size}. Allowed sizes: {self.sizes}")
 
         # Validate photo path
         self._validate_photo_path(photo_path)
@@ -170,7 +165,7 @@ class ThumbnailCache:
         lock_path = cache_path.parent / f".{cache_path.name}.lock"
 
         # Acquire lock (open in append mode to create atomically if missing)
-        with open(lock_path, 'a') as lock_file:
+        with open(lock_path, "a") as lock_file:
             try:
                 # Exclusive lock (blocks until available)
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
@@ -192,19 +187,21 @@ class ThumbnailCache:
                     img.thumbnail((size, size), Image.LANCZOS)
 
                     # Save as JPEG with quality 85
-                    img.save(cache_path, format='JPEG', quality=85)
+                    img.save(cache_path, format="JPEG", quality=85)
 
                 except (OSError, Exception):
                     # Error opening/processing image - create placeholder
                     try:
                         placeholder = self._create_placeholder(size)
-                        placeholder.save(cache_path, format='JPEG', quality=85)
+                        placeholder.save(cache_path, format="JPEG", quality=85)
 
                         # Mark as error cache
                         self._mark_error_cache(cache_path)
                     except OSError as save_error:
                         # Can't even save placeholder (disk full, permissions, etc.)
-                        raise ThumbnailError(f"Failed to generate thumbnail: {save_error}") from save_error
+                        raise ThumbnailError(
+                            f"Failed to generate thumbnail: {save_error}"
+                        ) from save_error
 
             finally:
                 # Release lock
@@ -225,7 +222,7 @@ class ThumbnailCache:
             PIL Image (gray square with "?" text)
         """
         # Create gray square
-        img = Image.new('RGB', (size, size), color=(128, 128, 128))
+        img = Image.new("RGB", (size, size), color=(128, 128, 128))
 
         # Draw "?" in center
         draw = ImageDraw.Draw(img)
@@ -235,6 +232,7 @@ class ThumbnailCache:
         try:
             # Try to use a larger default font if available
             from PIL import ImageFont
+
             font = ImageFont.load_default()
         except Exception:
             font = None
@@ -242,7 +240,7 @@ class ThumbnailCache:
         text = "?"
 
         # Get text bounding box for centering
-        if hasattr(draw, 'textbbox'):
+        if hasattr(draw, "textbbox"):
             bbox = draw.textbbox((0, 0), text, font=font)
             text_width = bbox[2] - bbox[0]
             text_height = bbox[3] - bbox[1]
@@ -302,7 +300,7 @@ class ThumbnailCache:
         """
         try:
             # Check for null bytes
-            if '\x00' in str(photo_path):
+            if "\x00" in str(photo_path):
                 raise ThumbnailError("Invalid path: null byte detected")
 
             # Resolve to absolute path
@@ -433,8 +431,8 @@ class ThumbnailCache:
             if self.stats_file.exists():
                 with open(self.stats_file) as f:
                     stats = json.load(f)
-                    self.hits = stats.get('hits', 0)
-                    self.misses = stats.get('misses', 0)
+                    self.hits = stats.get("hits", 0)
+                    self.misses = stats.get("misses", 0)
             else:
                 self.hits = 0
                 self.misses = 0
@@ -446,13 +444,13 @@ class ThumbnailCache:
         """Save statistics to JSON file"""
         try:
             stats = {
-                'hits': self.hits,
-                'misses': self.misses,
-                'total_requests': self.hits + self.misses,
-                'last_updated': time.time()
+                "hits": self.hits,
+                "misses": self.misses,
+                "total_requests": self.hits + self.misses,
+                "last_updated": time.time(),
             }
 
-            with open(self.stats_file, 'w') as f:
+            with open(self.stats_file, "w") as f:
                 json.dump(stats, f, indent=2)
 
         except OSError:
@@ -498,7 +496,7 @@ class ThumbnailCache:
 
         lock_path = self.cache_dir / ".cache_stats.json.lock"
 
-        with open(lock_path, 'a') as lock_file:
+        with open(lock_path, "a") as lock_file:
             try:
                 # Acquire exclusive lock for atomic read-modify-write
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
@@ -517,18 +515,18 @@ class ThumbnailCache:
                 delta_misses = self.misses - self._last_flushed_misses
 
                 # Add deltas to file stats (handles multi-process updates)
-                new_hits = current_stats.get('hits', 0) + delta_hits
-                new_misses = current_stats.get('misses', 0) + delta_misses
+                new_hits = current_stats.get("hits", 0) + delta_hits
+                new_misses = current_stats.get("misses", 0) + delta_misses
 
                 # Write atomically to file
                 stats = {
-                    'hits': new_hits,
-                    'misses': new_misses,
-                    'total_requests': new_hits + new_misses,
-                    'last_updated': time.time()
+                    "hits": new_hits,
+                    "misses": new_misses,
+                    "total_requests": new_hits + new_misses,
+                    "last_updated": time.time(),
                 }
 
-                with open(self.stats_file, 'w') as f:
+                with open(self.stats_file, "w") as f:
                     json.dump(stats, f, indent=2)
 
                 # Update flush tracking
@@ -574,20 +572,16 @@ class ThumbnailCache:
                 cached_files += len(list(size_dir.glob("*.jpg")))
 
         return {
-            'hits': self.hits,
-            'misses': self.misses,
-            'total_requests': total_requests,
-            'hit_ratio': round(hit_ratio, 3),
-            'cache_size_mb': round(self._calculate_cache_size(), 2),
-            'cached_files': cached_files,
-            'sizes': self.sizes
+            "hits": self.hits,
+            "misses": self.misses,
+            "total_requests": total_requests,
+            "hit_ratio": round(hit_ratio, 3),
+            "cache_size_mb": round(self._calculate_cache_size(), 2),
+            "cached_files": cached_files,
+            "sizes": self.sizes,
         }
 
-    def invalidate(
-        self,
-        photo_path: str | Path | None = None,
-        size: int | None = None
-    ):
+    def invalidate(self, photo_path: str | Path | None = None, size: int | None = None):
         """
         Manually invalidate cache entries
 

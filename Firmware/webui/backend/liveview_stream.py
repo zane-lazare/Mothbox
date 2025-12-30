@@ -321,33 +321,30 @@ class LiveViewStreamer:
         # Read from instance variables (these reflect current camera state)
         settings = {
             # Image quality controls
-            'sharpness': self.sharpness,
-            'brightness': self.brightness,
-            'contrast': self.contrast,
-            'saturation': self.saturation,
-
+            "sharpness": self.sharpness,
+            "brightness": self.brightness,
+            "contrast": self.contrast,
+            "saturation": self.saturation,
             # Focus controls - use override if set, otherwise configured value
-            'af_mode': self._af_mode_override if self._af_mode_override is not None else self.af_mode,
-            'af_speed': self.af_speed,
-            'af_range': self.af_range,
-
+            "af_mode": self._af_mode_override
+            if self._af_mode_override is not None
+            else self.af_mode,
+            "af_speed": self.af_speed,
+            "af_range": self.af_range,
             # Exposure controls
-            'ae_enable': self.ae_enable,
-            'ae_metering_mode': self.ae_metering_mode,
-            'exposure_time': self.exposure_time,
-            'analogue_gain': self.analogue_gain,
-
+            "ae_enable": self.ae_enable,
+            "ae_metering_mode": self.ae_metering_mode,
+            "exposure_time": self.exposure_time,
+            "analogue_gain": self.analogue_gain,
             # White balance controls - split colour_gains tuple into components
-            'awb_enable': self.awb_enable,
-            'awb_mode': self.awb_mode,
-            'colour_gains_red': self.colour_gains[0],
-            'colour_gains_blue': self.colour_gains[1],
-
+            "awb_enable": self.awb_enable,
+            "awb_mode": self.awb_mode,
+            "colour_gains_red": self.colour_gains[0],
+            "colour_gains_blue": self.colour_gains[1],
             # Noise reduction
-            'noise_reduction_mode': self.noise_reduction_mode,
-
+            "noise_reduction_mode": self.noise_reduction_mode,
             # AF metering mode (for click-to-focus AF window feature)
-            'af_metering': 1 if self._af_window_active else 0,
+            "af_metering": 1 if self._af_window_active else 0,
         }
 
         # Include lens_position from camera metadata if camera is active
@@ -355,23 +352,25 @@ class LiveViewStreamer:
         if self.camera is not None:
             try:
                 metadata = self.camera.capture_metadata()
-                if 'LensPosition' in metadata:
-                    lens_pos = metadata['LensPosition']
-                    settings['lens_position'] = lens_pos
+                if "LensPosition" in metadata:
+                    lens_pos = metadata["LensPosition"]
+                    settings["lens_position"] = lens_pos
                     self._cached_lens_position = lens_pos  # Cache for future use
             except Exception as e:
                 # Camera metadata query failed - use cached value if available
                 if self._cached_lens_position is not None:
-                    settings['lens_position'] = self._cached_lens_position
-                    print(f"Using cached lens position {self._cached_lens_position:.2f} (metadata query failed: {e})")
+                    settings["lens_position"] = self._cached_lens_position
+                    print(
+                        f"Using cached lens position {self._cached_lens_position:.2f} (metadata query failed: {e})"
+                    )
                 else:
                     print(f"Warning: Could not read lens position from camera metadata: {e}")
-                if hasattr(self, 'lens_position'):
-                    settings['lens_position'] = self.lens_position
+                if hasattr(self, "lens_position"):
+                    settings["lens_position"] = self.lens_position
         else:
             # Camera not active - use configured value if available
-            if hasattr(self, 'lens_position'):
-                settings['lens_position'] = self.lens_position
+            if hasattr(self, "lens_position"):
+                settings["lens_position"] = self.lens_position
 
         return settings
 
@@ -839,7 +838,13 @@ class LiveViewStreamer:
             # Hardware MJPEG is sensitive - qp > 20 produces poor quality
             # Formula: qp = 25 - (quality * 0.24) maps quality to good qp range
             # Examples: quality 100 → qp 1, quality 85 → qp 5, quality 50 → qp 13
-            qp_value = max(MJPEG_QP_MIN, min(MJPEG_QP_MAX, int(MJPEG_QP_MAX - (self.jpeg_quality * MJPEG_QUALITY_TO_QP_FACTOR))))
+            qp_value = max(
+                MJPEG_QP_MIN,
+                min(
+                    MJPEG_QP_MAX,
+                    int(MJPEG_QP_MAX - (self.jpeg_quality * MJPEG_QUALITY_TO_QP_FACTOR)),
+                ),
+            )
             encoder = MJPEGEncoder(qp=qp_value)
             print(f"Hardware MJPEG: quality={self.jpeg_quality}% → qp={qp_value}")
 
@@ -1608,7 +1613,9 @@ class LiveViewStreamer:
             return False
 
         # Update zoom state
-        self.zoom_level = max(ZOOM_LEVEL_MIN, min(zoom_level, ZOOM_LEVEL_MAX))  # Clamp between 1x and 10x
+        self.zoom_level = max(
+            ZOOM_LEVEL_MIN, min(zoom_level, ZOOM_LEVEL_MAX)
+        )  # Clamp between 1x and 10x
 
         if center_x is not None:
             self.zoom_center_x = max(0.0, min(center_x, 1.0))  # Clamp 0-1

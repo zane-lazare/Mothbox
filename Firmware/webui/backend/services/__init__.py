@@ -26,6 +26,7 @@ def get_clustering_service():
     global _clustering_service
     if _clustering_service is None:
         from .clustering_service import ClusteringService
+
         _clustering_service = ClusteringService(cache_ttl=300)
     return _clustering_service
 
@@ -38,6 +39,7 @@ def get_series_service():
     global _series_service
     if _series_service is None:
         from .series_service import SeriesService
+
         _series_service = SeriesService(cache_ttl=300)
     return _series_service
 
@@ -50,6 +52,7 @@ def get_locations_service():
     global _locations_service
     if _locations_service is None:
         from .locations_service import LocationsService
+
         _locations_service = LocationsService(cache_ttl=300)
     return _locations_service
 
@@ -78,7 +81,7 @@ def get_sidecar_service():
         # processes/threads initialize simultaneously
         lock_file = cache_dir / ".purge.lock"
         try:
-            with open(lock_file, 'w') as lock:
+            with open(lock_file, "w") as lock:
                 fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
 
                 # Check version file and purge if schema changed
@@ -92,9 +95,7 @@ def get_sidecar_service():
                             except Exception as e:
                                 logger.debug(f"Failed to delete cache file {f}: {e}")
                 else:
-                    logger.info(
-                        f"Initializing L2 cache with schema version {CACHE_SCHEMA_VERSION}"
-                    )
+                    logger.info(f"Initializing L2 cache with schema version {CACHE_SCHEMA_VERSION}")
                 version_file.write_text(CACHE_SCHEMA_VERSION)
         finally:
             # Clean up lock file (non-critical if this fails)
@@ -116,6 +117,7 @@ def get_deployment_service():
     global _deployment_service
     if _deployment_service is None:
         from .deployment_service import DeploymentService
+
         _deployment_service = DeploymentService(cache_ttl=300)
     return _deployment_service
 
@@ -136,6 +138,7 @@ def get_scheduler_service():
     global _scheduler_service
     if _scheduler_service is None:
         from .scheduler_service import SchedulerService
+
         _scheduler_service = SchedulerService(cache_ttl=300, max_cache_size=100)
     return _scheduler_service
 
@@ -158,20 +161,21 @@ def get_sensor_service():
     global _sensor_service
     if _sensor_service is None:
         from .sensor_service import SensorService
+
         _sensor_service = SensorService(max_history=100)
     return _sensor_service
 
 
 __all__ = [
-    'PhotoService',
-    'PaginationError',
-    'ThumbnailCache',
-    'ThumbnailError',
-    'get_clustering_service',
-    'get_series_service',
-    'get_locations_service',
-    'get_sidecar_service',
-    'get_deployment_service',
-    'get_scheduler_service',
-    'get_sensor_service',
+    "PhotoService",
+    "PaginationError",
+    "ThumbnailCache",
+    "ThumbnailError",
+    "get_clustering_service",
+    "get_series_service",
+    "get_locations_service",
+    "get_sidecar_service",
+    "get_deployment_service",
+    "get_scheduler_service",
+    "get_sensor_service",
 ]

@@ -1,6 +1,5 @@
 """User preferences API endpoints"""
 
-
 from flask import Blueprint, jsonify, request
 
 # Setup path to import mothbox modules

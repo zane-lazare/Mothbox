@@ -1,6 +1,5 @@
 """Scheduler management endpoints"""
 
-
 from crontab import CronTab
 from flask import Blueprint, jsonify, request
 

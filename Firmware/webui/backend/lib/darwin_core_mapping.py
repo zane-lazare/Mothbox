@@ -114,6 +114,7 @@ CONFIDENCE_TO_QUALIFIER = {
 # Data Classes
 # ============================================================================
 
+
 @dataclass
 class DarwinCoreFieldMapping:
     """Configuration for mapping a Mothbox field to Darwin Core term.
@@ -125,6 +126,7 @@ class DarwinCoreFieldMapping:
         is_required: Whether this field is required for GBIF
         description: Human-readable description of the field
     """
+
     dwc_term: str
     source_field: str | None
     default_value: Any
@@ -140,42 +142,42 @@ DARWIN_CORE_FIELD_MAPPINGS: list[DarwinCoreFieldMapping] = [
         source_field=None,  # Computed
         default_value="",
         is_required=True,
-        description="Unique identifier for this occurrence (computed from deployment + filename hash)"
+        description="Unique identifier for this occurrence (computed from deployment + filename hash)",
     ),
     DarwinCoreFieldMapping(
         dwc_term="basisOfRecord",
         source_field=None,  # Constant
         default_value="MachineObservation",
         is_required=True,
-        description="Type of record - MachineObservation for camera trap photos"
+        description="Type of record - MachineObservation for camera trap photos",
     ),
     DarwinCoreFieldMapping(
         dwc_term="eventDate",
         source_field="timestamp",
         default_value="",
         is_required=True,
-        description="Date/time of the observation in ISO 8601 format"
+        description="Date/time of the observation in ISO 8601 format",
     ),
     DarwinCoreFieldMapping(
         dwc_term="decimalLatitude",
         source_field="latitude",
         default_value=None,
         is_required=True,
-        description="GPS latitude in decimal degrees (-90 to 90)"
+        description="GPS latitude in decimal degrees (-90 to 90)",
     ),
     DarwinCoreFieldMapping(
         dwc_term="decimalLongitude",
         source_field="longitude",
         default_value=None,
         is_required=True,
-        description="GPS longitude in decimal degrees (-180 to 180)"
+        description="GPS longitude in decimal degrees (-180 to 180)",
     ),
     DarwinCoreFieldMapping(
         dwc_term="geodeticDatum",
         source_field=None,  # Constant
         default_value="WGS84",
         is_required=True,
-        description="Coordinate reference system - WGS84 for GPS"
+        description="Coordinate reference system - WGS84 for GPS",
     ),
     # Taxonomy fields
     DarwinCoreFieldMapping(
@@ -183,21 +185,21 @@ DARWIN_CORE_FIELD_MAPPINGS: list[DarwinCoreFieldMapping] = [
         source_field="species",
         default_value="",
         is_required=False,
-        description="Scientific name of the species"
+        description="Scientific name of the species",
     ),
     DarwinCoreFieldMapping(
         dwc_term="vernacularName",
         source_field="species_common_name",
         default_value="",
         is_required=False,
-        description="Common name of the species"
+        description="Common name of the species",
     ),
     DarwinCoreFieldMapping(
         dwc_term="identificationQualifier",
         source_field="species_confidence",  # Transformed
         default_value="",
         is_required=False,
-        description="Qualifier for species identification (cf., aff., ?)"
+        description="Qualifier for species identification (cf., aff., ?)",
     ),
     # Location fields
     DarwinCoreFieldMapping(
@@ -205,14 +207,14 @@ DARWIN_CORE_FIELD_MAPPINGS: list[DarwinCoreFieldMapping] = [
         source_field="country_code",  # Populated via geopip from GPS coordinates
         default_value="",
         is_required=False,
-        description="ISO 3166-1 alpha-2 country code"
+        description="ISO 3166-1 alpha-2 country code",
     ),
     DarwinCoreFieldMapping(
         dwc_term="coordinateUncertaintyInMeters",
         source_field="gps_accuracy",
         default_value=None,
         is_required=False,
-        description="GPS accuracy in meters"
+        description="GPS accuracy in meters",
     ),
     # Occurrence fields
     DarwinCoreFieldMapping(
@@ -220,14 +222,14 @@ DARWIN_CORE_FIELD_MAPPINGS: list[DarwinCoreFieldMapping] = [
         source_field=None,  # Constant
         default_value="present",
         is_required=False,
-        description="Presence/absence - always 'present' for photos"
+        description="Presence/absence - always 'present' for photos",
     ),
     DarwinCoreFieldMapping(
         dwc_term="recordedBy",
         source_field=None,  # Uses deployment modified_by or "Mothbox"
         default_value="Mothbox",
         is_required=False,
-        description="Person or device that recorded the observation"
+        description="Person or device that recorded the observation",
     ),
     # Media fields
     DarwinCoreFieldMapping(
@@ -235,7 +237,7 @@ DARWIN_CORE_FIELD_MAPPINGS: list[DarwinCoreFieldMapping] = [
         source_field="photo_path",
         default_value="",
         is_required=False,
-        description="Path or URL to the photo file"
+        description="Path or URL to the photo file",
     ),
     # Device/deployment fields (Darwin Core extensions)
     DarwinCoreFieldMapping(
@@ -243,21 +245,21 @@ DARWIN_CORE_FIELD_MAPPINGS: list[DarwinCoreFieldMapping] = [
         source_field=None,  # Constant
         default_value="Mothbox",
         is_required=False,
-        description="Institution/device identifier"
+        description="Institution/device identifier",
     ),
     DarwinCoreFieldMapping(
         dwc_term="collectionCode",
         source_field="deployment_name",
         default_value="",
         is_required=False,
-        description="Deployment/collection identifier"
+        description="Deployment/collection identifier",
     ),
     DarwinCoreFieldMapping(
         dwc_term="catalogNumber",
         source_field="filename",
         default_value="",
         is_required=False,
-        description="Unique identifier within the collection (filename)"
+        description="Unique identifier within the collection (filename)",
     ),
 ]
 
@@ -265,6 +267,7 @@ DARWIN_CORE_FIELD_MAPPINGS: list[DarwinCoreFieldMapping] = [
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
 
 def generate_occurrence_id(metadata: "ExportMetadata") -> str:
     """Generate a unique, deterministic occurrence ID for Darwin Core.
@@ -341,10 +344,7 @@ def get_csv_headers() -> list[str]:
     return DARWIN_CORE_CSV_COLUMN_ORDER.copy()
 
 
-def _apply_gps_precision(
-    value: float | None,
-    precision: int | None
-) -> float | None:
+def _apply_gps_precision(value: float | None, precision: int | None) -> float | None:
     """Apply GPS precision rounding to a coordinate value.
 
     Args:

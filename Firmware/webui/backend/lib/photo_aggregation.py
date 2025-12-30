@@ -78,8 +78,7 @@ class PhotoAggregation:
 
 
 def aggregate_photo_metadata(
-    photo_paths: list[Path],
-    tolerance_m: float = 50.0
+    photo_paths: list[Path], tolerance_m: float = 50.0
 ) -> PhotoAggregation:
     """
     Aggregate metadata from multiple photos.
@@ -113,7 +112,7 @@ def aggregate_photo_metadata(
         - Actual: ~50-80ms for 100 photos (depends on EXIF complexity)
 
     Example:
-        >>> photos = [Path('/photos/p1.jpg'), Path('/photos/p2.jpg')]
+        >>> photos = [Path("/photos/p1.jpg"), Path("/photos/p2.jpg")]
         >>> result = aggregate_photo_metadata(photos, tolerance_m=50.0)
         >>> if result.gps_consistent:
         ...     print(f"Location: {result.latitude}, {result.longitude}")
@@ -156,21 +155,21 @@ def aggregate_photo_metadata(
             metadata = metadata_service.get_photo_metadata(photo_path)
 
             # Skip if metadata extraction failed
-            if 'error' in metadata:
+            if "error" in metadata:
                 continue
 
             photo_count += 1
 
             # Extract timestamp
-            timestamp_iso = metadata.get('capture', {}).get('timestamp')
+            timestamp_iso = metadata.get("capture", {}).get("timestamp")
             if timestamp_iso:
                 timestamps.append(timestamp_iso)
 
             # Extract GPS coordinates
-            location = metadata.get('location', {})
-            lat = location.get('latitude')
-            lon = location.get('longitude')
-            alt = location.get('altitude')
+            location = metadata.get("location", {})
+            lat = location.get("latitude")
+            lon = location.get("longitude")
+            alt = location.get("altitude")
 
             if lat is not None and lon is not None:
                 gps_coords.append((lat, lon, alt))
@@ -188,7 +187,7 @@ def aggregate_photo_metadata(
     # Aggregate timestamps (date range)
     if timestamps:
         # Convert ISO 8601 timestamps to dates (YYYY-MM-DD)
-        dates = [ts.split('T')[0] for ts in timestamps]
+        dates = [ts.split("T")[0] for ts in timestamps]
         result.date_start = min(dates)
         result.date_end = max(dates)
 
@@ -231,8 +230,7 @@ def aggregate_photo_metadata(
 
 
 def _check_gps_consistency(
-    gps_coords: list[tuple[float, float, float | None]],
-    tolerance_m: float
+    gps_coords: list[tuple[float, float, float | None]], tolerance_m: float
 ) -> tuple[bool, str | None]:
     """
     Check if all GPS coordinates are within tolerance of each other.

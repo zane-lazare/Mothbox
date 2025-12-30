@@ -108,25 +108,25 @@ LTR303_ENABLE: Final[int] = 0x01  # Enable ALS in active mode
 # LTR303 gain values (bits 2-4 of control register)
 # Key = gain bits value, Value = gain multiplier
 LTR303_GAIN_MAP: Final[dict[int, int]] = {
-    0: 1,    # 1x gain (default)
-    1: 2,    # 2x gain
-    2: 4,    # 4x gain
-    3: 8,    # 8x gain
-    6: 48,   # 48x gain
-    7: 96,   # 96x gain
+    0: 1,  # 1x gain (default)
+    1: 2,  # 2x gain
+    2: 4,  # 4x gain
+    3: 8,  # 8x gain
+    6: 48,  # 48x gain
+    7: 96,  # 96x gain
 }
 
 # LTR303 integration time values (bits 3-5 of meas rate register)
 # Key = int time bits value, Value = integration time in ms
 LTR303_INT_TIME_MAP: Final[dict[int, int]] = {
-    0: 100,   # 100ms (default)
-    1: 50,    # 50ms
-    2: 200,   # 200ms
-    3: 400,   # 400ms
-    4: 150,   # 150ms
-    5: 250,   # 250ms
-    6: 300,   # 300ms
-    7: 350,   # 350ms
+    0: 100,  # 100ms (default)
+    1: 50,  # 50ms
+    2: 200,  # 200ms
+    3: 400,  # 400ms
+    4: 150,  # 150ms
+    5: 250,  # 250ms
+    6: 300,  # 300ms
+    7: 350,  # 350ms
 }
 
 # Comparison tolerance for sensor values

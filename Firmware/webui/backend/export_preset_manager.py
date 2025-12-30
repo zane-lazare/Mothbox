@@ -117,8 +117,7 @@ class ExportPresetManager:
                     )
                 except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
                     logger.warning(
-                        f"Could not load built-in preset {preset_file} "
-                        f"({type(e).__name__}): {e}"
+                        f"Could not load built-in preset {preset_file} ({type(e).__name__}): {e}"
                     )
 
         # Load user presets
@@ -140,7 +139,9 @@ class ExportPresetManager:
                     data = self.normalize_preset(data)
                     valid, error_msg = self.validate_preset(data)
                     if not valid:
-                        logger.warning(f"Skipping invalid user preset {preset_file.name}: {error_msg}")
+                        logger.warning(
+                            f"Skipping invalid user preset {preset_file.name}: {error_msg}"
+                        )
                         continue
 
                     # Warn if JSON name doesn't match filename.
@@ -171,8 +172,7 @@ class ExportPresetManager:
                     )
                 except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
                     logger.warning(
-                        f"Could not load user preset {preset_file} "
-                        f"({type(e).__name__}): {e}"
+                        f"Could not load user preset {preset_file} ({type(e).__name__}): {e}"
                     )
 
         return presets
@@ -260,7 +260,10 @@ class ExportPresetManager:
             return False, "Preset name must contain only letters, numbers, and underscores"
 
         if len(preset.name) > MAX_PRESET_NAME_LENGTH:
-            return False, f"Preset name exceeds maximum length of {MAX_PRESET_NAME_LENGTH} characters"
+            return (
+                False,
+                f"Preset name exceeds maximum length of {MAX_PRESET_NAME_LENGTH} characters",
+            )
 
         # Built-in presets cannot be saved as built-in
         if preset.category == ExportPresetCategory.BUILT_IN:
@@ -348,7 +351,10 @@ class ExportPresetManager:
         export_format = preset_data.get("export_format")
         valid_formats = [f.value for f in ExportJobFormat]
         if export_format not in valid_formats:
-            return False, f"Invalid export_format '{export_format}'. Must be one of: {valid_formats}"
+            return (
+                False,
+                f"Invalid export_format '{export_format}'. Must be one of: {valid_formats}",
+            )
 
         # Validate category if present
         category = preset_data.get("category", "user")

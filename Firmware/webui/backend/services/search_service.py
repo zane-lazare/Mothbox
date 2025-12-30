@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ============================================================================
 
+
 @dataclass
 class SearchServiceConfig:
     """Configuration for SearchService.
@@ -63,6 +64,7 @@ class SearchServiceConfig:
         auto_rebuild: Rebuild index on startup if True
         field_weights: Custom ranking weights for fields (optional)
     """
+
     db_path: Path | None = None
     auto_rebuild: bool = False
     field_weights: dict | None = None
@@ -71,6 +73,7 @@ class SearchServiceConfig:
 # ============================================================================
 # Search Service
 # ============================================================================
+
 
 class SearchService:
     """Thread-safe service for photo search operations.
@@ -91,9 +94,7 @@ class SearchService:
     """
 
     def __init__(
-        self,
-        config: SearchServiceConfig | None = None,
-        sidecar_service: Any | None = None
+        self, config: SearchServiceConfig | None = None, sidecar_service: Any | None = None
     ):
         """Initialize search service.
 
@@ -108,6 +109,7 @@ class SearchService:
         # Set db_path (default to DATA_DIR/cache/search.db if not specified)
         if config.db_path is None:
             from mothbox_paths import DATA_DIR
+
             self.db_path = DATA_DIR / "cache" / "search.db"
         else:
             self.db_path = Path(config.db_path)
@@ -122,10 +124,7 @@ class SearchService:
         self._lock = threading.RLock()
 
         # Initialize search engine
-        self._engine = SearchEngine(
-            db_path=self.db_path,
-            field_weights=config.field_weights
-        )
+        self._engine = SearchEngine(db_path=self.db_path, field_weights=config.field_weights)
 
         # Store auto_rebuild config (will be used on first operation)
         self._auto_rebuild = config.auto_rebuild
@@ -154,7 +153,7 @@ class SearchService:
             try:
                 # Check if index is empty
                 stats = self._engine.get_stats()
-                if stats['total_documents'] == 0:
+                if stats["total_documents"] == 0:
                     logger.info("Search index is empty, building automatically...")
                     # Release lock during build (build_index acquires it)
                     self._lock.release()
@@ -186,15 +185,15 @@ class SearchService:
 
             # piexif.load(path) only reads EXIF header, not entire file
             exif_dict = piexif.load(str(photo_path))
-            if 'Exif' in exif_dict:
-                exif_ifd = exif_dict['Exif']
+            if "Exif" in exif_dict:
+                exif_ifd = exif_dict["Exif"]
                 if piexif.ExifIFD.DateTimeOriginal in exif_ifd:
                     dt_bytes = exif_ifd[piexif.ExifIFD.DateTimeOriginal]
-                    dt_str = dt_bytes.decode('utf-8', errors='ignore')
+                    dt_str = dt_bytes.decode("utf-8", errors="ignore")
                     # Convert EXIF format (YYYY:MM:DD HH:MM:SS) to ISO date
                     try:
-                        dt = datetime.strptime(dt_str, '%Y:%m:%d %H:%M:%S')
-                        return dt.strftime('%Y-%m-%d')
+                        dt = datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S")
+                        return dt.strftime("%Y-%m-%d")
                     except ValueError:
                         logger.debug(f"Malformed EXIF date for {photo_path}: {dt_str}")
                         return None
@@ -212,7 +211,7 @@ class SearchService:
         Returns:
             Tuple of (metadata dict, mtime for change detection)
         """
-        metadata = {'filename': photo_path.name, 'tags': []}
+        metadata = {"filename": photo_path.name, "tags": []}
 
         # Get sidecar path and check existence
         sidecar_path = photo_path.parent / f"{photo_path.name}.json"
@@ -225,23 +224,24 @@ class SearchService:
                 metadata_obj = self._sidecar_service.get_metadata(str(photo_path))
             else:
                 from webui.backend.lib.sidecar_metadata import read_metadata
+
                 metadata_obj = read_metadata(str(photo_path))
 
             if metadata_obj:
                 sidecar_data = metadata_obj.to_dict()
-                metadata['tags'] = sidecar_data.get('tags', [])
+                metadata["tags"] = sidecar_data.get("tags", [])
                 # Handle malformed species field (dict instead of string)
                 # This can happen with older bulk species updates (fixed in PR #XXX)
-                species = sidecar_data.get('species')
+                species = sidecar_data.get("species")
                 if isinstance(species, dict):
-                    species = species.get('species')
+                    species = species.get("species")
                     # Convert "None" string to actual None
-                    if species == 'None':
+                    if species == "None":
                         species = None
-                metadata['species'] = species
-                metadata['species_common_name'] = sidecar_data.get('species_common_name')
-                metadata['notes'] = sidecar_data.get('notes')
-                metadata['custom_fields'] = sidecar_data.get('custom_fields', {})
+                metadata["species"] = species
+                metadata["species_common_name"] = sidecar_data.get("species_common_name")
+                metadata["notes"] = sidecar_data.get("notes")
+                metadata["custom_fields"] = sidecar_data.get("custom_fields", {})
         else:
             # No sidecar - use photo mtime
             mtime = photo_path.stat().st_mtime
@@ -249,7 +249,7 @@ class SearchService:
         # Extract EXIF date
         exif_date = self._extract_exif_date(photo_path)
         if exif_date:
-            metadata['exif_date'] = exif_date
+            metadata["exif_date"] = exif_date
 
         return metadata, mtime
 
@@ -274,6 +274,7 @@ class SearchService:
         # Use PHOTOS_DIR if not specified
         if photos_dir is None:
             from mothbox_paths import PHOTOS_DIR
+
             photos_dir = PHOTOS_DIR
         else:
             photos_dir = Path(photos_dir)
@@ -303,14 +304,10 @@ class SearchService:
             if not photos_dir.exists():
                 logger.warning(f"Photos directory does not exist: {photos_dir}")
                 took_ms = (time.time() - start_time) * 1000
-                return {
-                    'indexed': 0,
-                    'errors': 0,
-                    'took_ms': took_ms
-                }
+                return {"indexed": 0, "errors": 0, "took_ms": took_ms}
 
             # Find all JPEG photos recursively
-            photo_extensions = ['*.jpg', '*.JPG', '*.jpeg', '*.JPEG']
+            photo_extensions = ["*.jpg", "*.JPG", "*.jpeg", "*.JPEG"]
             photos = []
             for ext in photo_extensions:
                 photos.extend(photos_dir.rglob(ext))
@@ -324,9 +321,7 @@ class SearchService:
 
                     # Index photo with relative path (for correct URL construction)
                     self._engine.index_photo(
-                        str(photo_path.relative_to(photos_dir)),
-                        metadata,
-                        sidecar_mtime=mtime
+                        str(photo_path.relative_to(photos_dir)), metadata, sidecar_mtime=mtime
                     )
                     indexed += 1
 
@@ -338,11 +333,7 @@ class SearchService:
 
         logger.info(f"Index built: {indexed} photos indexed, {errors} errors, {took_ms:.1f}ms")
 
-        return {
-            'indexed': indexed,
-            'errors': errors,
-            'took_ms': took_ms
-        }
+        return {"indexed": indexed, "errors": errors, "took_ms": took_ms}
 
     def sync_index(self, photos_dir: Path | None = None) -> dict:
         """Incremental index sync - only updates changed photos.
@@ -376,6 +367,7 @@ class SearchService:
         # Use PHOTOS_DIR if not specified
         if photos_dir is None:
             from mothbox_paths import PHOTOS_DIR
+
             photos_dir = PHOTOS_DIR
         else:
             photos_dir = Path(photos_dir)
@@ -384,28 +376,30 @@ class SearchService:
             logger.warning(f"Photos directory does not exist: {photos_dir}")
             took_ms = (time.time() - start_time) * 1000
             return {
-                'indexed': 0,
-                'updated': 0,
-                'deleted': 0,
-                'unchanged': 0,
-                'errors': 0,
-                'took_ms': took_ms
+                "indexed": 0,
+                "updated": 0,
+                "deleted": 0,
+                "unchanged": 0,
+                "errors": 0,
+                "took_ms": took_ms,
             }
 
         # Collect photo info with mtime
         photos = []
-        photo_extensions = ['*.jpg', '*.JPG', '*.jpeg', '*.JPEG']
+        photo_extensions = ["*.jpg", "*.JPG", "*.jpeg", "*.JPEG"]
 
         for ext in photo_extensions:
             for photo_path in photos_dir.rglob(ext):
                 try:
                     metadata, mtime = self._build_photo_metadata(photo_path)
 
-                    photos.append({
-                        'filepath': str(photo_path.relative_to(photos_dir)),
-                        'sidecar_mtime': mtime,
-                        'metadata': metadata
-                    })
+                    photos.append(
+                        {
+                            "filepath": str(photo_path.relative_to(photos_dir)),
+                            "sidecar_mtime": mtime,
+                            "metadata": metadata,
+                        }
+                    )
 
                 except Exception as e:
                     logger.warning(f"Error reading photo {photo_path}: {e}")
@@ -443,7 +437,7 @@ class SearchService:
                     stats = self._engine.get_stats()
 
                     # Check if index is empty (likely just created or corrupted)
-                    if stats['total_documents'] == 0:
+                    if stats["total_documents"] == 0:
                         logger.info("Index is empty, rebuilding...")
                         self.build_index(photos_dir)
                         return True
@@ -477,6 +471,7 @@ class SearchService:
                         metadata_obj = self._sidecar_service.get_metadata(photo_path)
                     else:
                         from webui.backend.lib.sidecar_metadata import read_metadata
+
                         metadata_obj = read_metadata(photo_path)
 
                     if not metadata_obj:
@@ -507,14 +502,14 @@ class SearchService:
             with self._lock:
                 # Get stats before removal
                 stats_before = self._engine.get_stats()
-                doc_count_before = stats_before['total_documents']
+                doc_count_before = stats_before["total_documents"]
 
                 # Remove from index
                 self._engine.remove_photo(photo_path)
 
                 # Check if removal was successful
                 stats_after = self._engine.get_stats()
-                doc_count_after = stats_after['total_documents']
+                doc_count_after = stats_after["total_documents"]
 
                 removed = doc_count_after < doc_count_before
 
@@ -526,12 +521,7 @@ class SearchService:
             logger.error(f"Error removing photo {photo_path}: {e}")
             return False
 
-    def search(
-        self,
-        query: str,
-        limit: int = 20,
-        offset: int = 0
-    ) -> dict:
+    def search(self, query: str, limit: int = 20, offset: int = 0) -> dict:
         """Execute search query.
 
         Uses query parser to translate user query to FTS5.
@@ -563,14 +553,14 @@ class SearchService:
 
         if not parsed.is_valid:
             return {
-                'results': [],
-                'total': 0,
-                'query': query,
-                'parsed_query': '',
-                'took_ms': (time.time() - start_time) * 1000,
-                'has_next': False,
-                'is_valid': False,
-                'error_message': parsed.error_message
+                "results": [],
+                "total": 0,
+                "query": query,
+                "parsed_query": "",
+                "took_ms": (time.time() - start_time) * 1000,
+                "has_next": False,
+                "is_valid": False,
+                "error_message": parsed.error_message,
             }
 
         with self._lock:
@@ -580,9 +570,9 @@ class SearchService:
                 if parsed.date_filter:
                     # Convert DateFilter to dict for search_with_date_filter
                     date_filter_dict = {
-                        'operator': parsed.date_filter.operator,
-                        'start_date': parsed.date_filter.start_date,
-                        'end_date': parsed.date_filter.end_date
+                        "operator": parsed.date_filter.operator,
+                        "start_date": parsed.date_filter.start_date,
+                        "end_date": parsed.date_filter.end_date,
                     }
 
                     # Use combined FTS + SQL date filtering
@@ -590,16 +580,14 @@ class SearchService:
                         query=parsed.fts_query if parsed.fts_query.strip() else None,
                         date_filter=date_filter_dict,
                         limit=limit,
-                        offset=offset
+                        offset=offset,
                     )
                     filtered_results = search_result.results
                     filtered_total = search_result.total
                 elif parsed.fts_query.strip():
                     # FTS-only query (no date filter)
                     search_result = self._engine.search(
-                        parsed.fts_query,
-                        limit=limit,
-                        offset=offset
+                        parsed.fts_query, limit=limit, offset=offset
                     )
                     filtered_results = search_result.results
                     filtered_total = search_result.total
@@ -611,16 +599,18 @@ class SearchService:
                 # Convert SearchMatch objects to dictionaries
                 results_dicts = []
                 for match in filtered_results:
-                    results_dicts.append({
-                        'filepath': match.filepath,
-                        'filename': match.filename,
-                        'score': match.score,
-                        'matched_fields': match.matched_fields,
-                        'metadata': match.metadata,
-                        'bm25_score': match.bm25_score,
-                        'match_type': match.match_type,
-                        'highlights': match.highlights
-                    })
+                    results_dicts.append(
+                        {
+                            "filepath": match.filepath,
+                            "filename": match.filename,
+                            "score": match.score,
+                            "matched_fields": match.matched_fields,
+                            "metadata": match.metadata,
+                            "bm25_score": match.bm25_score,
+                            "match_type": match.match_type,
+                            "highlights": match.highlights,
+                        }
+                    )
 
                 # Calculate has_next
                 has_next = (offset + limit) < filtered_total
@@ -628,14 +618,14 @@ class SearchService:
                 took_ms = (time.time() - start_time) * 1000
 
                 return {
-                    'results': results_dicts,
-                    'total': filtered_total,
-                    'query': query,
-                    'parsed_query': parsed.fts_query,
-                    'took_ms': took_ms,
-                    'has_next': has_next,
-                    'is_valid': True,
-                    'error_message': None
+                    "results": results_dicts,
+                    "total": filtered_total,
+                    "query": query,
+                    "parsed_query": parsed.fts_query,
+                    "took_ms": took_ms,
+                    "has_next": has_next,
+                    "is_valid": True,
+                    "error_message": None,
                 }
 
             except Exception as e:
@@ -643,14 +633,14 @@ class SearchService:
                 took_ms = (time.time() - start_time) * 1000
 
                 return {
-                    'results': [],
-                    'total': 0,
-                    'query': query,
-                    'parsed_query': parsed.fts_query,
-                    'took_ms': took_ms,
-                    'has_next': False,
-                    'is_valid': False,
-                    'error_message': str(e)
+                    "results": [],
+                    "total": 0,
+                    "query": query,
+                    "parsed_query": parsed.fts_query,
+                    "took_ms": took_ms,
+                    "has_next": False,
+                    "is_valid": False,
+                    "error_message": str(e),
                 }
 
     def get_statistics(self) -> dict:
@@ -671,9 +661,9 @@ class SearchService:
                 index_size_bytes = self.db_path.stat().st_size
 
             return {
-                'document_count': stats['total_documents'],
-                'index_size_bytes': index_size_bytes,
-                'db_path': str(self.db_path)
+                "document_count": stats["total_documents"],
+                "index_size_bytes": index_size_bytes,
+                "db_path": str(self.db_path),
             }
 
     def invalidate_cache(self) -> None:
@@ -730,8 +720,9 @@ class SearchService:
             resolved_db_path.relative_to(resolved_data_dir)
         except ValueError:
             # Also allow temp directory for testing purposes
-            if not str(resolved_db_path).startswith(tempfile.gettempdir()) and \
-               not str(resolved_db_path).startswith(os.path.join(os.getcwd(), 'Tests')):
+            if not str(resolved_db_path).startswith(tempfile.gettempdir()) and not str(
+                resolved_db_path
+            ).startswith(os.path.join(os.getcwd(), "Tests")):
                 logger.warning(
                     f"Database path {db_path} is outside expected directory {DATA_DIR}. "
                     "This may indicate a configuration issue."
@@ -756,27 +747,31 @@ class SearchService:
 
         for result in results:
             # Get date from metadata
-            date_str = result.metadata.get('date')
+            date_str = result.metadata.get("date")
             if not date_str:
                 continue  # Skip if no date
 
             # Apply filter based on operator
-            if date_filter.operator == 'range':
+            if date_filter.operator == "range":
                 if date_filter.start_date <= date_str <= date_filter.end_date:
                     filtered.append(result)
-            elif date_filter.operator == 'gt':
+            elif date_filter.operator == "gt":
                 if date_str > date_filter.start_date:
                     filtered.append(result)
-            elif date_filter.operator == 'gte':
+            elif date_filter.operator == "gte":
                 if date_str >= date_filter.start_date:
                     filtered.append(result)
-            elif date_filter.operator == 'lt':
+            elif date_filter.operator == "lt":
                 if date_str < date_filter.end_date:
                     filtered.append(result)
-            elif date_filter.operator == 'lte':
+            elif date_filter.operator == "lte":
                 if date_str <= date_filter.end_date:
                     filtered.append(result)
-            elif date_filter.operator == 'eq' and date_filter.start_date and date_str == date_filter.start_date:
+            elif (
+                date_filter.operator == "eq"
+                and date_filter.start_date
+                and date_str == date_filter.start_date
+            ):
                 filtered.append(result)
 
         return filtered
@@ -787,6 +782,6 @@ class SearchService:
 # ============================================================================
 
 __all__ = [
-    'SearchService',
-    'SearchServiceConfig',
+    "SearchService",
+    "SearchServiceConfig",
 ]

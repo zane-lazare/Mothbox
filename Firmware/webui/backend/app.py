@@ -37,7 +37,7 @@ config = get_config()
 
 # Reduce Werkzeug request logging verbosity
 # Only show warnings and errors, not every request
-logging.getLogger('werkzeug').setLevel(logging.WARNING)
+logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 app = Flask(__name__, static_folder="../frontend/dist")
 
@@ -129,11 +129,9 @@ try:
     # TODO: Read configuration from controls.txt (max_size_mb, sizes)
     # For now, use defaults: max_size_mb=500, sizes=[64, 128, 256]
     thumbnail_cache = ThumbnailCache(
-        cache_dir=THUMBNAIL_CACHE_DIR,
-        max_size_mb=500,
-        sizes=[64, 128, 256]
+        cache_dir=THUMBNAIL_CACHE_DIR, max_size_mb=500, sizes=[64, 128, 256]
     )
-    app.config['THUMBNAIL_CACHE'] = thumbnail_cache
+    app.config["THUMBNAIL_CACHE"] = thumbnail_cache
 
     # Register cleanup handler to flush statistics on shutdown
     atexit.register(thumbnail_cache.close)
@@ -141,7 +139,7 @@ try:
     print("✓ Registered thumbnail cache cleanup handler")
 except Exception as e:
     print(f"⚠️  Failed to initialize thumbnail cache: {e}")
-    app.config['THUMBNAIL_CACHE'] = None
+    app.config["THUMBNAIL_CACHE"] = None
     thumbnail_cache = None
 
 # Initialize cache warmer
@@ -149,11 +147,8 @@ from services.cache_warmer import CacheWarmer
 
 if thumbnail_cache:
     try:
-        cache_warmer = CacheWarmer(
-            thumbnail_cache=thumbnail_cache,
-            photos_dir=PHOTOS_DIR
-        )
-        app.config['CACHE_WARMER'] = cache_warmer
+        cache_warmer = CacheWarmer(thumbnail_cache=thumbnail_cache, photos_dir=PHOTOS_DIR)
+        app.config["CACHE_WARMER"] = cache_warmer
 
         # Warm recent photos on startup (non-blocking)
         cache_warmer.warm_recent(count=50, background=True)
@@ -168,9 +163,9 @@ if thumbnail_cache:
 
     except Exception as e:
         print(f"⚠️  Failed to initialize cache warmer: {e}")
-        app.config['CACHE_WARMER'] = None
+        app.config["CACHE_WARMER"] = None
 else:
-    app.config['CACHE_WARMER'] = None
+    app.config["CACHE_WARMER"] = None
     print("⚠️  Cache warmer not initialized (thumbnail cache unavailable)")
 
 # Initialize services using lazy getters (avoids circular imports)
@@ -185,73 +180,73 @@ from services.search_service import SearchService
 
 try:
     # Pre-initialize services and store in app.config for routes that need direct access
-    app.config['SERIES_SERVICE'] = get_series_service()
+    app.config["SERIES_SERVICE"] = get_series_service()
     print("✓ Series service initialized")
 except Exception as e:
     print(f"⚠️  Failed to initialize series service: {e}")
-    app.config['SERIES_SERVICE'] = None
+    app.config["SERIES_SERVICE"] = None
 
 try:
-    app.config['CLUSTERING_SERVICE'] = get_clustering_service()
+    app.config["CLUSTERING_SERVICE"] = get_clustering_service()
     print("✓ Clustering service initialized")
 except Exception as e:
     print(f"⚠️  Failed to initialize clustering service: {e}")
-    app.config['CLUSTERING_SERVICE'] = None
+    app.config["CLUSTERING_SERVICE"] = None
 
 try:
-    app.config['LOCATIONS_SERVICE'] = get_locations_service()
+    app.config["LOCATIONS_SERVICE"] = get_locations_service()
     print("✓ Locations service initialized")
 except Exception as e:
     print(f"⚠️  Failed to initialize locations service: {e}")
-    app.config['LOCATIONS_SERVICE'] = None
+    app.config["LOCATIONS_SERVICE"] = None
 
 try:
-    app.config['SIDECAR_SERVICE'] = get_sidecar_service()
+    app.config["SIDECAR_SERVICE"] = get_sidecar_service()
     print("✓ Sidecar service initialized")
 except Exception as e:
     print(f"⚠️  Failed to initialize sidecar service: {e}")
-    app.config['SIDECAR_SERVICE'] = None
+    app.config["SIDECAR_SERVICE"] = None
 
 # Initialize search service
 try:
-    sidecar_svc = app.config.get('SIDECAR_SERVICE')
-    app.config['SEARCH_SERVICE'] = SearchService(sidecar_service=sidecar_svc)
+    sidecar_svc = app.config.get("SIDECAR_SERVICE")
+    app.config["SEARCH_SERVICE"] = SearchService(sidecar_service=sidecar_svc)
     print("✓ Search service initialized")
 except Exception as e:
     print(f"⚠️  Failed to initialize search service: {e}")
-    app.config['SEARCH_SERVICE'] = None
+    app.config["SEARCH_SERVICE"] = None
 
 # Initialize tag autocomplete engine
 from webui.backend.lib.tag_autocomplete import TagAutocompleteEngine
 
 try:
-    sidecar_service = app.config.get('SIDECAR_SERVICE')
+    sidecar_service = app.config.get("SIDECAR_SERVICE")
     if sidecar_service:
-        app.config['TAG_AUTOCOMPLETE_ENGINE'] = TagAutocompleteEngine(
+        app.config["TAG_AUTOCOMPLETE_ENGINE"] = TagAutocompleteEngine(
             sidecar_service=sidecar_service,
-            cache_ttl=300  # 5 minutes
+            cache_ttl=300,  # 5 minutes
         )
         print("✓ Tag autocomplete engine initialized")
     else:
-        app.config['TAG_AUTOCOMPLETE_ENGINE'] = None
+        app.config["TAG_AUTOCOMPLETE_ENGINE"] = None
         print("⚠️  Tag autocomplete engine not initialized (sidecar service unavailable)")
 except Exception as e:
     print(f"⚠️  Failed to initialize tag autocomplete engine: {e}")
-    app.config['TAG_AUTOCOMPLETE_ENGINE'] = None
+    app.config["TAG_AUTOCOMPLETE_ENGINE"] = None
 
 # Initialize export metadata service
 from webui.backend.services.export_metadata_service import ExportMetadataService
 
 try:
-    cache_ttl = app.config.get('EXPORT_CACHE_TTL', 300)
+    cache_ttl = app.config.get("EXPORT_CACHE_TTL", 300)
     if not isinstance(cache_ttl, int) or cache_ttl < 0:
         print("⚠️  Invalid EXPORT_CACHE_TTL, using default: 300")
         cache_ttl = 300
-    app.config['EXPORT_METADATA_SERVICE'] = ExportMetadataService(cache_ttl=cache_ttl)
+    app.config["EXPORT_METADATA_SERVICE"] = ExportMetadataService(cache_ttl=cache_ttl)
     print("✓ Export metadata service initialized")
 except Exception as e:
     print(f"⚠️  Failed to initialize export metadata service: {e}")
-    app.config['EXPORT_METADATA_SERVICE'] = None
+    app.config["EXPORT_METADATA_SERVICE"] = None
 
 # Initialize export job service (async job queue for exports)
 from webui.backend.constants import (
@@ -262,10 +257,11 @@ from webui.backend.constants import (
 from webui.backend.services.export_job_service import ExportJobService
 
 try:
-    export_metadata_svc = app.config.get('EXPORT_METADATA_SERVICE')
+    export_metadata_svc = app.config.get("EXPORT_METADATA_SERVICE")
     if export_metadata_svc:
         # Database stored in DATA_DIR for persistence across restarts
         from mothbox_paths import DATA_DIR, PHOTOS_DIR
+
         db_path = DATA_DIR / "export_jobs.db"
         temp_dir = DATA_DIR / "export_temp"
         temp_dir.mkdir(parents=True, exist_ok=True)
@@ -280,31 +276,31 @@ try:
             max_history=EXPORT_JOB_MAX_HISTORY,
         )
         export_job_service.start()  # Start worker thread
-        app.config['EXPORT_JOB_SERVICE'] = export_job_service
+        app.config["EXPORT_JOB_SERVICE"] = export_job_service
         atexit.register(export_job_service.stop)  # Cleanup on shutdown
         print("✓ Export job service initialized")
         print(f"  Database: {db_path}")
         print(f"  Temp dir: {temp_dir}")
     else:
-        app.config['EXPORT_JOB_SERVICE'] = None
+        app.config["EXPORT_JOB_SERVICE"] = None
         print("⚠️  Export job service not initialized (export metadata service unavailable)")
 except Exception as e:
     print(f"⚠️  Failed to initialize export job service: {e}")
-    app.config['EXPORT_JOB_SERVICE'] = None
+    app.config["EXPORT_JOB_SERVICE"] = None
 
 # Initialize deployment service
 from webui.backend.services.deployment_service import DeploymentService
 
 try:
-    cache_ttl = app.config.get('DEPLOYMENT_CACHE_TTL', 300)
+    cache_ttl = app.config.get("DEPLOYMENT_CACHE_TTL", 300)
     if not isinstance(cache_ttl, int) or cache_ttl < 0:
         print("⚠️  Invalid DEPLOYMENT_CACHE_TTL, using default: 300")
         cache_ttl = 300
-    app.config['DEPLOYMENT_SERVICE'] = DeploymentService(cache_ttl=cache_ttl)
+    app.config["DEPLOYMENT_SERVICE"] = DeploymentService(cache_ttl=cache_ttl)
     print("✓ Deployment service initialized")
 except Exception as e:
     print(f"⚠️  Failed to initialize deployment service: {e}")
-    app.config['DEPLOYMENT_SERVICE'] = None
+    app.config["DEPLOYMENT_SERVICE"] = None
 
 # Initialize export preset manager
 from mothbox_paths import EXPORT_BUILTIN_PRESET_DIR, EXPORT_USER_PRESET_DIR
@@ -324,15 +320,16 @@ try:
     EXPORT_USER_PRESET_DIR.mkdir(parents=True, exist_ok=True)
 
     export_preset_manager = ExportPresetManager(
-        builtin_dir=builtin_dir,
-        user_dir=EXPORT_USER_PRESET_DIR
+        builtin_dir=builtin_dir, user_dir=EXPORT_USER_PRESET_DIR
     )
-    app.config['EXPORT_PRESET_MANAGER'] = export_preset_manager
+    app.config["EXPORT_PRESET_MANAGER"] = export_preset_manager
     counts = export_preset_manager.get_preset_count()
-    print(f"✓ Export preset manager initialized ({counts['built_in']} built-in, {counts['user']} user)")
+    print(
+        f"✓ Export preset manager initialized ({counts['built_in']} built-in, {counts['user']} user)"
+    )
 except Exception as e:
     print(f"⚠️  Failed to initialize export preset manager: {e}")
-    app.config['EXPORT_PRESET_MANAGER'] = None
+    app.config["EXPORT_PRESET_MANAGER"] = None
 
 # Import route blueprints
 from routes.camera import camera_bp

@@ -49,6 +49,7 @@ except ImportError:
         def limit(self, *args, **kwargs):
             def decorator(f):
                 return f
+
             return decorator
 
     limiter = LimiterStub()
@@ -77,6 +78,7 @@ deployment_bp = Blueprint("deployment", __name__)
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
 
 def _validate_custom_value(value, depth: int = 0) -> tuple[bool, str | None]:
     """
@@ -135,39 +137,43 @@ def _validate_deployment_input(data: dict) -> tuple[bool, str | None]:
         - (False, error_message) if invalid
     """
     # Validate deployment_name (required for PUT, optional for PATCH)
-    if 'deployment_name' in data:
-        if not isinstance(data['deployment_name'], str):
+    if "deployment_name" in data:
+        if not isinstance(data["deployment_name"], str):
             return False, "deployment_name must be a string"
-        if len(data['deployment_name']) == 0:
+        if len(data["deployment_name"]) == 0:
             return False, "deployment_name cannot be empty"
-        if len(data['deployment_name']) > MAX_DEPLOYMENT_NAME_LENGTH:
+        if len(data["deployment_name"]) > MAX_DEPLOYMENT_NAME_LENGTH:
             return False, f"deployment_name exceeds maximum length ({MAX_DEPLOYMENT_NAME_LENGTH})"
 
     # Validate location_name
-    if 'location_name' in data and data['location_name'] is not None:
-        if not isinstance(data['location_name'], str):
+    if "location_name" in data and data["location_name"] is not None:
+        if not isinstance(data["location_name"], str):
             return False, "location_name must be a string"
-        if len(data['location_name']) > MAX_LOCATION_NAME_LENGTH:
+        if len(data["location_name"]) > MAX_LOCATION_NAME_LENGTH:
             return False, f"location_name exceeds maximum length ({MAX_LOCATION_NAME_LENGTH})"
 
     # Validate coordinates
-    if 'latitude' in data and data['latitude'] is not None:
-        if not isinstance(data['latitude'], (int, float)):
+    if "latitude" in data and data["latitude"] is not None:
+        if not isinstance(data["latitude"], (int, float)):
             return False, "latitude must be a number"
-        if not MIN_LATITUDE <= data['latitude'] <= MAX_LATITUDE:
+        if not MIN_LATITUDE <= data["latitude"] <= MAX_LATITUDE:
             return False, f"latitude must be between {MIN_LATITUDE} and {MAX_LATITUDE}"
 
-    if 'longitude' in data and data['longitude'] is not None:
-        if not isinstance(data['longitude'], (int, float)):
+    if "longitude" in data and data["longitude"] is not None:
+        if not isinstance(data["longitude"], (int, float)):
             return False, "longitude must be a number"
-        if not MIN_LONGITUDE <= data['longitude'] <= MAX_LONGITUDE:
+        if not MIN_LONGITUDE <= data["longitude"] <= MAX_LONGITUDE:
             return False, f"longitude must be between {MIN_LONGITUDE} and {MAX_LONGITUDE}"
 
-    if 'altitude' in data and data['altitude'] is not None and not isinstance(data['altitude'], (int, float)):
+    if (
+        "altitude" in data
+        and data["altitude"] is not None
+        and not isinstance(data["altitude"], (int, float))
+    ):
         return False, "altitude must be a number"
 
     # Validate date fields (basic check - ISO 8601 format YYYY-MM-DD)
-    for field in ['start_date', 'end_date']:
+    for field in ["start_date", "end_date"]:
         if field in data and data[field] is not None:
             if not isinstance(data[field], str):
                 return False, f"{field} must be a string (ISO 8601 format: YYYY-MM-DD)"
@@ -176,10 +182,10 @@ def _validate_deployment_input(data: dict) -> tuple[bool, str | None]:
                 return False, f"{field} must be in ISO 8601 format (YYYY-MM-DD)"
 
     # Validate environmental dict (same constraints as custom fields)
-    if 'environmental' in data and data['environmental'] is not None:
-        if not isinstance(data['environmental'], dict):
+    if "environmental" in data and data["environmental"] is not None:
+        if not isinstance(data["environmental"], dict):
             return False, "environmental must be an object"
-        for key, value in data['environmental'].items():
+        for key, value in data["environmental"].items():
             if not isinstance(key, str):
                 return False, "environmental field names must be strings"
             if len(key) > 100:
@@ -189,12 +195,12 @@ def _validate_deployment_input(data: dict) -> tuple[bool, str | None]:
                 return False, err.replace("Custom field", "environmental field")
 
     # Validate custom fields
-    if 'custom' in data:
-        if not isinstance(data['custom'], dict):
+    if "custom" in data:
+        if not isinstance(data["custom"], dict):
             return False, "custom fields must be an object"
-        if len(data['custom']) > MAX_CUSTOM_KEYS:
+        if len(data["custom"]) > MAX_CUSTOM_KEYS:
             return False, f"Too many custom fields (max {MAX_CUSTOM_KEYS})"
-        for key, value in data['custom'].items():
+        for key, value in data["custom"].items():
             if not isinstance(key, str):
                 return False, "Custom field names must be strings"
             if len(key) > 100:
@@ -209,6 +215,7 @@ def _validate_deployment_input(data: dict) -> tuple[bool, str | None]:
 # ============================================================================
 # GET /metadata/<path:directory> - Get deployment metadata
 # ============================================================================
+
 
 @deployment_bp.route("/metadata/<path:directory>", methods=["GET"])
 def get_deployment_metadata(directory: str):
@@ -250,7 +257,7 @@ def get_deployment_metadata(directory: str):
     """
     try:
         # Get deployment service
-        service = current_app.config.get('DEPLOYMENT_SERVICE')
+        service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
@@ -271,12 +278,15 @@ def get_deployment_metadata(directory: str):
 
         # Find source path for response
         from webui.backend.lib.deployment_sidecar import find_deployment_sidecar
+
         source_path = find_deployment_sidecar(full_path)
 
-        return jsonify({
-            "deployment": metadata.to_dict(),
-            "source_path": str(source_path) if source_path else None
-        }), 200
+        return jsonify(
+            {
+                "deployment": metadata.to_dict(),
+                "source_path": str(source_path) if source_path else None,
+            }
+        ), 200
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to get deployment metadata")
@@ -286,6 +296,7 @@ def get_deployment_metadata(directory: str):
 # ============================================================================
 # PUT /metadata/<path:directory> - Create/replace deployment metadata
 # ============================================================================
+
 
 @deployment_bp.route("/metadata/<path:directory>", methods=["PUT"])
 def create_deployment_metadata(directory: str):
@@ -347,7 +358,7 @@ def create_deployment_metadata(directory: str):
         # API key auth not yet implemented - see issue #175 for tracking.
 
         # Get deployment service
-        service = current_app.config.get('DEPLOYMENT_SERVICE')
+        service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
@@ -373,7 +384,7 @@ def create_deployment_metadata(directory: str):
             return jsonify({"error": "Request body is required"}), 400
 
         # Validate required field
-        if 'deployment_name' not in data:
+        if "deployment_name" not in data:
             return jsonify({"error": "Field 'deployment_name' is required"}), 400
 
         # Validate input
@@ -382,27 +393,29 @@ def create_deployment_metadata(directory: str):
             return jsonify({"error": error_msg}), 400
 
         # Get format from query params
-        format = request.args.get('format', 'json')
+        format = request.args.get("format", "json")
         if format not in SUPPORTED_FORMATS:
-            return jsonify({"error": f"Invalid format. Supported: {', '.join(SUPPORTED_FORMATS)}"}), 400
+            return jsonify(
+                {"error": f"Invalid format. Supported: {', '.join(SUPPORTED_FORMATS)}"}
+            ), 400
 
         # Create metadata object
         from webui.backend.lib.deployment_sidecar import create_deployment_metadata as lib_create
 
         metadata = lib_create(
             directory=full_path,
-            name=data['deployment_name'],
-            latitude=data.get('latitude'),
-            longitude=data.get('longitude'),
-            altitude=data.get('altitude'),
-            location_name=data.get('location_name'),
-            start_date=data.get('start_date'),
-            end_date=data.get('end_date'),
-            environmental=data.get('environmental'),
-            mothbox_id=data.get('mothbox_id'),
-            firmware_version=data.get('firmware_version'),
-            custom=data.get('custom'),
-            modified_by=data.get('modified_by'),
+            name=data["deployment_name"],
+            latitude=data.get("latitude"),
+            longitude=data.get("longitude"),
+            altitude=data.get("altitude"),
+            location_name=data.get("location_name"),
+            start_date=data.get("start_date"),
+            end_date=data.get("end_date"),
+            environmental=data.get("environmental"),
+            mothbox_id=data.get("mothbox_id"),
+            firmware_version=data.get("firmware_version"),
+            custom=data.get("custom"),
+            modified_by=data.get("modified_by"),
         )
 
         # Write to disk via service (handles cache)
@@ -421,6 +434,7 @@ def create_deployment_metadata(directory: str):
 # ============================================================================
 # PATCH /metadata/<path:directory> - Partial update deployment metadata
 # ============================================================================
+
 
 @deployment_bp.route("/metadata/<path:directory>", methods=["PATCH"])
 @require_api_key_or_csrf
@@ -474,7 +488,7 @@ def update_deployment_metadata(directory: str):
         # Authentication: CSRF protection is enforced by Flask-WTF automatically.
 
         # Get deployment service
-        service = current_app.config.get('DEPLOYMENT_SERVICE')
+        service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
@@ -526,6 +540,7 @@ def update_deployment_metadata(directory: str):
 # DELETE /metadata/<path:directory> - Delete deployment metadata
 # ============================================================================
 
+
 @deployment_bp.route("/metadata/<path:directory>", methods=["DELETE"])
 @require_api_key_or_csrf
 def delete_deployment_metadata(directory: str):
@@ -558,7 +573,7 @@ def delete_deployment_metadata(directory: str):
         # Authentication: CSRF protection is enforced by Flask-WTF automatically.
 
         # Get deployment service
-        service = current_app.config.get('DEPLOYMENT_SERVICE')
+        service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
@@ -587,6 +602,7 @@ def delete_deployment_metadata(directory: str):
 # ============================================================================
 # GET /list - List all deployments
 # ============================================================================
+
 
 @deployment_bp.route("/list", methods=["GET"])
 def list_all_deployments():
@@ -630,12 +646,12 @@ def list_all_deployments():
     """
     try:
         # Get deployment service
-        service = current_app.config.get('DEPLOYMENT_SERVICE')
+        service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
         # Get optional root_dir parameter
-        root_dir_param = request.args.get('root_dir')
+        root_dir_param = request.args.get("root_dir")
 
         if root_dir_param:
             # Validate path
@@ -651,10 +667,7 @@ def list_all_deployments():
         # Convert to dict for JSON response
         deployment_dicts = [d.to_dict() for d in deployments]
 
-        return jsonify({
-            "deployments": deployment_dicts,
-            "total": len(deployment_dicts)
-        }), 200
+        return jsonify({"deployments": deployment_dicts, "total": len(deployment_dicts)}), 200
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to list deployments")
@@ -664,6 +677,7 @@ def list_all_deployments():
 # ============================================================================
 # GET /discover/<path:photo_path> - Find deployment for photo
 # ============================================================================
+
 
 @deployment_bp.route("/discover/<path:photo_path>", methods=["GET"])
 def discover_deployment_for_photo(photo_path: str):
@@ -700,7 +714,7 @@ def discover_deployment_for_photo(photo_path: str):
     """
     try:
         # Get deployment service
-        service = current_app.config.get('DEPLOYMENT_SERVICE')
+        service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
@@ -721,12 +735,15 @@ def discover_deployment_for_photo(photo_path: str):
 
         # Find source path for response
         from webui.backend.lib.deployment_sidecar import find_deployment_sidecar
+
         source_path = find_deployment_sidecar(full_path)
 
-        return jsonify({
-            "deployment": metadata.to_dict(),
-            "source_path": str(source_path) if source_path else None
-        }), 200
+        return jsonify(
+            {
+                "deployment": metadata.to_dict(),
+                "source_path": str(source_path) if source_path else None,
+            }
+        ), 200
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to discover deployment")
@@ -736,6 +753,7 @@ def discover_deployment_for_photo(photo_path: str):
 # ============================================================================
 # POST /batch - Batch update operations
 # ============================================================================
+
 
 @deployment_bp.route("/batch", methods=["POST"])
 @limiter.limit("10 per minute")
@@ -807,7 +825,7 @@ def batch_update_deployments():
         # Authentication: CSRF protection is enforced by Flask-WTF automatically.
 
         # Get deployment service
-        service = current_app.config.get('DEPLOYMENT_SERVICE')
+        service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
@@ -824,10 +842,10 @@ def batch_update_deployments():
             return jsonify({"error": "Request body is required"}), 400
 
         # Validate required fields
-        if 'updates' not in data:
+        if "updates" not in data:
             return jsonify({"error": "Field 'updates' is required"}), 400
 
-        updates = data['updates']
+        updates = data["updates"]
 
         # Validate updates
         if not isinstance(updates, list):
@@ -843,17 +861,19 @@ def batch_update_deployments():
         for i, update in enumerate(updates):
             if not isinstance(update, dict):
                 return jsonify({"error": f"Update at index {i} must be an object"}), 400
-            if 'directory' not in update:
+            if "directory" not in update:
                 return jsonify({"error": f"Update at index {i} missing 'directory' field"}), 400
-            if 'data' not in update:
+            if "data" not in update:
                 return jsonify({"error": f"Update at index {i} missing 'data' field"}), 400
-            if not isinstance(update['data'], dict):
+            if not isinstance(update["data"], dict):
                 return jsonify({"error": f"Update at index {i} 'data' must be an object"}), 400
 
             # Validate update data
-            is_valid, error_msg = _validate_deployment_input(update['data'])
+            is_valid, error_msg = _validate_deployment_input(update["data"])
             if not is_valid:
-                return jsonify({"error": f"Update at index {i} validation failed: {error_msg}"}), 400
+                return jsonify(
+                    {"error": f"Update at index {i} validation failed: {error_msg}"}
+                ), 400
 
         # Process each update independently
         success_list = []
@@ -861,28 +881,28 @@ def batch_update_deployments():
         error_dict = {}
 
         for index, update in enumerate(updates):
-            directory = update['directory']
-            update_data = update['data']
+            directory = update["directory"]
+            update_data = update["data"]
 
             try:
                 # Path traversal protection
                 full_path = validate_photo_path(directory, PHOTOS_DIR)
                 if full_path is None:
-                    failed_list.append({
-                        "index": index,
-                        "directory": directory,
-                        "error": "Invalid path: Access denied"
-                    })
+                    failed_list.append(
+                        {
+                            "index": index,
+                            "directory": directory,
+                            "error": "Invalid path: Access denied",
+                        }
+                    )
                     error_dict[directory] = "Invalid path: Access denied"
                     continue
 
                 # Check if directory exists
                 if not full_path.exists() or not full_path.is_dir():
-                    failed_list.append({
-                        "index": index,
-                        "directory": directory,
-                        "error": "Directory not found"
-                    })
+                    failed_list.append(
+                        {"index": index, "directory": directory, "error": "Directory not found"}
+                    )
                     error_dict[directory] = "Directory not found"
                     continue
 
@@ -890,11 +910,13 @@ def batch_update_deployments():
                 metadata = service.update_deployment_metadata(full_path, update_data)
 
                 if metadata is None:
-                    failed_list.append({
-                        "index": index,
-                        "directory": directory,
-                        "error": "Failed to update deployment metadata"
-                    })
+                    failed_list.append(
+                        {
+                            "index": index,
+                            "directory": directory,
+                            "error": "Failed to update deployment metadata",
+                        }
+                    )
                     error_dict[directory] = "Failed to update deployment metadata"
                     continue
 
@@ -904,22 +926,22 @@ def batch_update_deployments():
             except Exception as e:
                 # Log error but continue processing other updates
                 logger.warning(f"Error updating deployment for {directory}: {e}")
-                failed_list.append({
-                    "index": index,
-                    "directory": directory,
-                    "error": "Update failed"
-                })
+                failed_list.append(
+                    {"index": index, "directory": directory, "error": "Update failed"}
+                )
                 error_dict[directory] = "Update failed"
 
         # Build response
-        return jsonify({
-            "success": success_list,
-            "failed": failed_list,
-            "errors": error_dict,
-            "total": len(updates),
-            "successful": len(success_list),
-            "failed_count": len(failed_list)
-        }), 200
+        return jsonify(
+            {
+                "success": success_list,
+                "failed": failed_list,
+                "errors": error_dict,
+                "total": len(updates),
+                "successful": len(success_list),
+                "failed_count": len(failed_list),
+            }
+        ), 200
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to batch update deployments")
@@ -929,6 +951,7 @@ def batch_update_deployments():
 # ============================================================================
 # POST /generate - Generate deployment sidecars for directory
 # ============================================================================
+
 
 @deployment_bp.route("/generate", methods=["POST"])
 @limiter.limit("10 per minute")
@@ -991,7 +1014,7 @@ def generate_deployment_sidecars():
         # Authentication: CSRF protection is enforced by Flask-WTF automatically.
 
         # Get deployment service
-        service = current_app.config.get('DEPLOYMENT_SERVICE')
+        service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
@@ -1008,14 +1031,14 @@ def generate_deployment_sidecars():
             return jsonify({"error": "Request body is required"}), 400
 
         # Validate required fields
-        if 'directory' not in data:
+        if "directory" not in data:
             return jsonify({"error": "Field 'directory' is required"}), 400
 
-        if 'template' not in data:
+        if "template" not in data:
             return jsonify({"error": "Field 'template' is required"}), 400
 
-        directory = data['directory']
-        template = data['template']
+        directory = data["directory"]
+        template = data["template"]
 
         # Validate template
         if not isinstance(template, dict):
@@ -1038,9 +1061,7 @@ def generate_deployment_sidecars():
         # Generate sidecars via service
         generated_count = service.generate_sidecars_for_directory(full_path, template)
 
-        return jsonify({
-            "generated_count": generated_count
-        }), 200
+        return jsonify({"generated_count": generated_count}), 200
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to generate deployment sidecars")
@@ -1050,6 +1071,7 @@ def generate_deployment_sidecars():
 # ============================================================================
 # GET /stats - Service statistics
 # ============================================================================
+
 
 @deployment_bp.route("/stats", methods=["GET"])
 def get_deployment_stats():
@@ -1092,7 +1114,7 @@ def get_deployment_stats():
     """
     try:
         # Get deployment service
-        service = current_app.config.get('DEPLOYMENT_SERVICE')
+        service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
@@ -1109,6 +1131,7 @@ def get_deployment_stats():
 # ============================================================================
 # POST /cache/invalidate - Invalidate cache
 # ============================================================================
+
 
 @deployment_bp.route("/cache/invalidate", methods=["POST"])
 @require_api_key_or_csrf
@@ -1147,12 +1170,12 @@ def invalidate_deployment_cache():
         # Authentication: CSRF protection is enforced by Flask-WTF automatically.
 
         # Get deployment service
-        service = current_app.config.get('DEPLOYMENT_SERVICE')
+        service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
             return jsonify({"error": "Service unavailable"}), 503
 
         # Get optional directory parameter
-        directory_param = request.args.get('directory')
+        directory_param = request.args.get("directory")
 
         if directory_param:
             # Validate path
@@ -1177,4 +1200,4 @@ def invalidate_deployment_cache():
 # Module exports
 # ============================================================================
 
-__all__ = ['deployment_bp']
+__all__ = ["deployment_bp"]

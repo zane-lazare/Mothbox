@@ -30,6 +30,7 @@ class DMSCoordinate(NamedTuple):
     seconds: float
     reference: str
 
+
 __all__ = [
     "DMSCoordinate",
     "decimal_to_dms",
@@ -77,9 +78,7 @@ def validate_coordinate(decimal: float, is_latitude: bool) -> bool:
         return -180 <= decimal <= 180
 
 
-def decimal_to_dms(
-    decimal: float, is_latitude: bool, seconds_precision: int = 2
-) -> DMSCoordinate:
+def decimal_to_dms(decimal: float, is_latitude: bool, seconds_precision: int = 2) -> DMSCoordinate:
     """Convert decimal degrees to DMS format.
 
     Args:
@@ -282,9 +281,9 @@ def format_coordinate_pair(
     Example:
         >>> format_coordinate_pair(37.7749, -122.4194)
         '37°46\\'29.64"N 122°25\\'9.84"W'
-        >>> format_coordinate_pair(37.7749, -122.4194, format='decimal')
+        >>> format_coordinate_pair(37.7749, -122.4194, format="decimal")
         '37.774900°N 122.419400°W'
-        >>> format_coordinate_pair(37.7749, -122.4194, format='short')
+        >>> format_coordinate_pair(37.7749, -122.4194, format="short")
         '37.77°N 122.42°W'
         >>> format_coordinate_pair(37.7749, -122.4194, seconds_precision=4)
         '37°46\\'29.6400"N 122°25\\'9.8400"W'

@@ -60,10 +60,11 @@ def detect_country_from_gps(latitude: float, longitude: float) -> str | None:
     """
     try:
         import geopip
+
         # geopip.search() takes (longitude, latitude) order
         result = geopip.search(longitude, latitude)
         if result:
-            return result.get('ISO2')
+            return result.get("ISO2")
         return None
     except ImportError:
         logger.warning("geopip not installed - GPS country detection unavailable")
@@ -94,23 +95,23 @@ def detect_country_from_locale() -> str | None:
         'DE'
     """
     # Try environment variables first (most reliable)
-    for env_var in ['LC_ALL', 'LANG', 'LC_COLLATE']:
-        locale_str = os.environ.get(env_var, '')
-        if '_' in locale_str:
-            parts = locale_str.split('_')
+    for env_var in ["LC_ALL", "LANG", "LC_COLLATE"]:
+        locale_str = os.environ.get(env_var, "")
+        if "_" in locale_str:
+            parts = locale_str.split("_")
             if len(parts) >= 2:
                 # Handle formats like "en_US.UTF-8" or "en_US"
-                country = parts[1].split('.')[0].split('@')[0]
+                country = parts[1].split(".")[0].split("@")[0]
                 if len(country) == 2 and country.isalpha():
                     return country.upper()
 
     # Fall back to locale.getlocale()
     try:
         loc = locale.getlocale()[0]
-        if loc and '_' in loc:
-            parts = loc.split('_')
+        if loc and "_" in loc:
+            parts = loc.split("_")
             if len(parts) >= 2:
-                country = parts[1].split('.')[0].split('@')[0]
+                country = parts[1].split(".")[0].split("@")[0]
                 if len(country) == 2 and country.isalpha():
                     return country.upper()
     except Exception as e:
@@ -120,9 +121,7 @@ def detect_country_from_locale() -> str | None:
 
 
 def detect_country_code(
-    latitude: float | None = None,
-    longitude: float | None = None,
-    use_locale_fallback: bool = True
+    latitude: float | None = None, longitude: float | None = None, use_locale_fallback: bool = True
 ) -> str | None:
     """Detect country code using GPS coordinates with optional locale fallback.
 
@@ -179,14 +178,86 @@ def detect_country_code(
 # Valid ISO 3166-1 alpha-2 country codes for validation
 # This is a subset of commonly used codes - full validation would require pycountry
 COMMON_COUNTRY_CODES = {
-    'US', 'GB', 'CA', 'AU', 'DE', 'FR', 'JP', 'CN', 'IN', 'BR',
-    'MX', 'ES', 'IT', 'NL', 'SE', 'NO', 'DK', 'FI', 'CH', 'AT',
-    'BE', 'PL', 'PT', 'GR', 'CZ', 'HU', 'RO', 'BG', 'IE', 'NZ',
-    'ZA', 'KR', 'TW', 'SG', 'HK', 'MY', 'TH', 'ID', 'PH', 'VN',
-    'AR', 'CL', 'CO', 'PE', 'VE', 'EC', 'CR', 'PA', 'PR', 'CU',
-    'EG', 'NG', 'KE', 'GH', 'TZ', 'UG', 'ET', 'MA', 'TN', 'DZ',
-    'RU', 'UA', 'BY', 'KZ', 'UZ', 'TR', 'IR', 'IQ', 'SA', 'AE',
-    'IL', 'PK', 'BD', 'LK', 'NP', 'MM', 'KH', 'LA', 'MN', 'AF',
+    "US",
+    "GB",
+    "CA",
+    "AU",
+    "DE",
+    "FR",
+    "JP",
+    "CN",
+    "IN",
+    "BR",
+    "MX",
+    "ES",
+    "IT",
+    "NL",
+    "SE",
+    "NO",
+    "DK",
+    "FI",
+    "CH",
+    "AT",
+    "BE",
+    "PL",
+    "PT",
+    "GR",
+    "CZ",
+    "HU",
+    "RO",
+    "BG",
+    "IE",
+    "NZ",
+    "ZA",
+    "KR",
+    "TW",
+    "SG",
+    "HK",
+    "MY",
+    "TH",
+    "ID",
+    "PH",
+    "VN",
+    "AR",
+    "CL",
+    "CO",
+    "PE",
+    "VE",
+    "EC",
+    "CR",
+    "PA",
+    "PR",
+    "CU",
+    "EG",
+    "NG",
+    "KE",
+    "GH",
+    "TZ",
+    "UG",
+    "ET",
+    "MA",
+    "TN",
+    "DZ",
+    "RU",
+    "UA",
+    "BY",
+    "KZ",
+    "UZ",
+    "TR",
+    "IR",
+    "IQ",
+    "SA",
+    "AE",
+    "IL",
+    "PK",
+    "BD",
+    "LK",
+    "NP",
+    "MM",
+    "KH",
+    "LA",
+    "MN",
+    "AF",
 }
 
 
@@ -218,9 +289,9 @@ def is_valid_country_code(code: str | None) -> bool:
 # ============================================================================
 
 __all__ = [
-    'detect_country_code',
-    'detect_country_from_gps',
-    'detect_country_from_locale',
-    'is_valid_country_code',
-    'COMMON_COUNTRY_CODES',
+    "detect_country_code",
+    "detect_country_from_gps",
+    "detect_country_from_locale",
+    "is_valid_country_code",
+    "COMMON_COUNTRY_CODES",
 ]

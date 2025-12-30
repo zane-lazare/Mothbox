@@ -80,6 +80,7 @@ logger = logging.getLogger(__name__)
 SCHEDULE_FILENAME_EXTENSION = ".json"
 BACKUP_EXTENSION = ".bak"
 
+
 def schedule_exists(schedule_id: str, is_builtin: bool = False) -> bool:
     """Check if schedule file exists.
 
@@ -294,11 +295,7 @@ def read_schedule(schedule_id: str) -> Schedule | None:
         return None
 
 
-def update_schedule(
-    schedule_id: str,
-    updates: dict,
-    is_builtin: bool = False
-) -> Schedule | None:
+def update_schedule(schedule_id: str, updates: dict, is_builtin: bool = False) -> Schedule | None:
     """Update existing schedule with partial field updates.
 
     Performs atomic read-modify-write with file locking.
@@ -369,11 +366,7 @@ def update_schedule(
         return None
 
 
-def delete_schedule(
-    schedule_id: str,
-    backup: bool = True,
-    is_builtin: bool = False
-) -> bool:
+def delete_schedule(schedule_id: str, backup: bool = True, is_builtin: bool = False) -> bool:
     """Delete schedule file.
 
     Creates backup file before deletion if requested.

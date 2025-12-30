@@ -475,9 +475,7 @@ def generate_preview(
     pattern_cache = {p.pattern_id: p for p in schedule.event_patterns}
 
     # Convert to preview executions with expanded actions
-    executions = [
-        _convert_execution(exec, trigger_info, pattern_cache) for exec in raw_executions
-    ]
+    executions = [_convert_execution(exec, trigger_info, pattern_cache) for exec in raw_executions]
 
     # Detect conflicts
     conflict_report = detect_conflicts(

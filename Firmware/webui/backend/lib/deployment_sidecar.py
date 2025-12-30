@@ -90,19 +90,23 @@ logger = logging.getLogger(__name__)
 
 try:
     import yaml
+
     YAML_AVAILABLE = True
 except ImportError:
     YAML_AVAILABLE = False
+
     # Create a placeholder for yaml.YAMLError so except clauses don't raise NameError
     class _YAMLPlaceholder:
         class YAMLError(Exception):
             pass
+
     yaml = _YAMLPlaceholder()
 
 
 # ============================================================================
 # Path Utilities
 # ============================================================================
+
 
 def get_deployment_sidecar_path(directory: Path | str, format: str = "json") -> Path:
     """Get deployment sidecar path for a directory.
@@ -127,7 +131,9 @@ def get_deployment_sidecar_path(directory: Path | str, format: str = "json") -> 
         PosixPath('/photos/forest_2024/deployment.yaml')
     """
     if format not in SUPPORTED_FORMATS:
-        raise ValueError(f"Unsupported format: {format} (supported: {', '.join(SUPPORTED_FORMATS)})")
+        raise ValueError(
+            f"Unsupported format: {format} (supported: {', '.join(SUPPORTED_FORMATS)})"
+        )
 
     directory = Path(directory).resolve()
     filename = DEPLOYMENT_FILENAME_JSON if format == "json" else DEPLOYMENT_FILENAME_YAML
@@ -213,6 +219,7 @@ def find_deployment_sidecar(photo_or_dir: Path | str) -> Path | None:
 # Schema Validation
 # ============================================================================
 
+
 def _is_valid_custom_value(value, depth: int = 0) -> bool:
     """Validate custom value is a safe JSON-serializable type.
 
@@ -237,8 +244,7 @@ def _is_valid_custom_value(value, depth: int = 0) -> bool:
 
     if isinstance(value, dict):
         return all(
-            isinstance(k, str) and _is_valid_custom_value(v, depth + 1)
-            for k, v in value.items()
+            isinstance(k, str) and _is_valid_custom_value(v, depth + 1) for k, v in value.items()
         )
 
     return False
@@ -257,14 +263,16 @@ def validate_deployment_schema(data: dict) -> bool:
         ValidationError: If validation fails with detailed error message
 
     Example:
-        >>> validate_deployment_schema({
-        ...     "version": "1.0",
-        ...     "deployment_name": "Forest Survey 2024",
-        ...     "created_at": "2024-06-01T12:00:00Z",
-        ...     "modified_at": "2024-06-01T12:00:00Z",
-        ...     "latitude": 35.9606,
-        ...     "longitude": -83.9207,
-        ... })
+        >>> validate_deployment_schema(
+        ...     {
+        ...         "version": "1.0",
+        ...         "deployment_name": "Forest Survey 2024",
+        ...         "created_at": "2024-06-01T12:00:00Z",
+        ...         "modified_at": "2024-06-01T12:00:00Z",
+        ...         "latitude": 35.9606,
+        ...         "longitude": -83.9207,
+        ...     }
+        ... )
         True
     """
     # Check required fields
@@ -305,9 +313,7 @@ def validate_deployment_schema(data: dict) -> bool:
         if not isinstance(lat, (int, float)):
             raise ValidationError("latitude must be a number")
         if not (MIN_LATITUDE <= lat <= MAX_LATITUDE):
-            raise ValidationError(
-                f"latitude must be between {MIN_LATITUDE} and {MAX_LATITUDE}"
-            )
+            raise ValidationError(f"latitude must be between {MIN_LATITUDE} and {MAX_LATITUDE}")
 
     # Validate longitude
     if data.get("longitude") is not None:
@@ -315,9 +321,7 @@ def validate_deployment_schema(data: dict) -> bool:
         if not isinstance(lon, (int, float)):
             raise ValidationError("longitude must be a number")
         if not (MIN_LONGITUDE <= lon <= MAX_LONGITUDE):
-            raise ValidationError(
-                f"longitude must be between {MIN_LONGITUDE} and {MAX_LONGITUDE}"
-            )
+            raise ValidationError(f"longitude must be between {MIN_LONGITUDE} and {MAX_LONGITUDE}")
 
     # Validate altitude
     if data.get("altitude") is not None and not isinstance(data["altitude"], (int, float)):
@@ -353,6 +357,7 @@ def validate_deployment_schema(data: dict) -> bool:
 # ============================================================================
 # File I/O (JSON and YAML)
 # ============================================================================
+
 
 def _read_json(path: Path) -> dict | None:
     """Read JSON file with error handling.
@@ -454,6 +459,7 @@ def _write_yaml(path: Path, data: dict) -> None:
 # Utility Functions
 # ============================================================================
 
+
 def _get_current_timestamp() -> str:
     """Get current UTC timestamp in ISO 8601 format.
 
@@ -464,12 +470,13 @@ def _get_current_timestamp() -> str:
         >>> _get_current_timestamp()
         '2024-11-06T10:30:00Z'
     """
-    return datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 # ============================================================================
 # CRUD Operations
 # ============================================================================
+
 
 def read_deployment_metadata(directory: Path | str) -> DeploymentMetadata | None:
     """Read deployment metadata from directory's sidecar file.
@@ -519,10 +526,7 @@ def read_deployment_metadata(directory: Path | str) -> DeploymentMetadata | None
 
 
 def write_deployment_metadata(
-    directory: Path | str,
-    metadata: DeploymentMetadata,
-    format: str = "json",
-    backup: bool = True
+    directory: Path | str, metadata: DeploymentMetadata, format: str = "json", backup: bool = True
 ) -> bool:
     """Write deployment metadata to directory's sidecar file atomically.
 
@@ -548,7 +552,9 @@ def write_deployment_metadata(
         True
     """
     if format not in SUPPORTED_FORMATS:
-        raise ValueError(f"Unsupported format: {format} (supported: {', '.join(SUPPORTED_FORMATS)})")
+        raise ValueError(
+            f"Unsupported format: {format} (supported: {', '.join(SUPPORTED_FORMATS)})"
+        )
 
     if format == "yaml" and not YAML_AVAILABLE:
         raise ValueError("YAML support not available - install PyYAML")
@@ -606,7 +612,7 @@ def create_deployment_metadata(
     mothbox_id: str | None = None,
     firmware_version: str | None = None,
     custom: dict | None = None,
-    modified_by: str | None = None
+    modified_by: str | None = None,
 ) -> DeploymentMetadata:
     """Create new deployment metadata for directory.
 
@@ -672,10 +678,7 @@ def create_deployment_metadata(
     return metadata
 
 
-def update_deployment_metadata(
-    directory: Path | str,
-    updates: dict
-) -> DeploymentMetadata:
+def update_deployment_metadata(directory: Path | str, updates: dict) -> DeploymentMetadata:
     """Update existing deployment metadata or create new if doesn't exist.
 
     Performs atomic partial update - only specified fields are modified.
@@ -695,8 +698,7 @@ def update_deployment_metadata(
 
     Example:
         >>> metadata = update_deployment_metadata(
-        ...     "/photos/forest_2024",
-        ...     {"end_date": "2024-09-15", "modified_by": "user123"}
+        ...     "/photos/forest_2024", {"end_date": "2024-09-15", "modified_by": "user123"}
         ... )
         >>> metadata.end_date
         '2024-09-15'
@@ -734,20 +736,14 @@ def update_deployment_metadata(
                     raise ValueError(
                         "deployment_name required when creating new deployment metadata"
                     )
-                metadata = create_deployment_metadata(
-                    directory,
-                    name=updates["deployment_name"]
-                )
+                metadata = create_deployment_metadata(directory, name=updates["deployment_name"])
         except (json.JSONDecodeError, yaml.YAMLError, ValidationError, KeyError):
             # Corrupted or invalid - create new
             if "deployment_name" not in updates:
                 raise ValueError(
                     "deployment_name required when creating new deployment metadata"
                 ) from None
-            metadata = create_deployment_metadata(
-                directory,
-                name=updates["deployment_name"]
-            )
+            metadata = create_deployment_metadata(directory, name=updates["deployment_name"])
 
         # Update fields
         for key, value in updates.items():
@@ -771,10 +767,7 @@ def update_deployment_metadata(
     return metadata
 
 
-def delete_deployment_metadata(
-    directory: Path | str,
-    backup: bool = True
-) -> bool:
+def delete_deployment_metadata(directory: Path | str, backup: bool = True) -> bool:
     """Delete directory's deployment metadata.
 
     Deletes both JSON and YAML formats if they exist.
@@ -823,6 +816,7 @@ def delete_deployment_metadata(
 # ============================================================================
 # Cleanup Utilities
 # ============================================================================
+
 
 def cleanup_temp_files(directory: Path | str) -> int:
     """Remove stale .lock files from deployment sidecar operations.

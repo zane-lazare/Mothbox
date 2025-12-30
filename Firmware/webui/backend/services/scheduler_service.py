@@ -212,9 +212,7 @@ class SchedulerService:
 
         return schedules
 
-    def _set_cache(
-        self, schedule_id: str, schedule: Schedule, overwrite: bool = True
-    ) -> None:
+    def _set_cache(self, schedule_id: str, schedule: Schedule, overwrite: bool = True) -> None:
         """
         Add schedule to cache with LRU eviction.
 
@@ -301,8 +299,7 @@ class SchedulerService:
         else:
             # Find and remove all entries for this schedule_id
             keys_to_remove = [
-                key for key in self._conflict_cache
-                if key.startswith(f"{schedule_id}:")
+                key for key in self._conflict_cache if key.startswith(f"{schedule_id}:")
             ]
             for key in keys_to_remove:
                 del self._conflict_cache[key]
@@ -359,9 +356,7 @@ class SchedulerService:
                 self._conflict_cache_misses += 1
 
         # Compute conflict report (outside lock for performance)
-        report = detect_conflicts(
-            schedule, preview_days, latitude, longitude, timezone_name
-        )
+        report = detect_conflicts(schedule, preview_days, latitude, longitude, timezone_name)
 
         # Cache the result
         with self._cache_lock:
@@ -581,9 +576,8 @@ class SchedulerService:
                 if report.has_blocking_conflicts:
                     blocking = [c for c in report.conflicts if c.severity == SEVERITY_ERROR]
                     messages = [c.message for c in blocking[:3]]
-                    error = (
-                        f"Schedule has {len(blocking)} blocking conflict(s): "
-                        + "; ".join(messages)
+                    error = f"Schedule has {len(blocking)} blocking conflict(s): " + "; ".join(
+                        messages
                     )
                     raise ScheduleConflictError(f"Conflict detected: {error}")
             except ImportError:
@@ -626,9 +620,7 @@ class SchedulerService:
                 timezone_name=timezone_name,
             )
             if result.errors:
-                raise ScheduleActivationError(
-                    f"Cron conversion failed: {'; '.join(result.errors)}"
-                )
+                raise ScheduleActivationError(f"Cron conversion failed: {'; '.join(result.errors)}")
 
             apply_to_system(
                 entries=result.entries,
@@ -636,8 +628,7 @@ class SchedulerService:
                 set_rtc=True,
             )
             logger.info(
-                f"Applied cron entries for schedule: {schedule_id} "
-                f"({len(result.entries)} entries)"
+                f"Applied cron entries for schedule: {schedule_id} ({len(result.entries)} entries)"
             )
         except ScheduleActivationError:
             # Re-raise our own errors
