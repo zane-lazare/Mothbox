@@ -67,31 +67,23 @@ MOTHBOX_LOG_FORMAT: Final[str] = "%(asctime)s - %(name)s - %(levelname)s - %(mes
 MOTHBOX_DATE_FORMAT: Final[str] = "%Y-%m-%d %H:%M:%S"
 
 # Emoji patterns to strip from log messages
-# Note: Ranges are consolidated to avoid CodeQL warnings about overlapping character ranges
+# Uses alternation (|) instead of character class to avoid CodeQL overlap warnings
+# Each pattern is a separate alternative, which is clearer and avoids range overlap issues
 EMOJI_PATTERN = re.compile(
-    "["
-    "\U0001f300-\U0001f5ff"  # Symbols & pictographs
-    "\U0001f600-\U0001f64f"  # Emoticons
-    "\U0001f680-\U0001f6ff"  # Transport & map symbols
-    "\U0001f700-\U0001f77f"  # Alchemical symbols
-    "\U0001f780-\U0001f7ff"  # Geometric shapes extended
-    "\U0001f800-\U0001f8ff"  # Supplemental arrows-C
-    "\U0001f900-\U0001f9ff"  # Supplemental symbols and pictographs
-    "\U0001fa00-\U0001fa6f"  # Chess symbols
-    "\U0001fa70-\U0001faff"  # Symbols and pictographs extended-A
-    "\U0001f1e0-\U0001f1ff"  # Flags
-    "\U00002600-\U000026ff"  # Misc symbols (sun, stars, etc.)
-    "\U00002700-\U000027bf"  # Dingbats (consolidated range)
-    "\U0000fe00-\U0000fe0f"  # Variation selectors
-    "\u2139"  # Info symbol
-    "\u2611"  # Ballot box with check
-    "\u2705"  # White heavy check mark
-    "\u2714"  # Check mark
-    "\u2716"  # X mark
-    "\u2718"  # X mark heavy
-    "\u26a0"  # Warning
-    "\u274c"  # Cross mark
-    "]+",
+    r"[\U0001F300-\U0001F5FF]+"  # Symbols & pictographs
+    r"|[\U0001F600-\U0001F64F]+"  # Emoticons
+    r"|[\U0001F680-\U0001F6FF]+"  # Transport & map symbols
+    r"|[\U0001F700-\U0001F77F]+"  # Alchemical symbols
+    r"|[\U0001F780-\U0001F7FF]+"  # Geometric shapes extended
+    r"|[\U0001F800-\U0001F8FF]+"  # Supplemental arrows-C
+    r"|[\U0001F900-\U0001F9FF]+"  # Supplemental symbols and pictographs
+    r"|[\U0001FA00-\U0001FA6F]+"  # Chess symbols
+    r"|[\U0001FA70-\U0001FAFF]+"  # Symbols and pictographs extended-A
+    r"|[\U0001F1E0-\U0001F1FF]+"  # Flags
+    r"|[\u2600-\u26FF]+"  # Misc symbols (sun, stars, etc.)
+    r"|[\u2700-\u27BF]+"  # Dingbats
+    r"|[\uFE00-\uFE0F]+"  # Variation selectors
+    r"|[\u2139\u2611\u2705\u2714\u2716\u2718\u26A0\u274C]+",  # Specific symbols
     flags=re.UNICODE,
 )
 
