@@ -311,8 +311,13 @@ def setup_mothbox_logging(
     if log_file is None:
         log_file = get_default_log_file()
 
+    # Resolve path and validate against path traversal attacks
+    log_file = Path(log_file).resolve()
+    data_dir_resolved = Path(DATA_DIR).resolve()
+    if not str(log_file).startswith(str(data_dir_resolved)):
+        raise ValueError(f"Log file must be within DATA_DIR: {data_dir_resolved}")
+
     # Ensure log directory exists with secure permissions
-    log_file = Path(log_file)
     log_file.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
 
     file_handler = RotatingFileHandler(
