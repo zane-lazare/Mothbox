@@ -112,6 +112,16 @@ TRIGGER_TYPES: Final[list[str]] = [
     "recurring_days",
 ]
 
+# Primary trigger types (excludes sensor which can only be pre_condition)
+PRIMARY_TRIGGER_TYPES: Final[list[str]] = [
+    "interval",
+    "solar",
+    "moon_phase",
+    "fixed_time",
+    "cron",
+    "recurring_days",
+]
+
 # Moon phases (8 phases of lunar cycle)
 MOON_PHASES: Final[list[str]] = [
     "new",
@@ -772,7 +782,7 @@ class Routine:
 
         action_names = [action.action_name for action in self.actions]
 
-        # Single action type
+        # If all actions are the same type (e.g., 3x takephoto), show count prefix
         if len(set(action_names)) == 1:
             action_name = action_names[0]
             display_name = ACTION_DISPLAY_NAMES.get(action_name, action_name.title())
@@ -1521,9 +1531,13 @@ def validate_routine(routine) -> tuple[bool, str | None]:
     if routine.trigger is None:
         return False, "Routine must have a trigger"
 
-    # Block SensorTrigger as primary trigger
+    # Block SensorTrigger as primary trigger (sensor can only be pre_condition)
+    # See PRIMARY_TRIGGER_TYPES for the list of valid primary triggers
     if isinstance(routine.trigger, SensorTrigger):
-        return False, "Sensor triggers can only be used as pre_condition, not as primary trigger"
+        return (
+            False,
+            "Sensor triggers can only be used as pre_condition, not as primary trigger",
+        )
 
     # Validate trigger
     valid, error = _validate_routine_trigger(routine.trigger)

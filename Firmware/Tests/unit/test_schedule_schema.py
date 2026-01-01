@@ -31,6 +31,7 @@ try:
         MAX_PATTERN_NAME_LENGTH,
         MAX_PATTERNS_PER_SCHEDULE,
         MOON_PHASES,
+        PRIMARY_TRIGGER_TYPES,
         SCHEDULE_SCHEMA_VERSION,
         SENSOR_COMPARISONS,
         SENSOR_TYPES,
@@ -257,6 +258,12 @@ class TestScheduleSchemaConstants:
             "recurring_days",
         ]
         assert expected == TRIGGER_TYPES
+
+    def test_primary_trigger_types_excludes_sensor(self):
+        """PRIMARY_TRIGGER_TYPES excludes sensor (pre_condition only)."""
+        assert "sensor" not in PRIMARY_TRIGGER_TYPES
+        assert "interval" in PRIMARY_TRIGGER_TYPES
+        assert len(PRIMARY_TRIGGER_TYPES) == len(TRIGGER_TYPES) - 1
 
     def test_moon_phases_defined(self):
         """MOON_PHASES should include all 8 phases."""
