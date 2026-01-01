@@ -31,6 +31,7 @@ try:
         MAX_OFFSET_MINUTES,
         MAX_PATTERN_NAME_LENGTH,
         MAX_PATTERNS_PER_SCHEDULE,
+        MAX_RECURRING_DAYS,
         MOON_PHASES,
         SCHEDULE_SCHEMA_VERSION,
         SENSOR_COMPARISONS,
@@ -39,29 +40,39 @@ try:
         SUPPORTED_VERSIONS,
         TRIGGER_TYPES,
         # Dataclasses
+        Action,
         CronTrigger,
         EventPattern,
         FixedTimeTrigger,
         IntervalTrigger,
         MoonPhaseTrigger,
-        PatternAction,
+        RecurringDaysTrigger,
         Schedule,
         ScheduleValidationError,
         SensorTrigger,
         SolarTrigger,
         TimeWindow,
+        # Type aliases
+        Trigger,
+        # Factory functions
+        trigger_from_dict,
         # Validation functions
+        validate_action,
+        validate_cron_trigger,
         validate_event_pattern,
         validate_fixed_time_trigger,
         validate_interval_trigger,
         validate_moon_phase_trigger,
-        validate_pattern_action,
+        validate_recurring_days_trigger,
         validate_schedule,
         validate_sensor_trigger,
-        validate_cron_trigger,
         validate_solar_trigger,
         validate_time_window,
     )
+
+    # Backward compatibility aliases for tests that still use old names
+    PatternAction = Action
+    validate_pattern_action = validate_action
 
     IMPLEMENTATION_EXISTS = True
 except ImportError:
@@ -198,6 +209,16 @@ def sample_sensor_trigger(sample_time_window):
 
 
 @pytest.fixture
+def sample_recurring_days_trigger():
+    """Create a sample RecurringDaysTrigger for testing."""
+    return RecurringDaysTrigger(
+        every_n_days=3,
+        time="21:00",
+        start_date="2025-01-01",
+    )
+
+
+@pytest.fixture
 def sample_schedule(sample_event_pattern, sample_interval_trigger):
     """Create a sample Schedule for testing."""
     return Schedule(
@@ -243,8 +264,16 @@ class TestScheduleSchemaConstants:
         assert GPIO_ACTIONS == expected
 
     def test_trigger_types_defined(self):
-        """TRIGGER_TYPES should include all expected types including cron for expert mode."""
-        expected = ["interval", "solar", "moon_phase", "fixed_time", "sensor", "cron"]
+        """TRIGGER_TYPES should include all expected types including cron and recurring_days."""
+        expected = [
+            "interval",
+            "solar",
+            "moon_phase",
+            "fixed_time",
+            "sensor",
+            "cron",
+            "recurring_days",
+        ]
         assert TRIGGER_TYPES == expected
 
     def test_moon_phases_defined(self):
@@ -1270,6 +1299,211 @@ class TestScheduleWithCronTrigger:
         restored = Schedule.from_dict(data)
         assert restored.trigger_type == "cron"
         assert restored.cron_trigger.cron_expression == "0 */2 * * *"
+
+
+# =============================================================================
+# RECURRING DAYS TRIGGER TESTS (Issue #298)
+# =============================================================================
+
+
+class TestRecurringDaysTrigger:
+    """Test RecurringDaysTrigger dataclass."""
+
+    def test_instantiation_minimal(self):
+        """RecurringDaysTrigger can be created with defaults."""
+        trigger = RecurringDaysTrigger()
+        assert trigger.trigger_type == "recurring_days"
+        assert trigger.every_n_days == 1
+        assert trigger.time == "00:00"
+        assert trigger.start_date is None
+
+    def test_instantiation_full(self, sample_recurring_days_trigger):
+        """RecurringDaysTrigger can be created with all args."""
+        assert sample_recurring_days_trigger.trigger_type == "recurring_days"
+        assert sample_recurring_days_trigger.every_n_days == 3
+        assert sample_recurring_days_trigger.time == "21:00"
+        assert sample_recurring_days_trigger.start_date == "2025-01-01"
+
+    def test_to_dict(self, sample_recurring_days_trigger):
+        """RecurringDaysTrigger.to_dict() returns correct dict."""
+        data = sample_recurring_days_trigger.to_dict()
+        assert data["trigger_type"] == "recurring_days"
+        assert data["every_n_days"] == 3
+        assert data["time"] == "21:00"
+        assert data["start_date"] == "2025-01-01"
+
+    def test_from_dict(self):
+        """RecurringDaysTrigger.from_dict() creates instance from dict."""
+        data = {
+            "trigger_type": "recurring_days",
+            "every_n_days": 7,
+            "time": "09:00",
+            "start_date": "2025-06-01",
+        }
+        trigger = RecurringDaysTrigger.from_dict(data)
+        assert trigger.every_n_days == 7
+        assert trigger.time == "09:00"
+        assert trigger.start_date == "2025-06-01"
+
+    def test_from_dict_defaults(self):
+        """RecurringDaysTrigger.from_dict() uses defaults for missing fields."""
+        data = {"trigger_type": "recurring_days"}
+        trigger = RecurringDaysTrigger.from_dict(data)
+        assert trigger.every_n_days == 1
+        assert trigger.time == "00:00"
+        assert trigger.start_date is None
+
+    def test_round_trip_serialization(self, sample_recurring_days_trigger):
+        """RecurringDaysTrigger survives JSON round-trip."""
+        data = sample_recurring_days_trigger.to_dict()
+        json_str = json.dumps(data)
+        loaded = json.loads(json_str)
+        restored = RecurringDaysTrigger.from_dict(loaded)
+        assert restored.every_n_days == sample_recurring_days_trigger.every_n_days
+        assert restored.time == sample_recurring_days_trigger.time
+        assert restored.start_date == sample_recurring_days_trigger.start_date
+
+    def test_recurring_days_in_trigger_types(self):
+        """'recurring_days' is included in TRIGGER_TYPES constant."""
+        assert "recurring_days" in TRIGGER_TYPES
+
+
+class TestValidateRecurringDaysTrigger:
+    """Test validate_recurring_days_trigger function."""
+
+    def test_valid_trigger(self, sample_recurring_days_trigger):
+        """Valid trigger passes validation."""
+        valid, error = validate_recurring_days_trigger(sample_recurring_days_trigger)
+        assert valid is True
+        assert error is None
+
+    def test_valid_minimal_trigger(self):
+        """Minimal trigger passes validation."""
+        trigger = RecurringDaysTrigger()
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is True
+        assert error is None
+
+    def test_every_n_days_zero_fails(self):
+        """every_n_days=0 fails validation."""
+        trigger = RecurringDaysTrigger(every_n_days=0)
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is False
+        assert "at least 1" in error
+
+    def test_every_n_days_negative_fails(self):
+        """Negative every_n_days fails validation."""
+        trigger = RecurringDaysTrigger(every_n_days=-1)
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is False
+        assert "at least 1" in error
+
+    def test_every_n_days_exceeds_max_fails(self):
+        """every_n_days > 365 fails validation."""
+        trigger = RecurringDaysTrigger(every_n_days=366)
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is False
+        assert "365" in error
+
+    def test_invalid_time_format_fails(self):
+        """Invalid time format fails validation."""
+        trigger = RecurringDaysTrigger(time="25:00")
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is False
+        assert "time" in error.lower()
+
+    def test_invalid_time_format_no_colon_fails(self):
+        """Time without colon fails validation."""
+        trigger = RecurringDaysTrigger(time="2100")
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is False
+        assert "time" in error.lower()
+
+    def test_invalid_start_date_format_fails(self):
+        """Invalid start_date format fails validation."""
+        trigger = RecurringDaysTrigger(start_date="01-01-2025")
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is False
+        assert "start_date" in error
+
+    def test_invalid_start_date_value_fails(self):
+        """Invalid start_date value fails validation."""
+        trigger = RecurringDaysTrigger(start_date="2025-02-30")
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is False
+        assert "start_date" in error
+
+
+# =============================================================================
+# TRIGGER FACTORY FUNCTION TESTS (Issue #298)
+# =============================================================================
+
+
+class TestTriggerFromDict:
+    """Test trigger_from_dict factory function."""
+
+    def test_interval_trigger(self):
+        """trigger_from_dict handles interval trigger."""
+        data = {
+            "trigger_type": "interval",
+            "interval_minutes": 60,
+            "time_window": {"start_time": "21:00", "end_time": "05:00"},
+        }
+        trigger = trigger_from_dict(data)
+        assert isinstance(trigger, IntervalTrigger)
+        assert trigger.interval_minutes == 60
+
+    def test_solar_trigger(self):
+        """trigger_from_dict handles solar trigger."""
+        data = {"trigger_type": "solar", "solar_event": "sunset", "offset_minutes": 0}
+        trigger = trigger_from_dict(data)
+        assert isinstance(trigger, SolarTrigger)
+        assert trigger.solar_event == "sunset"
+
+    def test_moon_phase_trigger(self):
+        """trigger_from_dict handles moon_phase trigger."""
+        data = {"trigger_type": "moon_phase", "phases": ["full"]}
+        trigger = trigger_from_dict(data)
+        assert isinstance(trigger, MoonPhaseTrigger)
+        assert trigger.phases == ["full"]
+
+    def test_fixed_time_trigger(self):
+        """trigger_from_dict handles fixed_time trigger."""
+        data = {"trigger_type": "fixed_time", "time": "09:00"}
+        trigger = trigger_from_dict(data)
+        assert isinstance(trigger, FixedTimeTrigger)
+        assert trigger.time == "09:00"
+
+    def test_sensor_trigger(self):
+        """trigger_from_dict handles sensor trigger."""
+        data = {"trigger_type": "sensor", "sensor_type": "motion"}
+        trigger = trigger_from_dict(data)
+        assert isinstance(trigger, SensorTrigger)
+        assert trigger.sensor_type == "motion"
+
+    def test_cron_trigger(self):
+        """trigger_from_dict handles cron trigger."""
+        data = {"trigger_type": "cron", "cron_expression": "0 * * * *"}
+        trigger = trigger_from_dict(data)
+        assert isinstance(trigger, CronTrigger)
+        assert trigger.cron_expression == "0 * * * *"
+
+    def test_recurring_days_trigger(self):
+        """trigger_from_dict handles recurring_days trigger."""
+        data = {"trigger_type": "recurring_days", "every_n_days": 3, "time": "21:00"}
+        trigger = trigger_from_dict(data)
+        assert isinstance(trigger, RecurringDaysTrigger)
+        assert trigger.every_n_days == 3
+
+    def test_missing_trigger_type_raises(self):
+        """trigger_from_dict raises ValueError for missing trigger_type."""
+        with pytest.raises(ValueError, match="trigger_type is required"):
+            trigger_from_dict({})
+
+    def test_unknown_trigger_type_raises(self):
+        """trigger_from_dict raises ValueError for unknown trigger_type."""
+        with pytest.raises(ValueError, match="Unknown trigger_type"):
+            trigger_from_dict({"trigger_type": "invalid"})
 
 
 # =============================================================================

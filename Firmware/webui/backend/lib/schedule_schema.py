@@ -75,6 +75,7 @@ MAX_INTERVAL_MINUTES: Final[int] = 10080  # 7 days
 MIN_INTERVAL_MINUTES: Final[int] = 1
 MAX_COOLDOWN_MINUTES: Final[int] = 60
 MAX_OFFSET_DAYS: Final[int] = 7
+MAX_RECURRING_DAYS: Final[int] = 365
 
 # Action types (aligned with cron_security.py ACTION_TYPE_SCRIPTS)
 ACTION_TYPES: Final[list[str]] = ["gpio", "camera", "gps_sync", "service"]
@@ -95,6 +96,7 @@ TRIGGER_TYPES: Final[list[str]] = [
     "fixed_time",
     "sensor",
     "cron",
+    "recurring_days",
 ]
 
 # Moon phases (8 phases of lunar cycle)
@@ -576,6 +578,96 @@ class CronTrigger:
         return cls(
             cron_expression=data["cron_expression"],
         )
+
+
+@dataclass
+class RecurringDaysTrigger:
+    """
+    Execute pattern every N days at a specific time.
+
+    Example: GPS sync every 3 days at 21:00
+
+    Attributes:
+        trigger_type: Always "recurring_days"
+        every_n_days: Days between executions (1-365)
+        time: Fixed time in "HH:MM" format
+        start_date: ISO 8601 date (YYYY-MM-DD), defaults to today if None
+    """
+
+    trigger_type: str = "recurring_days"
+    every_n_days: int = 1
+    time: str = "00:00"
+    start_date: str | None = None
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "trigger_type": self.trigger_type,
+            "every_n_days": self.every_n_days,
+            "time": self.time,
+            "start_date": self.start_date,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "RecurringDaysTrigger":
+        """Create from dictionary."""
+        return cls(
+            every_n_days=data.get("every_n_days", 1),
+            time=data.get("time", "00:00"),
+            start_date=data.get("start_date"),
+        )
+
+
+# =============================================================================
+# TRIGGER UNION TYPE
+# =============================================================================
+
+# Trigger union type - all trigger types that can drive a routine
+Trigger = (
+    IntervalTrigger
+    | SolarTrigger
+    | MoonPhaseTrigger
+    | FixedTimeTrigger
+    | SensorTrigger
+    | CronTrigger
+    | RecurringDaysTrigger
+)
+
+
+def trigger_from_dict(data: dict) -> Trigger:
+    """
+    Factory function to create appropriate trigger from dictionary.
+
+    Args:
+        data: Dictionary containing trigger_type and trigger-specific fields
+
+    Returns:
+        Appropriate trigger instance based on trigger_type
+
+    Raises:
+        ValueError: If trigger_type is missing or unknown
+    """
+    trigger_type = data.get("trigger_type")
+
+    if not trigger_type:
+        raise ValueError("trigger_type is required")
+
+    if trigger_type == "interval":
+        return IntervalTrigger.from_dict(data)
+    elif trigger_type == "solar":
+        return SolarTrigger.from_dict(data)
+    elif trigger_type == "moon_phase":
+        return MoonPhaseTrigger.from_dict(data)
+    elif trigger_type == "fixed_time":
+        return FixedTimeTrigger.from_dict(data)
+    elif trigger_type == "sensor":
+        return SensorTrigger.from_dict(data)
+    elif trigger_type == "cron":
+        return CronTrigger.from_dict(data)
+    elif trigger_type == "recurring_days":
+        return RecurringDaysTrigger.from_dict(data)
+    else:
+        raise ValueError(f"Unknown trigger_type: {trigger_type}")
 
 
 # =============================================================================
@@ -1365,6 +1457,38 @@ def validate_cron_trigger(trigger: CronTrigger) -> tuple[bool, str | None]:
     # Use CronEntry.is_valid_expression for thorough validation
     if not CronEntry.is_valid_expression(trigger.cron_expression):
         return False, f"Invalid cron expression: '{trigger.cron_expression}'"
+
+    return True, None
+
+
+def validate_recurring_days_trigger(
+    trigger: RecurringDaysTrigger,
+) -> tuple[bool, str | None]:
+    """
+    Validate recurring days trigger configuration.
+
+    Args:
+        trigger: RecurringDaysTrigger to validate
+
+    Returns:
+        (True, None) if valid, (False, error_message) if invalid
+    """
+    # Validate every_n_days range
+    if trigger.every_n_days < 1:
+        return False, "every_n_days must be at least 1"
+
+    if trigger.every_n_days > MAX_RECURRING_DAYS:
+        return False, f"every_n_days exceeds maximum of {MAX_RECURRING_DAYS}"
+
+    # Validate time format (HH:MM)
+    if not _is_valid_time_format(trigger.time):
+        return False, f"Invalid time format: '{trigger.time}'. Must be HH:MM (24-hour)"
+
+    # Validate start_date if provided
+    if trigger.start_date:
+        valid, error = _validate_date_string(trigger.start_date)
+        if not valid:
+            return False, f"start_date: {error}"
 
     return True, None
 
