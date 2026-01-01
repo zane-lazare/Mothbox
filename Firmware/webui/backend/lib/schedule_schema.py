@@ -9,7 +9,7 @@ Single-file storage: Each schedule is a self-contained JSON file with patterns e
 inline, making schedules portable and easy to export/import between Mothbox units.
 
 Schema Version: 2.0
-- PatternAction: action_type, action_name, offset_minutes, parameters, description
+- Action: action_type, action_name, offset_minutes, parameters, description
 - EventPattern: pattern_id, name, actions list, duration_minutes (computed property)
 - TimeWindow: start_time, end_time, offsets (supports "sunset", "01:00")
 - IntervalTrigger, SolarTrigger, MoonPhaseTrigger, FixedTimeTrigger, SensorTrigger
@@ -19,14 +19,14 @@ Usage:
     from webui.backend.lib.schedule_schema import (
         Schedule,
         EventPattern,
-        PatternAction,
+        Action,
         TimeWindow,
         IntervalTrigger,
         validate_schedule,
     )
 
     # Create a schedule
-    action = PatternAction(action_type="gpio", action_name="attract_on")
+    action = Action(action_type="gpio", action_name="attract_on")
     pattern = EventPattern(pattern_id="", name="UV Capture", actions=[action])
     window = TimeWindow(start_time="21:00", end_time="05:00")
     trigger = IntervalTrigger(interval_minutes=60, time_window=window)
@@ -168,11 +168,11 @@ class ScheduleActivationError(Exception):
 
 
 @dataclass
-class PatternAction:
+class Action:
     """
-    A single action within an event pattern.
+    A single action within a routine.
 
-    Actions use relative offsets from pattern start (t=0), enabling
+    Actions use relative offsets from routine start (t=0), enabling
     coordinated multi-action sequences like:
     - UV_ON at t+0
     - TakePhoto at t+5
@@ -181,12 +181,12 @@ class PatternAction:
     Attributes:
         action_type: Category ("gpio", "camera", "gps_sync", "service")
         action_name: Specific action (e.g., "attract_on", "takephoto")
-        offset_minutes: Minutes from pattern start (t=0). Default 0, max 1440.
+        offset_minutes: Minutes from routine start (t=0). Default 0, max 1440.
         parameters: Action-specific configuration dict
         description: Human-readable description (max 500 chars)
 
     Example:
-        >>> action = PatternAction(
+        >>> action = Action(
         ...     action_type="gpio",
         ...     action_name="attract_on",
         ...     offset_minutes=0,
@@ -211,7 +211,7 @@ class PatternAction:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "PatternAction":
+    def from_dict(cls, data: dict) -> "Action":
         """Create from dictionary."""
         return cls(
             action_type=data["action_type"],
@@ -245,7 +245,7 @@ class EventPattern:
         pattern_id: Unique identifier (UUID string, auto-generated if empty)
         name: Human-readable name (required, max 200 chars)
         description: Detailed description (max 2000 chars)
-        actions: Ordered list of PatternAction objects
+        actions: Ordered list of Action objects
         category: "built-in" or "user"
         tags: Tags for filtering/search
 
@@ -254,9 +254,9 @@ class EventPattern:
         ...     pattern_id="",
         ...     name="UV Capture Cycle",
         ...     actions=[
-        ...         PatternAction(action_type="gpio", action_name="attract_on"),
-        ...         PatternAction(action_type="camera", action_name="takephoto", offset_minutes=5),
-        ...         PatternAction(action_type="gpio", action_name="attract_off", offset_minutes=15),
+        ...         Action(action_type="gpio", action_name="attract_on"),
+        ...         Action(action_type="camera", action_name="takephoto", offset_minutes=5),
+        ...         Action(action_type="gpio", action_name="attract_off", offset_minutes=15),
         ...     ],
         ... )
         >>> pattern.duration_minutes
@@ -266,7 +266,7 @@ class EventPattern:
     pattern_id: str
     name: str
     description: str = ""
-    actions: list[PatternAction] = field(default_factory=list)
+    actions: list[Action] = field(default_factory=list)
     category: str = "user"
     tags: list[str] = field(default_factory=list)
 
@@ -301,7 +301,7 @@ class EventPattern:
             pattern_id=data.get("pattern_id", ""),
             name=data["name"],
             description=data.get("description", ""),
-            actions=[PatternAction.from_dict(a) for a in data.get("actions", [])],
+            actions=[Action.from_dict(a) for a in data.get("actions", [])],
             category=data.get("category", "user"),
             tags=data.get("tags", []),
         )
@@ -1022,12 +1022,12 @@ def _is_valid_uuid(uuid_string: str) -> bool:
         return False
 
 
-def validate_pattern_action(action: PatternAction) -> tuple[bool, str | None]:
+def validate_action(action: Action) -> tuple[bool, str | None]:
     """
-    Validate a single pattern action.
+    Validate a single action.
 
     Args:
-        action: PatternAction to validate
+        action: Action to validate
 
     Returns:
         (True, None) if valid, (False, error_message) if invalid
@@ -1097,7 +1097,7 @@ def validate_event_pattern(pattern: EventPattern) -> tuple[bool, str | None]:
 
     # Validate each action
     for i, action in enumerate(pattern.actions):
-        valid, error = validate_pattern_action(action)
+        valid, error = validate_action(action)
         if not valid:
             return False, f"Action {i + 1}: {error}"
 
