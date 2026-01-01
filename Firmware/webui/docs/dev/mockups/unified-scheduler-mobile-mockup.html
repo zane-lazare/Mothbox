@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=375, initial-scale=1.0, maximum-scale=1.0">
+  <title>Scheduler - Mothbox</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' }
+  </script>
+  <style>
+    .routine-body { max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out; }
+    .routine-body.open { max-height: 800px; }
+    .slide-up { transform: translateY(100%); transition: transform 0.3s ease-out; }
+    .slide-up.open { transform: translateY(0); }
+    .fade { opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+    .fade.open { opacity: 1; pointer-events: auto; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-300">
+
+  <!-- Mobile Frame -->
+  <div class="max-w-[375px] mx-auto min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+      <span class="text-white text-sm">Schedules</span>
+      <button onclick="openEditor(null)" class="text-sm text-blue-400">+ New</button>
+    </header>
+
+    <!-- Active Banner -->
+    <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+        <span class="text-xs text-gray-400">Active:</span>
+        <span class="text-xs text-white">Overnight Moth Survey</span>
+      </div>
+      <span class="text-xs text-gray-600">17:23</span>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex border-b border-gray-800">
+      <button onclick="switchTab('list')" id="tab-list" class="flex-1 py-3 text-xs text-white border-b border-white">
+        List
+      </button>
+      <button onclick="switchTab('timeline')" id="tab-timeline" class="flex-1 py-3 text-xs text-gray-500">
+        Timeline
+      </button>
+    </div>
+
+    <!-- Content -->
+    <main class="flex-1 overflow-y-auto">
+
+      <!-- List View -->
+      <div id="panel-list" class="p-4 space-y-2">
+
+        <!-- Schedule 1: Active -->
+        <div class="p-3 border border-gray-700 rounded-lg bg-gray-900/50" onclick="openEditor(1)">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-sm text-white">Overnight Moth Survey</span>
+              <span class="text-xs text-green-400">Active</span>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500 mt-1">UV on at dusk, photos every 15 min</p>
+          <div class="flex items-center gap-1 mt-2">
+            <div class="w-1 h-1 bg-orange-400 rounded-full"></div>
+            <div class="w-1 h-1 bg-blue-400 rounded-full"></div>
+            <div class="w-1 h-1 bg-orange-400 rounded-full"></div>
+            <span class="text-xs text-gray-600 ml-1">3 routines</span>
+          </div>
+        </div>
+
+        <!-- Schedule 2 -->
+        <div class="p-3 border border-gray-800 rounded-lg" onclick="openEditor(2)">
+          <span class="text-sm text-white">Daytime Pollinator Survey</span>
+          <p class="text-xs text-gray-500 mt-1">Photos every 10 min during daylight</p>
+          <div class="flex items-center gap-1 mt-2">
+            <div class="w-1 h-1 bg-blue-400 rounded-full"></div>
+            <span class="text-xs text-gray-600 ml-1">1 routine</span>
+          </div>
+        </div>
+
+        <!-- Schedule 3: Draft -->
+        <div class="p-3 border border-dashed border-gray-800 rounded-lg opacity-60" onclick="openEditor(3)">
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-white">Full Moon Special</span>
+            <span class="text-xs text-yellow-500">Draft</span>
+          </div>
+          <p class="text-xs text-gray-500 mt-1">Not configured</p>
+        </div>
+
+      </div>
+
+      <!-- Timeline View -->
+      <div id="panel-timeline" class="hidden p-4">
+
+        <!-- Date Nav -->
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <button class="p-1 text-gray-500">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+              </svg>
+            </button>
+            <span class="text-xs text-white">Jan 1</span>
+            <button class="p-1 text-gray-500">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+              </svg>
+            </button>
+          </div>
+          <span class="text-xs text-gray-600">52 executions</span>
+        </div>
+
+        <!-- Conflict Banner -->
+        <div class="mb-3 p-2 border border-red-900/50 rounded text-xs flex items-center gap-2">
+          <span class="text-red-400">2 conflicts</span>
+          <span class="text-gray-600">|</span>
+          <span class="text-gray-500">1 collision, 1 warning</span>
+        </div>
+
+        <!-- Timeline -->
+        <div class="border border-gray-800 rounded-lg divide-y divide-gray-800">
+          <div class="flex p-2">
+            <span class="w-10 text-xs text-gray-600">17:00</span>
+            <div class="flex gap-1 flex-wrap">
+              <span class="text-xs px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded">17:23</span>
+            </div>
+          </div>
+          <div class="flex p-2">
+            <span class="w-10 text-xs text-gray-600">18:00</span>
+            <div class="flex gap-1 flex-wrap">
+              <span class="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:00</span>
+              <span class="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:15</span>
+              <span class="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:30</span>
+              <span class="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:45</span>
+            </div>
+          </div>
+          <!-- Collision -->
+          <div class="flex p-2 bg-red-950/20">
+            <span class="w-10 text-xs text-red-400">19:00</span>
+            <div class="flex gap-1 flex-wrap items-center">
+              <span class="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded ring-1 ring-red-400">19:00</span>
+              <span class="text-xs px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded ring-1 ring-red-400">HDR</span>
+            </div>
+          </div>
+          <div class="flex p-2">
+            <span class="w-10 text-xs text-gray-600">20:00</span>
+            <div class="flex gap-1 flex-wrap">
+              <span class="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">20:00</span>
+              <span class="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">20:15</span>
+              <span class="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">20:30</span>
+              <span class="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">20:45</span>
+            </div>
+          </div>
+          <!-- Warning -->
+          <div class="flex p-2 bg-yellow-950/20">
+            <span class="w-10 text-xs text-yellow-400">21:00</span>
+            <div class="flex gap-1 flex-wrap items-center">
+              <span class="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">21:00</span>
+              <span class="text-xs px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded ring-1 ring-yellow-400">Off</span>
+            </div>
+          </div>
+          <div class="flex p-2 text-gray-700">
+            <span class="w-10 text-xs">...</span>
+            <span class="text-xs">continues</span>
+          </div>
+          <div class="flex p-2">
+            <span class="w-10 text-xs text-gray-600">06:00</span>
+            <div class="flex gap-1 flex-wrap">
+              <span class="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">06:00</span>
+              <span class="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">06:15</span>
+              <span class="text-xs px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded">06:32</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Conflict Detail -->
+        <div class="mt-4 p-3 border border-gray-800 rounded-lg" onclick="openConflict()">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-gray-500">Collision at 19:00</span>
+            <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </div>
+          <p class="text-xs text-gray-600 mt-1">Two camera actions at same time</p>
+        </div>
+
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Editor Slide-up Panel -->
+  <div id="editor-overlay" class="fixed inset-0 bg-black/60 fade z-40" onclick="closeEditor()"></div>
+  <div id="editor-panel" class="fixed inset-x-0 bottom-0 max-w-[375px] mx-auto bg-gray-900 border-t border-gray-800 rounded-t-xl slide-up z-50" style="max-height: 90vh;">
+
+    <!-- Handle -->
+    <div class="flex justify-center py-2">
+      <div class="w-10 h-1 bg-gray-700 rounded-full"></div>
+    </div>
+
+    <!-- Header -->
+    <div class="flex items-center justify-between px-4 py-2 border-b border-gray-800">
+      <button onclick="closeEditor()" class="text-sm text-gray-500">Cancel</button>
+      <span class="text-sm text-white">Edit Schedule</span>
+      <button class="text-sm text-blue-400">Save</button>
+    </div>
+
+    <!-- Scrollable Content -->
+    <div class="overflow-y-auto" style="max-height: calc(90vh - 120px);">
+
+      <!-- Name -->
+      <div class="px-4 py-3 border-b border-gray-800">
+        <label class="block text-xs text-gray-600 mb-1">Name</label>
+        <input type="text" value="Overnight Moth Survey" class="w-full bg-transparent border border-gray-800 rounded px-3 py-2 text-white text-sm" />
+      </div>
+
+      <!-- Routines -->
+      <div class="px-4 py-3">
+        <label class="block text-xs text-gray-600 mb-2">Routines</label>
+
+        <div class="space-y-2">
+
+          <!-- Routine 1 -->
+          <div class="border border-gray-800 rounded" data-routine="1">
+            <div class="flex items-center justify-between px-3 py-2.5" onclick="toggleRoutine(1)">
+              <div class="flex items-center gap-2">
+                <div class="w-1.5 h-1.5 bg-orange-400 rounded-full"></div>
+                <span class="text-sm text-white">Attract On at Dusk</span>
+              </div>
+              <svg class="w-4 h-4 text-gray-600 chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </div>
+            <div class="routine-body" id="routine-body-1">
+              <div class="px-3 pb-3 pt-2 border-t border-gray-800 space-y-3">
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Trigger</label>
+                  <select class="w-full bg-transparent border border-gray-800 rounded px-2 py-2 text-sm text-white">
+                    <option>Solar event</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Event</label>
+                  <select class="w-full bg-transparent border border-gray-800 rounded px-2 py-2 text-sm text-white">
+                    <option>Sunset</option>
+                    <option>Civil Dusk</option>
+                  </select>
+                </div>
+                <div class="flex items-center gap-2 text-sm">
+                  <span class="text-gray-500">Offset</span>
+                  <input type="number" value="0" class="w-14 bg-transparent border border-gray-800 rounded px-2 py-1 text-white text-center" />
+                  <span class="text-gray-500">min</span>
+                </div>
+                <div class="text-xs text-gray-600">Today: ~17:23</div>
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Action</label>
+                  <div class="flex items-center justify-between px-2 py-2 border border-gray-800 rounded text-sm">
+                    <span class="text-white">Attract On</span>
+                    <button class="text-gray-600">×</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Routine 2 (Expanded) -->
+          <div class="border border-gray-700 rounded" data-routine="2">
+            <div class="flex items-center justify-between px-3 py-2.5" onclick="toggleRoutine(2)">
+              <div class="flex items-center gap-2">
+                <div class="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                <span class="text-sm text-white">Take Photo every 15 min</span>
+              </div>
+              <svg class="w-4 h-4 text-gray-600 chevron rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </div>
+            <div class="routine-body open" id="routine-body-2">
+              <div class="px-3 pb-3 pt-2 border-t border-gray-800 space-y-3">
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Trigger</label>
+                  <select class="w-full bg-transparent border border-gray-800 rounded px-2 py-2 text-sm text-white">
+                    <option>Every N minutes</option>
+                  </select>
+                </div>
+                <div class="flex items-center gap-2 text-sm">
+                  <span class="text-gray-500">Every</span>
+                  <input type="number" value="15" class="w-14 bg-transparent border border-gray-800 rounded px-2 py-1.5 text-white text-center" />
+                  <span class="text-gray-500">min</span>
+                </div>
+                <div class="flex items-center justify-between py-2">
+                  <span class="text-sm text-gray-400">Time window</span>
+                  <div class="w-10 h-5 bg-blue-600 rounded-full relative">
+                    <div class="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full"></div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 text-sm">
+                  <input type="time" value="18:00" class="flex-1 bg-transparent border border-gray-800 rounded px-2 py-1.5 text-white" />
+                  <span class="text-gray-600">to</span>
+                  <input type="time" value="06:00" class="flex-1 bg-transparent border border-gray-800 rounded px-2 py-1.5 text-white" />
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Action</label>
+                  <div class="flex items-center justify-between px-2 py-2 border border-gray-800 rounded text-sm">
+                    <span class="text-white">Take Photo</span>
+                    <button class="text-gray-600">×</button>
+                  </div>
+                  <button class="mt-2 text-xs text-gray-500">+ Add action</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Routine 3 -->
+          <div class="border border-gray-800 rounded" data-routine="3">
+            <div class="flex items-center justify-between px-3 py-2.5" onclick="toggleRoutine(3)">
+              <div class="flex items-center gap-2">
+                <div class="w-1.5 h-1.5 bg-orange-400 rounded-full"></div>
+                <span class="text-sm text-white">Attract Off at Dawn</span>
+              </div>
+              <svg class="w-4 h-4 text-gray-600 chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </div>
+            <div class="routine-body" id="routine-body-3"></div>
+          </div>
+
+          <!-- Add -->
+          <button class="w-full py-2.5 border border-dashed border-gray-800 rounded text-sm text-gray-600">
+            + Add Routine
+          </button>
+
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="px-4 py-3 border-t border-gray-800">
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-xs text-gray-600">Preview</label>
+          <span class="text-xs text-gray-600">52 executions</span>
+        </div>
+        <div class="flex flex-wrap gap-1">
+          <span class="text-xs px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded">17:23</span>
+          <span class="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:00</span>
+          <span class="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:15</span>
+          <span class="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:30</span>
+          <span class="text-xs text-gray-600">+48</span>
+        </div>
+      </div>
+
+      <!-- Activation -->
+      <div class="px-4 py-3 border-t border-gray-800">
+        <div id="activation-section" class="border border-gray-800 rounded-lg p-3 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div id="status-dot" class="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span id="status-text" class="text-xs text-green-400">Active</span>
+            </div>
+            <button id="activate-btn" onclick="toggleActivation()" class="text-xs text-red-400">
+              Deactivate
+            </button>
+          </div>
+
+          <!-- Progress -->
+          <div id="progress-section" class="hidden space-y-1">
+            <div class="h-1 bg-gray-800 rounded-full overflow-hidden">
+              <div id="progress-bar" class="h-full bg-blue-500 transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <div class="text-xs text-gray-500" id="progress-label">Starting...</div>
+          </div>
+
+          <!-- Stats -->
+          <div id="stats-section" class="flex justify-between text-center pt-2 border-t border-gray-800">
+            <div>
+              <div class="text-sm text-white">3</div>
+              <div class="text-xs text-gray-600">Routines</div>
+            </div>
+            <div>
+              <div class="text-sm text-white">1,825</div>
+              <div class="text-xs text-gray-600">Executions</div>
+            </div>
+            <div>
+              <div class="text-sm text-white">17:23</div>
+              <div class="text-xs text-gray-600">Next</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Spacer for bottom -->
+      <div class="h-4"></div>
+
+    </div>
+  </div>
+
+  <!-- Conflict Detail Slide-up -->
+  <div id="conflict-overlay" class="fixed inset-0 bg-black/60 fade z-40" onclick="closeConflict()"></div>
+  <div id="conflict-panel" class="fixed inset-x-0 bottom-0 max-w-[375px] mx-auto bg-gray-900 border-t border-gray-800 rounded-t-xl slide-up z-50">
+
+    <!-- Handle -->
+    <div class="flex justify-center py-2">
+      <div class="w-10 h-1 bg-gray-700 rounded-full"></div>
+    </div>
+
+    <div class="px-4 pb-6">
+      <div class="flex items-center justify-between mb-4">
+        <span class="text-sm text-white">Collision at 19:00</span>
+        <button onclick="closeConflict()" class="text-gray-500">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <p class="text-xs text-gray-500 mb-4">Two camera actions scheduled at the same time. The camera can only perform one operation.</p>
+
+      <div class="space-y-2 mb-4">
+        <div class="flex items-center gap-2 p-2 border border-gray-800 rounded">
+          <div class="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+          <div>
+            <span class="text-sm text-white">Take Photo</span>
+            <span class="text-xs text-gray-600 block">from "Photo every 15 min"</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 p-2 border border-gray-800 rounded">
+          <div class="w-1.5 h-1.5 bg-purple-400 rounded-full"></div>
+          <div>
+            <span class="text-sm text-white">HDR Bracket</span>
+            <span class="text-xs text-gray-600 block">from "Hourly HDR"</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-2">
+        <button class="flex-1 py-2.5 border border-gray-800 rounded text-sm text-white">Adjust timing</button>
+        <button class="flex-1 py-2.5 text-sm text-gray-500">Ignore</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function switchTab(tab) {
+      document.getElementById('panel-list').classList.toggle('hidden', tab !== 'list');
+      document.getElementById('panel-timeline').classList.toggle('hidden', tab !== 'timeline');
+
+      document.getElementById('tab-list').className = tab === 'list'
+        ? 'flex-1 py-3 text-xs text-white border-b border-white'
+        : 'flex-1 py-3 text-xs text-gray-500';
+
+      document.getElementById('tab-timeline').className = tab === 'timeline'
+        ? 'flex-1 py-3 text-xs text-white border-b border-white'
+        : 'flex-1 py-3 text-xs text-gray-500';
+    }
+
+    function openEditor(id) {
+      document.getElementById('editor-overlay').classList.add('open');
+      document.getElementById('editor-panel').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeEditor() {
+      document.getElementById('editor-overlay').classList.remove('open');
+      document.getElementById('editor-panel').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    function openConflict() {
+      document.getElementById('conflict-overlay').classList.add('open');
+      document.getElementById('conflict-panel').classList.add('open');
+    }
+
+    function closeConflict() {
+      document.getElementById('conflict-overlay').classList.remove('open');
+      document.getElementById('conflict-panel').classList.remove('open');
+    }
+
+    function toggleRoutine(id) {
+      const body = document.getElementById(`routine-body-${id}`);
+      const card = body.closest('[data-routine]');
+      const chevron = card.querySelector('.chevron');
+
+      body.classList.toggle('open');
+      chevron.classList.toggle('rotate-180');
+
+      if (body.classList.contains('open')) {
+        card.classList.remove('border-gray-800');
+        card.classList.add('border-gray-700');
+      } else {
+        card.classList.remove('border-gray-700');
+        card.classList.add('border-gray-800');
+      }
+    }
+
+    let isActive = true;
+    const phases = [
+      { label: 'Starting...', percent: 10 },
+      { label: 'Calculating solar...', percent: 35 },
+      { label: 'Calculating moon...', percent: 55 },
+      { label: 'Calculating intervals...', percent: 75 },
+      { label: 'Writing crontab...', percent: 90 },
+      { label: 'Complete', percent: 100 },
+    ];
+
+    function toggleActivation() {
+      const btn = document.getElementById('activate-btn');
+      const dot = document.getElementById('status-dot');
+      const text = document.getElementById('status-text');
+      const progress = document.getElementById('progress-section');
+      const stats = document.getElementById('stats-section');
+      const bar = document.getElementById('progress-bar');
+      const label = document.getElementById('progress-label');
+
+      if (isActive) {
+        isActive = false;
+        dot.className = 'w-2 h-2 bg-gray-500 rounded-full';
+        text.textContent = 'Inactive';
+        text.className = 'text-xs text-gray-500';
+        btn.textContent = 'Activate';
+        btn.className = 'text-xs px-3 py-1 bg-white text-gray-900 rounded';
+        stats.classList.add('hidden');
+      } else {
+        btn.disabled = true;
+        btn.textContent = 'Activating...';
+        btn.className = 'text-xs px-3 py-1 bg-gray-800 text-gray-500 rounded';
+        dot.className = 'w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin';
+        text.textContent = 'Activating';
+        text.className = 'text-xs text-blue-400';
+        progress.classList.remove('hidden');
+        stats.classList.add('hidden');
+
+        let i = 0;
+        const interval = setInterval(() => {
+          if (i >= phases.length) {
+            clearInterval(interval);
+            isActive = true;
+            progress.classList.add('hidden');
+            stats.classList.remove('hidden');
+            dot.className = 'w-2 h-2 bg-green-500 rounded-full';
+            text.textContent = 'Active';
+            text.className = 'text-xs text-green-400';
+            btn.disabled = false;
+            btn.textContent = 'Deactivate';
+            btn.className = 'text-xs text-red-400';
+            bar.style.width = '0%';
+            return;
+          }
+          bar.style.width = phases[i].percent + '%';
+          label.textContent = phases[i].label;
+          i++;
+        }, 600);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=375, initial-scale=1.0, maximum-scale=1.0">
+  <title>Mobile Editor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' }
+  </script>
+  <style>
+    .routine-body { max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out; }
+    .routine-body.open { max-height: 1000px; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-300">
+
+  <!-- Mobile Frame -->
+  <div class="max-w-[375px] mx-auto min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+      <button class="text-gray-500 p-2 -ml-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </button>
+      <span class="text-white text-sm">Edit Schedule</span>
+      <button class="text-sm text-blue-400 p-2 -mr-2">Save</button>
+    </header>
+
+    <!-- Content -->
+    <main class="flex-1 overflow-y-auto pb-24">
+
+      <!-- Name -->
+      <div class="px-4 py-4 border-b border-gray-900">
+        <label class="block text-xs text-gray-600 mb-2">Name</label>
+        <input type="text" value="Overnight Moth Survey" class="w-full bg-transparent border border-gray-800 rounded px-3 py-2.5 text-white text-sm" />
+      </div>
+
+      <!-- Routines -->
+      <div class="px-4 py-4">
+        <label class="block text-xs text-gray-600 mb-3">Routines</label>
+
+        <div class="space-y-2">
+
+          <!-- Routine 1 -->
+          <div class="border border-gray-800 rounded" data-routine="1">
+            <div class="flex items-center justify-between px-3 py-3" onclick="toggleRoutine(1)">
+              <div class="flex items-center gap-2">
+                <div class="w-1.5 h-1.5 bg-orange-400 rounded-full"></div>
+                <span class="text-sm text-white">Attract On at Dusk</span>
+              </div>
+              <svg class="w-4 h-4 text-gray-600 chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </div>
+            <div class="routine-body" id="routine-body-1">
+              <div class="px-3 pb-3 pt-2 border-t border-gray-800 space-y-3">
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Trigger</label>
+                  <select class="w-full bg-transparent border border-gray-800 rounded px-2 py-2 text-sm text-white">
+                    <option>Solar event</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Event</label>
+                  <select class="w-full bg-transparent border border-gray-800 rounded px-2 py-2 text-sm text-white">
+                    <option>Dusk</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Action</label>
+                  <div class="flex items-center justify-between px-2 py-2 border border-gray-800 rounded text-sm">
+                    <span class="text-white">Attract On</span>
+                    <button class="text-gray-600">×</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Routine 2 (Expanded) -->
+          <div class="border border-gray-700 rounded" data-routine="2">
+            <div class="flex items-center justify-between px-3 py-3" onclick="toggleRoutine(2)">
+              <div class="flex items-center gap-2">
+                <div class="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                <span class="text-sm text-white">Take Photo every 15 min</span>
+              </div>
+              <svg class="w-4 h-4 text-gray-600 chevron rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </div>
+            <div class="routine-body open" id="routine-body-2">
+              <div class="px-3 pb-3 pt-2 border-t border-gray-800 space-y-3">
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Trigger</label>
+                  <select class="w-full bg-transparent border border-gray-800 rounded px-2 py-2 text-sm text-white">
+                    <option>Every N minutes</option>
+                  </select>
+                </div>
+                <div class="flex items-center gap-2 text-sm">
+                  <span class="text-gray-500">Every</span>
+                  <input type="number" value="15" class="w-14 bg-transparent border border-gray-800 rounded px-2 py-1.5 text-white text-center" />
+                  <span class="text-gray-500">min</span>
+                </div>
+                <div class="flex items-center justify-between py-2">
+                  <span class="text-sm text-gray-400">Time window</span>
+                  <div class="w-10 h-5 bg-blue-600 rounded-full relative">
+                    <div class="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full"></div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 text-sm">
+                  <input type="time" value="18:00" class="bg-transparent border border-gray-800 rounded px-2 py-1.5 text-white" />
+                  <span class="text-gray-600">to</span>
+                  <input type="time" value="06:00" class="bg-transparent border border-gray-800 rounded px-2 py-1.5 text-white" />
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Action</label>
+                  <div class="flex items-center justify-between px-2 py-2 border border-gray-800 rounded text-sm">
+                    <span class="text-white">Take Photo</span>
+                    <button class="text-gray-600">×</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Routine 3 -->
+          <div class="border border-gray-800 rounded" data-routine="3">
+            <div class="flex items-center justify-between px-3 py-3" onclick="toggleRoutine(3)">
+              <div class="flex items-center gap-2">
+                <div class="w-1.5 h-1.5 bg-orange-400 rounded-full"></div>
+                <span class="text-sm text-white">Attract Off at Dawn</span>
+              </div>
+              <svg class="w-4 h-4 text-gray-600 chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </div>
+            <div class="routine-body" id="routine-body-3"></div>
+          </div>
+
+          <!-- Add -->
+          <button class="w-full py-3 border border-dashed border-gray-800 rounded text-sm text-gray-600">
+            + Add Routine
+          </button>
+
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="px-4 py-4 border-t border-gray-900">
+        <label class="block text-xs text-gray-600 mb-3">Preview</label>
+        <div class="flex flex-wrap gap-1">
+          <span class="text-xs px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded">17:23</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:00</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:15</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:30</span>
+          <span class="text-xs text-gray-600">+48</span>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="fixed bottom-0 left-0 right-0 max-w-[375px] mx-auto border-t border-gray-800 bg-gray-950 p-4">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-600">Inactive</span>
+        </div>
+        <span class="text-xs text-gray-600">3 routines</span>
+      </div>
+      <button class="w-full py-3 bg-white text-gray-900 text-sm rounded">
+        Activate
+      </button>
+    </footer>
+
+  </div>
+
+  <script>
+    function toggleRoutine(id) {
+      const body = document.getElementById(`routine-body-${id}`);
+      const card = body.closest('[data-routine]');
+      const chevron = card.querySelector('.chevron');
+
+      body.classList.toggle('open');
+      chevron.classList.toggle('rotate-180');
+
+      if (body.classList.contains('open')) {
+        card.classList.remove('border-gray-800');
+        card.classList.add('border-gray-700');
+      } else {
+        card.classList.remove('border-gray-700');
+        card.classList.add('border-gray-800');
+      }
+    }
+  </script>
+</body>
+</html>

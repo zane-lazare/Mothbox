@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Activation Progress</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' }
+  </script>
+</head>
+<body class="bg-gray-950 text-gray-300 min-h-screen p-8">
+  <div class="max-w-md mx-auto">
+
+    <h1 class="text-lg text-white mb-2">Activation Progress</h1>
+    <p class="text-sm text-gray-500 mb-8">States during schedule activation</p>
+
+    <div class="space-y-8">
+
+      <!-- Inactive -->
+      <div class="border border-gray-800 rounded-lg p-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-500">Inactive</span>
+          </div>
+          <button class="text-sm px-3 py-1.5 bg-white text-gray-900 rounded hover:bg-gray-100" onclick="startDemo()">
+            Activate
+          </button>
+        </div>
+      </div>
+
+      <!-- In Progress -->
+      <div class="border border-gray-800 rounded-lg p-4 space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+            <span class="text-xs text-blue-400">Activating</span>
+          </div>
+          <button class="text-sm px-3 py-1.5 bg-gray-800 text-gray-500 rounded cursor-not-allowed" disabled>
+            Activating...
+          </button>
+        </div>
+        <div class="space-y-2">
+          <div class="h-1 bg-gray-800 rounded-full overflow-hidden">
+            <div class="h-full bg-blue-500 w-[45%]"></div>
+          </div>
+          <div class="flex justify-between text-xs">
+            <span class="text-gray-500">Calculating solar events...</span>
+            <span class="text-gray-600">45%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Success -->
+      <div class="border border-gray-800 rounded-lg p-4 space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span class="text-xs text-green-400">Active</span>
+          </div>
+          <button class="text-sm text-red-400 hover:text-red-300">
+            Deactivate
+          </button>
+        </div>
+        <div class="text-xs text-gray-500">
+          1,825 executions scheduled
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div class="border border-red-900/50 rounded-lg p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-red-400">Failed</span>
+          <button class="text-sm text-gray-400 hover:text-white">
+            Retry
+          </button>
+        </div>
+        <div class="text-xs text-gray-500">
+          Could not write to crontab
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Interactive Demo -->
+    <div class="mt-12 border border-gray-800 rounded-lg p-4">
+      <div class="text-xs text-gray-600 mb-4">Interactive demo</div>
+      <div id="demo-container">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span id="demo-status" class="text-xs text-gray-500">Inactive</span>
+          </div>
+          <button id="demo-button" onclick="startDemo()" class="text-sm px-3 py-1.5 bg-white text-gray-900 rounded hover:bg-gray-100">
+            Activate
+          </button>
+        </div>
+        <div id="demo-progress" class="hidden mt-4 space-y-2">
+          <div class="h-1 bg-gray-800 rounded-full overflow-hidden">
+            <div id="demo-bar" class="h-full bg-blue-500 transition-all duration-500" style="width: 0%"></div>
+          </div>
+          <div class="text-xs text-gray-500" id="demo-label">Starting...</div>
+        </div>
+        <div id="demo-success" class="hidden mt-4 text-xs text-green-400">
+          Activated successfully
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const phases = [
+      { label: 'Starting...', percent: 10 },
+      { label: 'Calculating solar events...', percent: 35 },
+      { label: 'Calculating moon phases...', percent: 55 },
+      { label: 'Calculating intervals...', percent: 75 },
+      { label: 'Writing crontab...', percent: 90 },
+      { label: 'Complete', percent: 100 },
+    ];
+
+    let running = false;
+
+    function startDemo() {
+      if (running) return;
+      running = true;
+
+      const button = document.getElementById('demo-button');
+      const status = document.getElementById('demo-status');
+      const progress = document.getElementById('demo-progress');
+      const bar = document.getElementById('demo-bar');
+      const label = document.getElementById('demo-label');
+      const success = document.getElementById('demo-success');
+
+      success.classList.add('hidden');
+      progress.classList.remove('hidden');
+      button.disabled = true;
+      button.textContent = 'Activating...';
+      button.className = 'text-sm px-3 py-1.5 bg-gray-800 text-gray-500 rounded cursor-not-allowed';
+      status.textContent = 'Activating';
+      status.className = 'text-xs text-blue-400';
+
+      let i = 0;
+      const interval = setInterval(() => {
+        if (i >= phases.length) {
+          clearInterval(interval);
+          progress.classList.add('hidden');
+          success.classList.remove('hidden');
+          status.textContent = 'Active';
+          status.className = 'text-xs text-green-400';
+          button.textContent = 'Deactivate';
+          button.disabled = false;
+          button.className = 'text-sm text-red-400 hover:text-red-300';
+          button.onclick = resetDemo;
+          running = false;
+          return;
+        }
+        bar.style.width = phases[i].percent + '%';
+        label.textContent = phases[i].label;
+        i++;
+      }, 600);
+    }
+
+    function resetDemo() {
+      document.getElementById('demo-success').classList.add('hidden');
+      document.getElementById('demo-bar').style.width = '0%';
+      document.getElementById('demo-status').textContent = 'Inactive';
+      document.getElementById('demo-status').className = 'text-xs text-gray-500';
+      const button = document.getElementById('demo-button');
+      button.textContent = 'Activate';
+      button.className = 'text-sm px-3 py-1.5 bg-white text-gray-900 rounded hover:bg-gray-100';
+      button.onclick = startDemo;
+    }
+  </script>
+</body>
+</html>

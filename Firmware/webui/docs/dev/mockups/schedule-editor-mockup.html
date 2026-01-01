@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schedule Editor Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {}
+      }
+    }
+  </script>
+  <style>
+    /* Smooth transitions */
+    .routine-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+    .routine-body.open { max-height: 1000px; }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+  <div class="max-w-4xl mx-auto p-6">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-white">Schedule Editor</h1>
+        <p class="text-sm text-gray-400">Create and configure automated routines</p>
+      </div>
+      <div class="flex gap-2">
+        <button class="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
+        <button class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Schedule</button>
+      </div>
+    </div>
+
+    <!-- Schedule Metadata -->
+    <div class="bg-gray-800 rounded-lg p-4 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1">Schedule Name</label>
+          <input
+            type="text"
+            value="Overnight Moth Survey"
+            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1">Description (optional)</label>
+          <input
+            type="text"
+            value="Standard overnight moth monitoring protocol"
+            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Built-in Schedules Section -->
+    <div class="mb-6">
+      <h2 class="text-sm font-medium text-gray-400 mb-3">Start from a template</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <button class="flex items-center gap-3 p-3 bg-gray-800 border border-gray-700 rounded-lg hover:border-blue-500 hover:bg-gray-750 text-left transition-colors">
+          <div class="w-10 h-10 bg-purple-900 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="font-medium text-white">Overnight Moth Survey</div>
+            <div class="text-xs text-gray-400">UV on at dusk, photos every 15 min, off at dawn</div>
+          </div>
+        </button>
+        <button class="flex items-center gap-3 p-3 bg-gray-800 border border-gray-700 rounded-lg hover:border-blue-500 hover:bg-gray-750 text-left transition-colors">
+          <div class="w-10 h-10 bg-yellow-900 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>
+            </svg>
+          </div>
+          <div>
+            <div class="font-medium text-white">Daytime Pollinator</div>
+            <div class="text-xs text-gray-400">Photos every 10 min during daylight hours</div>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Routines Section -->
+    <div class="mb-6">
+      <h2 class="text-sm font-medium text-gray-400 mb-3">Routines</h2>
+
+      <!-- Routine List -->
+      <div class="space-y-3" id="routine-list">
+
+        <!-- Routine 1: Collapsed -->
+        <div class="routine-card border border-gray-700 rounded-lg hover:border-gray-600 transition-colors" data-routine="1">
+          <div class="routine-header flex items-center justify-between p-3 cursor-pointer" onclick="toggleRoutine(1)">
+            <div class="flex items-center gap-3">
+              <span class="font-medium text-white">Attract On at Dusk</span>
+              <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-orange-900 text-orange-200">Solar</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <svg class="w-5 h-5 text-gray-400 chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+              <button class="p-1 text-gray-400 hover:text-red-400" onclick="event.stopPropagation()">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="routine-body" id="routine-body-1">
+            <div class="p-4 border-t border-gray-700 space-y-4">
+              <!-- Trigger Selector -->
+              <div>
+                <label class="block text-sm font-medium text-gray-300 mb-2">When to run</label>
+                <select class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white">
+                  <option>Every N minutes</option>
+                  <option>Fixed time</option>
+                  <option selected>Solar event</option>
+                  <option>Moon phase</option>
+                  <option>Every N days</option>
+                  <option>Cron (expert)</option>
+                </select>
+              </div>
+
+              <!-- Solar Trigger Form -->
+              <div class="flex items-center gap-3 flex-wrap">
+                <span class="text-sm text-gray-400">At</span>
+                <select class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm">
+                  <option>Dawn</option>
+                  <option selected>Dusk</option>
+                  <option>Sunrise</option>
+                  <option>Sunset</option>
+                  <option>Solar Noon</option>
+                </select>
+                <span class="text-sm text-gray-400">with offset</span>
+                <input type="number" value="0" class="w-20 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm" />
+                <span class="text-sm text-gray-400">minutes</span>
+              </div>
+
+              <!-- Actions -->
+              <div>
+                <label class="block text-sm font-medium text-gray-300 mb-2">Actions</label>
+                <div class="space-y-2">
+                  <div class="flex items-center gap-2 p-2 bg-gray-750 rounded-lg">
+                    <span class="text-sm text-gray-300">GPIO: Attract On</span>
+                    <span class="text-xs text-gray-500">at +0 min</span>
+                    <button class="ml-auto p-1 text-gray-400 hover:text-red-400">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <button class="mt-2 text-sm text-blue-400 hover:text-blue-300">+ Add Action</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Routine 2: Expanded (default) -->
+        <div class="routine-card border border-blue-600 rounded-lg shadow-md" data-routine="2">
+          <div class="routine-header flex items-center justify-between p-3 cursor-pointer" onclick="toggleRoutine(2)">
+            <div class="flex items-center gap-3">
+              <span class="font-medium text-white">Take Photo every 15 min</span>
+              <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-blue-900 text-blue-200">Interval</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <svg class="w-5 h-5 text-gray-400 chevron transition-transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+              <button class="p-1 text-gray-400 hover:text-red-400" onclick="event.stopPropagation()">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="routine-body open" id="routine-body-2">
+            <div class="p-4 border-t border-gray-700 space-y-4">
+              <!-- Trigger Selector -->
+              <div>
+                <label class="block text-sm font-medium text-gray-300 mb-2">When to run</label>
+                <select class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white">
+                  <option selected>Every N minutes</option>
+                  <option>Fixed time</option>
+                  <option>Solar event</option>
+                  <option>Moon phase</option>
+                  <option>Every N days</option>
+                  <option>Cron (expert)</option>
+                </select>
+              </div>
+
+              <!-- Interval Trigger Form -->
+              <div class="flex items-center gap-3 flex-wrap">
+                <span class="text-sm text-gray-400">Run every</span>
+                <input type="number" value="15" class="w-20 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm" />
+                <span class="text-sm text-gray-400">minutes</span>
+              </div>
+
+              <!-- Time Window (optional) -->
+              <div class="p-3 bg-gray-800 rounded-lg">
+                <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+                  <input type="checkbox" checked class="rounded border-gray-500 bg-gray-700 text-blue-600" />
+                  Limit to time window
+                </label>
+                <div class="mt-2 flex items-center gap-3">
+                  <span class="text-sm text-gray-400">Between</span>
+                  <select class="bg-gray-700 border border-gray-600 rounded-lg px-2 py-1 text-white text-sm">
+                    <option selected>Dusk</option>
+                    <option>Dawn</option>
+                    <option>Fixed time</option>
+                  </select>
+                  <span class="text-sm text-gray-400">and</span>
+                  <select class="bg-gray-700 border border-gray-600 rounded-lg px-2 py-1 text-white text-sm">
+                    <option>Dusk</option>
+                    <option selected>Dawn</option>
+                    <option>Fixed time</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Pre-condition (collapsed) -->
+              <div>
+                <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+                  <input type="checkbox" class="rounded border-gray-500 bg-gray-700 text-blue-600" />
+                  Add sensor pre-condition
+                </label>
+              </div>
+
+              <!-- Actions -->
+              <div>
+                <label class="block text-sm font-medium text-gray-300 mb-2">Actions</label>
+                <div class="space-y-2">
+                  <div class="flex items-center gap-2 p-2 bg-gray-750 rounded-lg">
+                    <span class="text-sm text-gray-300">Camera: Take Photo</span>
+                    <span class="text-xs text-gray-500">at +0 min</span>
+                    <button class="ml-auto p-1 text-gray-400 hover:text-red-400">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <button class="mt-2 text-sm text-blue-400 hover:text-blue-300">+ Add Action</button>
+              </div>
+
+              <!-- Offset Timeline Preview -->
+              <div>
+                <label class="block text-sm font-medium text-gray-300 mb-2">Action Timeline</label>
+                <div class="h-8 bg-gray-800 rounded-lg relative">
+                  <div class="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-l-lg"></div>
+                  <div class="absolute left-0 top-1/2 -translate-y-1/2 ml-2">
+                    <div class="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  </div>
+                  <span class="absolute left-6 top-1/2 -translate-y-1/2 text-xs text-gray-400">Take Photo (0 min)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Routine 3: Collapsed -->
+        <div class="routine-card border border-gray-700 rounded-lg hover:border-gray-600 transition-colors" data-routine="3">
+          <div class="routine-header flex items-center justify-between p-3 cursor-pointer" onclick="toggleRoutine(3)">
+            <div class="flex items-center gap-3">
+              <span class="font-medium text-white">Attract Off at Dawn</span>
+              <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-orange-900 text-orange-200">Solar</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <svg class="w-5 h-5 text-gray-400 chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+              <button class="p-1 text-gray-400 hover:text-red-400" onclick="event.stopPropagation()">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="routine-body" id="routine-body-3">
+            <div class="p-4 border-t border-gray-700">
+              <p class="text-gray-400 text-sm">Solar trigger: At Dawn</p>
+              <p class="text-gray-400 text-sm">Action: GPIO Attract Off</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add Routine Button -->
+        <button class="w-full py-3 border-2 border-dashed border-gray-600 rounded-lg text-gray-400 hover:border-blue-500 hover:text-blue-400 transition-colors" onclick="showNewRoutine()">
+          + Add Routine
+        </button>
+
+      </div>
+    </div>
+
+    <!-- Day Timeline Preview -->
+    <div class="bg-gray-800 rounded-lg p-4">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-medium text-gray-300">Schedule Preview</h2>
+        <div class="flex items-center gap-2">
+          <button class="p-1 text-gray-400 hover:text-white">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+          </button>
+          <span class="text-sm text-white">Today, Jan 1</span>
+          <button class="p-1 text-gray-400 hover:text-white">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="space-y-0 divide-y divide-gray-700">
+        <!-- 17:00 - Dusk -->
+        <div class="flex items-stretch min-h-[3rem]">
+          <span class="w-16 flex-shrink-0 py-2 text-xs text-gray-500">17:00</span>
+          <div class="flex-1 relative py-1">
+            <button class="absolute left-[30%] top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-white text-xs font-medium bg-orange-600 hover:brightness-110">
+              17:23 Attract On at Dusk
+            </button>
+          </div>
+        </div>
+
+        <!-- 18:00 -->
+        <div class="flex items-stretch min-h-[3rem]">
+          <span class="w-16 flex-shrink-0 py-2 text-xs text-gray-500">18:00</span>
+          <div class="flex-1 relative py-1">
+            <button class="absolute left-[0%] top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-white text-xs font-medium bg-blue-600 hover:brightness-110">
+              18:00 Take Photo
+            </button>
+            <button class="absolute left-[25%] top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-white text-xs font-medium bg-blue-600 hover:brightness-110">
+              18:15
+            </button>
+            <button class="absolute left-[50%] top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-white text-xs font-medium bg-blue-600 hover:brightness-110">
+              18:30
+            </button>
+            <button class="absolute left-[75%] top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-white text-xs font-medium bg-blue-600 hover:brightness-110">
+              18:45
+            </button>
+          </div>
+        </div>
+
+        <!-- 19:00 -->
+        <div class="flex items-stretch min-h-[3rem]">
+          <span class="w-16 flex-shrink-0 py-2 text-xs text-gray-500">19:00</span>
+          <div class="flex-1 relative py-1">
+            <button class="absolute left-[0%] top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-white text-xs font-medium bg-blue-600 hover:brightness-110">
+              19:00
+            </button>
+            <button class="absolute left-[25%] top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-white text-xs font-medium bg-blue-600 hover:brightness-110">
+              19:15
+            </button>
+            <button class="absolute left-[50%] top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-white text-xs font-medium bg-blue-600 hover:brightness-110">
+              19:30
+            </button>
+            <button class="absolute left-[75%] top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-white text-xs font-medium bg-blue-600 hover:brightness-110">
+              19:45
+            </button>
+          </div>
+        </div>
+
+        <!-- Skip to 06:00 -->
+        <div class="flex items-stretch min-h-[2rem] bg-gray-750">
+          <span class="w-16 flex-shrink-0 py-2 text-xs text-gray-600">...</span>
+          <div class="flex-1 relative py-1">
+            <span class="text-xs text-gray-500 italic">Photos continue every 15 min through the night</span>
+          </div>
+        </div>
+
+        <!-- 06:00 - Dawn -->
+        <div class="flex items-stretch min-h-[3rem]">
+          <span class="w-16 flex-shrink-0 py-2 text-xs text-gray-500">06:00</span>
+          <div class="flex-1 relative py-1">
+            <button class="absolute left-[0%] top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-white text-xs font-medium bg-blue-600 hover:brightness-110">
+              06:00
+            </button>
+            <button class="absolute left-[25%] top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-white text-xs font-medium bg-blue-600 hover:brightness-110">
+              06:15
+            </button>
+            <button class="absolute left-[48%] top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-white text-xs font-medium bg-orange-600 hover:brightness-110">
+              06:32 Attract Off at Dawn
+            </button>
+          </div>
+        </div>
+
+        <!-- 07:00 onwards - empty -->
+        <div class="flex items-stretch min-h-[3rem]">
+          <span class="w-16 flex-shrink-0 py-2 text-xs text-gray-500">07:00</span>
+          <div class="flex-1 relative py-1">
+            <span class="text-xs text-gray-600 italic">No scheduled executions</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activation Button -->
+    <div class="mt-6 flex items-center justify-between p-4 bg-gray-800 rounded-lg">
+      <div>
+        <span class="text-sm text-gray-400">Status:</span>
+        <span class="ml-2 inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-gray-700 text-gray-300">Inactive</span>
+      </div>
+      <button class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+        Activate Schedule
+      </button>
+    </div>
+
+  </div>
+
+  <!-- New Routine Modal (hidden by default) -->
+  <div id="new-routine-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+    <div class="bg-gray-800 rounded-lg max-w-lg w-full max-h-[80vh] overflow-y-auto">
+      <div class="flex items-center justify-between p-4 border-b border-gray-700">
+        <span class="font-medium text-white">New Routine</span>
+        <button onclick="hideNewRoutine()" class="p-1 text-gray-400 hover:text-white">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="p-4 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">When to run</label>
+          <select class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white">
+            <option selected>Every N minutes</option>
+            <option>Fixed time</option>
+            <option>Solar event</option>
+            <option>Moon phase</option>
+            <option>Every N days</option>
+            <option>Cron (expert)</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-sm text-gray-400">Run every</span>
+          <input type="number" value="15" class="w-20 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm" />
+          <span class="text-sm text-gray-400">minutes</span>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Actions</label>
+          <div class="p-4 border-2 border-dashed border-gray-600 rounded-lg text-center">
+            <p class="text-gray-400 text-sm mb-2">No actions yet</p>
+            <button class="text-sm text-blue-400 hover:text-blue-300">+ Add Action</button>
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 p-4 border-t border-gray-700">
+        <button onclick="hideNewRoutine()" class="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
+        <button class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 opacity-50 cursor-not-allowed" disabled>Add Routine</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleRoutine(id) {
+      const body = document.getElementById(`routine-body-${id}`);
+      const card = body.closest('.routine-card');
+      const chevron = card.querySelector('.chevron');
+
+      body.classList.toggle('open');
+      chevron.classList.toggle('rotate-180');
+
+      if (body.classList.contains('open')) {
+        card.classList.remove('border-gray-700', 'hover:border-gray-600');
+        card.classList.add('border-blue-600', 'shadow-md');
+      } else {
+        card.classList.add('border-gray-700', 'hover:border-gray-600');
+        card.classList.remove('border-blue-600', 'shadow-md');
+      }
+    }
+
+    function showNewRoutine() {
+      document.getElementById('new-routine-modal').classList.remove('hidden');
+    }
+
+    function hideNewRoutine() {
+      document.getElementById('new-routine-modal').classList.add('hidden');
+    }
+
+    // Toggle dark/light mode
+    function toggleDarkMode() {
+      document.documentElement.classList.toggle('dark');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timeline with Conflicts</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' }
+  </script>
+</head>
+<body class="bg-gray-950 text-gray-300 min-h-screen p-8">
+  <div class="max-w-2xl mx-auto">
+
+    <h1 class="text-lg text-white mb-2">Timeline with Conflicts</h1>
+    <p class="text-sm text-gray-500 mb-8">Time collisions and GPIO warnings</p>
+
+    <!-- Legend -->
+    <div class="flex items-center gap-6 text-xs text-gray-500 mb-6">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 bg-blue-400 rounded-full"></span>
+        Camera
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 bg-orange-400 rounded-full"></span>
+        GPIO
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 ring-1 ring-red-400 rounded-full"></span>
+        Collision
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 ring-1 ring-yellow-400 rounded-full"></span>
+        Warning
+      </div>
+    </div>
+
+    <!-- Conflict Summary -->
+    <div class="mb-6 p-3 border border-red-900/50 rounded text-sm flex items-center gap-3">
+      <span class="text-red-400">2 conflicts</span>
+      <span class="text-gray-600">|</span>
+      <span class="text-gray-500">1 collision, 1 warning</span>
+    </div>
+
+    <!-- Timeline -->
+    <div class="border border-gray-800 rounded-lg divide-y divide-gray-800">
+
+      <!-- 18:00 - Normal -->
+      <div class="flex p-3">
+        <span class="w-12 text-xs text-gray-600">18:00</span>
+        <div class="flex gap-2 flex-wrap">
+          <span class="text-xs px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded">18:00 Attract On</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:00</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:15</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:30</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:45</span>
+        </div>
+      </div>
+
+      <!-- 19:00 - Collision -->
+      <div class="flex p-3 bg-red-950/20">
+        <span class="w-12 text-xs text-red-400">19:00</span>
+        <div class="flex gap-2 flex-wrap items-center">
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded ring-1 ring-red-400">19:00</span>
+          <span class="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded ring-1 ring-red-400">19:00 HDR</span>
+          <span class="text-xs text-red-400 ml-1">camera busy</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">19:15</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">19:30</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">19:45</span>
+        </div>
+      </div>
+
+      <!-- 20:00 - Normal -->
+      <div class="flex p-3">
+        <span class="w-12 text-xs text-gray-600">20:00</span>
+        <div class="flex gap-2 flex-wrap">
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">20:00</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">20:15</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">20:30</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">20:45</span>
+        </div>
+      </div>
+
+      <!-- 21:00 - GPIO Warning -->
+      <div class="flex p-3 bg-yellow-950/20">
+        <span class="w-12 text-xs text-yellow-400">21:00</span>
+        <div class="flex gap-2 flex-wrap items-center">
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">21:00</span>
+          <span class="text-xs px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded ring-1 ring-yellow-400">21:00 Attract Off</span>
+          <span class="text-xs text-yellow-400 ml-1">unexpected</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">21:15</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">21:30</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">21:45</span>
+        </div>
+      </div>
+
+      <!-- 22:00 - Normal -->
+      <div class="flex p-3">
+        <span class="w-12 text-xs text-gray-600">22:00</span>
+        <div class="flex gap-2 flex-wrap">
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">22:00</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">22:15</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">22:30</span>
+          <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">22:45</span>
+        </div>
+      </div>
+
+      <!-- Empty -->
+      <div class="flex p-3">
+        <span class="w-12 text-xs text-gray-700">23:00</span>
+        <span class="text-xs text-gray-700">no executions</span>
+      </div>
+
+    </div>
+
+    <!-- Conflict Detail -->
+    <div class="mt-8 p-4 border border-gray-800 rounded-lg">
+      <h3 class="text-sm text-white mb-3">Collision at 19:00</h3>
+      <p class="text-xs text-gray-500 mb-4">Two camera actions scheduled at the same time.</p>
+      <div class="space-y-2 text-xs">
+        <div class="flex items-center gap-2">
+          <span class="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
+          <span class="text-gray-300">Take Photo</span>
+          <span class="text-gray-600">from "Photo every 15 min"</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="w-1.5 h-1.5 bg-purple-400 rounded-full"></span>
+          <span class="text-gray-300">HDR Bracket</span>
+          <span class="text-gray-600">from "Hourly HDR"</span>
+        </div>
+      </div>
+      <div class="mt-4 flex gap-3">
+        <button class="text-xs text-gray-400 hover:text-white">Adjust timing</button>
+        <button class="text-xs text-gray-600 hover:text-gray-400">Ignore</button>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scheduler - Mothbox</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {} }
+    }
+  </script>
+  <style>
+    .modal-overlay { background-color: rgba(0, 0, 0, 0.6); }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-300 min-h-screen">
+
+  <!-- Navigation -->
+  <nav class="border-b border-gray-800 px-6 py-4">
+    <div class="max-w-5xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-8">
+        <span class="text-white font-medium">Mothbox</span>
+        <div class="flex items-center gap-6 text-sm">
+          <a href="#" class="text-gray-500 hover:text-gray-300">Dashboard</a>
+          <a href="#" class="text-gray-500 hover:text-gray-300">Gallery</a>
+          <a href="#" class="text-gray-500 hover:text-gray-300">Camera</a>
+          <a href="#" class="text-white">Scheduler</a>
+          <a href="#" class="text-gray-500 hover:text-gray-300">Settings</a>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 text-sm text-gray-500">
+        <div class="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+        Connected
+      </div>
+    </div>
+  </nav>
+
+  <!-- Page Content -->
+  <main class="max-w-5xl mx-auto px-6 py-8">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+      <h1 class="text-xl text-white">Schedules</h1>
+      <button onclick="openEditor()" class="px-4 py-2 bg-white text-gray-900 text-sm rounded hover:bg-gray-100">
+        New Schedule
+      </button>
+    </div>
+
+    <!-- Active Banner -->
+    <div class="mb-8 p-4 border border-gray-800 rounded-lg flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+        <span class="text-sm">
+          <span class="text-gray-500">Active:</span>
+          <span class="text-white ml-1">Overnight Moth Survey</span>
+        </span>
+      </div>
+      <span class="text-sm text-gray-500">Next: 17:23 Attract On</span>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex gap-6 mb-6 border-b border-gray-800">
+      <button onclick="switchTab('list')" id="tab-list" class="pb-3 text-sm text-white border-b border-white -mb-px">
+        List
+      </button>
+      <button onclick="switchTab('timeline')" id="tab-timeline" class="pb-3 text-sm text-gray-500 hover:text-gray-300">
+        Timeline
+      </button>
+    </div>
+
+    <!-- List View -->
+    <div id="panel-list" class="space-y-3">
+
+      <!-- Schedule 1: Active -->
+      <div class="p-4 border border-gray-800 rounded-lg hover:border-gray-700 cursor-pointer" onclick="openEditor()">
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-white">Overnight Moth Survey</span>
+              <span class="text-xs text-green-400">Active</span>
+            </div>
+            <p class="text-sm text-gray-500 mt-1">UV on at dusk, photos every 15 min</p>
+          </div>
+          <span class="text-xs text-gray-600">3 routines</span>
+        </div>
+      </div>
+
+      <!-- Schedule 2 -->
+      <div class="p-4 border border-gray-800 rounded-lg hover:border-gray-700 cursor-pointer">
+        <div class="flex items-start justify-between">
+          <div>
+            <span class="text-white">Daytime Pollinator Survey</span>
+            <p class="text-sm text-gray-500 mt-1">Photos every 10 min during daylight</p>
+          </div>
+          <span class="text-xs text-gray-600">1 routine</span>
+        </div>
+      </div>
+
+      <!-- Schedule 3: Draft -->
+      <div class="p-4 border border-dashed border-gray-800 rounded-lg hover:border-gray-700 cursor-pointer opacity-60">
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-white">Full Moon Special</span>
+              <span class="text-xs text-yellow-500">Draft</span>
+            </div>
+            <p class="text-sm text-gray-500 mt-1">Not configured</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Timeline View -->
+    <div id="panel-timeline" class="hidden">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <button class="p-1 text-gray-500 hover:text-white">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+          </button>
+          <span class="text-sm text-white">Jan 1</span>
+          <button class="p-1 text-gray-500 hover:text-white">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+        <span class="text-xs text-gray-500">52 executions</span>
+      </div>
+
+      <div class="border border-gray-800 rounded-lg divide-y divide-gray-800">
+        <div class="flex p-3">
+          <span class="w-12 text-xs text-gray-600">17:00</span>
+          <div class="flex gap-2">
+            <span class="text-xs px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded">17:23 Attract On</span>
+          </div>
+        </div>
+        <div class="flex p-3">
+          <span class="w-12 text-xs text-gray-600">18:00</span>
+          <div class="flex gap-2 flex-wrap">
+            <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:00</span>
+            <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:15</span>
+            <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:30</span>
+            <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:45</span>
+          </div>
+        </div>
+        <div class="flex p-3">
+          <span class="w-12 text-xs text-gray-600">19:00</span>
+          <div class="flex gap-2 flex-wrap">
+            <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">19:00</span>
+            <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">19:15</span>
+            <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">19:30</span>
+            <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">19:45</span>
+          </div>
+        </div>
+        <div class="flex p-3 text-gray-600">
+          <span class="w-12 text-xs">...</span>
+          <span class="text-xs">continues overnight</span>
+        </div>
+        <div class="flex p-3">
+          <span class="w-12 text-xs text-gray-600">06:00</span>
+          <div class="flex gap-2 flex-wrap">
+            <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">06:00</span>
+            <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">06:15</span>
+            <span class="text-xs px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded">06:32 Attract Off</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Editor Modal -->
+  <div id="editor-modal" class="hidden fixed inset-0 z-50">
+    <div class="modal-overlay fixed inset-0" onclick="closeEditor()"></div>
+    <div class="fixed inset-x-4 top-8 bottom-8 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-2xl">
+      <div class="bg-gray-900 border border-gray-800 rounded-lg h-full flex flex-col">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+          <h2 class="text-white">Edit Schedule</h2>
+          <div class="flex items-center gap-3">
+            <button onclick="closeEditor()" class="text-sm text-gray-500 hover:text-white">Cancel</button>
+            <button class="text-sm px-3 py-1.5 bg-white text-gray-900 rounded hover:bg-gray-100">Save</button>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div class="flex-1 overflow-y-auto p-6 space-y-6">
+
+          <!-- Name -->
+          <div>
+            <label class="block text-xs text-gray-500 mb-2">Name</label>
+            <input type="text" value="Overnight Moth Survey" class="w-full bg-transparent border border-gray-800 rounded px-3 py-2 text-white text-sm focus:border-gray-600 focus:outline-none" />
+          </div>
+
+          <!-- Routines -->
+          <div>
+            <label class="block text-xs text-gray-500 mb-3">Routines</label>
+            <div class="space-y-2">
+
+              <!-- Routine 1 -->
+              <div class="border border-gray-800 rounded">
+                <div class="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-800/50" onclick="toggleRoutine(1)">
+                  <div class="flex items-center gap-3">
+                    <div class="w-1.5 h-1.5 bg-orange-400 rounded-full"></div>
+                    <span class="text-sm text-white">Attract On at Dusk</span>
+                  </div>
+                  <span class="text-xs text-gray-600">Solar</span>
+                </div>
+              </div>
+
+              <!-- Routine 2 (Expanded) -->
+              <div class="border border-gray-700 rounded">
+                <div class="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-800/50" onclick="toggleRoutine(2)">
+                  <div class="flex items-center gap-3">
+                    <div class="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                    <span class="text-sm text-white">Take Photo every 15 min</span>
+                  </div>
+                  <span class="text-xs text-gray-600">Interval</span>
+                </div>
+                <div class="px-4 pb-4 pt-2 border-t border-gray-800 space-y-4">
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-2">Trigger</label>
+                    <select class="w-full bg-transparent border border-gray-800 rounded px-3 py-2 text-sm text-white">
+                      <option>Every N minutes</option>
+                      <option>Solar event</option>
+                      <option>Fixed time</option>
+                    </select>
+                  </div>
+                  <div class="flex items-center gap-3 text-sm">
+                    <span class="text-gray-500">Every</span>
+                    <input type="number" value="15" class="w-16 bg-transparent border border-gray-800 rounded px-2 py-1 text-white text-center" />
+                    <span class="text-gray-500">minutes</span>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-2">Action</label>
+                    <div class="flex items-center justify-between px-3 py-2 border border-gray-800 rounded text-sm">
+                      <span class="text-white">Take Photo</span>
+                      <button class="text-gray-600 hover:text-red-400">×</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Routine 3 -->
+              <div class="border border-gray-800 rounded">
+                <div class="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-800/50">
+                  <div class="flex items-center gap-3">
+                    <div class="w-1.5 h-1.5 bg-orange-400 rounded-full"></div>
+                    <span class="text-sm text-white">Attract Off at Dawn</span>
+                  </div>
+                  <span class="text-xs text-gray-600">Solar</span>
+                </div>
+              </div>
+
+              <!-- Add -->
+              <button class="w-full py-3 border border-dashed border-gray-800 rounded text-sm text-gray-600 hover:border-gray-600 hover:text-gray-400">
+                + Add Routine
+              </button>
+            </div>
+          </div>
+
+          <!-- Preview -->
+          <div>
+            <label class="block text-xs text-gray-500 mb-3">Preview</label>
+            <div class="flex flex-wrap gap-1">
+              <span class="text-xs px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded">17:23</span>
+              <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:00</span>
+              <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:15</span>
+              <span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">18:30</span>
+              <span class="text-xs text-gray-600">+48</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-between px-6 py-4 border-t border-gray-800">
+          <div class="flex items-center gap-2">
+            <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span class="text-xs text-gray-500">Active</span>
+          </div>
+          <button class="text-xs text-red-400 hover:text-red-300">Deactivate</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function switchTab(tab) {
+      document.getElementById('panel-list').classList.toggle('hidden', tab !== 'list');
+      document.getElementById('panel-timeline').classList.toggle('hidden', tab !== 'timeline');
+
+      document.getElementById('tab-list').className = tab === 'list'
+        ? 'pb-3 text-sm text-white border-b border-white -mb-px'
+        : 'pb-3 text-sm text-gray-500 hover:text-gray-300';
+
+      document.getElementById('tab-timeline').className = tab === 'timeline'
+        ? 'pb-3 text-sm text-white border-b border-white -mb-px'
+        : 'pb-3 text-sm text-gray-500 hover:text-gray-300';
+    }
+
+    function openEditor() {
+      document.getElementById('editor-modal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeEditor() {
+      document.getElementById('editor-modal').classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    function toggleRoutine(id) {
+      // Toggle routine expansion
+    }
+  </script>
+</body>
+</html>
