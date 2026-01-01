@@ -14,7 +14,6 @@ Issue #208 - Scheduler Phase 1: Schedule Schema
 """
 
 import json
-import re
 import uuid
 from datetime import datetime
 
@@ -39,26 +38,26 @@ try:
         SUPPORTED_VERSIONS,
         TRIGGER_TYPES,
         # Dataclasses
+        Action,
         CronTrigger,
         EventPattern,
         FixedTimeTrigger,
         IntervalTrigger,
         MoonPhaseTrigger,
-        Action,
+        RecurringDaysTrigger,
         Schedule,
-        ScheduleValidationError,
         SensorTrigger,
         SolarTrigger,
         TimeWindow,
         # Validation functions
+        validate_action,
+        validate_cron_trigger,
         validate_event_pattern,
         validate_fixed_time_trigger,
         validate_interval_trigger,
         validate_moon_phase_trigger,
-        validate_action,
         validate_schedule,
         validate_sensor_trigger,
-        validate_cron_trigger,
         validate_solar_trigger,
         validate_time_window,
     )
@@ -235,17 +234,17 @@ class TestScheduleSchemaConstants:
     def test_action_types_defined(self):
         """ACTION_TYPES should include all expected types."""
         expected = ["gpio", "camera", "gps_sync", "service"]
-        assert ACTION_TYPES == expected
+        assert expected == ACTION_TYPES
 
     def test_gpio_actions_defined(self):
         """GPIO_ACTIONS should include all expected actions."""
         expected = ["attract_on", "attract_off", "flash_on", "flash_off"]
-        assert GPIO_ACTIONS == expected
+        assert expected == GPIO_ACTIONS
 
     def test_trigger_types_defined(self):
-        """TRIGGER_TYPES should include all expected types including cron for expert mode."""
-        expected = ["interval", "solar", "moon_phase", "fixed_time", "sensor", "cron"]
-        assert TRIGGER_TYPES == expected
+        """TRIGGER_TYPES should include all expected types including cron and recurring_days."""
+        expected = ["interval", "solar", "moon_phase", "fixed_time", "sensor", "cron", "recurring_days"]
+        assert expected == TRIGGER_TYPES
 
     def test_moon_phases_defined(self):
         """MOON_PHASES should include all 8 phases."""
@@ -263,12 +262,12 @@ class TestScheduleSchemaConstants:
     def test_sensor_types_defined(self):
         """SENSOR_TYPES should include expected types."""
         expected = ["motion", "light", "temperature"]
-        assert SENSOR_TYPES == expected
+        assert expected == SENSOR_TYPES
 
     def test_sensor_comparisons_defined(self):
         """SENSOR_COMPARISONS should include all operators."""
         expected = ["gt", "lt", "eq", "gte", "lte"]
-        assert SENSOR_COMPARISONS == expected
+        assert expected == SENSOR_COMPARISONS
 
     def test_validation_limits_defined(self):
         """Validation limits should be defined."""
@@ -1270,6 +1269,107 @@ class TestScheduleWithCronTrigger:
         restored = Schedule.from_dict(data)
         assert restored.trigger_type == "cron"
         assert restored.cron_trigger.cron_expression == "0 */2 * * *"
+
+
+class TestScheduleWithRecurringDaysTrigger:
+    """Tests for Schedule with recurring_days trigger type."""
+
+    def test_schedule_with_recurring_days_trigger_validates(self, sample_event_pattern):
+        """Schedule with valid recurring_days trigger passes validation."""
+        recurring_days_trigger = RecurringDaysTrigger(
+            every_n_days=3,
+            time="21:00",
+            start_date="2025-01-01",
+        )
+        schedule = Schedule(
+            schedule_id="",
+            name="GPS Sync Every 3 Days",
+            event_patterns=[sample_event_pattern],
+            trigger_type="recurring_days",
+            recurring_days_trigger=recurring_days_trigger,
+        )
+        valid, error = validate_schedule(schedule)
+        assert valid is True
+        assert error is None
+
+    def test_schedule_recurring_days_trigger_type_requires_trigger(self, sample_event_pattern):
+        """Schedule with trigger_type='recurring_days' but missing trigger fails validation."""
+        schedule = Schedule(
+            schedule_id="",
+            name="Missing Recurring Days Config",
+            event_patterns=[sample_event_pattern],
+            trigger_type="recurring_days",
+            recurring_days_trigger=None,
+        )
+        valid, error = validate_schedule(schedule)
+        assert valid is False
+        assert "recurring_days" in error.lower()
+
+    def test_schedule_with_invalid_recurring_days_fails(self, sample_event_pattern):
+        """Schedule with invalid every_n_days fails validation."""
+        recurring_days_trigger = RecurringDaysTrigger(
+            every_n_days=0,  # Invalid: must be at least 1
+            time="21:00",
+        )
+        schedule = Schedule(
+            schedule_id="",
+            name="Invalid Recurring Days",
+            event_patterns=[sample_event_pattern],
+            trigger_type="recurring_days",
+            recurring_days_trigger=recurring_days_trigger,
+        )
+        valid, error = validate_schedule(schedule)
+        assert valid is False
+        assert "at least 1" in error
+
+    def test_schedule_recurring_days_trigger_serialization(self, sample_event_pattern):
+        """Schedule with recurring_days trigger serializes and deserializes correctly."""
+        recurring_days_trigger = RecurringDaysTrigger(
+            every_n_days=7,
+            time="09:00",
+            start_date="2025-06-01",
+        )
+        schedule = Schedule(
+            schedule_id="",
+            name="Weekly Sync",
+            event_patterns=[sample_event_pattern],
+            trigger_type="recurring_days",
+            recurring_days_trigger=recurring_days_trigger,
+        )
+
+        # Serialize
+        data = schedule.to_dict()
+        assert data["trigger_type"] == "recurring_days"
+        assert data["recurring_days_trigger"]["every_n_days"] == 7
+        assert data["recurring_days_trigger"]["time"] == "09:00"
+        assert data["recurring_days_trigger"]["start_date"] == "2025-06-01"
+
+        # Deserialize
+        restored = Schedule.from_dict(data)
+        assert restored.trigger_type == "recurring_days"
+        assert restored.recurring_days_trigger.every_n_days == 7
+        assert restored.recurring_days_trigger.time == "09:00"
+        assert restored.recurring_days_trigger.start_date == "2025-06-01"
+
+    def test_schedule_from_frontend_recurring_days_format(self, sample_event_pattern):
+        """Schedule.from_dict handles frontend recurring_days format."""
+        frontend_data = {
+            "name": "Frontend Recurring Days Schedule",
+            "event_patterns": [sample_event_pattern.to_dict()],
+            "trigger": {
+                "trigger_type": "recurring_days",
+                "every_n_days": 5,
+                "time": "18:00",
+                "start_date": "2025-03-15",
+            },
+        }
+
+        schedule = Schedule.from_dict(frontend_data)
+        assert schedule.trigger_type == "recurring_days"
+        assert schedule.recurring_days_trigger is not None
+        assert schedule.recurring_days_trigger.every_n_days == 5
+        assert schedule.recurring_days_trigger.time == "18:00"
+        assert schedule.recurring_days_trigger.start_date == "2025-03-15"
 
 
 # =============================================================================
