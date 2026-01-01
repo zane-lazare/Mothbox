@@ -33,6 +33,8 @@ try:
         MOON_PHASES,
         PRIMARY_TRIGGER_TYPES,
         SCHEDULE_SCHEMA_VERSION,
+        TRIGGER_CLASS_MAP,
+        TRIGGER_TYPE_MAP,
         SENSOR_COMPARISONS,
         SENSOR_TYPES,
         SOLAR_EVENTS,
@@ -264,6 +266,18 @@ class TestScheduleSchemaConstants:
         assert "sensor" not in PRIMARY_TRIGGER_TYPES
         assert "interval" in PRIMARY_TRIGGER_TYPES
         assert len(PRIMARY_TRIGGER_TYPES) == len(TRIGGER_TYPES) - 1
+
+    def test_trigger_type_map_covers_all_triggers(self):
+        """TRIGGER_TYPE_MAP should cover all trigger types."""
+        assert len(TRIGGER_TYPE_MAP) == len(TRIGGER_TYPES)
+        for trigger_type in TRIGGER_TYPES:
+            assert trigger_type in TRIGGER_TYPE_MAP.values()
+
+    def test_trigger_class_map_is_inverse_of_type_map(self):
+        """TRIGGER_CLASS_MAP should be inverse of TRIGGER_TYPE_MAP."""
+        assert len(TRIGGER_CLASS_MAP) == len(TRIGGER_TYPE_MAP)
+        for cls, type_str in TRIGGER_TYPE_MAP.items():
+            assert TRIGGER_CLASS_MAP[type_str] == cls
 
     def test_moon_phases_defined(self):
         """MOON_PHASES should include all 8 phases."""

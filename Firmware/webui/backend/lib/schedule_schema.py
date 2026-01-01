@@ -50,7 +50,6 @@ import copy
 import logging
 import re
 import uuid
-from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Final, TypeVar
@@ -303,9 +302,7 @@ class EventPattern:
     @property
     def duration_minutes(self) -> int:
         """Total duration = max action offset."""
-        if not self.actions:
-            return 0
-        return max(action.offset_minutes for action in self.actions)
+        return max((action.offset_minutes for action in self.actions), default=0)
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -654,6 +651,20 @@ Trigger = (
     | RecurringDaysTrigger
 )
 
+# Mapping from trigger class to trigger_type string (DRY principle)
+TRIGGER_TYPE_MAP: Final[dict[type, str]] = {
+    IntervalTrigger: "interval",
+    SolarTrigger: "solar",
+    MoonPhaseTrigger: "moon_phase",
+    FixedTimeTrigger: "fixed_time",
+    SensorTrigger: "sensor",
+    CronTrigger: "cron",
+    RecurringDaysTrigger: "recurring_days",
+}
+
+# Inverse mapping from trigger_type string to trigger class
+TRIGGER_CLASS_MAP: Final[dict[str, type]] = {v: k for k, v in TRIGGER_TYPE_MAP.items()}
+
 
 def trigger_from_dict(data: dict) -> Trigger:
     """
@@ -681,22 +692,11 @@ def trigger_from_dict(data: dict) -> Trigger:
     if not trigger_type:
         raise ValueError("trigger_type is required")
 
-    if trigger_type == "interval":
-        return IntervalTrigger.from_dict(data)
-    elif trigger_type == "solar":
-        return SolarTrigger.from_dict(data)
-    elif trigger_type == "moon_phase":
-        return MoonPhaseTrigger.from_dict(data)
-    elif trigger_type == "fixed_time":
-        return FixedTimeTrigger.from_dict(data)
-    elif trigger_type == "sensor":
-        return SensorTrigger.from_dict(data)
-    elif trigger_type == "cron":
-        return CronTrigger.from_dict(data)
-    elif trigger_type == "recurring_days":
-        return RecurringDaysTrigger.from_dict(data)
-    else:
+    trigger_class = TRIGGER_CLASS_MAP.get(trigger_type)
+    if trigger_class is None:
         raise ValueError(f"Unknown trigger_type: {trigger_type}")
+
+    return trigger_class.from_dict(data)
 
 
 # =============================================================================
@@ -759,9 +759,7 @@ class Routine:
     @property
     def duration_minutes(self) -> int:
         """Total duration = max action offset."""
-        if not self.actions:
-            return 0
-        return max(action.offset_minutes for action in self.actions)
+        return max((action.offset_minutes for action in self.actions), default=0)
 
     def get_display_name(self) -> str:
         """Get display name (explicit name or auto-generated)."""
@@ -795,17 +793,6 @@ class Routine:
         action_set = set(action_names)
         if action_set == {"flash_on", "takephoto"}:
             return "Flash + Photo"
-
-        # Count occurrences
-        action_counts = Counter(action_names)
-
-        # If only one unique action with multiple occurrences
-        if len(action_counts) == 1:
-            action_name, count = action_counts.most_common(1)[0]
-            display_name = ACTION_DISPLAY_NAMES.get(action_name, action_name.title())
-            if count == 1:
-                return display_name
-            return f"{count}x {display_name}"
 
         # Multiple different actions
         return f"{len(self.actions)} Actions"
@@ -855,23 +842,9 @@ class Routine:
     def _trigger_to_dict(self) -> dict:
         """Serialize trigger with trigger_type added."""
         trigger_dict = self.trigger.to_dict()
-
-        # Determine trigger_type
-        if isinstance(self.trigger, IntervalTrigger):
-            trigger_dict["trigger_type"] = "interval"
-        elif isinstance(self.trigger, SolarTrigger):
-            trigger_dict["trigger_type"] = "solar"
-        elif isinstance(self.trigger, MoonPhaseTrigger):
-            trigger_dict["trigger_type"] = "moon_phase"
-        elif isinstance(self.trigger, FixedTimeTrigger):
-            trigger_dict["trigger_type"] = "fixed_time"
-        elif isinstance(self.trigger, SensorTrigger):
-            trigger_dict["trigger_type"] = "sensor"
-        elif isinstance(self.trigger, CronTrigger):
-            trigger_dict["trigger_type"] = "cron"
-        elif isinstance(self.trigger, RecurringDaysTrigger):
-            trigger_dict["trigger_type"] = "recurring_days"
-
+        trigger_type = TRIGGER_TYPE_MAP.get(type(self.trigger))
+        if trigger_type:
+            trigger_dict["trigger_type"] = trigger_type
         return trigger_dict
 
     def to_dict(self) -> dict:
@@ -892,12 +865,18 @@ class Routine:
         """Create from dictionary."""
         # Parse trigger using trigger_from_dict factory
         trigger_data = data.get("trigger", {})
-        trigger = trigger_from_dict(trigger_data)
+        try:
+            trigger = trigger_from_dict(trigger_data)
+        except (ValueError, KeyError) as e:
+            raise ValueError(f"Failed to deserialize routine trigger: {e}") from e
 
         # Parse pre_condition if present
         pre_condition = None
         if data.get("pre_condition"):
-            pre_condition = SensorTrigger.from_dict(data["pre_condition"])
+            try:
+                pre_condition = SensorTrigger.from_dict(data["pre_condition"])
+            except (ValueError, KeyError) as e:
+                raise ValueError(f"Failed to deserialize pre_condition: {e}") from e
 
         return cls(
             routine_id=data.get("routine_id", ""),
