@@ -56,26 +56,26 @@ def sample_schedule():
     from webui.backend.lib.schedule_schema import (
         EventPattern,
         IntervalTrigger,
-        PatternAction,
+        Action,
         Schedule,
         TimeWindow,
     )
 
     # Create a simple pattern: Turn on UV, take photo, turn off UV
     actions = [
-        PatternAction(
+        Action(
             action_type="gpio",
             action_name="attract_on",
             offset_minutes=0,
             description="Turn on UV attract lights"
         ),
-        PatternAction(
+        Action(
             action_type="camera",
             action_name="takephoto",
             offset_minutes=5,
             description="Capture photo"
         ),
-        PatternAction(
+        Action(
             action_type="gpio",
             action_name="attract_off",
             offset_minutes=15,
@@ -119,21 +119,21 @@ def sample_event_pattern():
     """Create a valid EventPattern for testing."""
     from webui.backend.lib.schedule_schema import (
         EventPattern,
-        PatternAction,
+        Action,
     )
 
     actions = [
-        PatternAction(
+        Action(
             action_type="gpio",
             action_name="attract_on",
             offset_minutes=0,
         ),
-        PatternAction(
+        Action(
             action_type="camera",
             action_name="takephoto",
             offset_minutes=5,
         ),
-        PatternAction(
+        Action(
             action_type="gpio",
             action_name="attract_off",
             offset_minutes=10,
@@ -281,9 +281,9 @@ class TestServiceImports:
         assert EventPattern is not None
 
     def test_pattern_action_available(self):
-        """PatternAction dataclass should be available."""
-        from webui.backend.lib.schedule_schema import PatternAction
-        assert PatternAction is not None
+        """Action dataclass should be available."""
+        from webui.backend.lib.schedule_schema import Action
+        assert Action is not None
 
     def test_interval_trigger_available(self):
         """IntervalTrigger dataclass should be available."""
@@ -2062,24 +2062,24 @@ class TestActivateScheduleConflictDetection:
         from webui.backend.lib.schedule_schema import (
             EventPattern,
             IntervalTrigger,
-            PatternAction,
+            Action,
             Schedule,
             TimeWindow,
         )
 
         # Pattern 1: Takes photo at offset 10
         pattern1_actions = [
-            PatternAction(
+            Action(
                 action_type="gpio",
                 action_name="attract_on",
                 offset_minutes=0,
             ),
-            PatternAction(
+            Action(
                 action_type="camera",
                 action_name="takephoto",
                 offset_minutes=10,
             ),
-            PatternAction(
+            Action(
                 action_type="gpio",
                 action_name="attract_off",
                 offset_minutes=20,
@@ -2093,17 +2093,17 @@ class TestActivateScheduleConflictDetection:
 
         # Pattern 2: Also takes photo at offset 10
         pattern2_actions = [
-            PatternAction(
+            Action(
                 action_type="gpio",
                 action_name="flash_on",
                 offset_minutes=0,
             ),
-            PatternAction(
+            Action(
                 action_type="camera",
                 action_name="takephoto",
                 offset_minutes=10,
             ),
-            PatternAction(
+            Action(
                 action_type="gpio",
                 action_name="flash_off",
                 offset_minutes=20,

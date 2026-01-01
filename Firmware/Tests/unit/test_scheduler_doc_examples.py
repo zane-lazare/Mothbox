@@ -24,7 +24,7 @@ try:
         FixedTimeTrigger,
         IntervalTrigger,
         MoonPhaseTrigger,
-        PatternAction,
+        Action,
         Schedule,
         SensorTrigger,
         SolarTrigger,
@@ -35,7 +35,7 @@ try:
         validate_fixed_time_trigger,
         validate_interval_trigger,
         validate_moon_phase_trigger,
-        validate_pattern_action,
+        validate_action,
         validate_schedule,
         validate_sensor_trigger,
         validate_solar_trigger,
@@ -67,7 +67,7 @@ SKIP_PATTERNS = [
     r'\{\.\.\.\}',       # Object ellipsis
     r'"UUID string"',    # Type placeholder
     r'\[EventPattern\]', # Type placeholder
-    r'\[PatternAction\]',# Type placeholder
+    r'\[Action\]',# Type placeholder
     r'TimeWindow \| null',# Type placeholder
     r': number',         # Type placeholder (not in quotes)
     r': boolean',        # Type placeholder
@@ -194,7 +194,7 @@ def identify_schema_type(json_obj: dict) -> str | None:
         return "Schedule"
 
     # EventPattern - can have pattern_id (responses) or not (request bodies)
-    # Must have actions array with PatternAction-like objects
+    # Must have actions array with Action-like objects
     if "actions" in keys and isinstance(json_obj.get("actions"), list):
         actions = json_obj["actions"]
         if len(actions) > 0:
@@ -208,9 +208,9 @@ def identify_schema_type(json_obj: dict) -> str | None:
             ):
                 return "EventPattern"
 
-    # PatternAction
+    # Action
     if "action_type" in keys and "action_name" in keys:
-        return "PatternAction"
+        return "Action"
 
     # Triggers
     if "interval_minutes" in keys:
@@ -258,9 +258,9 @@ def validate_json_example(json_obj: dict, schema_type: str) -> tuple[bool, str |
             pattern = EventPattern.from_dict(json_obj)
             return validate_event_pattern(pattern)
 
-        elif schema_type == "PatternAction":
-            action = PatternAction.from_dict(json_obj)
-            return validate_pattern_action(action)
+        elif schema_type == "Action":
+            action = Action.from_dict(json_obj)
+            return validate_action(action)
 
         elif schema_type == "IntervalTrigger":
             trigger = IntervalTrigger.from_dict(json_obj)
@@ -426,13 +426,13 @@ class TestSchemaTypeDetection:
         assert identify_schema_type(obj) == "EventPattern"
 
     def test_detect_pattern_action(self):
-        """Should detect PatternAction objects."""
+        """Should detect Action objects."""
         obj = {
             "action_type": "gpio",
             "action_name": "attract_on",
             "offset_minutes": 0
         }
-        assert identify_schema_type(obj) == "PatternAction"
+        assert identify_schema_type(obj) == "Action"
 
     def test_detect_interval_trigger(self):
         """Should detect IntervalTrigger objects."""
@@ -587,14 +587,14 @@ class TestAllDocExamples:
             assert valid, f"Line {line_num}: TimeWindow validation failed: {error}"
 
     def test_pattern_action_examples_validate(self, all_examples):
-        """All PatternAction examples should validate."""
+        """All Action examples should validate."""
         action_examples = [
-            (ln, js, tp) for ln, js, tp in all_examples if tp == "PatternAction"
+            (ln, js, tp) for ln, js, tp in all_examples if tp == "Action"
         ]
 
         for line_num, json_obj, schema_type in action_examples:
             valid, error = validate_json_example(json_obj, schema_type)
-            assert valid, f"Line {line_num}: PatternAction validation failed: {error}"
+            assert valid, f"Line {line_num}: Action validation failed: {error}"
 
 
 class TestValidationSummary:

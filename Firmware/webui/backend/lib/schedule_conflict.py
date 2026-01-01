@@ -18,8 +18,8 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Final
 
 from webui.backend.lib.schedule_schema import (
+    Action,
     EventPattern,
-    PatternAction,
     Schedule,
 )
 
@@ -294,14 +294,14 @@ def check_time_overlap(
 # ============================================================================
 
 
-def get_resource_type(action: PatternAction) -> str:
+def get_resource_type(action: Action) -> str:
     """
     Determine resource type from action.
 
     Maps action types and names to resource categories for conflict detection.
 
     Args:
-        action: PatternAction to analyze
+        action: Action to analyze
 
     Returns:
         Resource type: "camera", "gps", "attract", "flash", or "service"
@@ -564,12 +564,12 @@ def _get_trigger_times_for_day(
 
 
 def _create_resource_usage(
-    action: PatternAction,
+    action: Action,
     pattern_id: str,
     action_index: int,
     execution_start: datetime,
 ) -> ResourceUsage:
-    """Create ResourceUsage from a PatternAction."""
+    """Create ResourceUsage from a Action."""
     resource_type = get_resource_type(action)
 
     # Calculate actual times

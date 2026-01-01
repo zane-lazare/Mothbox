@@ -988,7 +988,7 @@ def list_builtin_patterns() -> tuple[list[dict], list[str]]:
     - pattern_id: Unique identifier
     - name: Pattern name
     - description: Pattern description
-    - actions: List of PatternAction dicts
+    - actions: List of Action dicts
     - category: Always "built-in"
     - tags: Pattern tags
     - source_schedule: Name of schedule containing this pattern

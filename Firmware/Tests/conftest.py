@@ -2866,7 +2866,7 @@ def sample_schedule_factory():
         EventPattern,
         FixedTimeTrigger,
         IntervalTrigger,
-        PatternAction,
+        Action,
         Schedule,
         SolarTrigger,
         TimeWindow,
@@ -2883,7 +2883,7 @@ def sample_schedule_factory():
         is_active=False,
     ):
         """Create a valid schedule with specified parameters."""
-        action = PatternAction(
+        action = Action(
             action_type="camera",
             action_name="takephoto",
             offset_minutes=0,

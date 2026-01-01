@@ -263,7 +263,7 @@ class TestBuiltinScheduleProtection:
         from webui.backend.lib.schedule_schema import (
             EventPattern,
             FixedTimeTrigger,
-            PatternAction,
+            Action,
             Schedule,
         )
 
@@ -272,7 +272,7 @@ class TestBuiltinScheduleProtection:
         # Create a built-in schedule directly in storage
         builtin_id = _test_uuid("builtin-test-readonly")
 
-        action = PatternAction(
+        action = Action(
             action_type="camera",
             action_name="takephoto",
             offset_minutes=0,
@@ -326,7 +326,7 @@ class TestBuiltinScheduleProtection:
         from webui.backend.lib.schedule_schema import (
             EventPattern,
             FixedTimeTrigger,
-            PatternAction,
+            Action,
             Schedule,
         )
 
@@ -335,7 +335,7 @@ class TestBuiltinScheduleProtection:
         # Create a built-in schedule
         builtin_id = _test_uuid("builtin-test-nodelete")
 
-        action = PatternAction(
+        action = Action(
             action_type="camera",
             action_name="takephoto",
             offset_minutes=0,

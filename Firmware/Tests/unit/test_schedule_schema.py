@@ -2,7 +2,7 @@
 Unit tests for schedule schema dataclasses.
 
 Tests the core schedule schema including:
-- PatternAction, EventPattern dataclasses
+- Action, EventPattern dataclasses
 - TimeWindow and trigger dataclasses (Interval, Solar, MoonPhase, FixedTime, Sensor)
 - Schedule dataclass with embedded event patterns
 - Validation functions for all types
@@ -14,7 +14,6 @@ Issue #208 - Scheduler Phase 1: Schedule Schema
 """
 
 import json
-import re
 import uuid
 from datetime import datetime
 
@@ -39,26 +38,28 @@ try:
         SUPPORTED_VERSIONS,
         TRIGGER_TYPES,
         # Dataclasses
+        Action,
         CronTrigger,
         EventPattern,
         FixedTimeTrigger,
         IntervalTrigger,
         MoonPhaseTrigger,
-        PatternAction,
+        RecurringDaysTrigger,
         Schedule,
-        ScheduleValidationError,
         SensorTrigger,
         SolarTrigger,
         TimeWindow,
+        trigger_from_dict,
         # Validation functions
+        validate_action,
+        validate_cron_trigger,
         validate_event_pattern,
         validate_fixed_time_trigger,
         validate_interval_trigger,
         validate_moon_phase_trigger,
-        validate_pattern_action,
+        validate_recurring_days_trigger,
         validate_schedule,
         validate_sensor_trigger,
-        validate_cron_trigger,
         validate_solar_trigger,
         validate_time_window,
     )
@@ -81,8 +82,8 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture
 def sample_pattern_action():
-    """Create a sample PatternAction for testing."""
-    return PatternAction(
+    """Create a sample Action for testing."""
+    return Action(
         action_type="gpio",
         action_name="attract_on",
         offset_minutes=0,
@@ -93,8 +94,8 @@ def sample_pattern_action():
 
 @pytest.fixture
 def sample_pattern_action_camera():
-    """Create a camera PatternAction for testing."""
-    return PatternAction(
+    """Create a camera Action for testing."""
+    return Action(
         action_type="camera",
         action_name="takephoto",
         offset_minutes=5,
@@ -113,7 +114,7 @@ def sample_event_pattern(sample_pattern_action, sample_pattern_action_camera):
         actions=[
             sample_pattern_action,
             sample_pattern_action_camera,
-            PatternAction(
+            Action(
                 action_type="gpio",
                 action_name="attract_off",
                 offset_minutes=15,
@@ -235,17 +236,17 @@ class TestScheduleSchemaConstants:
     def test_action_types_defined(self):
         """ACTION_TYPES should include all expected types."""
         expected = ["gpio", "camera", "gps_sync", "service"]
-        assert ACTION_TYPES == expected
+        assert expected == ACTION_TYPES
 
     def test_gpio_actions_defined(self):
         """GPIO_ACTIONS should include all expected actions."""
         expected = ["attract_on", "attract_off", "flash_on", "flash_off"]
-        assert GPIO_ACTIONS == expected
+        assert expected == GPIO_ACTIONS
 
     def test_trigger_types_defined(self):
-        """TRIGGER_TYPES should include all expected types including cron for expert mode."""
-        expected = ["interval", "solar", "moon_phase", "fixed_time", "sensor", "cron"]
-        assert TRIGGER_TYPES == expected
+        """TRIGGER_TYPES should include all expected types including cron and recurring_days."""
+        expected = ["interval", "solar", "moon_phase", "fixed_time", "sensor", "cron", "recurring_days"]
+        assert expected == TRIGGER_TYPES
 
     def test_moon_phases_defined(self):
         """MOON_PHASES should include all 8 phases."""
@@ -263,12 +264,12 @@ class TestScheduleSchemaConstants:
     def test_sensor_types_defined(self):
         """SENSOR_TYPES should include expected types."""
         expected = ["motion", "light", "temperature"]
-        assert SENSOR_TYPES == expected
+        assert expected == SENSOR_TYPES
 
     def test_sensor_comparisons_defined(self):
         """SENSOR_COMPARISONS should include all operators."""
         expected = ["gt", "lt", "eq", "gte", "lte"]
-        assert SENSOR_COMPARISONS == expected
+        assert expected == SENSOR_COMPARISONS
 
     def test_validation_limits_defined(self):
         """Validation limits should be defined."""
@@ -284,12 +285,12 @@ class TestScheduleSchemaConstants:
 # =============================================================================
 
 
-class TestPatternAction:
-    """Test PatternAction dataclass."""
+class TestAction:
+    """Test Action dataclass."""
 
     def test_instantiation_minimal(self):
-        """PatternAction can be created with minimal args."""
-        action = PatternAction(action_type="gpio", action_name="attract_on")
+        """Action can be created with minimal args."""
+        action = Action(action_type="gpio", action_name="attract_on")
         assert action.action_type == "gpio"
         assert action.action_name == "attract_on"
         assert action.offset_minutes == 0
@@ -297,14 +298,14 @@ class TestPatternAction:
         assert action.description == ""
 
     def test_instantiation_full(self, sample_pattern_action):
-        """PatternAction can be created with all args."""
+        """Action can be created with all args."""
         assert sample_pattern_action.action_type == "gpio"
         assert sample_pattern_action.action_name == "attract_on"
         assert sample_pattern_action.offset_minutes == 0
         assert sample_pattern_action.description == "Turn on attract lights"
 
     def test_to_dict(self, sample_pattern_action):
-        """PatternAction.to_dict() returns correct dict."""
+        """Action.to_dict() returns correct dict."""
         data = sample_pattern_action.to_dict()
         assert data["action_type"] == "gpio"
         assert data["action_name"] == "attract_on"
@@ -313,7 +314,7 @@ class TestPatternAction:
         assert data["description"] == "Turn on attract lights"
 
     def test_from_dict(self):
-        """PatternAction.from_dict() creates instance from dict."""
+        """Action.from_dict() creates instance from dict."""
         data = {
             "action_type": "camera",
             "action_name": "takephoto",
@@ -321,7 +322,7 @@ class TestPatternAction:
             "parameters": {"hdr": True},
             "description": "Take HDR photo",
         }
-        action = PatternAction.from_dict(data)
+        action = Action.from_dict(data)
         assert action.action_type == "camera"
         assert action.action_name == "takephoto"
         assert action.offset_minutes == 5
@@ -329,11 +330,11 @@ class TestPatternAction:
         assert action.description == "Take HDR photo"
 
     def test_round_trip_serialization(self, sample_pattern_action):
-        """PatternAction survives JSON round-trip."""
+        """Action survives JSON round-trip."""
         data = sample_pattern_action.to_dict()
         json_str = json.dumps(data)
         loaded = json.loads(json_str)
-        restored = PatternAction.from_dict(loaded)
+        restored = Action.from_dict(loaded)
         assert restored.action_type == sample_pattern_action.action_type
         assert restored.action_name == sample_pattern_action.action_name
         assert restored.offset_minutes == sample_pattern_action.offset_minutes
@@ -718,7 +719,7 @@ class TestSchedule:
             pattern_id="cccccccc-cccc-cccc-cccc-cccccccccccc",
             name="Extra",
             actions=[
-                PatternAction(action_type="gpio", action_name="flash_on", offset_minutes=10),
+                Action(action_type="gpio", action_name="flash_on", offset_minutes=10),
             ],
         )
         schedule = Schedule(
@@ -789,45 +790,45 @@ class TestSchedule:
 # =============================================================================
 
 
-class TestValidatePatternAction:
-    """Test validate_pattern_action function."""
+class TestValidateAction:
+    """Test validate_action function."""
 
     def test_valid_gpio_action(self, sample_pattern_action):
         """Valid GPIO action passes validation."""
-        valid, error = validate_pattern_action(sample_pattern_action)
+        valid, error = validate_action(sample_pattern_action)
         assert valid is True
         assert error is None
 
     def test_valid_camera_action(self, sample_pattern_action_camera):
         """Valid camera action passes validation."""
-        valid, error = validate_pattern_action(sample_pattern_action_camera)
+        valid, error = validate_action(sample_pattern_action_camera)
         assert valid is True
         assert error is None
 
     def test_invalid_action_type(self):
         """Invalid action_type fails validation."""
-        action = PatternAction(action_type="invalid", action_name="test")
-        valid, error = validate_pattern_action(action)
+        action = Action(action_type="invalid", action_name="test")
+        valid, error = validate_action(action)
         assert valid is False
         assert "action type" in error.lower()
 
     def test_negative_offset_fails(self):
         """Negative offset_minutes fails validation."""
-        action = PatternAction(
+        action = Action(
             action_type="gpio", action_name="attract_on", offset_minutes=-5
         )
-        valid, error = validate_pattern_action(action)
+        valid, error = validate_action(action)
         assert valid is False
         assert "negative" in error.lower() or "offset" in error.lower()
 
     def test_offset_exceeds_max_fails(self):
         """Offset exceeding MAX_OFFSET_MINUTES fails validation."""
-        action = PatternAction(
+        action = Action(
             action_type="gpio",
             action_name="attract_on",
             offset_minutes=MAX_OFFSET_MINUTES + 1,
         )
-        valid, error = validate_pattern_action(action)
+        valid, error = validate_action(action)
         assert valid is False
         assert "offset" in error.lower()
 
@@ -870,7 +871,7 @@ class TestValidateEventPattern:
     def test_too_many_actions_fails(self):
         """Pattern exceeding MAX_ACTIONS_PER_PATTERN fails validation."""
         actions = [
-            PatternAction(action_type="gpio", action_name="attract_on", offset_minutes=i)
+            Action(action_type="gpio", action_name="attract_on", offset_minutes=i)
             for i in range(MAX_ACTIONS_PER_PATTERN + 1)
         ]
         pattern = EventPattern(pattern_id="44444444-4444-4444-4444-444444444444", name="Too Many", actions=actions)
@@ -883,7 +884,7 @@ class TestValidateEventPattern:
         pattern = EventPattern(
             pattern_id="55555555-5555-5555-5555-555555555555",
             name="Bad Action",
-            actions=[PatternAction(action_type="invalid", action_name="test")],
+            actions=[Action(action_type="invalid", action_name="test")],
         )
         valid, error = validate_event_pattern(pattern)
         assert valid is False
@@ -893,7 +894,7 @@ class TestValidateEventPattern:
         pattern = EventPattern(
             pattern_id="not-a-uuid",
             name="Test Pattern",
-            actions=[PatternAction(action_type="gpio", action_name="attract_on")],
+            actions=[Action(action_type="gpio", action_name="attract_on")],
         )
         valid, error = validate_event_pattern(pattern)
         assert valid is False
@@ -1206,6 +1207,195 @@ class TestValidateCronTrigger:
         assert error is None
 
 
+class TestRecurringDaysTrigger:
+    """Test RecurringDaysTrigger dataclass."""
+
+    def test_instantiation_defaults(self):
+        """RecurringDaysTrigger uses correct defaults."""
+        trigger = RecurringDaysTrigger()
+        assert trigger.every_n_days == 1
+        assert trigger.time == "00:00"
+        assert trigger.start_date is None
+
+    def test_instantiation_custom_values(self):
+        """RecurringDaysTrigger accepts custom values."""
+        trigger = RecurringDaysTrigger(every_n_days=7, time="09:30", start_date="2025-06-01")
+        assert trigger.every_n_days == 7
+        assert trigger.time == "09:30"
+        assert trigger.start_date == "2025-06-01"
+
+    def test_to_dict(self):
+        """to_dict returns correct dictionary without trigger_type."""
+        trigger = RecurringDaysTrigger(every_n_days=3, time="21:00", start_date="2025-01-01")
+        data = trigger.to_dict()
+        assert data == {"every_n_days": 3, "time": "21:00", "start_date": "2025-01-01"}
+        assert "trigger_type" not in data  # Should NOT include trigger_type
+
+    def test_to_dict_none_start_date(self):
+        """to_dict handles None start_date."""
+        trigger = RecurringDaysTrigger()
+        data = trigger.to_dict()
+        assert data["start_date"] is None
+
+    def test_from_dict_full(self):
+        """from_dict creates instance with all fields."""
+        data = {"every_n_days": 5, "time": "14:00", "start_date": "2025-03-15"}
+        trigger = RecurringDaysTrigger.from_dict(data)
+        assert trigger.every_n_days == 5
+        assert trigger.time == "14:00"
+        assert trigger.start_date == "2025-03-15"
+
+    def test_from_dict_defaults(self):
+        """from_dict uses defaults for missing fields."""
+        trigger = RecurringDaysTrigger.from_dict({})
+        assert trigger.every_n_days == 1
+        assert trigger.time == "00:00"
+        assert trigger.start_date is None
+
+    def test_round_trip_serialization(self):
+        """RecurringDaysTrigger survives JSON round-trip."""
+        original = RecurringDaysTrigger(every_n_days=10, time="06:00", start_date="2025-07-04")
+        data = original.to_dict()
+        restored = RecurringDaysTrigger.from_dict(data)
+        assert restored.every_n_days == original.every_n_days
+        assert restored.time == original.time
+        assert restored.start_date == original.start_date
+
+
+class TestValidateRecurringDaysTrigger:
+    """Test validate_recurring_days_trigger function."""
+
+    def test_valid_default_trigger(self):
+        """Default trigger passes validation."""
+        trigger = RecurringDaysTrigger()
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is True
+        assert error is None
+
+    def test_valid_custom_trigger(self):
+        """Custom valid trigger passes validation."""
+        trigger = RecurringDaysTrigger(every_n_days=30, time="12:00", start_date="2025-01-01")
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is True
+        assert error is None
+
+    def test_every_n_days_zero_fails(self):
+        """every_n_days=0 fails validation."""
+        trigger = RecurringDaysTrigger(every_n_days=0)
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is False
+        assert "at least 1" in error
+
+    def test_every_n_days_negative_fails(self):
+        """Negative every_n_days fails validation."""
+        trigger = RecurringDaysTrigger(every_n_days=-5)
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is False
+        assert "at least 1" in error
+
+    def test_every_n_days_at_max_passes(self):
+        """every_n_days=365 passes validation."""
+        trigger = RecurringDaysTrigger(every_n_days=365)
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is True
+
+    def test_every_n_days_exceeds_max_fails(self):
+        """every_n_days > 365 fails validation."""
+        trigger = RecurringDaysTrigger(every_n_days=366)
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is False
+        assert "365" in error
+
+    def test_invalid_time_format_fails(self):
+        """Invalid time format fails validation."""
+        trigger = RecurringDaysTrigger(time="25:00")
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is False
+        assert "time" in error.lower()
+
+    def test_invalid_start_date_format_fails(self):
+        """Invalid start_date format fails validation."""
+        trigger = RecurringDaysTrigger(start_date="2025/01/01")
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is False
+        assert "start_date" in error
+
+    def test_invalid_start_date_value_fails(self):
+        """Impossible date fails validation."""
+        trigger = RecurringDaysTrigger(start_date="2025-02-30")
+        valid, error = validate_recurring_days_trigger(trigger)
+        assert valid is False
+        assert "start_date" in error
+
+
+class TestTriggerFromDict:
+    """Test trigger_from_dict factory function."""
+
+    def test_interval_trigger(self):
+        """trigger_from_dict creates IntervalTrigger."""
+        data = {
+            "trigger_type": "interval",
+            "interval_minutes": 60,
+            "time_window": {"start_time": "21:00", "end_time": "05:00"},
+        }
+        trigger = trigger_from_dict(data)
+        assert isinstance(trigger, IntervalTrigger)
+        assert trigger.interval_minutes == 60
+
+    def test_solar_trigger(self):
+        """trigger_from_dict creates SolarTrigger."""
+        data = {"trigger_type": "solar", "solar_event": "sunset"}
+        trigger = trigger_from_dict(data)
+        assert isinstance(trigger, SolarTrigger)
+        assert trigger.solar_event == "sunset"
+
+    def test_moon_phase_trigger(self):
+        """trigger_from_dict creates MoonPhaseTrigger."""
+        data = {"trigger_type": "moon_phase", "phases": ["full", "new"]}
+        trigger = trigger_from_dict(data)
+        assert isinstance(trigger, MoonPhaseTrigger)
+        assert trigger.phases == ["full", "new"]
+
+    def test_fixed_time_trigger(self):
+        """trigger_from_dict creates FixedTimeTrigger."""
+        data = {"trigger_type": "fixed_time", "time": "09:00"}
+        trigger = trigger_from_dict(data)
+        assert isinstance(trigger, FixedTimeTrigger)
+        assert trigger.time == "09:00"
+
+    def test_sensor_trigger(self):
+        """trigger_from_dict creates SensorTrigger."""
+        data = {"trigger_type": "sensor", "sensor_type": "motion"}
+        trigger = trigger_from_dict(data)
+        assert isinstance(trigger, SensorTrigger)
+        assert trigger.sensor_type == "motion"
+
+    def test_cron_trigger(self):
+        """trigger_from_dict creates CronTrigger."""
+        data = {"trigger_type": "cron", "cron_expression": "0 * * * *"}
+        trigger = trigger_from_dict(data)
+        assert isinstance(trigger, CronTrigger)
+        assert trigger.cron_expression == "0 * * * *"
+
+    def test_recurring_days_trigger(self):
+        """trigger_from_dict creates RecurringDaysTrigger."""
+        data = {"trigger_type": "recurring_days", "every_n_days": 3, "time": "21:00"}
+        trigger = trigger_from_dict(data)
+        assert isinstance(trigger, RecurringDaysTrigger)
+        assert trigger.every_n_days == 3
+        assert trigger.time == "21:00"
+
+    def test_missing_trigger_type_raises(self):
+        """Missing trigger_type raises ValueError."""
+        with pytest.raises(ValueError, match="trigger_type is required"):
+            trigger_from_dict({})
+
+    def test_unknown_trigger_type_raises(self):
+        """Unknown trigger_type raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown trigger_type"):
+            trigger_from_dict({"trigger_type": "invalid"})
+
+
 class TestScheduleWithCronTrigger:
     """Tests for Schedule with cron trigger type."""
 
@@ -1270,6 +1460,107 @@ class TestScheduleWithCronTrigger:
         restored = Schedule.from_dict(data)
         assert restored.trigger_type == "cron"
         assert restored.cron_trigger.cron_expression == "0 */2 * * *"
+
+
+class TestScheduleWithRecurringDaysTrigger:
+    """Tests for Schedule with recurring_days trigger type."""
+
+    def test_schedule_with_recurring_days_trigger_validates(self, sample_event_pattern):
+        """Schedule with valid recurring_days trigger passes validation."""
+        recurring_days_trigger = RecurringDaysTrigger(
+            every_n_days=3,
+            time="21:00",
+            start_date="2025-01-01",
+        )
+        schedule = Schedule(
+            schedule_id="",
+            name="GPS Sync Every 3 Days",
+            event_patterns=[sample_event_pattern],
+            trigger_type="recurring_days",
+            recurring_days_trigger=recurring_days_trigger,
+        )
+        valid, error = validate_schedule(schedule)
+        assert valid is True
+        assert error is None
+
+    def test_schedule_recurring_days_trigger_type_requires_trigger(self, sample_event_pattern):
+        """Schedule with trigger_type='recurring_days' but missing trigger fails validation."""
+        schedule = Schedule(
+            schedule_id="",
+            name="Missing Recurring Days Config",
+            event_patterns=[sample_event_pattern],
+            trigger_type="recurring_days",
+            recurring_days_trigger=None,
+        )
+        valid, error = validate_schedule(schedule)
+        assert valid is False
+        assert "recurring_days" in error.lower()
+
+    def test_schedule_with_invalid_recurring_days_fails(self, sample_event_pattern):
+        """Schedule with invalid every_n_days fails validation."""
+        recurring_days_trigger = RecurringDaysTrigger(
+            every_n_days=0,  # Invalid: must be at least 1
+            time="21:00",
+        )
+        schedule = Schedule(
+            schedule_id="",
+            name="Invalid Recurring Days",
+            event_patterns=[sample_event_pattern],
+            trigger_type="recurring_days",
+            recurring_days_trigger=recurring_days_trigger,
+        )
+        valid, error = validate_schedule(schedule)
+        assert valid is False
+        assert "at least 1" in error
+
+    def test_schedule_recurring_days_trigger_serialization(self, sample_event_pattern):
+        """Schedule with recurring_days trigger serializes and deserializes correctly."""
+        recurring_days_trigger = RecurringDaysTrigger(
+            every_n_days=7,
+            time="09:00",
+            start_date="2025-06-01",
+        )
+        schedule = Schedule(
+            schedule_id="",
+            name="Weekly Sync",
+            event_patterns=[sample_event_pattern],
+            trigger_type="recurring_days",
+            recurring_days_trigger=recurring_days_trigger,
+        )
+
+        # Serialize
+        data = schedule.to_dict()
+        assert data["trigger_type"] == "recurring_days"
+        assert data["recurring_days_trigger"]["every_n_days"] == 7
+        assert data["recurring_days_trigger"]["time"] == "09:00"
+        assert data["recurring_days_trigger"]["start_date"] == "2025-06-01"
+
+        # Deserialize
+        restored = Schedule.from_dict(data)
+        assert restored.trigger_type == "recurring_days"
+        assert restored.recurring_days_trigger.every_n_days == 7
+        assert restored.recurring_days_trigger.time == "09:00"
+        assert restored.recurring_days_trigger.start_date == "2025-06-01"
+
+    def test_schedule_from_frontend_recurring_days_format(self, sample_event_pattern):
+        """Schedule.from_dict handles frontend recurring_days format."""
+        frontend_data = {
+            "name": "Frontend Recurring Days Schedule",
+            "event_patterns": [sample_event_pattern.to_dict()],
+            "trigger": {
+                "trigger_type": "recurring_days",
+                "every_n_days": 5,
+                "time": "18:00",
+                "start_date": "2025-03-15",
+            },
+        }
+
+        schedule = Schedule.from_dict(frontend_data)
+        assert schedule.trigger_type == "recurring_days"
+        assert schedule.recurring_days_trigger is not None
+        assert schedule.recurring_days_trigger.every_n_days == 5
+        assert schedule.recurring_days_trigger.time == "18:00"
+        assert schedule.recurring_days_trigger.start_date == "2025-03-15"
 
 
 # =============================================================================
