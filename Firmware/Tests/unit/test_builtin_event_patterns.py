@@ -25,7 +25,7 @@ from webui.backend.lib.cron_security import ACTION_TYPE_SCRIPTS
 from webui.backend.lib.schedule_schema import (
     PATTERN_CATEGORIES,
     EventPattern,
-    PatternAction,
+    Action,
     Schedule,
     validate_event_pattern,
     validate_schedule,
@@ -125,7 +125,7 @@ class TestPatternSchemaValidation:
 
             # Convert dict to EventPattern
             actions = [
-                PatternAction(**{k: v for k, v in a.items() if k != "_source_schedule"})
+                Action(**{k: v for k, v in a.items() if k != "_source_schedule"})
                 for a in pattern_data.get("actions", [])
             ]
             pattern = EventPattern(

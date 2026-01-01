@@ -46,7 +46,7 @@ try:
         FixedTimeTrigger,
         IntervalTrigger,
         MoonPhaseTrigger,
-        PatternAction,
+        Action,
         Schedule,
         SensorTrigger,
         SolarTrigger,
@@ -74,8 +74,8 @@ pytestmark = pytest.mark.skipif(not IMPLEMENTATION_EXISTS, reason="Implementatio
 
 @pytest.fixture
 def sample_action():
-    """Create a sample PatternAction."""
-    return PatternAction(
+    """Create a sample Action."""
+    return Action(
         action_type="gpio",
         action_name="attract_on",
         offset_minutes=0,
@@ -87,19 +87,19 @@ def sample_action():
 def sample_pattern():
     """Create a sample EventPattern with multiple actions."""
     actions = [
-        PatternAction(
+        Action(
             action_type="gpio",
             action_name="attract_on",
             offset_minutes=0,
             description="Turn on UV attract lights",
         ),
-        PatternAction(
+        Action(
             action_type="camera",
             action_name="takephoto",
             offset_minutes=5,
             description="Capture photo",
         ),
-        PatternAction(
+        Action(
             action_type="gpio",
             action_name="attract_off",
             offset_minutes=15,
@@ -569,7 +569,7 @@ class TestActionExpansion:
             pattern_id="single",
             name="Single Action",
             actions=[
-                PatternAction(
+                Action(
                     action_type="camera",
                     action_name="takephoto",
                     offset_minutes=0,
@@ -611,17 +611,17 @@ class TestActionExpansion:
             pattern_id="unsorted",
             name="Unsorted",
             actions=[
-                PatternAction(
+                Action(
                     action_type="gpio",
                     action_name="action_c",
                     offset_minutes=15,
                 ),
-                PatternAction(
+                Action(
                     action_type="gpio",
                     action_name="action_a",
                     offset_minutes=0,
                 ),
-                PatternAction(
+                Action(
                     action_type="gpio",
                     action_name="action_b",
                     offset_minutes=5,

@@ -45,7 +45,7 @@ os.environ.setdefault("MOTHBOX_ENV", "test")
 from webui.backend.lib.schedule_schema import (
     EventPattern,
     IntervalTrigger,
-    PatternAction,
+    Action,
     Schedule,
     TimeWindow,
 )
@@ -98,7 +98,7 @@ def sample_schedule_factory():
         if not schedule_id:
             schedule_id = _test_uuid(f"default-{name}")
 
-        action = PatternAction(
+        action = Action(
             action_type="gpio",
             action_name="attract_on",
             offset_minutes=0,
@@ -351,7 +351,7 @@ class TestScheduleWorkflow:
         # Create schedule with MAX_PATTERNS_PER_SCHEDULE patterns
         patterns = []
         for i in range(MAX_PATTERNS_PER_SCHEDULE):
-            action = PatternAction(
+            action = Action(
                 action_type="gpio",
                 action_name="attract_on",
                 offset_minutes=0,

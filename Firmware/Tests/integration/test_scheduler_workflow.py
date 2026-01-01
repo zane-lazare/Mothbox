@@ -527,14 +527,14 @@ class TestTriggerTypeWorkflows:
     def test_sensor_trigger_returns_error(self):
         """Sensor trigger returns error since cron doesn't support event-based triggers."""
         from webui.backend.lib.schedule_schema import (
+            Action,
             EventPattern,
-            PatternAction,
             Schedule,
             SensorTrigger,
         )
 
         # Create schedule with sensor trigger
-        action = PatternAction(
+        action = Action(
             action_type="camera",
             action_name="takephoto",
             offset_minutes=0,

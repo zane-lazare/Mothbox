@@ -30,7 +30,7 @@ from webui.backend.lib.schedule_schema import (
     FixedTimeTrigger,
     IntervalTrigger,
     MoonPhaseTrigger,
-    PatternAction,
+    Action,
     Schedule,
     SensorTrigger,
     SolarTrigger,
@@ -535,7 +535,7 @@ class TestActionSequencing:
 
     def test_single_action_at_offset_zero(self):
         """Single action at offset=0 executes at base time."""
-        action = PatternAction(action_type="gpio", action_name="attract_on", offset_minutes=0)
+        action = Action(action_type="gpio", action_name="attract_on", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="Test", description="", actions=[action])
         entries = pattern_to_cron_entries(pattern, base_time="21:00")
         assert len(entries) == 1
@@ -545,9 +545,9 @@ class TestActionSequencing:
     def test_multiple_actions_with_offsets(self):
         """Multiple actions execute at base_time + offset."""
         actions = [
-            PatternAction(action_type="gpio", action_name="attract_on", offset_minutes=0),
-            PatternAction(action_type="camera", action_name="takephoto", offset_minutes=5),
-            PatternAction(action_type="gpio", action_name="attract_off", offset_minutes=15),
+            Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
+            Action(action_type="camera", action_name="takephoto", offset_minutes=5),
+            Action(action_type="gpio", action_name="attract_off", offset_minutes=15),
         ]
         pattern = EventPattern(pattern_id="p1", name="UV Capture", description="", actions=actions)
         entries = pattern_to_cron_entries(pattern, base_time="21:00")
@@ -561,8 +561,8 @@ class TestActionSequencing:
     def test_offset_crosses_hour_boundary(self):
         """Offset pushing into next hour handled correctly."""
         actions = [
-            PatternAction(action_type="gpio", action_name="attract_on", offset_minutes=0),
-            PatternAction(action_type="gpio", action_name="attract_off", offset_minutes=45),
+            Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
+            Action(action_type="gpio", action_name="attract_off", offset_minutes=45),
         ]
         pattern = EventPattern(pattern_id="p1", name="Test", description="", actions=actions)
         entries = pattern_to_cron_entries(pattern, base_time="21:30")
@@ -573,7 +573,7 @@ class TestActionSequencing:
 
     def test_offset_crosses_midnight(self):
         """Offset pushing into next day handled correctly."""
-        action = PatternAction(action_type="gpio", action_name="attract_off", offset_minutes=90)
+        action = Action(action_type="gpio", action_name="attract_off", offset_minutes=90)
         pattern = EventPattern(pattern_id="p1", name="Test", description="", actions=[action])
         entries = pattern_to_cron_entries(pattern, base_time="23:00")
         # 23:00 + 90 = 00:30 (next day, but cron is day-agnostic for repeating schedules)
@@ -581,7 +581,7 @@ class TestActionSequencing:
 
     def test_action_with_days_of_week(self):
         """Actions respect days_of_week constraint."""
-        action = PatternAction(action_type="gpio", action_name="attract_on", offset_minutes=0)
+        action = Action(action_type="gpio", action_name="attract_on", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="Test", description="", actions=[action])
         entries = pattern_to_cron_entries(pattern, base_time="21:00", days_of_week=[0, 1, 2])  # Mon-Wed ISO
         # Cron days should be 1,2,3 (Mon-Wed in cron)
@@ -589,7 +589,7 @@ class TestActionSequencing:
 
     def test_action_command_from_cron_security(self):
         """Action commands are built using cron_security module."""
-        action = PatternAction(action_type="gpio", action_name="attract_on", offset_minutes=0)
+        action = Action(action_type="gpio", action_name="attract_on", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="Test", description="", actions=[action])
         entries = pattern_to_cron_entries(pattern, base_time="21:00")
         # Command should be from get_validated_command
@@ -598,7 +598,7 @@ class TestActionSequencing:
 
     def test_entries_have_descriptive_comments(self):
         """Generated entries have meaningful comments."""
-        action = PatternAction(action_type="camera", action_name="takephoto", offset_minutes=5)
+        action = Action(action_type="camera", action_name="takephoto", offset_minutes=5)
         pattern = EventPattern(pattern_id="p1", name="UV Capture", description="", actions=[action])
         entries = pattern_to_cron_entries(pattern, base_time="21:00")
         # Comment should mention pattern name and action
@@ -969,7 +969,7 @@ class TestGetNextEvents:
         from webui.backend.lib.schedule_schema import Schedule
 
         # Create simple schedule with interval trigger
-        action = PatternAction(action_type="camera", action_name="takephoto", offset_minutes=0)
+        action = Action(action_type="camera", action_name="takephoto", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="Photo", description="", actions=[action])
         window = TimeWindow(start_time="21:00", end_time="22:00")
         trigger = IntervalTrigger(interval_minutes=60, time_window=window)
@@ -990,7 +990,7 @@ class TestGetNextEvents:
         """Each event has datetime, action_type, action_name, pattern_name."""
         from webui.backend.lib.schedule_schema import Schedule
 
-        action = PatternAction(action_type="gpio", action_name="attract_on", offset_minutes=0)
+        action = Action(action_type="gpio", action_name="attract_on", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="UV Light", description="", actions=[action])
         trigger = FixedTimeTrigger(time="21:00", days_of_week=None)
         schedule = Schedule(
@@ -1015,9 +1015,9 @@ class TestGetNextEvents:
         from webui.backend.lib.schedule_schema import Schedule
 
         actions = [
-            PatternAction(action_type="gpio", action_name="attract_on", offset_minutes=0),
-            PatternAction(action_type="camera", action_name="takephoto", offset_minutes=5),
-            PatternAction(action_type="gpio", action_name="attract_off", offset_minutes=10),
+            Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
+            Action(action_type="camera", action_name="takephoto", offset_minutes=5),
+            Action(action_type="gpio", action_name="attract_off", offset_minutes=10),
         ]
         pattern = EventPattern(pattern_id="p1", name="UV Capture", description="", actions=actions)
         trigger = FixedTimeTrigger(time="21:00", days_of_week=None)
@@ -1038,8 +1038,8 @@ class TestGetNextEvents:
         """Events include actions from all patterns in schedule."""
         from webui.backend.lib.schedule_schema import Schedule
 
-        action1 = PatternAction(action_type="gpio", action_name="attract_on", offset_minutes=0)
-        action2 = PatternAction(action_type="camera", action_name="takephoto", offset_minutes=5)
+        action1 = Action(action_type="gpio", action_name="attract_on", offset_minutes=0)
+        action2 = Action(action_type="camera", action_name="takephoto", offset_minutes=5)
         pattern = EventPattern(pattern_id="p1", name="UV Capture", description="", actions=[action1, action2])
         trigger = FixedTimeTrigger(time="21:00", days_of_week=None)
         schedule = Schedule(
@@ -1060,7 +1060,7 @@ class TestGetNextEvents:
         """Events respect schedule start_date/end_date."""
         from webui.backend.lib.schedule_schema import Schedule
 
-        action = PatternAction(action_type="camera", action_name="takephoto", offset_minutes=0)
+        action = Action(action_type="camera", action_name="takephoto", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="Photo", description="", actions=[action])
         trigger = FixedTimeTrigger(time="21:00", days_of_week=None)
         schedule = Schedule(
@@ -1084,7 +1084,7 @@ class TestGetNextEvents:
         """Disabled schedule returns no events."""
         from webui.backend.lib.schedule_schema import Schedule
 
-        action = PatternAction(action_type="camera", action_name="takephoto", offset_minutes=0)
+        action = Action(action_type="camera", action_name="takephoto", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="Photo", description="", actions=[action])
         trigger = FixedTimeTrigger(time="21:00", days_of_week=None)
         schedule = Schedule(
@@ -1104,7 +1104,7 @@ class TestGetNextEvents:
         """get_next_events respects count parameter."""
         from webui.backend.lib.schedule_schema import Schedule
 
-        action = PatternAction(action_type="camera", action_name="takephoto", offset_minutes=0)
+        action = Action(action_type="camera", action_name="takephoto", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="Photo", description="", actions=[action])
         trigger = FixedTimeTrigger(time="21:00", days_of_week=None)
         schedule = Schedule(
@@ -1127,7 +1127,7 @@ class TestScheduleToCron:
 
     def test_fixed_time_schedule_to_cron(self):
         """Convert fixed-time schedule to cron entries."""
-        action = PatternAction(action_type="camera", action_name="takephoto", offset_minutes=0)
+        action = Action(action_type="camera", action_name="takephoto", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="Photo", description="", actions=[action])
         trigger = FixedTimeTrigger(time="21:00", days_of_week=None)
         schedule = Schedule(
@@ -1147,7 +1147,7 @@ class TestScheduleToCron:
 
     def test_interval_schedule_to_cron(self):
         """Convert interval-based schedule to cron entries."""
-        action = PatternAction(action_type="camera", action_name="takephoto", offset_minutes=0)
+        action = Action(action_type="camera", action_name="takephoto", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="Photo", description="", actions=[action])
         window = TimeWindow(start_time="21:00", end_time="23:00")
         trigger = IntervalTrigger(interval_minutes=60, time_window=window)
@@ -1166,7 +1166,7 @@ class TestScheduleToCron:
 
     def test_solar_schedule_to_cron(self):
         """Convert solar-based schedule to cron entries."""
-        action = PatternAction(action_type="gpio", action_name="attract_on", offset_minutes=0)
+        action = Action(action_type="gpio", action_name="attract_on", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="UV Light", description="", actions=[action])
         trigger = SolarTrigger(solar_event="sunset", offset_minutes=30)
         schedule = Schedule(
@@ -1184,7 +1184,7 @@ class TestScheduleToCron:
 
     def test_moon_phase_schedule_to_cron(self):
         """Convert moon-phase schedule to cron entries."""
-        action = PatternAction(action_type="camera", action_name="takephoto", offset_minutes=0)
+        action = Action(action_type="camera", action_name="takephoto", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="Full Moon Photo", description="", actions=[action])
         window = TimeWindow(start_time="21:00", end_time="21:00")
         trigger = MoonPhaseTrigger(phases=["full"], offset_days=0, time_window=window)
@@ -1204,7 +1204,7 @@ class TestScheduleToCron:
 
     def test_disabled_schedule_returns_empty(self):
         """Disabled schedule returns empty entries list."""
-        action = PatternAction(action_type="camera", action_name="takephoto", offset_minutes=0)
+        action = Action(action_type="camera", action_name="takephoto", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="Photo", description="", actions=[action])
         trigger = FixedTimeTrigger(time="21:00", days_of_week=None)
         schedule = Schedule(
@@ -1222,7 +1222,7 @@ class TestScheduleToCron:
 
     def test_invalid_trigger_type_returns_error(self):
         """Invalid trigger type returns error in result."""
-        action = PatternAction(action_type="camera", action_name="takephoto", offset_minutes=0)
+        action = Action(action_type="camera", action_name="takephoto", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="Photo", description="", actions=[action])
         schedule = Schedule(
             schedule_id="s6",
@@ -1268,7 +1268,7 @@ class TestSensorTriggerStub:
 
     def test_sensor_trigger_to_cron_returns_warning(self):
         """Sensor trigger returns warning about not being implemented."""
-        action = PatternAction(action_type="camera", action_name="takephoto", offset_minutes=0)
+        action = Action(action_type="camera", action_name="takephoto", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="Motion Photo", description="", actions=[action])
         trigger = SensorTrigger(sensor_type="motion", threshold=0.0)
         schedule = Schedule(
@@ -1291,8 +1291,8 @@ class TestEdgeCases:
 
     def test_schedule_with_multiple_patterns(self):
         """Schedule with multiple event patterns generates entries for all."""
-        action1 = PatternAction(action_type="gpio", action_name="attract_on", offset_minutes=0)
-        action2 = PatternAction(action_type="gpio", action_name="attract_off", offset_minutes=15)
+        action1 = Action(action_type="gpio", action_name="attract_on", offset_minutes=0)
+        action2 = Action(action_type="gpio", action_name="attract_off", offset_minutes=15)
         pattern1 = EventPattern(pattern_id="p1", name="UV On", description="", actions=[action1])
         pattern2 = EventPattern(pattern_id="p2", name="UV Off", description="", actions=[action2])
         trigger = FixedTimeTrigger(time="21:00", days_of_week=None)
@@ -1312,9 +1312,9 @@ class TestEdgeCases:
     def test_schedule_with_action_offsets(self):
         """Schedule correctly applies action offsets."""
         actions = [
-            PatternAction(action_type="gpio", action_name="attract_on", offset_minutes=0),
-            PatternAction(action_type="camera", action_name="takephoto", offset_minutes=5),
-            PatternAction(action_type="gpio", action_name="attract_off", offset_minutes=15),
+            Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
+            Action(action_type="camera", action_name="takephoto", offset_minutes=5),
+            Action(action_type="gpio", action_name="attract_off", offset_minutes=15),
         ]
         pattern = EventPattern(pattern_id="p1", name="UV Capture", description="", actions=actions)
         trigger = FixedTimeTrigger(time="21:00", days_of_week=None)
@@ -1337,7 +1337,7 @@ class TestEdgeCases:
 
     def test_rtc_waketime_calculated(self):
         """schedule_to_cron calculates rtc_waketime."""
-        action = PatternAction(action_type="camera", action_name="takephoto", offset_minutes=0)
+        action = Action(action_type="camera", action_name="takephoto", offset_minutes=0)
         pattern = EventPattern(pattern_id="p1", name="Photo", description="", actions=[action])
         trigger = FixedTimeTrigger(time="21:00", days_of_week=None)
         schedule = Schedule(

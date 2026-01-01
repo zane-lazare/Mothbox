@@ -225,23 +225,23 @@ def sample_schedule():
     from webui.backend.lib.schedule_schema import (
         EventPattern,
         IntervalTrigger,
-        PatternAction,
+        Action,
         Schedule,
         TimeWindow,
     )
 
     actions = [
-        PatternAction(
+        Action(
             action_type="gpio",
             action_name="attract_on",
             offset_minutes=0,
         ),
-        PatternAction(
+        Action(
             action_type="camera",
             action_name="takephoto",
             offset_minutes=5,
         ),
-        PatternAction(
+        Action(
             action_type="gpio",
             action_name="attract_off",
             offset_minutes=15,
@@ -283,24 +283,24 @@ def conflicting_schedule():
     from webui.backend.lib.schedule_schema import (
         EventPattern,
         IntervalTrigger,
-        PatternAction,
+        Action,
         Schedule,
         TimeWindow,
     )
 
     # Pattern 1: Takes 20 minutes
     pattern1_actions = [
-        PatternAction(
+        Action(
             action_type="gpio",
             action_name="attract_on",
             offset_minutes=0,
         ),
-        PatternAction(
+        Action(
             action_type="camera",
             action_name="takephoto",
             offset_minutes=10,
         ),
-        PatternAction(
+        Action(
             action_type="gpio",
             action_name="attract_off",
             offset_minutes=20,
@@ -315,17 +315,17 @@ def conflicting_schedule():
 
     # Pattern 2: Also takes 20 minutes - will overlap with 15-min interval
     pattern2_actions = [
-        PatternAction(
+        Action(
             action_type="gpio",
             action_name="flash_on",
             offset_minutes=0,
         ),
-        PatternAction(
+        Action(
             action_type="camera",
             action_name="takephoto",
             offset_minutes=10,
         ),
-        PatternAction(
+        Action(
             action_type="gpio",
             action_name="flash_off",
             offset_minutes=20,
@@ -643,9 +643,9 @@ class TestResourceContention:
 
     def test_get_resource_type_camera(self):
         """Camera action should return 'camera' resource type."""
-        from webui.backend.lib.schedule_schema import PatternAction
+        from webui.backend.lib.schedule_schema import Action
 
-        action = PatternAction(
+        action = Action(
             action_type="camera",
             action_name="takephoto",
             offset_minutes=5,
@@ -655,9 +655,9 @@ class TestResourceContention:
 
     def test_get_resource_type_gps(self):
         """GPS action should return 'gps' resource type."""
-        from webui.backend.lib.schedule_schema import PatternAction
+        from webui.backend.lib.schedule_schema import Action
 
-        action = PatternAction(
+        action = Action(
             action_type="gps_sync",
             action_name="sync",
             offset_minutes=0,
@@ -667,9 +667,9 @@ class TestResourceContention:
 
     def test_get_resource_type_gpio_attract(self):
         """GPIO attract action should return 'attract' resource type."""
-        from webui.backend.lib.schedule_schema import PatternAction
+        from webui.backend.lib.schedule_schema import Action
 
-        action = PatternAction(
+        action = Action(
             action_type="gpio",
             action_name="attract_on",
             offset_minutes=0,
@@ -679,9 +679,9 @@ class TestResourceContention:
 
     def test_get_resource_type_gpio_flash(self):
         """GPIO flash action should return 'flash' resource type."""
-        from webui.backend.lib.schedule_schema import PatternAction
+        from webui.backend.lib.schedule_schema import Action
 
-        action = PatternAction(
+        action = Action(
             action_type="gpio",
             action_name="flash_off",
             offset_minutes=15,
@@ -691,9 +691,9 @@ class TestResourceContention:
 
     def test_get_resource_type_service(self):
         """Service action should return 'service' resource type."""
-        from webui.backend.lib.schedule_schema import PatternAction
+        from webui.backend.lib.schedule_schema import Action
 
-        action = PatternAction(
+        action = Action(
             action_type="service",
             action_name="backup",
             offset_minutes=0,
@@ -1262,7 +1262,7 @@ class TestTriggerTypeHandling:
         from webui.backend.lib.schedule_schema import (
             EventPattern,
             IntervalTrigger,
-            PatternAction,
+            Action,
             Schedule,
             TimeWindow,
         )
@@ -1270,7 +1270,7 @@ class TestTriggerTypeHandling:
         pattern = EventPattern(
             pattern_id="p1",
             name="Test Pattern",
-            actions=[PatternAction(
+            actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
                 offset_minutes=0,
@@ -1307,7 +1307,7 @@ class TestTriggerTypeHandling:
         from webui.backend.lib.schedule_schema import (
             EventPattern,
             IntervalTrigger,
-            PatternAction,
+            Action,
             Schedule,
             TimeWindow,
         )
@@ -1315,7 +1315,7 @@ class TestTriggerTypeHandling:
         pattern = EventPattern(
             pattern_id="p1",
             name="Test Pattern",
-            actions=[PatternAction(
+            actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
                 offset_minutes=0,
@@ -1352,14 +1352,14 @@ class TestTriggerTypeHandling:
         from webui.backend.lib.schedule_schema import (
             EventPattern,
             FixedTimeTrigger,
-            PatternAction,
+            Action,
             Schedule,
         )
 
         pattern = EventPattern(
             pattern_id="p1",
             name="Daily Photo",
-            actions=[PatternAction(
+            actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
                 offset_minutes=0,
@@ -1397,14 +1397,14 @@ class TestTriggerTypeHandling:
         from webui.backend.lib.schedule_schema import (
             EventPattern,
             FixedTimeTrigger,
-            PatternAction,
+            Action,
             Schedule,
         )
 
         pattern = EventPattern(
             pattern_id="p1",
             name="Daily Photo",
-            actions=[PatternAction(
+            actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
                 offset_minutes=0,
@@ -1440,7 +1440,7 @@ class TestTriggerTypeHandling:
         """Sensor trigger with time window should generate placeholder execution."""
         from webui.backend.lib.schedule_schema import (
             EventPattern,
-            PatternAction,
+            Action,
             Schedule,
             SensorTrigger,
             TimeWindow,
@@ -1449,7 +1449,7 @@ class TestTriggerTypeHandling:
         pattern = EventPattern(
             pattern_id="p1",
             name="Motion Capture",
-            actions=[PatternAction(
+            actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
                 offset_minutes=0,
@@ -1488,7 +1488,7 @@ class TestTriggerTypeHandling:
         from webui.backend.lib.schedule_schema import (
             EventPattern,
             IntervalTrigger,
-            PatternAction,
+            Action,
             Schedule,
             TimeWindow,
         )
@@ -1496,7 +1496,7 @@ class TestTriggerTypeHandling:
         pattern = EventPattern(
             pattern_id="p1",
             name="Night Photo",
-            actions=[PatternAction(
+            actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
                 offset_minutes=0,
@@ -1639,9 +1639,9 @@ class TestResourceTypeEdgeCases:
 
     def test_unknown_gpio_action_name(self):
         """GPIO action with unknown name should return 'gpio'."""
-        from webui.backend.lib.schedule_schema import PatternAction
+        from webui.backend.lib.schedule_schema import Action
 
-        action = PatternAction(
+        action = Action(
             action_type="gpio",
             action_name="relay_on",  # Not attract or flash
             offset_minutes=0,
@@ -1652,9 +1652,9 @@ class TestResourceTypeEdgeCases:
 
     def test_unknown_action_type(self):
         """Unknown action type should return 'service'."""
-        from webui.backend.lib.schedule_schema import PatternAction
+        from webui.backend.lib.schedule_schema import Action
 
-        action = PatternAction(
+        action = Action(
             action_type="custom",  # Unknown type
             action_name="custom_action",
             offset_minutes=0,
@@ -1675,7 +1675,7 @@ class TestSolarTriggerGeneration:
         """Solar trigger should generate execution at solar event time."""
         from webui.backend.lib.schedule_schema import (
             EventPattern,
-            PatternAction,
+            Action,
             Schedule,
             SolarTrigger,
         )
@@ -1683,7 +1683,7 @@ class TestSolarTriggerGeneration:
         pattern = EventPattern(
             pattern_id="p1",
             name="Sunset Photo",
-            actions=[PatternAction(
+            actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
                 offset_minutes=0,
@@ -1721,7 +1721,7 @@ class TestSolarTriggerGeneration:
         """Solar trigger with day restrictions should skip other days."""
         from webui.backend.lib.schedule_schema import (
             EventPattern,
-            PatternAction,
+            Action,
             Schedule,
             SolarTrigger,
         )
@@ -1729,7 +1729,7 @@ class TestSolarTriggerGeneration:
         pattern = EventPattern(
             pattern_id="p1",
             name="Sunset Photo",
-            actions=[PatternAction(
+            actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
                 offset_minutes=0,
@@ -1771,7 +1771,7 @@ class TestMoonPhaseTriggerGeneration:
         from webui.backend.lib.schedule_schema import (
             EventPattern,
             MoonPhaseTrigger,
-            PatternAction,
+            Action,
             Schedule,
             TimeWindow,
         )
@@ -1779,7 +1779,7 @@ class TestMoonPhaseTriggerGeneration:
         pattern = EventPattern(
             pattern_id="p1",
             name="Full Moon Photo",
-            actions=[PatternAction(
+            actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
                 offset_minutes=0,
@@ -1818,14 +1818,14 @@ class TestMoonPhaseTriggerGeneration:
         from webui.backend.lib.schedule_schema import (
             EventPattern,
             MoonPhaseTrigger,
-            PatternAction,
+            Action,
             Schedule,
         )
 
         pattern = EventPattern(
             pattern_id="p1",
             name="Full Moon Photo",
-            actions=[PatternAction(
+            actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
                 offset_minutes=0,
