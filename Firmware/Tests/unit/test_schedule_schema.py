@@ -31,6 +31,7 @@ try:
         MAX_PATTERN_NAME_LENGTH,
         MAX_PATTERNS_PER_SCHEDULE,
         MOON_PHASES,
+        PRIMARY_TRIGGER_TYPES,
         SCHEDULE_SCHEMA_VERSION,
         SENSOR_COMPARISONS,
         SENSOR_TYPES,
@@ -45,6 +46,7 @@ try:
         IntervalTrigger,
         MoonPhaseTrigger,
         RecurringDaysTrigger,
+        Routine,
         Schedule,
         SensorTrigger,
         SolarTrigger,
@@ -58,6 +60,7 @@ try:
         validate_interval_trigger,
         validate_moon_phase_trigger,
         validate_recurring_days_trigger,
+        validate_routine,
         validate_schedule,
         validate_sensor_trigger,
         validate_solar_trigger,
@@ -245,8 +248,22 @@ class TestScheduleSchemaConstants:
 
     def test_trigger_types_defined(self):
         """TRIGGER_TYPES should include all expected types including cron and recurring_days."""
-        expected = ["interval", "solar", "moon_phase", "fixed_time", "sensor", "cron", "recurring_days"]
+        expected = [
+            "interval",
+            "solar",
+            "moon_phase",
+            "fixed_time",
+            "sensor",
+            "cron",
+            "recurring_days",
+        ]
         assert expected == TRIGGER_TYPES
+
+    def test_primary_trigger_types_excludes_sensor(self):
+        """PRIMARY_TRIGGER_TYPES excludes sensor (pre_condition only)."""
+        assert "sensor" not in PRIMARY_TRIGGER_TYPES
+        assert "interval" in PRIMARY_TRIGGER_TYPES
+        assert len(PRIMARY_TRIGGER_TYPES) == len(TRIGGER_TYPES) - 1
 
     def test_moon_phases_defined(self):
         """MOON_PHASES should include all 8 phases."""
@@ -412,6 +429,527 @@ class TestEventPattern:
         assert restored.name == sample_event_pattern.name
         assert len(restored.actions) == len(sample_event_pattern.actions)
         assert restored.duration_minutes == sample_event_pattern.duration_minutes
+
+
+# =============================================================================
+# ROUTINE FIXTURES
+# =============================================================================
+
+
+@pytest.fixture
+def sample_routine_interval():
+    """IntervalTrigger with flash+photo sequence."""
+    return Routine(
+        routine_id="",
+        name=None,
+        trigger=IntervalTrigger(
+            interval_minutes=15,
+            time_window=TimeWindow(start_time="22:00", end_time="06:00"),
+        ),
+        actions=[
+            Action(action_type="gpio", action_name="flash_on", offset_minutes=0),
+            Action(action_type="camera", action_name="takephoto", offset_minutes=1),
+            Action(action_type="gpio", action_name="flash_off", offset_minutes=2),
+        ],
+    )
+
+
+@pytest.fixture
+def sample_routine_solar():
+    """SolarTrigger with attract_on action."""
+    return Routine(
+        routine_id="",
+        name=None,
+        trigger=SolarTrigger(solar_event="dusk", offset_minutes=0),
+        actions=[Action(action_type="gpio", action_name="attract_on")],
+    )
+
+
+@pytest.fixture
+def sample_routine_with_precondition():
+    """Routine with pre_condition sensor check."""
+    return Routine(
+        routine_id="f47ac10b-58cc-4372-a567-0e02b2c3d479",  # Valid UUID
+        name="Photo if Dark",
+        trigger=IntervalTrigger(
+            interval_minutes=15,
+            time_window=TimeWindow(start_time="22:00", end_time="06:00"),
+        ),
+        actions=[Action(action_type="camera", action_name="takephoto")],
+        pre_condition=SensorTrigger(
+            sensor_type="light",
+            threshold=100,
+            comparison="lt",
+        ),
+    )
+
+
+# =============================================================================
+# ROUTINE TESTS
+# =============================================================================
+
+
+class TestRoutine:
+    """Test Routine dataclass."""
+
+    def test_instantiation_minimal(self):
+        """Routine can be created with required fields only."""
+        trigger = IntervalTrigger(
+            interval_minutes=60,
+            time_window=TimeWindow(start_time="21:00", end_time="05:00"),
+        )
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=trigger,
+            actions=[Action(action_type="gpio", action_name="attract_on")],
+        )
+        assert routine.trigger == trigger
+        assert len(routine.actions) == 1
+        assert routine.name is None
+        assert routine.pre_condition is None
+
+    def test_uuid_generation_on_empty_id(self):
+        """Empty routine_id generates valid UUID."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=SolarTrigger(solar_event="sunset"),
+            actions=[Action(action_type="gpio", action_name="attract_on")],
+        )
+        # Should be a valid UUID
+        uuid.UUID(routine.routine_id)
+
+    def test_empty_name_normalized_to_none(self):
+        """Empty string name becomes None."""
+        routine = Routine(
+            routine_id="test-id",
+            name="",
+            trigger=SolarTrigger(solar_event="sunset"),
+            actions=[Action(action_type="gpio", action_name="attract_on")],
+        )
+        assert routine.name is None
+
+    def test_duration_minutes_computed(self, sample_routine_interval):
+        """Returns max action offset."""
+        # Actions have offsets 0, 1, 2
+        assert sample_routine_interval.duration_minutes == 2
+
+    def test_duration_minutes_empty_actions(self):
+        """Returns 0 with no actions."""
+        routine = Routine(
+            routine_id="test-empty",
+            name=None,
+            trigger=SolarTrigger(solar_event="sunset"),
+            actions=[],
+        )
+        assert routine.duration_minutes == 0
+
+
+class TestRoutineGetDisplayName:
+    """Test Routine.get_display_name() auto-naming."""
+
+    def test_explicit_name_returned(self, sample_routine_with_precondition):
+        """Explicit name takes precedence."""
+        assert sample_routine_with_precondition.get_display_name() == "Photo if Dark"
+
+    def test_auto_name_solar_single_action(self):
+        """Auto-name for solar trigger with single action."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=SolarTrigger(solar_event="dusk", offset_minutes=0),
+            actions=[Action(action_type="gpio", action_name="attract_on")],
+        )
+        assert routine.get_display_name() == "Attract On at Dusk"
+
+    def test_auto_name_solar_with_offset(self):
+        """Auto-name includes offset."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=SolarTrigger(solar_event="sunset", offset_minutes=30),
+            actions=[Action(action_type="gpio", action_name="attract_on")],
+        )
+        assert routine.get_display_name() == "Attract On at Sunset +30min"
+
+    def test_auto_name_interval_flash_photo(self, sample_routine_interval):
+        """Auto-name for interval with multiple actions."""
+        display_name = sample_routine_interval.get_display_name()
+        # 3 unique action names: flash_on, takephoto, flash_off -> "3 Actions"
+        assert "Actions" in display_name or "Flash" in display_name or "Photo" in display_name
+        assert "15min" in display_name
+
+    def test_auto_name_interval_hourly(self):
+        """Auto-name shows hours for 60min intervals."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=IntervalTrigger(
+                interval_minutes=60,
+                time_window=TimeWindow(start_time="21:00", end_time="05:00"),
+            ),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        display_name = routine.get_display_name()
+        assert "1h" in display_name or "60min" in display_name
+
+    def test_auto_name_recurring_days(self):
+        """Auto-name for recurring days trigger."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=RecurringDaysTrigger(every_n_days=3, time="21:00"),
+            actions=[Action(action_type="gps_sync", action_name="gps_sync")],
+        )
+        display_name = routine.get_display_name()
+        assert "GPS Sync" in display_name
+        assert "3 days" in display_name or "every 3" in display_name
+        assert "21:00" in display_name
+
+    def test_auto_name_fixed_time(self):
+        """Auto-name for fixed time trigger."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=FixedTimeTrigger(time="09:00"),
+            actions=[Action(action_type="service", action_name="backup")],
+        )
+        display_name = routine.get_display_name()
+        assert "Backup" in display_name
+        assert "09:00" in display_name
+
+    def test_auto_name_moon_phase_single(self):
+        """Auto-name for moon phase trigger."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=MoonPhaseTrigger(phases=["full"]),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        display_name = routine.get_display_name()
+        assert "Photo" in display_name
+        assert "Full" in display_name or "full" in display_name
+
+    def test_auto_name_cron(self):
+        """Auto-name for cron trigger."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=CronTrigger(cron_expression="0 21 * * *"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        display_name = routine.get_display_name()
+        assert "Photo" in display_name
+        assert "cron" in display_name.lower()
+
+    def test_auto_name_repeated_actions(self):
+        """Auto-name handles repeated actions."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=IntervalTrigger(
+                interval_minutes=30,
+                time_window=TimeWindow(start_time="21:00", end_time="05:00"),
+            ),
+            actions=[
+                Action(action_type="camera", action_name="takephoto", offset_minutes=0),
+                Action(action_type="camera", action_name="takephoto", offset_minutes=5),
+                Action(action_type="camera", action_name="takephoto", offset_minutes=10),
+            ],
+        )
+        display_name = routine.get_display_name()
+        assert "3x Photo" in display_name or "Photo" in display_name
+        assert "30min" in display_name
+
+    def test_auto_name_empty_actions(self):
+        """Auto-name handles empty actions."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=SolarTrigger(solar_event="sunset"),
+            actions=[],
+        )
+        display_name = routine.get_display_name()
+        assert "Empty" in display_name or "Sunset" in display_name
+
+
+class TestRoutineSerialization:
+    """Test Routine serialization."""
+
+    def test_to_dict_includes_all_fields(self, sample_routine_interval):
+        """All fields present in dict."""
+        data = sample_routine_interval.to_dict()
+        assert "routine_id" in data
+        assert "name" in data
+        assert "trigger" in data
+        assert "actions" in data
+        assert "pre_condition" in data
+        assert len(data["actions"]) == 3
+
+    def test_to_dict_trigger_has_trigger_type(self, sample_routine_solar):
+        """trigger dict includes trigger_type."""
+        data = sample_routine_solar.to_dict()
+        assert data["trigger"]["trigger_type"] == "solar"
+        assert data["trigger"]["solar_event"] == "dusk"
+
+    def test_to_dict_with_pre_condition(self, sample_routine_with_precondition):
+        """pre_condition serialized correctly."""
+        data = sample_routine_with_precondition.to_dict()
+        assert data["pre_condition"] is not None
+        assert data["pre_condition"]["sensor_type"] == "light"
+        assert data["pre_condition"]["threshold"] == 100
+        assert data["pre_condition"]["comparison"] == "lt"
+
+    def test_from_dict_all_trigger_types(self):
+        """Test all 7 trigger types deserialize."""
+        # IntervalTrigger
+        data1 = {
+            "routine_id": "test-1",
+            "name": None,
+            "trigger": {
+                "trigger_type": "interval",
+                "interval_minutes": 60,
+                "time_window": {"start_time": "21:00", "end_time": "05:00"},
+            },
+            "actions": [{"action_type": "gpio", "action_name": "attract_on"}],
+        }
+        r1 = Routine.from_dict(data1)
+        assert isinstance(r1.trigger, IntervalTrigger)
+
+        # SolarTrigger
+        data2 = {
+            "routine_id": "test-2",
+            "name": None,
+            "trigger": {"trigger_type": "solar", "solar_event": "sunset"},
+            "actions": [{"action_type": "gpio", "action_name": "attract_on"}],
+        }
+        r2 = Routine.from_dict(data2)
+        assert isinstance(r2.trigger, SolarTrigger)
+
+        # MoonPhaseTrigger
+        data3 = {
+            "routine_id": "test-3",
+            "name": None,
+            "trigger": {"trigger_type": "moon_phase", "phases": ["full"]},
+            "actions": [{"action_type": "camera", "action_name": "takephoto"}],
+        }
+        r3 = Routine.from_dict(data3)
+        assert isinstance(r3.trigger, MoonPhaseTrigger)
+
+        # FixedTimeTrigger
+        data4 = {
+            "routine_id": "test-4",
+            "name": None,
+            "trigger": {"trigger_type": "fixed_time", "time": "21:00"},
+            "actions": [{"action_type": "camera", "action_name": "takephoto"}],
+        }
+        r4 = Routine.from_dict(data4)
+        assert isinstance(r4.trigger, FixedTimeTrigger)
+
+        # SensorTrigger
+        data5 = {
+            "routine_id": "test-5",
+            "name": None,
+            "trigger": {"trigger_type": "sensor", "sensor_type": "motion"},
+            "actions": [{"action_type": "camera", "action_name": "takephoto"}],
+        }
+        r5 = Routine.from_dict(data5)
+        assert isinstance(r5.trigger, SensorTrigger)
+
+        # CronTrigger
+        data6 = {
+            "routine_id": "test-6",
+            "name": None,
+            "trigger": {"trigger_type": "cron", "cron_expression": "0 21 * * *"},
+            "actions": [{"action_type": "camera", "action_name": "takephoto"}],
+        }
+        r6 = Routine.from_dict(data6)
+        assert isinstance(r6.trigger, CronTrigger)
+
+        # RecurringDaysTrigger
+        data7 = {
+            "routine_id": "test-7",
+            "name": None,
+            "trigger": {"trigger_type": "recurring_days", "every_n_days": 3, "time": "21:00"},
+            "actions": [{"action_type": "gps_sync", "action_name": "gps_sync"}],
+        }
+        r7 = Routine.from_dict(data7)
+        assert isinstance(r7.trigger, RecurringDaysTrigger)
+
+    def test_round_trip_serialization(self, sample_routine_with_precondition):
+        """JSON round-trip preserves data."""
+        data = sample_routine_with_precondition.to_dict()
+        json_str = json.dumps(data)
+        loaded = json.loads(json_str)
+        restored = Routine.from_dict(loaded)
+        assert restored.routine_id == sample_routine_with_precondition.routine_id
+        assert restored.name == sample_routine_with_precondition.name
+        assert len(restored.actions) == len(sample_routine_with_precondition.actions)
+        assert restored.pre_condition.sensor_type == "light"
+
+
+class TestValidateRoutine:
+    """Test validate_routine function."""
+
+    def test_valid_routine(self, sample_routine_interval):
+        """Valid routine passes."""
+        valid, error = validate_routine(sample_routine_interval)
+        assert valid is True
+        assert error is None
+
+    def test_invalid_routine_id_format(self):
+        """Non-UUID fails."""
+        routine = Routine(
+            routine_id="not-a-uuid",
+            name=None,
+            trigger=SolarTrigger(solar_event="sunset"),
+            actions=[Action(action_type="gpio", action_name="attract_on")],
+        )
+        valid, error = validate_routine(routine)
+        assert valid is False
+        assert "routine_id" in error.lower()
+        assert "uuid" in error.lower()
+
+    def test_name_too_long_fails(self):
+        """Exceeds limit."""
+        routine = Routine(
+            routine_id="",
+            name="x" * (MAX_PATTERN_NAME_LENGTH + 1),
+            trigger=SolarTrigger(solar_event="sunset"),
+            actions=[Action(action_type="gpio", action_name="attract_on")],
+        )
+        valid, error = validate_routine(routine)
+        assert valid is False
+        assert "name" in error.lower()
+
+    def test_sensor_trigger_as_primary_fails(self):
+        """Sensors are pre_condition only."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=SensorTrigger(sensor_type="motion"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        valid, error = validate_routine(routine)
+        assert valid is False
+        assert "sensor" in error.lower()
+
+    def test_empty_actions_fails(self):
+        """At least one action required."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=SolarTrigger(solar_event="sunset"),
+            actions=[],
+        )
+        valid, error = validate_routine(routine)
+        assert valid is False
+        assert "action" in error.lower()
+
+    def test_too_many_actions_fails(self):
+        """Exceeds limit."""
+        actions = [
+            Action(action_type="gpio", action_name="attract_on", offset_minutes=i)
+            for i in range(MAX_ACTIONS_PER_PATTERN + 1)
+        ]
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=SolarTrigger(solar_event="sunset"),
+            actions=actions,
+        )
+        valid, error = validate_routine(routine)
+        assert valid is False
+        assert "action" in error.lower()
+
+    def test_invalid_trigger_fails(self):
+        """Invalid trigger config fails."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=IntervalTrigger(
+                interval_minutes=0,  # Invalid: must be >= 1
+                time_window=TimeWindow(start_time="21:00", end_time="05:00"),
+            ),
+            actions=[Action(action_type="gpio", action_name="attract_on")],
+        )
+        valid, error = validate_routine(routine)
+        assert valid is False
+
+    def test_valid_pre_condition(self, sample_routine_with_precondition):
+        """Valid SensorTrigger as pre_condition passes."""
+        valid, error = validate_routine(sample_routine_with_precondition)
+        assert valid is True
+        assert error is None
+
+    def test_invalid_pre_condition_fails(self):
+        """Invalid sensor config fails."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=IntervalTrigger(
+                interval_minutes=15,
+                time_window=TimeWindow(start_time="22:00", end_time="06:00"),
+            ),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+            pre_condition=SensorTrigger(
+                sensor_type="invalid_sensor",  # Invalid
+                threshold=100,
+                comparison="lt",
+            ),
+        )
+        valid, error = validate_routine(routine)
+        assert valid is False
+
+
+class TestRoutinePreCondition:
+    """Test Routine pre_condition handling."""
+
+    def test_pre_condition_serialization(self, sample_routine_with_precondition):
+        """to_dict includes pre_condition."""
+        data = sample_routine_with_precondition.to_dict()
+        assert "pre_condition" in data
+        assert data["pre_condition"]["sensor_type"] == "light"
+
+    def test_pre_condition_deserialization(self):
+        """from_dict restores pre_condition."""
+        data = {
+            "routine_id": "test",
+            "name": None,
+            "trigger": {
+                "trigger_type": "interval",
+                "interval_minutes": 15,
+                "time_window": {"start_time": "22:00", "end_time": "06:00"},
+            },
+            "actions": [{"action_type": "camera", "action_name": "takephoto"}],
+            "pre_condition": {
+                "sensor_type": "light",
+                "threshold": 100,
+                "comparison": "lt",
+            },
+        }
+        routine = Routine.from_dict(data)
+        assert routine.pre_condition is not None
+        assert routine.pre_condition.sensor_type == "light"
+        assert routine.pre_condition.threshold == 100
+
+    def test_none_pre_condition_omitted(self, sample_routine_interval):
+        """to_dict excludes null pre_condition."""
+        data = sample_routine_interval.to_dict()
+        # pre_condition should be None, not missing
+        assert data["pre_condition"] is None
+
+    def test_pre_condition_roundtrip(self, sample_routine_with_precondition):
+        """JSON roundtrip preserves pre_condition."""
+        data = sample_routine_with_precondition.to_dict()
+        json_str = json.dumps(data)
+        loaded = json.loads(json_str)
+        restored = Routine.from_dict(loaded)
+        assert restored.pre_condition is not None
+        assert restored.pre_condition.sensor_type == "light"
+        assert restored.pre_condition.threshold == 100
+        assert restored.pre_condition.comparison == "lt"
 
 
 # =============================================================================
@@ -702,7 +1240,9 @@ class TestSchedule:
 
     def test_timestamps_generated(self):
         """Schedule generates timestamps when empty."""
-        schedule = Schedule(schedule_id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", name="Test", trigger_type="interval")
+        schedule = Schedule(
+            schedule_id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", name="Test", trigger_type="interval"
+        )
         assert schedule.created_at != ""
         assert schedule.modified_at != ""
         # Validate ISO format
@@ -814,9 +1354,7 @@ class TestValidateAction:
 
     def test_negative_offset_fails(self):
         """Negative offset_minutes fails validation."""
-        action = Action(
-            action_type="gpio", action_name="attract_on", offset_minutes=-5
-        )
+        action = Action(action_type="gpio", action_name="attract_on", offset_minutes=-5)
         valid, error = validate_action(action)
         assert valid is False
         assert "negative" in error.lower() or "offset" in error.lower()
@@ -856,14 +1394,19 @@ class TestValidateEventPattern:
 
     def test_name_too_long_fails(self):
         """Name exceeding MAX_PATTERN_NAME_LENGTH fails validation."""
-        pattern = EventPattern(pattern_id="22222222-2222-2222-2222-222222222222", name="x" * (MAX_PATTERN_NAME_LENGTH + 1))
+        pattern = EventPattern(
+            pattern_id="22222222-2222-2222-2222-222222222222",
+            name="x" * (MAX_PATTERN_NAME_LENGTH + 1),
+        )
         valid, error = validate_event_pattern(pattern)
         assert valid is False
         assert "name" in error.lower()
 
     def test_no_actions_fails(self):
         """Pattern with no actions fails validation."""
-        pattern = EventPattern(pattern_id="33333333-3333-3333-3333-333333333333", name="Empty Pattern", actions=[])
+        pattern = EventPattern(
+            pattern_id="33333333-3333-3333-3333-333333333333", name="Empty Pattern", actions=[]
+        )
         valid, error = validate_event_pattern(pattern)
         assert valid is False
         assert "action" in error.lower()
@@ -874,7 +1417,9 @@ class TestValidateEventPattern:
             Action(action_type="gpio", action_name="attract_on", offset_minutes=i)
             for i in range(MAX_ACTIONS_PER_PATTERN + 1)
         ]
-        pattern = EventPattern(pattern_id="44444444-4444-4444-4444-444444444444", name="Too Many", actions=actions)
+        pattern = EventPattern(
+            pattern_id="44444444-4444-4444-4444-444444444444", name="Too Many", actions=actions
+        )
         valid, error = validate_event_pattern(pattern)
         assert valid is False
         assert "action" in error.lower()
@@ -1083,7 +1628,10 @@ class TestValidateSchedule:
     def test_no_patterns_fails(self):
         """Schedule with no patterns fails validation."""
         schedule = Schedule(
-            schedule_id="77777777-7777-7777-7777-777777777777", name="Empty", trigger_type="interval", event_patterns=[]
+            schedule_id="77777777-7777-7777-7777-777777777777",
+            name="Empty",
+            trigger_type="interval",
+            event_patterns=[],
         )
         valid, error = validate_schedule(schedule)
         assert valid is False
@@ -1725,9 +2273,7 @@ class TestScheduleFromDictFrontendFormat:
         assert schedule.start_date == "2024-01-01"
         assert schedule.end_date == "2024-12-31"
 
-    def test_from_dict_backend_format_still_works(
-        self, sample_event_pattern, sample_time_window
-    ):
+    def test_from_dict_backend_format_still_works(self, sample_event_pattern, sample_time_window):
         """Backward compatibility."""
         data = {
             "schedule_id": "backend-uuid",
