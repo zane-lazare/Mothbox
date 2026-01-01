@@ -50,6 +50,7 @@ import copy
 import logging
 import re
 import uuid
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Final, TypeVar
@@ -76,6 +77,18 @@ MIN_INTERVAL_MINUTES: Final[int] = 1
 MAX_COOLDOWN_MINUTES: Final[int] = 60
 MAX_OFFSET_DAYS: Final[int] = 7
 MAX_RECURRING_DAYS: Final[int] = 365
+
+# Action display names for auto-generation (used by Routine.get_display_name())
+ACTION_DISPLAY_NAMES: Final[dict[str, str]] = {
+    "attract_on": "Attract On",
+    "attract_off": "Attract Off",
+    "flash_on": "Flash On",
+    "flash_off": "Flash Off",
+    "takephoto": "Photo",
+    "gps_sync": "GPS Sync",
+    "backup": "Backup",
+    "update_display": "Update Display",
+}
 
 # Action types (aligned with cron_security.py ACTION_TYPE_SCRIPTS)
 ACTION_TYPES: Final[list[str]] = ["gpio", "camera", "gps_sync", "service"]
@@ -677,6 +690,216 @@ def trigger_from_dict(data: dict) -> Trigger:
 
 
 # =============================================================================
+# TIER 2: ROUTINE
+# =============================================================================
+
+
+@dataclass
+class Routine:
+    """
+    Simplified single-pattern schedule with unified trigger.
+
+    Routine represents a single action sequence with one trigger, providing
+    a simpler alternative to Schedule for common use cases. It combines
+    actions, trigger, and optional sensor pre-condition into one entity.
+
+    Attributes:
+        routine_id: Unique identifier (UUID string, auto-generated if empty)
+        name: Optional human-readable name (None for auto-generated)
+        trigger: Trigger configuration (any supported trigger type)
+        actions: Ordered list of Action objects
+        pre_condition: Optional sensor trigger as gate (must pass before execution)
+        description: Human-readable description (max 2000 chars)
+
+    Example:
+        >>> routine = Routine(
+        ...     routine_id="",
+        ...     name="Sunset Photos",
+        ...     trigger=SolarTrigger(solar_event="sunset", offset_minutes=30),
+        ...     actions=[
+        ...         Action(action_type="camera", action_name="takephoto"),
+        ...     ],
+        ... )
+        >>> routine.get_display_name()
+        'Sunset Photos'
+        >>> routine.duration_minutes
+        0
+    """
+
+    routine_id: str
+    name: str | None = None
+    trigger: Trigger = field(
+        default_factory=lambda: IntervalTrigger(
+            interval_minutes=60,
+            time_window=TimeWindow(start_time="00:00", end_time="23:59"),
+        )
+    )
+    actions: list[Action] = field(default_factory=list)
+    pre_condition: SensorTrigger | None = None
+    description: str = ""
+
+    def __post_init__(self):
+        """Generate UUID if routine_id is empty, normalize name."""
+        if not self.routine_id:
+            self.routine_id = str(uuid.uuid4())
+        # Normalize empty string to None
+        if self.name == "":
+            self.name = None
+
+    @property
+    def duration_minutes(self) -> int:
+        """Total duration = max action offset."""
+        if not self.actions:
+            return 0
+        return max(action.offset_minutes for action in self.actions)
+
+    def get_display_name(self) -> str:
+        """Get display name (explicit name or auto-generated)."""
+        if self.name:
+            return self.name
+        return self._generate_name()
+
+    def _generate_name(self) -> str:
+        """Generate name from actions and trigger."""
+        action_summary = self._summarize_actions()
+        trigger_desc = self._describe_trigger()
+        return f"{action_summary} {trigger_desc}"
+
+    def _summarize_actions(self) -> str:
+        """Smart action summary using ACTION_DISPLAY_NAMES."""
+        if not self.actions:
+            return "Empty Routine"
+
+        action_names = [action.action_name for action in self.actions]
+
+        # Single action type
+        if len(set(action_names)) == 1:
+            action_name = action_names[0]
+            display_name = ACTION_DISPLAY_NAMES.get(action_name, action_name.title())
+            if len(action_names) == 1:
+                return display_name
+            # Repeated same action
+            return f"{len(action_names)}x {display_name}"
+
+        # Detect flash_on + takephoto pattern
+        action_set = set(action_names)
+        if action_set == {"flash_on", "takephoto"}:
+            return "Flash + Photo"
+
+        # Count occurrences
+        action_counts = Counter(action_names)
+
+        # If only one unique action with multiple occurrences
+        if len(action_counts) == 1:
+            action_name, count = action_counts.most_common(1)[0]
+            display_name = ACTION_DISPLAY_NAMES.get(action_name, action_name.title())
+            if count == 1:
+                return display_name
+            return f"{count}x {display_name}"
+
+        # Multiple different actions
+        return f"{len(self.actions)} Actions"
+
+    def _describe_trigger(self) -> str:
+        """Human-readable trigger description."""
+        if isinstance(self.trigger, SolarTrigger):
+            event = self.trigger.solar_event.replace("_", " ").title()
+            if self.trigger.offset_minutes == 0:
+                return f"at {event}"
+            sign = "+" if self.trigger.offset_minutes > 0 else ""
+            return f"at {event} {sign}{self.trigger.offset_minutes}min"
+
+        elif isinstance(self.trigger, IntervalTrigger):
+            minutes = self.trigger.interval_minutes
+            if minutes < 60:
+                return f"every {minutes}min"
+            hours = minutes // 60
+            if hours == 1:
+                return "every 1h"
+            return f"every {hours}h"
+
+        elif isinstance(self.trigger, FixedTimeTrigger):
+            return f"at {self.trigger.time}"
+
+        elif isinstance(self.trigger, MoonPhaseTrigger):
+            phases = [p.replace("_", " ").title() for p in self.trigger.phases]
+            phase_str = ", ".join(phases)
+            return f"on {phase_str}"
+
+        elif isinstance(self.trigger, RecurringDaysTrigger):
+            if self.trigger.every_n_days == 1:
+                return f"daily at {self.trigger.time}"
+            return f"every {self.trigger.every_n_days} days at {self.trigger.time}"
+
+        elif isinstance(self.trigger, CronTrigger):
+            return "(cron)"
+
+        elif isinstance(self.trigger, SensorTrigger):
+            sensor = self.trigger.sensor_type
+            comparison = self.trigger.comparison
+            threshold = self.trigger.threshold
+            return f"when {sensor} {comparison} {threshold}"
+
+        return "(unknown trigger)"
+
+    def _trigger_to_dict(self) -> dict:
+        """Serialize trigger with trigger_type added."""
+        trigger_dict = self.trigger.to_dict()
+
+        # Determine trigger_type
+        if isinstance(self.trigger, IntervalTrigger):
+            trigger_dict["trigger_type"] = "interval"
+        elif isinstance(self.trigger, SolarTrigger):
+            trigger_dict["trigger_type"] = "solar"
+        elif isinstance(self.trigger, MoonPhaseTrigger):
+            trigger_dict["trigger_type"] = "moon_phase"
+        elif isinstance(self.trigger, FixedTimeTrigger):
+            trigger_dict["trigger_type"] = "fixed_time"
+        elif isinstance(self.trigger, SensorTrigger):
+            trigger_dict["trigger_type"] = "sensor"
+        elif isinstance(self.trigger, CronTrigger):
+            trigger_dict["trigger_type"] = "cron"
+        elif isinstance(self.trigger, RecurringDaysTrigger):
+            trigger_dict["trigger_type"] = "recurring_days"
+
+        return trigger_dict
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "routine_id": self.routine_id,
+            "name": self.name,
+            "trigger": self._trigger_to_dict(),
+            "actions": [action.to_dict() for action in self.actions],
+            "pre_condition": self.pre_condition.to_dict() if self.pre_condition else None,
+            "description": self.description,
+            "display_name": self.get_display_name(),
+            "duration_minutes": self.duration_minutes,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Routine":
+        """Create from dictionary."""
+        # Parse trigger using trigger_from_dict factory
+        trigger_data = data.get("trigger", {})
+        trigger = trigger_from_dict(trigger_data)
+
+        # Parse pre_condition if present
+        pre_condition = None
+        if data.get("pre_condition"):
+            pre_condition = SensorTrigger.from_dict(data["pre_condition"])
+
+        return cls(
+            routine_id=data.get("routine_id", ""),
+            name=data.get("name"),
+            trigger=trigger,
+            actions=[Action.from_dict(a) for a in data.get("actions", [])],
+            pre_condition=pre_condition,
+            description=data.get("description", ""),
+        )
+
+
+# =============================================================================
 # TIER 2: SCHEDULE
 # =============================================================================
 
@@ -964,7 +1187,15 @@ class Schedule:
         if not trigger_type:
             raise ValueError("trigger_type is required")
 
-        valid_types = {"interval", "solar", "moon_phase", "fixed_time", "sensor", "cron", "recurring_days"}
+        valid_types = {
+            "interval",
+            "solar",
+            "moon_phase",
+            "fixed_time",
+            "sensor",
+            "cron",
+            "recurring_days",
+        }
         if trigger_type not in valid_types:
             raise ValueError(f"Unknown trigger_type: {trigger_type}")
 
@@ -1226,6 +1457,105 @@ def validate_event_pattern(pattern: EventPattern) -> tuple[bool, str | None]:
             f"Invalid category: '{pattern.category}'. "
             f"Must be one of: {', '.join(PATTERN_CATEGORIES)}",
         )
+
+    return True, None
+
+
+def _validate_routine_trigger(trigger: Trigger) -> tuple[bool, str | None]:
+    """
+    Validate routine trigger using appropriate validator based on type.
+
+    Args:
+        trigger: Trigger instance to validate
+
+    Returns:
+        (True, None) if valid, (False, error_message) if invalid
+    """
+    if isinstance(trigger, IntervalTrigger):
+        return validate_interval_trigger(trigger)
+    elif isinstance(trigger, SolarTrigger):
+        return validate_solar_trigger(trigger)
+    elif isinstance(trigger, MoonPhaseTrigger):
+        return validate_moon_phase_trigger(trigger)
+    elif isinstance(trigger, FixedTimeTrigger):
+        return validate_fixed_time_trigger(trigger)
+    elif isinstance(trigger, SensorTrigger):
+        return validate_sensor_trigger(trigger)
+    elif isinstance(trigger, CronTrigger):
+        return validate_cron_trigger(trigger)
+    elif isinstance(trigger, RecurringDaysTrigger):
+        return validate_recurring_days_trigger(trigger)
+    else:
+        return False, f"Unknown trigger type: {type(trigger).__name__}"
+
+
+def validate_routine(routine) -> tuple[bool, str | None]:
+    """
+    Validate a routine and its actions.
+
+    Args:
+        routine: Routine to validate
+
+    Returns:
+        (True, None) if valid, (False, error_message) if invalid
+    """
+    # Validate routine_id format if provided (auto-generated UUIDs are always valid)
+    if routine.routine_id and not _is_valid_uuid(routine.routine_id):
+        return False, "Invalid routine_id format: must be a valid UUID"
+
+    # Validate name length if provided
+    if routine.name and len(routine.name) > MAX_PATTERN_NAME_LENGTH:
+        return (
+            False,
+            f"Routine name exceeds {MAX_PATTERN_NAME_LENGTH} characters",
+        )
+
+    # Validate description length
+    if len(routine.description) > MAX_DESCRIPTION_LENGTH:
+        return (
+            False,
+            f"Routine description exceeds {MAX_DESCRIPTION_LENGTH} characters",
+        )
+
+    # Validate trigger exists
+    if routine.trigger is None:
+        return False, "Routine must have a trigger"
+
+    # Block SensorTrigger as primary trigger
+    if isinstance(routine.trigger, SensorTrigger):
+        return False, "Sensor triggers can only be used as pre_condition, not as primary trigger"
+
+    # Validate trigger
+    valid, error = _validate_routine_trigger(routine.trigger)
+    if not valid:
+        return False, f"Trigger: {error}"
+
+    # Validate pre_condition if provided
+    if routine.pre_condition is not None:
+        # Must be a SensorTrigger instance
+        if not isinstance(routine.pre_condition, SensorTrigger):
+            return False, "pre_condition must be a SensorTrigger"
+
+        # Validate the sensor trigger
+        valid, error = validate_sensor_trigger(routine.pre_condition)
+        if not valid:
+            return False, f"Pre-condition: {error}"
+
+    # Validate actions
+    if not routine.actions:
+        return False, "Routine must have at least one action"
+
+    if len(routine.actions) > MAX_ACTIONS_PER_PATTERN:
+        return (
+            False,
+            f"Routine exceeds {MAX_ACTIONS_PER_PATTERN} actions",
+        )
+
+    # Validate each action
+    for i, action in enumerate(routine.actions):
+        valid, error = validate_action(action)
+        if not valid:
+            return False, f"Action {i + 1}: {error}"
 
     return True, None
 
