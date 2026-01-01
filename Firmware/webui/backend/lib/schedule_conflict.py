@@ -18,8 +18,8 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Final
 
 from webui.backend.lib.schedule_schema import (
-    EventPattern,
     Action,
+    EventPattern,
     Schedule,
 )
 
