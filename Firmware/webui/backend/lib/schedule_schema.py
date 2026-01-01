@@ -588,13 +588,12 @@ class RecurringDaysTrigger:
     Example: GPS sync every 3 days at 21:00
 
     Attributes:
-        trigger_type: Always "recurring_days"
         every_n_days: Days between executions (1-365)
         time: Fixed time in "HH:MM" format
-        start_date: ISO 8601 date (YYYY-MM-DD), defaults to today if None
+        start_date: ISO 8601 date (YYYY-MM-DD). If None, defaults to today
+                    when cron expressions are generated (handled by cron_bridge.py)
     """
 
-    trigger_type: str = "recurring_days"
     every_n_days: int = 1
     time: str = "00:00"
     start_date: str | None = None
@@ -602,7 +601,6 @@ class RecurringDaysTrigger:
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
         return {
-            "trigger_type": self.trigger_type,
             "every_n_days": self.every_n_days,
             "time": self.time,
             "start_date": self.start_date,
@@ -637,6 +635,14 @@ Trigger = (
 def trigger_from_dict(data: dict) -> Trigger:
     """
     Factory function to create appropriate trigger from dictionary.
+
+    Example:
+        >>> data = {"trigger_type": "recurring_days", "every_n_days": 3, "time": "21:00"}
+        >>> trigger = trigger_from_dict(data)
+        >>> isinstance(trigger, RecurringDaysTrigger)
+        True
+        >>> trigger.every_n_days
+        3
 
     Args:
         data: Dictionary containing trigger_type and trigger-specific fields
