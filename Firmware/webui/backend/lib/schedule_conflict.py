@@ -437,7 +437,11 @@ def _is_routine_active_on_date(routine: Routine, target_date: date, weekday: int
 
     elif isinstance(trigger, SensorTrigger):
         # Sensor triggers could have day constraints too
-        if hasattr(trigger, 'days_of_week') and trigger.days_of_week is not None and weekday not in trigger.days_of_week:
+        if (
+            hasattr(trigger, "days_of_week")
+            and trigger.days_of_week is not None
+            and weekday not in trigger.days_of_week
+        ):
             return False
 
     return True

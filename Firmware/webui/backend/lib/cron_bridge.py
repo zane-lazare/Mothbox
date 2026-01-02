@@ -1206,9 +1206,7 @@ def _convert_routine_to_cron(
             entries.extend(action_entries)
 
         elif isinstance(trigger, SensorTrigger):
-            errors.append(
-                f"Routine '{routine.name}': Sensor triggers not yet implemented for cron"
-            )
+            errors.append(f"Routine '{routine.name}': Sensor triggers not yet implemented for cron")
 
         elif isinstance(trigger, CronTrigger):
             # Cron triggers: Use raw cron expression
@@ -1238,9 +1236,7 @@ def _convert_routine_to_cron(
     return entries
 
 
-def _apply_offset_to_fixed_time(
-    trigger: FixedTimeTrigger, offset_minutes: int
-) -> FixedTimeTrigger:
+def _apply_offset_to_fixed_time(trigger: FixedTimeTrigger, offset_minutes: int) -> FixedTimeTrigger:
     """Create new FixedTimeTrigger with offset applied to time."""
     if offset_minutes == 0:
         return trigger

@@ -1090,8 +1090,7 @@ def list_builtin_patterns() -> tuple[list[dict], list[str]]:
         # Log warning if no routines found (possible misconfiguration)
         if not patterns and builtin_dir.exists():
             warning_msg = (
-                f"No routines found in {builtin_dir}. "
-                "Check schedule files for valid routines."
+                f"No routines found in {builtin_dir}. Check schedule files for valid routines."
             )
             logger.warning(warning_msg)
             warnings.append(warning_msg)
