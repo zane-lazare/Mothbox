@@ -19,8 +19,13 @@ from typing import Final
 
 from webui.backend.lib.schedule_schema import (
     Action,
-    EventPattern,
+    FixedTimeTrigger,
+    IntervalTrigger,
+    MoonPhaseTrigger,
+    Routine,
     Schedule,
+    SensorTrigger,
+    SolarTrigger,
 )
 
 # ============================================================================
@@ -401,34 +406,38 @@ def _parse_time_string(time_str: str) -> time:
 
 
 def _is_schedule_active_on_date(schedule: Schedule, target_date: date) -> bool:
-    """Check if schedule is active on a given date."""
-    # Check date range constraints
-    if schedule.start_date:
-        start = date.fromisoformat(schedule.start_date)
-        if target_date < start:
-            return False
+    """Check if schedule is active on a given date (Schema 3.0).
 
-    if schedule.end_date:
-        end = date.fromisoformat(schedule.end_date)
-        if target_date > end:
-            return False
+    A schedule is active if at least one of its routines is active on the date.
+    """
+    if not schedule.routines:
+        return False
 
-    # Check day of week constraints based on trigger type
     weekday = target_date.weekday()  # 0=Monday, 6=Sunday
 
-    if schedule.trigger_type == "interval" and schedule.interval_trigger:
-        days = schedule.interval_trigger.days_of_week
+    # Check if any routine is active on this date
+    for routine in schedule.routines:
+        if _is_routine_active_on_date(routine, target_date, weekday):
+            return True
+
+    return False
+
+
+def _is_routine_active_on_date(routine: Routine, target_date: date, weekday: int) -> bool:
+    """Check if a routine is active on a given date based on its trigger."""
+    trigger = routine.trigger
+    if trigger is None:
+        return False
+
+    # Check day of week constraints based on trigger type
+    if isinstance(trigger, (IntervalTrigger, SolarTrigger, FixedTimeTrigger)):
+        days = trigger.days_of_week
         if days is not None and weekday not in days:
             return False
 
-    elif schedule.trigger_type == "solar" and schedule.solar_trigger:
-        days = schedule.solar_trigger.days_of_week
-        if days is not None and weekday not in days:
-            return False
-
-    elif schedule.trigger_type == "fixed_time" and schedule.fixed_time_trigger:
-        days = schedule.fixed_time_trigger.days_of_week
-        if days is not None and weekday not in days:
+    elif isinstance(trigger, SensorTrigger):
+        # Sensor triggers could have day constraints too
+        if hasattr(trigger, 'days_of_week') and trigger.days_of_week is not None and weekday not in trigger.days_of_week:
             return False
 
     return True
@@ -442,22 +451,41 @@ def _get_trigger_times_for_day(
     timezone_name: str,
 ) -> list[datetime]:
     """
-    Get all trigger times for a schedule on a specific day.
+    Get all trigger times for a schedule on a specific day (Schema 3.0).
 
-    Supports: interval, solar, moon_phase, fixed_time, sensor triggers.
+    Iterates over all routines and collects trigger times from each.
     """
     trigger_times = []
 
-    if schedule.trigger_type == "interval" and schedule.interval_trigger:
-        trigger = schedule.interval_trigger
+    for routine in schedule.routines:
+        routine_times = _get_routine_trigger_times_for_day(
+            routine, target_date, latitude, longitude, timezone_name
+        )
+        trigger_times.extend(routine_times)
 
+    return trigger_times
+
+
+def _get_routine_trigger_times_for_day(
+    routine: Routine,
+    target_date: date,
+    latitude: float,
+    longitude: float,
+    timezone_name: str,
+) -> list[datetime]:
+    """Get trigger times for a single routine on a specific day."""
+    trigger_times = []
+    trigger = routine.trigger
+
+    if trigger is None:
+        return trigger_times
+
+    if isinstance(trigger, IntervalTrigger):
         # Parse time window
         try:
-            # Try to parse as HH:MM first
             window_start_time = _parse_time_string(trigger.time_window.start_time)
             window_start = datetime.combine(target_date, window_start_time)
         except (ValueError, AttributeError):
-            # If it's a solar event, use solar_time module
             try:
                 from webui.backend.lib.solar_time import parse_time_spec
 
@@ -471,7 +499,6 @@ def _get_trigger_times_for_day(
             except (ImportError, ValueError):
                 window_start = datetime.combine(target_date, time(0, 0))
 
-        # Apply start offset
         window_start += timedelta(minutes=trigger.time_window.start_offset_minutes)
 
         try:
@@ -491,21 +518,17 @@ def _get_trigger_times_for_day(
             except (ImportError, ValueError):
                 window_end = datetime.combine(target_date, time(23, 59))
 
-        # Apply end offset
         window_end += timedelta(minutes=trigger.time_window.end_offset_minutes)
 
-        # Handle overnight windows (end < start)
         if window_end <= window_start:
             window_end += timedelta(days=1)
 
-        # Generate interval times within window
         current = window_start
         while current < window_end:
             trigger_times.append(current)
             current += timedelta(minutes=trigger.interval_minutes)
 
-    elif schedule.trigger_type == "solar" and schedule.solar_trigger:
-        trigger = schedule.solar_trigger
+    elif isinstance(trigger, SolarTrigger):
         try:
             from webui.backend.lib.solar_time import parse_time_spec
 
@@ -519,17 +542,14 @@ def _get_trigger_times_for_day(
             trigger_time += timedelta(minutes=trigger.offset_minutes)
             trigger_times.append(trigger_time)
         except (ImportError, ValueError) as e:
-            logger.warning(f"Solar trigger calculation failed for {schedule.schedule_id}: {e}")
+            logger.warning(f"Solar trigger calculation failed for routine {routine.name}: {e}")
 
-    elif schedule.trigger_type == "moon_phase" and schedule.moon_phase_trigger:
-        trigger = schedule.moon_phase_trigger
+    elif isinstance(trigger, MoonPhaseTrigger):
         try:
             from webui.backend.lib.moon_phase import is_within_moon_phase
 
-            # Check if any target phase is active on this date
             for phase in trigger.phases:
                 if is_within_moon_phase(target_date, phase, trigger.offset_days):
-                    # If time_window provided, use it; otherwise trigger at noon
                     if trigger.time_window:
                         try:
                             window_start_time = _parse_time_string(trigger.time_window.start_time)
@@ -538,27 +558,24 @@ def _get_trigger_times_for_day(
                             trigger_times.append(datetime.combine(target_date, time(12, 0)))
                     else:
                         trigger_times.append(datetime.combine(target_date, time(12, 0)))
-                    break  # Only need one trigger per day
+                    break
         except ImportError as e:
-            logger.warning(f"Moon phase module unavailable for {schedule.schedule_id}: {e}")
+            logger.warning(f"Moon phase module unavailable for routine {routine.name}: {e}")
 
-    elif schedule.trigger_type == "fixed_time" and schedule.fixed_time_trigger:
-        trigger = schedule.fixed_time_trigger
+    elif isinstance(trigger, FixedTimeTrigger):
         try:
             trigger_time = _parse_time_string(trigger.time)
             trigger_times.append(datetime.combine(target_date, trigger_time))
         except ValueError as e:
-            logger.debug(f"Fixed time parse failed for {schedule.schedule_id}: {e}")
+            logger.debug(f"Fixed time parse failed for routine {routine.name}: {e}")
 
-    elif schedule.trigger_type == "sensor" and schedule.sensor_trigger:
-        trigger = schedule.sensor_trigger
-        # Sensor triggers are unpredictable; assume one trigger at window start
+    elif isinstance(trigger, SensorTrigger):
         if trigger.time_window:
             try:
                 window_start_time = _parse_time_string(trigger.time_window.start_time)
                 trigger_times.append(datetime.combine(target_date, window_start_time))
             except ValueError as e:
-                logger.debug(f"Sensor trigger parse failed for {schedule.schedule_id}: {e}")
+                logger.debug(f"Sensor trigger parse failed for routine {routine.name}: {e}")
 
     return trigger_times
 
@@ -592,23 +609,23 @@ def _create_resource_usage(
 
 
 def _create_pattern_execution(
-    pattern: EventPattern,
+    routine: Routine,
     trigger_time: datetime,
 ) -> PatternExecution:
-    """Create PatternExecution from EventPattern at trigger time."""
+    """Create PatternExecution from Routine at trigger time (Schema 3.0)."""
     # Calculate execution duration from max action offset
-    duration_minutes = pattern.duration_minutes if pattern.actions else 0
+    duration_minutes = routine.duration_minutes if routine.actions else 0
     end_time = trigger_time + timedelta(minutes=duration_minutes)
 
     # Create resource usages for all actions
     resource_usages = [
-        _create_resource_usage(action, pattern.pattern_id, i, trigger_time)
-        for i, action in enumerate(pattern.actions)
+        _create_resource_usage(action, routine.routine_id, i, trigger_time)
+        for i, action in enumerate(routine.actions)
     ]
 
     return PatternExecution(
-        pattern_id=pattern.pattern_id,
-        pattern_name=pattern.name,
+        pattern_id=routine.routine_id,
+        pattern_name=routine.name,
         start_time=trigger_time,
         end_time=end_time,
         resource_usages=resource_usages,
@@ -624,9 +641,9 @@ def generate_pattern_executions(
     timezone_name: str = "UTC",
 ) -> list[PatternExecution]:
     """
-    Generate all pattern executions for a schedule within a date range.
+    Generate all pattern executions for a schedule within a date range (Schema 3.0).
 
-    Uses solar_time.py and moon_phase.py to resolve trigger times.
+    Each routine has its own trigger, so we generate executions per-routine.
 
     Args:
         schedule: Schedule to analyze
@@ -641,26 +658,31 @@ def generate_pattern_executions(
     """
     executions = []
 
-    # Iterate through each day in range
-    current = start_date
-    while current <= end_date:
-        # Check if schedule is active on this day
-        if not _is_schedule_active_on_date(schedule, current):
-            current += timedelta(days=1)
-            continue
+    # Process each routine independently
+    for routine in schedule.routines:
+        # Iterate through each day in range
+        current = start_date
+        weekday = current.weekday()
 
-        # Generate trigger times based on trigger_type
-        trigger_times = _get_trigger_times_for_day(
-            schedule, current, latitude, longitude, timezone_name
-        )
+        while current <= end_date:
+            # Check if this routine is active on this day
+            if not _is_routine_active_on_date(routine, current, weekday):
+                current += timedelta(days=1)
+                weekday = current.weekday()
+                continue
 
-        # Create execution for each trigger time and each pattern
-        for trigger_time in trigger_times:
-            for pattern in schedule.event_patterns:
-                execution = _create_pattern_execution(pattern, trigger_time)
+            # Generate trigger times for this routine on this day
+            routine_trigger_times = _get_routine_trigger_times_for_day(
+                routine, current, latitude, longitude, timezone_name
+            )
+
+            # Create execution for each trigger time
+            for trigger_time in routine_trigger_times:
+                execution = _create_pattern_execution(routine, trigger_time)
                 executions.append(execution)
 
-        current += timedelta(days=1)
+            current += timedelta(days=1)
+            weekday = current.weekday()
 
     sorted_executions = sorted(executions, key=lambda e: e.start_time)
     days_analyzed = (end_date - start_date).days + 1

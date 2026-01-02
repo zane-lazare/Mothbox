@@ -1052,11 +1052,11 @@ def list_builtin_patterns() -> tuple[list[dict], list[str]]:
                 schedule_data = json.loads(schedule_file.read_text())
                 schedule_name = schedule_data.get("name", schedule_file.stem)
 
-                for pattern in schedule_data.get("event_patterns", []):
-                    pattern_id = pattern.get("pattern_id")
+                for pattern in schedule_data.get("routines", []):
+                    pattern_id = pattern.get("routine_id")
 
-                    # Deduplicate patterns with pattern_id
-                    # Patterns without pattern_id are always included (cannot be deduplicated reliably)
+                    # Deduplicate routines with routine_id
+                    # Routines without routine_id are always included (cannot be deduplicated reliably)
                     if pattern_id:
                         if pattern_id in seen_ids:
                             logger.debug(f"Skipping duplicate pattern_id: {pattern_id}")
@@ -1087,11 +1087,11 @@ def list_builtin_patterns() -> tuple[list[dict], list[str]]:
                 logger.error(warning_msg)
                 warnings.append(warning_msg)
 
-        # Log warning if no patterns found (possible misconfiguration)
+        # Log warning if no routines found (possible misconfiguration)
         if not patterns and builtin_dir.exists():
             warning_msg = (
-                f"No patterns found in {builtin_dir}. "
-                "Check schedule files for valid event_patterns."
+                f"No routines found in {builtin_dir}. "
+                "Check schedule files for valid routines."
             )
             logger.warning(warning_msg)
             warnings.append(warning_msg)

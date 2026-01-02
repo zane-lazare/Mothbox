@@ -29,9 +29,13 @@ Usage:
     schedule = Schedule(
         schedule_id="",
         name="Nightly Survey",
-        event_patterns=[...],
-        trigger_type="interval",
-        interval_trigger=IntervalTrigger(...),
+        routines=[
+            Routine(
+                routine_id="",
+                trigger=IntervalTrigger(...),
+                actions=[...],
+            ),
+        ],
     )
     create_schedule(schedule)
 

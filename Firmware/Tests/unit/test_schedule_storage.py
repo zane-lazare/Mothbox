@@ -111,17 +111,28 @@ def temp_builtin_dir(tmp_path, monkeypatch):
 
 @pytest.fixture
 def sample_schedule_json():
-    """Return valid schedule JSON string for testing."""
+    """Return valid schedule JSON string for testing (Schema 3.0)."""
     return json.dumps({
-        "schema_version": "2.0",
+        "schema_version": "3.0",
         "schedule_id": _test_uuid("test-schedule-123"),
         "name": "Test Schedule",
         "description": "A test schedule",
-        "event_patterns": [
+        "routines": [
             {
-                "pattern_id": _test_uuid("pattern-1"),
-                "name": "Test Pattern",
-                "description": "Test pattern description",
+                "routine_id": _test_uuid("routine-1"),
+                "name": "Test Routine",
+                "description": "Test routine description",
+                "trigger": {
+                    "trigger_type": "interval",
+                    "interval_minutes": 60,
+                    "time_window": {
+                        "start_time": "21:00",
+                        "end_time": "05:00",
+                        "start_offset_minutes": 0,
+                        "end_offset_minutes": 0
+                    },
+                    "days_of_week": None
+                },
                 "actions": [
                     {
                         "action_type": "gpio",
@@ -131,27 +142,9 @@ def sample_schedule_json():
                         "description": "Turn on attract lights"
                     }
                 ],
-                "category": "user",
-                "tags": []
+                "pre_condition": None
             }
         ],
-        "trigger_type": "interval",
-        "interval_trigger": {
-            "interval_minutes": 60,
-            "time_window": {
-                "start_time": "21:00",
-                "end_time": "05:00",
-                "start_offset_minutes": 0,
-                "end_offset_minutes": 0
-            },
-            "days_of_week": None
-        },
-        "solar_trigger": None,
-        "moon_phase_trigger": None,
-        "fixed_time_trigger": None,
-        "sensor_trigger": None,
-        "start_date": None,
-        "end_date": None,
         "deployment_id": None,
         "create_deployment": False,
         "enabled": True,
@@ -318,16 +311,14 @@ class TestCRUDOperations:
         assert schedule_file.exists()
 
     def test_create_schedule_raises_on_invalid_schedule(self, temp_schedules_dir):
-        """Invalid schedules raise ScheduleValidationError."""
+        """Invalid schedules raise ScheduleValidationError (Schema 3.0)."""
         from webui.backend.lib.schedule_schema import Schedule
 
-        # Create invalid schedule (missing required trigger config)
+        # Create invalid schedule - empty routines is invalid in Schema 3.0
         invalid_schedule = Schedule(
             schedule_id=_test_uuid("invalid-schedule"),
             name="Invalid Schedule",
-            event_patterns=[],  # Empty patterns (invalid)
-            trigger_type="interval",
-            interval_trigger=None,  # Missing required trigger config
+            routines=[],  # Empty routines (invalid in Schema 3.0)
         )
 
         with pytest.raises(ScheduleValidationError):

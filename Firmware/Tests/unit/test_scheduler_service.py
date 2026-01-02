@@ -52,16 +52,16 @@ def temp_schedules_dir(tmp_path, monkeypatch):
 
 @pytest.fixture
 def sample_schedule():
-    """Create a valid Schedule object for testing."""
+    """Create a valid Schedule object for testing (Schema 3.0)."""
     from webui.backend.lib.schedule_schema import (
-        EventPattern,
+        Routine,
         IntervalTrigger,
         Action,
         Schedule,
         TimeWindow,
     )
 
-    # Create a simple pattern: Turn on UV, take photo, turn off UV
+    # Create a simple routine: Turn on UV, take photo, turn off UV
     actions = [
         Action(
             action_type="gpio",
@@ -83,14 +83,6 @@ def sample_schedule():
         ),
     ]
 
-    pattern = EventPattern(
-        pattern_id="",
-        name="UV Capture Cycle",
-        description="Standard UV light photo capture sequence",
-        actions=actions,
-        category="user",
-    )
-
     time_window = TimeWindow(
         start_time="21:00",
         end_time="05:00",
@@ -101,13 +93,19 @@ def sample_schedule():
         time_window=time_window,
     )
 
+    routine = Routine(
+        routine_id="",
+        name="UV Capture Cycle",
+        description="Standard UV light photo capture sequence",
+        trigger=trigger,
+        actions=actions,
+    )
+
     schedule = Schedule(
         schedule_id="",
         name="Nightly Moth Survey",
         description="Hourly captures from 9 PM to 5 AM",
-        event_patterns=[pattern],
-        trigger_type="interval",
-        interval_trigger=trigger,
+        routines=[routine],
         enabled=True,
     )
 
@@ -155,9 +153,11 @@ def scheduler_service(temp_schedules_dir):
 
 @pytest.fixture
 def multiple_schedules(temp_schedules_dir, sample_schedule):
-    """Create 5 test schedules in storage."""
+    """Create 5 test schedules in storage (Schema 3.0)."""
     from webui.backend.lib.schedule_schema import (
+        Action,
         IntervalTrigger,
+        Routine,
         Schedule,
         TimeWindow,
     )
@@ -180,13 +180,19 @@ def multiple_schedules(temp_schedules_dir, sample_schedule):
             time_window=time_window,
         )
 
+        # Create routine with the trigger
+        routine = Routine(
+            routine_id=_test_uuid(f"routine-{i}"),
+            name=f"Test Routine {i}",
+            trigger=trigger,
+            actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+        )
+
         schedule = Schedule(
             schedule_id=_test_uuid(f"schedule-{i}"),
             name=f"Test Schedule {i}",
             description=f"Test description {i}",
-            event_patterns=sample_schedule.event_patterns,
-            trigger_type="interval",
-            interval_trigger=trigger,
+            routines=[routine],
             enabled=(i % 2 == 0),  # Alternate enabled/disabled
         )
 
@@ -451,7 +457,7 @@ class TestListSchedules:
         for schedule in schedules:
             assert hasattr(schedule, 'schedule_id')
             assert hasattr(schedule, 'name')
-            assert hasattr(schedule, 'event_patterns')
+            assert hasattr(schedule, 'routines')
 
     def test_list_schedules_caches_individual(self, scheduler_service, temp_schedules_dir, multiple_schedules):
         """Individual schedules cached after listing."""
@@ -490,9 +496,7 @@ class TestCacheBehavior:
                 schedule_id=_test_uuid(f"evict-{i}"),
                 name=f"Evict Test {i}",
                 description="Test schedule",
-                event_patterns=sample_schedule.event_patterns,
-                trigger_type="interval",
-                interval_trigger=sample_schedule.interval_trigger,
+                routines=sample_schedule.routines,
                 enabled=True,
             )
             create_schedule(schedule)
@@ -550,9 +554,7 @@ class TestCacheBehavior:
                 schedule_id=_test_uuid(f"track-evict-{i}"),
                 name=f"Track Evict {i}",
                 description="Test schedule",
-                event_patterns=sample_schedule.event_patterns,
-                trigger_type="interval",
-                interval_trigger=sample_schedule.interval_trigger,
+                routines=sample_schedule.routines,
                 enabled=True,
             )
             create_schedule(schedule)
@@ -955,9 +957,7 @@ class TestActivateSchedule:
             schedule_id=_test_uuid("activate-second"),
             name="Second Schedule",
             description="Second test schedule",
-            event_patterns=sample_schedule.event_patterns,
-            trigger_type="interval",
-            interval_trigger=sample_schedule.interval_trigger,
+            routines=sample_schedule.routines,
             enabled=True,
         )
         create_schedule(second_schedule)
@@ -1270,9 +1270,7 @@ class TestGetStatistics:
             schedule_id=_test_uuid("stats-ops-2"),
             name="Another Schedule",
             description="Test schedule",
-            event_patterns=sample_schedule.event_patterns,
-            trigger_type="interval",
-            interval_trigger=sample_schedule.interval_trigger,
+            routines=sample_schedule.routines,
             enabled=True,
         )
         create_schedule(another_schedule)
@@ -1319,9 +1317,7 @@ def _create_test_schedule(schedule_id: str, sample_schedule) -> Schedule:
         schedule_id=schedule_id,
         name=f"Concurrent Test {schedule_id}",
         description=f"Schedule for concurrent testing - {schedule_id}",
-        event_patterns=sample_schedule.event_patterns,
-        trigger_type="interval",
-        interval_trigger=sample_schedule.interval_trigger,
+        routines=sample_schedule.routines,
         enabled=True,
     )
 
@@ -2058,17 +2054,23 @@ class TestActivateScheduleConflictDetection:
 
     @pytest.fixture
     def conflicting_schedule(self):
-        """Create a schedule with conflicting patterns (overlapping camera usage)."""
+        """Create a schedule with conflicting routines (overlapping camera usage)."""
         from webui.backend.lib.schedule_schema import (
-            EventPattern,
+            Routine,
             IntervalTrigger,
             Action,
             Schedule,
             TimeWindow,
         )
 
-        # Pattern 1: Takes photo at offset 10
-        pattern1_actions = [
+        # Trigger for both routines - 15 minute interval
+        trigger = IntervalTrigger(
+            interval_minutes=15,
+            time_window=TimeWindow(start_time="21:00", end_time="22:00"),
+        )
+
+        # Routine 1: Takes photo at offset 10
+        routine1_actions = [
             Action(
                 action_type="gpio",
                 action_name="attract_on",
@@ -2085,14 +2087,15 @@ class TestActivateScheduleConflictDetection:
                 offset_minutes=20,
             ),
         ]
-        pattern1 = EventPattern(
-            pattern_id=_test_uuid("conflict-pattern-1"),
+        routine1 = Routine(
+            routine_id=_test_uuid("conflict-routine-1"),
             name="UV Capture 1",
-            actions=pattern1_actions,
+            trigger=trigger,
+            actions=routine1_actions,
         )
 
-        # Pattern 2: Also takes photo at offset 10
-        pattern2_actions = [
+        # Routine 2: Also takes photo at offset 10
+        routine2_actions = [
             Action(
                 action_type="gpio",
                 action_name="flash_on",
@@ -2109,24 +2112,17 @@ class TestActivateScheduleConflictDetection:
                 offset_minutes=20,
             ),
         ]
-        pattern2 = EventPattern(
-            pattern_id=_test_uuid("conflict-pattern-2"),
+        routine2 = Routine(
+            routine_id=_test_uuid("conflict-routine-2"),
             name="Flash Capture",
-            actions=pattern2_actions,
-        )
-
-        # 15 minute interval but patterns take 20 minutes each = overlap
-        trigger = IntervalTrigger(
-            interval_minutes=15,
-            time_window=TimeWindow(start_time="21:00", end_time="22:00"),
+            trigger=trigger,
+            actions=routine2_actions,
         )
 
         return Schedule(
             schedule_id=_test_uuid("conflicting-schedule"),
             name="Conflicting Schedule",
-            event_patterns=[pattern1, pattern2],
-            trigger_type="interval",
-            interval_trigger=trigger,
+            routines=[routine1, routine2],
             enabled=True,
         )
 
@@ -2197,22 +2193,35 @@ class TestActivateScheduleConflictDetection:
         assert scheduler_service._active_schedule_id == _test_uuid("non-conflicting-schedule")
 
     def test_activate_conflict_check_with_location(
-        self, scheduler_service, temp_schedules_dir, sample_schedule
+        self, scheduler_service, temp_schedules_dir
     ):
         """activate_schedule should pass location parameters to conflict detection."""
-        # Create schedule with solar trigger
-        from webui.backend.lib.schedule_schema import SolarTrigger
+        # Create schedule with solar trigger (Schema 3.0)
+        from webui.backend.lib.schedule_schema import (
+            Action,
+            Routine,
+            Schedule,
+            SolarTrigger,
+        )
         from webui.backend.lib.schedule_storage import create_schedule
 
-        sample_schedule.schedule_id = _test_uuid("solar-schedule")
-        sample_schedule.enabled = True
-        sample_schedule.trigger_type = "solar"
-        sample_schedule.interval_trigger = None
-        sample_schedule.solar_trigger = SolarTrigger(
+        solar_trigger = SolarTrigger(
             solar_event="sunset",
             offset_minutes=30,
         )
-        create_schedule(sample_schedule)
+        routine = Routine(
+            routine_id=_test_uuid("solar-routine"),
+            name="Solar Routine",
+            trigger=solar_trigger,
+            actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+        )
+        schedule = Schedule(
+            schedule_id=_test_uuid("solar-schedule"),
+            name="Solar Schedule",
+            routines=[routine],
+            enabled=True,
+        )
+        create_schedule(schedule)
 
         # Activate with location parameters (Panama) - should succeed (no exception)
         scheduler_service.activate_schedule(
@@ -2223,7 +2232,7 @@ class TestActivateScheduleConflictDetection:
             timezone_name="America/Panama",
         )
 
-        # Should succeed (single pattern, no conflicts)
+        # Should succeed (single routine, no conflicts)
         assert scheduler_service._active_schedule_id == _test_uuid("solar-schedule")
 
 

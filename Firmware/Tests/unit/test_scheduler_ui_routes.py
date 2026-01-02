@@ -134,18 +134,18 @@ def mock_preview_result():
 
 @pytest.fixture
 def valid_schedule_payload():
-    """Valid schedule JSON for POST/PUT tests."""
+    """Valid schedule JSON for POST/PUT tests (Schema 3.0)."""
     return {
         "name": "Test Schedule",
         "description": "A test schedule",
-        "trigger_type": "fixed_time",
-        "fixed_time_trigger": {
-            "time": "21:00",
-            "days_of_week": [0, 1, 2, 3, 4, 5, 6],
-        },
-        "event_patterns": [
+        "routines": [
             {
                 "name": "Simple Capture",
+                "trigger": {
+                    "trigger_type": "fixed_time",
+                    "time": "21:00",
+                    "days_of_week": [0, 1, 2, 3, 4, 5, 6],
+                },
                 "actions": [
                     {
                         "action_type": "camera",

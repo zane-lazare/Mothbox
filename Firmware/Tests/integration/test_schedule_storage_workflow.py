@@ -43,9 +43,9 @@ sys.path.insert(0, str(FIRMWARE_DIR / "webui" / "backend"))
 os.environ.setdefault("MOTHBOX_ENV", "test")
 
 from webui.backend.lib.schedule_schema import (
-    EventPattern,
-    IntervalTrigger,
     Action,
+    IntervalTrigger,
+    Routine,
     Schedule,
     TimeWindow,
 )
@@ -90,7 +90,7 @@ def temp_schedules_env(tmp_path, monkeypatch):
 
 @pytest.fixture
 def sample_schedule_factory():
-    """Factory function to create valid schedules with unique IDs."""
+    """Factory function to create valid schedules with unique IDs (Schema 3.0)."""
 
     def _create_schedule(schedule_id="", name="Test Schedule", interval_minutes=60):
         """Create a valid schedule with specified parameters."""
@@ -105,26 +105,22 @@ def sample_schedule_factory():
             description="Turn on attract lights",
         )
 
-        pattern = EventPattern(
-            pattern_id=_test_uuid(f"pattern-{schedule_id}"),
-            name="UV Capture Cycle",
-            description="Test pattern",
-            actions=[action],
-            category="user",
-            tags=["test"],
-        )
-
         window = TimeWindow(start_time="21:00", end_time="05:00")
-
         trigger = IntervalTrigger(interval_minutes=interval_minutes, time_window=window)
+
+        routine = Routine(
+            routine_id=_test_uuid(f"routine-{schedule_id}"),
+            name="UV Capture Cycle",
+            description="Test routine",
+            trigger=trigger,
+            actions=[action],
+        )
 
         schedule = Schedule(
             schedule_id=schedule_id,
             name=name,
             description="A test schedule",
-            event_patterns=[pattern],
-            trigger_type="interval",
-            interval_trigger=trigger,
+            routines=[routine],
             enabled=True,
             is_active=False,
         )
@@ -164,7 +160,7 @@ class TestScheduleWorkflow:
         assert read_schedule_obj is not None, "Should read schedule"
         assert read_schedule_obj.schedule_id == schedule.schedule_id
         assert read_schedule_obj.name == "Workflow Test Schedule"
-        assert len(read_schedule_obj.event_patterns) == 1
+        assert len(read_schedule_obj.routines) == 1
 
         # 3. UPDATE - Partial update
         original_modified_at = read_schedule_obj.modified_at
@@ -179,7 +175,7 @@ class TestScheduleWorkflow:
         assert updated_schedule.description == "Updated description"
         # Original fields should be preserved
         assert updated_schedule.schedule_id == schedule.schedule_id
-        assert len(updated_schedule.event_patterns) == 1
+        assert len(updated_schedule.routines) == 1
         # Modified timestamp should be updated
         assert updated_schedule.modified_at != original_modified_at
 
@@ -243,7 +239,7 @@ class TestScheduleWorkflow:
             assert result is not None
             assert result.schedule_id == schedule.schedule_id
             assert result.name == "Concurrent Read Test"
-            assert len(result.event_patterns) == 1
+            assert len(result.routines) == 1
 
     def test_schedule_persists_across_sessions(
         self, temp_schedules_env, sample_schedule_factory
@@ -269,7 +265,7 @@ class TestScheduleWorkflow:
         # Verify data structure
         assert disk_data["schedule_id"] == schedule.schedule_id
         assert disk_data["name"] == "Persistence Test Schedule"
-        assert disk_data["schema_version"] == "2.0"
+        assert disk_data["schema_version"] == "3.0"
 
         # Simulate "new session" by reading schedule back
         read_schedule_obj = read_schedule(schedule.schedule_id)
@@ -296,11 +292,10 @@ class TestScheduleWorkflow:
         schedule_file_2.write_text(
             json.dumps(
                 {
+                    "schema_version": "3.0",
                     "schedule_id": schedule_id_2,
                     "name": "Invalid Schedule",
-                    "event_patterns": [],  # Empty patterns (invalid)
-                    "trigger_type": "interval",
-                    "interval_trigger": None,  # Missing required trigger
+                    "routines": [],  # Empty routines (invalid)
                 }
             )
         )
@@ -344,51 +339,49 @@ class TestScheduleWorkflow:
             assert updated_schedule is not None
             assert updated_schedule.name == updated_name
 
-    def test_max_patterns_boundary(self, temp_schedules_env):
-        """Schedule with exactly 10 patterns (MAX_PATTERNS_PER_SCHEDULE) should work."""
-        from webui.backend.lib.schedule_schema import MAX_PATTERNS_PER_SCHEDULE
+    def test_max_routines_boundary(self, temp_schedules_env):
+        """Schedule with exactly 10 routines (MAX_ROUTINES_PER_SCHEDULE) should work."""
+        from webui.backend.lib.schedule_schema import MAX_ROUTINES_PER_SCHEDULE
 
-        # Create schedule with MAX_PATTERNS_PER_SCHEDULE patterns
-        patterns = []
-        for i in range(MAX_PATTERNS_PER_SCHEDULE):
+        # Create schedule with MAX_ROUTINES_PER_SCHEDULE routines
+        routines = []
+        window = TimeWindow(start_time="21:00", end_time="05:00")
+
+        for i in range(MAX_ROUTINES_PER_SCHEDULE):
             action = Action(
                 action_type="gpio",
                 action_name="attract_on",
                 offset_minutes=0,
                 description=f"Action {i + 1}",
             )
-            pattern = EventPattern(
-                pattern_id=_test_uuid(f"max-pattern-{i + 1}"),
-                name=f"Pattern {i + 1}",
-                description=f"Test pattern {i + 1}",
+            trigger = IntervalTrigger(interval_minutes=60, time_window=window)
+            routine = Routine(
+                routine_id=_test_uuid(f"max-routine-{i + 1}"),
+                name=f"Routine {i + 1}",
+                description=f"Test routine {i + 1}",
+                trigger=trigger,
                 actions=[action],
-                category="user",
             )
-            patterns.append(pattern)
-
-        window = TimeWindow(start_time="21:00", end_time="05:00")
-        trigger = IntervalTrigger(interval_minutes=60, time_window=window)
+            routines.append(routine)
 
         schedule = Schedule(
-            schedule_id=_test_uuid("max-patterns-test"),
-            name="Max Patterns Test",
-            event_patterns=patterns,
-            trigger_type="interval",
-            interval_trigger=trigger,
+            schedule_id=_test_uuid("max-routines-test"),
+            name="Max Routines Test",
+            routines=routines,
         )
 
-        # Should successfully create schedule with max patterns
+        # Should successfully create schedule with max routines
         success = create_schedule(schedule)
         assert success is True
 
-        # Read back and verify all patterns
+        # Read back and verify all routines
         read_schedule_obj = read_schedule(schedule.schedule_id)
         assert read_schedule_obj is not None
-        assert len(read_schedule_obj.event_patterns) == MAX_PATTERNS_PER_SCHEDULE
+        assert len(read_schedule_obj.routines) == MAX_ROUTINES_PER_SCHEDULE
 
-        # Verify each pattern
-        for i, pattern in enumerate(read_schedule_obj.event_patterns):
-            assert pattern.name == f"Pattern {i + 1}"
+        # Verify each routine
+        for i, routine in enumerate(read_schedule_obj.routines):
+            assert routine.name == f"Routine {i + 1}"
 
     def test_backup_can_be_restored(self, temp_schedules_env, sample_schedule_factory):
         """After delete with backup, .bak file can restore schedule."""
@@ -426,9 +419,7 @@ class TestScheduleWorkflow:
         assert restored_schedule is not None
         assert restored_schedule.schedule_id == original_schedule.schedule_id
         assert restored_schedule.name == original_schedule.name
-        assert len(restored_schedule.event_patterns) == len(
-            original_schedule.event_patterns
-        )
+        assert len(restored_schedule.routines) == len(original_schedule.routines)
 
     def test_builtin_immutability_in_workflow(
         self, temp_schedules_env, sample_schedule_factory
