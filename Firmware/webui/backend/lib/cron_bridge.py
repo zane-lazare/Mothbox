@@ -654,7 +654,7 @@ def routine_to_dated_cron(
         >>> routine = Routine(
         ...     routine_id="r1",
         ...     trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
-        ...     actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)]
+        ...     actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
         ... )
         >>> entries = routine_to_dated_cron(routine, years_ahead=1)
         >>> len(entries)  # ~365 entries for 1 year

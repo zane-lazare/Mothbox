@@ -985,10 +985,7 @@ def detect_time_collisions(
 
             # Generate human-readable message
             if len(routine_names) == 2:
-                message = (
-                    f"'{routine_names[0]}' and '{routine_names[1]}' "
-                    f"execute at identical time"
-                )
+                message = f"'{routine_names[0]}' and '{routine_names[1]}' execute at identical time"
             else:
                 names_str = ", ".join(f"'{n}'" for n in routine_names)
                 message = f"{len(routine_names)} routines execute at identical time: {names_str}"
