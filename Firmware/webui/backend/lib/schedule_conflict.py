@@ -104,13 +104,13 @@ class ResourceUsage:
 @dataclass
 class PatternExecution:
     """
-    Represents a single execution of an EventPattern at a specific time.
+    Represents a single execution of a Routine at a specific time.
 
     Attributes:
-        pattern_id: The EventPattern ID
-        pattern_name: Human-readable pattern name
-        start_time: Absolute start time of pattern execution
-        end_time: When pattern completes (start + duration)
+        pattern_id: The Routine ID
+        pattern_name: Human-readable routine name
+        start_time: Absolute start time of routine execution
+        end_time: When routine completes (start + duration)
         resource_usages: List of resources used during execution
     """
 

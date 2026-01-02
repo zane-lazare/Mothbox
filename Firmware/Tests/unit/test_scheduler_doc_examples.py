@@ -18,23 +18,23 @@ import pytest
 # Check if implementation exists for graceful skipping during TDD
 try:
     from webui.backend.lib.schedule_schema import (
+        Action,
         # Dataclasses
         CronTrigger,
         FixedTimeTrigger,
         IntervalTrigger,
         MoonPhaseTrigger,
-        Action,
         Routine,
         Schedule,
         SensorTrigger,
         SolarTrigger,
         TimeWindow,
+        validate_action,
         # Validation functions
         validate_cron_trigger,
         validate_fixed_time_trigger,
         validate_interval_trigger,
         validate_moon_phase_trigger,
-        validate_action,
         validate_routine,
         validate_schedule,
         validate_sensor_trigger,
@@ -75,7 +75,7 @@ SKIP_PATTERNS = [
     r'\[\.\.\.\]',       # Array ellipsis
     r'\{\.\.\.\}',       # Object ellipsis
     r'"UUID string"',    # Type placeholder
-    r'\[EventPattern\]', # Type placeholder
+    r'\[Routine\]',      # Type placeholder
     r'\[Action\]',# Type placeholder
     r'TimeWindow \| null',# Type placeholder
     r': number',         # Type placeholder (not in quotes)
@@ -202,20 +202,20 @@ def identify_schema_type(json_obj: dict) -> str | None:
     if "trigger_type" in keys and "event_patterns" in keys:
         return "Schedule"
 
-    # EventPattern - can have pattern_id (responses) or not (request bodies)
-    # Must have actions array with Action-like objects
+    # Routine - can have routine_id (responses) or not (request bodies)
+    # Must have actions array with Action-like objects and a trigger
     if "actions" in keys and isinstance(json_obj.get("actions"), list):
         actions = json_obj["actions"]
         if len(actions) > 0:
             first_action = actions[0]
-            # Has actions with action_type - it's an EventPattern
-            # But exclude Schedule objects (which also have event_patterns)
+            # Has actions with action_type - it's a Routine
+            # But exclude Schedule objects (which have routines array)
             if (
                 isinstance(first_action, dict)
                 and "action_type" in first_action
-                and "trigger_type" not in keys
+                and "routines" not in keys
             ):
-                return "EventPattern"
+                return "Routine"
 
     # Action
     if "action_type" in keys and "action_name" in keys:
@@ -263,9 +263,9 @@ def validate_json_example(json_obj: dict, schema_type: str) -> tuple[bool, str |
             schedule = Schedule.from_dict(json_obj)
             return validate_schedule(schedule)
 
-        elif schema_type == "EventPattern":
-            pattern = EventPattern.from_dict(json_obj)
-            return validate_event_pattern(pattern)
+        elif schema_type == "Routine":
+            routine = Routine.from_dict(json_obj)
+            return validate_routine(routine)
 
         elif schema_type == "Action":
             action = Action.from_dict(json_obj)
@@ -310,7 +310,7 @@ def extract_nested_objects(json_obj: dict, line_num: int) -> list[tuple[int, dic
     """
     Extract nested validatable objects from API response wrappers.
 
-    For example, {"patterns": [...], "warnings": []} contains EventPattern objects.
+    For example, {"patterns": [...], "warnings": []} contains Routine objects.
 
     Args:
         json_obj: The wrapper object
@@ -425,14 +425,15 @@ class TestSchemaTypeDetection:
         }
         assert identify_schema_type(obj) == "Schedule"
 
-    def test_detect_event_pattern(self):
-        """Should detect EventPattern objects."""
+    def test_detect_routine(self):
+        """Should detect Routine objects."""
         obj = {
-            "pattern_id": "456",
-            "name": "Test Pattern",
+            "routine_id": "456",
+            "name": "Test Routine",
+            "trigger": {"trigger_type": "solar", "solar_event": "sunset"},
             "actions": [{"action_type": "gpio", "action_name": "attract_on"}]
         }
-        assert identify_schema_type(obj) == "EventPattern"
+        assert identify_schema_type(obj) == "Routine"
 
     def test_detect_pattern_action(self):
         """Should detect Action objects."""
@@ -563,15 +564,15 @@ class TestAllDocExamples:
             valid, error = validate_json_example(json_obj, schema_type)
             assert valid, f"Line {line_num}: Schedule validation failed: {error}"
 
-    def test_event_pattern_examples_validate(self, all_examples):
-        """All EventPattern examples should validate."""
-        pattern_examples = [
-            (ln, js, tp) for ln, js, tp in all_examples if tp == "EventPattern"
+    def test_routine_examples_validate(self, all_examples):
+        """All Routine examples should validate."""
+        routine_examples = [
+            (ln, js, tp) for ln, js, tp in all_examples if tp == "Routine"
         ]
 
-        for line_num, json_obj, schema_type in pattern_examples:
+        for line_num, json_obj, schema_type in routine_examples:
             valid, error = validate_json_example(json_obj, schema_type)
-            assert valid, f"Line {line_num}: EventPattern validation failed: {error}"
+            assert valid, f"Line {line_num}: Routine validation failed: {error}"
 
     def test_trigger_examples_validate(self, all_examples):
         """All trigger examples should validate."""

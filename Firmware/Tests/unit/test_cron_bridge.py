@@ -18,19 +18,18 @@ from webui.backend.lib.cron_bridge import (
     interval_trigger_to_cron,
     is_moon_phase_active,
     moon_phase_trigger_to_cron,
-    pattern_to_cron_entries,
     remove_from_system,
+    routine_to_cron_entries,
     schedule_to_cron,
     sensor_trigger_to_cron,
     set_rtc_wakealarm,
     solar_trigger_to_cron,
 )
 from webui.backend.lib.schedule_schema import (
-    EventPattern,
+    Action,
     FixedTimeTrigger,
     IntervalTrigger,
     MoonPhaseTrigger,
-    Action,
     Routine,
     Schedule,
     SensorTrigger,
@@ -532,13 +531,22 @@ class TestMoonPhaseTriggerConversion:
 
 
 class TestActionSequencing:
-    """Test event pattern action sequencing."""
+    """Test routine action sequencing."""
+
+    def _make_routine(self, name: str, actions: list[Action]) -> Routine:
+        """Helper to create a Routine with a default trigger for testing."""
+        return Routine(
+            routine_id="",
+            name=name,
+            trigger=SolarTrigger(solar_event="sunset"),  # Minimal trigger for tests
+            actions=actions,
+        )
 
     def test_single_action_at_offset_zero(self):
         """Single action at offset=0 executes at base time."""
         action = Action(action_type="gpio", action_name="attract_on", offset_minutes=0)
-        pattern = EventPattern(pattern_id="p1", name="Test", description="", actions=[action])
-        entries = pattern_to_cron_entries(pattern, base_time="21:00")
+        routine = self._make_routine("Test", [action])
+        entries = routine_to_cron_entries(routine, base_time="21:00")
         assert len(entries) == 1
         # Should be at 21:00
         assert "0 21" in entries[0].expression
@@ -550,8 +558,8 @@ class TestActionSequencing:
             Action(action_type="camera", action_name="takephoto", offset_minutes=5),
             Action(action_type="gpio", action_name="attract_off", offset_minutes=15),
         ]
-        pattern = EventPattern(pattern_id="p1", name="UV Capture", description="", actions=actions)
-        entries = pattern_to_cron_entries(pattern, base_time="21:00")
+        routine = self._make_routine("UV Capture", actions)
+        entries = routine_to_cron_entries(routine, base_time="21:00")
         # UV on at 21:00, photo at 21:05, UV off at 21:15
         assert len(entries) == 3
         expressions = [e.expression for e in entries]
@@ -565,8 +573,8 @@ class TestActionSequencing:
             Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
             Action(action_type="gpio", action_name="attract_off", offset_minutes=45),
         ]
-        pattern = EventPattern(pattern_id="p1", name="Test", description="", actions=actions)
-        entries = pattern_to_cron_entries(pattern, base_time="21:30")
+        routine = self._make_routine("Test", actions)
+        entries = routine_to_cron_entries(routine, base_time="21:30")
         # attract_on at 21:30, attract_off at 22:15
         expressions = [e.expression for e in entries]
         assert "30 21 * * *" in expressions  # 21:30
@@ -575,24 +583,24 @@ class TestActionSequencing:
     def test_offset_crosses_midnight(self):
         """Offset pushing into next day handled correctly."""
         action = Action(action_type="gpio", action_name="attract_off", offset_minutes=90)
-        pattern = EventPattern(pattern_id="p1", name="Test", description="", actions=[action])
-        entries = pattern_to_cron_entries(pattern, base_time="23:00")
+        routine = self._make_routine("Test", [action])
+        entries = routine_to_cron_entries(routine, base_time="23:00")
         # 23:00 + 90 = 00:30 (next day, but cron is day-agnostic for repeating schedules)
         assert "30 0 * * *" in entries[0].expression
 
     def test_action_with_days_of_week(self):
         """Actions respect days_of_week constraint."""
         action = Action(action_type="gpio", action_name="attract_on", offset_minutes=0)
-        pattern = EventPattern(pattern_id="p1", name="Test", description="", actions=[action])
-        entries = pattern_to_cron_entries(pattern, base_time="21:00", days_of_week=[0, 1, 2])  # Mon-Wed ISO
+        routine = self._make_routine("Test", [action])
+        entries = routine_to_cron_entries(routine, base_time="21:00", days_of_week=[0, 1, 2])  # Mon-Wed ISO
         # Cron days should be 1,2,3 (Mon-Wed in cron)
         assert "1,2,3" in entries[0].expression
 
     def test_action_command_from_cron_security(self):
         """Action commands are built using cron_security module."""
         action = Action(action_type="gpio", action_name="attract_on", offset_minutes=0)
-        pattern = EventPattern(pattern_id="p1", name="Test", description="", actions=[action])
-        entries = pattern_to_cron_entries(pattern, base_time="21:00")
+        routine = self._make_routine("Test", [action])
+        entries = routine_to_cron_entries(routine, base_time="21:00")
         # Command should be from get_validated_command
         assert "/usr/bin/python3" in entries[0].command
         assert "Attract_On.py" in entries[0].command
@@ -600,9 +608,9 @@ class TestActionSequencing:
     def test_entries_have_descriptive_comments(self):
         """Generated entries have meaningful comments."""
         action = Action(action_type="camera", action_name="takephoto", offset_minutes=5)
-        pattern = EventPattern(pattern_id="p1", name="UV Capture", description="", actions=[action])
-        entries = pattern_to_cron_entries(pattern, base_time="21:00")
-        # Comment should mention pattern name and action
+        routine = self._make_routine("UV Capture", [action])
+        entries = routine_to_cron_entries(routine, base_time="21:00")
+        # Comment should mention routine name and action
         assert "UV Capture" in entries[0].comment
         assert "takephoto" in entries[0].comment.lower() or "camera" in entries[0].comment.lower()
 

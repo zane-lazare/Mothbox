@@ -24,7 +24,6 @@ from webui.backend.lib.cron_security import (
 from webui.backend.lib.moon_phase import get_moon_phase, is_within_moon_phase
 from webui.backend.lib.schedule_schema import (
     CronTrigger,
-    EventPattern,
     FixedTimeTrigger,
     IntervalTrigger,
     MoonPhaseTrigger,
@@ -827,26 +826,26 @@ def cron_trigger_to_cron(
     ]
 
 
-def pattern_to_cron_entries(
-    pattern: EventPattern,
+def routine_to_cron_entries(
+    routine: Routine,
     base_time: str,  # "HH:MM" format
     days_of_week: list[int] | None = None,
     comment_prefix: str = CRON_COMMENT_PREFIX,
 ) -> list[CronEntry]:
-    """Convert EventPattern actions to cron entries.
+    """Convert Routine actions to cron entries.
 
-    Each action in the pattern becomes a separate cron entry with:
+    Each action in the routine becomes a separate cron entry with:
     - Execution time = base_time + action.offset_minutes
     - Command from cron_security.get_validated_command()
 
     Args:
-        pattern: EventPattern with actions list
+        routine: Routine with actions list
         base_time: Base execution time in "HH:MM" format
         days_of_week: Optional ISO weekday restrictions (0=Mon..6=Sun)
         comment_prefix: Prefix for cron comments
 
     Returns:
-        List of CronEntry objects, one per action in the pattern
+        List of CronEntry objects, one per action in the routine
     """
     base_hour, base_minute = map(int, base_time.split(":"))
     base_total_minutes = base_hour * 60 + base_minute
@@ -856,7 +855,8 @@ def pattern_to_cron_entries(
 
     entries = []
 
-    for action in pattern.actions:
+    routine_name = routine.get_display_name()
+    for action in routine.actions:
         # Calculate execution time
         exec_total_minutes = base_total_minutes + action.offset_minutes
 
@@ -873,7 +873,7 @@ def pattern_to_cron_entries(
             # Fallback for unknown actions (shouldn't happen with proper validation)
             logger.warning(
                 f"Unknown action type '{action.action_type}/{action.action_name}' "
-                f"in pattern - skipping cron entry"
+                f"in routine - skipping cron entry"
             )
             command = f"# Unknown action: {action.action_type}/{action.action_name}"
 
@@ -882,7 +882,7 @@ def pattern_to_cron_entries(
 
         # Build comment
         comment = (
-            f"{comment_prefix} {pattern.name}: {action.action_type}/{action.action_name} "
+            f"{comment_prefix} {routine_name}: {action.action_type}/{action.action_name} "
             f"at offset +{action.offset_minutes}min"
         )
 
@@ -901,13 +901,13 @@ def _convert_fixed_time_schedule(schedule: Schedule, days_ahead: int = 7) -> Cro
     trigger = schedule.fixed_time_trigger
     entries = []
 
-    for pattern in schedule.routines:
-        pattern_entries = pattern_to_cron_entries(
-            pattern,
+    for routine in schedule.routines:
+        routine_entries = routine_to_cron_entries(
+            routine,
             base_time=trigger.time,
             days_of_week=trigger.days_of_week,
         )
-        entries.extend(pattern_entries)
+        entries.extend(routine_entries)
 
     return CronBridgeResult(
         entries=entries,
@@ -930,13 +930,13 @@ def _convert_interval_schedule(schedule: Schedule) -> CronBridgeResult:
         parts = base_entry.expression.split()
         base_time = f"{int(parts[1]):02d}:{int(parts[0]):02d}"  # "HH:MM"
 
-        for pattern in schedule.routines:
-            pattern_entries = pattern_to_cron_entries(
-                pattern,
+        for routine in schedule.routines:
+            routine_entries = routine_to_cron_entries(
+                routine,
                 base_time=base_time,
                 days_of_week=trigger.days_of_week,
             )
-            entries.extend(pattern_entries)
+            entries.extend(routine_entries)
 
     return CronBridgeResult(
         entries=entries,

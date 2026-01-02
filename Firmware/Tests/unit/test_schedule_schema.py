@@ -2,9 +2,9 @@
 Unit tests for schedule schema dataclasses.
 
 Tests the core schedule schema including:
-- Action, EventPattern dataclasses
+- Action, Routine dataclasses
 - TimeWindow and trigger dataclasses (Interval, Solar, MoonPhase, FixedTime, Sensor)
-- Schedule dataclass with embedded event patterns
+- Schedule dataclass with embedded routines
 - Validation functions for all types
 
 Coverage target: 85%+
@@ -43,7 +43,6 @@ try:
         # Dataclasses
         Action,
         CronTrigger,
-        EventPattern,
         FixedTimeTrigger,
         IntervalTrigger,
         MoonPhaseTrigger,
@@ -57,7 +56,6 @@ try:
         # Validation functions
         validate_action,
         validate_cron_trigger,
-        validate_event_pattern,
         validate_fixed_time_trigger,
         validate_interval_trigger,
         validate_moon_phase_trigger,
@@ -107,27 +105,6 @@ def sample_pattern_action_camera():
         offset_minutes=5,
         parameters={"hdr": True},
         description="Take photo with HDR",
-    )
-
-
-@pytest.fixture
-def sample_event_pattern(sample_pattern_action, sample_pattern_action_camera):
-    """Create a sample EventPattern for testing."""
-    return EventPattern(
-        pattern_id="12345678-1234-5678-1234-567812345678",
-        name="UV Capture Cycle",
-        description="Turn on lights, take photo, turn off lights",
-        actions=[
-            sample_pattern_action,
-            sample_pattern_action_camera,
-            Action(
-                action_type="gpio",
-                action_name="attract_off",
-                offset_minutes=15,
-            ),
-        ],
-        category="user",
-        tags=["night", "moths"],
     )
 
 
@@ -366,80 +343,6 @@ class TestAction:
         assert restored.action_type == sample_pattern_action.action_type
         assert restored.action_name == sample_pattern_action.action_name
         assert restored.offset_minutes == sample_pattern_action.offset_minutes
-
-
-# =============================================================================
-# EVENT PATTERN TESTS
-# =============================================================================
-
-
-class TestEventPattern:
-    """Test EventPattern dataclass."""
-
-    def test_instantiation_minimal(self):
-        """EventPattern can be created with minimal args."""
-        pattern = EventPattern(pattern_id="", name="Test Pattern")
-        assert pattern.name == "Test Pattern"
-        assert pattern.description == ""
-        assert pattern.actions == []
-        assert pattern.category == "user"
-        assert pattern.tags == []
-
-    def test_uuid_generation_on_empty_id(self):
-        """EventPattern generates UUID when pattern_id is empty."""
-        pattern = EventPattern(pattern_id="", name="Test")
-        # Should be a valid UUID
-        uuid.UUID(pattern.pattern_id)
-
-    def test_duration_minutes_computed(self, sample_event_pattern):
-        """EventPattern.duration_minutes returns max offset."""
-        # Actions have offsets 0, 5, 15
-        assert sample_event_pattern.duration_minutes == 15
-
-    def test_duration_minutes_empty_actions(self):
-        """EventPattern.duration_minutes is 0 with no actions."""
-        pattern = EventPattern(pattern_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", name="Empty")
-        assert pattern.duration_minutes == 0
-
-    def test_to_dict(self, sample_event_pattern):
-        """EventPattern.to_dict() returns correct dict."""
-        data = sample_event_pattern.to_dict()
-        assert data["pattern_id"] == "12345678-1234-5678-1234-567812345678"
-        assert data["name"] == "UV Capture Cycle"
-        assert len(data["actions"]) == 3
-        assert data["category"] == "user"
-        assert data["tags"] == ["night", "moths"]
-        assert data["duration_minutes"] == 15
-
-    def test_from_dict(self):
-        """EventPattern.from_dict() creates instance from dict."""
-        data = {
-            "pattern_id": "p-123",
-            "name": "Test Pattern",
-            "description": "A test pattern",
-            "actions": [
-                {"action_type": "gpio", "action_name": "attract_on", "offset_minutes": 0},
-                {"action_type": "camera", "action_name": "takephoto", "offset_minutes": 5},
-            ],
-            "category": "built-in",
-            "tags": ["test"],
-        }
-        pattern = EventPattern.from_dict(data)
-        assert pattern.pattern_id == "p-123"
-        assert pattern.name == "Test Pattern"
-        assert len(pattern.actions) == 2
-        assert pattern.actions[0].action_type == "gpio"
-        assert pattern.category == "built-in"
-
-    def test_round_trip_serialization(self, sample_event_pattern):
-        """EventPattern survives JSON round-trip."""
-        data = sample_event_pattern.to_dict()
-        json_str = json.dumps(data)
-        loaded = json.loads(json_str)
-        restored = EventPattern.from_dict(loaded)
-        assert restored.name == sample_event_pattern.name
-        assert len(restored.actions) == len(sample_event_pattern.actions)
-        assert restored.duration_minutes == sample_event_pattern.duration_minutes
 
 
 # =============================================================================
@@ -1389,82 +1292,6 @@ class TestValidateAction:
 
 
 # =============================================================================
-# VALIDATE EVENT PATTERN TESTS
-# =============================================================================
-
-
-class TestValidateEventPattern:
-    """Test validate_event_pattern function."""
-
-    def test_valid_pattern(self, sample_event_pattern):
-        """Valid event pattern passes validation."""
-        valid, error = validate_event_pattern(sample_event_pattern)
-        assert valid is True
-        assert error is None
-
-    def test_empty_name_fails(self):
-        """Empty name fails validation."""
-        pattern = EventPattern(pattern_id="11111111-1111-1111-1111-111111111111", name="")
-        valid, error = validate_event_pattern(pattern)
-        assert valid is False
-        assert "name" in error.lower()
-
-    def test_name_too_long_fails(self):
-        """Name exceeding MAX_PATTERN_NAME_LENGTH fails validation."""
-        pattern = EventPattern(
-            pattern_id="22222222-2222-2222-2222-222222222222",
-            name="x" * (MAX_PATTERN_NAME_LENGTH + 1),
-        )
-        valid, error = validate_event_pattern(pattern)
-        assert valid is False
-        assert "name" in error.lower()
-
-    def test_no_actions_fails(self):
-        """Pattern with no actions fails validation."""
-        pattern = EventPattern(
-            pattern_id="33333333-3333-3333-3333-333333333333", name="Empty Pattern", actions=[]
-        )
-        valid, error = validate_event_pattern(pattern)
-        assert valid is False
-        assert "action" in error.lower()
-
-    def test_too_many_actions_fails(self):
-        """Pattern exceeding MAX_ACTIONS_PER_PATTERN fails validation."""
-        actions = [
-            Action(action_type="gpio", action_name="attract_on", offset_minutes=i)
-            for i in range(MAX_ACTIONS_PER_PATTERN + 1)
-        ]
-        pattern = EventPattern(
-            pattern_id="44444444-4444-4444-4444-444444444444", name="Too Many", actions=actions
-        )
-        valid, error = validate_event_pattern(pattern)
-        assert valid is False
-        assert "action" in error.lower()
-
-    def test_invalid_action_fails(self):
-        """Pattern with invalid action fails validation."""
-        pattern = EventPattern(
-            pattern_id="55555555-5555-5555-5555-555555555555",
-            name="Bad Action",
-            actions=[Action(action_type="invalid", action_name="test")],
-        )
-        valid, error = validate_event_pattern(pattern)
-        assert valid is False
-
-    def test_invalid_pattern_id_format_fails(self):
-        """Pattern with invalid UUID format for pattern_id fails validation."""
-        pattern = EventPattern(
-            pattern_id="not-a-uuid",
-            name="Test Pattern",
-            actions=[Action(action_type="gpio", action_name="attract_on")],
-        )
-        valid, error = validate_event_pattern(pattern)
-        assert valid is False
-        assert "pattern_id" in error.lower()
-        assert "uuid" in error.lower()
-
-
-# =============================================================================
 # VALIDATE TIME WINDOW TESTS
 # =============================================================================
 
@@ -2124,11 +1951,17 @@ class TestScheduleFromDict:
         assert schedule.enabled is True
         assert schedule.is_active is False
 
-    def test_from_dict_rejects_event_patterns(self, sample_event_pattern):
+    def test_from_dict_rejects_event_patterns(self):
         """from_dict rejects old schema with event_patterns."""
         data = {
             "name": "Old Schema Schedule",
-            "event_patterns": [sample_event_pattern.to_dict()],
+            "event_patterns": [
+                {
+                    "pattern_id": "12345678-1234-5678-1234-567812345678",
+                    "name": "Test Pattern",
+                    "actions": [{"action_type": "gpio", "action_name": "attract_on"}],
+                }
+            ],
             "trigger_type": "interval",
         }
         with pytest.raises(ValueError, match="event_patterns.*no longer supported"):

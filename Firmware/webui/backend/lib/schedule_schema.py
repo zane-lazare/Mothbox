@@ -207,7 +207,7 @@ class ScheduleActivationError(Exception):
 
 
 # =============================================================================
-# TIER 1: PATTERN ACTION
+# TIER 1: ACTION
 # =============================================================================
 
 
@@ -263,89 +263,6 @@ class Action:
             offset_minutes=data.get("offset_minutes", 0),
             parameters=data.get("parameters", {}),
             description=data.get("description", ""),
-        )
-
-
-# =============================================================================
-# TIER 1: EVENT PATTERN
-# =============================================================================
-
-
-@dataclass
-class EventPattern:
-    """
-    Reusable template defining a sequence of timed actions.
-
-    Event patterns are library items that can be reused across multiple
-    schedules. Actions use relative offsets from pattern start (t=0).
-
-    Example: "UV Capture Cycle"
-    - UV_ON at offset +0 minutes
-    - TakePhoto at offset +5 minutes
-    - UV_OFF at offset +15 minutes
-    - duration_minutes = 15 (computed from max offset)
-
-    Attributes:
-        pattern_id: Unique identifier (UUID string, auto-generated if empty)
-        name: Human-readable name (required, max 200 chars)
-        description: Detailed description (max 2000 chars)
-        actions: Ordered list of Action objects
-        category: "built-in" or "user"
-        tags: Tags for filtering/search
-
-    Example:
-        >>> pattern = EventPattern(
-        ...     pattern_id="",
-        ...     name="UV Capture Cycle",
-        ...     actions=[
-        ...         Action(action_type="gpio", action_name="attract_on"),
-        ...         Action(action_type="camera", action_name="takephoto", offset_minutes=5),
-        ...         Action(action_type="gpio", action_name="attract_off", offset_minutes=15),
-        ...     ],
-        ... )
-        >>> pattern.duration_minutes
-        15
-    """
-
-    pattern_id: str
-    name: str
-    description: str = ""
-    actions: list[Action] = field(default_factory=list)
-    category: str = "user"
-    tags: list[str] = field(default_factory=list)
-
-    def __post_init__(self):
-        """Generate UUID if pattern_id is empty."""
-        if not self.pattern_id:
-            self.pattern_id = str(uuid.uuid4())
-
-    @property
-    def duration_minutes(self) -> int:
-        """Total duration = max action offset."""
-        return max((action.offset_minutes for action in self.actions), default=0)
-
-    def to_dict(self) -> dict:
-        """Convert to dictionary for JSON serialization."""
-        return {
-            "pattern_id": self.pattern_id,
-            "name": self.name,
-            "description": self.description,
-            "actions": [action.to_dict() for action in self.actions],
-            "category": self.category,
-            "tags": self.tags,
-            "duration_minutes": self.duration_minutes,  # Computed, read-only
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "EventPattern":
-        """Create from dictionary."""
-        return cls(
-            pattern_id=data.get("pattern_id", ""),
-            name=data["name"],
-            description=data.get("description", ""),
-            actions=[Action.from_dict(a) for a in data.get("actions", [])],
-            category=data.get("category", "user"),
-            tags=data.get("tags", []),
         )
 
 
@@ -1156,64 +1073,6 @@ def validate_action(action: Action) -> tuple[bool, str | None]:
             False,
             f"Action offset {action.offset_minutes} exceeds maximum "
             f"of {MAX_OFFSET_MINUTES} minutes (24 hours)",
-        )
-
-    return True, None
-
-
-def validate_event_pattern(pattern: EventPattern) -> tuple[bool, str | None]:
-    """
-    Validate an event pattern and its actions.
-
-    Args:
-        pattern: EventPattern to validate
-
-    Returns:
-        (True, None) if valid, (False, error_message) if invalid
-    """
-    # Validate pattern_id format if provided (auto-generated UUIDs are always valid)
-    if pattern.pattern_id and not _is_valid_uuid(pattern.pattern_id):
-        return False, "Invalid pattern_id format: must be a valid UUID"
-
-    # Validate name
-    if not pattern.name or not pattern.name.strip():
-        return False, "Pattern name is required"
-
-    if len(pattern.name) > MAX_PATTERN_NAME_LENGTH:
-        return (
-            False,
-            f"Pattern name exceeds {MAX_PATTERN_NAME_LENGTH} characters",
-        )
-
-    # Validate description length
-    if len(pattern.description) > MAX_DESCRIPTION_LENGTH:
-        return (
-            False,
-            f"Pattern description exceeds {MAX_DESCRIPTION_LENGTH} characters",
-        )
-
-    # Validate actions
-    if not pattern.actions:
-        return False, "Pattern must have at least one action"
-
-    if len(pattern.actions) > MAX_ACTIONS_PER_PATTERN:
-        return (
-            False,
-            f"Pattern exceeds {MAX_ACTIONS_PER_PATTERN} actions",
-        )
-
-    # Validate each action
-    for i, action in enumerate(pattern.actions):
-        valid, error = validate_action(action)
-        if not valid:
-            return False, f"Action {i + 1}: {error}"
-
-    # Validate category
-    if pattern.category not in PATTERN_CATEGORIES:
-        return (
-            False,
-            f"Invalid category: '{pattern.category}'. "
-            f"Must be one of: {', '.join(PATTERN_CATEGORIES)}",
         )
 
     return True, None

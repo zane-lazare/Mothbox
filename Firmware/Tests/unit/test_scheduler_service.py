@@ -54,9 +54,9 @@ def temp_schedules_dir(tmp_path, monkeypatch):
 def sample_schedule():
     """Create a valid Schedule object for testing (Schema 3.0)."""
     from webui.backend.lib.schedule_schema import (
-        Routine,
-        IntervalTrigger,
         Action,
+        IntervalTrigger,
+        Routine,
         Schedule,
         TimeWindow,
     )
@@ -110,39 +110,6 @@ def sample_schedule():
     )
 
     return schedule
-
-
-@pytest.fixture
-def sample_event_pattern():
-    """Create a valid EventPattern for testing."""
-    from webui.backend.lib.schedule_schema import (
-        EventPattern,
-        Action,
-    )
-
-    actions = [
-        Action(
-            action_type="gpio",
-            action_name="attract_on",
-            offset_minutes=0,
-        ),
-        Action(
-            action_type="camera",
-            action_name="takephoto",
-            offset_minutes=5,
-        ),
-        Action(
-            action_type="gpio",
-            action_name="attract_off",
-            offset_minutes=10,
-        ),
-    ]
-
-    return EventPattern(
-        pattern_id="",
-        name="Simple Capture",
-        actions=actions,
-    )
 
 
 @pytest.fixture
@@ -281,10 +248,10 @@ class TestServiceImports:
         assert delete_schedule is not None
         assert list_schedules is not None
 
-    def test_event_pattern_available(self):
-        """EventPattern dataclass should be available."""
-        from webui.backend.lib.schedule_schema import EventPattern
-        assert EventPattern is not None
+    def test_routine_available(self):
+        """Routine dataclass should be available."""
+        from webui.backend.lib.schedule_schema import Routine
+        assert Routine is not None
 
     def test_pattern_action_available(self):
         """Action dataclass should be available."""
@@ -2056,9 +2023,9 @@ class TestActivateScheduleConflictDetection:
     def conflicting_schedule(self):
         """Create a schedule with conflicting routines (overlapping camera usage)."""
         from webui.backend.lib.schedule_schema import (
-            Routine,
-            IntervalTrigger,
             Action,
+            IntervalTrigger,
+            Routine,
             Schedule,
             TimeWindow,
         )

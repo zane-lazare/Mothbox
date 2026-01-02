@@ -38,12 +38,12 @@ from webui.backend.lib.schedule_preview import (
     validate_timezone,
 )
 from webui.backend.lib.schedule_schema import (
-    EventPattern,
+    Routine,
     Schedule,
     ScheduleActivationError,
     ScheduleConflictError,
     ScheduleValidationError,
-    validate_event_pattern,
+    validate_routine,
 )
 from webui.backend.lib.schedule_storage import is_builtin_schedule
 from webui.backend.services.scheduler_service import SchedulerService
@@ -1146,14 +1146,18 @@ def list_builtin_patterns_endpoint() -> tuple[Response, int]:
 @limiter.limit("30 per minute")
 def validate_pattern_endpoint() -> tuple[Response, int]:
     """
-    Validate an event pattern structure.
+    Validate a routine structure.
 
     POST /api/scheduler/ui/patterns/validate
 
     Request Body:
     {
-        "name": "Pattern Name",      // required, max 200 chars
+        "name": "Routine Name",      // optional, max 200 chars (auto-generated if omitted)
         "description": "...",        // optional, max 2000 chars
+        "trigger": {                 // required, trigger configuration
+            "trigger_type": "interval|solar|fixed_time|...",
+            ...
+        },
         "actions": [                 // required, 1-20 actions
             {
                 "action_type": "gpio|camera|gps_sync|service",
@@ -1163,12 +1167,11 @@ def validate_pattern_endpoint() -> tuple[Response, int]:
                 "description": ""
             }
         ],
-        "category": "user",          // optional, "user" or "built-in"
-        "tags": []                   // optional
+        "pre_condition": {...}       // optional, sensor trigger as gate
     }
 
     Returns:
-        200 OK: {"valid": true, "pattern": {...}}
+        200 OK: {"valid": true, "routine": {...}}
         400 Bad Request: {"valid": false, "error": "..."}
     """
     try:
@@ -1199,35 +1202,35 @@ def validate_pattern_endpoint() -> tuple[Response, int]:
                 }
             ), 400
 
-        # Convert dict to EventPattern for validation
+        # Convert dict to Routine for validation
         try:
-            pattern = EventPattern.from_dict(data)
+            routine = Routine.from_dict(data)
         except KeyError as e:
-            logger.warning(f"Missing required field in pattern: {e}")
+            logger.warning(f"Missing required field in routine: {e}")
             return jsonify(
                 {
                     "valid": False,
-                    "error": "Missing required field in pattern",
+                    "error": "Missing required field in routine",
                 }
             ), 400
         except Exception as e:
             # Log the detailed error server-side, but return a generic message to the client
-            logger.error(f"Invalid pattern structure: {e}", exc_info=True)
+            logger.error(f"Invalid routine structure: {e}", exc_info=True)
             return jsonify(
                 {
                     "valid": False,
-                    "error": "Invalid pattern structure",
+                    "error": "Invalid routine structure",
                 }
             ), 400
 
-        # Validate using existing validation function
-        valid, error = validate_event_pattern(pattern)
+        # Validate using routine validation function
+        valid, error = validate_routine(routine)
 
         if valid:
             return jsonify(
                 {
                     "valid": True,
-                    "pattern": pattern.to_dict(),
+                    "routine": routine.to_dict(),
                 }
             ), 200
         else:
@@ -1239,7 +1242,7 @@ def validate_pattern_endpoint() -> tuple[Response, int]:
             ), 400
 
     except Exception as e:
-        logger.error(f"Error validating pattern: {e}", exc_info=True)
+        logger.error(f"Error validating routine: {e}", exc_info=True)
         return jsonify(
             {
                 "valid": False,
