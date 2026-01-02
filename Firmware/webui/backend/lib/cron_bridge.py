@@ -16,6 +16,7 @@ from typing import Final
 from croniter import croniter
 from crontab import CronTab
 
+from mothbox_paths import MOTHBOX_HOME
 from webui.backend.lib.cron_security import (
     get_script_key_for_action,
     get_validated_command,
@@ -610,9 +611,10 @@ def build_action_command(
         base_command = f"# Unknown action: {action.action_type}/{action.action_name}"
 
     if pre_condition:
-        # Wrap with pre-condition checker
+        # Wrap with pre-condition checker using path from mothbox_paths
+        check_and_run_script = MOTHBOX_HOME / "check_and_run.py"
         return (
-            f"python3 /opt/mothbox/check_and_run.py "
+            f"python3 {check_and_run_script} "
             f"--sensor {pre_condition.sensor_type} "
             f"--op {pre_condition.comparison} "
             f"--threshold {pre_condition.threshold} "
@@ -647,6 +649,16 @@ def routine_to_dated_cron(
 
     Raises:
         ValueError: If trigger requires coordinates but none provided
+
+    Example:
+        >>> routine = Routine(
+        ...     routine_id="r1",
+        ...     trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+        ...     actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)]
+        ... )
+        >>> entries = routine_to_dated_cron(routine, years_ahead=1)
+        >>> len(entries)  # ~365 entries for 1 year
+        365
     """
     if routine.trigger is None:
         return []
