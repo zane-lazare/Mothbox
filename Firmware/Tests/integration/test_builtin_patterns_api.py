@@ -22,10 +22,15 @@ def _test_uuid(name: str) -> str:
 # Try to import Flask app for testing
 try:
     from webui.backend.app import app
-    from webui.backend.routes.scheduler_ui import scheduler_ui_bp  # noqa: F401
+    from webui.backend.routes.scheduler_ui import (
+        _load_builtin_patterns,
+        scheduler_ui_bp,  # noqa: F401
+    )
 
-    IMPLEMENTATION_EXISTS = True
-except ImportError:
+    # Check if built-in patterns actually exist and load successfully
+    patterns, warnings = _load_builtin_patterns()
+    IMPLEMENTATION_EXISTS = len(patterns) >= 5 and len(warnings) == 0
+except (ImportError, Exception):
     IMPLEMENTATION_EXISTS = False
     app = None
 
