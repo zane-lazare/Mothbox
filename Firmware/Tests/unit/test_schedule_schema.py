@@ -2197,7 +2197,7 @@ class TestScheduleFromDict:
             "name": "Test Schedule",
             "routines": [sample_routine_interval.to_dict()],
         }
-        with pytest.raises(ValueError, match="Unsupported schema version"):
+        with pytest.raises(ValueError, match="Schedule version 2.0 not supported"):
             Schedule.from_dict(data)
 
     def test_from_dict_rejects_future_schema_version(self, sample_routine_interval):
@@ -2207,7 +2207,7 @@ class TestScheduleFromDict:
             "name": "Test Schedule",
             "routines": [sample_routine_interval.to_dict()],
         }
-        with pytest.raises(ValueError, match="Unsupported schema version"):
+        with pytest.raises(ValueError, match="Schedule version 4.0 not supported"):
             Schedule.from_dict(data)
 
     def test_from_dict_accepts_missing_schema_version(self, sample_routine_interval):

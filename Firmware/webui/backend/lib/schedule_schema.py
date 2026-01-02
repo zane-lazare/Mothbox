@@ -1025,8 +1025,8 @@ class Schedule:
         schema_version = data.get("schema_version")
         if schema_version is not None and schema_version not in SUPPORTED_VERSIONS:
             raise ValueError(
-                f"Unsupported schema version: {schema_version}. "
-                f"Supported versions: {SUPPORTED_VERSIONS}"
+                f"Schedule version {schema_version} not supported. "
+                f"Please create a new schedule using the current format (v3.0)."
             )
 
         # Reject old schema format
