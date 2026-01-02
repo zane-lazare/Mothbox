@@ -240,27 +240,29 @@ def remove_from_system(
 
 **Safety**: Only removes jobs matching `is_mothbox_command()` heuristic.
 
-## Event Preview
+## Schedule Preview
 
-### get_next_events
+### preview_schedule
 
-Preview next scheduled executions without modifying system.
+Preview upcoming schedule executions without modifying system.
 
 ```python
-def get_next_events(
+def preview_schedule(
     schedule: Schedule,
     count: int = 10,
-    latitude: float = 0.0,
-    longitude: float = 0.0,
+    from_time: datetime | None = None,
+    latitude: float | None = None,
+    longitude: float | None = None,
     timezone_name: str = "UTC",
 ) -> list[dict]
 ```
 
-**Returns**: List of event dicts with:
+**Returns**: List of dicts with:
 - `datetime`: ISO 8601 timestamp
 - `action_type`: Action type (gpio, camera, etc.)
 - `action_name`: Specific action (takephoto, attract_on, etc.)
-- `pattern_name`: Source pattern name
+- `routine_name`: Source routine name
+- `routine_id`: Source routine ID
 
 ## Integration with SchedulerService
 
