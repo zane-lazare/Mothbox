@@ -1685,6 +1685,28 @@ class TestRoutineToDatedCron:
         for entry in entries:
             assert entry.routine_id == "my-routine-id"
 
+    def test_routine_entries_have_execution_time(self):
+        """Generated entries include execution_time datetime."""
+        from datetime import datetime
+
+        from webui.backend.lib.cron_bridge import routine_to_dated_cron
+
+        routine = Routine(
+            routine_id="r1",
+            trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+            actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=30)],
+        )
+
+        entries = routine_to_dated_cron(routine, years_ahead=1)
+
+        # All entries should have execution_time set
+        for entry in entries:
+            assert entry.execution_time is not None
+            assert isinstance(entry.execution_time, datetime)
+            # Time should match the cron expression (21:30)
+            assert entry.execution_time.hour == 21
+            assert entry.execution_time.minute == 30
+
 
 class TestBuildActionCommand:
     """Tests for build_action_command() function."""

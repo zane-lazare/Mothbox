@@ -85,6 +85,7 @@ class CronEntry:
     comment: str = ""
     enabled: bool = True
     routine_id: str = ""  # Links back to source routine
+    execution_time: datetime | None = None  # Exact execution time
 
     def to_cron_line(self) -> str:
         """Convert entry to crontab line format.
@@ -672,6 +673,7 @@ def routine_to_dated_cron(
                     command=build_action_command(action, routine.pre_condition),
                     comment=f"{CRON_COMMENT_PREFIX} {routine_name} ({action_time.date().isoformat()})",
                     routine_id=routine.routine_id,
+                    execution_time=action_time,
                 )
             )
 
