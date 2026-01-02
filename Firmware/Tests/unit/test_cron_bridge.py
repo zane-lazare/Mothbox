@@ -43,7 +43,9 @@ class TestCronEntryDataclass:
 
     def test_instantiation_minimal(self):
         """CronEntry can be created with minimal args."""
-        entry = CronEntry(expression="0 21 * * *", command="/usr/bin/python3 /opt/mothbox/TakePhoto.py")
+        entry = CronEntry(
+            expression="0 21 * * *", command="/usr/bin/python3 /opt/mothbox/TakePhoto.py"
+        )
         assert entry.expression == "0 21 * * *"
         assert entry.command == "/usr/bin/python3 /opt/mothbox/TakePhoto.py"
         assert entry.comment == ""  # default
@@ -141,7 +143,7 @@ class TestCronBridgeResult:
             entries=[entry],
             rtc_waketime=1718463600,
             schedule_id="test-456",
-            errors=["Warning: polar region"]
+            errors=["Warning: polar region"],
         )
         assert len(result.entries) == 1
         assert result.rtc_waketime == 1718463600
@@ -154,7 +156,9 @@ class TestFixedTimeTriggerConversion:
     def test_simple_daily_fixed_time(self):
         """Fixed time 21:00 daily becomes '0 21 * * *'."""
         trigger = FixedTimeTrigger(time="21:00", days_of_week=None)
-        entries = fixed_time_trigger_to_cron(trigger, command="/usr/bin/python3 /opt/mothbox/TakePhoto.py")
+        entries = fixed_time_trigger_to_cron(
+            trigger, command="/usr/bin/python3 /opt/mothbox/TakePhoto.py"
+        )
         assert len(entries) == 1
         assert entries[0].expression == "0 21 * * *"
         assert "TakePhoto.py" in entries[0].command
@@ -307,7 +311,7 @@ class TestSolarTriggerConversion:
             target_date=date(2024, 6, 21),  # Summer solstice
             latitude=35.96,
             longitude=-83.92,
-            timezone_name="America/New_York"
+            timezone_name="America/New_York",
         )
         assert exec_time is not None
         # Summer sunset in Eastern US (Oak Ridge, TN) is around 21:00 local
@@ -321,17 +325,23 @@ class TestSolarTriggerConversion:
         base = get_solar_execution_time(
             SolarTrigger(solar_event="sunset", offset_minutes=0),
             target_date=date(2024, 6, 21),
-            latitude=35.96, longitude=-83.92, timezone_name="America/New_York"
+            latitude=35.96,
+            longitude=-83.92,
+            timezone_name="America/New_York",
         )
         plus30 = get_solar_execution_time(
             trigger_plus,
             target_date=date(2024, 6, 21),
-            latitude=35.96, longitude=-83.92, timezone_name="America/New_York"
+            latitude=35.96,
+            longitude=-83.92,
+            timezone_name="America/New_York",
         )
         minus30 = get_solar_execution_time(
             trigger_minus,
             target_date=date(2024, 6, 21),
-            latitude=35.96, longitude=-83.92, timezone_name="America/New_York"
+            latitude=35.96,
+            longitude=-83.92,
+            timezone_name="America/New_York",
         )
 
         # plus30 should be 30 minutes after base
@@ -348,7 +358,7 @@ class TestSolarTriggerConversion:
             latitude=35.96,
             longitude=-83.92,
             timezone_name="America/New_York",
-            days_ahead=7
+            days_ahead=7,
         )
         # Should generate 7 entries (one per day)
         assert len(entries) == 7
@@ -361,7 +371,7 @@ class TestSolarTriggerConversion:
         trigger = SolarTrigger(
             solar_event="sunset",
             offset_minutes=0,
-            days_of_week=[0, 2, 4]  # Mon, Wed, Fri (ISO)
+            days_of_week=[0, 2, 4],  # Mon, Wed, Fri (ISO)
         )
         entries = solar_trigger_to_cron(
             trigger,
@@ -370,7 +380,7 @@ class TestSolarTriggerConversion:
             longitude=-83.92,
             timezone_name="America/New_York",
             days_ahead=14,  # Two weeks
-            from_date=date(2024, 6, 17)  # Monday
+            from_date=date(2024, 6, 17),  # Monday
         )
         # Should have entries only for Mon, Wed, Fri
         # Week 1: Mon 17, Wed 19, Fri 21 = 3
@@ -384,7 +394,9 @@ class TestSolarTriggerConversion:
         exec_time = get_solar_execution_time(
             trigger,
             target_date=date(2024, 6, 21),
-            latitude=35.96, longitude=-83.92, timezone_name="America/New_York"
+            latitude=35.96,
+            longitude=-83.92,
+            timezone_name="America/New_York",
         )
         # Summer sunrise in Eastern US is around 6:00-6:30 AM
         assert exec_time.hour <= 7
@@ -399,7 +411,7 @@ class TestSolarTriggerConversion:
             longitude=-83.92,
             timezone_name="America/New_York",
             days_ahead=3,
-            from_date=date(2024, 6, 15)
+            from_date=date(2024, 6, 15),
         )
         # Entries should be for June 15, 16, 17
         expressions = [e.expression for e in entries]
@@ -450,7 +462,7 @@ class TestMoonPhaseTriggerConversion:
             trigger,
             command="cmd",
             days_ahead=60,  # Two lunar cycles
-            from_date=date(2024, 1, 1)
+            from_date=date(2024, 1, 1),
         )
         # Should have at least 2 full moons in 60 days
         assert len(entries) >= 2
@@ -463,10 +475,7 @@ class TestMoonPhaseTriggerConversion:
         window = TimeWindow(start_time="20:30", end_time="20:30")
         trigger = MoonPhaseTrigger(phases=["full"], offset_days=0, time_window=window)
         entries = moon_phase_trigger_to_cron(
-            trigger,
-            command="cmd",
-            days_ahead=30,
-            from_date=date(2024, 1, 1)
+            trigger, command="cmd", days_ahead=30, from_date=date(2024, 1, 1)
         )
         # At least 1 full moon in 30 days
         assert len(entries) >= 1
@@ -480,10 +489,7 @@ class TestMoonPhaseTriggerConversion:
         """Without time_window, defaults to midnight."""
         trigger = MoonPhaseTrigger(phases=["new"], offset_days=0, time_window=None)
         entries = moon_phase_trigger_to_cron(
-            trigger,
-            command="cmd",
-            days_ahead=30,
-            from_date=date(2024, 1, 1)
+            trigger, command="cmd", days_ahead=30, from_date=date(2024, 1, 1)
         )
         if entries:  # If there's a new moon in range
             parts = entries[0].expression.split()
@@ -496,16 +502,10 @@ class TestMoonPhaseTriggerConversion:
         trigger_with_offset = MoonPhaseTrigger(phases=["full"], offset_days=2)
 
         entries_no_offset = moon_phase_trigger_to_cron(
-            trigger_no_offset,
-            command="cmd",
-            days_ahead=60,
-            from_date=date(2024, 1, 1)
+            trigger_no_offset, command="cmd", days_ahead=60, from_date=date(2024, 1, 1)
         )
         entries_with_offset = moon_phase_trigger_to_cron(
-            trigger_with_offset,
-            command="cmd",
-            days_ahead=60,
-            from_date=date(2024, 1, 1)
+            trigger_with_offset, command="cmd", days_ahead=60, from_date=date(2024, 1, 1)
         )
 
         # With offset should have more entries (each phase spans more days)
@@ -515,10 +515,7 @@ class TestMoonPhaseTriggerConversion:
         """Each cron entry specifies the exact day of month."""
         trigger = MoonPhaseTrigger(phases=["full"], offset_days=0)
         entries = moon_phase_trigger_to_cron(
-            trigger,
-            command="cmd",
-            days_ahead=30,
-            from_date=date(2024, 1, 1)
+            trigger, command="cmd", days_ahead=30, from_date=date(2024, 1, 1)
         )
         # Each expression should have day-of-month field set
         # Format: minute hour day month weekday
@@ -563,8 +560,8 @@ class TestActionSequencing:
         # UV on at 21:00, photo at 21:05, UV off at 21:15
         assert len(entries) == 3
         expressions = [e.expression for e in entries]
-        assert "0 21 * * *" in expressions   # 21:00
-        assert "5 21 * * *" in expressions   # 21:05
+        assert "0 21 * * *" in expressions  # 21:00
+        assert "5 21 * * *" in expressions  # 21:05
         assert "15 21 * * *" in expressions  # 21:15
 
     def test_offset_crosses_hour_boundary(self):
@@ -592,7 +589,9 @@ class TestActionSequencing:
         """Actions respect days_of_week constraint."""
         action = Action(action_type="gpio", action_name="attract_on", offset_minutes=0)
         routine = self._make_routine("Test", [action])
-        entries = routine_to_cron_entries(routine, base_time="21:00", days_of_week=[0, 1, 2])  # Mon-Wed ISO
+        entries = routine_to_cron_entries(
+            routine, base_time="21:00", days_of_week=[0, 1, 2]
+        )  # Mon-Wed ISO
         # Cron days should be 1,2,3 (Mon-Wed in cron)
         assert "1,2,3" in entries[0].expression
 
@@ -694,7 +693,7 @@ class TestRTCWakealarm:
         """calculate_next_from_entries skips disabled entries."""
         entries = [
             CronEntry(expression="0 23 * * *", command="cmd", enabled=False),  # Disabled
-            CronEntry(expression="0 21 * * *", command="cmd", enabled=True),   # Enabled
+            CronEntry(expression="0 21 * * *", command="cmd", enabled=True),  # Enabled
             CronEntry(expression="0 22 * * *", command="cmd", enabled=False),  # Disabled
         ]
         now = datetime(2024, 6, 15, 20, 0, 0)
@@ -766,8 +765,6 @@ class TestApplyToSystem:
         """apply_to_system sets RTC wakealarm when set_rtc=True."""
         from unittest.mock import MagicMock, patch
 
-
-
         entries = [CronEntry(expression="0 21 * * *", command="cmd")]
         with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
             mock_cron = MagicMock()
@@ -785,8 +782,6 @@ class TestApplyToSystem:
     def test_apply_preserves_non_mothbox_jobs(self):
         """apply_to_system preserves system (non-Mothbox) jobs."""
         from unittest.mock import MagicMock, patch
-
-
 
         entries = [CronEntry(expression="0 21 * * *", command="cmd")]
         with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
@@ -812,8 +807,6 @@ class TestApplyToSystem:
         """apply_to_system skips disabled entries."""
         from unittest.mock import MagicMock, patch
 
-
-
         entries = [
             CronEntry(expression="0 21 * * *", command="cmd1", enabled=True),
             CronEntry(expression="0 22 * * *", command="cmd2", enabled=False),  # Disabled
@@ -838,8 +831,6 @@ class TestApplyToSystem:
         """apply_to_system skips RTC wakealarm when set_rtc=False."""
         from unittest.mock import MagicMock, patch
 
-
-
         entries = [CronEntry(expression="0 21 * * *", command="cmd")]
         with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
             mock_cron = MagicMock()
@@ -853,8 +844,6 @@ class TestApplyToSystem:
     def test_apply_handles_errors(self):
         """apply_to_system returns False on error."""
         from unittest.mock import patch
-
-
 
         entries = [CronEntry(expression="0 21 * * *", command="cmd")]
         with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
@@ -871,8 +860,6 @@ class TestRemoveFromSystem:
     def test_remove_clears_mothbox_jobs(self):
         """remove_from_system removes all Mothbox cron jobs."""
         from unittest.mock import MagicMock, patch
-
-
 
         with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
             mock_cron = MagicMock()
@@ -893,8 +880,6 @@ class TestRemoveFromSystem:
         """remove_from_system clears RTC wakealarm when clear_rtc=True."""
         from unittest.mock import MagicMock, patch
 
-
-
         with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
             mock_cron = MagicMock()
             mock_crontab_class.return_value = mock_cron
@@ -907,8 +892,6 @@ class TestRemoveFromSystem:
     def test_remove_preserves_non_mothbox_jobs(self):
         """remove_from_system preserves system (non-Mothbox) jobs."""
         from unittest.mock import MagicMock, patch
-
-
 
         with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
             mock_cron = MagicMock()
@@ -929,8 +912,6 @@ class TestRemoveFromSystem:
         """remove_from_system skips RTC clear when clear_rtc=False."""
         from unittest.mock import MagicMock, patch
 
-
-
         with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
             mock_cron = MagicMock()
             mock_crontab_class.return_value = mock_cron
@@ -944,8 +925,6 @@ class TestRemoveFromSystem:
         """remove_from_system returns False on error."""
         from unittest.mock import patch
 
-
-
         with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
             mock_crontab_class.side_effect = OSError("Cron error")
 
@@ -956,8 +935,6 @@ class TestRemoveFromSystem:
     def test_remove_with_user_parameter(self):
         """remove_from_system uses specified user when provided."""
         from unittest.mock import MagicMock, patch
-
-
 
         with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
             mock_cron = MagicMock()
@@ -1608,6 +1585,114 @@ class TestCalculateExecutionTimes:
 
         with pytest.raises(ValueError, match="cannot be scheduled via cron"):
             calculate_execution_times(trigger)
+
+    def test_recurring_days_trigger(self):
+        """RecurringDaysTrigger generates entries every N days."""
+        from webui.backend.lib.cron_bridge import calculate_execution_times
+        from webui.backend.lib.schedule_schema import RecurringDaysTrigger
+
+        trigger = RecurringDaysTrigger(every_n_days=3, time="21:00", start_date="2025-01-01")
+        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+
+        # Should have ~122 entries (365/3)
+        assert 120 <= len(times) <= 125
+        # All should be at 21:00
+        assert all(t.hour == 21 and t.minute == 0 for t in times)
+        # Should be every 3 days
+        for i in range(1, len(times)):
+            delta = (times[i] - times[i - 1]).days
+            assert delta == 3
+
+    def test_recurring_days_respects_start_date(self):
+        """RecurringDaysTrigger counts days from start_date."""
+        from webui.backend.lib.cron_bridge import calculate_execution_times
+        from webui.backend.lib.schedule_schema import RecurringDaysTrigger
+
+        trigger = RecurringDaysTrigger(every_n_days=7, time="09:00", start_date="2025-01-01")
+        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+
+        # First execution should be Jan 1, then Jan 8, Jan 15, etc.
+        assert times[0].date() == date(2025, 1, 1)
+        assert times[1].date() == date(2025, 1, 8)
+        assert times[2].date() == date(2025, 1, 15)
+
+    def test_cron_trigger(self):
+        """CronTrigger expands cron expression to datetimes."""
+        from webui.backend.lib.cron_bridge import calculate_execution_times
+        from webui.backend.lib.schedule_schema import CronTrigger
+
+        # Every hour
+        trigger = CronTrigger(cron_expression="0 * * * *")
+        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+
+        # Should have ~8760 entries (24 * 365)
+        assert len(times) > 8000
+        # All should be at minute 0
+        assert all(t.minute == 0 for t in times)
+
+    def test_cron_trigger_invalid_expression(self):
+        """Invalid cron expression returns empty list."""
+        from webui.backend.lib.cron_bridge import calculate_execution_times
+        from webui.backend.lib.schedule_schema import CronTrigger
+
+        trigger = CronTrigger(cron_expression="invalid")
+        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+
+        assert times == []
+
+    def test_moon_phase_trigger(self):
+        """MoonPhaseTrigger generates entries on matching phases."""
+        from webui.backend.lib.cron_bridge import calculate_execution_times
+
+        trigger = MoonPhaseTrigger(
+            phases=["full"],
+            offset_days=0,
+            time_window=TimeWindow(start_time="21:00", end_time="22:00"),
+        )
+        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+
+        # Full moon phase spans ~3.7 days per lunar cycle (phase values 14.77-18.46)
+        # With ~12 lunar cycles per year, expect ~36-48 matching days
+        assert len(times) > 30
+        assert len(times) < 60
+        # All should be at 21:00
+        assert all(t.hour == 21 and t.minute == 0 for t in times)
+
+    def test_solar_trigger_polar_region_graceful(self):
+        """Solar trigger at polar latitudes handles missing events gracefully."""
+        from webui.backend.lib.cron_bridge import calculate_execution_times
+
+        # 80°N latitude - polar region
+        trigger = SolarTrigger(solar_event="sunset", offset_minutes=0)
+        times = calculate_execution_times(
+            trigger,
+            latitude=80.0,
+            longitude=0.0,
+            years_ahead=1,
+            from_date=date(2025, 1, 1),
+        )
+
+        # Should return some times (not all 365 days have sunset)
+        assert len(times) > 0
+        assert len(times) < 365  # Some days won't have sunset
+
+    def test_solar_trigger_extreme_polar_no_exception(self):
+        """Solar trigger at extreme polar latitudes during polar day/night."""
+        from webui.backend.lib.cron_bridge import calculate_execution_times
+
+        # During polar day/night, some solar events won't occur
+        trigger = SolarTrigger(solar_event="sunset", offset_minutes=0)
+        # Test doesn't fail, just returns fewer events
+        times = calculate_execution_times(
+            trigger,
+            latitude=89.0,  # Near North Pole
+            longitude=0.0,
+            years_ahead=1,
+            from_date=date(2025, 6, 1),  # Summer - polar day
+        )
+
+        # Should not raise an exception
+        assert isinstance(times, list)
 
 
 class TestRoutineToDatedCron:
