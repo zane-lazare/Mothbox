@@ -1284,7 +1284,8 @@ def validate_routine(routine) -> tuple[bool, str | None]:
     if isinstance(routine.trigger, SensorTrigger):
         return (
             False,
-            "Sensor triggers can only be used as pre_condition, not as primary trigger",
+            "Sensor triggers can only be used as pre_condition, not as primary trigger. "
+            f"Use one of: {', '.join(PRIMARY_TRIGGER_TYPES)}",
         )
 
     # Validate trigger

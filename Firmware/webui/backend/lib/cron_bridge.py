@@ -1191,6 +1191,9 @@ def _convert_routine_to_cron(
                 entries.extend(action_entries)
 
         elif isinstance(trigger, MoonPhaseTrigger):
+            # Moon phases occur ~every 7.4 days, so the default 7-day preview window
+            # may miss the next phase. Extend to full lunar cycle (30 days) to ensure
+            # at least one moon phase event is captured in the preview.
             moon_days_ahead = LUNAR_CYCLE_DAYS if days_ahead == 7 else days_ahead
             action_entries = moon_phase_trigger_to_cron(
                 trigger,
@@ -1297,12 +1300,25 @@ def _recurring_days_trigger_to_cron(
     command: str,
     offset_minutes: int = 0,
     comment_prefix: str = CRON_COMMENT_PREFIX,
+    days_ahead: int = 365,
 ) -> list[CronEntry]:
     """Convert RecurringDaysTrigger to cron entries.
 
-    RecurringDaysTrigger specifies days of month (1-31) and a time.
+    RecurringDaysTrigger specifies "every N days" from a start date.
+    Since standard cron cannot express this pattern, we generate individual
+    date-specific cron entries for the specified period.
+
+    Args:
+        trigger: RecurringDaysTrigger with every_n_days, time, start_date
+        command: Command to execute
+        offset_minutes: Offset to apply to execution time
+        comment_prefix: Prefix for cron comment
+        days_ahead: Number of days to generate entries for (default 365)
+
+    Returns:
+        List of CronEntry objects, one for each execution date
     """
-    if not trigger.days_of_month or not trigger.time:
+    if not trigger.time or trigger.every_n_days < 1:
         return []
 
     hour, minute = map(int, trigger.time.split(":"))
@@ -1313,13 +1329,26 @@ def _recurring_days_trigger_to_cron(
     new_minute = new_minute % 60
     new_hour = new_hour % 24
 
-    # Create comma-separated day list
-    days_str = ",".join(str(d) for d in sorted(trigger.days_of_month))
+    # Determine start date
+    start = date.fromisoformat(trigger.start_date) if trigger.start_date else date.today()
+    end = start + timedelta(days=days_ahead)
 
-    expression = f"{new_minute} {new_hour} {days_str} * *"
-    comment = f"{comment_prefix} Recurring on days {days_str} at {new_hour:02d}:{new_minute:02d}"
+    entries = []
+    current = start
+    while current <= end:
+        # Check if this date matches the N-day pattern
+        days_since_start = (current - start).days
+        if days_since_start % trigger.every_n_days == 0:
+            # Create date-specific cron entry: minute hour day month *
+            expression = f"{new_minute} {new_hour} {current.day} {current.month} *"
+            comment = (
+                f"{comment_prefix} Every {trigger.every_n_days} days "
+                f"({current.isoformat()}) at {new_hour:02d}:{new_minute:02d}"
+            )
+            entries.append(CronEntry(expression=expression, command=command, comment=comment))
+        current += timedelta(days=1)
 
-    return [CronEntry(expression=expression, command=command, comment=comment)]
+    return entries
 
 
 # =============================================================================
@@ -1617,7 +1646,7 @@ def _get_events_cron_routine(
     trigger = routine.trigger
 
     try:
-        cron_iter = croniter(trigger.expression, from_time)
+        cron_iter = croniter(trigger.cron_expression, from_time)
         events_added = 0
 
         while events_added < max_events:
@@ -1646,22 +1675,33 @@ def _get_events_recurring_days_routine(
     max_events: int,
     from_time: datetime,
 ) -> list[dict]:
-    """Generate events for recurring days trigger."""
+    """Generate events for recurring days trigger.
+
+    RecurringDaysTrigger specifies "every N days" from a start date.
+    Events are generated for dates matching the N-day pattern.
+    """
     events = []
     trigger = routine.trigger
 
-    if not trigger.days_of_month or not trigger.time:
+    if not trigger.time or trigger.every_n_days < 1:
         return events
 
     hour, minute = map(int, trigger.time.split(":"))
 
+    # Determine start date for the pattern
+    if trigger.start_date:
+        pattern_start = date.fromisoformat(trigger.start_date)
+    else:
+        pattern_start = from_time.date()
+
     current_date = from_time.date()
     days_checked = 0
-    max_days = max_events * 62  # Check ~2 months worth
+    max_days = max_events * trigger.every_n_days * 2  # Check enough days
 
     while len(events) < max_events and days_checked < max_days:
-        # Check if current day matches trigger
-        if current_date.day in trigger.days_of_month:
+        # Check if current day matches the N-day pattern from start
+        days_since_start = (current_date - pattern_start).days
+        if days_since_start >= 0 and days_since_start % trigger.every_n_days == 0:
             trigger_time = datetime.combine(
                 current_date, datetime.min.time().replace(hour=hour, minute=minute)
             )

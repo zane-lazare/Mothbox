@@ -492,10 +492,10 @@ def generate_preview(
     )
 
     # Build routine cache once - O(n) where n = number of routines
-    pattern_cache = {p.routine_id: p for p in schedule.routines}
+    routine_cache = {r.routine_id: r for r in schedule.routines}
 
     # Convert to preview executions with expanded actions
-    executions = [_convert_execution(exec, trigger_info, pattern_cache) for exec in raw_executions]
+    executions = [_convert_execution(exec, trigger_info, routine_cache) for exec in raw_executions]
 
     # Detect conflicts
     conflict_report = detect_conflicts(
