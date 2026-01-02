@@ -1019,8 +1019,16 @@ class Schedule:
 
         Raises:
             ValueError: If data uses old schema format (event_patterns or
-                       schedule-level triggers)
+                       schedule-level triggers) or unsupported schema version
         """
+        # Validate schema version if present
+        schema_version = data.get("schema_version")
+        if schema_version is not None and schema_version not in SUPPORTED_VERSIONS:
+            raise ValueError(
+                f"Unsupported schema version: {schema_version}. "
+                f"Supported versions: {SUPPORTED_VERSIONS}"
+            )
+
         # Reject old schema format
         if "event_patterns" in data:
             raise ValueError(
@@ -1617,6 +1625,10 @@ def validate_routine_ids_unique(schedule: Schedule) -> tuple[bool, str | None]:
         return True, None
 
     routine_ids = [r.routine_id for r in schedule.routines]
+
+    # Check for empty string IDs (defensive - post_init should auto-generate)
+    if any(not rid for rid in routine_ids):
+        return False, "Routine IDs cannot be empty"
 
     if len(routine_ids) != len(set(routine_ids)):
         seen = set()

@@ -33,12 +33,12 @@ try:
         MOON_PHASES,
         PRIMARY_TRIGGER_TYPES,
         SCHEDULE_SCHEMA_VERSION,
-        TRIGGER_CLASS_MAP,
-        TRIGGER_TYPE_MAP,
         SENSOR_COMPARISONS,
         SENSOR_TYPES,
         SOLAR_EVENTS,
         SUPPORTED_VERSIONS,
+        TRIGGER_CLASS_MAP,
+        TRIGGER_TYPE_MAP,
         TRIGGER_TYPES,
         # Dataclasses
         Action,
@@ -63,6 +63,7 @@ try:
         validate_moon_phase_trigger,
         validate_recurring_days_trigger,
         validate_routine,
+        validate_routine_ids_unique,
         validate_schedule,
         validate_sensor_trigger,
         validate_solar_trigger,
@@ -2178,6 +2179,106 @@ class TestScheduleFromDict:
         assert schedule.routines[1].name == "Evening Routine"
         assert isinstance(schedule.routines[0].trigger, FixedTimeTrigger)
         assert isinstance(schedule.routines[1].trigger, SolarTrigger)
+
+    def test_from_dict_accepts_valid_schema_version(self, sample_routine_interval):
+        """Valid schema version 3.0 should be accepted."""
+        data = {
+            "schema_version": "3.0",
+            "name": "Test Schedule",
+            "routines": [sample_routine_interval.to_dict()],
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.name == "Test Schedule"
+
+    def test_from_dict_rejects_unsupported_schema_version(self, sample_routine_interval):
+        """Unsupported schema versions should raise ValueError."""
+        data = {
+            "schema_version": "2.0",
+            "name": "Test Schedule",
+            "routines": [sample_routine_interval.to_dict()],
+        }
+        with pytest.raises(ValueError, match="Unsupported schema version"):
+            Schedule.from_dict(data)
+
+    def test_from_dict_rejects_future_schema_version(self, sample_routine_interval):
+        """Future schema versions should raise ValueError."""
+        data = {
+            "schema_version": "4.0",
+            "name": "Test Schedule",
+            "routines": [sample_routine_interval.to_dict()],
+        }
+        with pytest.raises(ValueError, match="Unsupported schema version"):
+            Schedule.from_dict(data)
+
+    def test_from_dict_accepts_missing_schema_version(self, sample_routine_interval):
+        """Missing schema_version should be accepted (for API payloads)."""
+        data = {
+            "name": "Test Schedule",
+            "routines": [sample_routine_interval.to_dict()],
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.name == "Test Schedule"
+
+
+class TestRoutineIdsUniqueValidation:
+    """Tests for empty routine ID validation in validate_routine_ids_unique()."""
+
+    def test_empty_routine_id_rejected(self):
+        """Empty string routine IDs should be rejected."""
+        # Create routine normally then force empty ID to bypass post_init
+        routine = Routine(
+            routine_id="temp-id",
+            name="Test Routine",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        routine.routine_id = ""  # Force empty after init
+
+        schedule = Schedule(
+            schedule_id="test-schedule-id",
+            name="Test Schedule",
+            routines=[routine],
+        )
+        valid, error = validate_routine_ids_unique(schedule)
+        assert not valid
+        assert "empty" in error.lower()
+
+    def test_none_routine_id_rejected(self):
+        """None routine IDs should be rejected."""
+        routine = Routine(
+            routine_id="temp-id",
+            name="Test Routine",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        routine.routine_id = None  # Force None after init
+
+        schedule = Schedule(
+            schedule_id="test-schedule-id",
+            name="Test Schedule",
+            routines=[routine],
+        )
+        valid, error = validate_routine_ids_unique(schedule)
+        assert not valid
+        assert "empty" in error.lower()
+
+    def test_valid_routine_ids_accepted(self):
+        """Valid non-empty routine IDs should be accepted."""
+        routine = Routine(
+            routine_id="valid-uuid-here",
+            name="Test Routine",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+
+        schedule = Schedule(
+            schedule_id="test-schedule-id",
+            name="Test Schedule",
+            routines=[routine],
+        )
+        valid, error = validate_routine_ids_unique(schedule)
+        assert valid
+        assert error is None
 
 
 class TestScheduleSerialization:

@@ -24,6 +24,9 @@ coverage/
 test_debug.py
 Firmware/photos/
 
+# Runtime logs
+Firmware/logs/
+
 # Runtime SQLite databases
 export_jobs.db
 *.db
