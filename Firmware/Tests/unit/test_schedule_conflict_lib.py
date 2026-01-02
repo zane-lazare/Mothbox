@@ -2,13 +2,13 @@
 Unit tests for schedule conflict detection library.
 
 Tests cover:
-- Data structure serialization (ResourceUsage, PatternExecution, Conflict, ConflictReport)
+- Data structure serialization (ResourceUsage, RoutineExecution, Conflict, ConflictReport)
 - Time overlap detection
 - Resource contention detection (camera, GPS, GPIO)
 - GPIO state conflict detection
-- Pattern execution generation
+- Routine execution generation
 - Conflict report generation
-- Edge cases (adjacent patterns, same start time, overnight windows)
+- Edge cases (adjacent routines, same start time, overnight windows)
 
 Coverage target: 85%+
 Test count target: 35+
@@ -62,14 +62,16 @@ try:
         SINGLE_RESOURCES,
         Conflict,
         ConflictReport,
-        PatternExecution,
+        GPIOStateWarning,
         ResourceUsage,
+        RoutineExecution,
         TimeCollision,
         check_resource_contention,
         check_time_overlap,
         detect_conflicts,
+        detect_gpio_conflicts,
         detect_time_collisions,
-        generate_pattern_executions,
+        generate_routine_executions,
         get_resource_type,
         validate_schedule_conflicts,
     )
@@ -96,17 +98,17 @@ def sample_resource_usage():
         resource_name="takephoto",
         start_time=datetime(2024, 6, 15, 21, 5, 0),
         end_time=datetime(2024, 6, 15, 21, 5, 30),
-        pattern_id="pattern-1",
+        routine_id="routine-1",
         action_index=1,
     )
 
 
 @pytest.fixture
-def sample_pattern_execution():
-    """Create a sample PatternExecution for testing."""
-    return PatternExecution(
-        pattern_id="pattern-1",
-        pattern_name="UV Capture",
+def sample_routine_execution():
+    """Create a sample RoutineExecution for testing."""
+    return RoutineExecution(
+        routine_id="routine-1",
+        routine_name="UV Capture",
         start_time=datetime(2024, 6, 15, 21, 0, 0),
         end_time=datetime(2024, 6, 15, 21, 15, 0),
         resource_usages=[
@@ -115,7 +117,7 @@ def sample_pattern_execution():
                 resource_name="attract_on",
                 start_time=datetime(2024, 6, 15, 21, 0, 0),
                 end_time=datetime(2024, 6, 15, 21, 0, 0),
-                pattern_id="pattern-1",
+                routine_id="routine-1",
                 action_index=0,
             ),
             ResourceUsage(
@@ -123,7 +125,7 @@ def sample_pattern_execution():
                 resource_name="takephoto",
                 start_time=datetime(2024, 6, 15, 21, 5, 0),
                 end_time=datetime(2024, 6, 15, 21, 5, 30),
-                pattern_id="pattern-1",
+                routine_id="routine-1",
                 action_index=1,
             ),
         ],
@@ -165,10 +167,10 @@ def sample_conflict_report(sample_conflict):
 
 @pytest.fixture
 def overlapping_executions():
-    """Create two overlapping PatternExecutions."""
-    exec1 = PatternExecution(
-        pattern_id="pattern-1",
-        pattern_name="Pattern 1",
+    """Create two overlapping RoutineExecutions."""
+    exec1 = RoutineExecution(
+        routine_id="pattern-1",
+        routine_name="Pattern 1",
         start_time=datetime(2024, 6, 15, 21, 0, 0),
         end_time=datetime(2024, 6, 15, 21, 15, 0),
         resource_usages=[
@@ -177,14 +179,14 @@ def overlapping_executions():
                 resource_name="takephoto",
                 start_time=datetime(2024, 6, 15, 21, 5, 0),
                 end_time=datetime(2024, 6, 15, 21, 5, 30),
-                pattern_id="pattern-1",
+                routine_id="pattern-1",
                 action_index=0,
             )
         ],
     )
-    exec2 = PatternExecution(
-        pattern_id="pattern-2",
-        pattern_name="Pattern 2",
+    exec2 = RoutineExecution(
+        routine_id="pattern-2",
+        routine_name="Pattern 2",
         start_time=datetime(2024, 6, 15, 21, 10, 0),
         end_time=datetime(2024, 6, 15, 21, 25, 0),
         resource_usages=[
@@ -193,7 +195,7 @@ def overlapping_executions():
                 resource_name="takephoto",
                 start_time=datetime(2024, 6, 15, 21, 15, 0),
                 end_time=datetime(2024, 6, 15, 21, 15, 30),
-                pattern_id="pattern-2",
+                routine_id="pattern-2",
                 action_index=0,
             )
         ],
@@ -203,17 +205,17 @@ def overlapping_executions():
 
 @pytest.fixture
 def non_overlapping_executions():
-    """Create two non-overlapping PatternExecutions."""
-    exec1 = PatternExecution(
-        pattern_id="pattern-1",
-        pattern_name="Pattern 1",
+    """Create two non-overlapping RoutineExecutions."""
+    exec1 = RoutineExecution(
+        routine_id="pattern-1",
+        routine_name="Pattern 1",
         start_time=datetime(2024, 6, 15, 21, 0, 0),
         end_time=datetime(2024, 6, 15, 21, 15, 0),
         resource_usages=[],
     )
-    exec2 = PatternExecution(
-        pattern_id="pattern-2",
-        pattern_name="Pattern 2",
+    exec2 = RoutineExecution(
+        routine_id="pattern-2",
+        routine_name="Pattern 2",
         start_time=datetime(2024, 6, 15, 22, 0, 0),
         end_time=datetime(2024, 6, 15, 22, 15, 0),
         resource_usages=[],
@@ -225,9 +227,9 @@ def non_overlapping_executions():
 def sample_schedule():
     """Create a valid Schedule for conflict testing (Schema 3.0)."""
     from webui.backend.lib.schedule_schema import (
-        Routine,
-        IntervalTrigger,
         Action,
+        IntervalTrigger,
+        Routine,
         Schedule,
         TimeWindow,
     )
@@ -281,9 +283,9 @@ def sample_schedule():
 def conflicting_schedule():
     """Create a Schedule with routines that will conflict (Schema 3.0)."""
     from webui.backend.lib.schedule_schema import (
-        Routine,
-        IntervalTrigger,
         Action,
+        IntervalTrigger,
+        Routine,
         Schedule,
         TimeWindow,
     )
@@ -374,7 +376,7 @@ class TestConflictDataclasses:
         assert data["resource_name"] == "takephoto"
         assert data["start_time"] == "2024-06-15T21:05:00"
         assert data["end_time"] == "2024-06-15T21:05:30"
-        assert data["pattern_id"] == "pattern-1"
+        assert data["routine_id"] == "routine-1"
         assert data["action_index"] == 1
 
     def test_resource_usage_from_dict(self, sample_resource_usage):
@@ -386,30 +388,30 @@ class TestConflictDataclasses:
         assert restored.resource_name == sample_resource_usage.resource_name
         assert restored.start_time == sample_resource_usage.start_time
         assert restored.end_time == sample_resource_usage.end_time
-        assert restored.pattern_id == sample_resource_usage.pattern_id
+        assert restored.routine_id == sample_resource_usage.routine_id
         assert restored.action_index == sample_resource_usage.action_index
 
-    def test_pattern_execution_to_dict(self, sample_pattern_execution):
-        """PatternExecution.to_dict() should serialize including nested resource_usages."""
-        data = sample_pattern_execution.to_dict()
+    def test_routine_execution_to_dict(self, sample_routine_execution):
+        """RoutineExecution.to_dict() should serialize including nested resource_usages."""
+        data = sample_routine_execution.to_dict()
 
-        assert data["pattern_id"] == "pattern-1"
-        assert data["pattern_name"] == "UV Capture"
+        assert data["routine_id"] == "routine-1"
+        assert data["routine_name"] == "UV Capture"
         assert data["start_time"] == "2024-06-15T21:00:00"
         assert data["end_time"] == "2024-06-15T21:15:00"
         assert len(data["resource_usages"]) == 2
         assert data["resource_usages"][0]["resource_type"] == "gpio"
         assert data["resource_usages"][1]["resource_type"] == "camera"
 
-    def test_pattern_execution_from_dict(self, sample_pattern_execution):
-        """PatternExecution.from_dict() should deserialize including nested usages."""
-        data = sample_pattern_execution.to_dict()
-        restored = PatternExecution.from_dict(data)
+    def test_routine_execution_from_dict(self, sample_routine_execution):
+        """RoutineExecution.from_dict() should deserialize including nested usages."""
+        data = sample_routine_execution.to_dict()
+        restored = RoutineExecution.from_dict(data)
 
-        assert restored.pattern_id == sample_pattern_execution.pattern_id
-        assert restored.pattern_name == sample_pattern_execution.pattern_name
-        assert restored.start_time == sample_pattern_execution.start_time
-        assert restored.end_time == sample_pattern_execution.end_time
+        assert restored.routine_id == sample_routine_execution.routine_id
+        assert restored.routine_name == sample_routine_execution.routine_name
+        assert restored.start_time == sample_routine_execution.start_time
+        assert restored.end_time == sample_routine_execution.end_time
         assert len(restored.resource_usages) == 2
         assert restored.resource_usages[0].resource_type == "gpio"
         assert restored.resource_usages[1].resource_type == "camera"
@@ -487,16 +489,16 @@ class TestTimeOverlapDetection:
 
     def test_fully_overlapping_executions(self):
         """Fully overlapping executions should return True with overlap period."""
-        exec1 = PatternExecution(
-            pattern_id="p1",
-            pattern_name="P1",
+        exec1 = RoutineExecution(
+            routine_id="p1",
+            routine_name="P1",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 30, 0),
             resource_usages=[],
         )
-        exec2 = PatternExecution(
-            pattern_id="p2",
-            pattern_name="P2",
+        exec2 = RoutineExecution(
+            routine_id="p2",
+            routine_name="P2",
             start_time=datetime(2024, 6, 15, 21, 5, 0),
             end_time=datetime(2024, 6, 15, 21, 20, 0),
             resource_usages=[],
@@ -520,16 +522,16 @@ class TestTimeOverlapDetection:
 
     def test_partial_overlap_end_inside(self):
         """Partial overlap where exec1 ends during exec2."""
-        exec1 = PatternExecution(
-            pattern_id="p1",
-            pattern_name="P1",
+        exec1 = RoutineExecution(
+            routine_id="p1",
+            routine_name="P1",
             start_time=datetime(2024, 6, 15, 21, 10, 0),
             end_time=datetime(2024, 6, 15, 21, 25, 0),
             resource_usages=[],
         )
-        exec2 = PatternExecution(
-            pattern_id="p2",
-            pattern_name="P2",
+        exec2 = RoutineExecution(
+            routine_id="p2",
+            routine_name="P2",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 15, 0),
             resource_usages=[],
@@ -543,16 +545,16 @@ class TestTimeOverlapDetection:
 
     def test_adjacent_patterns_no_overlap(self):
         """Adjacent patterns (end == start) should NOT overlap."""
-        exec1 = PatternExecution(
-            pattern_id="p1",
-            pattern_name="P1",
+        exec1 = RoutineExecution(
+            routine_id="p1",
+            routine_name="P1",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 15, 0),
             resource_usages=[],
         )
-        exec2 = PatternExecution(
-            pattern_id="p2",
-            pattern_name="P2",
+        exec2 = RoutineExecution(
+            routine_id="p2",
+            routine_name="P2",
             start_time=datetime(2024, 6, 15, 21, 15, 0),  # Starts exactly when exec1 ends
             end_time=datetime(2024, 6, 15, 21, 30, 0),
             resource_usages=[],
@@ -566,16 +568,16 @@ class TestTimeOverlapDetection:
 
     def test_same_start_time(self):
         """Executions starting at same time should overlap."""
-        exec1 = PatternExecution(
-            pattern_id="p1",
-            pattern_name="P1",
+        exec1 = RoutineExecution(
+            routine_id="p1",
+            routine_name="P1",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 15, 0),
             resource_usages=[],
         )
-        exec2 = PatternExecution(
-            pattern_id="p2",
-            pattern_name="P2",
+        exec2 = RoutineExecution(
+            routine_id="p2",
+            routine_name="P2",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 10, 0),
             resource_usages=[],
@@ -589,16 +591,16 @@ class TestTimeOverlapDetection:
 
     def test_one_contains_other(self):
         """One execution fully contains another."""
-        outer = PatternExecution(
-            pattern_id="outer",
-            pattern_name="Outer",
+        outer = RoutineExecution(
+            routine_id="outer",
+            routine_name="Outer",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 22, 0, 0),
             resource_usages=[],
         )
-        inner = PatternExecution(
-            pattern_id="inner",
-            pattern_name="Inner",
+        inner = RoutineExecution(
+            routine_id="inner",
+            routine_name="Inner",
             start_time=datetime(2024, 6, 15, 21, 15, 0),
             end_time=datetime(2024, 6, 15, 21, 45, 0),
             resource_usages=[],
@@ -612,16 +614,16 @@ class TestTimeOverlapDetection:
 
     def test_zero_duration_pattern(self):
         """Zero-duration patterns (start == end) should still be detected."""
-        instant = PatternExecution(
-            pattern_id="instant",
-            pattern_name="Instant",
+        instant = RoutineExecution(
+            routine_id="instant",
+            routine_name="Instant",
             start_time=datetime(2024, 6, 15, 21, 10, 0),
             end_time=datetime(2024, 6, 15, 21, 10, 0),  # Same as start
             resource_usages=[],
         )
-        normal = PatternExecution(
-            pattern_id="normal",
-            pattern_name="Normal",
+        normal = RoutineExecution(
+            routine_id="normal",
+            routine_name="Normal",
             start_time=datetime(2024, 6, 15, 21, 5, 0),
             end_time=datetime(2024, 6, 15, 21, 20, 0),
             resource_usages=[],
@@ -708,7 +710,7 @@ class TestResourceContention:
             resource_name="takephoto",
             start_time=datetime(2024, 6, 15, 21, 5, 0),
             end_time=datetime(2024, 6, 15, 21, 5, 30),
-            pattern_id="p1",
+            routine_id="p1",
             action_index=0,
         )
         usage2 = ResourceUsage(
@@ -716,7 +718,7 @@ class TestResourceContention:
             resource_name="takephoto",
             start_time=datetime(2024, 6, 15, 21, 5, 15),
             end_time=datetime(2024, 6, 15, 21, 5, 45),
-            pattern_id="p2",
+            routine_id="p2",
             action_index=0,
         )
 
@@ -732,7 +734,7 @@ class TestResourceContention:
             resource_name="sync",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 0, 30),
-            pattern_id="p1",
+            routine_id="p1",
             action_index=0,
         )
         usage2 = ResourceUsage(
@@ -740,7 +742,7 @@ class TestResourceContention:
             resource_name="sync",
             start_time=datetime(2024, 6, 15, 21, 0, 15),
             end_time=datetime(2024, 6, 15, 21, 0, 45),
-            pattern_id="p2",
+            routine_id="p2",
             action_index=0,
         )
 
@@ -756,7 +758,7 @@ class TestResourceContention:
             resource_name="attract_on",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 0, 0),
-            pattern_id="p1",
+            routine_id="p1",
             action_index=0,
         )
         usage2 = ResourceUsage(
@@ -764,7 +766,7 @@ class TestResourceContention:
             resource_name="attract_off",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 0, 0),
-            pattern_id="p2",
+            routine_id="p2",
             action_index=0,
         )
 
@@ -780,7 +782,7 @@ class TestResourceContention:
             resource_name="attract_on",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 0, 0),
-            pattern_id="p1",
+            routine_id="p1",
             action_index=0,
         )
         usage2 = ResourceUsage(
@@ -788,7 +790,7 @@ class TestResourceContention:
             resource_name="attract_on",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 0, 0),
-            pattern_id="p2",
+            routine_id="p2",
             action_index=0,
         )
 
@@ -804,7 +806,7 @@ class TestResourceContention:
             resource_name="takephoto",
             start_time=datetime(2024, 6, 15, 21, 5, 0),
             end_time=datetime(2024, 6, 15, 21, 5, 30),
-            pattern_id="p1",
+            routine_id="p1",
             action_index=0,
         )
         usage2 = ResourceUsage(
@@ -812,7 +814,7 @@ class TestResourceContention:
             resource_name="attract_on",
             start_time=datetime(2024, 6, 15, 21, 5, 0),
             end_time=datetime(2024, 6, 15, 21, 5, 0),
-            pattern_id="p2",
+            routine_id="p2",
             action_index=0,
         )
 
@@ -828,7 +830,7 @@ class TestResourceContention:
             resource_name="takephoto",
             start_time=datetime(2024, 6, 15, 21, 5, 0),
             end_time=datetime(2024, 6, 15, 21, 5, 30),
-            pattern_id="p1",
+            routine_id="p1",
             action_index=0,
         )
         usage2 = ResourceUsage(
@@ -836,7 +838,7 @@ class TestResourceContention:
             resource_name="takephoto",
             start_time=datetime(2024, 6, 15, 21, 10, 0),
             end_time=datetime(2024, 6, 15, 21, 10, 30),
-            pattern_id="p2",
+            routine_id="p2",
             action_index=0,
         )
 
@@ -852,7 +854,7 @@ class TestResourceContention:
             resource_name="backup",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 5, 0),
-            pattern_id="p1",
+            routine_id="p1",
             action_index=0,
         )
         usage2 = ResourceUsage(
@@ -860,7 +862,7 @@ class TestResourceContention:
             resource_name="backup",
             start_time=datetime(2024, 6, 15, 21, 2, 0),
             end_time=datetime(2024, 6, 15, 21, 7, 0),
-            pattern_id="p2",
+            routine_id="p2",
             action_index=0,
         )
 
@@ -877,7 +879,7 @@ class TestResourceContention:
             resource_name="takephoto",
             start_time=datetime(2024, 6, 15, 21, 5, 0),
             end_time=datetime(2024, 6, 15, 21, 5, 30),
-            pattern_id="p1",
+            routine_id="p1",
             action_index=0,
         )
         # Instant camera action at exactly 21:05:30 (end time of duration_usage)
@@ -886,7 +888,7 @@ class TestResourceContention:
             resource_name="takephoto",
             start_time=datetime(2024, 6, 15, 21, 5, 30),
             end_time=datetime(2024, 6, 15, 21, 5, 30),  # Instant (start == end)
-            pattern_id="p2",
+            routine_id="p2",
             action_index=0,
         )
 
@@ -904,7 +906,7 @@ class TestResourceContention:
             resource_name="takephoto",
             start_time=datetime(2024, 6, 15, 21, 5, 0),
             end_time=datetime(2024, 6, 15, 21, 5, 30),
-            pattern_id="p1",
+            routine_id="p1",
             action_index=0,
         )
         # Instant camera action at exactly 21:05:00 (start time of duration_usage)
@@ -913,7 +915,7 @@ class TestResourceContention:
             resource_name="takephoto",
             start_time=datetime(2024, 6, 15, 21, 5, 0),
             end_time=datetime(2024, 6, 15, 21, 5, 0),  # Instant (start == end)
-            pattern_id="p2",
+            routine_id="p2",
             action_index=0,
         )
 
@@ -931,7 +933,7 @@ class TestResourceContention:
             resource_name="takephoto",
             start_time=datetime(2024, 6, 15, 21, 5, 0),
             end_time=datetime(2024, 6, 15, 21, 5, 30),
-            pattern_id="p1",
+            routine_id="p1",
             action_index=0,
         )
         # Instant camera action at 21:05:31 (1 second after end time)
@@ -940,7 +942,7 @@ class TestResourceContention:
             resource_name="takephoto",
             start_time=datetime(2024, 6, 15, 21, 5, 31),
             end_time=datetime(2024, 6, 15, 21, 5, 31),  # Instant (start == end)
-            pattern_id="p2",
+            routine_id="p2",
             action_index=0,
         )
 
@@ -955,15 +957,15 @@ class TestResourceContention:
 # Test Pattern Execution Generation
 # ============================================================================
 
-class TestPatternExecutionGeneration:
-    """Tests for generate_pattern_executions() function."""
+class TestRoutineExecutionGeneration:
+    """Tests for generate_routine_executions() function."""
 
     def test_interval_trigger_generation(self, sample_schedule):
         """Interval trigger should generate executions at correct times."""
         start_date = date(2024, 6, 15)
         end_date = date(2024, 6, 15)
 
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             sample_schedule,
             start_date,
             end_date,
@@ -976,7 +978,7 @@ class TestPatternExecutionGeneration:
         assert len(executions) == 4
 
         # Check first execution
-        assert executions[0].pattern_name == "UV Capture Cycle"
+        assert executions[0].routine_name == "UV Capture Cycle"
         assert executions[0].start_time.hour == 21
         assert executions[0].start_time.minute == 0
 
@@ -985,7 +987,7 @@ class TestPatternExecutionGeneration:
         start_date = date(2024, 6, 15)
         end_date = date(2024, 6, 15)
 
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             sample_schedule,
             start_date,
             end_date,
@@ -1009,7 +1011,7 @@ class TestPatternExecutionGeneration:
         start_date = date(2024, 6, 15)
         end_date = date(2024, 6, 15)
 
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             sample_schedule,
             start_date,
             end_date,
@@ -1039,7 +1041,7 @@ class TestPatternExecutionGeneration:
         start_date = date(2024, 6, 15)
         end_date = date(2024, 6, 15)
 
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             sample_schedule,
             start_date,
             end_date,
@@ -1055,7 +1057,7 @@ class TestPatternExecutionGeneration:
         start_date = date(2024, 6, 15)
         end_date = date(2024, 6, 17)  # 3 days
 
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             sample_schedule,
             start_date,
             end_date,
@@ -1072,7 +1074,7 @@ class TestPatternExecutionGeneration:
         start_date = date(2024, 6, 15)
         end_date = date(2024, 6, 17)
 
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             sample_schedule,
             start_date,
             end_date,
@@ -1255,14 +1257,14 @@ class TestConstants:
 # ============================================================================
 
 class TestTriggerTypeHandling:
-    """Tests for different trigger types in generate_pattern_executions()."""
+    """Tests for different trigger types in generate_routine_executions()."""
 
     def test_routine_with_days_of_week(self):
         """Routine with day restrictions should skip other days (Schema 3.0)."""
         from webui.backend.lib.schedule_schema import (
-            Routine,
-            IntervalTrigger,
             Action,
+            IntervalTrigger,
+            Routine,
             Schedule,
             TimeWindow,
         )
@@ -1290,7 +1292,7 @@ class TestTriggerTypeHandling:
             enabled=True,
         )
 
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             schedule,
             date(2024, 6, 15),  # Saturday
             date(2024, 6, 15),
@@ -1305,9 +1307,9 @@ class TestTriggerTypeHandling:
     def test_routine_on_valid_day(self):
         """Routine should generate executions on valid days (Schema 3.0)."""
         from webui.backend.lib.schedule_schema import (
-            Routine,
-            IntervalTrigger,
             Action,
+            IntervalTrigger,
+            Routine,
             Schedule,
             TimeWindow,
         )
@@ -1335,7 +1337,7 @@ class TestTriggerTypeHandling:
             enabled=True,
         )
 
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             schedule,
             date(2024, 6, 17),  # Monday
             date(2024, 6, 17),
@@ -1350,9 +1352,9 @@ class TestTriggerTypeHandling:
     def test_fixed_time_trigger_generation(self):
         """Fixed time trigger should generate single execution per day (Schema 3.0)."""
         from webui.backend.lib.schedule_schema import (
-            Routine,
-            FixedTimeTrigger,
             Action,
+            FixedTimeTrigger,
+            Routine,
             Schedule,
         )
 
@@ -1374,7 +1376,7 @@ class TestTriggerTypeHandling:
             enabled=True,
         )
 
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             schedule,
             date(2024, 6, 15),
             date(2024, 6, 17),  # 3 days
@@ -1394,9 +1396,9 @@ class TestTriggerTypeHandling:
     def test_fixed_time_with_days_of_week(self):
         """Fixed time with day restrictions should skip other days (Schema 3.0)."""
         from webui.backend.lib.schedule_schema import (
-            Routine,
-            FixedTimeTrigger,
             Action,
+            FixedTimeTrigger,
+            Routine,
             Schedule,
         )
 
@@ -1422,7 +1424,7 @@ class TestTriggerTypeHandling:
             enabled=True,
         )
 
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             schedule,
             date(2024, 6, 15),  # Saturday
             date(2024, 6, 15),
@@ -1437,8 +1439,8 @@ class TestTriggerTypeHandling:
     def test_sensor_trigger_generation(self):
         """Sensor trigger with time window should generate placeholder execution (Schema 3.0)."""
         from webui.backend.lib.schedule_schema import (
-            Routine,
             Action,
+            Routine,
             Schedule,
             SensorTrigger,
             TimeWindow,
@@ -1466,7 +1468,7 @@ class TestTriggerTypeHandling:
             enabled=True,
         )
 
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             schedule,
             date(2024, 6, 15),
             date(2024, 6, 15),
@@ -1483,9 +1485,9 @@ class TestTriggerTypeHandling:
     def test_overnight_window_handling(self):
         """Interval trigger with overnight window should work correctly (Schema 3.0)."""
         from webui.backend.lib.schedule_schema import (
-            Routine,
-            IntervalTrigger,
             Action,
+            IntervalTrigger,
+            Routine,
             Schedule,
             TimeWindow,
         )
@@ -1512,7 +1514,7 @@ class TestTriggerTypeHandling:
             enabled=True,
         )
 
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             schedule,
             date(2024, 6, 15),
             date(2024, 6, 15),
@@ -1545,7 +1547,7 @@ class TestConflictMessageGeneration:
             resource_name="takephoto",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 0, 30),
-            pattern_id="p1",
+            routine_id="p1",
             action_index=0,
         )
         usage2 = ResourceUsage(
@@ -1553,7 +1555,7 @@ class TestConflictMessageGeneration:
             resource_name="takephoto",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 0, 30),
-            pattern_id="p2",
+            routine_id="p2",
             action_index=0,
         )
 
@@ -1577,7 +1579,7 @@ class TestConflictMessageGeneration:
             resource_name="attract_on",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 0, 0),
-            pattern_id="p1",
+            routine_id="p1",
             action_index=0,
         )
         usage2 = ResourceUsage(
@@ -1585,7 +1587,7 @@ class TestConflictMessageGeneration:
             resource_name="attract_off",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 0, 0),
-            pattern_id="p2",
+            routine_id="p2",
             action_index=0,
         )
 
@@ -1607,7 +1609,7 @@ class TestConflictMessageGeneration:
             resource_name="test",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 0, 30),
-            pattern_id="p1",
+            routine_id="p1",
             action_index=0,
         )
         usage2 = ResourceUsage(
@@ -1615,7 +1617,7 @@ class TestConflictMessageGeneration:
             resource_name="test",
             start_time=datetime(2024, 6, 15, 21, 0, 0),
             end_time=datetime(2024, 6, 15, 21, 0, 30),
-            pattern_id="p2",
+            routine_id="p2",
             action_index=0,
         )
 
@@ -1670,8 +1672,8 @@ class TestSolarTriggerGeneration:
     def test_solar_trigger_with_valid_location(self):
         """Solar trigger should generate execution at solar event time."""
         from webui.backend.lib.schedule_schema import (
-            Routine,
             Action,
+            Routine,
             Schedule,
             SolarTrigger,
         )
@@ -1698,7 +1700,7 @@ class TestSolarTriggerGeneration:
         )
 
         # Use Panama coordinates where solar_time library works
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             schedule,
             date(2024, 6, 15),
             date(2024, 6, 15),
@@ -1715,8 +1717,8 @@ class TestSolarTriggerGeneration:
     def test_solar_trigger_with_days_of_week(self):
         """Solar trigger with day restrictions should skip other days."""
         from webui.backend.lib.schedule_schema import (
-            Routine,
             Action,
+            Routine,
             Schedule,
             SolarTrigger,
         )
@@ -1744,7 +1746,7 @@ class TestSolarTriggerGeneration:
             enabled=True,
         )
 
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             schedule,
             date(2024, 6, 15),  # Saturday
             date(2024, 6, 15),
@@ -1763,9 +1765,9 @@ class TestMoonPhaseTriggerGeneration:
     def test_moon_phase_trigger_with_time_window(self):
         """Moon phase trigger with time_window should use window start time."""
         from webui.backend.lib.schedule_schema import (
-            Routine,
-            MoonPhaseTrigger,
             Action,
+            MoonPhaseTrigger,
+            Routine,
             Schedule,
             TimeWindow,
         )
@@ -1793,7 +1795,7 @@ class TestMoonPhaseTriggerGeneration:
         )
 
         # Find a full moon date (approximately June 22, 2024)
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             schedule,
             date(2024, 6, 21),
             date(2024, 6, 23),  # Around full moon
@@ -1809,9 +1811,9 @@ class TestMoonPhaseTriggerGeneration:
     def test_moon_phase_trigger_without_time_window(self):
         """Moon phase trigger without time_window should default to noon."""
         from webui.backend.lib.schedule_schema import (
-            Routine,
-            MoonPhaseTrigger,
             Action,
+            MoonPhaseTrigger,
+            Routine,
             Schedule,
         )
 
@@ -1837,7 +1839,7 @@ class TestMoonPhaseTriggerGeneration:
         )
 
         # Find a full moon date
-        executions = generate_pattern_executions(
+        executions = generate_routine_executions(
             schedule,
             date(2024, 6, 21),
             date(2024, 6, 23),
@@ -2195,3 +2197,285 @@ class TestDetectTimeCollisions:
         collision = collisions[0]
         # Should use routine_id when name is None
         assert "routine-abc" in collision.message or "routine-xyz" in collision.message
+
+
+# ============================================================================
+# Test GPIOStateWarning and detect_gpio_conflicts
+# ============================================================================
+
+class TestGPIOStateWarning:
+    """Tests for GPIOStateWarning dataclass."""
+
+    def test_gpio_state_warning_creation(self):
+        """GPIOStateWarning should be creatable with all fields."""
+        warning = GPIOStateWarning(
+            resource_type="attract",
+            routine_id="routine-1",
+            routine_name="UV Capture",
+            issue="Attract turned on 1 time(s) but off 0 time(s)",
+            suggested_fix="Add attract_off action at end of routine",
+        )
+
+        assert warning.resource_type == "attract"
+        assert warning.routine_id == "routine-1"
+        assert warning.routine_name == "UV Capture"
+        assert "on 1" in warning.issue
+        assert "attract_off" in warning.suggested_fix
+
+    def test_gpio_state_warning_to_dict(self):
+        """GPIOStateWarning.to_dict() should serialize all fields."""
+        warning = GPIOStateWarning(
+            resource_type="flash",
+            routine_id="routine-2",
+            routine_name="Flash Test",
+            issue="Flash turned off 2 time(s) but on 1 time(s)",
+            suggested_fix="Verify flash_on action exists before flash_off",
+        )
+
+        data = warning.to_dict()
+
+        assert data["type"] == "gpio_state_warning"
+        assert data["resource_type"] == "flash"
+        assert data["routine_id"] == "routine-2"
+        assert data["routine_name"] == "Flash Test"
+        assert "off 2" in data["issue"]
+        assert "flash_on" in data["suggested_fix"]
+
+    def test_gpio_state_warning_from_dict(self):
+        """GPIOStateWarning.from_dict() should deserialize correctly."""
+        warning = GPIOStateWarning(
+            resource_type="attract",
+            routine_id="routine-3",
+            routine_name="Test Routine",
+            issue="Test issue",
+            suggested_fix="Test fix",
+        )
+
+        data = warning.to_dict()
+        restored = GPIOStateWarning.from_dict(data)
+
+        assert restored.resource_type == warning.resource_type
+        assert restored.routine_id == warning.routine_id
+        assert restored.routine_name == warning.routine_name
+        assert restored.issue == warning.issue
+        assert restored.suggested_fix == warning.suggested_fix
+
+
+class TestDetectGPIOConflicts:
+    """Tests for detect_gpio_conflicts() function."""
+
+    def test_no_gpio_conflicts_balanced(self):
+        """Balanced on/off actions should not generate warnings."""
+        from webui.backend.lib.schedule_schema import (
+            Action,
+            FixedTimeTrigger,
+            Routine,
+            Schedule,
+        )
+
+        routine = Routine(
+            routine_id="balanced",
+            name="Balanced GPIO",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[
+                Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
+                Action(action_type="camera", action_name="takephoto", offset_minutes=5),
+                Action(action_type="gpio", action_name="attract_off", offset_minutes=10),
+            ],
+        )
+
+        schedule = Schedule(
+            schedule_id="balanced-schedule",
+            name="Balanced Schedule",
+            routines=[routine],
+            enabled=True,
+        )
+
+        warnings = detect_gpio_conflicts(schedule)
+
+        assert len(warnings) == 0
+
+    def test_gpio_conflict_missing_off(self):
+        """attract_on without attract_off should generate warning."""
+        from webui.backend.lib.schedule_schema import (
+            Action,
+            FixedTimeTrigger,
+            Routine,
+            Schedule,
+        )
+
+        routine = Routine(
+            routine_id="missing-off",
+            name="Missing Off",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[
+                Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
+                Action(action_type="camera", action_name="takephoto", offset_minutes=5),
+                # Missing attract_off
+            ],
+        )
+
+        schedule = Schedule(
+            schedule_id="missing-off-schedule",
+            name="Missing Off Schedule",
+            routines=[routine],
+            enabled=True,
+        )
+
+        warnings = detect_gpio_conflicts(schedule)
+
+        assert len(warnings) == 1
+        assert warnings[0].resource_type == "attract"
+        assert warnings[0].routine_id == "missing-off"
+        assert "on 1" in warnings[0].issue
+        assert "off 0" in warnings[0].issue
+        assert "attract_off" in warnings[0].suggested_fix
+
+    def test_gpio_conflict_missing_on(self):
+        """flash_off without flash_on should generate warning."""
+        from webui.backend.lib.schedule_schema import (
+            Action,
+            FixedTimeTrigger,
+            Routine,
+            Schedule,
+        )
+
+        routine = Routine(
+            routine_id="missing-on",
+            name="Missing On",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[
+                Action(action_type="gpio", action_name="flash_off", offset_minutes=0),
+                # Missing flash_on
+            ],
+        )
+
+        schedule = Schedule(
+            schedule_id="missing-on-schedule",
+            name="Missing On Schedule",
+            routines=[routine],
+            enabled=True,
+        )
+
+        warnings = detect_gpio_conflicts(schedule)
+
+        assert len(warnings) == 1
+        assert warnings[0].resource_type == "flash"
+        assert "off 1" in warnings[0].issue
+        assert "on 0" in warnings[0].issue
+        assert "flash_on" in warnings[0].suggested_fix
+
+    def test_gpio_conflict_multiple_routines(self):
+        """Multiple routines can each have their own GPIO warnings."""
+        from webui.backend.lib.schedule_schema import (
+            Action,
+            FixedTimeTrigger,
+            Routine,
+            Schedule,
+        )
+
+        routine1 = Routine(
+            routine_id="routine-1",
+            name="Attract Only On",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[
+                Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
+            ],
+        )
+        routine2 = Routine(
+            routine_id="routine-2",
+            name="Flash Only On",
+            trigger=FixedTimeTrigger(time="22:00"),
+            actions=[
+                Action(action_type="gpio", action_name="flash_on", offset_minutes=0),
+            ],
+        )
+
+        schedule = Schedule(
+            schedule_id="multi-gpio",
+            name="Multiple GPIO Issues",
+            routines=[routine1, routine2],
+            enabled=True,
+        )
+
+        warnings = detect_gpio_conflicts(schedule)
+
+        assert len(warnings) == 2
+        resource_types = {w.resource_type for w in warnings}
+        assert "attract" in resource_types
+        assert "flash" in resource_types
+
+    def test_empty_schedule_no_warnings(self):
+        """Empty schedule should generate no warnings."""
+        from webui.backend.lib.schedule_schema import Schedule
+
+        schedule = Schedule(
+            schedule_id="empty",
+            name="Empty Schedule",
+            routines=[],
+            enabled=True,
+        )
+
+        warnings = detect_gpio_conflicts(schedule)
+
+        assert len(warnings) == 0
+
+    def test_non_gpio_actions_ignored(self):
+        """Non-GPIO actions should be ignored."""
+        from webui.backend.lib.schedule_schema import (
+            Action,
+            FixedTimeTrigger,
+            Routine,
+            Schedule,
+        )
+
+        routine = Routine(
+            routine_id="camera-only",
+            name="Camera Only",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[
+                Action(action_type="camera", action_name="takephoto", offset_minutes=0),
+                Action(action_type="gps_sync", action_name="sync", offset_minutes=5),
+            ],
+        )
+
+        schedule = Schedule(
+            schedule_id="camera-schedule",
+            name="Camera Schedule",
+            routines=[routine],
+            enabled=True,
+        )
+
+        warnings = detect_gpio_conflicts(schedule)
+
+        assert len(warnings) == 0
+
+    def test_routine_name_fallback_to_id(self):
+        """Warning uses routine_id if name is None."""
+        from webui.backend.lib.schedule_schema import (
+            Action,
+            FixedTimeTrigger,
+            Routine,
+            Schedule,
+        )
+
+        routine = Routine(
+            routine_id="routine-abc-123",
+            name=None,  # No name
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[
+                Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
+            ],
+        )
+
+        schedule = Schedule(
+            schedule_id="nameless",
+            name="Nameless Routine",
+            routines=[routine],
+            enabled=True,
+        )
+
+        warnings = detect_gpio_conflicts(schedule)
+
+        assert len(warnings) == 1
+        assert warnings[0].routine_name == "routine-abc-123"

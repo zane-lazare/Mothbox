@@ -42,10 +42,10 @@ except ImportError:
 # Import schema classes
 try:
     from webui.backend.lib.schedule_schema import (
+        Action,
         FixedTimeTrigger,
         IntervalTrigger,
         MoonPhaseTrigger,
-        Action,
         Routine,
         Schedule,
         SensorTrigger,
@@ -345,8 +345,8 @@ class TestPreviewExecution:
         execution = PreviewExecution(
             start_time=datetime(2025, 6, 15, 21, 0, 0, tzinfo=UTC),
             end_time=datetime(2025, 6, 15, 21, 15, 0, tzinfo=UTC),
-            pattern_id="uv-cycle",
-            pattern_name="UV Capture Cycle",
+            routine_id="uv-cycle",
+            routine_name="UV Capture Cycle",
             trigger_info="interval:60m",
             actions=actions,
         )
@@ -355,8 +355,8 @@ class TestPreviewExecution:
 
         assert result["start_time"] == "2025-06-15T21:00:00+00:00"
         assert result["end_time"] == "2025-06-15T21:15:00+00:00"
-        assert result["pattern_id"] == "uv-cycle"
-        assert result["pattern_name"] == "UV Capture Cycle"
+        assert result["routine_id"] == "uv-cycle"
+        assert result["routine_name"] == "UV Capture Cycle"
         assert result["trigger_info"] == "interval:60m"
         assert len(result["actions"]) == 1
 
@@ -365,8 +365,8 @@ class TestPreviewExecution:
         execution = PreviewExecution(
             start_time=datetime(2025, 6, 15, 21, 0, 0, tzinfo=UTC),
             end_time=datetime(2025, 6, 15, 21, 0, 0, tzinfo=UTC),
-            pattern_id="empty",
-            pattern_name="Empty Pattern",
+            routine_id="empty",
+            routine_name="Empty Pattern",
             trigger_info="fixed",
             actions=[],
         )
@@ -458,8 +458,8 @@ class TestPreviewResult:
                 {
                     "start_time": "2025-06-15T21:00:00+00:00",
                     "end_time": "2025-06-15T21:15:00+00:00",
-                    "pattern_id": "uv-cycle",
-                    "pattern_name": "UV Capture Cycle",
+                    "routine_id": "uv-cycle",
+                    "routine_name": "UV Capture Cycle",
                     "trigger_info": "interval:60m",
                     "actions": [
                         {
@@ -488,7 +488,7 @@ class TestPreviewResult:
         assert result.total_actions == 1
         assert result.total_executions == 1
         assert len(result.executions) == 1
-        assert result.executions[0].pattern_id == "uv-cycle"
+        assert result.executions[0].routine_id == "uv-cycle"
         assert len(result.executions[0].actions) == 1
         assert result.executions[0].actions[0].action_name == "attract_on"
         assert result.moon_phases == {"2025-06-15": {"phase": "full", "illumination": 1.0}}
@@ -504,8 +504,8 @@ class TestPreviewResult:
                 PreviewExecution(
                     start_time=datetime(2025, 6, 15, 21, 0, 0, tzinfo=UTC),
                     end_time=datetime(2025, 6, 15, 21, 15, 0, tzinfo=UTC),
-                    pattern_id="test-pattern",
-                    pattern_name="Test Pattern",
+                    routine_id="test-pattern",
+                    routine_name="Test Pattern",
                     trigger_info="interval:30m",
                     actions=[
                         ActionExecution(
@@ -535,7 +535,7 @@ class TestPreviewResult:
         assert restored.total_executions == original.total_executions
         assert restored.generated_at == original.generated_at
         assert len(restored.executions) == len(original.executions)
-        assert restored.executions[0].pattern_id == original.executions[0].pattern_id
+        assert restored.executions[0].routine_id == original.executions[0].routine_id
         assert len(restored.executions[0].actions) == len(original.executions[0].actions)
 
 
@@ -751,7 +751,7 @@ class TestConflictIntegration:
     """Tests for conflict detection integration."""
 
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")
-    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    @patch("webui.backend.lib.schedule_preview.generate_routine_executions")
     def test_conflicts_included_in_result(
         self, mock_gen_exec, mock_detect, sample_interval_schedule
     ):
@@ -775,7 +775,7 @@ class TestConflictIntegration:
         assert len(result.conflicts) == 1
 
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")
-    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    @patch("webui.backend.lib.schedule_preview.generate_routine_executions")
     def test_no_conflicts_empty_list(self, mock_gen_exec, mock_detect, sample_interval_schedule):
         """Test empty conflict list when no conflicts."""
         mock_gen_exec.return_value = []
@@ -789,7 +789,7 @@ class TestConflictIntegration:
         assert result.conflicts == []
 
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")
-    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    @patch("webui.backend.lib.schedule_preview.generate_routine_executions")
     def test_conflict_report_called_with_correct_params(
         self, mock_gen_exec, mock_detect, sample_interval_schedule
     ):
@@ -956,7 +956,7 @@ class TestLocationFallback:
 
     @patch("webui.backend.lib.schedule_preview._get_default_location")
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")
-    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    @patch("webui.backend.lib.schedule_preview.generate_routine_executions")
     def test_location_from_params_priority(
         self, mock_gen_exec, mock_detect, mock_default_loc, sample_interval_schedule
     ):
@@ -976,14 +976,14 @@ class TestLocationFallback:
             longitude=-80.0,
         )
 
-        # generate_pattern_executions should be called with explicit params
+        # generate_routine_executions should be called with explicit params
         call_args = mock_gen_exec.call_args
         assert call_args.kwargs["latitude"] == 35.0
         assert call_args.kwargs["longitude"] == -80.0
 
     @patch("webui.backend.lib.schedule_preview._get_default_location")
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")
-    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    @patch("webui.backend.lib.schedule_preview.generate_routine_executions")
     def test_location_from_controls_fallback(
         self, mock_gen_exec, mock_detect, mock_default_loc, sample_interval_schedule
     ):
@@ -998,14 +998,14 @@ class TestLocationFallback:
         # Call without explicit params
         generate_preview(sample_interval_schedule, days=1)
 
-        # generate_pattern_executions should be called with default location
+        # generate_routine_executions should be called with default location
         call_args = mock_gen_exec.call_args
         assert call_args.kwargs["latitude"] == 10.0
         assert call_args.kwargs["longitude"] == 20.0
 
     @patch("webui.backend.lib.schedule_preview._get_default_location")
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")
-    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    @patch("webui.backend.lib.schedule_preview.generate_routine_executions")
     def test_default_location_warning_included(
         self, mock_gen_exec, mock_detect, mock_default_loc, sample_interval_schedule
     ):
@@ -1028,7 +1028,7 @@ class TestLocationFallback:
 
     @patch("webui.backend.lib.schedule_preview._get_default_location")
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")
-    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    @patch("webui.backend.lib.schedule_preview.generate_routine_executions")
     def test_explicit_location_no_warning(
         self, mock_gen_exec, mock_detect, mock_default_loc, sample_interval_schedule
     ):
@@ -1053,7 +1053,7 @@ class TestLocationFallback:
 
     @patch("webui.backend.lib.schedule_preview._get_default_location")
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")
-    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    @patch("webui.backend.lib.schedule_preview.generate_routine_executions")
     def test_controls_location_no_warning(
         self, mock_gen_exec, mock_detect, mock_default_loc, sample_interval_schedule
     ):
@@ -1074,7 +1074,7 @@ class TestLocationFallback:
 
     @patch("webui.backend.lib.schedule_preview._get_default_location")
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")
-    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    @patch("webui.backend.lib.schedule_preview.generate_routine_executions")
     def test_sensor_trigger_warning_included(
         self, mock_gen_exec, mock_detect, mock_default_loc, sample_sensor_schedule
     ):
@@ -1104,7 +1104,7 @@ class TestPreviewGeneration:
     """Integration tests for full preview generation."""
 
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")
-    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    @patch("webui.backend.lib.schedule_preview.generate_routine_executions")
     def test_generate_preview_returns_result(
         self, mock_gen_exec, mock_detect, sample_interval_schedule
     ):
@@ -1124,24 +1124,24 @@ class TestPreviewGeneration:
         assert result.total_actions == 0
 
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")
-    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    @patch("webui.backend.lib.schedule_preview.generate_routine_executions")
     def test_generate_preview_counts_actions(
         self, mock_gen_exec, mock_detect, sample_interval_schedule
     ):
         """Test generate_preview correctly counts actions."""
-        from webui.backend.lib.schedule_conflict import PatternExecution
+        from webui.backend.lib.schedule_conflict import RoutineExecution
 
-        # Mock 2 routine executions (pattern_id is routine_id in Schema 3.0)
-        mock_exec_1 = PatternExecution(
-            pattern_id="uv-capture-cycle",
-            pattern_name="UV Capture Cycle",
+        # Mock 2 routine executions (routine_id is routine_id in Schema 3.0)
+        mock_exec_1 = RoutineExecution(
+            routine_id="uv-capture-cycle",
+            routine_name="UV Capture Cycle",
             start_time=datetime(2025, 6, 15, 21, 0, 0, tzinfo=UTC),
             end_time=datetime(2025, 6, 15, 21, 15, 0, tzinfo=UTC),
             resource_usages=[],
         )
-        mock_exec_2 = PatternExecution(
-            pattern_id="uv-capture-cycle",
-            pattern_name="UV Capture Cycle",
+        mock_exec_2 = RoutineExecution(
+            routine_id="uv-capture-cycle",
+            routine_name="UV Capture Cycle",
             start_time=datetime(2025, 6, 15, 22, 0, 0, tzinfo=UTC),
             end_time=datetime(2025, 6, 15, 22, 15, 0, tzinfo=UTC),
             resource_usages=[],
@@ -1159,7 +1159,7 @@ class TestPreviewGeneration:
         assert result.total_actions == 6
 
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")
-    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    @patch("webui.backend.lib.schedule_preview.generate_routine_executions")
     def test_preview_boundaries_use_timezone(
         self, mock_gen_exec, mock_detect, sample_interval_schedule
     ):
@@ -1200,7 +1200,7 @@ class TestPreviewGeneration:
         assert result_utc.preview_start.minute == 0
 
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")
-    @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
+    @patch("webui.backend.lib.schedule_preview.generate_routine_executions")
     def test_preview_boundaries_timezone_offset(
         self, mock_gen_exec, mock_detect, sample_interval_schedule
     ):

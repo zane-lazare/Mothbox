@@ -66,15 +66,15 @@ class ResourceUsage:
         resource_name: Specific action name (e.g., "takephoto", "attract_on")
         start_time: When resource is acquired
         end_time: When resource is released
-        pattern_id: Source pattern ID
-        action_index: Index within pattern's actions list
+        routine_id: Source routine ID
+        action_index: Index within routine's actions list
     """
 
     resource_type: str
     resource_name: str
     start_time: datetime
     end_time: datetime
-    pattern_id: str
+    routine_id: str
     action_index: int
 
     def to_dict(self) -> dict:
@@ -84,7 +84,7 @@ class ResourceUsage:
             "resource_name": self.resource_name,
             "start_time": self.start_time.isoformat(),
             "end_time": self.end_time.isoformat(),
-            "pattern_id": self.pattern_id,
+            "routine_id": self.routine_id,
             "action_index": self.action_index,
         }
 
@@ -96,26 +96,26 @@ class ResourceUsage:
             resource_name=data["resource_name"],
             start_time=datetime.fromisoformat(data["start_time"]),
             end_time=datetime.fromisoformat(data["end_time"]),
-            pattern_id=data["pattern_id"],
+            routine_id=data["routine_id"],
             action_index=data["action_index"],
         )
 
 
 @dataclass
-class PatternExecution:
+class RoutineExecution:
     """
     Represents a single execution of a Routine at a specific time.
 
     Attributes:
-        pattern_id: The Routine ID
-        pattern_name: Human-readable routine name
+        routine_id: The Routine ID
+        routine_name: Human-readable routine name
         start_time: Absolute start time of routine execution
         end_time: When routine completes (start + duration)
         resource_usages: List of resources used during execution
     """
 
-    pattern_id: str
-    pattern_name: str
+    routine_id: str
+    routine_name: str
     start_time: datetime
     end_time: datetime
     resource_usages: list[ResourceUsage] = field(default_factory=list)
@@ -123,19 +123,19 @@ class PatternExecution:
     def to_dict(self) -> dict:
         """Serialize to dictionary."""
         return {
-            "pattern_id": self.pattern_id,
-            "pattern_name": self.pattern_name,
+            "routine_id": self.routine_id,
+            "routine_name": self.routine_name,
             "start_time": self.start_time.isoformat(),
             "end_time": self.end_time.isoformat(),
             "resource_usages": [r.to_dict() for r in self.resource_usages],
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "PatternExecution":
+    def from_dict(cls, data: dict) -> "RoutineExecution":
         """Deserialize from dictionary."""
         return cls(
-            pattern_id=data["pattern_id"],
-            pattern_name=data["pattern_name"],
+            routine_id=data["routine_id"],
+            routine_name=data["routine_name"],
             start_time=datetime.fromisoformat(data["start_time"]),
             end_time=datetime.fromisoformat(data["end_time"]),
             resource_usages=[ResourceUsage.from_dict(r) for r in data.get("resource_usages", [])],
@@ -289,8 +289,8 @@ class ConflictReport:
 
 
 def check_time_overlap(
-    exec1: PatternExecution,
-    exec2: PatternExecution,
+    exec1: RoutineExecution,
+    exec2: RoutineExecution,
 ) -> tuple[bool, datetime | None, datetime | None]:
     """
     Check if two pattern executions overlap in time.
@@ -623,11 +623,11 @@ def _get_routine_trigger_times_for_day(
 
 def _create_resource_usage(
     action: Action,
-    pattern_id: str,
+    routine_id: str,
     action_index: int,
     execution_start: datetime,
 ) -> ResourceUsage:
-    """Create ResourceUsage from a Action."""
+    """Create ResourceUsage from an Action."""
     resource_type = get_resource_type(action)
 
     # Calculate actual times
@@ -644,16 +644,16 @@ def _create_resource_usage(
         resource_name=action.action_name,
         start_time=action_start,
         end_time=action_end,
-        pattern_id=pattern_id,
+        routine_id=routine_id,
         action_index=action_index,
     )
 
 
-def _create_pattern_execution(
+def _create_routine_execution(
     routine: Routine,
     trigger_time: datetime,
-) -> PatternExecution:
-    """Create PatternExecution from Routine at trigger time (Schema 3.0)."""
+) -> RoutineExecution:
+    """Create RoutineExecution from Routine at trigger time (Schema 3.0)."""
     # Calculate execution duration from max action offset
     duration_minutes = routine.duration_minutes if routine.actions else 0
     end_time = trigger_time + timedelta(minutes=duration_minutes)
@@ -664,25 +664,25 @@ def _create_pattern_execution(
         for i, action in enumerate(routine.actions)
     ]
 
-    return PatternExecution(
-        pattern_id=routine.routine_id,
-        pattern_name=routine.name,
+    return RoutineExecution(
+        routine_id=routine.routine_id,
+        routine_name=routine.name,
         start_time=trigger_time,
         end_time=end_time,
         resource_usages=resource_usages,
     )
 
 
-def generate_pattern_executions(
+def generate_routine_executions(
     schedule: Schedule,
     start_date: date,
     end_date: date,
     latitude: float,
     longitude: float,
     timezone_name: str = "UTC",
-) -> list[PatternExecution]:
+) -> list[RoutineExecution]:
     """
-    Generate all pattern executions for a schedule within a date range (Schema 3.0).
+    Generate all routine executions for a schedule within a date range (Schema 3.0).
 
     Each routine has its own trigger, so we generate executions per-routine.
 
@@ -695,7 +695,7 @@ def generate_pattern_executions(
         timezone_name: Timezone for time resolution
 
     Returns:
-        List of PatternExecution objects sorted by start_time
+        List of RoutineExecution objects sorted by start_time
     """
     executions = []
 
@@ -719,7 +719,7 @@ def generate_pattern_executions(
 
             # Create execution for each trigger time
             for trigger_time in routine_trigger_times:
-                execution = _create_pattern_execution(routine, trigger_time)
+                execution = _create_routine_execution(routine, trigger_time)
                 executions.append(execution)
 
             current += timedelta(days=1)
@@ -787,7 +787,7 @@ def detect_conflicts(
     """
     Detect all conflicts in a schedule over a preview period.
 
-    Analyzes time overlaps and resource contention for all pattern
+    Analyzes time overlaps and resource contention for all routine
     executions within the preview window.
 
     Args:
@@ -805,8 +805,8 @@ def detect_conflicts(
     start_date = date.today()
     end_date = start_date + timedelta(days=preview_days - 1)
 
-    # Generate all pattern executions
-    executions = generate_pattern_executions(
+    # Generate all routine executions
+    executions = generate_routine_executions(
         schedule, start_date, end_date, latitude, longitude, timezone_name
     )
 
@@ -822,35 +822,35 @@ def detect_conflicts(
                 # Create time overlap conflict (warning severity)
                 time_conflict = Conflict(
                     conflict_type=CONFLICT_TIME_OVERLAP,
-                    event1_id=exec1.pattern_id,
-                    event1_name=exec1.pattern_name,
-                    event2_id=exec2.pattern_id,
-                    event2_name=exec2.pattern_name,
+                    event1_id=exec1.routine_id,
+                    event1_name=exec1.routine_name,
+                    event2_id=exec2.routine_id,
+                    event2_name=exec2.routine_name,
                     start_time=overlap_start,
                     end_time=overlap_end,
                     message=(
-                        f"Patterns '{exec1.pattern_name}' and '{exec2.pattern_name}' "
+                        f"Routines '{exec1.routine_name}' and '{exec2.routine_name}' "
                         f"overlap from {overlap_start.strftime('%H:%M:%S')} to "
                         f"{overlap_end.strftime('%H:%M:%S')}"
                     ),
                     suggested_resolution=(
-                        "Adjust pattern offsets or increase interval between triggers"
+                        "Adjust routine offsets or increase interval between triggers"
                     ),
                     severity=SEVERITY_WARNING,
                 )
                 conflicts.append(time_conflict)
 
-                # Check resource contention within overlapping patterns
+                # Check resource contention within overlapping routines
                 for usage1 in exec1.resource_usages:
                     for usage2 in exec2.resource_usages:
                         contends, conflict_type = check_resource_contention(usage1, usage2)
                         if contends:
                             resource_conflict = Conflict(
                                 conflict_type=conflict_type,
-                                event1_id=exec1.pattern_id,
-                                event1_name=exec1.pattern_name,
-                                event2_id=exec2.pattern_id,
-                                event2_name=exec2.pattern_name,
+                                event1_id=exec1.routine_id,
+                                event1_name=exec1.routine_name,
+                                event2_id=exec2.routine_id,
+                                event2_name=exec2.routine_name,
                                 start_time=max(usage1.start_time, usage2.start_time),
                                 end_time=min(usage1.end_time, usage2.end_time),
                                 resource=usage1.resource_type,
@@ -937,7 +937,7 @@ def detect_time_collisions(
     """
     Detect when two or more routines execute at exactly the same time.
 
-    Uses generate_pattern_executions() to get all routine execution times
+    Uses generate_routine_executions() to get all routine execution times
     over the preview period, then identifies exact time matches.
 
     Time collisions are blocking errors because hardware resources
@@ -963,8 +963,8 @@ def detect_time_collisions(
     lat = latitude if latitude is not None else 0.0
     lon = longitude if longitude is not None else 0.0
 
-    # Generate all pattern executions
-    executions = generate_pattern_executions(
+    # Generate all routine executions
+    executions = generate_routine_executions(
         schedule, start_date, end_date, lat, lon, timezone_name
     )
 
@@ -972,7 +972,7 @@ def detect_time_collisions(
         return []
 
     # Group executions by start_time
-    by_time: dict[datetime, list[PatternExecution]] = {}
+    by_time: dict[datetime, list[RoutineExecution]] = {}
     for execution in executions:
         by_time.setdefault(execution.start_time, []).append(execution)
 
@@ -980,8 +980,8 @@ def detect_time_collisions(
     collisions = []
     for exec_time, execs in by_time.items():
         if len(execs) >= 2:
-            routine_ids = [e.pattern_id for e in execs]
-            routine_names = [e.pattern_name or e.pattern_id for e in execs]
+            routine_ids = [e.routine_id for e in execs]
+            routine_names = [e.routine_name or e.routine_id for e in execs]
 
             # Generate human-readable message
             if len(routine_names) == 2:
@@ -1004,3 +1004,130 @@ def detect_time_collisions(
         )
 
     return collisions
+
+
+# ============================================================================
+# GPIO State Warning Detection
+# ============================================================================
+
+
+@dataclass
+class GPIOStateWarning:
+    """
+    Warning for unbalanced GPIO states (non-blocking).
+
+    Represents a warning when GPIO resources (attract, flash) are
+    left in an inconsistent state, such as turning on without
+    a corresponding off action within the same routine.
+
+    These warnings are advisory and do not block schedule activation.
+
+    Attributes:
+        resource_type: GPIO resource type ("attract" or "flash")
+        routine_id: Source routine ID
+        routine_name: Human-readable routine name
+        issue: Description of the state imbalance
+        suggested_fix: Recommended action to resolve
+    """
+
+    resource_type: str
+    routine_id: str
+    routine_name: str
+    issue: str
+    suggested_fix: str
+
+    def to_dict(self) -> dict:
+        """Serialize to dictionary."""
+        return {
+            "type": "gpio_state_warning",
+            "resource_type": self.resource_type,
+            "routine_id": self.routine_id,
+            "routine_name": self.routine_name,
+            "issue": self.issue,
+            "suggested_fix": self.suggested_fix,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "GPIOStateWarning":
+        """Deserialize from dictionary."""
+        return cls(
+            resource_type=data["resource_type"],
+            routine_id=data["routine_id"],
+            routine_name=data["routine_name"],
+            issue=data["issue"],
+            suggested_fix=data["suggested_fix"],
+        )
+
+
+def detect_gpio_conflicts(schedule: Schedule) -> list[GPIOStateWarning]:
+    """
+    Detect unbalanced GPIO states in a schedule.
+
+    Analyzes routines for GPIO actions that may leave hardware
+    in an inconsistent state (e.g., attract_on without attract_off).
+
+    These are non-blocking warnings that don't prevent schedule
+    activation but alert users to potential issues.
+
+    Args:
+        schedule: Schedule to analyze
+
+    Returns:
+        List of GPIOStateWarning objects. Empty if no issues detected.
+    """
+    warnings: list[GPIOStateWarning] = []
+
+    for routine in schedule.routines:
+        # Track GPIO state changes within routine
+        gpio_states: dict[str, list[str]] = {"attract": [], "flash": []}
+
+        for action in routine.actions:
+            if action.action_type == "gpio":
+                if action.action_name.startswith("attract"):
+                    state = "on" if action.action_name.endswith("_on") else "off"
+                    gpio_states["attract"].append(state)
+                elif action.action_name.startswith("flash"):
+                    state = "on" if action.action_name.endswith("_on") else "off"
+                    gpio_states["flash"].append(state)
+
+        # Check for imbalanced states
+        for resource, states in gpio_states.items():
+            if states:
+                on_count = states.count("on")
+                off_count = states.count("off")
+
+                if on_count > off_count:
+                    warnings.append(
+                        GPIOStateWarning(
+                            resource_type=resource,
+                            routine_id=routine.routine_id,
+                            routine_name=routine.name or routine.routine_id,
+                            issue=(
+                                f"{resource.title()} turned on {on_count} time(s) "
+                                f"but off {off_count} time(s)"
+                            ),
+                            suggested_fix=f"Add {resource}_off action at end of routine",
+                        )
+                    )
+                elif off_count > on_count:
+                    warnings.append(
+                        GPIOStateWarning(
+                            resource_type=resource,
+                            routine_id=routine.routine_id,
+                            routine_name=routine.name or routine.routine_id,
+                            issue=(
+                                f"{resource.title()} turned off {off_count} time(s) "
+                                f"but on {on_count} time(s)"
+                            ),
+                            suggested_fix=(
+                                f"Verify {resource}_on action exists before {resource}_off"
+                            ),
+                        )
+                    )
+
+    if warnings:
+        logger.debug(
+            f"Found {len(warnings)} GPIO state warning(s) in schedule {schedule.schedule_id}"
+        )
+
+    return warnings
