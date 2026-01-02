@@ -64,9 +64,11 @@ try:
         ConflictReport,
         PatternExecution,
         ResourceUsage,
+        TimeCollision,
         check_resource_contention,
         check_time_overlap,
         detect_conflicts,
+        detect_time_collisions,
         generate_pattern_executions,
         get_resource_type,
         validate_schedule_conflicts,
@@ -1848,3 +1850,348 @@ class TestMoonPhaseTriggerGeneration:
         for exec in executions:
             assert exec.start_time.hour == 12
             assert exec.start_time.minute == 0
+
+
+# ============================================================================
+# Time Collision Detection Tests
+# ============================================================================
+
+
+class TestTimeCollision:
+    """Tests for TimeCollision dataclass."""
+
+    def test_time_collision_creation(self):
+        """TimeCollision can be created with required fields."""
+        collision = TimeCollision(
+            time=datetime(2024, 6, 17, 21, 0, 0),
+            routine_ids=["r1", "r2"],
+            message="'Routine 1' and 'Routine 2' execute at identical time",
+        )
+
+        assert collision.time == datetime(2024, 6, 17, 21, 0, 0)
+        assert collision.routine_ids == ["r1", "r2"]
+        assert "execute at identical time" in collision.message
+
+    def test_time_collision_to_dict(self):
+        """TimeCollision serializes correctly to dictionary."""
+        collision = TimeCollision(
+            time=datetime(2024, 6, 17, 21, 0, 0),
+            routine_ids=["r1", "r2"],
+            message="Test collision",
+        )
+
+        d = collision.to_dict()
+
+        assert d["type"] == "time_collision"
+        assert d["time"] == "2024-06-17T21:00:00"
+        assert d["routine_ids"] == ["r1", "r2"]
+        assert d["message"] == "Test collision"
+
+    def test_time_collision_from_dict(self):
+        """TimeCollision deserializes correctly from dictionary."""
+        data = {
+            "time": "2024-06-17T21:00:00",
+            "routine_ids": ["r1", "r2", "r3"],
+            "message": "Three routines collide",
+        }
+
+        collision = TimeCollision.from_dict(data)
+
+        assert collision.time == datetime(2024, 6, 17, 21, 0, 0)
+        assert collision.routine_ids == ["r1", "r2", "r3"]
+        assert collision.message == "Three routines collide"
+
+    def test_time_collision_roundtrip(self):
+        """TimeCollision survives serialization roundtrip."""
+        original = TimeCollision(
+            time=datetime(2024, 6, 17, 21, 30, 15),
+            routine_ids=["routine-a", "routine-b"],
+            message="Collision at 21:30",
+        )
+
+        restored = TimeCollision.from_dict(original.to_dict())
+
+        assert restored.time == original.time
+        assert restored.routine_ids == original.routine_ids
+        assert restored.message == original.message
+
+
+class TestDetectTimeCollisions:
+    """Tests for detect_time_collisions() function."""
+
+    def test_no_collisions_empty_schedule(self):
+        """Empty schedule returns no collisions."""
+        from webui.backend.lib.schedule_schema import Schedule
+
+        schedule = Schedule(
+            schedule_id="empty",
+            name="Empty Schedule",
+            routines=[],
+            enabled=True,
+        )
+
+        collisions = detect_time_collisions(schedule)
+
+        assert collisions == []
+
+    def test_no_collisions_single_routine(self):
+        """Single routine schedule returns no collisions."""
+        from webui.backend.lib.schedule_schema import (
+            Action,
+            FixedTimeTrigger,
+            Routine,
+            Schedule,
+        )
+
+        routine = Routine(
+            routine_id="r1",
+            name="Morning Photo",
+            trigger=FixedTimeTrigger(time="09:00"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+
+        schedule = Schedule(
+            schedule_id="single",
+            name="Single Routine",
+            routines=[routine],
+            enabled=True,
+        )
+
+        collisions = detect_time_collisions(schedule)
+
+        assert collisions == []
+
+    def test_no_collisions_different_times(self):
+        """Routines at different times return no collisions."""
+        from webui.backend.lib.schedule_schema import (
+            Action,
+            FixedTimeTrigger,
+            Routine,
+            Schedule,
+        )
+
+        routine1 = Routine(
+            routine_id="r1",
+            name="Morning Photo",
+            trigger=FixedTimeTrigger(time="09:00"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        routine2 = Routine(
+            routine_id="r2",
+            name="Evening Photo",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+
+        schedule = Schedule(
+            schedule_id="different",
+            name="Different Times",
+            routines=[routine1, routine2],
+            enabled=True,
+        )
+
+        collisions = detect_time_collisions(schedule)
+
+        assert collisions == []
+
+    def test_collision_detected_same_fixed_time(self):
+        """Two routines at same fixed time are detected as collision."""
+        from webui.backend.lib.schedule_schema import (
+            Action,
+            FixedTimeTrigger,
+            Routine,
+            Schedule,
+        )
+
+        routine1 = Routine(
+            routine_id="r1",
+            name="Photo A",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        routine2 = Routine(
+            routine_id="r2",
+            name="Photo B",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[Action(action_type="gpio", action_name="flash_on")],
+        )
+
+        schedule = Schedule(
+            schedule_id="collision",
+            name="Same Time",
+            routines=[routine1, routine2],
+            enabled=True,
+        )
+
+        collisions = detect_time_collisions(schedule, preview_days=1)
+
+        assert len(collisions) >= 1
+        collision = collisions[0]
+        assert "r1" in collision.routine_ids
+        assert "r2" in collision.routine_ids
+        assert collision.time.hour == 21
+        assert collision.time.minute == 0
+
+    def test_collision_message_two_routines(self):
+        """Collision message mentions both routine names."""
+        from webui.backend.lib.schedule_schema import (
+            Action,
+            FixedTimeTrigger,
+            Routine,
+            Schedule,
+        )
+
+        routine1 = Routine(
+            routine_id="r1",
+            name="UV Capture",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        routine2 = Routine(
+            routine_id="r2",
+            name="Flash Capture",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+
+        schedule = Schedule(
+            schedule_id="msg-test",
+            name="Message Test",
+            routines=[routine1, routine2],
+            enabled=True,
+        )
+
+        collisions = detect_time_collisions(schedule, preview_days=1)
+
+        assert len(collisions) >= 1
+        collision = collisions[0]
+        assert "UV Capture" in collision.message
+        assert "Flash Capture" in collision.message
+        assert "identical time" in collision.message
+
+    def test_three_routines_same_time(self):
+        """Three routines at same time creates one collision with all IDs."""
+        from webui.backend.lib.schedule_schema import (
+            Action,
+            FixedTimeTrigger,
+            Routine,
+            Schedule,
+        )
+
+        routines = [
+            Routine(
+                routine_id=f"r{i}",
+                name=f"Routine {i}",
+                trigger=FixedTimeTrigger(time="09:00"),
+                actions=[Action(action_type="camera", action_name="takephoto")],
+            )
+            for i in range(1, 4)
+        ]
+
+        schedule = Schedule(
+            schedule_id="triple",
+            name="Triple Collision",
+            routines=routines,
+            enabled=True,
+        )
+
+        collisions = detect_time_collisions(schedule, preview_days=1)
+
+        assert len(collisions) >= 1
+        collision = collisions[0]
+        assert len(collision.routine_ids) == 3
+        assert "r1" in collision.routine_ids
+        assert "r2" in collision.routine_ids
+        assert "r3" in collision.routine_ids
+        # Message should mention all 3
+        assert "3 routines" in collision.message
+
+    def test_multiple_collision_times(self):
+        """Multiple collision times return multiple TimeCollision objects."""
+        from webui.backend.lib.schedule_schema import (
+            Action,
+            FixedTimeTrigger,
+            Routine,
+            Schedule,
+        )
+
+        routines = [
+            # Collision at 09:00
+            Routine(
+                routine_id="r1",
+                name="Morning A",
+                trigger=FixedTimeTrigger(time="09:00"),
+                actions=[Action(action_type="camera", action_name="takephoto")],
+            ),
+            Routine(
+                routine_id="r2",
+                name="Morning B",
+                trigger=FixedTimeTrigger(time="09:00"),
+                actions=[Action(action_type="camera", action_name="takephoto")],
+            ),
+            # Collision at 21:00
+            Routine(
+                routine_id="r3",
+                name="Evening A",
+                trigger=FixedTimeTrigger(time="21:00"),
+                actions=[Action(action_type="camera", action_name="takephoto")],
+            ),
+            Routine(
+                routine_id="r4",
+                name="Evening B",
+                trigger=FixedTimeTrigger(time="21:00"),
+                actions=[Action(action_type="camera", action_name="takephoto")],
+            ),
+        ]
+
+        schedule = Schedule(
+            schedule_id="multi",
+            name="Multiple Collisions",
+            routines=routines,
+            enabled=True,
+        )
+
+        collisions = detect_time_collisions(schedule, preview_days=1)
+
+        # Should have at least 2 collisions (09:00 and 21:00 on day 1)
+        assert len(collisions) >= 2
+
+        times = {c.time.hour for c in collisions}
+        assert 9 in times
+        assert 21 in times
+
+    def test_collision_uses_routine_name_fallback(self):
+        """Collision uses routine_id if name is None."""
+        from webui.backend.lib.schedule_schema import (
+            Action,
+            FixedTimeTrigger,
+            Routine,
+            Schedule,
+        )
+
+        routine1 = Routine(
+            routine_id="routine-abc",
+            name=None,  # No name, should use ID in message
+            trigger=FixedTimeTrigger(time="12:00"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        routine2 = Routine(
+            routine_id="routine-xyz",
+            name=None,
+            trigger=FixedTimeTrigger(time="12:00"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+
+        schedule = Schedule(
+            schedule_id="nameless",
+            name="Nameless Routines",
+            routines=[routine1, routine2],
+            enabled=True,
+        )
+
+        collisions = detect_time_collisions(schedule, preview_days=1)
+
+        assert len(collisions) >= 1
+        collision = collisions[0]
+        # Should use routine_id when name is None
+        assert "routine-abc" in collision.message or "routine-xyz" in collision.message

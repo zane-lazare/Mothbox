@@ -208,6 +208,43 @@ class Conflict:
 
 
 @dataclass
+class TimeCollision:
+    """
+    Represents two or more routines executing at the exact same time.
+
+    Time collisions are blocking errors that prevent schedule activation
+    because hardware resources (especially camera) cannot be shared.
+
+    Attributes:
+        time: The exact datetime when collision occurs
+        routine_ids: List of routine IDs that collide
+        message: Human-readable description of the collision
+    """
+
+    time: datetime
+    routine_ids: list[str]
+    message: str
+
+    def to_dict(self) -> dict:
+        """Serialize to dictionary."""
+        return {
+            "type": "time_collision",
+            "time": self.time.isoformat(),
+            "routine_ids": self.routine_ids,
+            "message": self.message,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "TimeCollision":
+        """Deserialize from dictionary."""
+        return cls(
+            time=datetime.fromisoformat(data["time"]),
+            routine_ids=data["routine_ids"],
+            message=data["message"],
+        )
+
+
+@dataclass
 class ConflictReport:
     """
     Complete conflict detection report for a schedule.
@@ -883,3 +920,87 @@ def validate_schedule_conflicts(
         return False, error
 
     return True, None
+
+
+# ============================================================================
+# Time Collision Detection
+# ============================================================================
+
+
+def detect_time_collisions(
+    schedule: Schedule,
+    preview_days: int = 7,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    timezone_name: str = "UTC",
+) -> list[TimeCollision]:
+    """
+    Detect when two or more routines execute at exactly the same time.
+
+    Uses generate_pattern_executions() to get all routine execution times
+    over the preview period, then identifies exact time matches.
+
+    Time collisions are blocking errors because hardware resources
+    (especially camera) cannot be shared simultaneously.
+
+    Args:
+        schedule: Schedule to analyze
+        preview_days: Number of days to analyze (default 7)
+        latitude: Location latitude for solar calculations
+        longitude: Location longitude for solar calculations
+        timezone_name: Timezone for time resolution
+
+    Returns:
+        List of TimeCollision objects. Empty list if no collisions.
+    """
+    if not schedule.routines:
+        return []
+
+    start_date = date.today()
+    end_date = start_date + timedelta(days=preview_days - 1)
+
+    # Use latitude/longitude defaults if None
+    lat = latitude if latitude is not None else 0.0
+    lon = longitude if longitude is not None else 0.0
+
+    # Generate all pattern executions
+    executions = generate_pattern_executions(
+        schedule, start_date, end_date, lat, lon, timezone_name
+    )
+
+    if len(executions) < 2:
+        return []
+
+    # Group executions by start_time
+    by_time: dict[datetime, list[PatternExecution]] = {}
+    for execution in executions:
+        by_time.setdefault(execution.start_time, []).append(execution)
+
+    # Find collisions (times with 2+ executions)
+    collisions = []
+    for exec_time, execs in by_time.items():
+        if len(execs) >= 2:
+            routine_ids = [e.pattern_id for e in execs]
+            routine_names = [e.pattern_name or e.pattern_id for e in execs]
+
+            # Generate human-readable message
+            if len(routine_names) == 2:
+                message = f"'{routine_names[0]}' and '{routine_names[1]}' execute at identical time"
+            else:
+                names_str = ", ".join(f"'{n}'" for n in routine_names)
+                message = f"{len(routine_names)} routines execute at identical time: {names_str}"
+
+            collisions.append(
+                TimeCollision(
+                    time=exec_time,
+                    routine_ids=routine_ids,
+                    message=message,
+                )
+            )
+
+    if collisions:
+        logger.debug(
+            f"Found {len(collisions)} time collision(s) in schedule {schedule.schedule_id}"
+        )
+
+    return collisions
