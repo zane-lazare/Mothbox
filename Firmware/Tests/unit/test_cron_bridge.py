@@ -13,11 +13,11 @@ from webui.backend.lib.cron_bridge import (
     calculate_next_waketime,
     clear_rtc_wakealarm,
     fixed_time_trigger_to_cron,
-    get_next_events,
     get_solar_execution_time,
     interval_trigger_to_cron,
     is_moon_phase_active,
     moon_phase_trigger_to_cron,
+    preview_schedule,
     remove_from_system,
     routine_to_cron_entries,
     schedule_to_cron,
@@ -947,11 +947,11 @@ class TestRemoveFromSystem:
             mock_crontab_class.assert_called_once_with(user="testuser")
 
 
-class TestGetNextEvents:
-    """Test get_next_events function (Schema 3.0)."""
+class TestPreviewSchedule:
+    """Test preview_schedule function (Schema 3.0)."""
 
     def test_returns_list_of_events(self):
-        """get_next_events returns list of event dicts."""
+        """preview_schedule returns list of event dicts."""
         # Create simple schedule with interval trigger routine
         action = Action(action_type="camera", action_name="takephoto", offset_minutes=0)
         window = TimeWindow(start_time="21:00", end_time="22:00")
@@ -969,7 +969,7 @@ class TestGetNextEvents:
             routines=[routine],
         )
 
-        events = get_next_events(schedule, count=10, from_time=datetime(2024, 6, 15, 20, 0, 0))
+        events = preview_schedule(schedule, count=10, from_time=datetime(2024, 6, 15, 20, 0, 0))
         assert isinstance(events, list)
         assert len(events) <= 10
 
@@ -990,7 +990,7 @@ class TestGetNextEvents:
             routines=[routine],
         )
 
-        events = get_next_events(schedule, count=5, from_time=datetime(2024, 6, 15, 20, 0, 0))
+        events = preview_schedule(schedule, count=5, from_time=datetime(2024, 6, 15, 20, 0, 0))
         assert len(events) >= 1
         event = events[0]
         assert "datetime" in event
@@ -1020,7 +1020,7 @@ class TestGetNextEvents:
             routines=[routine],
         )
 
-        events = get_next_events(schedule, count=10, from_time=datetime(2024, 6, 15, 20, 0, 0))
+        events = preview_schedule(schedule, count=10, from_time=datetime(2024, 6, 15, 20, 0, 0))
         datetimes = [e["datetime"] for e in events]
         assert datetimes == sorted(datetimes)
 
@@ -1042,7 +1042,7 @@ class TestGetNextEvents:
             routines=[routine],
         )
 
-        events = get_next_events(schedule, count=20, from_time=datetime(2024, 6, 15, 20, 0, 0))
+        events = preview_schedule(schedule, count=20, from_time=datetime(2024, 6, 15, 20, 0, 0))
         action_names = {e["action_name"] for e in events}
         assert "attract_on" in action_names
         assert "takephoto" in action_names
@@ -1067,7 +1067,7 @@ class TestGetNextEvents:
             routines=[routine],
         )
 
-        events = get_next_events(schedule, count=10, from_time=datetime(2024, 6, 15, 0, 0, 0))
+        events = preview_schedule(schedule, count=10, from_time=datetime(2024, 6, 15, 0, 0, 0))
         assert len(events) >= 1
 
     def test_returns_empty_for_disabled_schedule(self):
@@ -1088,11 +1088,11 @@ class TestGetNextEvents:
             enabled=False,
         )
 
-        events = get_next_events(schedule, count=10)
+        events = preview_schedule(schedule, count=10)
         assert events == []
 
     def test_respects_count_limit(self):
-        """get_next_events respects count parameter."""
+        """preview_schedule respects count parameter."""
         action = Action(action_type="camera", action_name="takephoto", offset_minutes=0)
         trigger = FixedTimeTrigger(time="21:00", days_of_week=None)
         routine = Routine(
@@ -1108,8 +1108,8 @@ class TestGetNextEvents:
             routines=[routine],
         )
 
-        events5 = get_next_events(schedule, count=5, from_time=datetime(2024, 6, 15, 20, 0, 0))
-        events10 = get_next_events(schedule, count=10, from_time=datetime(2024, 6, 15, 20, 0, 0))
+        events5 = preview_schedule(schedule, count=5, from_time=datetime(2024, 6, 15, 20, 0, 0))
+        events10 = preview_schedule(schedule, count=10, from_time=datetime(2024, 6, 15, 20, 0, 0))
         assert len(events5) == 5
         assert len(events10) == 10
 

@@ -1383,11 +1383,11 @@ def schedule_to_cron(
 
 
 # =============================================================================
-# EVENT PREVIEW
+# SCHEDULE PREVIEW
 # =============================================================================
 
 
-def get_next_events(
+def preview_schedule(
     schedule: Schedule,
     count: int = 10,
     from_time: datetime | None = None,
@@ -1395,22 +1395,22 @@ def get_next_events(
     longitude: float | None = None,
     timezone_name: str = "UTC",
 ) -> list[dict]:
-    """Preview next N scheduled events without modifying system (Schema 3.0).
+    """Preview upcoming schedule executions (Schema 3.0).
 
-    Iterates over each routine in the schedule, calculates upcoming event
+    Iterates over each routine in the schedule, calculates upcoming
     execution times based on the routine's embedded trigger, and aggregates
-    all events.
+    all results.
 
     Args:
         schedule: Schedule object to preview
-        count: Maximum number of events to return (default 10)
-        from_time: Calculate events from this time (defaults to now)
+        count: Maximum number of executions to return (default 10)
+        from_time: Calculate executions from this time (defaults to now)
         latitude: Observer latitude (required for solar triggers)
         longitude: Observer longitude (required for solar triggers)
         timezone_name: Timezone for calculations
 
     Returns:
-        List of event dicts with:
+        List of dicts with:
         - datetime: ISO 8601 string
         - action_type: str (gpio, camera, etc.)
         - action_name: str (attract_on, takephoto, etc.)
